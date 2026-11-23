@@ -191,15 +191,12 @@ const summarizeOne = (
   models: TopicsModels,
   text: string,
   config: TopicProcessingConfig,
-  onCost?: (cost: number | null) => void,
 ) =>
   summarizeTopicTraceFacets(
     models,
     [{ key: "intent", facet, builtIn: true }],
     text,
     config,
-    undefined,
-    onCost,
   );
 const keyed = (output: Record<string, unknown>) => ({
   intent: { notes: "Evidence.", ...output },
@@ -235,16 +232,13 @@ describe("Topics naming boundary", () => {
       JSON.stringify({ accessKeyId: "AKIATOPICS", secretAccessKey: "test" }),
     );
 
-    const costs: (number | null)[] = [];
     await expect(
       summarizeOne(
         models,
         "Trace evidence.",
         topicProcessingConfigSchema.parse({}),
-        (cost) => costs.push(cost),
       ),
     ).rejects.toMatchObject({ name: "ZodError" });
-    expect(costs).toEqual([null, expect.closeTo(0.000032, 12)]);
     expect(state.increment).toHaveBeenCalledWith("langfuse.topics.tokens", 12, {
       stage: "summary",
       direction: "input",
@@ -1198,7 +1192,7 @@ describe("Topics naming boundary", () => {
       ["An invoice request.", "A billing question."],
       256,
       "project",
-      { metadata: { source_trace_id: "trace", execution_id: "snapshot" } },
+      { source_trace_id: "trace", execution_id: "snapshot" },
     );
     expect(state.spanAttributes).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1220,19 +1214,16 @@ describe("Topics naming boundary", () => {
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
-    const costs: (number | null)[] = [];
     await expect(
       embedTopicSummaries(
         topicsModels().embedding,
         ["An invoice request."],
         256,
         "project",
-        { onCost: (cost) => costs.push(cost) },
       ),
     ).rejects.toMatchObject({
       reason: "invalid_output",
     });
-    expect(costs).toEqual([null, 0.000012]);
     expect(tokenCalls()).toEqual([
       [
         "langfuse.topics.tokens",

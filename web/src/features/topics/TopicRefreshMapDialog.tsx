@@ -19,7 +19,10 @@ export function TopicRefreshMapDialog({
     onSuccess: async () => {
       await Promise.all([
         utils.topics.maps.invalidate({ projectId }),
-        utils.topics.ruleMapCost.invalidate(input, { refetchType: "none" }),
+        utils.topics.ruleMapCosts.invalidate(
+          { projectId },
+          { refetchType: "none" },
+        ),
       ]);
       closeDialog();
     },

@@ -126,7 +126,6 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
     phase: "summarizing",
     costBreakdown: {
       summaries: 0.31,
-      summaryCheckpoint: { partial: true, asOf: createdAt },
       naming: { cost: 0, partial: false },
     },
     input: {
@@ -155,7 +154,6 @@ const runs: Run[] = [
     facets: [],
     costBreakdown: {
       summaries: null,
-      summaryCheckpoint: { partial: true, asOf: null },
       naming: { cost: null, partial: false },
     },
   },
@@ -230,8 +228,8 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Estimated model cost so far");
-    await expect(active).toHaveTextContent("~$0.31 (partial)");
+    await expect(active).toHaveTextContent("Estimated cost:");
+    await expect(active).toHaveTextContent("~$0.31");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
     ).toBeVisible();
@@ -249,17 +247,15 @@ export const PinsRunningAndGroupsByDay = meta.story({
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
     await expect(rows[0]).toHaveTextContent(
-      "1,412 traces · Estimated model cost · ~$0.00",
+      "1,412 traces · Estimated cost: ~$0.00",
     );
     await expect(rows[1]).toHaveTextContent(
-      "1,330 traces · Estimated model cost · Unavailable",
+      "1,330 traces · Estimated cost: Unavailable",
     );
     await expect(rows[1]).toHaveTextContent("12 traces failed");
-    await expect(rows[2]).toHaveTextContent(
-      "Estimated model cost · Unavailable",
-    );
+    await expect(rows[2]).toHaveTextContent("Estimated cost: Unavailable");
     await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
-    await expect(rows[3]).toHaveTextContent("Estimated model cost · ~$0.00");
+    await expect(rows[3]).toHaveTextContent("Estimated cost: ~$0.00");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 
@@ -282,7 +278,7 @@ export const ShowsRefetchErrorAboveRuns = meta.story({
     await expect(canvas.getAllByRole("button")).toHaveLength(2);
     await expect(
       canvas.getByRole("button", { name: /Snapshot · Checkout.*Queued/ }),
-    ).toHaveTextContent("Estimated model cost so far · Not recorded yet");
+    ).toHaveTextContent("Estimated cost: Unavailable");
   },
 });
 

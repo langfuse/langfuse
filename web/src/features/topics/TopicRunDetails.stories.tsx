@@ -328,13 +328,12 @@ export const QuestionStatusesExplainThemselves = meta.story({
 });
 
 export const SummarizingSnapshotShowsItsCost = meta.story({
-  name: "(Test) A snapshot shows its recorded summary subtotal and time",
+  name: "(Test) A snapshot adds retained processing and naming costs",
   args: {
     execution: {
       ...doneWithIssues,
       costBreakdown: {
         summaries: 0.42,
-        summaryCheckpoint: { partial: true, asOf: "2026-10-22T17:42:00Z" },
         naming: { cost: 0.08, partial: false },
       },
       input: {
@@ -353,13 +352,9 @@ export const SummarizingSnapshotShowsItsCost = meta.story({
     const canvas = within(canvasElement);
     const summaries = canvas.getByText("Summaries and embeddings");
     const summaryValue = summaries.nextElementSibling!;
-    await expect(summaryValue).toHaveTextContent("~$0.42 (partial)");
-    await expect(summaryValue.querySelector("time")).toHaveAttribute(
-      "datetime",
-      "2026-10-22T17:42:00Z",
-    );
+    await expect(summaryValue).toHaveTextContent("~$0.42");
     await expect(canvas.getByText("~$0.08")).toBeVisible();
-    await expect(canvas.getByText("~$0.50 (partial)")).toBeVisible();
+    await expect(canvas.getByText("~$0.50")).toBeVisible();
     await expect(canvas.queryByText("No new summaries")).toBeNull();
   },
 });

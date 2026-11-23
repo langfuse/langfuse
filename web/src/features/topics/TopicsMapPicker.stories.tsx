@@ -4,7 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import {
   TopicsMapPicker,
-  type UseMapCost,
+  type UseMapCosts,
   type UsePreviewTopics,
 } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
@@ -125,14 +125,8 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
     : undefined,
 });
 
-const useStoryMapCost: UseMapCost = (_projectId, ruleId) => {
-  if (!ruleId) return undefined;
-  if (ruleId === "rule-all")
-    return { cost: 0.32, partial: false, updatedAt: hoursAgo(1) };
-  if (ruleId === "rule-support")
-    return { cost: 0.14, partial: true, updatedAt: hoursAgo(26) };
-  return { cost: null, partial: false, updatedAt: null };
-};
+const useStoryMapCosts: UseMapCosts = (_projectId, ruleIds) =>
+  ruleIds.length ? { "rule-all": 0.32, "rule-support": 0.14 } : undefined;
 
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
 function MapSwitcher({
@@ -166,7 +160,7 @@ function MapSwitcher({
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
-          useMapCost={useStoryMapCost}
+          useMapCosts={useStoryMapCosts}
           processingOn
           create={{
             map: { onSelect: fn() },
@@ -258,9 +252,7 @@ export const TestSwitchesMaps = meta.story({
       canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
-    await expect(
-      canvas.getByText("Estimated model cost · ~$0.50"),
-    ).toBeVisible();
+    await expect(canvas.getByText("Estimated cost: ~$0.50")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "View run" }));
     await expect(args.onViewRun).toHaveBeenCalledWith("analysis-refunds");
 
@@ -359,17 +351,12 @@ export const TestRefreshPreviewedMap = meta.story({
   args: { onRefresh: fn() },
   play: async ({ args, canvasElement }) => {
     const picker = await openPicker(canvasElement);
-    await expect(picker.getByText("Map cost")).toBeVisible();
+    await expect(picker.getByText("Estimated cost:")).toBeVisible();
     await expect(picker.getByText("~$0.32")).toBeVisible();
-    await expect(picker.getByRole("time")).toHaveAttribute(
-      "datetime",
-      hoursAgo(1),
-    );
     await userEvent.hover(
       picker.getByRole("button", { name: /^Checkout assistant/ }),
     );
     await expect(picker.getByText("Unavailable")).toBeVisible();
-    await expect(picker.queryByRole("time")).not.toBeInTheDocument();
     await userEvent.hover(
       picker.getByRole("button", { name: /^Support agent/ }),
     );
@@ -378,11 +365,11 @@ export const TestRefreshPreviewedMap = meta.story({
         picker.getByText("Support agent", { selector: ".font-bold" }),
       ).toBeVisible(),
     );
-    await expect(picker.getByText("~$0.14 (partial)")).toBeVisible();
-    await expect(picker.getByRole("time")).toHaveAttribute(
-      "datetime",
-      hoursAgo(26),
-    );
+    await expect(picker.getByText("~$0.14")).toBeVisible();
+    await userEvent.hover(picker.getByText("~$0.14"));
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+    ).toHaveTextContent("Please confirm with your model provider.");
     await userEvent.click(picker.getByRole("button", { name: "Refresh" }));
     await expect(args.onRefresh).toHaveBeenCalledWith("rule-support");
   },

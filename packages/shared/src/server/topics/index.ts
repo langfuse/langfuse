@@ -13,6 +13,5 @@ export * from "./trace-selection";
 export * from "./slices";
 export * from "./rule-setup";
 export * from "./rule-refresh";
-export { applyTopicRuleProcessingCostBatch } from "./rule-processing-cost";
 export * from "./trace-filter";
 export * from "./cost-estimate";

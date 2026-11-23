@@ -3,7 +3,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import {
   formatTopicRunCost,
-  topicRunCostLabel,
+  estimatedTopicCostLabel,
   type TopicRunCost,
 } from "./topic-run-labels";
 import {
@@ -115,13 +115,12 @@ function TopicAnalysisStrip({
   const cost = formatTopicRunCost(
     { operation: "update", analysis },
     costBreakdown,
-    analysis.status,
   );
   return (
     <Strip
       status={topicAnalysisStatus(analysis)}
       run={{
-        cost: `${topicRunCostLabel(analysis.status)} · ${cost}`,
+        cost: `${estimatedTopicCostLabel} ${cost}`,
         label: "View run",
         onView: onViewRun,
       }}

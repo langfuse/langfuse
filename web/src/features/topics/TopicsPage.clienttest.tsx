@@ -1,7 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { Context as ResponsiveContext } from "react-responsive";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
@@ -44,7 +48,10 @@ const state = vi.hoisted(() => ({
     facetIds: string[];
     name?: string;
   }>,
-  mapCosts: {} as Record<string, RouterOutputs["topics"]["ruleMapCost"]>,
+  queryMapCosts:
+    vi.fn<
+      (ruleIds: string[]) => Promise<RouterOutputs["topics"]["ruleMapCosts"]>
+    >(),
   maps: undefined as unknown,
   capture: vi.fn(),
 }));
@@ -256,10 +263,16 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       ruleSetupStatus: { useQuery: () => ({ data: null }) },
-      ruleMapCost: {
-        useQuery: ({ ruleId }: { ruleId: string }) => ({
-          data: state.mapCosts[ruleId],
-        }),
+      ruleMapCosts: {
+        useQuery: (
+          input: { projectId: string; ruleIds: string[] },
+          options: { enabled: boolean; staleTime: number },
+        ) =>
+          useQuery({
+            queryKey: ["topics.ruleMapCosts", input],
+            queryFn: () => state.queryMapCosts(input.ruleIds),
+            ...options,
+          }),
       },
       startRuleSetup: {
         useMutation: () => ({
@@ -366,7 +379,7 @@ beforeEach(() => {
     blockMessage: null,
   };
   state.rules = [];
-  state.mapCosts = {};
+  state.queryMapCosts.mockReset().mockResolvedValue({});
   state.setQueryParams.mockImplementation(
     ({ dateRange }: { dateRange: string }) => {
       state.dateRange = dateRange;
@@ -463,25 +476,23 @@ function withSummaries() {
 it("shows the selected map’s cost while browsing other maps on a phone", async () => {
   withSummaries();
   state.rules.push({ name: "Support agent", facetIds: ["intent"] });
-  state.mapCosts = {
-    "rule-0": { cost: 0, partial: false, updatedAt: "2026-10-09T11:55:00Z" },
-    "rule-1": { cost: 0.14, partial: true, updatedAt: "2026-10-08T12:00:00Z" },
-  };
+  state.queryMapCosts.mockResolvedValue({ "rule-0": 0, "rule-1": 0.14 });
   renderTopicsPage(
     <ResponsiveContext.Provider value={{ width: 390 }}>
       <TopicsPage />
     </ResponsiveContext.Provider>,
   );
-  expect(screen.queryByText("Map cost")).toBeNull();
+  expect(state.queryMapCosts).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Topic map: Rule" }));
   const picker = within(
     await screen.findByRole("dialog", { name: "Topic maps" }),
   );
-  expect(picker.getByText("~$0.00")).toBeVisible();
+  expect(await picker.findByText("~$0.00")).toBeVisible();
+  expect(state.queryMapCosts).toHaveBeenCalledWith(["rule-0", "rule-1"]);
   fireEvent.focus(picker.getByRole("button", { name: /^Support agent/ }));
   expect(picker.getByText("~$0.00")).toBeVisible();
-  expect(picker.getByText("(updated 5m ago)")).toBeVisible();
-  expect(picker.queryByText("~$0.14 (partial)")).toBeNull();
+  expect(picker.queryByText("~$0.14")).toBeNull();
+  expect(state.queryMapCosts).toHaveBeenCalledOnce();
 });
 
 it("keeps settled costs visible while fetching the final cost of a completed run", async () => {

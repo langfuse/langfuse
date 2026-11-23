@@ -21,9 +21,8 @@ const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
-  getTopicSnapshotProcessingCosts: vi.fn(),
   getPreviousTopicRuleRefreshCost: vi.fn(),
-  getTopicRuleMapCost: vi.fn(),
+  getTopicRuleMapCosts: vi.fn(),
   getTopicExecutionNamingCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   listTopicExecutions: vi.fn(),
@@ -214,7 +213,6 @@ beforeEach(() => {
   });
   mocks.readTopicExecutionSummary.mockResolvedValue(execution());
   mocks.getTopicExecutionCosts.mockResolvedValue({});
-  mocks.getTopicSnapshotProcessingCosts.mockResolvedValue({});
   mocks.getLatestFacetSummaries.mockResolvedValue([summary]);
   mocks.hasStoredTopicSummaries.mockResolvedValue(false);
   mocks.createTopicExecution.mockResolvedValue(execution());
@@ -249,7 +247,10 @@ describe("Topics project allowlist", () => {
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
     ["facets", () => outside().facets({ projectId })],
     ["maps", () => outside().maps({ projectId })],
-    ["map cost", () => outside().ruleMapCost({ projectId, ruleId: "rule-a" })],
+    [
+      "map cost",
+      () => outside().ruleMapCosts({ projectId, ruleIds: ["rule-a"] }),
+    ],
     [
       "previous refresh cost",
       () => outside().previousRuleRefreshCost({ projectId, ruleId: "rule-a" }),
@@ -296,7 +297,7 @@ describe("Topics project allowlist", () => {
     expect(mocks.listTopicExecutions).not.toHaveBeenCalled();
     expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
     expect(mocks.getTopicExecutionNamingCosts).not.toHaveBeenCalled();
-    expect(mocks.getTopicRuleMapCost).not.toHaveBeenCalled();
+    expect(mocks.getTopicRuleMapCosts).not.toHaveBeenCalled();
     expect(mocks.getTopicsModels).not.toHaveBeenCalled();
   });
 
@@ -732,14 +733,6 @@ describe("Topics local execution access and publication", () => {
       base,
     ]);
     const recorded = { priced: 0.012, snapshot: 0.037, zero: 0 };
-    mocks.getTopicSnapshotProcessingCosts.mockResolvedValue({
-      snapshot: {
-        cost: 0.04,
-        partial: false,
-        awaitingTraces: false,
-        asOf: null,
-      },
-    });
     mocks.getTopicExecutionCosts.mockImplementation(
       async (_projectId: string, ids: string[]) =>
         Object.fromEntries(
@@ -750,22 +743,21 @@ describe("Topics local execution access and publication", () => {
     const api = caller("VIEWER");
     expect(await api.executions({ projectId })).toMatchObject([
       { id: "priced", estimatedCost: 0.012 },
-      { id: "snapshot", estimatedCost: 0.04 },
+      { id: "snapshot", estimatedCost: 0.037 },
       { id: "zero", estimatedCost: 0 },
       { id: "historical", estimatedCost: null },
       { id: "execution-a", estimatedCost: null },
     ]);
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["priced", "zero", "historical"],
+      ["priced", "snapshot", "zero", "historical"],
     );
     mocks.readTopicExecutionSummary.mockResolvedValue(snapshot);
     const request = { projectId, executionId: snapshot.id };
     expect(await api.execution(request)).toMatchObject({
-      estimatedCost: 0.04,
+      estimatedCost: 0.037,
     });
     mocks.getTopicExecutionCosts.mockClear();
-    mocks.getTopicSnapshotProcessingCosts.mockClear();
     expect(
       await api.executions({ projectId, includeCosts: false }),
     ).toHaveLength(5);
@@ -773,28 +765,23 @@ describe("Topics local execution access and publication", () => {
       await api.execution({ ...request, includeCosts: false }),
     ).toMatchObject({ id: snapshot.id, estimatedCost: null });
     expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
-    expect(mocks.getTopicSnapshotProcessingCosts).not.toHaveBeenCalled();
 
     const visible = {
       projectId,
       executionIds: ["snapshot", "zero", "historical"],
     };
     expect(await api.executionCosts(visible)).toEqual({
-      snapshot: 0.04,
+      snapshot: 0.037,
       zero: 0,
     });
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["zero", "historical"],
+      ["snapshot", "zero", "historical"],
     );
   });
 
   it("combines recorded stages for visible snapshots and restricts the summary read to the requested subset", async () => {
-    const asOf = new Date().toISOString();
-    mocks.getTopicSnapshotProcessingCosts.mockResolvedValue({
-      priced: { cost: 0.42, partial: true, asOf },
-    });
-    mocks.getTopicExecutionCosts.mockResolvedValue({ legacy: 0 });
+    mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.42, legacy: 0 });
     mocks.getTopicExecutionNamingCosts.mockResolvedValue({
       reuse: { cost: 0.08, partial: false },
       priced: { cost: 0.03, partial: true },
@@ -812,16 +799,12 @@ describe("Topics local execution access and publication", () => {
       priced: {
         summaries: 0.42,
         naming: { cost: 0.03, partial: true },
-        summaryCheckpoint: { partial: true, asOf },
       },
     });
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["legacy"],
+      ["legacy", "priced"],
     );
-    expect(
-      mocks.getTopicSnapshotProcessingCosts,
-    ).toHaveBeenCalledExactlyOnceWith(projectId, ["legacy", "priced"]);
     expect(mocks.getTopicExecutionNamingCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
       executionIds,

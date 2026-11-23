@@ -15,12 +15,12 @@ import {
   getTopicClusteringSummaries,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
+  getTopicRuleProcessingCosts,
   startTopicNamingCall,
   finishTopicNamingCall,
   getTopicExecutionNamingCosts,
   getTopicRunNamingCosts,
-  getTopicRuleMapCost,
-  applyTopicRuleProcessingCostBatch,
+  getTopicRuleMapCosts,
   getTopicTraceUnitTimeRange,
   createTopicFacet,
   createTopicFacetVersion,
@@ -44,6 +44,36 @@ import {
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { getTopicFacetSummaryCountsByProjectInCreationInterval } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+
+function exampleSummary(projectId: string): TopicSummary {
+  return {
+    projectId,
+    facetId: "facet",
+    facetVersion: 1,
+    traceId: randomUUID(),
+    sessionId: null,
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
+    environment: "default",
+    traceName: "trace",
+    unitStartTime: "2026-08-31T23:59:59.999Z",
+    state: "complete",
+    summary: "old",
+    embedding: [1, ...Array<number>(255).fill(0)],
+    transcriptId: "poc",
+    transcriptVersion: "poc",
+    transcriptBytes: 0,
+    summaryModel: "test",
+    embeddingModel: "eu.cohere.embed-v4:0",
+    providedUsageDetails: {},
+    usageDetails: {},
+    providedCostDetails: {},
+    costDetails: {},
+    processedAt: "2026-09-01T00:00:00.000Z",
+    metadata: {},
+  };
+}
 
 describe("Topics eval-backed configuration", () => {
   const orgId = randomUUID();
@@ -76,6 +106,12 @@ describe("Topics eval-backed configuration", () => {
   });
 
   afterAll(async () => {
+    await clickhouseClient().command({
+      query:
+        "DELETE FROM topic_facet_summaries WHERE project_id = {projectId:String}",
+      query_params: { projectId },
+      clickhouse_settings: { mutations_sync: "1" },
+    });
     await prisma.organization.deleteMany({ where: { id: orgId } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
@@ -419,149 +455,7 @@ describe("Topics eval-backed configuration", () => {
     ).toEqual(completed);
   });
 
-  it("applies ordered map cost batches exactly once across replays, edits and legacy rows", async () => {
-    const [facet] = await ensureDefaultTopicFacets(otherProjectId);
-    const input = { projectId: otherProjectId, facetIds: [facet.id] };
-    const rule = await saveTopicRule(input);
-    const legacy = await saveTopicRule({ ...input, name: "Legacy" });
-    const unpriced = await saveTopicRule({ ...input, name: "Unpriced" });
-    const prior = await saveTopicRule({ ...input, name: "Existing total" });
-    const priorUpdate = new Date("2026-01-02T12:15:00.000Z");
-    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost = NULL WHERE id = ${legacy.id}`;
-    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost =
-      '{"cost":0.37,"partial":true,"current":{"ids":["old"]}}'::jsonb ||
-      jsonb_build_object('minute', ${priorUpdate.getTime() / 60_000}::integer) WHERE id = ${prior.id}`;
-    await prisma.topicClusteringRun.create({
-      data: {
-        projectId: otherProjectId,
-        ruleId: prior.id,
-        facetId: facet.id,
-        facetVersion: 1,
-        status: "completed",
-        config: { namingCostTracked: true },
-        finishedAt: new Date("2026-01-01"),
-      },
-    });
-    const read = (ruleId = rule.id) =>
-      getTopicRuleMapCost(otherProjectId, ruleId);
-    const missing = { cost: null, partial: false, updatedAt: null };
-    expect(await read()).toEqual({ cost: 0, partial: false, updatedAt: null });
-    expect(await read(legacy.id)).toEqual(missing);
-    expect(await read(prior.id)).toEqual({
-      cost: 0.37,
-      partial: true,
-      updatedAt: priorUpdate.toISOString(),
-    });
-    await prisma.$executeRaw`UPDATE evaluation_rules SET topics_processing_cost =
-      topics_processing_cost - 'minute' WHERE id = ${prior.id}`;
-    expect(await read(prior.id)).toEqual({
-      cost: 0.37,
-      partial: true,
-      updatedAt: null,
-    });
-
-    const first = {
-      projectId: otherProjectId,
-      sequence: 1000,
-      shares: [
-        { ruleId: rule.id, cost: 0.09, partial: false },
-        { ruleId: legacy.id, cost: 0.03, partial: false },
-        { ruleId: unpriced.id, cost: null, partial: true },
-        { ruleId: prior.id, cost: 0.03, partial: false },
-      ],
-    };
-    await Promise.all([
-      applyTopicRuleProcessingCostBatch(first),
-      applyTopicRuleProcessingCostBatch({
-        ...first,
-        shares: [...first.shares].reverse(),
-      }),
-    ]);
-    const recorded = await read();
-    expect(recorded).toEqual({
-      cost: 0.09,
-      partial: false,
-      updatedAt: expect.any(String),
-    });
-    expect(await read(legacy.id)).toEqual({
-      cost: 0.03,
-      partial: true,
-      updatedAt: recorded.updatedAt,
-    });
-    expect(await read(unpriced.id)).toEqual({
-      cost: null,
-      partial: false,
-      updatedAt: recorded.updatedAt,
-    });
-    expect(await read(prior.id)).toEqual({
-      cost: 0.4,
-      partial: true,
-      updatedAt: recorded.updatedAt,
-    });
-
-    const second = {
-      ...first,
-      sequence: 1001,
-      shares: [
-        { ruleId: rule.id, cost: 0.02, partial: false },
-        { ruleId: unpriced.id, cost: 0, partial: false },
-      ],
-    };
-    await applyTopicRuleProcessingCostBatch(second);
-    const latest = await read();
-    expect(latest).toEqual({
-      cost: 0.11,
-      partial: false,
-      updatedAt: expect.any(String),
-    });
-    expect(await read(unpriced.id)).toEqual({
-      cost: 0,
-      partial: true,
-      updatedAt: latest.updatedAt,
-    });
-    await saveTopicRule({ ...input, id: rule.id, name: "Renamed" });
-    await Promise.all([
-      applyTopicRuleProcessingCostBatch(first),
-      applyTopicRuleProcessingCostBatch(second),
-    ]);
-    await applyTopicRuleProcessingCostBatch({
-      ...first,
-      sequence: 1002,
-      projectId,
-    });
-    expect(await getTopicRuleMapCost(projectId, rule.id)).toEqual(missing);
-    expect(await read()).toEqual(latest);
-
-    const run = await createTopicRun({
-      projectId: otherProjectId,
-      ruleId: rule.id,
-      facetId: facet.id,
-      facetVersion: 1,
-      config: { namingCostTracked: true },
-    });
-    await startTopicNamingCall(otherProjectId, run.id, "name");
-    expect(await read()).toEqual({
-      cost: 0.11,
-      partial: true,
-      updatedAt: expect.any(String),
-    });
-    await finishTopicNamingCall(otherProjectId, run.id, "name", 0.02);
-    const withName = await read();
-    expect(withName).toEqual({
-      cost: 0.13,
-      partial: false,
-      updatedAt: expect.any(String),
-    });
-    expect(Date.parse(withName.updatedAt!)).toBeGreaterThan(
-      Date.parse(latest.updatedAt!),
-    );
-    await finishTopicNamingCall(otherProjectId, run.id, "name", 0.01);
-    await startTopicNamingCall(otherProjectId, run.id, "name");
-    await saveTopicRun({ ...run, status: "running" });
-    expect(await read()).toEqual(withName);
-  });
-
-  it("sums all naming work owned by one map, including its first build and failed refreshes", async () => {
+  it("adds retained processing to the naming costs of every fit owned by one map", async () => {
     const facet = await createTopicFacet({
       projectId,
       name: "Map naming",
@@ -577,8 +471,8 @@ describe("Topics eval-backed configuration", () => {
     const run = { projectId, ruleId, facetId: facet.id, facetVersion: 1 };
     const tracked = { namingCostTracked: true };
     const priced = { ...tracked, namingCallCosts: { name: 0.01 } };
-    const read = () => getTopicRuleMapCost(projectId, ruleId);
-    const unknown = { cost: null, partial: false, updatedAt: null };
+    const read = () =>
+      getTopicRuleMapCosts(projectId, [ruleId, unpricedRuleId]);
 
     await prisma.topicClusteringRun.createMany({
       data: [
@@ -599,20 +493,15 @@ describe("Topics eval-backed configuration", () => {
       ],
     });
     await expect(read()).resolves.toEqual({
-      cost: 0,
-      partial: false,
-      updatedAt: null,
+      [ruleId]: null,
+      [unpricedRuleId]: null,
     });
-    await expect(
-      getTopicRuleMapCost(projectId, unpricedRuleId),
-    ).resolves.toEqual(unknown);
     await prisma.topicClusteringRun.create({
       data: { ...run, status: "skipped", config: tracked },
     });
     await expect(read()).resolves.toEqual({
-      cost: 0,
-      partial: false,
-      updatedAt: null,
+      [ruleId]: 0,
+      [unpricedRuleId]: null,
     });
 
     // Totals include fits without an operation ID.
@@ -630,21 +519,27 @@ describe("Topics eval-backed configuration", () => {
       })),
     });
     await expect(read()).resolves.toEqual({
-      cost: 0.12,
-      partial: false,
-      updatedAt: null,
+      [ruleId]: 0.12,
+      [unpricedRuleId]: null,
     });
     await prisma.topicClusteringRun.create({
       data: { ...run, status: "completed", config: {} },
     });
+    await writeTopicSummaries([
+      {
+        ...exampleSummary(projectId),
+        facetId: facet.id,
+        ruleIds: [ruleId],
+        costDetails: { total: 0.04 },
+      },
+    ]);
     await expect(read()).resolves.toEqual({
-      cost: 0.12,
-      partial: true,
-      updatedAt: null,
+      [ruleId]: 0.16,
+      [unpricedRuleId]: null,
     });
-    await expect(getTopicRuleMapCost(otherProjectId, ruleId)).resolves.toEqual(
-      unknown,
-    );
+    await expect(
+      getTopicRuleMapCosts(otherProjectId, [ruleId]),
+    ).resolves.toEqual({});
   });
 
   it("counts each naming call once across attempts and preserves incomplete pricing", async () => {
@@ -787,33 +682,7 @@ describe("Topics definition persistence", () => {
   const otherProjectId = randomUUID();
   const telemetryProjectId = randomUUID();
 
-  const summary: TopicSummary = {
-    projectId,
-    facetId: "facet",
-    facetVersion: 1,
-    traceId: randomUUID(),
-    sessionId: null,
-    triggerType: "rule",
-    ruleIds: [],
-    executionId: null,
-    environment: "default",
-    traceName: "trace",
-    unitStartTime: "2026-08-31T23:59:59.999Z",
-    state: "complete",
-    summary: "old",
-    embedding: [1, ...Array<number>(255).fill(0)],
-    transcriptId: "poc",
-    transcriptVersion: "poc",
-    transcriptBytes: 0,
-    summaryModel: "test",
-    embeddingModel: "eu.cohere.embed-v4:0",
-    providedUsageDetails: {},
-    usageDetails: {},
-    providedCostDetails: {},
-    costDetails: {},
-    processedAt: "2026-09-01T00:00:00.000Z",
-    metadata: {},
-  };
+  const summary = exampleSummary(projectId);
 
   afterAll(async () => {
     for (const table of [
@@ -1197,7 +1066,7 @@ describe("Topics definition persistence", () => {
     ]);
   });
 
-  it("sums stored summary and embedding totals by project and execution", async () => {
+  it("attributes only the latest retained facet cost to its snapshot or distinct live maps", async () => {
     const priced: TopicSummary = {
       ...summary,
       facetId: randomUUID(),
@@ -1208,12 +1077,38 @@ describe("Topics definition persistence", () => {
         total: 0.2,
       },
       executionId: "priced",
+      ruleIds: ["map-a"],
+    };
+    const live = {
+      ...priced,
+      traceId: "shared",
+      executionId: null,
+      ruleIds: ["map-a", "map-b", "map-a"],
+      costDetails: { total: 0.12 },
     };
     await writeTopicSummaries([
       priced,
       { ...priced, projectId: otherProjectId },
       { ...priced, traceId: "other-run", executionId: "other" },
       { ...priced, facetId: randomUUID() },
+      live,
+      { ...live, projectId: otherProjectId, costDetails: { total: 10 } },
+      // The same source moved across partitions. Its older execution no longer owns it.
+      {
+        ...live,
+        executionId: "priced",
+        processedAt: "2026-08-01T00:00:00.000Z",
+        unitStartTime: "2026-07-01T00:00:00.000Z",
+      },
+      // A newer facet version replaces the old rule, even when still unpriced.
+      { ...live, traceId: "new-version", ruleIds: ["map-c"] },
+      {
+        ...live,
+        traceId: "new-version",
+        facetVersion: 2,
+        ruleIds: ["map-a"],
+        costDetails: {},
+      },
       {
         ...priced,
         traceId: "provider-total",
@@ -1238,6 +1133,9 @@ describe("Topics definition persistence", () => {
       priced: 0.47,
       zero: 0,
     });
+    expect(
+      await getTopicRuleProcessingCosts(projectId, ["map-a", "map-b", "map-c"]),
+    ).toEqual({ "map-a": 0.06, "map-b": 0.06 });
   });
 
   it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {

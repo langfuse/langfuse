@@ -184,7 +184,7 @@ async function structuredCall<T>(
   projectId: string,
   metadata?: TopicCallMetadata,
   traceName = `topics-${stage}`,
-  onCost?: (cost: number | null) => void | Promise<void>,
+  onCost?: (cost: number) => Promise<void>,
 ): Promise<ModelResult<T>> {
   async function priceResponse(response: TopicTextUsageDetails) {
     const priced = await priceTopicUsage(
@@ -205,9 +205,8 @@ async function structuredCall<T>(
     projectId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
     metadata,
-    async () => {
-      await onCost?.(null);
-      return generateTopicText({
+    () =>
+      generateTopicText({
         model,
         system,
         input,
@@ -219,8 +218,7 @@ async function structuredCall<T>(
               await priceResponse(usage);
             }
           : undefined,
-      });
-    },
+      }),
   );
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
@@ -365,7 +363,6 @@ export async function summarizeTopicTraceFacets(
   text: string,
   config: TopicProcessingConfig,
   metadata?: TopicCallMetadata,
-  onCost?: (cost: number | null) => void,
 ) {
   const { system, input, schema, maxOutputTokens } = buildTopicSummaryRequest(
     facets,
@@ -392,8 +389,6 @@ export async function summarizeTopicTraceFacets(
         facet_version: facet.version,
       })),
     },
-    undefined,
-    onCost,
   );
 }
 
@@ -774,9 +769,7 @@ export async function nameTopicGroup(
       naming_input_tokens_estimated: inputLimit,
     },
     conflict ? "topics-naming-conflict" : undefined,
-    async (cost) => {
-      if (cost !== null) await saveCost(cost);
-    },
+    saveCost,
   ).finally(async () => {
     // Even an unpriced or rejected call needs a receipt if the first write failed.
     if (retryReservation) await saveCost(null);
@@ -789,13 +782,7 @@ export async function embedTopicSummaries(
   summaries: string[],
   dimensions: number,
   projectId: string,
-  {
-    metadata,
-    onCost,
-  }: {
-    metadata?: TopicCallMetadata;
-    onCost?: (cost: number | null) => void;
-  } = {},
+  metadata?: TopicCallMetadata,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -813,10 +800,7 @@ export async function embedTopicSummaries(
     projectId,
     llmRequestEgressBytes(summaries),
     metadata,
-    () => {
-      onCost?.(null);
-      return generateTopicEmbeddings({ model, summaries, dimensions });
-    },
+    () => generateTopicEmbeddings({ model, summaries, dimensions }),
   );
   recordTopicTokenUsage("embedding", { input: result.tokens });
   const usageDetails: Record<string, number> = {};
@@ -827,14 +811,6 @@ export async function embedTopicSummaries(
       model: model.model,
     });
   }
-  const priced = await priceTopicUsage(
-    "embedding",
-    model,
-    projectId,
-    usageDetails,
-  );
-  if (priced.costDetails.total !== undefined)
-    onCost?.(priced.costDetails.total);
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
   const embeddings = result.embeddings.map((vector) =>
     Array.from(new Float32Array(vector)),
@@ -852,5 +828,8 @@ export async function embedTopicSummaries(
       "Topics embedding provider returned an invalid vector.",
       "invalid_output",
     );
-  return { embeddings, ...priced };
+  return {
+    embeddings,
+    ...(await priceTopicUsage("embedding", model, projectId, usageDetails)),
+  };
 }

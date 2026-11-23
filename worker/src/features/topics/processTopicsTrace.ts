@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import {
   createTraceTranscriptStorage,
@@ -11,7 +10,6 @@ import {
   getEnabledTopicsModels,
   isTopicsProjectEnabled,
   readTopicExecutionSummary,
-  recordTopicSnapshotProcessingCost,
   isValidTopicSummary,
   listTopicFacets,
   listTopicRules,
@@ -32,12 +30,10 @@ import {
   pauseForRejectedConnection,
   TopicsProviderUnavailable,
 } from "./provider-error";
-import { bufferTopicRuleProcessingCosts } from "./processingCostBuffer";
 import { getRuleTopicRun } from "./servingRuns";
 import {
   summarizeAssembledTrace,
   type TopicsFailedStage,
-  type OnTopicsModelCost,
 } from "./summarizeAssembledTrace";
 
 const inputStorage = createTraceTranscriptStorage();
@@ -252,9 +248,9 @@ function isRetryableProviderError(error: unknown): boolean {
 async function processEvent(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
-  onModelCost: OnTopicsModelCost,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
+  if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
@@ -287,7 +283,6 @@ async function processEvent(
       attempt: deps.attempt ? "retry" : "first",
       rules,
       executionId: event.batchActionId,
-      onModelCost,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
     rows = result.rows;
@@ -334,88 +329,6 @@ async function processEvent(
   throw failure;
 }
 
-type ProcessingStageCost = { cost: number | null; ruleIds: string[] };
-
-function totalStageCosts(costs: (number | null)[]) {
-  const priced = costs.filter((cost) => cost !== null);
-  const partial = priced.length < costs.length;
-  return {
-    cost:
-      partial && !priced.length
-        ? null
-        : priced.reduce((sum, value) => sum + value, 0),
-    partial,
-  };
-}
-
-async function saveProcessingCosts(
-  event: TopicsTraceEventType,
-  stages: ProcessingStageCost[],
-) {
-  const { projectId, batchActionId: executionId, revision } = event;
-  let write: () => Promise<unknown>;
-  if (executionId) {
-    // A snapshot counts even a trace that finished without calling either model.
-    const report = {
-      projectId,
-      executionId,
-      revision,
-      reportId: randomUUID(),
-      ...totalStageCosts(stages.map(({ cost }) => cost)),
-    };
-    write = () => recordTopicSnapshotProcessingCost(report);
-  } else {
-    const byRule = new Map<string, (number | null)[]>();
-    for (const { cost, ruleIds } of stages) {
-      for (const ruleId of ruleIds) {
-        const costs = byRule.get(ruleId) ?? [];
-        costs.push(cost === null ? null : cost / ruleIds.length);
-        byRule.set(ruleId, costs);
-      }
-    }
-    if (!byRule.size) return;
-    const report = {
-      projectId,
-      receiptId: randomUUID(),
-      recordedAt: new Date(),
-      shares: Array.from(byRule, ([ruleId, costs]) => ({
-        ruleId,
-        ...totalStageCosts(costs),
-      })),
-    };
-    write = () => bufferTopicRuleProcessingCosts(report);
-  }
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    // A retry of the write uses this receipt. Repeating inference creates another.
-    const receipt = write().catch(write);
-    if (executionId) {
-      await receipt;
-    } else {
-      // Shared Redis retries through disconnections. The receipt may land after the trace finishes.
-      await Promise.race([
-        receipt,
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error("Topics processing cost receipt timed out")),
-            1_000,
-          );
-        }),
-      ]);
-    }
-  } catch (error) {
-    logger.warn("Unable to confirm Topics trace processing cost", {
-      projectId,
-      traceId: event.traceId,
-      executionId,
-      revision,
-      error,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /**
  * Summarizes the current facets of the rules that selected one stored transcript,
  * queues the rows for ClickHouse, and assigns complete summaries to each matched
@@ -425,17 +338,7 @@ export async function processTopicsTrace(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
-  let result: TopicsTraceOutcome = { outcome: "disabled" };
-  if (isTopicsProjectEnabled(event.projectId)) {
-    const stages = new Map<TopicsFailedStage, ProcessingStageCost>();
-    try {
-      result = await processEvent(event, deps, (stage, cost, ruleIds) => {
-        stages.set(stage, { cost, ruleIds });
-      });
-    } finally {
-      await saveProcessingCosts(event, [...stages.values()]);
-    }
-  }
+  const result = await processEvent(event, deps);
   recordIncrement("langfuse.topics.trace_outcomes", 1, {
     source: "trace_queue",
     outcome: result.outcome,

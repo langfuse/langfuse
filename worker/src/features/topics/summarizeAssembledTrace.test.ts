@@ -198,7 +198,7 @@ describe("summarizeAssembledTrace", () => {
       execution_id: "snapshot",
     };
     expect(submitted[4]).toEqual(snapshotMetadata);
-    expect(state.embed.mock.calls[0][4].metadata).toEqual(snapshotMetadata);
+    expect(state.embed.mock.calls[0][4]).toEqual(snapshotMetadata);
     const written = summaries[0];
     expect(written).toMatchObject({
       projectId: "project-a",
@@ -549,30 +549,16 @@ describe("summarizeAssembledTrace", () => {
         versions: [{ ...facet.versions[0], facetId: "facet-3", version: 1 }],
       },
     ]);
-    const costs = vi.fn();
-    state.summarize.mockImplementation(
-      async (_models, _facets, _text, _config, _metadata, onCost) => {
-        onCost(usage.costDetails.total);
-        return {
-          output: {
-            intent_1: { summary: "", status: "applicable" },
-            tone_3: { summary: "", status: "not_applicable" },
-            issues_2: {
-              summary: "Retried a failed export.",
-              status: "applicable",
-            },
-          },
-          ...usage,
-        };
+    state.summarize.mockResolvedValue({
+      output: {
+        intent_1: { summary: "", status: "applicable" },
+        tone_3: { summary: "", status: "not_applicable" },
+        issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
-    );
+      ...usage,
+    });
     const error = new TopicsProviderUnavailable("slow", "rate_limit");
-    state.embed.mockImplementationOnce(
-      async (_model, _summaries, _dimensions, _project, { onCost }) => {
-        onCost(null);
-        throw error;
-      },
-    );
+    state.embed.mockRejectedValueOnce(error);
     await expect(
       summarize({
         projectId: "project-a",
@@ -590,27 +576,18 @@ describe("summarizeAssembledTrace", () => {
           { id: "issues", facetIds: ["facet-2"] },
           { id: "tone", facetIds: ["facet-3"] },
         ],
-        onModelCost: costs,
       }),
     ).rejects.toBe(error);
     expect(summaries).toEqual([
       expect.objectContaining({ facetId: "facet-3", state: "not_applicable" }),
     ]);
-    expect(costs.mock.calls).toEqual([
-      [
-        "summary",
-        usage.costDetails.total,
-        ["both", "intent", "issues", "tone"],
-      ],
-      ["embedding", null, ["both", "issues"]],
-    ]);
     expect(state.summarize.mock.calls[0][4]).toMatchObject({
       source_trace_id: "trace-1",
-      rule_ids: costs.mock.calls[0][2],
+      rule_ids: ["both", "intent", "issues", "tone"],
     });
-    expect(state.embed.mock.calls[0][4].metadata).toMatchObject({
+    expect(state.embed.mock.calls[0][4]).toMatchObject({
       source_trace_id: "trace-1",
-      rule_ids: costs.mock.calls[1][2],
+      rule_ids: ["both", "issues"],
     });
   });
 

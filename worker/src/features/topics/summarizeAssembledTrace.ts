@@ -87,17 +87,9 @@ type AssembledTraceInput = {
   rules: Pick<TopicRule, "id" | "facetIds">[];
   /** The snapshot that seeded the trace; stored on its summaries. */
   executionId?: string;
-  /** A dispatched stage starts unpriced and acquires its cost when the provider reports usage. */
-  onModelCost?: OnTopicsModelCost;
 };
 
 export type TopicsFailedStage = "summary" | "embedding";
-export type OnTopicsModelCost = (
-  stage: TopicsFailedStage,
-  cost: number | null,
-  ruleIds: string[],
-) => void;
-
 type AssembledTraceResult = {
   outcome: "disabled" | "unchanged" | "summarized";
   rows: TopicSummary[];
@@ -157,7 +149,7 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<AssembledTraceResult> {
-  const { models, facets, onModelCost } = input;
+  const { models, facets } = input;
   const embeddingModel = models.embedding.model;
   const config = topicProcessingConfigSchema.parse({});
   const pending: TraceFacet[] = [];
@@ -193,27 +185,17 @@ async function summarizeEnabledTrace(
       metadata: { input: "topics-text" },
     }),
   );
-  const stageContext = (stage: TopicsFailedStage, rows: TopicSummary[]) => {
-    const ruleIds = input.executionId
-      ? []
-      : [...new Set(rows.flatMap((row) => row.ruleIds))];
-    return {
-      metadata: {
-        source_trace_id: input.traceId,
-        source_environment: input.environment,
-        ...(input.executionId
-          ? { execution_id: input.executionId }
-          : { rule_ids: ruleIds }),
-      },
-      onCost:
-        onModelCost &&
-        ((cost: number | null) => onModelCost(stage, cost, ruleIds)),
-    };
-  };
+  const callMetadata = (rows: TopicSummary[]) => ({
+    source_trace_id: input.traceId,
+    source_environment: input.environment,
+    ...(input.executionId
+      ? { execution_id: input.executionId }
+      : { rule_ids: [...new Set(rows.flatMap((row) => row.ruleIds))] }),
+  });
   const summarized = await summarizeTraceFacets({
     models,
     facets: pending,
-    ...stageContext("summary", bases),
+    metadata: callMetadata(bases),
     transcript: input.transcript,
     executionIssues: input.executionIssues,
     config,
@@ -246,10 +228,7 @@ async function summarizeEnabledTrace(
             applicable.map(({ output }) => output.summary.trim()),
             models.embedding.dimensions,
             models.projectId,
-            stageContext(
-              "embedding",
-              applicable.map(({ base }) => base),
-            ),
+            callMetadata(applicable.map(({ base }) => base)),
           ),
         );
       } catch (error) {
@@ -306,7 +285,6 @@ async function summarizeTraceFacets(params: {
   config: TopicProcessingConfig;
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
-  onCost?: (cost: number | null) => void;
 }): Promise<
   | {
       results: TraceFacetResult[];
@@ -344,7 +322,6 @@ async function summarizeTraceFacets(params: {
         text,
         config,
         params.metadata,
-        params.onCost,
       );
       const outputs = generated.output as Record<string, FacetOutput>;
       for (const { key } of keyed) {

@@ -10,9 +10,7 @@ import {
   listTopicFacets,
   listTopicRules,
   readTopicExecutionSummary,
-  recordTopicSnapshotProcessingCost,
 } from "@langfuse/shared/topics/server";
-import { bufferTopicRuleProcessingCosts } from "./processingCostBuffer";
 import { processTopicsTrace } from "./processTopicsTrace";
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { getRuleTopicRun } from "./servingRuns";
@@ -40,7 +38,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
-  recordTopicSnapshotProcessingCost: vi.fn(async () => {}),
   topicSummaryRecord: (row: unknown) => ({ summary: row }),
   topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
 }));
@@ -53,9 +50,6 @@ vi.mock("../../services/ClickhouseWriter", () => ({
 }));
 vi.mock("./summarizeAssembledTrace", () => ({
   summarizeAssembledTrace: vi.fn(),
-}));
-vi.mock("./processingCostBuffer", () => ({
-  bufferTopicRuleProcessingCosts: vi.fn(async () => {}),
 }));
 vi.mock("./servingRuns", () => ({ getRuleTopicRun: vi.fn() }));
 vi.mock("./assignments", () => ({
@@ -123,7 +117,7 @@ describe("processTopicsTrace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Expires the per-pod settings cache between tests.
-    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 60_000);
     vi.mocked(listTopicRules).mockResolvedValue([
       rule("rule", ["intent", "tone"]),
@@ -198,149 +192,6 @@ describe("processTopicsTrace", () => {
         ([table]) => table === "topic_assignments",
       ),
     ).toEqual([]);
-  });
-
-  it("records each snapshot attempt even when it produces no rows and retries only the receipt write", async () => {
-    vi.mocked(readTopicExecutionSummary).mockResolvedValue({
-      status: "running",
-      input: { operation: "update", facets: [{ facetId: "tone", version: 2 }] },
-    } as never);
-    vi.mocked(summarizeAssembledTrace).mockImplementation(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", 0.025, ["rule"]);
-        onModelCost?.("embedding", null, ["rule"]);
-        return {
-          outcome: "summarized",
-          rows: [],
-          failure: new TopicsProviderUnavailable("slow", "timeout"),
-          failedStage: "embedding",
-        };
-      },
-    );
-    const snapshotEvent = { ...event, ruleIds: [], batchActionId: "snapshot" };
-    vi.mocked(recordTopicSnapshotProcessingCost).mockRejectedValueOnce(
-      new Error("connection lost"),
-    );
-
-    await expect(
-      processTopicsTrace(snapshotEvent, { scheduleRetry }),
-    ).resolves.toEqual({
-      outcome: "retry_scheduled",
-      failedStage: "embedding",
-    });
-    const records = vi.mocked(recordTopicSnapshotProcessingCost).mock.calls;
-    expect(records).toHaveLength(2);
-    expect(records[0]).toEqual(records[1]);
-    expect(records[0][0]).toMatchObject({
-      projectId: "project",
-      executionId: "snapshot",
-      revision: event.revision,
-      reportId: expect.any(String),
-      cost: 0.025,
-      partial: true,
-    });
-    vi.mocked(summarizeAssembledTrace).mockImplementationOnce(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", 0.025, ["rule"]);
-        onModelCost?.("embedding", 0.005, ["rule"]);
-        return { outcome: "summarized", rows: [] };
-      },
-    );
-    await processTopicsTrace(snapshotEvent, { scheduleRetry, attempt: 1 });
-    expect(records[2][0]).toMatchObject({
-      cost: expect.closeTo(0.03, 12),
-      partial: false,
-    });
-    expect(records[2][0].reportId).not.toEqual(records[0][0].reportId);
-    mocks.getInputs.mockRejectedValueOnce(new SyntaxError("bad input"));
-    await processTopicsTrace(snapshotEvent, { scheduleRetry });
-    expect(records[3][0]).toMatchObject({ cost: 0, partial: false });
-    vi.mocked(summarizeAssembledTrace).mockImplementationOnce(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", null, ["rule"]);
-        throw new TopicsProviderUnavailable("denied", "authentication");
-      },
-    );
-    await processTopicsTrace(snapshotEvent, { scheduleRetry });
-    expect(records[4][0]).toMatchObject({ cost: null, partial: true });
-    expect(bufferTopicRuleProcessingCosts).not.toHaveBeenCalled();
-  });
-
-  it("shares each live stage between participating rules, including paid retries without rows", async () => {
-    const secondRule = rule("second", ["tone"]);
-    vi.mocked(listTopicRules).mockResolvedValue([
-      rule("rule", ["tone", "intent"]),
-      secondRule,
-    ]);
-    const matched = { ...event, ruleIds: ["rule", secondRule.id] };
-    vi.mocked(summarizeAssembledTrace).mockImplementationOnce(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", null, matched.ruleIds);
-        onModelCost?.("summary", 0.12, matched.ruleIds);
-        onModelCost?.("embedding", null, ["rule"]);
-        throw new Error("failed after dispatch");
-      },
-    );
-    vi.mocked(bufferTopicRuleProcessingCosts).mockRejectedValueOnce(
-      new Error("connection lost"),
-    );
-
-    await expect(
-      processTopicsTrace(matched, { scheduleRetry }),
-    ).rejects.toThrow("failed after dispatch");
-    const receipts = vi.mocked(bufferTopicRuleProcessingCosts).mock.calls;
-    expect(receipts).toHaveLength(2);
-    expect(receipts[0]).toEqual(receipts[1]);
-    expect(receipts[0][0]).toEqual({
-      projectId: event.projectId,
-      receiptId: expect.any(String),
-      recordedAt: expect.any(Date),
-      shares: [
-        { ruleId: "rule", cost: 0.06, partial: true },
-        { ruleId: secondRule.id, cost: 0.06, partial: false },
-      ],
-    });
-
-    vi.mocked(summarizeAssembledTrace).mockImplementationOnce(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", null, matched.ruleIds);
-        onModelCost?.("embedding", 0, [secondRule.id]);
-        return { outcome: "summarized", rows: [] };
-      },
-    );
-    await processTopicsTrace(matched, { scheduleRetry, attempt: 1 });
-    expect(receipts[2][0].receiptId).not.toBe(receipts[0][0].receiptId);
-    expect(receipts[2][0].shares).toEqual([
-      { ruleId: "rule", cost: null, partial: true },
-      { ruleId: secondRule.id, cost: 0, partial: true },
-    ]);
-    expect(recordTopicSnapshotProcessingCost).not.toHaveBeenCalled();
-  });
-
-  it("finishes a processed live trace while its Redis cost receipt waits for reconnection", async () => {
-    const enqueued = Promise.withResolvers<void>();
-    const reconnect = Promise.withResolvers<void>();
-    vi.mocked(bufferTopicRuleProcessingCosts).mockImplementationOnce(() => {
-      enqueued.resolve();
-      return reconnect.promise;
-    });
-    vi.mocked(summarizeAssembledTrace).mockImplementationOnce(
-      async ({ onModelCost }) => {
-        onModelCost?.("summary", 0.01, ["rule"]);
-        return { outcome: "summarized", rows: [] };
-      },
-    );
-    const processed = processTopicsTrace(event, { scheduleRetry });
-    try {
-      await enqueued.promise;
-      await vi.advanceTimersByTimeAsync(5_000);
-      expect(await Promise.race([processed, "still waiting"])).toEqual({
-        outcome: "summarized",
-      });
-    } finally {
-      reconnect.resolve();
-      await processed;
-    }
   });
 
   it("skips the trace when its rules no longer select a facet", async () => {

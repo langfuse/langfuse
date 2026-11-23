@@ -73,7 +73,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   TopicsMapPicker,
-  type UseMapCost,
+  type UseMapCosts,
   type UsePreviewTopics,
 } from "./TopicsMapPicker";
 import { TopicMapStrip, topicRuleStatus } from "./TopicMapStrip";
@@ -84,7 +84,6 @@ import { type TopicsPageState } from "./topicsAnalytics";
 import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 
 const COST_POLL_INTERVAL_MS = 30_000;
-// Live processing costs are published in five-minute batches.
 const MAP_COST_POLL_INTERVAL_MS = 5 * 60_000;
 
 const loadingPage = (
@@ -107,21 +106,16 @@ const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
   return { facets: query.data?.facets, loading: query.isLoading };
 };
 
-const useMapCost: UseMapCost = (projectId, ruleId) => {
-  const query = api.topics.ruleMapCost.useQuery(
-    { projectId, ruleId: ruleId ?? "" },
+const useMapCosts: UseMapCosts = (projectId, ruleIds) => {
+  const query = api.topics.ruleMapCosts.useQuery(
+    { projectId, ruleIds },
     {
-      enabled: Boolean(ruleId),
+      enabled: ruleIds.length > 0,
       staleTime: MAP_COST_POLL_INTERVAL_MS,
-      refetchInterval: ruleId ? MAP_COST_POLL_INTERVAL_MS : false,
+      refetchInterval: ruleIds.length ? MAP_COST_POLL_INTERVAL_MS : false,
     },
   );
-  return (
-    query.data ??
-    (query.isError
-      ? { cost: null, partial: false, updatedAt: null }
-      : undefined)
-  );
+  return query.data ?? (query.isError ? null : undefined);
 };
 
 export default function TopicsPage() {
@@ -678,7 +672,7 @@ function TopicsWorkspaceContent({
                 selectMap(selection);
               }}
               usePreviewTopics={usePreviewTopics}
-              useMapCost={useMapCost}
+              useMapCosts={useMapCosts}
               processingOn={automaticProcessing.state.status === "on"}
               create={{
                 map: actions.newMap,
@@ -917,7 +911,7 @@ type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt"> & {
   input: Parameters<typeof createsSummaries>[0];
 };
 
-/** Batch visible cost reads. A snapshot can publish before all of its traces report. */
+/** Batch cost reads for visible runs and refresh active runs as they progress. */
 function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
   const utils = api.useUtils();
   const queryClient = useQueryClient();
@@ -979,21 +973,9 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     enabled: executionIds.length > 0,
     placeholderData: keepPreviousData,
     staleTime,
-    refetchInterval: (query) => {
-      if (Object.values(revisions).includes(null)) return COST_POLL_INTERVAL_MS;
-      // Some dispatched traces never reach a worker. Reopening history still refreshes older totals.
-      const recent = Date.now() - 60 * 60_000;
-      return executionIds.some((id) => {
-        const finishedAt = revisions[id];
-        return (
-          finishedAt &&
-          Date.parse(finishedAt) > recent &&
-          query.state.data?.estimates[id]?.summaryCheckpoint?.awaitingTraces
-        );
-      })
-        ? staleTime
-        : false;
-    },
+    refetchInterval: Object.values(revisions).includes(null)
+      ? COST_POLL_INTERVAL_MS
+      : false,
     meta: { silentAllErrors: true },
   });
   return (id: string) => {

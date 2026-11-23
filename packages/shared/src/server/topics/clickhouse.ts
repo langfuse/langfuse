@@ -791,33 +791,75 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate totals; retry and replacement rows can overcount until background merges. */
-export async function getTopicExecutionCosts(
+/** Attribute each facet/source's newest retained result once, including before background merges. */
+async function readRetainedTopicCosts(
   projectId: string,
-  executionIds: string[],
+  kind: "snapshot" | "rule",
+  ids: string[],
 ): Promise<Record<string, number>> {
-  if (executionIds.length === 0) return {};
-  const rows = await queryClickhouse<{ executionId: string; cost: string }>({
-    query: `SELECT execution_id AS executionId,
-        sum(cost_details['total']) AS cost
-      FROM topic_facet_summaries
-      WHERE project_id = {projectId:String}
-        AND execution_id IN {executionIds:Array(String)}
-        AND mapContains(cost_details, 'total')
-      GROUP BY execution_id`,
-    params: { projectId, executionIds },
-    tags: { route: "topics-execution-costs", projectId },
+  if (!ids.length) return {};
+  const owners =
+    kind === "snapshot"
+      ? "[execution_id]"
+      : "if(empty(execution_id), arrayDistinct(rule_ids), [])";
+  // Snapshots have a bounded source list. A live map can cover the entire project.
+  const snapshotSources =
+    kind === "snapshot"
+      ? `AND (unit_type, unit_hash) IN (
+          SELECT unit_type, unit_hash FROM topic_facet_summaries
+          WHERE project_id = {projectId:String} AND execution_id IN {ids:Array(String)}
+        )`
+      : "";
+  // Inspect newer rows regardless of their owner: reprocessing can move a source or clear its price.
+  const rows = await queryClickhouse<{ id: string; cost: string }>({
+    query: `SELECT arrayJoin(latest.1) AS id, sum(latest.2 / length(latest.1)) AS cost
+      FROM (
+        SELECT argMax(tuple(${owners}, if(mapContains(cost_details, 'total'), total_cost, NULL)),
+                      tuple(facet_version, created_at, _block_number, _block_offset)) AS latest
+        FROM topic_facet_summaries
+        PREWHERE project_id = {projectId:String} ${snapshotSources}
+        GROUP BY ${summarySourceKeySql}
+      )
+      WHERE id IN {ids:Array(String)} AND latest.2 IS NOT NULL
+      GROUP BY id`,
+    params: { projectId, ids },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      max_bytes_before_external_group_by: String(256 * 1024 * 1024),
+    },
+    tags: {
+      route:
+        kind === "snapshot"
+          ? "topics-execution-costs"
+          : "topics-rule-processing-cost",
+      projectId,
+    },
   }).catch((error: unknown) => {
     traceException(error);
-    logger.warn("Failed to estimate Topics execution costs", {
+    logger.warn("Failed to estimate retained Topics costs", {
       projectId,
+      kind,
       error,
     });
     return [];
   });
-  return Object.fromEntries(
-    rows.map((row) => [row.executionId, Number(row.cost)]),
-  );
+  return Object.fromEntries(rows.map(({ id, cost }) => [id, Number(cost)]));
+}
+
+export function getTopicExecutionCosts(
+  projectId: string,
+  executionIds: string[],
+) {
+  return readRetainedTopicCosts(projectId, "snapshot", executionIds);
+}
+
+export function getTopicRuleProcessingCosts(
+  projectId: string,
+  ruleIds: string[],
+) {
+  return readRetainedTopicCosts(projectId, "rule", ruleIds);
 }
 
 // Bounds the preview count; a 14-day cohort takes about 10 s on the largest tenants.

@@ -16,9 +16,9 @@ import {
   executionLabels,
   formatTopicCost,
   formatTopicRunCost,
-  formatTopicSummaryCost,
   runLabel,
-  topicRunCostLabel,
+  estimatedTopicCostDescription,
+  estimatedTopicCostLabel,
   type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 
@@ -193,9 +193,8 @@ export function TopicRunDetails({
   const isBusy = busy(execution.status);
   const costs = execution.costBreakdown;
   const expectsSummaries = createsSummaries(execution.input);
-  const checkpoint = expectsSummaries ? costs?.summaryCheckpoint : undefined;
   const summaryCost = expectsSummaries
-    ? formatTopicSummaryCost(costs, execution.status)
+    ? formatTopicCost(costs == null ? costs : costs.summaries)
     : "No new summaries";
   const namingCost = costs == null ? costs : costs.naming.cost;
   const namingValue =
@@ -320,32 +319,17 @@ export function TopicRunDetails({
           )}
         </div>
         <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
-          <dt className="font-medium">{topicRunCostLabel(execution.status)}</dt>
+          <dt className="font-medium">{estimatedTopicCostLabel}</dt>
           <dd className="text-right font-mono font-medium">
-            {formatTopicRunCost(execution.input, costs, execution.status)}
+            {formatTopicRunCost(execution.input, costs)}
           </dd>
           <dt className="text-muted-foreground">Summaries and embeddings</dt>
-          <dd className="text-right">
-            <span className="font-mono">{summaryCost}</span>
-            {checkpoint?.asOf && (
-              <span className="text-muted-foreground block">
-                As of{" "}
-                <time dateTime={checkpoint.asOf}>
-                  {format(new Date(checkpoint.asOf), "MMM d, yyyy, HH:mm")}
-                </time>
-              </span>
-            )}
-          </dd>
+          <dd className="text-right font-mono">{summaryCost}</dd>
           <dt className="text-muted-foreground">Topic naming</dt>
           <dd className="text-right font-mono">{namingValue}</dd>
         </dl>
         <p className="text-muted-foreground text-xs">
-          Estimates use recorded provider costs and model prices. Unpriced or
-          unsaved calls can be missing.
-          {expectsSummaries &&
-            costs &&
-            !checkpoint &&
-            " This run’s summary and embedding costs can change when summaries are retried, replaced or deleted."}
+          {estimatedTopicCostDescription}
         </p>
       </div>
       <div className="flex flex-col">

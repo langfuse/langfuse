@@ -1,4 +1,4 @@
-import { prisma, Prisma } from "../../../src/db";
+import { prisma } from "../../../src/db";
 import {
   createTrace,
   createObservation,
@@ -12,8 +12,7 @@ import {
   startTopicNamingCall,
   topicRuleOperation,
   getPreviousTopicRuleRefreshCost,
-  getTopicRuleMapCost,
-  applyTopicRuleProcessingCostBatch,
+  getTopicRuleMapCosts,
   getTopicRunNamingCosts,
   ensureDefaultTopicFacets,
   listTopicRules,
@@ -345,7 +344,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         }),
       );
 
-    const processedAt = new Date(dayStart).toISOString();
+    const processedAt = new Date().toISOString();
     const source = (index: number) => ({
       traceId: traceIds[index]!,
       sessionId: null,
@@ -409,7 +408,12 @@ export const topicsMapScenario: ScenarioDefinition = {
       (index) => index < ISSUES_APPLICABLE || index >= assignedCount,
     );
     ctx.log("writing summaries");
-    await writeTopicSummaries([...intentSummaries, ...issueSummaries]);
+    // Each cost snapshot owns two Intent summaries. Both live maps share the next one.
+    const snapshotSummaries = withCosts ? intentSummaries.slice(0, 4) : [];
+    const liveSummaries = intentSummaries.slice(snapshotSummaries.length);
+    if (withCosts)
+      liveSummaries[0]!.costDetails = { summary_input: 0.12, total: 0.12 };
+    await writeTopicSummaries([...liveSummaries, ...issueSummaries]);
 
     // Run ids are unique across projects, so the default prefix alone would collide.
     const runPrefix = `${ctx.idPrefix}-${ctx.projectId}`;
@@ -458,9 +462,10 @@ export const topicsMapScenario: ScenarioDefinition = {
         },
       },
     });
+    const ruleIds = rules.map((rule) => rule.id);
     const mapCostsBeforeFits = withCosts
-      ? await seedSharedProcessingCost(ctx.projectId, rules)
-      : [];
+      ? await getTopicRuleMapCosts(ctx.projectId, ruleIds)
+      : {};
     if (withCosts) {
       await createTopicRun({
         id: nightlyId,
@@ -587,6 +592,7 @@ export const topicsMapScenario: ScenarioDefinition = {
           ctx,
           published,
           assignments,
+          snapshotSummaries,
           config.timeRange,
           { embeddingModel, dimensions },
         );
@@ -649,12 +655,10 @@ export const topicsMapScenario: ScenarioDefinition = {
     };
     if (withCosts) {
       const ruleId = rules[0]!.id;
-      const [previous, nightlyCost, lifetime] = await Promise.all([
+      const [previous, nightlyCost, mapCosts] = await Promise.all([
         getPreviousTopicRuleRefreshCost(ctx.projectId, ruleId),
         getTopicRunNamingCosts(ctx.projectId, [nightlyId]),
-        Promise.all(
-          rules.map((rule) => getTopicRuleMapCost(ctx.projectId, rule.id)),
-        ),
+        getTopicRuleMapCosts(ctx.projectId, ruleIds),
       ]);
       verified.refreshes =
         Number(previous?.cost === 0.08 && !previous.partial) +
@@ -662,13 +666,12 @@ export const topicsMapScenario: ScenarioDefinition = {
           nightlyCost[nightlyId]?.cost === 0 && !nightlyCost[nightlyId].partial,
         );
       // The first fit and manual refresh add $0.10 to the first map. Existing work stays in each map's total.
-      verified.pricedLiveMaps = lifetime.filter(
-        ({ cost }, index) =>
-          cost !== null &&
-          Math.abs(
-            cost - mapCostsBeforeFits[index]! - (index === 0 ? 0.1 : 0),
-          ) < 1e-12,
-      ).length;
+      verified.pricedLiveMaps = ruleIds.filter((id, index) => {
+        const cost = mapCosts[id];
+        const expected =
+          (mapCostsBeforeFits[id] ?? 0) + (index === 0 ? 0.1 : 0);
+        return cost != null && Math.abs(cost - expected) < 1e-12;
+      }).length;
       verified.costSnapshots = snapshotRunIds.length;
     }
     for (const [entity, expected] of Object.entries(counts)) {
@@ -681,35 +684,6 @@ export const topicsMapScenario: ScenarioDefinition = {
     return { ...summary, verified, durationMs: Date.now() - startedAt };
   },
 };
-
-/** One $0.12 processing attempt serves both seed maps. Never add it again over an existing receipt. */
-async function seedSharedProcessingCost(projectId: string, rules: TopicRule[]) {
-  const [baseline, untouched] = await Promise.all([
-    Promise.all(rules.map((rule) => getTopicRuleMapCost(projectId, rule.id))),
-    prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM evaluation_rules
-      WHERE project_id = ${projectId} AND id IN (${Prisma.join(rules.map((rule) => rule.id))})
-        AND NOT COALESCE(topics_processing_cost ? 'cost', false)
-    `,
-  ]);
-  const share = 0.12 / rules.length;
-  if (untouched.length)
-    await applyTopicRuleProcessingCostBatch({
-      projectId,
-      // Before the live processor's epoch-based sequences, and stable on seed replay.
-      sequence: 1,
-      shares: untouched.map(({ id }) => ({
-        ruleId: id,
-        cost: share,
-        partial: false,
-      })),
-    });
-  return baseline.map(
-    ({ cost }, index) =>
-      (cost ?? 0) +
-      (untouched.some(({ id }) => id === rules[index]!.id) ? share : 0),
-  );
-}
 
 /** Trace index → topic index, largest topic first; outliers map to undefined. */
 function topicIndexes(topics: SeedTopic[], outliers: number) {

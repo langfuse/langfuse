@@ -3,8 +3,8 @@ import {
   createTopicExecution,
   finishTopicNamingCall,
   getTopicExecutionNamingCosts,
-  getTopicSnapshotProcessingCosts,
-  recordTopicSnapshotProcessingCost,
+  getTopicExecutionCosts,
+  writeTopicSummaries,
   saveTopicRun,
   startTopicNamingCall,
   TOPICS_ACTION,
@@ -12,7 +12,11 @@ import {
   writeTopicExecution,
   writeTopicSnapshotSummarizing,
 } from "../../../src/server/topics";
-import type { TopicAssignment, TopicRun } from "../../../src/topics";
+import type {
+  TopicAssignment,
+  TopicRun,
+  TopicSummary,
+} from "../../../src/topics";
 import { SeedError, type ScenarioContext } from "./types";
 
 /** Snapshots reuse the seeded Intent map so their costs and map contents can be inspected together. */
@@ -20,6 +24,7 @@ export async function seedTopicCostSnapshots(
   ctx: ScenarioContext,
   sourceRun: TopicRun,
   assignments: TopicAssignment[],
+  summaries: TopicSummary[],
   timeRange: { from: string; to: string },
   geometry: { embeddingModel: string; dimensions: number },
 ) {
@@ -99,25 +104,28 @@ export async function seedTopicCostSnapshots(
     await writeTopicAssignments(
       assignments.map((row) => ({ ...row, ruleId: null, runId })),
     );
+    const pricedRows = partial ? summaries.slice(2, 4) : summaries.slice(0, 2);
+    const processingCosts = [0.2, partial ? null : 0.22];
+    await writeTopicSummaries(
+      pricedRows.map((row, index): TopicSummary => {
+        const cost = processingCosts[index];
+        return {
+          ...row,
+          triggerType: "snapshot",
+          executionId: execution.id,
+          costDetails: cost == null ? {} : { summary_input: cost, total: cost },
+        };
+      }),
+    );
     await writeTopicSnapshotSummarizing(projectId, execution.id, {
       startedAt: execution.createdAt,
       from: timeRange.from,
-      traceIds: [],
+      traceIds: pricedRows.flatMap((row) => (row.traceId ? [row.traceId] : [])),
       seededCount: 2,
       grewAt: execution.createdAt,
       settled: 2,
       failedTicks: 0,
     });
-    for (const [index, cost] of [0.2, partial ? null : 0.22].entries()) {
-      await recordTopicSnapshotProcessingCost({
-        projectId,
-        executionId: execution.id,
-        revision: `seed-trace-${index}`,
-        reportId: "first-attempt",
-        cost,
-        partial: cost === null,
-      });
-    }
     const assigned = assignments.filter((row) => row.topicId !== null).length;
     await writeTopicExecution({
       ...execution,
@@ -138,12 +146,11 @@ export async function seedTopicCostSnapshots(
       ],
     });
     const [processing, naming] = await Promise.all([
-      getTopicSnapshotProcessingCosts(projectId, [execution.id]),
+      getTopicExecutionCosts(projectId, [execution.id]),
       getTopicExecutionNamingCosts(projectId, [execution.id]),
     ]);
     if (
-      processing[execution.id]?.cost !== (partial ? 0.2 : 0.42) ||
-      processing[execution.id]?.partial !== partial ||
+      processing[execution.id] !== (partial ? 0.2 : 0.42) ||
       naming[execution.id]?.cost !== 0.08 ||
       naming[execution.id]?.partial
     ) {

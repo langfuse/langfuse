@@ -1412,8 +1412,6 @@ model EvaluationRule {
   // Unused; kept until no deployed version selects it, then dropped.
   idleTime        Int?           @map("idle_time") // milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
-  // The Topics worker updates the processing balance and its batch sequence together.
-  topicsProcessingCost Json? @map("topics_processing_cost") @ignore
 
   assignments EvaluationRuleEvaluatorAssignment[]
 

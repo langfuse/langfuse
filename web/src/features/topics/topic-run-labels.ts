@@ -54,9 +54,10 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 export const busy = (status: string) =>
   status === "queued" || status === "running";
 
-export function topicRunCostLabel(status: string) {
-  return busy(status) ? "Estimated model cost so far" : "Estimated model cost";
-}
+export const estimatedTopicCostLabel = "Estimated cost:";
+
+export const estimatedTopicCostDescription =
+  "The estimated cost is a lower bound. As summaries can fail, are re-used and can be replaced, the actual cost might be higher. Calls split their cost across the summaries they produce. Each summary’s share goes to its snapshot run or is split equally among its live maps. Please confirm with your model provider.";
 
 export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
@@ -71,37 +72,13 @@ export function formatTopicCost(
   return `~${costFormatter(cost)}${partial ? " (partial)" : ""}`;
 }
 
-export function formatTopicSummaryCost(
-  costs: TopicRunCost | null | undefined,
-  status: string,
-) {
-  if (costs == null) return formatTopicCost(costs);
-  if (
-    busy(status) &&
-    costs.summaries === null &&
-    costs.summaryCheckpoint?.asOf === null
-  )
-    return "Not recorded yet";
-  return formatTopicCost(costs.summaries, costs.summaryCheckpoint?.partial);
-}
-
 export function formatTopicRunCost(
   input: RunCostInput,
   costs: TopicRunCost | null | undefined,
-  status: string,
 ) {
   if (costs == null) return formatTopicCost(costs);
-  const expectsSummaries = createsSummaries(input);
-  const summaries = expectsSummaries ? costs.summaries : null;
+  const summaries = createsSummaries(input) ? costs.summaries : null;
   const naming = costs.naming.cost;
-  if (summaries === null && naming === null)
-    return expectsSummaries && !costs.naming.partial
-      ? formatTopicSummaryCost(costs, status)
-      : "Unavailable";
-  const partial =
-    costs.naming.partial ||
-    (expectsSummaries &&
-      (summaries === null || costs.summaryCheckpoint?.partial)) ||
-    (input.operation === "update" && naming === null);
-  return formatTopicCost((summaries ?? 0) + (naming ?? 0), partial);
+  if (summaries === null && naming === null) return formatTopicCost(null);
+  return formatTopicCost((summaries ?? 0) + (naming ?? 0));
 }

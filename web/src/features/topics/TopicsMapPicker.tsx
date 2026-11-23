@@ -1,6 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { useMediaQuery } from "react-responsive";
-import { formatTopicCost } from "./topic-run-labels";
+import {
+  estimatedTopicCostDescription,
+  estimatedTopicCostLabel,
+  formatTopicCost,
+} from "./topic-run-labels";
 import type { RouterOutputs } from "@/src/utils/api";
 import {
   CalendarRange,
@@ -20,7 +24,6 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { FloatingController } from "@/src/components/design-system/FloatingController/FloatingController";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { TopicFilterChip } from "./TopicFilterChip";
 import { treemapSwatchColor } from "./topic-map-colors";
@@ -53,7 +56,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
-  useMapCost,
+  useMapCosts,
   processingOn,
   create,
   refresh,
@@ -65,7 +68,7 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
-  useMapCost: UseMapCost;
+  useMapCosts: UseMapCosts;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
@@ -106,39 +109,21 @@ export function TopicsMapPicker({
       : undefined;
   const hasPreviewPane = useMediaQuery({ query: "(min-width: 640px)" });
   const costRule = hasPreviewPane ? shownRule : selectedRule;
-  const cost = useMapCost(projectId, open ? costRule?.id : undefined);
-  const costUpdatedAt = cost?.updatedAt ? new Date(cost.updatedAt) : null;
+  const mapCosts = useMapCosts(
+    projectId,
+    open && costRule ? overview.rules.map((rule) => rule.id).sort() : [],
+  );
   const costRow: [string, ReactNode] | undefined = costRule
     ? [
-        "Map cost",
-        <Tooltip
-          key="cost"
-          label={
-            "Estimated lifetime cost of naming topics and this map’s share of summary and embedding calls." +
-            (cost?.partial
-              ? " Some usage predates tracking or has no recorded price."
-              : "") +
-            (costUpdatedAt
-              ? ` Cost last updated ${costUpdatedAt.toLocaleString(undefined, { dateStyle: "long", timeStyle: "long" })}.`
-              : "")
-          }
-        >
+        estimatedTopicCostLabel,
+        <Tooltip key="cost" label={estimatedTopicCostDescription}>
           {({ getTriggerProps }) => (
             <span
               {...getTriggerProps({ tabIndex: 0 })}
               className="tabular-nums"
             >
-              {formatTopicCost(cost?.cost, cost?.partial)}
-              {costUpdatedAt && (
-                <>
-                  {" "}
-                  <time
-                    className="text-muted-foreground"
-                    dateTime={costUpdatedAt.toISOString()}
-                  >
-                    (updated {formatCompactRelativeTime(costUpdatedAt)})
-                  </time>
-                </>
+              {formatTopicCost(
+                mapCosts == null ? mapCosts : (mapCosts[costRule.id] ?? null),
               )}
             </span>
           )}
@@ -770,10 +755,10 @@ type PreviewFacet = {
   topics: { id: string; name: string; count: number }[];
 };
 
-export type UseMapCost = (
+export type UseMapCosts = (
   projectId: string,
-  ruleId: string | undefined,
-) => RouterOutputs["topics"]["ruleMapCost"] | undefined;
+  ruleIds: string[],
+) => RouterOutputs["topics"]["ruleMapCosts"] | null | undefined;
 
 /** Topics of one map for the preview pane; null skips the request. */
 export type UsePreviewTopics = (

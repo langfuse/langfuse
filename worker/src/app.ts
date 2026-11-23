@@ -122,7 +122,6 @@ import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runn
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsUpdateQueueProcessor } from "./queues/topicsQueue";
 import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
-import { TopicProcessingCostFlushRunner } from "./features/topics/processingCostBuffer";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 import {
   isEventsDispatchEnabled,
@@ -349,15 +348,10 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-export let topicProcessingCostFlushRunner: TopicProcessingCostFlushRunner | null =
-  null;
-
 if (
   isTopicsEnabled() &&
   env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true"
 ) {
-  topicProcessingCostFlushRunner = new TopicProcessingCostFlushRunner();
-  topicProcessingCostFlushRunner.start();
   TopicsTraceQueue.getShardNames().forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,
