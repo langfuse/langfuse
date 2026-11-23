@@ -31,6 +31,7 @@ import {
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { toTraceEventObservation } from "../eventsDispatch/traceEvents";
+import { recordTopicCostEstimate } from "./metrics";
 import { buildTopicSummaryRequest } from "./models";
 import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
 
@@ -236,10 +237,16 @@ export async function runTopicCostEstimate(
           traceId = row.trace_id;
         }
         rows.push(row);
-        if (!owned) return;
+        if (!owned) {
+          recordTopicCostEstimate("superseded", record.startedAt);
+          return;
+        }
       }
       await flush();
-      if (!owned) return;
+      if (!owned) {
+        recordTopicCostEstimate("superseded", record.startedAt);
+        return;
+      }
     }
     // Traces without rows in events_full were deleted after the sample was drawn.
     const unread = sample.traces.length - record.processed;
@@ -249,6 +256,7 @@ export async function runTopicCostEstimate(
     record.status = "done";
     record.finishedAt = Date.now();
     await finishTopicCostEstimate(projectId, record);
+    recordTopicCostEstimate("done", record.startedAt);
   } catch (error) {
     logger.error("Topics cost estimate failed", { projectId, error });
     record.status = "failed";
@@ -258,5 +266,6 @@ export async function runTopicCostEstimate(
         ? error.message
         : "The estimate failed. Try again.";
     await finishTopicCostEstimate(projectId, record);
+    recordTopicCostEstimate("failed", record.startedAt);
   }
 }
