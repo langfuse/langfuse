@@ -305,9 +305,11 @@ impl ExecutionCapture {
             return;
         };
         correlation.record_generation(delivery.generation_ids());
-        self.metadata["request_id"] = json!(correlation.id());
-        if let Some(client_id) = correlation.client_id() {
-            self.metadata["client_request_id"] = json!(client_id);
+        if let Some(metadata) = self.metadata.as_object_mut() {
+            metadata.insert("request_id".into(), json!(correlation.id()));
+            if let Some(client_id) = correlation.client_id() {
+                metadata.insert("client_request_id".into(), json!(client_id));
+            }
         }
         self.delivery = Some((telemetry, delivery));
     }
