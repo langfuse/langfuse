@@ -16,11 +16,7 @@ import {
   recordEvalTerminalOutcome,
   recordEvalTimeToFirstAttempt,
 } from "./evalExecutionMetrics";
-import {
-  EvalFailureError,
-  EvalFailureReason,
-  UnrecoverableEvalFailureError,
-} from "./evalFailureErrors";
+import { EvalFailureError, EvalFailureReason } from "./evalFailureErrors";
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   recordDistribution: vi.fn(),
@@ -181,19 +177,6 @@ describe("evaluation execution metrics", () => {
         isUnrecoverable: false,
       }),
     ).toEqual({ outcome: "platform_error", reason: "observation_download" });
-  });
-
-  it("attributes invalid variable mappings to the customer", () => {
-    expect(
-      getLlmEvalTerminalErrorAttribution({
-        error: new UnrecoverableEvalFailureError(
-          'Variable "x" maps to unknown column "y".',
-          EvalFailureReason.InvalidVariableMapping,
-        ),
-        classification: null,
-        isUnrecoverable: true,
-      }),
-    ).toEqual({ outcome: "customer_error" });
   });
 
   it.each([

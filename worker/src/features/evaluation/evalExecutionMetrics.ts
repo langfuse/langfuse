@@ -23,7 +23,6 @@ const CUSTOMER_EVAL_FAILURE_REASONS: ReadonlySet<EvalFailureReason> =
   new Set<CustomerEvalFailureReason>([
     EvalFailureReason.InvalidModelConfig,
     EvalFailureReason.InvalidModelOutput,
-    EvalFailureReason.InvalidVariableMapping,
   ]);
 
 const LLM_ERROR_KIND_REASONS = {
@@ -234,8 +233,7 @@ type LlmEvalTerminalErrorAttribution =
 
 type CustomerEvalFailureReason =
   | typeof EvalFailureReason.InvalidModelConfig
-  | typeof EvalFailureReason.InvalidModelOutput
-  | typeof EvalFailureReason.InvalidVariableMapping;
+  | typeof EvalFailureReason.InvalidModelOutput;
 
 export const __test = {
   getEvalScoreCountBucket,
