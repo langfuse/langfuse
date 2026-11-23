@@ -426,7 +426,7 @@ function parseObservationVariableMapping(variableMapping: Prisma.JsonValue) {
     );
     throw new UnrecoverableEvalFailureError(
       `${unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid."} Update the variable mapping of this evaluator.`,
-      EvalFailureReason.InvalidObservationData,
+      EvalFailureReason.InvalidVariableMapping,
     );
   }
   return parsed.data;

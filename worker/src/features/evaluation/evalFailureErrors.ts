@@ -9,6 +9,7 @@ export const EvalFailureReason = {
   InvalidModelOutput: "invalid_model_output",
   ObservationDownload: "observation_download",
   InvalidObservationData: "invalid_observation_data",
+  InvalidVariableMapping: "invalid_variable_mapping",
   ScorePersistence: "score_persistence",
 } as const;
 
