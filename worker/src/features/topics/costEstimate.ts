@@ -34,7 +34,7 @@ import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
 const DAY_MS = 86_400_000;
 // Fallback when a project has no stored idle time, as in setup.
 const DEFAULT_IDLE_MS = 600_000;
-// Traces this large are not read: the transcript would exceed the stored limit.
+// Traces this large are not read, which bounds the job's memory and time.
 const MAX_TRACE_ROWS = 2_000;
 const MAX_TRACE_BYTES = 10 * 1024 * 1024;
 // One events_full read covers at most this many traces and event bytes.
@@ -68,7 +68,7 @@ function batchTraces(traces: SampledTrace[]) {
   let bytes = 0;
   for (const trace of traces) {
     if (
-      current.length &&
+      current.length > 0 &&
       (current.length >= BATCH_TRACES || bytes + trace.eventBytes > BATCH_BYTES)
     ) {
       batches.push(current);
@@ -78,7 +78,7 @@ function batchTraces(traces: SampledTrace[]) {
     current.push(trace);
     bytes += trace.eventBytes;
   }
-  if (current.length) batches.push(current);
+  if (current.length > 0) batches.push(current);
   return batches;
 }
 
@@ -91,9 +91,11 @@ function batchTraces(traces: SampledTrace[]) {
 export async function runTopicCostEstimate(
   projectId: string,
   estimateKey: string,
+  runId: string,
 ): Promise<void> {
   const loaded = await readTopicCostEstimate(projectId, estimateKey);
-  if (!loaded || loaded.status !== "running") return;
+  // A job that outlived its record must not run a newer estimate of the same inputs.
+  if (!loaded || loaded.status !== "running" || loaded.runId !== runId) return;
   // A redelivered job starts from zero.
   const record: TopicCostEstimate = {
     ...loaded,
@@ -167,14 +169,12 @@ export async function runTopicCostEstimate(
             ),
             matching,
           });
-    record.sampled = sample.length;
-
-    const readable: SampledTrace[] = [];
-    for (const trace of sample) {
-      if (trace.rows > MAX_TRACE_ROWS || trace.eventBytes > MAX_TRACE_BYTES)
-        record.skipped.tooLarge++;
-      else readable.push(trace);
-    }
+    // Unread traces leave the sample: production may still summarize them, so they are not free.
+    const readable = sample.filter(
+      (trace) =>
+        trace.rows <= MAX_TRACE_ROWS && trace.eventBytes <= MAX_TRACE_BYTES,
+    );
+    record.sampled = readable.length;
 
     let read = 0;
     const measure = (rows: EventsDispatchEventRow[]) => {

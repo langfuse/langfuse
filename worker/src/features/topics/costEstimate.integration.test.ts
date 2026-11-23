@@ -71,7 +71,7 @@ describe("Topics cost estimate", () => {
       sampled: 3,
       summarizable: 2,
     });
-    await runTopicCostEstimate(projectId, estimate.key);
+    await runTopicCostEstimate(projectId, estimate.key, estimate.runId);
 
     const done = await readTopicCostEstimate(projectId, estimate.key);
     expect(done).toMatchObject({

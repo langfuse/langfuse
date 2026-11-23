@@ -17,7 +17,11 @@ export const topicsSetupQueueProcessor: Processor<
   const { payload } = job.data;
   // Cost estimates run once; they never reschedule.
   if ("estimateKey" in payload) {
-    await runTopicCostEstimate(payload.projectId, payload.estimateKey);
+    await runTopicCostEstimate(
+      payload.projectId,
+      payload.estimateKey,
+      job.data.id,
+    );
     return;
   }
   const active =

@@ -28,7 +28,7 @@ export type TopicCostEstimate = {
     summaryModel: string;
     embeddingModel: string | null;
   };
-  /** Traces drawn for the sample; fewer than the sample size when fewer finished. */
+  /** Traces measured; fewer than the sample size when fewer finished or some were too large to read. */
   sampled: number;
   summarizable: number;
   skipped: { tooLarge: number; noContent: number };
