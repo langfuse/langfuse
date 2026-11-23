@@ -496,9 +496,10 @@ export function setRuleStatus(params: {
   const status = params.enabled
     ? JobConfigState.ACTIVE
     : JobConfigState.INACTIVE;
-  // The zero-assignment cleanup must reach trace transcript rules whatever the
-  // caller's visibility, so it drops the trace transcript filter. A rule with
-  // no assignments can never carry a FACET evaluator, so the FACET guard holds.
+  // The zero-assignment cleanup includes trace transcript rules regardless of
+  // the caller's visibility. The predicate sits under AND so it does not
+  // overwrite the FACET exclusion in visibleRuleWhere, leaving FACET-assigned
+  // (Topics) rules untouched.
   const visibility = params.unassignedOnly
     ? { includeTraceTranscriptRules: true }
     : params.visibility;
@@ -507,7 +508,9 @@ export function setRuleStatus(params: {
       projectId: params.projectId,
       ...visibleRuleWhere(visibility),
       ...(params.ruleIds === undefined ? {} : { id: { in: params.ruleIds } }),
-      ...(params.unassignedOnly ? { assignments: { none: {} } } : {}),
+      ...(params.unassignedOnly
+        ? { AND: [{ assignments: { none: {} } }] }
+        : {}),
       ...(params.sampling === undefined ? { status: { not: status } } : {}),
     },
     data: {

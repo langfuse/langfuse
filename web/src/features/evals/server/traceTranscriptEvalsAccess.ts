@@ -1,5 +1,5 @@
 import { type Session } from "next-auth";
-import { TRPCError } from "@trpc/server";
+import { ForbiddenError } from "@langfuse/shared";
 import { isTraceEvalsProjectEnabled } from "@langfuse/shared/src/server";
 
 import { canViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
@@ -20,9 +20,8 @@ export function throwIfTraceTranscriptEvalsUnavailable(
   projectId: string,
 ) {
   if (!canUseTraceTranscriptEvals(session, projectId)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Trace evaluations are not available for this project.",
-    });
+    throw new ForbiddenError(
+      "Trace evaluations are not available for this project.",
+    );
   }
 }

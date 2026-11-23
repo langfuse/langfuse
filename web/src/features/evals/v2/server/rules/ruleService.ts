@@ -1031,10 +1031,16 @@ function requiredEvaluatorVariables(
 
 function toRuleResponse(rule: StoredRule) {
   const { status, assignments, filter, sampling, ...rest } = rule;
-  const normalized = normalizeEvaluationRuleTarget({
-    targetObject: rest.targetObject as EvalTargetObject,
-    filter: filter as FilterState,
-  });
+  // isExperimentItemRootSpan is a valid trace transcript filter column, so a
+  // trace rule must report its stored target instead of being normalized to
+  // EVENT the way observation experiment rules are.
+  const normalized =
+    rest.targetObject === TopicsTargetObject
+      ? { targetObject: rest.targetObject, filter: filter as FilterState }
+      : normalizeEvaluationRuleTarget({
+          targetObject: rest.targetObject as EvalTargetObject,
+          filter: filter as FilterState,
+        });
   return {
     ...rest,
     targetObject: normalized.targetObject,

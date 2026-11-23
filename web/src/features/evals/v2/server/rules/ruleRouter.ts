@@ -175,7 +175,7 @@ export const ruleRouter = createTRPCRouter({
       );
     }),
 
-  createTraceTranscript: protectedProjectProcedure
+  createTraceTranscriptRule: protectedProjectProcedure
     .input(CreateTraceTranscriptRuleSchema)
     .mutation(({ input, ctx }) => {
       throwIfNoProjectAccess({

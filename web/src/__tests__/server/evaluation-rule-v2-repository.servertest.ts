@@ -567,6 +567,46 @@ describe("evaluation rule v2 repository", () => {
         }),
       ).resolves.toEqual({ status: "INACTIVE" });
     });
+
+    it("leaves a facet rule active during the zero-assignment cleanup", async () => {
+      const evaluator = await createEvaluator();
+      await prisma.evaluator.update({
+        where: { id: evaluator.id },
+        data: { type: EvalTemplateType.FACET, isBuiltIn: true },
+      });
+      // A Topics/FACET rule is a transcript rule assigned a FACET evaluator.
+      const facetRule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: `facet-rule-${randomUUID()}`,
+          targetObject: TopicsTargetObject,
+          status: "ACTIVE",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          assignments: { create: { projectId, evaluatorId: evaluator.id } },
+        },
+      });
+
+      // The same cleanup that disables unassigned transcript rules must skip a
+      // FACET rule, which the explicit FACET exclusion guarantees.
+      await expect(
+        ruleRepository.setRuleStatus({
+          prisma,
+          projectId,
+          enabled: false,
+          unassignedOnly: true,
+        }),
+      ).resolves.toEqual({ count: 0 });
+
+      await expect(
+        prisma.evaluationRule.findUnique({
+          where: { id: facetRule.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ACTIVE" });
+    });
   });
 
   describe("countActiveEvaluationRules", () => {

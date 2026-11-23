@@ -600,6 +600,50 @@ describe("RuleService", () => {
       );
     });
 
+    it("reports the stored trace transcript target even with an experiment-root filter", async () => {
+      const service = createService();
+      const variableMapping = [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector: "$[0].currentTurn",
+        },
+      ];
+
+      // isExperimentItemRootSpan is a valid trace transcript filter column, so
+      // the response must still report the stored trace target rather than be
+      // reclassified to EVENT the way an observation experiment rule would be.
+      const rule = await service.createTraceTranscriptRule(
+        {
+          projectId,
+          name: "Experiment-root trace rule",
+          targetObject: TopicsTargetObject,
+          filter: [
+            {
+              type: "boolean",
+              column: "isExperimentItemRootSpan",
+              operator: "=",
+              value: true,
+            },
+          ],
+          sampling: 1,
+          enabled: true,
+          evaluatorAssignments: [
+            { evaluatorId: defaultEvaluatorId, variableMapping },
+          ],
+        },
+        null,
+      );
+
+      expect(rule.targetObject).toBe(TopicsTargetObject);
+      await expect(
+        prisma.evaluationRule.findUniqueOrThrow({
+          where: { id: rule.id },
+          select: { targetObject: true },
+        }),
+      ).resolves.toEqual({ targetObject: TopicsTargetObject });
+    });
+
     it("ignores an attempt to change the target of an existing rule", async () => {
       const service = createService();
       const rule = await service.create(createInput(), null);

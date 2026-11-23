@@ -23,6 +23,7 @@ import {
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  TRACE_TRANSCRIPT_MAX_CHARACTERS,
   unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -104,7 +105,7 @@ export async function testEvaluatorOnTrace(params: {
     excludeInputOutput: true,
     excludeMetadata: true,
   });
-  const { transcript } = await loadTraceTranscript({
+  const { transcript, cutoff } = await loadTraceTranscript({
     projectId: params.projectId,
     traceId: params.traceId,
     timestamp: trace?.timestamp ?? params.timestamp,
@@ -114,6 +115,26 @@ export async function testEvaluatorOnTrace(params: {
     return {
       success: false as const,
       error: "This trace has no transcript to evaluate.",
+      durationMs: Date.now() - startedAt,
+      variables: [],
+    };
+  }
+  // A scheduled rule skips traces whose transcript exceeds the size cap and
+  // reads a bounded set of observations, so testing a cut-off or oversized
+  // transcript would score something the rule never evaluates.
+  if (cutoff) {
+    return {
+      success: false as const,
+      error:
+        "This trace has more observations than a transcript evaluation reads.",
+      durationMs: Date.now() - startedAt,
+      variables: [],
+    };
+  }
+  if (JSON.stringify(transcript).length > TRACE_TRANSCRIPT_MAX_CHARACTERS) {
+    return {
+      success: false as const,
+      error: "This trace transcript is too large to evaluate.",
       durationMs: Date.now() - startedAt,
       variables: [],
     };
