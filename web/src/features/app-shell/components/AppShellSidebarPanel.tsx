@@ -16,12 +16,14 @@ import { env } from "@/src/env.mjs";
 import { SidebarAccountButton } from "@/src/features/app-shell/components/SidebarAccountButton";
 import { SidebarDemoNotice } from "@/src/features/app-shell/components/SidebarDemoNotice";
 import { SidebarNavigation } from "@/src/features/app-shell/components/SidebarNavigation";
+import { SidebarOverviewLink } from "@/src/features/app-shell/components/SidebarOverviewLink";
 import { SidebarPanel } from "@/src/features/app-shell/components/SidebarPanel";
 import { SidebarOrganizationHeader } from "@/src/features/app-shell/components/SidebarOrganizationHeader";
 import {
   SidebarUserMenu,
   type SidebarUser,
 } from "@/src/features/app-shell/components/SidebarUserMenu";
+import { SidebarWorkspaceSwitcher } from "@/src/features/app-shell/components/SidebarWorkspaceSwitcher";
 import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
@@ -30,7 +32,22 @@ type GroupedNavigationItems = {
   grouped: Partial<Record<RouteGroup, NavigationItem[]>> | null;
 };
 
-/** The app sidebar's content: organization, navigation, and account. */
+/** The workspace block owns the overview entry, so the route list does not repeat it. */
+const WORKSPACE_BLOCK_ROUTE_IDS = new Set<NavigationItem["id"]>([
+  "organizations-overview",
+  "organization-overview",
+]);
+
+const withoutWorkspaceBlockRoutes = (
+  navigation: GroupedNavigationItems,
+): GroupedNavigationItems => ({
+  ...navigation,
+  ungrouped: navigation.ungrouped.filter(
+    (item) => !WORKSPACE_BLOCK_ROUTE_IDS.has(item.id),
+  ),
+});
+
+/** The app sidebar's content: brand, workspace switcher, navigation, and account. */
 export function AppShellSidebarPanel({
   mainNavigation,
   secondaryNavigation,
@@ -67,6 +84,12 @@ export function AppShellSidebarPanel({
   return (
     <SidebarPanel>
       <SidebarOrganizationHeader />
+      <SidebarPanel.Section>
+        <div className="flex flex-col gap-1">
+          <SidebarWorkspaceSwitcher />
+          <SidebarOverviewLink />
+        </div>
+      </SidebarPanel.Section>
       {isDemoProject && (
         <div
           className={motion.expandedSection}
@@ -82,7 +105,10 @@ export function AppShellSidebarPanel({
         </div>
       )}
       <SidebarPanel.Body>
-        <SidebarNavigation label="Main" items={mainNavigation} />
+        <SidebarNavigation
+          label="Main"
+          items={withoutWorkspaceBlockRoutes(mainNavigation)}
+        />
         <SidebarPanel.Spacer />
         {activeNotifications.length > 0 && (
           <div
