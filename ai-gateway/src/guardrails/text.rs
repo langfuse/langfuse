@@ -20,7 +20,7 @@ struct Part<'a> {
 
 /// Pushes the text in `raw`; skips images, files and other non-text parts without
 /// copying them.
-pub(super) fn collect<'a>(raw: &'a RawValue, texts: &mut Vec<Cow<'a, str>>) {
+pub(crate) fn collect<'a>(raw: &'a RawValue, texts: &mut Vec<Cow<'a, str>>) {
     collect_nested(raw, texts, 0);
 }
 
@@ -52,7 +52,7 @@ fn collect_nested<'a>(raw: &'a RawValue, texts: &mut Vec<Cow<'a, str>>, depth: u
 }
 
 /// A JSON string, borrowed when it has no escapes.
-pub(super) fn string(raw: &RawValue) -> Option<Cow<'_, str>> {
+pub(crate) fn string(raw: &RawValue) -> Option<Cow<'_, str>> {
     serde_json::from_str::<&str>(raw.get())
         .map(Cow::Borrowed)
         .or_else(|_| serde_json::from_str::<String>(raw.get()).map(Cow::Owned))

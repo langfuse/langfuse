@@ -1,20 +1,19 @@
-//! Guardrails: built-in rules checked against the last turn of a request before it
-//! reaches the provider. A `block` guardrail that matches refuses the request; a
-//! `log` guardrail that matches marks its generation. Each API format names the
-//! members holding the conversation and finds the last turn in them.
-mod anthropic_messages;
-mod chat_completions;
-mod embeddings;
-mod presets;
-mod responses;
-mod text;
+//! Guardrails: patterns from the control plane checked against the last turn of a
+//! request before it reaches the provider. A `block` guardrail that matches
+//! refuses the request; a `log` guardrail that matches marks its generation. Each
+//! API format's capture module finds the last turn (`capture::guardrail_last_turn`).
+pub(crate) mod text;
 
-use std::{borrow::Cow, ops::Range};
+use std::{
+    collections::HashMap,
+    ops::Range,
+    sync::{Arc, LazyLock, Mutex, PoisonError},
+};
 
+use regex::bytes::{RegexSet, RegexSetBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::resolution::ApiFormat;
-use presets::{Matches, Preset};
 
 /// A guardrail assigned to the request's key, its user or its organization.
 #[derive(Clone, Debug, Deserialize)]
@@ -22,7 +21,8 @@ pub(crate) struct Guardrail {
     pub id: String,
     pub name: String,
     pub action: GuardrailAction,
-    pub presets: Vec<Preset>,
+    /// Regex patterns; the guardrail matches when any of them does.
+    pub patterns: Vec<String>,
 }
 
 /// An action this gateway does not know skips the guardrail rather than failing
@@ -37,18 +37,7 @@ pub(crate) enum GuardrailAction {
     Unknown,
 }
 
-/// The top-level members of the format that hold the conversation.
-pub(crate) fn scanned_members(api_format: ApiFormat) -> &'static [&'static str] {
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => chat_completions::MEMBERS,
-        ApiFormat::OpenAiResponses => responses::MEMBERS,
-        ApiFormat::AnthropicMessages => anthropic_messages::MEMBERS,
-        ApiFormat::OpenAiEmbeddings => embeddings::MEMBERS,
-        ApiFormat::OpenAiDecisions => &[],
-    }
-}
-
-/// Where the request parse found the members of `scanned_members`.
+/// Where the request parse found the members of `capture::guardrail_members`.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ScannedMembers {
     members: Vec<(&'static str, Range<usize>)>,
@@ -99,79 +88,99 @@ impl Outcome {
     }
 }
 
-/// Checks `body`'s last turn against `guardrails`. Guardrails fail open: if the
-/// rules failed to compile, nothing matches. A conversation member that appears
+/// Compiled guardrails, keyed by their patterns. Every request of a key resolves
+/// the same guardrails, so each compiles once and the check is a scan. Cleared
+/// when full rather than evicted: sets are few and cheap to rebuild.
+static COMPILED: LazyLock<Mutex<HashMap<Vec<String>, Arc<RegexSet>>>> =
+    LazyLock::new(Mutex::default);
+const MAX_COMPILED: usize = 1024;
+
+/// Checks `body`'s last turn against `guardrails`. Guardrails fail open: one whose
+/// patterns do not compile matches nothing. A conversation member that appears
 /// twice is not a failure but a way to show the provider other text than the
-/// gateway scans, so it counts as matching every guardrail.
+/// gateway scans, so it matches every guardrail.
 pub(crate) fn check(
     guardrails: &[Guardrail],
     api_format: ApiFormat,
     body: &[u8],
     scanned: &ScannedMembers,
 ) -> Outcome {
-    let active: Vec<(&Guardrail, Matches)> = guardrails
-        .iter()
-        .filter(|guardrail| guardrail.action != GuardrailAction::Unknown)
-        .map(|guardrail| (guardrail, Matches::of(&guardrail.presets)))
-        .filter(|(_, matches)| !matches.is_empty())
-        .collect();
-    if active.is_empty() || scanned_members(api_format).is_empty() {
+    let active = guardrails.iter().filter(|guardrail| {
+        guardrail.action != GuardrailAction::Unknown && !guardrail.patterns.is_empty()
+    });
+    if active.clone().next().is_none() || crate::capture::guardrail_members(api_format).is_empty() {
         return Outcome::default();
     }
-    let matched = if scanned.duplicated {
-        Matches::ALL
+    let texts = if scanned.duplicated {
+        Vec::new()
     } else {
-        let wanted = active
-            .iter()
-            .fold(Matches::default(), |wanted, (_, matches)| {
-                wanted.union(*matches)
-            });
-        let texts = last_turn(api_format, body, scanned);
-        presets::scan(texts.iter().map(AsRef::as_ref), wanted).unwrap_or_default()
+        last_turn(api_format, body, scanned)
     };
-    Outcome {
-        findings: active
-            .into_iter()
-            .filter(|(_, matches)| matches.intersects(matched))
-            .map(|(guardrail, _)| Finding {
-                id: guardrail.id.clone(),
-                name: guardrail.name.clone(),
-                action: guardrail.action,
-            })
-            .collect(),
-    }
+    let findings = active
+        .filter(|guardrail| {
+            scanned.duplicated
+                || compiled(&guardrail.patterns)
+                    .is_some_and(|set| texts.iter().any(|text| set.is_match(text.as_bytes())))
+        })
+        .map(|guardrail| Finding {
+            id: guardrail.id.clone(),
+            name: guardrail.name.clone(),
+            action: guardrail.action,
+        })
+        .collect();
+    Outcome { findings }
 }
 
 fn last_turn<'a>(
     api_format: ApiFormat,
     body: &'a [u8],
     scanned: &ScannedMembers,
-) -> Vec<Cow<'a, str>> {
+) -> Vec<std::borrow::Cow<'a, str>> {
     let member = |name: &str| {
         let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
         std::str::from_utf8(body.get(range.clone())?).ok()
     };
     let mut texts = Vec::new();
-    match api_format {
-        ApiFormat::OpenAiChatCompletions => chat_completions::last_turn(member, &mut texts),
-        ApiFormat::OpenAiResponses => responses::last_turn(member, &mut texts),
-        ApiFormat::AnthropicMessages => anthropic_messages::last_turn(member, &mut texts),
-        ApiFormat::OpenAiEmbeddings => embeddings::last_turn(member, &mut texts),
-        ApiFormat::OpenAiDecisions => {}
-    }
+    crate::capture::guardrail_last_turn(api_format, member, &mut texts);
     texts
+}
+
+/// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
+/// even when the text holds non-ASCII; `None` when a pattern does not compile.
+fn compiled(patterns: &[String]) -> Option<Arc<RegexSet>> {
+    let mut cache = COMPILED.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(set) = cache.get(patterns) {
+        return Some(Arc::clone(set));
+    }
+    let set = RegexSetBuilder::new(patterns)
+        .unicode(false)
+        .build()
+        .inspect_err(|error| tracing::warn!(%error, "guardrail patterns failed to compile"))
+        .ok()?;
+    if cache.len() >= MAX_COMPILED {
+        cache.clear();
+    }
+    let set = Arc::new(set);
+    cache.insert(patterns.to_vec(), Arc::clone(&set));
+    Some(set)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn guardrail(id: &str, action: GuardrailAction, presets: &[Preset]) -> Guardrail {
+    const SSN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
+    const EMAIL: &str = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b";
+
+    fn guardrail(id: &str, action: GuardrailAction, patterns: &[&str]) -> Guardrail {
         Guardrail {
             id: id.into(),
             name: format!("{id} name"),
             action,
-            presets: presets.to_vec(),
+            patterns: patterns
+                .iter()
+                .map(|pattern| (*pattern).to_owned())
+                .collect(),
         }
     }
 
@@ -188,13 +197,13 @@ mod tests {
     }
 
     #[test]
-    fn only_guardrails_whose_presets_match_the_last_turn_fire() {
+    fn only_guardrails_whose_patterns_match_the_last_turn_fire() {
         let body = r#"{"messages":[{"role":"user","content":"ssn 123-45-6789"},{"role":"assistant","content":"ok"},{"role":"user","content":"mail me at a@example.com"}]}"#;
         let outcome = check(
             &[
-                guardrail("ssn", GuardrailAction::Block, &[Preset::UsSsn]),
-                guardrail("email", GuardrailAction::Log, &[Preset::Email]),
-                guardrail("unknown", GuardrailAction::Block, &[Preset::Unknown]),
+                guardrail("ssn", GuardrailAction::Block, &[SSN]),
+                guardrail("email", GuardrailAction::Log, &[EMAIL]),
+                guardrail("invalid", GuardrailAction::Block, &[r"(unclosed"]),
             ],
             ApiFormat::OpenAiChatCompletions,
             body.as_bytes(),
@@ -217,7 +226,7 @@ mod tests {
         let mut members = scanned(body, &["messages"]);
         members.mark_duplicated();
         let outcome = check(
-            &[guardrail("ssn", GuardrailAction::Block, &[Preset::UsSsn])],
+            &[guardrail("ssn", GuardrailAction::Block, &[SSN])],
             ApiFormat::OpenAiChatCompletions,
             body.as_bytes(),
             &members,

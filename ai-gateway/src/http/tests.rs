@@ -1725,8 +1725,8 @@ async fn guardrail_resolution() -> Response<Body> {
         .unwrap();
     let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     body["guardrails"] = serde_json::json!([
-        {"id": "g-block", "name": "No SSNs", "action": "block", "presets": ["us_ssn"]},
-        {"id": "g-log", "name": "Emails", "action": "log", "presets": ["email"]},
+        {"id": "g-block", "name": "No SSNs", "action": "block", "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]},
+        {"id": "g-log", "name": "Emails", "action": "log", "patterns": [r"\b[a-z]+@example\.com\b"]},
     ]);
     Response::new(Body::from(body.to_string()))
 }

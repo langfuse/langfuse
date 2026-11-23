@@ -1140,3 +1140,36 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
         assert_eq!(facts[0]["capture_complete"], true);
     }
 }
+
+fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    guardrail_last_turn(
+        |name| match name {
+            "instructions" => Some(instructions),
+            "input" => Some(input),
+            _ => None,
+        },
+        &mut texts,
+    );
+    texts
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
+}
+
+#[test]
+fn the_last_turn_follows_the_last_item_the_model_produced() {
+    assert_eq!(guardrail_scan(r#""sys""#, r#""hello""#), ["sys", "hello"]);
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":[{"type":"input_text","text":"old"}]},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"function_call_output","call_id":"b","output":[{"type":"input_text","text":"result b"}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}

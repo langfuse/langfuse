@@ -171,6 +171,36 @@ impl ProtocolCapture {
     }
 }
 
+/// The top-level members of a request in `api_format` that hold the conversation
+/// guardrails scan.
+pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
+        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiDecisions => &[],
+    }
+}
+
+/// Pushes the text of the request's last turn, read from the members of
+/// [`guardrail_members`] that `member` returns.
+pub(crate) fn guardrail_last_turn<'a>(
+    api_format: ApiFormat,
+    member: impl Fn(&str) -> Option<&'a str>,
+    texts: &mut Vec<std::borrow::Cow<'a, str>>,
+) {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => {
+            openai_chat_completions::guardrail_last_turn(member, texts);
+        }
+        ApiFormat::OpenAiResponses => openai_responses::guardrail_last_turn(member, texts),
+        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_last_turn(member, texts),
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::guardrail_last_turn(member, texts),
+        ApiFormat::OpenAiDecisions => {}
+    }
+}
+
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {

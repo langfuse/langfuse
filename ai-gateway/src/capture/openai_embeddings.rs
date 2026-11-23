@@ -282,6 +282,22 @@ fn dimensions(item: &[u8]) -> Option<usize> {
     }
 }
 
+/// Embeddings have no conversation: all of `input`, a string or a list of strings,
+/// is scanned. Token-id inputs hold no text.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input"];
+
+pub(super) fn guardrail_last_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+    texts: &mut Vec<std::borrow::Cow<'a, str>>,
+) {
+    if let Some(input) = member("input")
+        .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
+    {
+        crate::guardrails::text::collect(input, texts);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

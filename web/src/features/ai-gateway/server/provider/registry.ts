@@ -13,7 +13,6 @@ import {
   getVertexAccessToken,
   vertexOpenAICompatibleBaseUrl,
 } from "@/src/features/ai-gateway/server/provider/vertex";
-import { gatewayGuardrailPresets } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export const gatewayApiFormats = [
   "openai.responses",
@@ -88,7 +87,8 @@ export const GatewayResolveGuardrailsSchema = z.array(
       id: z.string(),
       name: z.string(),
       action: z.enum(["block", "log"]),
-      presets: z.array(z.enum(gatewayGuardrailPresets)),
+      // Regex patterns; the guardrail matches when any of them does.
+      patterns: z.array(z.string()),
     })
     .strict(),
 );

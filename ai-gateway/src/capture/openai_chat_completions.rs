@@ -493,5 +493,46 @@ impl OpenAiChatCompletionsCapture {
     }
 }
 
+/// Chat Completions keeps the whole conversation in `messages`. The last turn is
+/// every message after the last assistant message: the user's message, or the
+/// results of the assistant's (possibly parallel) tool calls.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages"];
+
+#[derive(serde::Deserialize)]
+struct GuardrailMessage<'a> {
+    #[serde(borrow, default)]
+    role: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a serde_json::value::RawValue>,
+}
+
+pub(super) fn guardrail_last_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+    texts: &mut Vec<std::borrow::Cow<'a, str>>,
+) {
+    let Some(messages) = member("messages")
+        .and_then(|raw| serde_json::from_str::<Vec<GuardrailMessage<'a>>>(raw).ok())
+    else {
+        return;
+    };
+    let start = messages
+        .iter()
+        .rposition(|message| {
+            message
+                .role
+                .and_then(crate::guardrails::text::string)
+                .as_deref()
+                == Some("assistant")
+        })
+        .map_or(0, |index| index + 1);
+    for content in messages[start..]
+        .iter()
+        .filter_map(|message| message.content)
+    {
+        crate::guardrails::text::collect(content, texts);
+    }
+}
+
 #[cfg(test)]
 mod tests;

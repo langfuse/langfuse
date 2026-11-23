@@ -416,7 +416,7 @@ fn parse_request_body(
 ) -> Result<ParsedRequest, InferenceHttpError> {
     let seed = MembersSeed {
         collect: capture && bytes.len() <= MAX_INPUT_CAPTURE_BYTES,
-        scanned: crate::guardrails::scanned_members(api_format),
+        scanned: crate::capture::guardrail_members(api_format),
     };
     let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
     let members = serde::de::DeserializeSeed::deserialize(seed, &mut deserializer)

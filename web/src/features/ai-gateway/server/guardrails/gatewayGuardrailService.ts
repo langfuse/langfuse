@@ -3,7 +3,10 @@ import { logger } from "@langfuse/shared/src/server";
 
 import type { GatewayResolveGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayGuardrailRepository } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailRepository";
-import { GatewayRegexGuardrailConfigSchema } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import {
+  GATEWAY_GUARDRAIL_PRESETS,
+  GatewayRegexGuardrailConfigSchema,
+} from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export class GatewayGuardrailService {
   private readonly repository: GatewayGuardrailRepository;
@@ -36,7 +39,9 @@ export class GatewayGuardrailService {
           id: guardrail.id,
           name: guardrail.name,
           action: guardrail.action === "BLOCK" ? "block" : "log",
-          presets: config.data.presets,
+          patterns: config.data.presets.flatMap((preset) => [
+            ...GATEWAY_GUARDRAIL_PRESETS[preset],
+          ]),
         },
       ];
     });

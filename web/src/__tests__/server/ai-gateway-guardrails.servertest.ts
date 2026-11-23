@@ -5,6 +5,7 @@ import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
+import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 const organizationIds: string[] = [];
 const userIds: string[] = [];
@@ -129,7 +130,7 @@ describe("GatewayGuardrailService", () => {
       id: expect.any(String),
       name: "Key rule",
       action: "block",
-      presets: ["email"],
+      patterns: [...GATEWAY_GUARDRAIL_PRESETS.email],
     });
 
     const forServiceKey = await service.resolveForKey({

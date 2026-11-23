@@ -460,5 +460,49 @@ impl AnthropicMessagesCapture {
     }
 }
 
+/// Anthropic Messages keeps the conversation in `messages` and the system prompt in
+/// `system`. The last turn is every message after the last assistant message; tool
+/// results arrive as `tool_result` blocks of one user message. The system prompt
+/// counts only on the first turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
+
+#[derive(serde::Deserialize)]
+struct GuardrailMessage<'a> {
+    #[serde(borrow, default)]
+    role: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a serde_json::value::RawValue>,
+}
+
+pub(super) fn guardrail_last_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+    texts: &mut Vec<std::borrow::Cow<'a, str>>,
+) {
+    let messages = member("messages")
+        .and_then(|raw| serde_json::from_str::<Vec<GuardrailMessage<'a>>>(raw).ok())
+        .unwrap_or_default();
+    let last_assistant = messages.iter().rposition(|message| {
+        message
+            .role
+            .and_then(crate::guardrails::text::string)
+            .as_deref()
+            == Some("assistant")
+    });
+    if last_assistant.is_none()
+        && let Some(system) = member("system")
+            .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
+    {
+        crate::guardrails::text::collect(system, texts);
+    }
+    let start = last_assistant.map_or(0, |index| index + 1);
+    for content in messages[start..]
+        .iter()
+        .filter_map(|message| message.content)
+    {
+        crate::guardrails::text::collect(content, texts);
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -307,5 +307,68 @@ impl OpenAiResponsesCapture {
     }
 }
 
+/// Responses takes `input` as a string or a list of items, and the system prompt as
+/// `instructions`. The last turn is every item after the last one the model
+/// produced (an assistant message, a tool call or reasoning): the user's message or
+/// the outputs of the model's tool calls. Instructions count only on the first turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input", "instructions"];
+
+#[derive(serde::Deserialize)]
+struct GuardrailItem<'a> {
+    #[serde(borrow, default, rename = "type")]
+    kind: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    role: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a serde_json::value::RawValue>,
+    /// The result of a tool call, in `*_call_output` items.
+    #[serde(borrow, default)]
+    output: Option<&'a serde_json::value::RawValue>,
+}
+
+impl GuardrailItem<'_> {
+    /// Items the model produced: its messages, its tool calls (`function_call`,
+    /// `web_search_call`, `mcp_call`, ...) and its reasoning.
+    fn is_from_model(&self) -> bool {
+        let role = self.role.and_then(crate::guardrails::text::string);
+        let kind = self.kind.and_then(crate::guardrails::text::string);
+        let kind = kind.as_deref().unwrap_or_default();
+        role.as_deref() == Some("assistant")
+            || kind == "reasoning"
+            || kind.ends_with("_call")
+            || (kind.starts_with("mcp_") && kind != "mcp_approval_response")
+    }
+}
+
+pub(super) fn guardrail_last_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+    texts: &mut Vec<std::borrow::Cow<'a, str>>,
+) {
+    let input = member("input")
+        .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok());
+    let items = input
+        .filter(|input| input.get().starts_with('['))
+        .and_then(|input| serde_json::from_str::<Vec<GuardrailItem<'a>>>(input.get()).ok())
+        .unwrap_or_default();
+    let last_from_model = items.iter().rposition(GuardrailItem::is_from_model);
+    if last_from_model.is_none()
+        && let Some(instructions) = member("instructions")
+            .and_then(|raw| serde_json::from_str::<&serde_json::value::RawValue>(raw).ok())
+    {
+        crate::guardrails::text::collect(instructions, texts);
+    }
+    if let Some(input) = input.filter(|input| input.get().starts_with('"')) {
+        texts.extend(crate::guardrails::text::string(input));
+        return;
+    }
+    let start = last_from_model.map_or(0, |index| index + 1);
+    for item in &items[start..] {
+        for value in [item.content, item.output].into_iter().flatten() {
+            crate::guardrails::text::collect(value, texts);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

@@ -737,3 +737,41 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
         assert_eq!(facts.input.is_some(), mode == "full" && omission.is_none());
     }
 }
+
+fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    guardrail_last_turn(
+        |name| match name {
+            "system" => Some(system),
+            "messages" => Some(messages),
+            _ => None,
+        },
+        &mut texts,
+    );
+    texts
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
+}
+
+#[test]
+fn the_system_prompt_counts_only_on_the_first_turn() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"type":"text","text":"sys"}]"#,
+            r#"[{"role":"user","content":"first"}]"#
+        ),
+        ["sys", "first"]
+    );
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"a","input":{}},{"type":"tool_use","id":"b","input":{}}]},
+            {"role":"user","content":[
+                {"type":"tool_result","tool_use_id":"a","content":"result a"},
+                {"type":"tool_result","tool_use_id":"b","content":[{"type":"text","text":"result b"}]}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}

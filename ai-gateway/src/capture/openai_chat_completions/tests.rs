@@ -390,3 +390,29 @@ async fn oversized_requests_explain_the_missing_input() {
     assert!(facts.input.is_none());
     assert!(facts.requested_model.is_none());
 }
+
+fn guardrail_scan(messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    guardrail_last_turn(|name| (name == "messages").then_some(messages), &mut texts);
+    texts
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
+}
+
+#[test]
+fn the_last_turn_is_everything_after_the_last_assistant_message() {
+    assert_eq!(
+        guardrail_scan(r#"[{"role":"system","content":"sys"},{"role":"user","content":"first"}]"#),
+        ["sys", "first"]
+    );
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"role":"system","content":"sys"},{"role":"user","content":"old"},
+            {"role":"assistant","content":null,"tool_calls":[{"id":"a"},{"id":"b"}]},
+            {"role":"tool","tool_call_id":"a","content":"result a"},
+            {"role":"tool","tool_call_id":"b","content":[{"type":"text","text":"result b"}]}]"#
+        ),
+        ["result a", "result b"]
+    );
+}
