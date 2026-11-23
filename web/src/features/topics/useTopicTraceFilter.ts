@@ -124,7 +124,8 @@ function useTopicTraceSuggestions({
     if (!values) return values;
     return {
       ...values,
-      tags: values.traceTags ?? [],
+      // Left out until loaded, so the search bar requests the column lazily.
+      ...(values.traceTags && { tags: values.traceTags }),
       traceName: traceNames.data ?? [],
     };
   }, [filterOptions, isFilterOptionsPending, traceNames.data]);
@@ -132,7 +133,15 @@ function useTopicTraceSuggestions({
     (fields: readonly string[]) => requestColumns(fields.map(optionColumn)),
     [requestColumns],
   );
-  return { options, traceNames, observed, requestFieldColumns };
+  // Reported per field ID, so a failed tags load stops loading instead of retrying.
+  const erroredColumns = useMemo(
+    () =>
+      options.erroredColumns.has("traceTags")
+        ? new Set([...options.erroredColumns, "tags"])
+        : options.erroredColumns,
+    [options.erroredColumns],
+  );
+  return { options, traceNames, observed, requestFieldColumns, erroredColumns };
 }
 
 // Results search suggests values from the last week, like the rule setup's preview.
@@ -148,18 +157,19 @@ export function useTopicResultsTraceSuggestions(projectId: string) {
       value: new Date(Date.now() - SUGGESTION_WINDOW_MS),
     },
   ]);
-  const { observed, requestFieldColumns, options } = useTopicTraceSuggestions({
-    projectId,
-    startTimeFilter,
-    enabled: true,
-  });
+  const { observed, requestFieldColumns, erroredColumns } =
+    useTopicTraceSuggestions({
+      projectId,
+      startTimeFilter,
+      enabled: true,
+    });
   return useMemo(
     () => ({
       observed,
       onRequestColumns: requestFieldColumns,
-      erroredColumns: options.erroredColumns,
+      erroredColumns,
     }),
-    [observed, requestFieldColumns, options.erroredColumns],
+    [observed, requestFieldColumns, erroredColumns],
   );
 }
 
@@ -252,7 +262,7 @@ export function useTopicTraceFilter({
     [range],
   );
   const [mode, setMode] = useState<EvaluatorFilterExperience>("query");
-  const { options, traceNames, observed, requestFieldColumns } =
+  const { options, traceNames, observed, requestFieldColumns, erroredColumns } =
     useTopicTraceSuggestions({
       projectId,
       startTimeFilter,
@@ -299,7 +309,7 @@ export function useTopicTraceFilter({
     ...state,
     mode,
     observed,
-    erroredColumns: options.erroredColumns,
+    erroredColumns,
     requestColumns: requestFieldColumns,
     builderColumns,
     preview: tracePreview(state.error, preview),
