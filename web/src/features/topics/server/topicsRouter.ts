@@ -36,6 +36,7 @@ import {
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
+  selectTopicMapMatches,
   readTopicsModelSettings,
   checkTopicsModelSettings,
   saveTopicsSetup,
@@ -99,6 +100,11 @@ const analysisFilterInput = projectInput.extend({
   ),
   facets: z.array(topicFacetRefSchema).min(1),
 });
+/** Tracing filters on a trace, as a rule filter takes them. */
+const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
+  (filter) => !topicRuleFilterError(filter),
+  { message: "These filters can't be used on Topics traces." },
+);
 const tracesInput = projectInput.extend({
   facetId: topicIdSchema,
   /** A rule's live map or an analysis snapshot; omitted means every rule. */
@@ -126,6 +132,7 @@ const tracesInput = projectInput.extend({
     .optional(),
   assigned: z.boolean().optional(),
   traceId: z.string().min(1).optional(),
+  filter: traceFilterInput.optional(),
   cursor: z
     .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
     .optional(),
@@ -387,6 +394,35 @@ async function publishedTopicMap(input: {
     missingSummaryCount: discoveryAssignments.length - points.length,
     points,
     unpositionedCount: byTraceId.size - points.length,
+  };
+}
+
+/** Same cohort and window as publishedTopicMap; an unpublished map matches nothing. */
+async function topicMapMatches(
+  input: {
+    projectId: string;
+    runId: string;
+    filter: z.infer<typeof traceFilterInput>;
+  },
+  prisma: ProjectAuthedContext["prisma"],
+) {
+  const run = await getTopicRun(input.projectId, input.runId);
+  if (!run || run.projectId !== input.projectId)
+    throw new LangfuseNotFoundError("Map not found.");
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (run.status !== "completed" || !cohortRange.success)
+    return { traceIds: [] };
+  return {
+    traceIds: await selectTopicMapMatches(
+      {
+        projectId: input.projectId,
+        runId: run.id,
+        facet: { facetId: run.facetId, version: run.facetVersion },
+        timeRange: cohortRange.data,
+        filter: input.filter,
+      },
+      prisma,
+    ),
   };
 }
 
@@ -729,4 +765,8 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
+  /** The map's points whose traces meet the tracing filters, for the map highlight. */
+  mapMatches: topicsProcedure
+    .input(mapInput.extend({ filter: traceFilterInput }))
+    .query(({ input, ctx }) => topicMapMatches(input, ctx.prisma)),
 });

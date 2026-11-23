@@ -29,6 +29,7 @@ import {
   topicTokenizerFamily,
   type TopicCostEstimate,
 } from "@langfuse/shared/topics";
+import { env } from "../../env";
 import { toTraceEventObservation } from "../eventsDispatch/traceEvents";
 import { buildTopicSummaryRequest } from "./models";
 import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
@@ -197,16 +198,17 @@ export async function runTopicCostEstimate(
         context.transcript,
         context.executionIssues,
       );
+      // The summarizer's own limit; such traces are never sent.
+      if (text.length > env.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS) {
+        record.skipped.tooLarge++;
+        return;
+      }
       const request = buildTopicSummaryRequest(keyed, text, config);
       const prefixChars =
         request.system.reduce((sum, part) => sum + part.text.length, 0) +
         JSON.stringify(z.toJSONSchema(request.schema)).length;
       const prefixTokens = Math.ceil(prefixChars / charsPerToken);
       const inputTokens = Math.ceil(request.input.length / charsPerToken);
-      if (prefixTokens + inputTokens > config.maxInputTokens) {
-        record.skipped.tooLarge++;
-        return;
-      }
       record.summarizable++;
       record.tokens.prefixTokens += prefixTokens;
       record.tokens.inputTokens += inputTokens;

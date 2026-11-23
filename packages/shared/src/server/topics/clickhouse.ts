@@ -4,7 +4,9 @@ import {
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { OBSERVATIONS_TO_TRACE_INTERVAL_DAYS } from "../repositories/constants";
+import { env } from "../../env";
 import {
+  commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
 } from "../repositories/clickhouse";
@@ -1412,4 +1414,82 @@ export async function getTopicTraceUnitTimeRange(
     from: new Date(Number(row.fromMs)),
     to: new Date(Number(row.toMs) + 1),
   };
+}
+
+// Deletes do not propagate through the materialized view, so its target table is listed too.
+const TOPIC_CLICKHOUSE_TABLES = [
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
+  "topics",
+] as const;
+
+/** Deletes a project's Topics rows from ClickHouse; returns whether any table had rows. */
+export async function deleteTopicDataByProjectId(
+  projectId: string,
+): Promise<boolean> {
+  const deleted = await Promise.all(
+    TOPIC_CLICKHOUSE_TABLES.map(async (table) => {
+      const tags = { route: "topics-project-delete", projectId };
+      const rows = await queryClickhouse<{ 1: number }>({
+        query: `SELECT 1 FROM ${table} WHERE project_id = {projectId: String} LIMIT 1`,
+        params: { projectId },
+        tags,
+      });
+      if (rows.length === 0) return false;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId: String}`,
+        params: { projectId },
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags,
+      });
+      return true;
+    }),
+  );
+  return deleted.some(Boolean);
+}
+
+/**
+ * Deletes summaries and assignments whose source started before the cutoff.
+ * Topic definitions are reused across runs, so they do not expire by age.
+ */
+export async function deleteTopicResultsOlderThan(
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> {
+  const params = {
+    projectId,
+    cutoff: convertDateToClickhouseDateTime(beforeDate),
+  };
+  const deleted = await Promise.all(
+    (
+      [
+        "topic_facet_summaries",
+        "topic_assignments",
+        "topic_assignments_by_trace",
+      ] as const
+    ).map(async (table) => {
+      const where =
+        "project_id = {projectId: String} AND unit_start_time < {cutoff: DateTime64(3)}";
+      const tags = { route: "topics-retention", projectId };
+      const rows = await queryClickhouse<{ 1: number }>({
+        query: `SELECT 1 FROM ${table} WHERE ${where} LIMIT 1`,
+        params,
+        tags,
+      });
+      if (rows.length === 0) return false;
+      await commandClickhouse({
+        query: `DELETE FROM ${table} WHERE ${where}`,
+        params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags,
+      });
+      return true;
+    }),
+  );
+  return deleted.some(Boolean);
 }

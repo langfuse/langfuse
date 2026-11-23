@@ -1,11 +1,8 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 import Link from "next/link";
-import { reportError } from "@/src/utils/reportError";
 import { stripBasePath } from "@/src/utils/redirect";
 
 export const ErrorPage = ({
@@ -47,56 +44,17 @@ export const ErrorPage = ({
             Sign In
           </Button>
         ) : null}
-        {additionalButton ? (
-          "onClick" in additionalButton ? (
-            <Button variant="secondary" onClick={additionalButton.onClick}>
-              {additionalButton.label}
-            </Button>
-          ) : (
-            <Button variant="secondary" asChild>
-              <Link href={additionalButton.href}>{additionalButton.label}</Link>
-            </Button>
-          )
+        {additionalButton && "onClick" in additionalButton ? (
+          <Button variant="secondary" onClick={additionalButton.onClick}>
+            {additionalButton.label}
+          </Button>
+        ) : null}
+        {additionalButton && !("onClick" in additionalButton) ? (
+          <Button variant="secondary" asChild>
+            <Link href={additionalButton.href}>{additionalButton.label}</Link>
+          </Button>
         ) : null}
       </div>
     </div>
-  );
-};
-
-export const ErrorPageWithSentry = ({
-  title = "Error",
-  message,
-  additionalButton,
-  expected = false,
-}: {
-  title?: string;
-  message: string;
-  additionalButton?:
-    | {
-        label: string;
-        href: string;
-      }
-    | {
-        label: string;
-        onClick: () => void;
-      };
-  /** Expected, user-caused outcome: breadcrumb instead of a Sentry error. */
-  expected?: boolean;
-}) => {
-  useEffect(() => {
-    // Capture the error with Sentry (breadcrumb only when expected)
-    if (window !== undefined)
-      reportError(
-        new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
-        { area: "error-page", expected, extra: { title, message } },
-      );
-  }, [title, message, expected]);
-
-  return (
-    <ErrorPage
-      title={title}
-      message={message}
-      additionalButton={additionalButton}
-    />
   );
 };
