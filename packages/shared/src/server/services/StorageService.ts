@@ -1754,8 +1754,10 @@ class GoogleCloudStorageService implements StorageService {
 }
 
 class OCIObjectStorageService implements StorageService {
-  // Pre-authenticated requests cannot set response headers, and their
-  // `download=1` parameter is not signed, so a URL holder can remove it.
+  // Pre-authenticated request links take response-header overrides such as
+  // `httpResponseContentType` only as query parameters the request does not
+  // sign, so a link holder can strip them:
+  // https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingpreauthenticatedrequests_topic-Working_with_PreAuthenticated_Requests.htm
   readonly canOverrideResponseHeaders = false;
   private client?: objectstorage.ObjectStorageClient;
   private clientInit: Promise<void>;
@@ -2243,8 +2245,8 @@ class OCIObjectStorageService implements StorageService {
       }
       const baseUrl = new URL(base);
       const parUrl = new URL(accessUri, baseUrl);
-      // PARs cannot override the Content-Type, so a requested override falls
-      // back to a download rather than serving an unverified stored type inline.
+      // Response-header overrides on a PAR are unsigned query parameters, so a
+      // requested override only adds a download hint the link holder can strip.
       if (asAttachment || responseContentType) {
         parUrl.searchParams.set("download", "1");
       }
