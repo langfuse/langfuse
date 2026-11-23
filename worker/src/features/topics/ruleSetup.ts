@@ -11,7 +11,6 @@ import {
 import {
   countTopicTraceSummaries,
   createTopicRun,
-  topicRuleOperation,
   enqueueTopicRuleRefit,
   getEnabledTopicsModels,
   getTopicRule,
@@ -374,11 +373,6 @@ async function startFit(
       facetVersion: facet.facetVersion,
       ruleId: setup.ruleId,
       config: {
-        ruleOperation: topicRuleOperation(
-          setup.ruleId,
-          "setup",
-          setup.startedAt,
-        ),
         embeddingModel: embeddingConfig.embeddingModel,
         dimensions: embeddingConfig.embeddingDimensions,
         // The fit loads a stable sample of the rule's summaries in this window.

@@ -12,7 +12,6 @@ import {
   listTopicFacets,
   listTopicRules,
   readTopicRuleSetup,
-  topicRuleOperation,
 } from "@langfuse/shared/topics/server";
 import {
   TOPICS_MAX_SELECTION_RANGE_MS,
@@ -203,10 +202,9 @@ async function refitRuleFacet({
     facetVersion: facet.version,
     ruleId,
   };
-  const config = {
+  const embedding = {
     embeddingModel: embeddingConfig.embeddingModel,
     dimensions: embeddingConfig.embeddingDimensions,
-    ruleOperation: topicRuleOperation(ruleId, "nightly", slot.toISOString()),
   };
   const previous = await currentRuleMap(
     projectId,
@@ -220,11 +218,7 @@ async function refitRuleFacet({
     !previous.config.provisional &&
     !(await hasNewSummaries(projectId, facet, embeddingConfig, previous, now))
   ) {
-    await createTopicRun({
-      ...run,
-      status: "skipped",
-      config: { ...config, namingCostTracked: true },
-    });
+    await createTopicRun({ ...run, status: "skipped", config: embedding });
     recordIncrement("langfuse.topics.nightly_refits", 1, {
       outcome: "skipped",
     });
@@ -233,7 +227,7 @@ async function refitRuleFacet({
   await createTopicRun({
     ...run,
     config: {
-      ...config,
+      ...embedding,
       // The fit loads a stable sample of the rule's summaries in this window.
       timeRange: {
         from: new Date(

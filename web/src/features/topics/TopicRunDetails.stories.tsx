@@ -49,7 +49,7 @@ function processRun(overrides: Partial<Run>): Run {
     createdAt: "2026-10-23T09:12:00Z",
     updatedAt: "2026-10-23T09:40:00Z",
     error: null,
-    costBreakdown: { summaries: 1.62, naming: { cost: null, partial: false } },
+    costBreakdown: { summaries: 1.62, naming: null },
     facets: facetRefs.map(({ facetId }) => facetProgress(facetId)),
     input: {
       operation: "process",
@@ -72,7 +72,7 @@ const doneWithIssues = {
   createdAt: "2026-10-22T17:05:00Z",
   updatedAt: "2026-10-22T17:48:00Z",
   error: null,
-  costBreakdown: { summaries: null, naming: { cost: null, partial: true } },
+  costBreakdown: { summaries: null, naming: null },
   facets: [
     facetProgress("intent", {
       counts: {
@@ -135,7 +135,7 @@ const failedRun = processRun({
   status: "failed",
   phase: "summarizing",
   error: "Summary model returned 429 Too Many Requests for 3 batches.",
-  costBreakdown: { summaries: 0.62, naming: { cost: null, partial: false } },
+  costBreakdown: { summaries: 0.62, naming: null },
   facets: facetRefs.map(({ facetId }) =>
     facetProgress(facetId, {
       outcome: "failed",
@@ -212,7 +212,7 @@ export const ReuseOnlySnapshot = meta.story({
       },
       costBreakdown: {
         summaries: null,
-        naming: { cost: 0.08, partial: false },
+        naming: 0.08,
       },
     },
     retry: retryIdle,
@@ -334,7 +334,7 @@ export const SummarizingSnapshotShowsItsCost = meta.story({
       ...doneWithIssues,
       costBreakdown: {
         summaries: 0.42,
-        naming: { cost: 0.08, partial: false },
+        naming: 0.08,
       },
       input: {
         ...doneWithIssues.input,

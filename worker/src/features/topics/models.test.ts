@@ -8,8 +8,7 @@ const state = vi.hoisted(() => ({
   },
   workerEnv: { LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: 500_000 },
   call: vi.fn(),
-  startNamingCall: vi.fn(),
-  finishNamingCall: vi.fn(),
+  recordNamingCost: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
@@ -52,8 +51,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
     await importOriginal<typeof import("@langfuse/shared/topics/server")>()
   ).topicMessages,
   generateTopicText: (...args: unknown[]) => state.call(...args),
-  startTopicNamingCall: state.startNamingCall,
-  finishTopicNamingCall: state.finishNamingCall,
+  recordTopicNamingCost: state.recordNamingCost,
   generateTopicEmbeddings: (...args: unknown[]) => state.embed(...args),
   getTopicTextResponseMetadata: (error: unknown) =>
     state.responseMetadata(error),
@@ -136,8 +134,7 @@ beforeEach(() => {
   ];
   state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 500_000;
   state.call.mockReset();
-  state.startNamingCall.mockReset();
-  state.finishNamingCall.mockReset();
+  state.recordNamingCost.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
     pricingTiers: [
@@ -451,7 +448,6 @@ describe("Topics naming boundary", () => {
   ])(
     "pauses Topics like evaluators for HTTP %i provider errors",
     async (statusCode, blockReason) => {
-      state.startNamingCall.mockRejectedValueOnce(new Error("connection lost"));
       state.call.mockRejectedValue(
         Object.assign(new Error("provider error"), {
           [Symbol.for("vercel.ai.error")]: true,
@@ -465,11 +461,7 @@ describe("Topics naming boundary", () => {
         nameTopicGroup(topicsModels(), evidence),
       ).rejects.toMatchObject({ blockReason });
       expect(state.call).toHaveBeenCalledOnce();
-      expect(state.startNamingCall.mock.calls).toHaveLength(2);
-      expect(state.startNamingCall.mock.calls[0]).toEqual(
-        state.startNamingCall.mock.calls[1],
-      );
-      expect(state.finishNamingCall).not.toHaveBeenCalled();
+      expect(state.recordNamingCost).not.toHaveBeenCalled();
     },
   );
 
@@ -752,8 +744,7 @@ describe("Topics naming boundary", () => {
       summary: `Request ${index}: ${"Invoice request details. ".repeat(60)} END-${index}`,
     }));
     const summaries = members.map(({ summary }) => summary);
-    state.startNamingCall.mockRejectedValueOnce(new Error("connection lost"));
-    state.finishNamingCall.mockRejectedValueOnce(
+    state.recordNamingCost.mockRejectedValueOnce(
       new Error("database unavailable"),
     );
     state.call.mockResolvedValue({
@@ -775,12 +766,10 @@ describe("Topics naming boundary", () => {
       evidenceSummaryIds: ["m400"],
     });
     expect(state.call).toHaveBeenCalledOnce();
-    expect(state.startNamingCall.mock.calls).toHaveLength(2);
-    expect(state.startNamingCall.mock.calls[0]).toEqual(
-      state.startNamingCall.mock.calls[1],
-    );
-    expect(state.finishNamingCall).toHaveBeenCalledExactlyOnceWith(
-      ...state.startNamingCall.mock.calls[0],
+    expect(state.recordNamingCost).toHaveBeenCalledExactlyOnceWith(
+      "project",
+      "naming-run",
+      expect.any(String),
       expect.closeTo(0.01615, 10),
     );
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
@@ -870,9 +859,9 @@ describe("Topics naming boundary", () => {
       ],
     };
     await namePreparedTopicGroup(topicsModels(), prepared, metadata, conflict);
-    const callIds = state.startNamingCall.mock.calls.map(([, , id]) => id);
+    const callIds = state.recordNamingCost.mock.calls.map(([, , id]) => id);
     expect(new Set(callIds).size).toBe(2);
-    expect(state.finishNamingCall.mock.calls).toEqual(
+    expect(state.recordNamingCost.mock.calls).toEqual(
       callIds.map((id) => ["project", "naming-run", id, 0]),
     );
     const [initialCall, renameCall] = state.call.mock.calls.map(
@@ -1050,6 +1039,7 @@ describe("Topics naming boundary", () => {
       providedCostDetails: {},
     });
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
+    expect(state.recordNamingCost).not.toHaveBeenCalled();
   });
 
   it.each([["contrast"], ["m1", "m2", "m1", "m2"]])(
@@ -1067,15 +1057,10 @@ describe("Topics naming boundary", () => {
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
-      expect(state.startNamingCall).toHaveBeenCalledExactlyOnceWith(
+      expect(state.recordNamingCost).toHaveBeenCalledExactlyOnceWith(
         "project",
         "naming-run",
         expect.any(String),
-      );
-      expect(state.finishNamingCall).toHaveBeenCalledExactlyOnceWith(
-        "project",
-        "naming-run",
-        state.startNamingCall.mock.calls[0][2],
         0.00025,
       );
       expect(tokenCalls()).toEqual([

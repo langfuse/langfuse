@@ -63,13 +63,10 @@ export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
 }
 
-export function formatTopicCost(
-  cost: number | null | undefined,
-  partial = false,
-) {
+export function formatTopicCost(cost: number | null | undefined) {
   if (cost === undefined) return "Loading…";
   if (cost === null) return "Unavailable";
-  return `~${costFormatter(cost)}${partial ? " (partial)" : ""}`;
+  return `~${costFormatter(cost)}`;
 }
 
 export function formatTopicRunCost(
@@ -78,7 +75,7 @@ export function formatTopicRunCost(
 ) {
   if (costs == null) return formatTopicCost(costs);
   const summaries = createsSummaries(input) ? costs.summaries : null;
-  const naming = costs.naming.cost;
+  const naming = costs.naming;
   if (summaries === null && naming === null) return formatTopicCost(null);
   return formatTopicCost((summaries ?? 0) + (naming ?? 0));
 }

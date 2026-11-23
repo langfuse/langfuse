@@ -232,11 +232,7 @@ async function clusterFacet(
     numericVersion: TOPICS_NUMERIC_VERSION,
   };
   const config = {
-    ...(attempt?.config.ruleOperation !== undefined && {
-      ruleOperation: attempt.config.ruleOperation,
-    }),
     ...numericConfig,
-    namingCostTracked: true,
     exploratory,
     embeddingModel: scope.embeddingConfig.embeddingModel!,
     dimensions: scope.embeddingConfig.embeddingDimensions,

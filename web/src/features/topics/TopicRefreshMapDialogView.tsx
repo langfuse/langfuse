@@ -3,7 +3,6 @@ import {
   TOPICS_MAX_SELECTION_RANGE_MS,
 } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { formatTopicCost } from "./topic-run-labels";
 import {
   topicNextRefitLabel,
   topicRuleFreshness,
@@ -16,13 +15,11 @@ const COOLDOWN_MINUTES = Math.round(TOPIC_RULE_REFRESH_COOLDOWN_MS / 60_000);
 /** The Refresh map confirmation without data fetching; stories render it directly. */
 export function TopicRefreshMapDialogView({
   rule,
-  previousRefresh,
   now,
   refreshing,
   onRefresh,
 }: {
   rule: Pick<TopicRuleMap, "name" | "enabled" | "lastRefitAt">;
-  previousRefresh?: { cost: number | null; partial: boolean };
   now: number;
   refreshing: boolean;
   onRefresh: () => void;
@@ -50,14 +47,6 @@ export function TopicRefreshMapDialogView({
           </li>
           <li>You can refresh this map again in {COOLDOWN_MINUTES} minutes.</li>
         </ul>
-        {previousRefresh?.cost != null && (
-          <dl className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-3">
-            <dt>Previous refresh naming cost</dt>
-            <dd className="font-mono text-sm">
-              {formatTopicCost(previousRefresh.cost, previousRefresh.partial)}
-            </dd>
-          </dl>
-        )}
         <p className="text-muted-foreground text-xs">
           {topicRuleFreshness(rule, now)}
         </p>

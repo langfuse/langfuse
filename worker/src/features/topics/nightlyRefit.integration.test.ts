@@ -5,11 +5,8 @@ import {
   createTopicFacet,
   createTopicRun,
   enqueueTopicRuleRefit,
-  finishTopicNamingCall,
   getEnabledTopicsModels,
-  getPreviousTopicRuleRefreshCost,
   saveTopicRule,
-  startTopicNamingCall,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
@@ -101,15 +98,9 @@ describe("nightly Topics refits against storage", () => {
       description: "",
       prompt: "Describe the request.",
     });
-    const secondFacet = await createTopicFacet({
-      projectId,
-      name: "Second question",
-      description: "",
-      prompt: "Describe the issue.",
-    });
     const rule = await saveTopicRule({
       projectId,
-      facetIds: [facet.id, secondFacet.id],
+      facetIds: [facet.id],
       filter: [],
     });
     const now = new Date();
@@ -153,14 +144,11 @@ describe("nightly Topics refits against storage", () => {
     await setStatus("INACTIVE");
     await expect(schedule(later)).resolves.toBe(0);
     await setStatus("ACTIVE");
-    await expect(schedule(later)).resolves.toBe(2);
+    await expect(schedule(later)).resolves.toBe(1);
     await expect(schedule(later)).resolves.toBe(0);
     const [first, ...others] = await runs("pending");
     expect(others).toEqual([]);
     expect(first).toMatchObject({ ruleId: rule.id, batchActionId: null });
-    await expect(
-      getPreviousTopicRuleRefreshCost(projectId, rule.id),
-    ).resolves.toBeNull();
     // Nightly fits queue behind a setup's first fit.
     expect(enqueueTopicRuleRefit).toHaveBeenCalledWith(
       projectId,
@@ -168,48 +156,16 @@ describe("nightly Topics refits against storage", () => {
       expect.any(Number),
     );
 
-    const second = await prisma.topicClusteringRun.findFirstOrThrow({
-      where: { projectId, facetId: secondFacet.id, status: "pending" },
+    await prisma.topicClusteringRun.update({
+      where: { id: first.id },
+      data: { status: "completed", finishedAt: now },
     });
-    // Both questions share this nightly refresh. One naming response had no price.
-    for (const row of [first, second]) {
-      await prisma.topicClusteringRun.update({
-        where: { id: row.id },
-        data: {
-          status: "completed",
-          finishedAt: now,
-          config: { ...(row.config as object), namingCostTracked: true },
-        },
-      });
-      await startTopicNamingCall(projectId, row.id, "name");
-    }
-    await finishTopicNamingCall(projectId, first.id, "name", 0.08);
     await expect(
       schedule(new Date(later.getTime() + 86_400_000)),
     ).resolves.toBe(0);
     expect(await runs("skipped")).toEqual([
       expect.objectContaining({ ruleId: rule.id, batchActionId: null }),
     ]);
-    // A quiet night cannot replace the last refresh that actually fit the map.
-    const previousRefresh = () =>
-      getPreviousTopicRuleRefreshCost(projectId, rule.id);
-    await expect(previousRefresh()).resolves.toEqual({
-      cost: 0.08,
-      partial: true,
-    });
-    await prisma.topicClusteringRun.update({
-      where: { id: second.id },
-      data: { status: "failed" },
-    });
-    await expect(previousRefresh()).resolves.toEqual({
-      cost: 0.08,
-      partial: true,
-    });
-    await prisma.topicClusteringRun.update({
-      where: { id: first.id },
-      data: { status: "failed" },
-    });
-    await expect(previousRefresh()).resolves.toBeNull();
   });
 
   it("skips the slot after a fit started from an hour before it, such as a manual refresh", async () => {

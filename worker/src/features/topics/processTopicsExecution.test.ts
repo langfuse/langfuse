@@ -922,10 +922,6 @@ describe("Topics execution", () => {
         ruleId,
       };
       state.runs.set(published.id, published);
-      const ruleOperation = {
-        id: "refresh",
-        trigger: "manual",
-      };
       state.runs.set("refit", {
         ...pendingRun({
           id: "refit",
@@ -933,7 +929,6 @@ describe("Topics execution", () => {
           facetId: facet.facetId,
           facetVersion: facet.version,
           config: {
-            ruleOperation,
             embeddingModel: "eu.cohere.embed-v4:0",
             dimensions: 256,
             timeRange: {
@@ -949,11 +944,7 @@ describe("Topics execution", () => {
       await processTopicRuleRefit({ projectId: "project", runId: "refit" });
 
       const refit = state.runs.get("refit")!;
-      expect(refit).toMatchObject({
-        status: "completed",
-        ruleId: "rule",
-        config: { ruleOperation },
-      });
+      expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
       const sameTopics = refit.topics.some((topic) =>
         published.topics.some((other) => other.topicId === topic.topicId),
       );

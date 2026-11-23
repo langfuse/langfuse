@@ -1,16 +1,14 @@
 import { prisma } from "../../../src/db";
 import {
   createTopicExecution,
-  finishTopicNamingCall,
+  recordTopicNamingCost,
   getTopicExecutionNamingCosts,
   getTopicExecutionCosts,
   writeTopicSummaries,
   saveTopicRun,
-  startTopicNamingCall,
   TOPICS_ACTION,
   writeTopicAssignments,
   writeTopicExecution,
-  writeTopicSnapshotSummarizing,
 } from "../../../src/server/topics";
 import type {
   TopicAssignment,
@@ -87,8 +85,7 @@ export async function seedTopicCostSnapshots(
     );
     const progress = execution.facets[0]!;
     const runId = progress.runId!;
-    await startTopicNamingCall(projectId, runId, "seed-name");
-    await finishTopicNamingCall(projectId, runId, "seed-name", 0.08);
+    await recordTopicNamingCost(projectId, runId, "seed-name", 0.08);
     await saveTopicRun({
       ...sourceRun,
       id: runId,
@@ -98,7 +95,6 @@ export async function seedTopicCostSnapshots(
         ...geometry,
         timeRange,
         analysis: true,
-        namingCostTracked: true,
       },
     });
     await writeTopicAssignments(
@@ -117,15 +113,6 @@ export async function seedTopicCostSnapshots(
         };
       }),
     );
-    await writeTopicSnapshotSummarizing(projectId, execution.id, {
-      startedAt: execution.createdAt,
-      from: timeRange.from,
-      traceIds: pricedRows.flatMap((row) => (row.traceId ? [row.traceId] : [])),
-      seededCount: 2,
-      grewAt: execution.createdAt,
-      settled: 2,
-      failedTicks: 0,
-    });
     const assigned = assignments.filter((row) => row.topicId !== null).length;
     await writeTopicExecution({
       ...execution,
@@ -151,8 +138,7 @@ export async function seedTopicCostSnapshots(
     ]);
     if (
       processing[execution.id] !== (partial ? 0.2 : 0.42) ||
-      naming[execution.id]?.cost !== 0.08 ||
-      naming[execution.id]?.partial
+      naming[execution.id] !== 0.08
     ) {
       throw new SeedError(`Incorrect recorded model cost for ${requestId}.`);
     }

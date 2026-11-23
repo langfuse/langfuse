@@ -16,8 +16,7 @@ import {
   generateTopicEmbeddings,
   generateTopicText,
   getTopicTextResponseMetadata,
-  startTopicNamingCall,
-  finishTopicNamingCall,
+  recordTopicNamingCost,
   topicMessages,
   type TopicPromptPart,
   type TopicTextUsageDetails,
@@ -713,38 +712,6 @@ export async function nameTopicGroup(
       (previousTopic?.tokens ?? 0),
   );
   const callId = randomUUID();
-  const reserve = () =>
-    startTopicNamingCall(models.projectId, metadata.run_id, callId);
-  const warn = (error: unknown) =>
-    logger.warn("Failed to save Topics naming cost", {
-      projectId: models.projectId,
-      callId,
-      error,
-    });
-  let retryReservation = false;
-  try {
-    await reserve();
-  } catch (error) {
-    retryReservation = true;
-    warn(error);
-  }
-  const saveCost = async (cost: number | null) => {
-    try {
-      if (retryReservation) {
-        retryReservation = false;
-        await reserve();
-      }
-      if (cost !== null)
-        await finishTopicNamingCall(
-          models.projectId,
-          metadata.run_id,
-          callId,
-          cost,
-        );
-    } catch (error) {
-      warn(error);
-    }
-  };
   return structuredCall(
     [
       {
@@ -769,11 +736,23 @@ export async function nameTopicGroup(
       naming_input_tokens_estimated: inputLimit,
     },
     conflict ? "topics-naming-conflict" : undefined,
-    saveCost,
-  ).finally(async () => {
-    // Even an unpriced or rejected call needs a receipt if the first write failed.
-    if (retryReservation) await saveCost(null);
-  });
+    async (cost) => {
+      try {
+        await recordTopicNamingCost(
+          models.projectId,
+          metadata.run_id,
+          callId,
+          cost,
+        );
+      } catch (error) {
+        logger.warn("Failed to save Topics naming cost", {
+          projectId: models.projectId,
+          callId,
+          error,
+        });
+      }
+    },
+  );
 }
 
 /** Embeds summaries in one batched call; the usage covers every returned vector. */

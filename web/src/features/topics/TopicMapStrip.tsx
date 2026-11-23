@@ -20,7 +20,7 @@ function Strip({
   options,
 }: {
   status?: string;
-  run?: { cost: string; label: string; onView: () => void };
+  run?: { cost: string; onView: () => void };
   controls?: ReactNode;
   options?: ReactNode;
 }) {
@@ -49,7 +49,7 @@ function Strip({
           <>
             <span className="text-muted-foreground">{run.cost}</span>
             <Button
-              text={run.label}
+              text="View run"
               size="sm"
               variant="text"
               onClick={run.onView}
@@ -121,7 +121,6 @@ function TopicAnalysisStrip({
       status={topicAnalysisStatus(analysis)}
       run={{
         cost: `${estimatedTopicCostLabel} ${cost}`,
-        label: "View run",
         onView: onViewRun,
       }}
       controls={controls}

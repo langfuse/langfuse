@@ -31,11 +31,6 @@ const meta = preview.meta({
   ],
 });
 
-export const Default = meta.story({
-  name: "Refresh map",
-  args: { previousRefresh: { cost: 0.08, partial: true } },
-});
+export const Default = meta.story({ name: "Refresh map" });
 
-export const Refreshing = meta.story({
-  args: { refreshing: true, previousRefresh: { cost: 0, partial: false } },
-});
+export const Refreshing = meta.story({ args: { refreshing: true } });

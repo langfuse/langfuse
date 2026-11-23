@@ -41,7 +41,7 @@ export type TopicSnapshotSummarizing = {
   /** Consecutive failed ticks; the snapshot fails after a few. */
   failedTicks: number;
 };
-type BatchRow = Omit<Prisma.BatchActionGetPayload<object>, "cursor">;
+type BatchRow = Prisma.BatchActionGetPayload<object>;
 const statuses = {
   queued: BatchActionStatus.Queued,
   running: BatchActionStatus.Processing,
@@ -78,7 +78,6 @@ async function storedExecution(
   topicIdSchema.parse(projectId);
   topicIdSchema.parse(executionId);
   return db.batchAction.findFirst({
-    omit: { cursor: true },
     where: { projectId, id: executionId, actionType: TOPICS_ACTION },
   });
 }
@@ -257,7 +256,6 @@ export async function listTopicExecutions(
 ): Promise<TopicExecutionSummary[]> {
   topicIdSchema.parse(projectId);
   const batches = await prisma.batchAction.findMany({
-    omit: { cursor: true },
     where: { projectId, actionType: TOPICS_ACTION },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -271,7 +269,6 @@ export async function listTopicAnalysisExecutions(
 ): Promise<TopicExecutionSummary[]> {
   topicIdSchema.parse(projectId);
   const batches = await prisma.batchAction.findMany({
-    omit: { cursor: true },
     where: {
       projectId,
       actionType: TOPICS_ACTION,
@@ -315,7 +312,6 @@ export async function writeTopicExecution(
       (facet) => facet.outcome === "failed",
     ).length;
     await tx.batchAction.update({
-      select: { id: true },
       where: { projectId, id },
       data: {
         config: json({
@@ -352,7 +348,6 @@ export async function writeTopicSnapshotSummarizing(
     const current = await storedExecution(projectId, executionId, tx);
     if (!current) throw new Error("Topics execution does not exist.");
     await tx.batchAction.update({
-      select: { id: true },
       where: { projectId, id: executionId },
       data: {
         config: json({

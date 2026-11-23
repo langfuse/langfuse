@@ -13,8 +13,6 @@ export function TopicRefreshMapDialog({
   closeDialog: () => void;
 }) {
   const utils = api.useUtils();
-  const input = { projectId, ruleId: rule.id };
-  const previousRefresh = api.topics.previousRuleRefreshCost.useQuery(input);
   const refresh = api.topics.refreshRuleMap.useMutation({
     onSuccess: async () => {
       await Promise.all([
@@ -30,10 +28,9 @@ export function TopicRefreshMapDialog({
   return (
     <TopicRefreshMapDialogView
       rule={rule}
-      previousRefresh={previousRefresh.data ?? undefined}
       now={Date.now()}
       refreshing={refresh.isPending}
-      onRefresh={() => refresh.mutate(input)}
+      onRefresh={() => refresh.mutate({ projectId, ruleId: rule.id })}
     />
   );
 }

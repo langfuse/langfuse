@@ -178,7 +178,7 @@ function MapSwitcher({
           analysis={selectedAnalysis}
           costBreakdown={{
             summaries: selectedAnalysis.summarize ? 0.42 : null,
-            naming: { cost: 0.08, partial: false },
+            naming: 0.08,
           }}
           onViewRun={() => onViewRun(selectedAnalysis.id)}
         />

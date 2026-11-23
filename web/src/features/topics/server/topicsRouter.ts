@@ -24,7 +24,6 @@ import {
   getTopicExecutionCosts,
   getTopicExecutionNamingCosts,
   getTopicRuleMapCosts,
-  getPreviousTopicRuleRefreshCost,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
   writeTopicExecution,
@@ -672,17 +671,16 @@ export const topicsRouter = createTRPCRouter({
           getTopicExecutionNamingCosts(projectId, executionIds),
         ]);
         return Object.fromEntries(
-          executionIds.map((id) => {
-            return [
-              id,
-              {
-                summaries: Object.hasOwn(costs, id) ? costs[id] : null,
-                naming: Object.hasOwn(naming, id)
-                  ? naming[id]
-                  : { cost: null, partial: false },
-              },
-            ] as const;
-          }),
+          executionIds.map(
+            (id) =>
+              [
+                id,
+                {
+                  summaries: Object.hasOwn(costs, id) ? costs[id] : null,
+                  naming: Object.hasOwn(naming, id) ? naming[id] : null,
+                },
+              ] as const,
+          ),
         );
       },
     ),
@@ -753,11 +751,6 @@ export const topicsRouter = createTRPCRouter({
         projectId: input.projectId,
         ruleId: input.ruleId,
       }),
-    ),
-  previousRuleRefreshCost: topicsProcedure
-    .input(projectInput.extend({ ruleId: topicIdSchema }))
-    .query(({ input }) =>
-      getPreviousTopicRuleRefreshCost(input.projectId, input.ruleId),
     ),
   ruleMapCosts: topicsProcedure
     .input(

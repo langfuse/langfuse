@@ -504,8 +504,8 @@ it("keeps settled costs visible while fetching the final cost of a completed run
   const finalCosts = Promise.withResolvers<Record<string, TopicRunCost>>();
   state.queryCosts
     .mockResolvedValueOnce({
-      [settled.id]: { summaries: 0, naming: { cost: null, partial: false } },
-      [active.id]: { summaries: null, naming: { cost: 0.12, partial: false } },
+      [settled.id]: { summaries: 0, naming: null },
+      [active.id]: { summaries: null, naming: 0.12 },
     })
     .mockReturnValueOnce(finalCosts.promise);
   const view = renderTopicsPage();
@@ -527,7 +527,7 @@ it("keeps settled costs visible while fetching the final cost of a completed run
     expect.anything(),
   );
   finalCosts.resolve({
-    [active.id]: { summaries: null, naming: { cost: 0.34, partial: false } },
+    [active.id]: { summaries: null, naming: 0.34 },
   });
   expect(await screen.findByText("~$0.34")).toBeVisible();
 });

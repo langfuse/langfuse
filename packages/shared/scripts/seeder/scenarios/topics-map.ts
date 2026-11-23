@@ -8,12 +8,8 @@ import {
 } from "../../../src/server";
 import {
   createTopicRun,
-  finishTopicNamingCall,
-  startTopicNamingCall,
-  topicRuleOperation,
-  getPreviousTopicRuleRefreshCost,
+  recordTopicNamingCost,
   getTopicRuleMapCosts,
-  getTopicRunNamingCosts,
   ensureDefaultTopicFacets,
   listTopicRules,
   saveTopicRule,
@@ -212,7 +208,6 @@ export const topicsMapScenario: ScenarioDefinition = {
       maps: 3,
       ...(withCosts && {
         costSnapshots: 2,
-        refreshes: 2,
         pricedLiveMaps: RULE_NAMES.length,
       }),
       summaries: traceCount * 2,
@@ -446,10 +441,6 @@ export const topicsMapScenario: ScenarioDefinition = {
         summaries: intentSummaries,
       },
     ];
-    const setupId = `${runPrefix}-setup`;
-    const nightlyId = `${runPrefix}-nightly`;
-    const manual = topicRuleOperation(rules[0]!.id, "manual", runPrefix);
-    const nightly = topicRuleOperation(rules[0]!.id, "nightly", runPrefix);
     // Completed runs never change, so a re-run replaces them.
     await prisma.topicClusteringRun.deleteMany({
       where: {
@@ -457,7 +448,9 @@ export const topicsMapScenario: ScenarioDefinition = {
         id: {
           in: [
             ...maps.map((map) => map.runId),
-            ...(withCosts ? [setupId, nightlyId] : []),
+            ...(withCosts
+              ? [`${runPrefix}-setup`, `${runPrefix}-nightly`]
+              : []),
           ],
         },
       },
@@ -466,24 +459,11 @@ export const topicsMapScenario: ScenarioDefinition = {
     const mapCostsBeforeFits = withCosts
       ? await getTopicRuleMapCosts(ctx.projectId, ruleIds)
       : {};
-    if (withCosts) {
-      await createTopicRun({
-        id: nightlyId,
-        projectId: ctx.projectId,
-        facetId: intent.id,
-        facetVersion: intent.version,
-        ruleId: rules[0]!.id,
-        status: "skipped",
-        config: { ruleOperation: nightly, namingCostTracked: true },
-      });
+    if (withCosts)
       summary.links.push(`${summary.links[0]}?map=rule:${rules[0]!.id}`);
-    }
     const snapshotRunIds: string[] = [];
     for (const map of maps) {
-      const trackedRefresh = withCosts && map.rule.id === rules[0]!.id;
       const config = {
-        ...(withCosts && { namingCostTracked: true }),
-        ...(trackedRefresh && { ruleOperation: manual }),
         timeRange: {
           from: new Date(cohortFrom).toISOString(),
           to: new Date(cohortTo).toISOString(),
@@ -505,33 +485,6 @@ export const topicsMapScenario: ScenarioDefinition = {
         representativeSummaries: [],
         metadata: {},
       }));
-      if (withCosts && map === maps[0]) {
-        const firstFit = await createTopicRun({
-          id: setupId,
-          projectId: ctx.projectId,
-          facetId: map.facet.id,
-          facetVersion: map.facet.version,
-          ruleId: map.rule.id,
-          config: {
-            ...config,
-            ruleOperation: topicRuleOperation(map.rule.id, "setup", runPrefix),
-          },
-        });
-        await startTopicNamingCall(ctx.projectId, setupId, "seed-name");
-        await finishTopicNamingCall(ctx.projectId, setupId, "seed-name", 0.02);
-        await saveTopicRun({
-          ...firstFit,
-          status: "completed",
-          finishedAt: processedAt,
-          topics: [
-            {
-              ...definitions[0]!,
-              topicVersionId: `${setupId}-topic-0`,
-              createdByRunId: setupId,
-            },
-          ],
-        });
-      }
       await createTopicRun({
         id: map.runId,
         projectId: ctx.projectId,
@@ -540,15 +493,8 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
         config,
       });
-      if (trackedRefresh) {
-        await startTopicNamingCall(ctx.projectId, map.runId, "seed-name");
-        await finishTopicNamingCall(
-          ctx.projectId,
-          map.runId,
-          "seed-name",
-          map.facet.id === intent.id ? 0.05 : 0.03,
-        );
-      }
+      if (withCosts && map === maps[0])
+        await recordTopicNamingCost(ctx.projectId, map.runId, "seed-name", 0.1);
       const assignments: TopicAssignment[] = traceIds.flatMap((_, index) => {
         if (!map.members(index)) return [];
         const k = map.topicOf(index);
@@ -654,18 +600,7 @@ export const topicsMapScenario: ScenarioDefinition = {
       ),
     };
     if (withCosts) {
-      const ruleId = rules[0]!.id;
-      const [previous, nightlyCost, mapCosts] = await Promise.all([
-        getPreviousTopicRuleRefreshCost(ctx.projectId, ruleId),
-        getTopicRunNamingCosts(ctx.projectId, [nightlyId]),
-        getTopicRuleMapCosts(ctx.projectId, ruleIds),
-      ]);
-      verified.refreshes =
-        Number(previous?.cost === 0.08 && !previous.partial) +
-        Number(
-          nightlyCost[nightlyId]?.cost === 0 && !nightlyCost[nightlyId].partial,
-        );
-      // The first fit and manual refresh add $0.10 to the first map. Existing work stays in each map's total.
+      const mapCosts = await getTopicRuleMapCosts(ctx.projectId, ruleIds);
       verified.pricedLiveMaps = ruleIds.filter((id, index) => {
         const cost = mapCosts[id];
         const expected =

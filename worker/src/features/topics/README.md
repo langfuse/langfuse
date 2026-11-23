@@ -91,7 +91,7 @@ Before a snapshot starts, the forecast prices summaries and embeddings for the s
 
 Each retained ClickHouse facet summary carries a share of the summary and embedding costs for its trace. A snapshot owns rows with its execution ID. For live processing, a row’s share is divided equally among its distinct rule IDs. Deduplicate replacement rows before attributing their cost. Reuse adds no processing cost. Failed attempts without a retained result, missing prices, replacement and retention can leave spend out of the estimate.
 
-Topic naming costs live in each clustering run’s Postgres config. Each invocation reserves a call ID, including extra calls to resolve duplicate names. A priced response fills in the amount once. The map estimate adds naming across all fits owned by the rule, including its initial build. Snapshot estimates include naming from failed and superseded facet attempts.
+Topic naming costs live in each clustering run’s Postgres config. The worker records each priced response once by invocation ID, including paid retries and calls to resolve duplicate names. Responses with no known price leave the estimate unchanged. The map estimate adds naming across all fits owned by the rule, including its initial build. Snapshot estimates include naming from failed and superseded facet attempts.
 
 Summary and embedding call spans carry the source trace ID and either the snapshot execution ID or the participating rule IDs. Naming spans carry the clustering run ID and its rule or execution ID.
 

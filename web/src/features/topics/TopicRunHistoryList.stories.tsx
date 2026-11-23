@@ -68,7 +68,7 @@ function processRun(
     error,
     costBreakdown: {
       summaries: estimatedCost,
-      naming: { cost: null, partial: false },
+      naming: null,
     },
     facets: facetRefs.map(({ facetId, version }) =>
       facetProgress(facetId, version, counts),
@@ -97,7 +97,7 @@ function updateRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    costBreakdown: { summaries: null, naming: { cost: null, partial: true } },
+    costBreakdown: { summaries: null, naming: null },
     facets: facetRefs
       .slice(0, 2)
       .map(({ facetId, version }) =>
@@ -126,7 +126,7 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
     phase: "summarizing",
     costBreakdown: {
       summaries: 0.31,
-      naming: { cost: 0, partial: false },
+      naming: 0,
     },
     input: {
       ...run.input,
@@ -154,7 +154,7 @@ const runs: Run[] = [
     facets: [],
     costBreakdown: {
       summaries: null,
-      naming: { cost: null, partial: false },
+      naming: null,
     },
   },
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
@@ -202,7 +202,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
     executions: [
       {
         ...updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
-        costBreakdown: { summaries: null, naming: { cost: 0, partial: false } },
+        costBreakdown: { summaries: null, naming: 0 },
       },
       summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 0, {

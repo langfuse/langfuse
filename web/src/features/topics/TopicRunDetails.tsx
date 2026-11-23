@@ -196,11 +196,11 @@ export function TopicRunDetails({
   const summaryCost = expectsSummaries
     ? formatTopicCost(costs == null ? costs : costs.summaries)
     : "No new summaries";
-  const namingCost = costs == null ? costs : costs.naming.cost;
+  const namingCost = costs == null ? costs : costs.naming;
   const namingValue =
     !isUpdate && namingCost == null
       ? "Not part of this run"
-      : formatTopicCost(namingCost, costs?.naming.partial);
+      : formatTopicCost(namingCost);
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
   const exploratory =

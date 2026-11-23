@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
-  getPreviousTopicRuleRefreshCost: vi.fn(),
   getTopicRuleMapCosts: vi.fn(),
   getTopicExecutionNamingCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
@@ -250,10 +249,6 @@ describe("Topics project allowlist", () => {
     [
       "map cost",
       () => outside().ruleMapCosts({ projectId, ruleIds: ["rule-a"] }),
-    ],
-    [
-      "previous refresh cost",
-      () => outside().previousRuleRefreshCost({ projectId, ruleId: "rule-a" }),
     ],
     ["runs", () => outside().executions({ projectId })],
     [
@@ -783,8 +778,8 @@ describe("Topics local execution access and publication", () => {
   it("combines recorded stages for visible snapshots and restricts the summary read to the requested subset", async () => {
     mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.42, legacy: 0 });
     mocks.getTopicExecutionNamingCosts.mockResolvedValue({
-      reuse: { cost: 0.08, partial: false },
-      priced: { cost: 0.03, partial: true },
+      reuse: 0,
+      priced: 0.03,
     });
     const executionIds = ["legacy", "reuse", "priced"];
     expect(
@@ -794,12 +789,9 @@ describe("Topics local execution access and publication", () => {
         summaryExecutionIds: ["priced", "legacy", "outside"],
       }),
     ).toEqual({
-      legacy: { summaries: 0, naming: { cost: null, partial: false } },
-      reuse: { summaries: null, naming: { cost: 0.08, partial: false } },
-      priced: {
-        summaries: 0.42,
-        naming: { cost: 0.03, partial: true },
-      },
+      legacy: { summaries: 0, naming: null },
+      reuse: { summaries: null, naming: 0 },
+      priced: { summaries: 0.42, naming: 0.03 },
     });
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
