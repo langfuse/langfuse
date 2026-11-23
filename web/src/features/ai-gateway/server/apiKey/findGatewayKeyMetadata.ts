@@ -1,6 +1,6 @@
 import { type Prisma } from "@langfuse/shared/src/db";
 
-/** findGatewayKeyMetadata maps each gateway key bound to the user to its metadata, so a delete audit can record it before the association cascades away */
+/** findGatewayKeyMetadata maps each gateway key bound to the user to its association metadata */
 export async function findGatewayKeyMetadata(
   tx: Prisma.TransactionClient,
   owner: { userId: string; orgId?: string },

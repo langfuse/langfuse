@@ -332,7 +332,7 @@ export async function deleteApiKeys(
   return deleteMatchingApiKeys(prisma, params);
 }
 
-/** deleteMatchingApiKeys deletes the api keys it finds, so a key created concurrently in scope survives */
+/** deleteMatchingApiKeys deletes the api keys matching where and returns them */
 async function deleteMatchingApiKeys(
   prisma: PrismaClient | Prisma.TransactionClient,
   where: Prisma.ApiKeyWhereInput,
@@ -343,6 +343,7 @@ async function deleteMatchingApiKeys(
       select: deletedApiKeySelect,
     });
     if (apiKeys.length === 0) return apiKeys;
+    // by id, so a key created concurrently in scope survives
     await tx.apiKey.deleteMany({
       where: { id: { in: apiKeys.map((apiKey) => apiKey.id) } },
     });

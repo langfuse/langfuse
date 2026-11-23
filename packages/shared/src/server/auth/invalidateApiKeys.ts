@@ -56,7 +56,7 @@ export async function invalidateCachedApiKeys(
   }
 }
 
-/** tombstoneDeletedApiKeys replaces the cached credentials of committed deletions with a non-existent marker, so a request that read a key before the delete committed cannot cache it again */
+/** tombstoneDeletedApiKeys replaces the cached credentials of committed deletions with a non-existent marker */
 export async function tombstoneDeletedApiKeys(
   apiKeys: CachedApiKeyIdentity[],
   identifier: string,

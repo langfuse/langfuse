@@ -386,7 +386,7 @@ export class ApiAuthService {
     }
 
     try {
-      // NX keeps a deleted key's tombstone in place when this request read the key before the delete committed
+      // NX so a stale write cannot replace a deleted key's tombstone
       await this.redis.set(
         createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),

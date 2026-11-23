@@ -150,7 +150,7 @@ export class GatewayResolveCache {
     );
     if (expirationTimestamp <= now) return;
     try {
-      // NX keeps a deleted key's tombstone in place when this request read the key before the delete committed
+      // NX so a stale write cannot replace a deleted key's tombstone
       if (params.context === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
         await this.redis!.set(
           key,
@@ -203,7 +203,7 @@ export class GatewayResolveCache {
     }
   }
 
-  /** tombstoneApiKey marks a deleted gateway API key as non-existent in every API format, so a request that read the key before the delete committed cannot cache it again */
+  /** tombstoneApiKey marks a deleted gateway API key as non-existent in every API format */
   async tombstoneApiKey(fastHashedSecretKey: string) {
     if (!this.enabled) return;
 
