@@ -24,18 +24,17 @@ export async function saveSeedCostRun(run: TopicRun) {
     run.topics.map((topic) => topic.topicVersionId),
     { from: new Date(0), to: new Date(Date.now() + 1) },
   );
-  for (const topic of run.topics) {
+  const topics = run.topics.map((topic) => {
     const prior = existing.find(
       (row) => row.topicVersionId === topic.topicVersionId,
     );
-    if (
-      prior &&
+    return prior &&
       prior.centroid.length === topic.centroid.length &&
       prior.costDetails?.total === topic.costDetails?.total
-    )
-      topic.createdAt = prior.createdAt;
-  }
-  return saveTopicRun(run);
+      ? { ...topic, createdAt: prior.createdAt }
+      : topic;
+  });
+  return saveTopicRun({ ...run, topics });
 }
 
 /** Snapshots reuse the seeded Intent map so their costs and map contents can be inspected together. */

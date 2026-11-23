@@ -72,10 +72,9 @@ function SetupStory({
           samplingPercent={samplePercent}
           dailyTraces={180}
           backfillTraces={412}
-          canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}
-          disabled={false}
+          facetCount={selected.filter((question) => question.enabled).length}
           error={null}
           onStart={fn()}
         />

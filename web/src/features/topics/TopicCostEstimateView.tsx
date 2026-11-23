@@ -1,5 +1,6 @@
 import {
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
   type TopicCostEstimate,
   type TopicCostEstimatePrices,
 } from "@langfuse/shared/topics";
@@ -43,6 +44,14 @@ const approxCount = (count: number) =>
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
 
+export type TopicEstimateControls = {
+  estimate: Estimate | null;
+  facetCount: number;
+  starting: boolean;
+  error: string | null;
+  onStart: () => void;
+};
+
 /** The cost estimate card: start button, cost per trace and what it adds up to. */
 export function TopicCostEstimateView({
   estimate,
@@ -50,22 +59,20 @@ export function TopicCostEstimateView({
   dailyTraces,
   backfillTraces,
   newTraces,
-  canAddModelPrice,
   onAddModelPrice,
   starting,
-  disabled,
+  facetCount,
   error,
   onStart,
-}: TopicEstimateVolume & {
-  estimate: Estimate | null;
-  /** False without permission to edit model definitions; the button is then disabled. */
-  canAddModelPrice: boolean;
-  onAddModelPrice: () => void;
-  starting: boolean;
-  disabled: boolean;
-  error: string | null;
-  onStart: () => void;
-}) {
+}: TopicEstimateVolume &
+  TopicEstimateControls & { onAddModelPrice?: () => void }) {
+  if (facetCount > TOPICS_COST_ESTIMATE_MAX_FACETS)
+    return (
+      <p className="text-muted-foreground text-sm">
+        Cost estimates support up to {TOPICS_COST_ESTIMATE_MAX_FACETS} selected
+        questions.
+      </p>
+    );
   const running = estimate?.status === "running";
   const done = estimate?.status === "done";
   const measured = done && estimate.sampled > 0;
@@ -87,7 +94,7 @@ export function TopicCostEstimateView({
         }
       : null;
 
-  const addPriceHint = canAddModelPrice
+  const addPriceHint = onAddModelPrice
     ? ""
     : " You don't have permission to add one.";
 
@@ -111,7 +118,7 @@ export function TopicCostEstimateView({
             size="sm"
             loading={starting}
             // The same inputs give the same estimate, so a measured one is not run again.
-            disabled={disabled || measured}
+            disabled={facetCount === 0 || measured}
             onClick={onStart}
           />
         )}
@@ -182,7 +189,7 @@ export function TopicCostEstimateView({
               text="Add model price"
               variant="outline"
               size="sm"
-              disabled={!canAddModelPrice}
+              disabled={!onAddModelPrice}
               onClick={onAddModelPrice}
             />
           </span>

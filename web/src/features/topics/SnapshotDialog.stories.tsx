@@ -18,7 +18,6 @@ import {
   type SnapshotSummarize,
 } from "./SnapshotDialogView";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
-import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import { costEstimateFixture } from "./topicCostEstimateFixture";
 import {
   topicsFilterRegistry,
@@ -131,18 +130,16 @@ function SnapshotStory({
       summarize={summarize}
       onSummarizeChange={setSummarize}
       costEstimate={
-        canGroup && (
-          <TopicCostEstimateView
-            estimate={costEstimateFixture({}, perTraceUsd)}
-            newTraces={extra}
-            canAddModelPrice
-            onAddModelPrice={fn()}
-            starting={false}
-            disabled={false}
-            error={null}
-            onStart={fn()}
-          />
-        )
+        canGroup
+          ? {
+              estimate: costEstimateFixture({}, perTraceUsd),
+              modelPrice: null,
+              facetCount: facetIds.length,
+              starting: false,
+              error: null,
+              onStart: fn(),
+            }
+          : null
       }
       canStart={canGroup && name.trim().length > 0}
       starting={false}

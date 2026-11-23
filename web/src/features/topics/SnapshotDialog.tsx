@@ -9,7 +9,7 @@ import { dayWindow, latestFacetRefs } from "./topic-maps";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { useTopicsCapture } from "./useTopicsCapture";
-import { TopicCostEstimate } from "./TopicCostEstimate";
+import { useTopicCostEstimate } from "./TopicCostEstimate";
 import {
   SNAPSHOT_DEFAULT_SUMMARIZE,
   SnapshotDialogView,
@@ -134,6 +134,15 @@ export function SnapshotDialog({
     preview !== null &&
     preview.summarizedCount + extra >= preview.smallSampleMinimumTraceCount;
 
+  const forecastReady = canGroup && !counts.isPlaceholderData && !counts.error;
+  const forecast = useTopicCostEstimate({
+    projectId,
+    filter: previewInput.filter,
+    facetIds:
+      forecastReady && extra > 0 ? facetRefs.map(({ facetId }) => facetId) : [],
+    source: "snapshot",
+  });
+
   return (
     <SnapshotDialogView
       name={name}
@@ -161,19 +170,7 @@ export function SnapshotDialog({
       preview={preview}
       summarize={summarize}
       onSummarizeChange={(next) => form.setValue("summarize", next)}
-      costEstimate={
-        canGroup &&
-        !counts.isPlaceholderData &&
-        !counts.error && (
-          <TopicCostEstimate
-            projectId={projectId}
-            filter={previewInput.filter}
-            facetIds={facetRefs.map(({ facetId }) => facetId)}
-            newTraces={extra}
-            source="snapshot"
-          />
-        )
-      }
+      costEstimate={forecastReady ? forecast : null}
       canStart={canGroup && name.trim().length > 0 && !counts.isFetching}
       starting={start.isPending}
       errors={[

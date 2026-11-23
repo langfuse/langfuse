@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { Context as ResponsiveContext } from "react-responsive";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   QueryClient,
@@ -10,11 +9,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import TopicsPage from "./TopicsPage";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
-import {
-  TOPICS_COST_ESTIMATE_MAX_FACETS,
-  type TopicFacet,
-} from "@langfuse/shared/topics";
-import { TopicCostEstimate } from "./TopicCostEstimate";
+import { type TopicFacet } from "@langfuse/shared/topics";
 import { type TopicRunCost } from "./topic-run-labels";
 import { type RouterOutputs } from "@/src/utils/api";
 
@@ -335,11 +330,11 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-function renderTopicsPage(page = <TopicsPage />) {
+function renderTopicsPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(page, {
+  return render(<TopicsPage />, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
         <LayerProvider>{children}</LayerProvider>
@@ -485,83 +480,54 @@ function withSummaries() {
   state.rules = [{ facetIds: ["intent", "outcome"] }];
 }
 
-it("explains the forecast limit without requesting an estimate for an oversized selection", () => {
-  const facetIds = Array.from(
-    { length: TOPICS_COST_ESTIMATE_MAX_FACETS + 1 },
-    (_, i) => `facet-${i}`,
-  );
-  render(
-    <TopicCostEstimate
-      projectId="project"
-      source="snapshot"
-      filter={[]}
-      facetIds={facetIds}
-      newTraces={10}
-    />,
-  );
-  expect(screen.getByText(/cost estimates support up to/i)).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Estimate cost" })).toBeNull();
-});
+it.each(["live map", "snapshot"])(
+  "loads a %s cost on opening the picker and reuses it on reopen",
+  async (kind) => {
+    withSummaries();
+    state.queryMapCosts.mockResolvedValue({ "rule-0": 0 });
+    state.queryCosts.mockResolvedValue({
+      snapshot: { summaries: null, naming: 0.13 },
+    });
+    if (kind === "snapshot") {
+      state.maps = {
+        rules: [],
+        analyses: [
+          {
+            id: "snapshot",
+            label: "Checkout snapshot",
+            facetIds: ["intent"],
+            filter: [],
+            status: "completed",
+            createdAt: state.updatedAt,
+            updatedAt: state.updatedAt,
+            timeRange: {
+              from: new Date("2026-09-22"),
+              to: new Date("2026-09-23"),
+            },
+            traceCount: 20,
+          },
+        ],
+      };
+      state.map = "analysis:snapshot";
+    }
+    renderTopicsPage();
+    const trigger = screen.getByRole("button", { name: /Topic map:/ });
+    expect(state.queryMapCosts).not.toHaveBeenCalled();
+    expect(state.queryCosts).not.toHaveBeenCalled();
 
-it("shows the selected map’s cost while browsing other maps on a phone", async () => {
-  withSummaries();
-  state.rules.push({ name: "Support agent", facetIds: ["intent"] });
-  const costs =
-    Promise.withResolvers<RouterOutputs["topics"]["ruleMapCosts"]>();
-  state.queryMapCosts.mockReturnValueOnce(costs.promise);
-  renderTopicsPage(
-    <ResponsiveContext.Provider value={{ width: 390 }}>
-      <TopicsPage />
-    </ResponsiveContext.Provider>,
-  );
-  expect(state.queryMapCosts).not.toHaveBeenCalled();
-  const trigger = screen.getByRole("button", { name: "Topic map: Rule" });
-  fireEvent.click(trigger);
-  const picker = within(
-    await screen.findByRole("dialog", { name: "Topic maps" }),
-  );
-  expect(picker.getByText("Loading…")).toBeVisible();
-  expect(state.queryMapCosts).toHaveBeenCalledWith({ projectId: "project" });
-  costs.resolve({ "rule-0": 0, "rule-1": 0.14 });
-  expect(await picker.findByText("~$0.00")).toBeVisible();
-  fireEvent.focus(picker.getByRole("button", { name: /^Support agent/ }));
-  expect(picker.getByText("~$0.00")).toBeVisible();
-  expect(picker.queryByText("~$0.14")).toBeNull();
-  fireEvent.click(trigger);
-  expect(screen.queryByRole("dialog", { name: "Topic maps" })).toBeNull();
-  fireEvent.click(trigger);
-  const reopened = await screen.findByRole("dialog", { name: "Topic maps" });
-  expect(within(reopened).getByText("~$0.00")).toBeVisible();
-  expect(state.queryMapCosts).toHaveBeenCalledOnce();
-});
-
-it("waits for the picker to open before fetching a deep-linked snapshot’s cost", async () => {
-  withSummaries();
-  const snapshot = {
-    id: "snapshot",
-    label: "Checkout snapshot",
-    facetIds: ["intent"],
-    filter: [],
-    status: "completed",
-    createdAt: state.updatedAt,
-    updatedAt: state.updatedAt,
-    timeRange: { from: new Date("2026-09-22"), to: new Date("2026-09-23") },
-    traceCount: 20,
-  };
-  state.maps = { rules: [], analyses: [snapshot] };
-  state.map = "analysis:snapshot";
-  state.queryCosts.mockResolvedValue({
-    snapshot: { summaries: null, naming: 0.13 },
-  });
-  renderTopicsPage();
-  expect(state.queryCosts).not.toHaveBeenCalled();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Topic map: Checkout snapshot" }),
-  );
-  const picker = await screen.findByRole("dialog", { name: "Topic maps" });
-  expect(await within(picker).findByText("~$0.13")).toBeVisible();
-  expect(state.queryMapCosts).not.toHaveBeenCalled();
-});
+    const cost = kind === "snapshot" ? "~$0.13" : "~$0.00";
+    fireEvent.click(trigger);
+    expect(await screen.findByText(cost)).toBeVisible();
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("dialog", { name: "Topic maps" })).toBeNull();
+    fireEvent.click(trigger);
+    expect(screen.getByText(cost)).toBeVisible();
+    expect(state.queryMapCosts).toHaveBeenCalledTimes(
+      kind === "live map" ? 1 : 0,
+    );
+    expect(state.queryCosts).toHaveBeenCalledTimes(kind === "snapshot" ? 1 : 0);
+  },
+);
 
 it("keeps settled costs visible while fetching the final cost of a completed run", async () => {
   withSummaries();

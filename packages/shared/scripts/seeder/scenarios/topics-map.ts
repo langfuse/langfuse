@@ -175,6 +175,7 @@ export const topicsMapScenario: ScenarioDefinition = {
       INTENT_TOPICS.reduce((sum, topic) => sum + topic.count, 0) + OUTLIERS;
     const traceCount = assignedCount + AWAITING;
     const dayStart = utcDayStartMs();
+    const definitionCreatedAt = new Date(dayStart).toISOString();
     const cohortFrom = dayStart - 2 * 86_400_000;
     const cohortTo = dayStart - 60 * 60 * 1000;
     // Discovery traces spread across the cohort; awaiting ones arrive after it.
@@ -462,11 +463,12 @@ export const topicsMapScenario: ScenarioDefinition = {
         ...geometry,
       };
       const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
-        topicVersionId: `${map.runId}-topic-${k}`,
+        // The centroid geometry is immutable for a given version.
+        topicVersionId: `${map.runId}-topic-${k}-${geometry.dimensions}d`,
         projectId: ctx.projectId,
         topicId: `${map.runId}-topic-${k}`,
         createdByRunId: map.runId,
-        createdAt: processedAt,
+        createdAt: definitionCreatedAt,
         labels: [],
         name: topic.name,
         description: topic.description,
