@@ -59,6 +59,10 @@ export function ControlledFeaturePreviewModal({
     internalViewEnabled ||
     authSession.data?.user?.featureFlags.langfuseTopics === true;
 
+  const isTraceEvalsEnabled =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.traceTranscriptEvals === true;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
@@ -91,6 +95,19 @@ export function ControlledFeaturePreviewModal({
               ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."
               : undefined,
             onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    ...(isTraceEvalsEnabled
+      ? {
+          traceTranscriptEvals: {
+            enabled: isTraceEvalsEnabled,
+            disabled: internalViewEnabled,
+            warningReason: internalViewEnabled
+              ? "Trace transcript evals are enabled by Internal view. Switching to External view hides them unless they have been enabled for you separately."
+              : undefined,
+            onToggle: onToggle("traceTranscriptEvals"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
         }

@@ -10,9 +10,9 @@ import {
   TopicsTraceQueue,
   type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
+import { TRACE_TRANSCRIPT_EVAL_TYPES } from "@langfuse/shared";
 import {
   TRACE_TRANSCRIPT_EVAL_CONSUMER,
-  TRACE_TRANSCRIPT_EVAL_TYPES,
   enqueueTraceTranscriptEvals,
 } from "./traceTranscriptEval";
 
