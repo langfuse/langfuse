@@ -24,6 +24,8 @@ export function getSignedUrlState(
 } {
   const isUnusable = () => {
     if (query.isError) return true;
+    // No URL was issued, so there is nothing to renew.
+    if (query.data?.url === null) return false;
     const urlTtlSeconds = query.data?.urlTtlSeconds;
     if (urlTtlSeconds === undefined) return false;
     const lifetime = urlTtlSeconds * 1000;
@@ -45,8 +47,6 @@ export function getSignedUrlState(
       refreshIfNeeded,
     };
   }
-  // The server withholds the URL for types the storage provider cannot serve
-  // safely, so refetching cannot help.
   if (query.data?.url === null) {
     return { status: "unavailable", refreshIfNeeded };
   }

@@ -189,7 +189,7 @@ describe("useResolvedMedia", () => {
     expect(result.current.status).toBe("unavailable");
     expect(result.current.url).toBeUndefined();
 
-    reopenAt(result, "2026-10-22T09:00:30.000Z");
+    reopenAt(result, "2026-10-22T09:00:50.000Z");
     expect(result.current.status).toBe("unavailable");
     expect(getMedia).not.toHaveBeenCalled();
   });

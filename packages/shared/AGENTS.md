@@ -32,8 +32,9 @@
   download for anything outside its safe-inline allowlist, so stored HTML or
   SVG never renders on the bucket's origin. `getSignedUrl`'s
   `responseContentType` overrides the stored type per URL. Providers without
-  `canOverrideResponseHeaders` (OCI) get no link at all for media outside the
-  allowlist: the helper returns `null`, and callers show it as unavailable.
+  `canOverrideResponseHeaders` (OCI) get no link at all unless both the
+  recorded and the stored type are on the allowlist: the helper returns
+  `null`, and callers show it as unavailable.
 - Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
   absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
   Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.

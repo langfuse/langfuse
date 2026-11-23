@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { env } from "../../env";
 import {
@@ -86,27 +86,35 @@ describe.each(providers)(
 );
 
 describe("getMediaDownloadUrl on a provider that cannot pin response headers", () => {
-  const getSignedUrl = vi.fn(async () => "https://storage.example.com/par");
-  const storageService = {
-    canOverrideResponseHeaders: false,
-    getSignedUrl,
-  } as unknown as StorageService;
-  const downloadUrl = (contentType: string) =>
-    getMediaDownloadUrl({
+  const downloadUrl = (recordedType: string, storedType: string) => {
+    const storageService = {
+      canOverrideResponseHeaders: false,
+      getObjectContentType: async () => storedType,
+      getSignedUrl: async () => "https://storage.example.com/par",
+    } as unknown as StorageService;
+    return getMediaDownloadUrl({
       storageService,
       bucketPath: "project/media",
-      contentType,
+      contentType: recordedType,
       ttlSeconds: 60,
     });
+  };
 
   it("returns no link for active content", async () => {
-    await expect(downloadUrl("image/svg+xml")).resolves.toBeNull();
-    await expect(downloadUrl("text/html; charset=utf-8")).resolves.toBeNull();
-    expect(getSignedUrl).not.toHaveBeenCalled();
+    await expect(
+      downloadUrl("image/svg+xml", "image/svg+xml"),
+    ).resolves.toBeNull();
+    await expect(
+      downloadUrl("text/html; charset=utf-8", "text/html"),
+    ).resolves.toBeNull();
   });
 
-  it("still links safe-inline media", async () => {
-    await expect(downloadUrl("image/png")).resolves.toBe(
+  it("returns no link when the stored type differs from a safe recorded type", async () => {
+    await expect(downloadUrl("image/png", "text/html")).resolves.toBeNull();
+  });
+
+  it("links safe-inline media stored with a safe type", async () => {
+    await expect(downloadUrl("image/png", "image/png")).resolves.toBe(
       "https://storage.example.com/par",
     );
   });

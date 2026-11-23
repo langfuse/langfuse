@@ -24,9 +24,10 @@ const SAFE_INLINE_MEDIA_TYPE_PREFIXES = ["audio/", "video/"];
  * Content-Type is pinned to the type recorded for the media, so the type the
  * object was stored with never decides how a browser renders it.
  *
- * Returns `null` for media outside the safe-inline allowlist when the provider
- * cannot pin response headers: any link would let its holder render the
- * object inline on the storage origin.
+ * Returns `null` when the provider cannot pin response headers and either the
+ * recorded or the stored type is outside the safe-inline allowlist: any link
+ * would let its holder render the object inline on the storage origin. The
+ * stored type is checked because such providers do not bind it at upload.
  */
 export async function getMediaDownloadUrl(params: {
   storageService: StorageService;
@@ -36,8 +37,13 @@ export async function getMediaDownloadUrl(params: {
 }) {
   const { storageService, bucketPath, contentType, ttlSeconds } = params;
   const isSafeInline = isSafeInlineMediaType(contentType);
-  if (!isSafeInline && !storageService.canOverrideResponseHeaders) {
-    return null;
+  if (!storageService.canOverrideResponseHeaders) {
+    if (!isSafeInline) return null;
+    const storedContentType =
+      await storageService.getObjectContentType(bucketPath);
+    if (!storedContentType || !isSafeInlineMediaType(storedContentType)) {
+      return null;
+    }
   }
   return storageService.getSignedUrl(
     bucketPath,
