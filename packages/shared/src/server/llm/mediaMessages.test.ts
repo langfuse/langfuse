@@ -573,6 +573,7 @@ describe("resolveProjectMedia", () => {
       "project-1/image-1.jpeg",
       120,
       false,
+      "image/jpeg",
     );
   });
 });

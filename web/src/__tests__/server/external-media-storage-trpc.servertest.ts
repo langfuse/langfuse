@@ -399,7 +399,7 @@ describe("externalMediaStorage tRPC", () => {
       expect(getSignedUrl).toHaveBeenCalledWith(
         "customer/image.png",
         300,
-        false,
+        true,
       );
     });
 

@@ -373,10 +373,15 @@ export interface StorageService {
     continuationToken?: string;
   }): Promise<StorageFilePage>;
 
+  /**
+   * `responseContentType` overrides the stored Content-Type for this URL only.
+   * Providers that cannot override it serve the object as an attachment instead.
+   */
   getSignedUrl(
     fileName: string,
     ttlSeconds: number,
     asAttachment?: boolean,
+    responseContentType?: string,
   ): Promise<string>;
 
   getObjectContentLength(path: string): Promise<number | undefined>;
@@ -803,6 +808,7 @@ class AzureBlobStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment?: boolean,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       await this.createContainerIfNotExists();
@@ -814,6 +820,7 @@ class AzureBlobStorageService implements StorageService {
         contentDisposition: asAttachment
           ? `attachment; filename="${fileName}"`
           : undefined,
+        contentType: responseContentType,
       });
 
       // Replace internal endpoint with external endpoint if configured
@@ -1224,6 +1231,7 @@ class S3StorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = true,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -1234,6 +1242,7 @@ class S3StorageService implements StorageService {
           ResponseContentDisposition: asAttachment
             ? `attachment; filename="${fileName}"`
             : undefined,
+          ResponseContentType: responseContentType,
         }),
         { expiresIn: ttlSeconds },
       );
@@ -1527,9 +1536,16 @@ class GoogleCloudStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = false,
+    responseContentType?: string,
   ): Promise<string> {
     return backOff(
-      () => this.getSignedUrlNonRetrying(fileName, ttlSeconds, asAttachment),
+      () =>
+        this.getSignedUrlNonRetrying(
+          fileName,
+          ttlSeconds,
+          asAttachment,
+          responseContentType,
+        ),
       { numOfAttempts: 3 },
     );
   }
@@ -1538,6 +1554,7 @@ class GoogleCloudStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = false,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1550,6 +1567,9 @@ class GoogleCloudStorageService implements StorageService {
 
       if (asAttachment) {
         options.responseDisposition = `attachment; filename="${fileName}"`;
+      }
+      if (responseContentType) {
+        options.responseType = responseContentType;
       }
 
       const [url] = await file.getSignedUrl(options);
@@ -2099,6 +2119,7 @@ class OCIObjectStorageService implements StorageService {
     fileName: string,
     ttlSeconds: number,
     asAttachment = true,
+    responseContentType?: string,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();
@@ -2125,7 +2146,9 @@ class OCIObjectStorageService implements StorageService {
       }
       const baseUrl = new URL(base);
       const parUrl = new URL(accessUri, baseUrl);
-      if (asAttachment) {
+      // PARs cannot override the Content-Type, so a requested override falls
+      // back to a download rather than serving an unverified stored type inline.
+      if (asAttachment || responseContentType) {
         parUrl.searchParams.set("download", "1");
       }
       const url = parUrl.toString();
