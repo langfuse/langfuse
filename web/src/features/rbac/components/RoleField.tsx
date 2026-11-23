@@ -76,7 +76,6 @@ export function RoleField({
                 description: describe(r),
               })}
               disabledReason={optionDisabledReason?.(role)}
-              showPermissionCount
               onViewPermissions={showPermissions}
             />
           ))}
