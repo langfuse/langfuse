@@ -439,6 +439,15 @@ type PartitionedWidgetFilters = {
   unsupportedFilters: z.infer<typeof FilterArray>;
 };
 
+/**
+ * partitionUiTableFiltersToView splits filters into the ones the view can
+ * query, with their column renamed to the view's dimension name, and the ones
+ * it cannot. A filter is unsupported only if its column is a known widget
+ * filter column of another view; unknown columns pass through so the server
+ * validates them. `source` picks which column names win when both match:
+ * legacy names for filters loaded from a saved widget, current names for
+ * filters from the editor.
+ */
 const partitionUiTableFiltersToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,

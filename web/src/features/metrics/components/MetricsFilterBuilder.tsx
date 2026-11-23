@@ -227,7 +227,7 @@ const editorFiltersToViewFilters = (
  * render the row. A numeric (`numberObject`) row on a stringObject column
  * resolves only if the column has `numericValues`: a widget
  * switched away from the v2 observations view keeps its numeric metadata
- * rows, which the other views reject.
+ * filters in the form, which the other views reject.
  */
 const resolvesToColumn = (
   filter: FilterState[number],

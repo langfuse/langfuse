@@ -720,6 +720,8 @@ function FilterBuilderForm({
     const stringObjectSuggest =
       column?.type === "stringObject" &&
       columnsWithCustomSelect.includes(column.id);
+    // Metadata is a stringObject column; with `numericValues` its rows switch
+    // between stringObject (text compare) and numberObject (numeric compare).
     const numericObjectValues =
       column?.type === "stringObject" && column.numericValues === true;
     const stringSuggest =
@@ -942,11 +944,13 @@ function FilterBuilderForm({
 
     const typeOperators =
       filter.type !== undefined ? operatorsFor(filter.type) : [];
+    const keepNumericEquals =
+      filter.type === "numberObject" && filter.operator === "=";
     const operatorOptions = numericObjectValues
       ? textAndNumericOperatorOptions(
           symbolOptions(operatorsFor("stringObject")),
           symbolOptions(operatorsFor("numberObject")),
-          filter.type === "numberObject" && filter.operator === "=",
+          keepNumericEquals,
         )
       : symbolOptions(typeOperators);
     const operatorValue = numericObjectValues

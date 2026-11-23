@@ -1701,6 +1701,7 @@ export function useWidgetFormState({
         unsupportedFilterColumns: Array.from(
           new Set(
             unsupportedFilters
+              // Numeric metadata gets its own reason below, not "legacy column".
               .filter((filter) => !isNumericMetadataFilter(filter))
               .map((filter) => filter.column),
           ),
