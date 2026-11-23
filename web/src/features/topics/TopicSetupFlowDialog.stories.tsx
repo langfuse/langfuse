@@ -11,6 +11,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
+import { costEstimateFixture } from "./topicCostEstimateFixture";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   TOPIC_SETUP_QUESTIONS,
   type TopicSetupQuestion,
@@ -47,6 +49,7 @@ function SetupStory({
 }) {
   const [selected, setSelected] = useState(questions);
   const [filter, setFilter] = useState<FilterState>([]);
+  const [samplePercent, setSamplePercent] = useState(100);
   const [name, setName] = useState("Default");
   // The query editor's Ask AI needs tRPC, which stories don't provide.
   const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
@@ -63,6 +66,20 @@ function SetupStory({
       advancedOpen={false}
       busy={false}
       canWrite
+      costEstimate={
+        <TopicCostEstimateView
+          estimate={costEstimateFixture()}
+          samplingPercent={samplePercent}
+          dailyTraces={180}
+          backfillTraces={412}
+          canAddModelPrice
+          onAddModelPrice={fn()}
+          starting={false}
+          disabled={false}
+          error={null}
+          onStart={fn()}
+        />
+      }
       clustering={{
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
@@ -93,13 +110,13 @@ function SetupStory({
           ),
         )
       }
-      onSamplePercentChange={fn()}
+      onSamplePercentChange={setSamplePercent}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
       pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
-      samplePercent={100}
+      samplePercent={samplePercent}
       projectId="demo-project"
       filter={filter}
       onFilterChange={setFilter}

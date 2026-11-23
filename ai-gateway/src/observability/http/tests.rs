@@ -543,10 +543,11 @@ fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
 /// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 9);
+    assert_eq!(spans.len(), 10);
     for (name, parent) in [
         ("resolution", server),
         ("request.body", server),
+        ("request.parse", server),
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),

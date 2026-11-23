@@ -38,6 +38,17 @@ const state = vi.hoisted(() => ({
   settings: {} as Record<string, unknown>,
   rules: [] as Array<{ id?: string; facetIds: string[] }>,
   maps: undefined as unknown,
+  capture: vi.fn(),
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => state.capture,
 }));
 
 vi.mock("./useOpenTopicsFeedback", () => ({
@@ -588,4 +599,14 @@ it("shows the setup landing until the project's first stored summary exists", ()
   view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Set up topics" })).toBeNull();
+  // The page view keeps the state it first showed, once per mount.
+  const context = { projectId: "project", orgId: "org", isV4: true };
+  const events = state.capture.mock.calls.map(([event]) => event);
+  expect(events.filter((event) => event === "topics:page_viewed")).toHaveLength(
+    1,
+  );
+  expect(state.capture).toHaveBeenCalledWith(
+    "topics:page_viewed",
+    expect.objectContaining({ ...context, pageState: "landing" }),
+  );
 });

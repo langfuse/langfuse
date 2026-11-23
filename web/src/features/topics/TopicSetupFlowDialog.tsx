@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { TopicSliceFields } from "./TopicSliceFields";
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Info,
   Lock,
   RefreshCw,
 } from "@langfuse/icons";
@@ -19,6 +20,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
@@ -46,9 +48,17 @@ const STEP_NUMBERS: Record<TopicSetupStep, string> = {
 
 const MODEL_ROWS = [
   { slot: "summary", label: "Summaries" },
-  { slot: "embedding", label: "Embeddings" },
+  {
+    slot: "embedding",
+    label: "Embeddings",
+    hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. The model and dimensions are fixed once the first summaries are embedded, because vectors from different models can't be compared.",
+  },
   { slot: "clustering", label: "Grouping" },
-] as const;
+] as const satisfies ReadonlyArray<{
+  slot: string;
+  label: string;
+  hint?: string;
+}>;
 
 export type TopicSetupPastCount =
   | { status: "loading" }
@@ -60,6 +70,8 @@ export type TopicSetupFlowDialogProps = {
   busy: boolean;
   canWrite: boolean;
   clustering: JudgeModel | null;
+  /** Shown in the Review step below the trace summary. */
+  costEstimate?: ReactNode;
   connectionCaption: string;
   /** False when the project has no AI connection yet; models cannot be picked. */
   hasConnection: boolean;
@@ -106,6 +118,7 @@ export function TopicSetupFlowDialog({
   busy,
   canWrite,
   clustering,
+  costEstimate,
   connectionCaption,
   hasConnection,
   canAddConnection,
@@ -251,6 +264,7 @@ export function TopicSetupFlowDialog({
                         <ModelRow
                           key={row.slot}
                           label={row.label}
+                          hint={"hint" in row ? row.hint : undefined}
                           model={model}
                           recommended={
                             model
@@ -334,7 +348,7 @@ export function TopicSetupFlowDialog({
                   pastCount.status === "ready" ? pastCount.dailyTraces : null
                 }
                 disabled={!canWrite}
-                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+                tooltip={`Share of new matching traces Topics analyzes once automatic processing is on. The first backfill runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} traces at any rate.`}
               />
             </div>
           ) : null}
@@ -411,6 +425,7 @@ export function TopicSetupFlowDialog({
                   New traces show up {waitMinutes} min after their last activity
                 </span>
               </div>
+              {costEstimate}
             </div>
           ) : null}
           {step !== "questions" && error ? (
@@ -455,7 +470,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
   if (count.matched === 0) return "No matching traces in the last 30 days";
-  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
+  return `Runs on up to ${count.matched.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({
@@ -480,6 +495,7 @@ function nextStepDisabled({
 
 function ModelRow({
   disabled,
+  hint,
   label,
   model,
   onConfigureProviders,
@@ -488,6 +504,7 @@ function ModelRow({
   recommended,
 }: {
   disabled: boolean;
+  hint?: string;
   label: string;
   model: JudgeModel | null;
   onConfigureProviders: () => void;
@@ -498,7 +515,22 @@ function ModelRow({
   const [open, setOpen] = useState(false);
   return (
     <div className="grid gap-1 px-3 py-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5">
-      <span className="text-sm">{label}</span>
+      <span className="flex items-center gap-1.5 text-sm">
+        {label}
+        {hint ? (
+          <Tooltip label={hint}>
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                aria-label={`About ${label}`}
+              >
+                <Info aria-hidden size="sm" color="muted" />
+              </button>
+            )}
+          </Tooltip>
+        ) : null}
+      </span>
       <JudgeModelPicker
         purpose="decision"
         open={open && !disabled}

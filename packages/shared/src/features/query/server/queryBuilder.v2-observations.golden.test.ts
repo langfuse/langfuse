@@ -295,6 +295,17 @@ const FILTERS: ReadonlyArray<[string, Filter]> = [
       value: "eu",
     },
   ],
+  // toFloat64OrNull parses the truncated value, so routing keeps events_core
+  [
+    "metadata numberObject >",
+    {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    },
+  ],
   // gateway key owner (a metadata key) on every owner-scoped gateway
   // analytics query; stays on events_core
   [

@@ -412,6 +412,13 @@ const OPENAI_RESPONSE_USAGE: [&str; 5] = [
 ];
 
 fn normalize_openai_usage(object: &JsonObject, fields: &[&str; 5]) -> Option<Usage> {
+    // An object without all three counts is not this shape; decide before building anything.
+    let has_counts = fields[..3]
+        .iter()
+        .all(|source| nonnegative_integer(object.get(*source)).is_some());
+    if !has_counts {
+        return None;
+    }
     let mut result = Usage::new();
     for (key, value) in javascript_entries(object) {
         if !fields.contains(&key.as_str()) {

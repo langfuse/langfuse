@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
 
 const nativeContext = {
   projectId: "native-boundary",
@@ -37,7 +38,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         expect(mediaRequests).toEqual([]);
         const { finalized } = await processing.complete(
           [],
-          [],
+          encodeOtelLookups([]),
           undefined,
           true,
         );
@@ -88,7 +89,12 @@ describe("Native OTEL batch NAPI boundary", () => {
     const batch = await validated.extract(true);
     const { batch: processing } = await batch.process(nativeContext);
     try {
-      const { finalized } = await processing.complete([], [], undefined, true);
+      const { finalized } = await processing.complete(
+        [],
+        encodeOtelLookups([]),
+        undefined,
+        true,
+      );
       const rows = finalized!.evaluationRows as Record<string, unknown>[];
 
       for (const [, column] of experimentFields) {
@@ -130,7 +136,12 @@ describe("Native OTEL batch NAPI boundary", () => {
       const batch = await validated.extract(true);
       const { batch: processing } = await batch.process(nativeContext);
       try {
-        const completion = await processing.complete([], [], limit, true);
+        const completion = await processing.complete(
+          [],
+          encodeOtelLookups([]),
+          limit,
+          true,
+        );
         const finalized =
           completion.finalized ??
           (await processing.finalize(
@@ -272,12 +283,17 @@ describe("Native OTEL batch NAPI boundary", () => {
             });
             if (results.length > 0) {
               await expect(
-                processing.complete([], results.slice(0, -1), undefined, true),
+                processing.complete(
+                  [],
+                  encodeOtelLookups(results.slice(0, -1)),
+                  undefined,
+                  true,
+                ),
               ).rejects.toThrow("incomplete OTEL lookup results");
             }
             const { finalized } = await processing.complete(
               [],
-              results,
+              encodeOtelLookups(results),
               undefined,
               true,
               ["a".repeat(32)],
@@ -332,7 +348,12 @@ describe("Native OTEL batch NAPI boundary", () => {
               else expect(event.serializedEventBytes).toBeUndefined();
             }
             await expect(
-              processing.complete([], results, undefined, true),
+              processing.complete(
+                [],
+                encodeOtelLookups(results),
+                undefined,
+                true,
+              ),
             ).rejects.toThrow();
           } finally {
             await processing.dispose();
@@ -404,7 +425,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       try {
         const { overflowRequests } = await processing.complete(
           [],
-          [],
+          encodeOtelLookups([]),
           256,
           false,
           [traceId],
@@ -468,13 +489,16 @@ describe("Native OTEL batch NAPI boundary", () => {
     } = await batch.process(nativeContext);
     try {
       expect(mediaRequests).toEqual([]);
-      expect(lookupRequests).toHaveLength(spans.length);
+      // The three spans name one model, so they share a single lookup request.
+      expect(lookupRequests).toHaveLength(1);
+      // Text outside ASCII has different lengths in UTF-16 and UTF-8.
+      const tierName = "usage-tier ü😀";
       const lookup = {
         model: { id: "storage-boundary-model-id" },
         pricingTiers: [
           {
             id: "usage-tier",
-            name: "usage-tier",
+            name: tierName,
             isDefault: false,
             priority: 0,
             conditions: [
@@ -494,7 +518,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       };
       const { finalized } = await processing.complete(
         [],
-        lookupRequests.map(() => lookup),
+        encodeOtelLookups(lookupRequests.map(() => lookup)),
         undefined,
         true,
       );
@@ -508,7 +532,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       );
       expect(rows.get(spans[0].spanId)).toMatchObject({
         usage_details: { input: 7, total: 7 },
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
         cost_details: {
           input: expect.closeTo(7e-18, 30),
           total: expect.closeTo(7e-18, 30),
@@ -519,7 +543,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         total: 7,
       });
       expect(rows.get(spans[1].spanId)).toMatchObject({
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
         cost_details: {
           input: expect.any(Number),
           output: expect.any(Number),
@@ -532,7 +556,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       });
       expect(rows.get(spans[2].spanId)).toMatchObject({
         usage_details: { input: 3, total: 3 },
-        usage_pricing_tier_name: "usage-tier",
+        usage_pricing_tier_name: tierName,
       });
     } finally {
       await processing.dispose();
