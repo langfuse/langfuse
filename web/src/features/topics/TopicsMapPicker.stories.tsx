@@ -4,7 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import {
   TopicsMapPicker,
-  type UseMapCosts,
+  type UsePickerCost,
   type UsePreviewTopics,
 } from "./TopicsMapPicker";
 import { TopicMapStrip } from "./TopicMapStrip";
@@ -125,8 +125,14 @@ const useStoryPreviewTopics: UsePreviewTopics = (_projectId, map) => ({
     : undefined,
 });
 
-const useStoryMapCosts: UseMapCosts = (_projectId, ruleIds) =>
-  ruleIds.length ? { "rule-all": 0.32, "rule-support": 0.14 } : undefined;
+const storyCosts: Record<string, string> = {
+  "rule-all": "~$0.32",
+  "rule-support": "~$0.14",
+  "analysis-refunds": "~$0.50",
+  "analysis-beta": "~$0.08",
+};
+const useStoryPickerCost: UsePickerCost = (_projectId, map) =>
+  map ? (storyCosts[map.id] ?? "Unavailable") : "Loading…";
 
 /** The Topics page header flow: pick a map, see its strip, or the building state of a new map. */
 function MapSwitcher({
@@ -160,7 +166,7 @@ function MapSwitcher({
           facetId="intent"
           onSelect={setSelection}
           usePreviewTopics={useStoryPreviewTopics}
-          useMapCosts={useStoryMapCosts}
+          usePickerCost={useStoryPickerCost}
           processingOn
           create={{
             map: { onSelect: fn() },
@@ -176,10 +182,6 @@ function MapSwitcher({
       {selectedAnalysis && (
         <TopicMapStrip.Analysis
           analysis={selectedAnalysis}
-          costBreakdown={{
-            summaries: selectedAnalysis.summarize ? 0.42 : null,
-            naming: 0.08,
-          }}
           onViewRun={() => onViewRun(selectedAnalysis.id)}
         />
       )}
@@ -252,11 +254,11 @@ export const TestSwitchesMaps = meta.story({
       canvas.getByRole("button", { name: "Topic map: Refund complaints" }),
     ).toBeVisible();
     await expect(canvas.getByText(/1,840 traces/)).toBeVisible();
-    await expect(canvas.getByText("Estimated cost: ~$0.50")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "View run" }));
     await expect(args.onViewRun).toHaveBeenCalledWith("analysis-refunds");
 
     picker = await openPicker(canvasElement);
+    await expect(picker.getByText("~$0.50")).toBeVisible();
     await userEvent.click(
       picker.getByRole("button", { name: /Checkout assistant/ }),
     );

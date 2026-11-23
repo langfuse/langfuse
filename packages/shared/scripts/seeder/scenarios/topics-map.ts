@@ -13,7 +13,6 @@ import {
   ensureDefaultTopicFacets,
   listTopicRules,
   saveTopicRule,
-  saveTopicRun,
   writeTopicAssignments,
   writeTopicSummaries,
 } from "../../../src/server/topics";
@@ -133,7 +132,7 @@ const ENTERPRISE_INTENT_TOPICS: SeedTopic[] = [
 ];
 const OUTLIERS = 7;
 const AWAITING = 4;
-const DIMENSIONS = 16;
+const EMBEDDING_MODEL = "text-embedding-3-small";
 const ISSUES_APPLICABLE = 60;
 const SECOND_RULE_TRACES = 48;
 // Rules are found again by name, so the prefix keeps re-runs off the project's own rules.
@@ -166,25 +165,12 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, a second Intent map with its own topic names, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "Published Intent and Issues maps for 116 traces, two live rules with shared processing costs, and two snapshots with fully or partially priced results. Includes long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project. Makes no model calls.",
   supportsV4: true,
-  flags: [
-    {
-      flag: "costs",
-      type: "boolean",
-      default: false,
-      description:
-        "Include priced and partially priced snapshots, live map costs and a local processing forecast.",
-    },
-  ],
+  flags: [],
   run: async (ctx, params) => {
     const startedAt = Date.now();
     const rng = new Rng(ctx.seed);
-    const withCosts = params.costs === true;
-    const dimensions = withCosts ? TOPICS_MIN_EMBEDDING_DIMENSIONS : DIMENSIONS;
-    const embeddingModel = withCosts
-      ? "text-embedding-3-small"
-      : "seed-embedding";
     const assignedCount =
       INTENT_TOPICS.reduce((sum, topic) => sum + topic.count, 0) + OUTLIERS;
     const traceCount = assignedCount + AWAITING;
@@ -209,16 +195,10 @@ export const topicsMapScenario: ScenarioDefinition = {
       events: traceCount * 2,
       rules: RULE_NAMES.length,
       maps: 3,
-      ...(withCosts && {
-        costSnapshots: 2,
-        pricedLiveMaps: RULE_NAMES.length,
-      }),
+      costSnapshots: 2,
+      pricedLiveMaps: RULE_NAMES.length,
       summaries: traceCount * 2,
-      assignments:
-        assignedCount +
-        ISSUES_APPLICABLE +
-        SECOND_RULE_TRACES +
-        (withCosts ? assignedCount * 2 : 0),
+      assignments: assignedCount * 3 + ISSUES_APPLICABLE + SECOND_RULE_TRACES,
     };
     const summary = {
       scenario: "topics-map",
@@ -322,11 +302,11 @@ export const topicsMapScenario: ScenarioDefinition = {
         throw new SeedError(`Built-in "${name}" facet not found.`);
       return { id: found.id, version: found.versions[0].version };
     };
-    if (withCosts)
-      await prepareTopicsCostEstimate(ctx.projectId, {
-        embeddingModel,
-        dimensions,
-      });
+    const geometry = {
+      embeddingModel: EMBEDDING_MODEL,
+      dimensions: TOPICS_MIN_EMBEDDING_DIMENSIONS,
+    };
+    await prepareTopicsCostEstimate(ctx.projectId, geometry);
     const intent = facet("Intent");
     const issues = facet("Issues");
     const existingRules = await listTopicRules(ctx.projectId);
@@ -377,13 +357,13 @@ export const topicsMapScenario: ScenarioDefinition = {
           state: complete ? "complete" : "not_applicable",
           summary: complete ? summaryText(topic, requests[index]!) : "",
           embedding: complete
-            ? embedding(topicOf(index) ?? topics.length, rng, dimensions)
+            ? embedding(topicOf(index) ?? topics.length, rng)
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
           transcriptBytes: 0,
           summaryModel: "seed-summary",
-          embeddingModel,
+          embeddingModel: EMBEDDING_MODEL,
           providedUsageDetails: {},
           usageDetails: {},
           providedCostDetails: {},
@@ -405,29 +385,24 @@ export const topicsMapScenario: ScenarioDefinition = {
       (index) => issuesOf[index],
       (index) => index < ISSUES_APPLICABLE || index >= assignedCount,
     );
-    ctx.log("writing summaries");
     // Each cost snapshot owns two Intent summaries. Both live maps share the next one.
-    const snapshotSummaries = withCosts ? intentSummaries.slice(0, 4) : [];
+    const snapshotSummaries = intentSummaries.slice(0, 4);
     const liveSummaries = intentSummaries.slice(snapshotSummaries.length);
-    if (withCosts) {
-      liveSummaries[0]!.costDetails = { summary_input: 0.12, total: 0.12 };
-      // A replay replaces these five synthetic summaries, including earlier cohort dates.
-      await commandClickhouse({
-        query: `DELETE FROM topic_facet_summaries
-          WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
-            AND facet_version = {version:UInt32} AND trace_id IN {traceIds:Array(String)}
-            AND transcript_version = 'seed' AND summary_model = 'seed-summary'
-          SETTINGS lightweight_deletes_sync = 2`,
-        params: {
-          projectId: ctx.projectId,
-          facetId: intent.id,
-          version: intent.version,
-          traceIds: traceIds.slice(0, snapshotSummaries.length + 1),
-        },
-      });
-    }
-    await writeTopicSummaries([...liveSummaries, ...issueSummaries]);
-
+    liveSummaries[0]!.costDetails = { summary_input: 0.12, total: 0.12 };
+    // A replay replaces these five synthetic summaries, including earlier cohort dates.
+    await commandClickhouse({
+      query: `DELETE FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+          AND facet_version = {version:UInt32} AND trace_id IN {traceIds:Array(String)}
+          AND transcript_version = 'seed' AND summary_model = 'seed-summary'
+        SETTINGS lightweight_deletes_sync = 2`,
+      params: {
+        projectId: ctx.projectId,
+        facetId: intent.id,
+        version: intent.version,
+        traceIds: traceIds.slice(0, snapshotSummaries.length + 1),
+      },
+    });
     // Run ids are unique across projects, so the default prefix alone would collide.
     const runPrefix = `${ctx.idPrefix}-${ctx.projectId}`;
     const maps = [
@@ -466,19 +441,17 @@ export const topicsMapScenario: ScenarioDefinition = {
         id: {
           in: [
             ...maps.map((map) => map.runId),
-            ...(withCosts
-              ? [`${runPrefix}-setup`, `${runPrefix}-nightly`]
-              : []),
+            `${runPrefix}-setup`,
+            `${runPrefix}-nightly`,
           ],
         },
       },
     });
     const ruleIds = rules.map((rule) => rule.id);
-    const mapCostsBeforeFits = withCosts
-      ? await getTopicRuleMapCosts(ctx.projectId, ruleIds)
-      : {};
-    if (withCosts)
-      summary.links.push(`${summary.links[0]}?map=rule:${rules[0]!.id}`);
+    const previousMapCosts = await getTopicRuleMapCosts(ctx.projectId);
+    ctx.log("writing summaries");
+    await writeTopicSummaries([...liveSummaries, ...issueSummaries]);
+    summary.links.push(`${summary.links[0]}?map=rule:${rules[0]!.id}`);
     const snapshotRunIds: string[] = [];
     for (const map of maps) {
       const config = {
@@ -486,8 +459,7 @@ export const topicsMapScenario: ScenarioDefinition = {
           from: new Date(cohortFrom).toISOString(),
           to: new Date(cohortTo).toISOString(),
         },
-        embeddingModel,
-        dimensions,
+        ...geometry,
       };
       const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
         topicVersionId: `${map.runId}-topic-${k}`,
@@ -498,12 +470,12 @@ export const topicsMapScenario: ScenarioDefinition = {
         labels: [],
         name: topic.name,
         description: topic.description,
-        centroid: unit(k, dimensions),
+        centroid: unit(k),
         radius: 0.4,
         representativeSummaries: [],
         metadata: {},
       }));
-      if (withCosts && map === maps[0]) {
+      if (map === maps[0]) {
         const billing = definitions[0]!;
         billing.topicVersionId = `${billing.topicId}-priced`;
         billing.costDetails = { naming_input: 0.1, total: 0.1 };
@@ -539,8 +511,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         ];
       });
       ctx.log(`publishing ${map.runId} (${assignments.length} traces)`);
-      const saveRun = withCosts ? saveSeedCostRun : saveTopicRun;
-      const published = await saveRun({
+      const published = await saveSeedCostRun({
         id: map.runId,
         projectId: ctx.projectId,
         facetId: map.facet.id,
@@ -555,14 +526,14 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
       });
       await writeTopicAssignments(assignments);
-      if (withCosts && map === maps[0]) {
+      if (map === maps[0]) {
         const snapshots = await seedTopicCostSnapshots(
           ctx,
           published,
           assignments,
           snapshotSummaries,
           config.timeRange,
-          { embeddingModel, dimensions },
+          geometry,
         );
         snapshotRunIds.push(...snapshots.map(({ runId }) => runId));
         summary.links.push(
@@ -621,16 +592,14 @@ export const topicsMapScenario: ScenarioDefinition = {
         "uniqExact(clustering_run_id, trace_id)",
       ),
     };
-    if (withCosts) {
-      const mapCosts = await getTopicRuleMapCosts(ctx.projectId, ruleIds);
-      verified.pricedLiveMaps = ruleIds.filter((id, index) => {
-        const cost = mapCosts[id];
-        const expected =
-          (mapCostsBeforeFits[id] ?? 0) + (index === 0 ? 0.1 : 0);
-        return cost != null && Math.abs(cost - expected) < 1e-12;
-      }).length;
-      verified.costSnapshots = snapshotRunIds.length;
-    }
+    const mapCosts = await getTopicRuleMapCosts(ctx.projectId);
+    verified.pricedLiveMaps = ruleIds.filter((id, index) => {
+      const cost = mapCosts[id];
+      const expected =
+        (previousMapCosts[id] ?? 0) + (index === 0 ? 0.16 : 0.06);
+      return cost != null && Math.abs(cost - expected) < 1e-12;
+    }).length;
+    verified.costSnapshots = snapshotRunIds.length;
     for (const [entity, expected] of Object.entries(counts)) {
       if (verified[entity] !== expected) {
         throw new SeedError(
@@ -650,14 +619,14 @@ function topicIndexes(topics: SeedTopic[], outliers: number) {
   return [...order, ...Array.from({ length: outliers }, () => undefined)];
 }
 
-function unit(k: number, dimensions: number) {
-  return Array.from({ length: dimensions }, (_, i) =>
-    i === k % dimensions ? 1 : 0,
+function unit(k: number) {
+  return Array.from({ length: TOPICS_MIN_EMBEDDING_DIMENSIONS }, (_, i) =>
+    i === k % TOPICS_MIN_EMBEDDING_DIMENSIONS ? 1 : 0,
   );
 }
 
-function embedding(k: number, rng: Rng, dimensions: number) {
-  const vector = unit(k, dimensions).map((value) => value + rng.next() * 0.15);
+function embedding(k: number, rng: Rng) {
+  const vector = unit(k).map((value) => value + rng.next() * 0.15);
   const norm = Math.hypot(...vector);
   return vector.map((value) => value / norm);
 }

@@ -246,10 +246,7 @@ describe("Topics project allowlist", () => {
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
     ["facets", () => outside().facets({ projectId })],
     ["maps", () => outside().maps({ projectId })],
-    [
-      "map cost",
-      () => outside().ruleMapCosts({ projectId, ruleIds: ["rule-a"] }),
-    ],
+    ["map cost", () => outside().ruleMapCosts({ projectId })],
     ["runs", () => outside().executions({ projectId })],
     [
       "run costs",
@@ -261,7 +258,7 @@ describe("Topics project allowlist", () => {
         outside().executionCostBreakdown({
           projectId,
           executionIds: ["run-a"],
-          summaryExecutionIds: [],
+          includeSummaryCosts: false,
         }),
     ],
     ["model settings", () => outside().modelSettings({ projectId })],
@@ -775,18 +772,19 @@ describe("Topics local execution access and publication", () => {
     );
   });
 
-  it("combines recorded stages for visible snapshots and restricts the summary read to the requested subset", async () => {
+  it("combines recorded stages for visible snapshots and skips the summary read for reuse-only batches", async () => {
     mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.42, legacy: 0 });
     mocks.getTopicExecutionNamingCosts.mockResolvedValue({
       reuse: 0,
       priced: 0.03,
     });
     const executionIds = ["legacy", "reuse", "priced"];
+    const api = caller("VIEWER");
     expect(
-      await caller("VIEWER").executionCostBreakdown({
+      await api.executionCostBreakdown({
         projectId,
         executionIds,
-        summaryExecutionIds: ["priced", "legacy", "outside"],
+        includeSummaryCosts: true,
       }),
     ).toEqual({
       legacy: { summaries: 0, naming: null },
@@ -795,12 +793,21 @@ describe("Topics local execution access and publication", () => {
     });
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["legacy", "priced"],
+      executionIds,
     );
     expect(mocks.getTopicExecutionNamingCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
       executionIds,
     );
+    mocks.getTopicExecutionCosts.mockClear();
+    expect(
+      await api.executionCostBreakdown({
+        projectId,
+        executionIds: ["reuse"],
+        includeSummaryCosts: false,
+      }),
+    ).toEqual({ reuse: { summaries: null, naming: 0 } });
+    expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
   });
 
   it("reconciles interrupted history and resumes published facets after their queue owner is gone", async () => {

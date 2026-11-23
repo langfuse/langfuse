@@ -2,11 +2,6 @@ import { type ReactNode } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { cn } from "@/src/utils/tailwind";
 import {
-  formatTopicRunCost,
-  estimatedTopicCostLabel,
-  type TopicRunCost,
-} from "./topic-run-labels";
-import {
   topicRuleFreshness,
   topicWindowLabel,
   type TopicAnalysisMap,
@@ -15,12 +10,12 @@ import {
 
 function Strip({
   status,
-  run,
+  onViewRun,
   controls,
   options,
 }: {
   status?: string;
-  run?: { cost: string; onView: () => void };
+  onViewRun?: () => void;
   controls?: ReactNode;
   options?: ReactNode;
 }) {
@@ -28,7 +23,7 @@ function Strip({
     <div
       className={cn(
         "ph-no-capture shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 text-sm md:flex",
-        run ? "flex" : "hidden",
+        onViewRun ? "flex" : "hidden",
       )}
     >
       {controls && (
@@ -37,7 +32,7 @@ function Strip({
       <span
         className={cn(
           "flex flex-wrap items-center gap-y-1 md:ml-auto",
-          run ? "gap-x-3" : "gap-x-6",
+          onViewRun ? "gap-x-3" : "gap-x-6",
         )}
       >
         {status && (
@@ -45,16 +40,13 @@ function Strip({
             {status}
           </span>
         )}
-        {run && (
-          <>
-            <span className="text-muted-foreground">{run.cost}</span>
-            <Button
-              text="View run"
-              size="sm"
-              variant="text"
-              onClick={run.onView}
-            />
-          </>
+        {onViewRun && (
+          <Button
+            text="View run"
+            size="sm"
+            variant="text"
+            onClick={onViewRun}
+          />
         )}
         {options && <span className="hidden md:flex">{options}</span>}
       </span>
@@ -101,25 +93,19 @@ export function topicRuleStatus(
 /** A past run's controls and the period it covered. */
 function TopicAnalysisStrip({
   analysis,
-  costBreakdown,
   onViewRun,
   controls,
   options,
 }: {
   analysis: TopicAnalysisMap;
-  costBreakdown: TopicRunCost | null | undefined;
   onViewRun: () => void;
   controls?: ReactNode;
   options?: ReactNode;
 }) {
-  const cost = formatTopicRunCost(costBreakdown);
   return (
     <Strip
       status={topicAnalysisStatus(analysis)}
-      run={{
-        cost: `${estimatedTopicCostLabel} ${cost}`,
-        onView: onViewRun,
-      }}
+      onViewRun={onViewRun}
       controls={controls}
       options={options}
     />

@@ -131,6 +131,10 @@ function TopicSetupSession({
       utils.topics.facets.invalidate({ projectId });
       // The page follows the first rule's setup from the maps overview.
       utils.topics.maps.invalidate({ projectId });
+      utils.topics.ruleMapCosts.invalidate(
+        { projectId },
+        { refetchType: "none" },
+      );
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });

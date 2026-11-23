@@ -6,7 +6,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   TOPICS_COST_ESTIMATE_MAX_FACETS,
-  TOPICS_MAX_RULES,
   topicIdSchema,
   topicFacetRefSchema,
   topicRuleConfigSchema,
@@ -662,17 +661,15 @@ export const topicsRouter = createTRPCRouter({
     .input(
       projectInput.extend({
         executionIds: visibleExecutionIds,
-        summaryExecutionIds: visibleExecutionIds,
+        includeSummaryCosts: z.boolean().default(true),
       }),
     )
     .query(
-      async ({ input: { projectId, executionIds, summaryExecutionIds } }) => {
-        const requestedSummaries = new Set(summaryExecutionIds);
-        const summaryIds = executionIds.filter((id) =>
-          requestedSummaries.has(id),
-        );
+      async ({ input: { projectId, executionIds, includeSummaryCosts } }) => {
         const [costs, naming] = await Promise.all([
-          getTopicExecutionCosts(projectId, summaryIds),
+          includeSummaryCosts
+            ? getTopicExecutionCosts(projectId, executionIds)
+            : null,
           getTopicExecutionNamingCosts(projectId, executionIds),
         ]);
         return Object.fromEntries(
@@ -681,7 +678,8 @@ export const topicsRouter = createTRPCRouter({
               [
                 id,
                 {
-                  summaries: Object.hasOwn(costs, id) ? costs[id] : null,
+                  summaries:
+                    costs && Object.hasOwn(costs, id) ? costs[id] : null,
                   naming: Object.hasOwn(naming, id) ? naming[id] : null,
                 },
               ] as const,
@@ -757,13 +755,9 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
-  ruleMapCosts: topicsProcedure
-    .input(
-      projectInput.extend({
-        ruleIds: z.array(topicIdSchema).max(TOPICS_MAX_RULES),
-      }),
-    )
-    .query(({ input }) => getTopicRuleMapCosts(input.projectId, input.ruleIds)),
+  ruleMapCosts: topicsProcedure.query(({ input }) =>
+    getTopicRuleMapCosts(input.projectId),
+  ),
   ruleSetupStatus: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),

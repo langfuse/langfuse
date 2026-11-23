@@ -3,9 +3,7 @@ import { useMediaQuery } from "react-responsive";
 import {
   estimatedTopicCostDescription,
   estimatedTopicCostLabel,
-  formatTopicCost,
 } from "./topic-run-labels";
-import type { RouterOutputs } from "@/src/utils/api";
 import {
   CalendarRange,
   Camera,
@@ -56,7 +54,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
-  useMapCosts,
+  usePickerCost,
   processingOn,
   create,
   refresh,
@@ -68,7 +66,7 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
-  useMapCosts: UseMapCosts;
+  usePickerCost: UsePickerCost;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
@@ -108,12 +106,11 @@ export function TopicsMapPicker({
       ? overview.analyses.find((analysis) => analysis.id === shown.id)
       : undefined;
   const hasPreviewPane = useMediaQuery({ query: "(min-width: 640px)" });
-  const costRule = hasPreviewPane ? shownRule : selectedRule;
-  const mapCosts = useMapCosts(
-    projectId,
-    open && costRule ? overview.rules.map((rule) => rule.id).sort() : [],
-  );
-  const costRow: [string, ReactNode] | undefined = costRule
+  const costMap = hasPreviewPane
+    ? (shownRule ?? shownAnalysis)
+    : (selectedRule ?? selectedAnalysis);
+  const cost = usePickerCost(projectId, open ? costMap : undefined);
+  const costRow: [string, ReactNode] | undefined = costMap
     ? [
         estimatedTopicCostLabel,
         <Tooltip key="cost" label={estimatedTopicCostDescription}>
@@ -122,9 +119,7 @@ export function TopicsMapPicker({
               {...getTriggerProps({ tabIndex: 0 })}
               className="tabular-nums"
             >
-              {formatTopicCost(
-                mapCosts == null ? mapCosts : (mapCosts[costRule.id] ?? null),
-              )}
+              {cost}
             </span>
           )}
         </Tooltip>,
@@ -287,6 +282,7 @@ export function TopicsMapPicker({
                   projectId={projectId}
                   usePreviewTopics={usePreviewTopics}
                   analysis={shownAnalysis}
+                  costRow={hasPreviewPane ? costRow : undefined}
                   facetId={facetId}
                 />
               )}
@@ -622,12 +618,14 @@ function RulePreview({
 function AnalysisPreview({
   projectId,
   analysis,
+  costRow,
   facetId,
   usePreviewTopics,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   analysis: TopicAnalysisMap;
+  costRow: [string, ReactNode] | undefined;
   facetId: string | undefined;
 }) {
   const results = usePreviewTopics(projectId, {
@@ -643,6 +641,7 @@ function AnalysisPreview({
           ["Filter", <FilterValue key="filter" filter={analysis.filter} />],
           ["Window", topicWindowLabel(analysis.timeRange)],
           ["Traces", analysis.traceCount.toLocaleString("en-US")],
+          ...(costRow ? [costRow] : []),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -755,10 +754,10 @@ type PreviewFacet = {
   topics: { id: string; name: string; count: number }[];
 };
 
-export type UseMapCosts = (
+export type UsePickerCost = (
   projectId: string,
-  ruleIds: string[],
-) => RouterOutputs["topics"]["ruleMapCosts"] | null | undefined;
+  map: TopicRuleMap | TopicAnalysisMap | undefined,
+) => string;
 
 /** Topics of one map for the preview pane; null skips the request. */
 export type UsePreviewTopics = (

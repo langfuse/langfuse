@@ -57,11 +57,9 @@ export function getTopicExecutionNamingCosts(
 
 export async function getTopicRuleMapCosts(
   projectId: string,
-  ruleIds: string[],
 ): Promise<Record<string, number | null>> {
-  if (ruleIds.length === 0) return {};
   const rules = await prisma.evaluationRule.findMany({
-    where: { ...topicRuleWhere(projectId), id: { in: ruleIds } },
+    where: topicRuleWhere(projectId),
     select: { id: true },
   });
   const ids = rules.map((rule) => rule.id);

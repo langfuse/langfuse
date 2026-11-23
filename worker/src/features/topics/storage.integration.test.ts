@@ -465,6 +465,12 @@ describe("Topics eval-backed configuration", () => {
       facetIds: [facet.id],
       filter: [],
     });
+    const unpriced = await saveTopicRule({
+      projectId,
+      name: "Map without model calls",
+      facetIds: [facet.id],
+      filter: [],
+    });
     const run = { projectId, facetId: facet.id, facetVersion: 1, config: {} };
     const original = await createTopicRun({ ...run, ruleId: rule.id });
     const snapshot = await createTopicRun({
@@ -534,8 +540,9 @@ describe("Topics eval-backed configuration", () => {
       },
     ]);
 
-    expect(await getTopicRuleMapCosts(projectId, [rule.id])).toEqual({
+    expect(await getTopicRuleMapCosts(projectId)).toMatchObject({
       [rule.id]: 0.09,
+      [unpriced.id]: null,
     });
     expect(
       await getTopicExecutionNamingCosts(projectId, [
@@ -544,7 +551,7 @@ describe("Topics eval-backed configuration", () => {
         "absent",
       ]),
     ).toEqual({ snapshot: 0.3, free: 0 });
-    expect(await getTopicRuleMapCosts(otherProjectId, [rule.id])).toEqual({});
+    expect(await getTopicRuleMapCosts(otherProjectId)).toEqual({});
     expect(
       await getTopicExecutionNamingCosts(otherProjectId, ["snapshot"]),
     ).toEqual({});

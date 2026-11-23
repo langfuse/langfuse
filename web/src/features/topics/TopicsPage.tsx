@@ -61,6 +61,8 @@ import { TopicsErrorMessage } from "./TopicsErrorMessage";
 import {
   busy,
   createsSummaries,
+  formatTopicCost,
+  formatTopicRunCost,
   runLabel,
   type TopicRunCost,
   type TopicRunWithCost,
@@ -68,12 +70,13 @@ import {
 import {
   resolveTopicMapSelection,
   topicMapQuery,
+  type TopicAnalysisMap,
   type TopicMapSelection,
 } from "./topic-maps";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   TopicsMapPicker,
-  type UseMapCosts,
+  type UsePickerCost,
   type UsePreviewTopics,
 } from "./TopicsMapPicker";
 import { TopicMapStrip, topicRuleStatus } from "./TopicMapStrip";
@@ -84,7 +87,7 @@ import { type TopicsPageState } from "./topicsAnalytics";
 import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 
 const COST_POLL_INTERVAL_MS = 30_000;
-const MAP_COST_POLL_INTERVAL_MS = 5 * 60_000;
+const COST_STALE_TIME_MS = 5 * 60_000;
 
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
@@ -106,16 +109,21 @@ const usePreviewTopics: UsePreviewTopics = (projectId, map) => {
   return { facets: query.data?.facets, loading: query.isLoading };
 };
 
-const useMapCosts: UseMapCosts = (projectId, ruleIds) => {
-  const query = api.topics.ruleMapCosts.useQuery(
-    { projectId, ruleIds },
+const usePickerCost: UsePickerCost = (projectId, map) => {
+  const snapshot = map && "timeRange" in map ? map : undefined;
+  const liveCosts = api.topics.ruleMapCosts.useQuery(
+    { projectId },
     {
-      enabled: ruleIds.length > 0,
-      staleTime: MAP_COST_POLL_INTERVAL_MS,
-      refetchInterval: ruleIds.length > 0 ? MAP_COST_POLL_INTERVAL_MS : false,
+      enabled: Boolean(map && !snapshot),
+      staleTime: COST_STALE_TIME_MS,
+      refetchOnWindowFocus: false,
     },
   );
-  return query.data ?? (query.isError ? null : undefined);
+  const costFor = useVisibleRunCosts(projectId, snapshot ? [snapshot] : []);
+  if (snapshot) return formatTopicRunCost(costFor(snapshot.id));
+  if (map && liveCosts.data)
+    return formatTopicCost(liveCosts.data[map.id] ?? null);
+  return formatTopicCost(liveCosts.isError ? null : undefined);
 };
 
 export default function TopicsPage() {
@@ -364,22 +372,12 @@ function TopicsWorkspaceContent({
   const analysisId = mapSelection?.kind === "analysis" ? mapSelection.id : null;
   const historyRuns =
     historyOpen && !executionId ? (executions.data ?? []) : [];
-  const pricedRuns: RunCostStatus[] = [...historyRuns];
-  if (selectedAnalysis) {
-    // The execution list reconciles interrupted runs the map overview can still report as running.
-    const snapshot = executions.data?.find(
-      (run) => run.id === selectedAnalysis.id,
-    );
-    pricedRuns.push(
-      snapshot ?? {
-        ...selectedAnalysis,
-        input: { operation: "update", analysis: selectedAnalysis },
-      },
-    );
-  }
-  if (executionId && selectedExecution.data)
-    pricedRuns.push(selectedExecution.data);
-  const costFor = useVisibleRunCosts(projectId, pricedRuns);
+  const costFor = useVisibleRunCosts(
+    projectId,
+    executionId && selectedExecution.data
+      ? [selectedExecution.data]
+      : historyRuns,
+  );
   // Onboarding has no selection yet; the first rule is the one setup created.
   const setupRuleId = analysisId
     ? undefined
@@ -672,7 +670,7 @@ function TopicsWorkspaceContent({
                 selectMap(selection);
               }}
               usePreviewTopics={usePreviewTopics}
-              useMapCosts={useMapCosts}
+              usePickerCost={usePickerCost}
               processingOn={automaticProcessing.state.status === "on"}
               create={{
                 map: actions.newMap,
@@ -744,7 +742,6 @@ function TopicsWorkspaceContent({
                 {selectedAnalysis && (
                   <TopicMapStrip.Analysis
                     analysis={selectedAnalysis}
-                    costBreakdown={costFor(selectedAnalysis.id)}
                     onViewRun={() => openExecution(selectedAnalysis.id)}
                     controls={viewControls}
                     options={unassignedSwitch}
@@ -907,12 +904,11 @@ function TopicsWorkspaceContent({
   );
 }
 
-type RunCostStatus = Pick<TopicRunWithCost, "id" | "status" | "updatedAt"> & {
-  input: Parameters<typeof createsSummaries>[0];
-};
-
 /** Batch cost reads for visible runs and refresh active runs as they progress. */
-function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
+function useVisibleRunCosts(
+  projectId: string,
+  runs: (TopicRunWithCost | TopicAnalysisMap)[],
+) {
   const utils = api.useUtils();
   const queryClient = useQueryClient();
   const revisions = Object.fromEntries(
@@ -920,14 +916,17 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
   );
   const executionIds = Object.keys(revisions).sort();
   const summaryIds = new Set(
-    runs.filter((run) => createsSummaries(run.input)).map((run) => run.id),
+    runs
+      .filter((run) =>
+        "input" in run ? createsSummaries(run.input) : run.summarize,
+      )
+      .map((run) => run.id),
   );
   const input = {
     projectId,
     executionIds,
-    summaryExecutionIds: executionIds.filter((id) => summaryIds.has(id)),
+    includeSummaryCosts: summaryIds.size > 0,
   };
-  const staleTime = 60_000;
   const runKey = (id: string) =>
     ["topics-run-cost-breakdown", projectId, id, revisions[id]] as const;
   const { data, isError } = useQuery({
@@ -943,7 +942,7 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
           runKey(id),
         );
         const maxAge =
-          revisions[id] === null ? COST_POLL_INTERVAL_MS : staleTime;
+          revisions[id] === null ? COST_POLL_INTERVAL_MS : COST_STALE_TIME_MS;
         if (
           cached?.data !== undefined &&
           Date.now() - cached.dataUpdatedAt < maxAge
@@ -958,7 +957,7 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
           {
             projectId,
             executionIds: due,
-            summaryExecutionIds: due.filter((id) => summaryIds.has(id)),
+            includeSummaryCosts: due.some((id) => summaryIds.has(id)),
           },
           { signal },
         );
@@ -972,7 +971,9 @@ function useVisibleRunCosts(projectId: string, runs: RunCostStatus[]) {
     },
     enabled: executionIds.length > 0,
     placeholderData: keepPreviousData,
-    staleTime,
+    staleTime: Object.values(revisions).includes(null)
+      ? COST_POLL_INTERVAL_MS
+      : COST_STALE_TIME_MS,
     refetchInterval: Object.values(revisions).includes(null)
       ? COST_POLL_INTERVAL_MS
       : false,
