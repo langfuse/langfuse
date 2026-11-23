@@ -20,11 +20,6 @@ const meta = preview.meta({
 
 export const NotStarted = meta.story({});
 
-// No question is selected yet, so there is nothing to estimate.
-export const Disabled = meta.story({ args: { disabled: true } });
-
-export const Starting = meta.story({ args: { starting: true } });
-
 export const PickingTraces = meta.story({
   args: {
     estimate: estimate({
@@ -34,18 +29,6 @@ export const PickingTraces = meta.story({
       sampled: 0,
       processed: 0,
       summarizable: 0,
-    }),
-  },
-});
-
-// Fewer than 10 traces measured: progress only, no cost yet.
-export const MeasuringTraces = meta.story({
-  args: {
-    estimate: estimate({
-      status: "running",
-      finishedAt: null,
-      processed: 6,
-      summarizable: 6,
     }),
   },
 });
@@ -105,13 +88,6 @@ export const Failed = meta.story({
       processed: 0,
       summarizable: 0,
     }),
-  },
-});
-
-export const StartRejected = meta.story({
-  args: {
-    error:
-      "Another cost estimate is running for this project. Try again in a minute.",
   },
 });
 
