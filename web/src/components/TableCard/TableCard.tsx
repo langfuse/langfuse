@@ -14,7 +14,7 @@ import {
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { SettingsTableCard } from "@/src/components/layouts/SettingsTableCard";
+import { TableCardContainer } from "@/src/components/layouts/TableCardContainer";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/DataTableSelectAllBanner";
 import { isSelectAllBannerVisible } from "@/src/components/table/data-table-multi-select-actions/isSelectAllBannerVisible";
@@ -29,7 +29,7 @@ import { cn } from "@/src/utils/tailwind";
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
-export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
+export type TableCardToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps
     ? Omit<TAction, "children" | "size"> & {
         id: string;
@@ -40,13 +40,13 @@ export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
     : never
   : never;
 
-type SettingsTableFilter =
-  | (SettingsTableFilterBase & {
+type TableCardFilter =
+  | (TableCardFilterBase & {
       type?: "multi-select";
       value: string[];
       onChange: (value: string[]) => void;
     })
-  | (SettingsTableFilterBase & {
+  | (TableCardFilterBase & {
       type: "select";
       value: string;
       onChange: (value: string) => void;
@@ -55,14 +55,14 @@ type SettingsTableFilter =
       minWidth?: number;
     });
 
-type SettingsTableFilterBase = {
+type TableCardFilterBase = {
   id: string;
   label: string;
   placeholder: string;
   options: { value: string; label: string }[];
 };
 
-export type SettingsTableProps<TData extends object> = Omit<
+export type TableCardProps<TData extends object> = Omit<
   TableProps<TData>,
   "columns"
 > & {
@@ -74,10 +74,10 @@ export type SettingsTableProps<TData extends object> = Omit<
     placeholder: string;
     onChange: (value: string) => void;
   };
-  filters?: SettingsTableFilter[];
+  filters?: TableCardFilter[];
   emptyState?: ReactNode;
   toolbarContent?: ReactNode;
-  toolbarActions?: SettingsTableToolbarAction[];
+  toolbarActions?: TableCardToolbarAction[];
   rowHeightControl?: {
     rowHeight: RowHeight;
     onRowHeightChange: (height: RowHeight) => void;
@@ -87,7 +87,7 @@ export type SettingsTableProps<TData extends object> = Omit<
   multiSelect?: MultiSelect;
 };
 
-export function SettingsTable<TData extends object>({
+export function TableCard<TData extends object>({
   columns,
   columnOrderKey,
   columnVisibilityKey,
@@ -100,7 +100,7 @@ export function SettingsTable<TData extends object>({
   pagination,
   multiSelect,
   ...tableProps
-}: SettingsTableProps<TData>) {
+}: TableCardProps<TData>) {
   const capture = usePostHogClientCapture();
   const [columnVisibility, setColumnVisibility] = useColumnVisibility(
     columnVisibilityKey ?? `${tableProps.tableName}ColumnVisibility`,
@@ -166,7 +166,7 @@ export function SettingsTable<TData extends object>({
               </div>
             )}
             {filters?.map((filter) => (
-              <SettingsTableFilterInput key={filter.id} filter={filter} />
+              <TableCardFilterInput key={filter.id} filter={filter} />
             ))}
           </div>
 
@@ -250,23 +250,25 @@ export function SettingsTable<TData extends object>({
       {showEmptyState ? (
         emptyState
       ) : (
-        <SettingsTableCard>
-          <Table
-            columns={columns}
-            columnVisibility={columnVisibility}
-            onColumnVisibilityChange={setColumnVisibility}
-            columnOrder={columnOrder}
-            onColumnOrderChange={setColumnOrder}
-            {...tableProps}
-          />
-          {pagination && <PaginationBar {...pagination} />}
-        </SettingsTableCard>
+        <div className="mb-4 flex min-h-0 flex-col">
+          <TableCardContainer>
+            <Table
+              columns={columns}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+              {...tableProps}
+            />
+            {pagination && <PaginationBar {...pagination} />}
+          </TableCardContainer>
+        </div>
       )}
     </div>
   );
 }
 
-function SettingsTableFilterInput({ filter }: { filter: SettingsTableFilter }) {
+function TableCardFilterInput({ filter }: { filter: TableCardFilter }) {
   const ariaLabel = `Filter by ${filter.label.toLowerCase()}`;
 
   if (filter.type === "select") {

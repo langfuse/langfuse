@@ -1,23 +1,19 @@
-import { EvalTemplateType, extractValueFromObject } from "@langfuse/shared";
+import {
+  TRACE_TRANSCRIPT_EVAL_TYPES,
+  extractValueFromObject,
+} from "@langfuse/shared";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
   createW3CTraceId,
+  isTraceEvalsProjectEnabled,
   logger,
   type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 
 export const TRACE_TRANSCRIPT_EVAL_CONSUMER = "trace-transcript-eval";
-
-/**
- * Judge and decision-model assignments. Code evaluators are not scheduled here.
- */
-export const TRACE_TRANSCRIPT_EVAL_TYPES = [
-  EvalTemplateType.LLM_AS_JUDGE,
-  EvalTemplateType.DECISION_MODEL,
-] as const;
 
 type TraceTranscriptEvalAssignment = {
   id: string;
@@ -131,6 +127,7 @@ export async function enqueueTraceTranscriptEvals(
   ruleIds: string[],
   context: { transcriptS3Path: string },
 ): Promise<void> {
+  if (!isTraceEvalsProjectEnabled(reference.projectId)) return;
   const assignments = await loadTranscriptEvalAssignments(
     reference.projectId,
     ruleIds,

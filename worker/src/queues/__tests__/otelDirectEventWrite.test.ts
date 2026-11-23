@@ -24,6 +24,10 @@ import { createObservationEvalSchedulerDeps } from "../../features/evaluation/ob
 import { Prisma } from "@langfuse/shared/src/db";
 import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProcessingActive,
+} from "@langfuse/shared/src/server";
+import {
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
@@ -62,6 +66,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordIncrement: vi.fn(),
   recordDistribution: vi.fn(),
   uploadMediaForTrace: vi.fn(),
+  isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTraceEvalsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
 vi.mock("../../features/evaluation/fetchEvalRules", () => ({
   fetchEvalRules: vi.fn().mockResolvedValue({
@@ -470,7 +476,20 @@ describe("trace-rule recording at the evaluation stage", () => {
       shouldWriteToEventsTable: true,
       writeFails: false,
       topicsEnabled: false,
+      traceEvalsEnabled: false,
       observationRulesEnabled: false,
+    },
+    {
+      mode: "project not on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      traceEvalsEnabled: false,
+    },
+    {
+      mode: "project only on the trace evals list",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
     },
     {
       mode: "accepted write",
@@ -486,6 +505,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       invalidSpanId,
       ingestionEnabled = true,
       topicsEnabled = true,
+      traceEvalsEnabled = true,
       observationRulesEnabled = true,
     }) => {
       const original = { ...env };
@@ -495,11 +515,19 @@ describe("trace-rule recording at the evaluation stage", () => {
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
       );
+      vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(
+        traceEvalsEnabled,
+      );
+      vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(
+        traceEvalsEnabled ? 1 : 0,
+      );
       env.LANGFUSE_EVENTS_DISPATCH_ENABLED = ingestionEnabled
         ? "true"
         : "false";
       const includeTraceTranscriptRules =
-        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
+        shouldWriteToEventsTable &&
+        ingestionEnabled &&
+        (topicsEnabled || traceEvalsEnabled);
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -595,7 +623,8 @@ describe("trace-rule recording at the evaluation stage", () => {
                 {
                   traceId: "trace",
                   spanStartTimeISO: inputs[0].startTimeISO,
-                  ruleIds: ["trace-rule"],
+                  // A judge rule is recorded only for a project on the trace evals list.
+                  ruleIds: traceEvalsEnabled ? ["trace-rule"] : [],
                   serializedEventBytes: Buffer.byteLength(
                     JSON.stringify(persistedMatch),
                   ),
@@ -651,6 +680,8 @@ describe("trace-rule recording at the evaluation stage", () => {
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
         vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
+        vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTraceEvalsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },

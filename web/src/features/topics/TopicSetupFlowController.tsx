@@ -3,6 +3,7 @@ import type { FilterState } from "@langfuse/shared";
 import {
   DEFAULT_TOPIC_RULE_NAME,
   topicRuleFilterError,
+  type TopicRule,
 } from "@langfuse/shared/topics";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -25,6 +26,7 @@ import {
   resolveTopicModelSlot,
   topicConnectionCaption,
   topicProviderGroups,
+  topicSetupMapName,
   type TopicSetupConnection,
   type TopicSetupDraft,
   type TopicSetupQuestion,
@@ -126,6 +128,9 @@ function TopicSetupSession({
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
+  const saveRule = api.topics.saveRule.useMutation({
+    onSuccess: () => utils.topics.maps.invalidate({ projectId }),
+  });
   const startRuleSetup = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
   });
@@ -147,9 +152,11 @@ function TopicSetupSession({
       facets: settings.facets,
       enabledFacetIds: settings.rule ? new Set(settings.rule.facetIds) : null,
       filter: settings.rule?.filter,
+      name: settings.rule?.name,
       traceIdleMs: settings.traceIdleMs,
     }),
   );
+  const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   useEffect(() => {
@@ -164,10 +171,7 @@ function TopicSetupSession({
     onFiltersChange: changeFilter,
   });
   // The rule a save created; going Back and Next again must update it, not add one.
-  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
-  const [savedFacetIds, setSavedFacetIds] = useState(
-    settings.rule?.facetIds ?? [],
-  );
+  const [savedRule, setSavedRule] = useState(settings.rule ?? undefined);
   // Counted once per step 2 visit; the slider only rescales the result.
   const counts = api.topics.setupTraceCounts.useQuery(
     { projectId, filter: draft.filter },
@@ -240,19 +244,16 @@ function TopicSetupSession({
       ),
       filter: draft.filter,
       traceIdleMs: draft.waitMinutes * 60_000,
-      ...(savedRuleId
-        ? { ruleId: savedRuleId }
-        : { name: DEFAULT_TOPIC_RULE_NAME }),
+      ...(savedRule
+        ? { ruleId: savedRule.id }
+        : { name: mapName.trim() || DEFAULT_TOPIC_RULE_NAME }),
     });
-    if (saved) {
-      setSavedRuleId(saved.id);
-      setSavedFacetIds(saved.facetIds);
-    }
-    return saved?.id ?? savedRuleId;
+    if (saved) setSavedRule(saved);
+    return (saved ?? savedRule)?.id;
   }
 
   // `ruleId` is the rule the setup just saved, before state and the rules query catch up.
-  async function persistSampling(enabled: boolean, ruleId = savedRuleId) {
+  async function persistSampling(enabled: boolean, ruleId = savedRule?.id) {
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
@@ -260,10 +261,26 @@ function TopicSetupSession({
     });
   }
 
+  // The rule is saved before the review step, where its name is edited.
+  async function renameSavedRule(rule: TopicRule) {
+    const name = mapName.trim();
+    if (name === rule.name) return;
+    setSavedRule(
+      await saveRule.mutateAsync({
+        projectId,
+        id: rule.id,
+        name,
+        filter: rule.filter,
+        facetIds: rule.facetIds,
+      }),
+    );
+  }
+
   async function startAnalyzing() {
-    if (!savedRuleId) throw new Error("Save the trace filter first.");
+    if (!savedRule) throw new Error("Save the trace filter first.");
+    await renameSavedRule(savedRule);
     await persistSampling(true);
-    await startRuleSetup.mutateAsync({ projectId, ruleId: savedRuleId });
+    await startRuleSetup.mutateAsync({ projectId, ruleId: savedRule.id });
     capture("topics:setup_started", { samplePercent: draft.samplePercent });
     closeDialog();
   }
@@ -332,7 +349,7 @@ function TopicSetupSession({
         <TopicCostEstimate
           projectId={projectId}
           filter={draft.filter}
-          facetIds={savedFacetIds}
+          facetIds={savedRule?.facetIds ?? []}
           samplingPercent={draft.samplePercent}
           backfillTraces={
             pastCount.status === "ready" ? pastCount.matched : null
@@ -362,6 +379,8 @@ function TopicSetupSession({
       onSamplePercentChange={(samplePercent) =>
         setDraft((current) => ({ ...current, samplePercent }))
       }
+      name={mapName}
+      onNameChange={(name) => setDraft((current) => ({ ...current, name }))}
       onEdit={(step) => setDraft((current) => ({ ...current, step }))}
       onBack={() =>
         setDraft((current) => ({

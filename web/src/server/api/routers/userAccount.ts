@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
@@ -161,7 +162,11 @@ export const userAccountRouter = createTRPCRouter({
       if (
         isInternalFeaturePreviewFlag(input.flag) &&
         !isInternalViewEnabled(ctx.session) &&
-        !ctx.session.user.featureFlags[input.flag]
+        !ctx.session.user.featureFlags[input.flag] &&
+        !(
+          input.flag === "traceTranscriptEvals" &&
+          belongsToTraceEvalsProject(ctx.session.user)
+        )
       ) {
         throw new ForbiddenError(
           "This feature preview requires Internal view or an existing feature grant.",
