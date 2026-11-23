@@ -25,6 +25,7 @@ import {
   resolveTopicModelSlot,
   topicConnectionCaption,
   topicProviderGroups,
+  topicSetupMapName,
   type TopicSetupConnection,
   type TopicSetupDraft,
   type TopicSetupQuestion,
@@ -154,6 +155,7 @@ function TopicSetupSession({
       traceIdleMs: settings.traceIdleMs,
     }),
   );
+  const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   useEffect(() => {
@@ -243,7 +245,7 @@ function TopicSetupSession({
       traceIdleMs: draft.waitMinutes * 60_000,
       ...(savedRule
         ? { ruleId: savedRule.id }
-        : { name: draft.name.trim() || DEFAULT_TOPIC_RULE_NAME }),
+        : { name: mapName.trim() || DEFAULT_TOPIC_RULE_NAME }),
     });
     if (saved) setSavedRule(saved);
     return (saved ?? savedRule)?.id;
@@ -260,7 +262,7 @@ function TopicSetupSession({
 
   // The rule is saved before the review step, where its name is edited.
   async function renameSavedRule(rule: TopicRule) {
-    const name = draft.name.trim();
+    const name = mapName.trim();
     if (name === rule.name) return;
     setSavedRule(
       await saveRule.mutateAsync({
@@ -364,7 +366,7 @@ function TopicSetupSession({
       onSamplePercentChange={(samplePercent) =>
         setDraft((current) => ({ ...current, samplePercent }))
       }
-      name={draft.name}
+      name={mapName}
       onNameChange={(name) => setDraft((current) => ({ ...current, name }))}
       onEdit={(step) => setDraft((current) => ({ ...current, step }))}
       onBack={() =>
