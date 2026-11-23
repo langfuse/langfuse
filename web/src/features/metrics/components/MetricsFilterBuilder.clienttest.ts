@@ -17,6 +17,7 @@ const {
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
   resolvesToColumn,
+  applyEditorChange,
 } = __test;
 
 const modelFilter = (column: string): FilterState[number] => ({
@@ -130,6 +131,34 @@ describe("resolvesToColumn", () => {
     expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
   });
 
+  it("numeric metadata row: resolves only on the v2 observations view", () => {
+    const numericMetadata: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const resolvesNumeric = (
+      view: "observations" | "scores-categorical",
+      viewVersion: "v1" | "v2",
+    ) => {
+      const params = {
+        ...buildV2FilterColumnsParams({
+          view,
+          filterOptions: undefined,
+          datasets: undefined,
+        }),
+        viewVersion,
+      };
+      return resolvesToColumn(numericMetadata, getMetricsFilterColumns(params));
+    };
+
+    expect(resolvesNumeric("observations", "v2")).toBe(true);
+    expect(resolvesNumeric("observations", "v1")).toBe(false);
+    expect(resolvesNumeric("scores-categorical", "v2")).toBe(false);
+  });
+
   it("offers an is-not-empty operator for evaluator IDs", () => {
     const evaluatorColumn = columnsFor("observations").find(
       (column) => column.id === "evaluatorId",
@@ -160,6 +189,51 @@ describe("resolvesToColumn", () => {
     ]) {
       expect(resolves(column, "observations")).toBe(true);
     }
+  });
+});
+
+describe("applyEditorChange", () => {
+  it("editing a rendered row keeps a hidden numeric metadata row", () => {
+    const numericMetadata: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const v1Columns = getMetricsFilterColumns({
+      ...buildV2FilterColumnsParams({
+        view: "observations",
+        filterOptions: undefined,
+        datasets: undefined,
+      }),
+      viewVersion: "v1",
+    });
+    const edited: FilterState[number] = {
+      column: "providedModelName",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["gpt-4o"],
+    };
+
+    expect(
+      applyEditorChange(
+        "observations",
+        v1Columns,
+        [modelFilter("providedModelName"), numericMetadata],
+        [edited],
+      ),
+    ).toEqual([edited, numericMetadata]);
+
+    // A stale builder copy of the hidden row is not stored a second time.
+    expect(
+      applyEditorChange(
+        "observations",
+        v1Columns,
+        [modelFilter("providedModelName"), numericMetadata],
+        [edited, { ...numericMetadata, value: 300 }],
+      ),
+    ).toEqual([edited, numericMetadata]);
   });
 });
 
