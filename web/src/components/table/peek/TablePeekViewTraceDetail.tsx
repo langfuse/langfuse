@@ -25,9 +25,11 @@ export const TablePeekViewTraceDetail = (
   > & {
     projectId: string;
     layout?: React.ComponentProps<typeof TraceDetailBody>["layout"];
+    disableScopeToggle?: boolean;
   },
 ) => {
-  const { projectId, layout, ...tablePeekViewProps } = props;
+  const { projectId, layout, disableScopeToggle, ...tablePeekViewProps } =
+    props;
 
   const router = useRouter();
   const utils = api.useUtils();
@@ -86,49 +88,46 @@ export const TablePeekViewTraceDetail = (
     },
   };
 
+  const titleTabs = (() => {
+    if (disableScopeToggle) return undefined;
+    if (tablePeekViewProps.titleTabs) return tablePeekViewProps.titleTabs;
+    if (!showScopeToggle) return undefined;
+    return getTraceScopeTabs({
+      value: isSessionScope ? "session" : "trace",
+      canSelectSession,
+      onValueChange: (next) => {
+        const query = getTraceScopeQuery(
+          router.query,
+          next,
+          [
+            ...(trace.data?.observations ?? []),
+            ...(sessionId
+              ? (utils.sessions.observationsForSessionFromEvents.getData({
+                  projectId,
+                  sessionId,
+                })?.observations ?? [])
+              : []),
+          ],
+          sessionId
+            ? utils.sessions.tracesFromEvents.getData({
+                projectId,
+                sessionId,
+              })
+            : undefined,
+        );
+        return router.replace({ pathname: router.pathname, query }, undefined, {
+          shallow: true,
+        });
+      },
+    });
+  })();
+
   return (
     <TablePeekView
       {...tablePeekViewProps}
       itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
       title={isSessionScope && sessionId ? sessionId : traceId}
-      titleTabs={
-        showScopeToggle
-          ? getTraceScopeTabs({
-              value: isSessionScope ? "session" : "trace",
-              canSelectSession,
-              onValueChange: (next) => {
-                const query = getTraceScopeQuery(
-                  router.query,
-                  next,
-                  [
-                    ...(trace.data?.observations ?? []),
-                    ...(sessionId
-                      ? (utils.sessions.observationsForSessionFromEvents.getData(
-                          {
-                            projectId,
-                            sessionId,
-                          },
-                        )?.observations ?? [])
-                      : []),
-                  ],
-                  sessionId
-                    ? utils.sessions.tracesFromEvents.getData({
-                        projectId,
-                        sessionId,
-                      })
-                    : undefined,
-                );
-                return router.replace(
-                  { pathname: router.pathname, query },
-                  undefined,
-                  {
-                    shallow: true,
-                  },
-                );
-              },
-            })
-          : undefined
-      }
+      titleTabs={titleTabs}
       hideExpandToggle
       preserveContentAcrossItems
     >

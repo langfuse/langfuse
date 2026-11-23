@@ -469,3 +469,5 @@ export interface TopicExecution {
 export type TopicExecutionSummary = Omit<TopicExecution, "input"> & {
   input: TopicManualRunInput | TopicExecutionInput;
 };
+
+export * from "./cost-estimate";

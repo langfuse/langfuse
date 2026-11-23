@@ -14,6 +14,7 @@ import {
   topicsSetupSchema,
   topicRuleFilterError,
   topicSnapshotSummarizeSchema,
+  type TopicCostEstimate,
   type TopicExecutionSummary,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
@@ -35,6 +36,7 @@ import {
   saveTopicRule,
   getTopicRun,
   readTopicMapAssignments,
+  selectTopicMapMatches,
   readTopicsModelSettings,
   checkTopicsModelSettings,
   saveTopicsSetup,
@@ -46,6 +48,10 @@ import {
   readTopicRuleSetup,
   startTopicRuleRefresh,
   startTopicRuleSetup,
+  priceTopicCostEstimate,
+  readTopicCostEstimate,
+  startTopicCostEstimate,
+  topicCostEstimateKey,
 } from "@langfuse/shared/topics/server";
 import {
   createTRPCRouter,
@@ -94,6 +100,11 @@ const analysisFilterInput = projectInput.extend({
   ),
   facets: z.array(topicFacetRefSchema).min(1),
 });
+/** Tracing filters on a trace, as a rule filter takes them. */
+const traceFilterInput = topicRuleConfigSchema.shape.filter.refine(
+  (filter) => !topicRuleFilterError(filter),
+  { message: "These filters can't be used on Topics traces." },
+);
 const tracesInput = projectInput.extend({
   facetId: topicIdSchema,
   /** A rule's live map or an analysis snapshot; omitted means every rule. */
@@ -121,6 +132,7 @@ const tracesInput = projectInput.extend({
     .optional(),
   assigned: z.boolean().optional(),
   traceId: z.string().min(1).optional(),
+  filter: traceFilterInput.optional(),
   cursor: z
     .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
     .optional(),
@@ -145,6 +157,32 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   });
   return next();
 });
+
+const costEstimateInput = projectInput.extend({
+  filter: topicRuleConfigSchema.shape.filter,
+  facetIds: z.array(topicIdSchema).min(1).max(50),
+});
+
+/** The facets' current versions and the project's stored Topics models; null without a summary model. */
+async function costEstimateInputs(
+  input: z.infer<typeof costEstimateInput>,
+): Promise<TopicCostEstimate["inputs"] | null> {
+  const [models, facets] = await Promise.all([
+    readTopicsModelSettings(input.projectId),
+    listTopicFacets(input.projectId),
+  ]);
+  if (!models.summary) return null;
+  return {
+    filter: input.filter,
+    facets: input.facetIds.map((facetId) => {
+      const version = facets.find(({ id }) => id === facetId)?.versions[0];
+      if (!version) throw new LangfuseNotFoundError("Question not found.");
+      return { facetId, version: version.version };
+    }),
+    summaryModel: models.summary.model,
+    embeddingModel: models.embedding?.model ?? null,
+  };
+}
 
 function readTopicConfig(ctx: ProjectAuthedContext, projectId: string) {
   return ctx.prisma.topicConfig.findUnique({ where: { projectId } });
@@ -356,6 +394,35 @@ async function publishedTopicMap(input: {
     missingSummaryCount: discoveryAssignments.length - points.length,
     points,
     unpositionedCount: byTraceId.size - points.length,
+  };
+}
+
+/** Same cohort and window as publishedTopicMap; an unpublished map matches nothing. */
+async function topicMapMatches(
+  input: {
+    projectId: string;
+    runId: string;
+    filter: z.infer<typeof traceFilterInput>;
+  },
+  prisma: ProjectAuthedContext["prisma"],
+) {
+  const run = await getTopicRun(input.projectId, input.runId);
+  if (!run || run.projectId !== input.projectId)
+    throw new LangfuseNotFoundError("Map not found.");
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (run.status !== "completed" || !cohortRange.success)
+    return { traceIds: [] };
+  return {
+    traceIds: await selectTopicMapMatches(
+      {
+        projectId: input.projectId,
+        runId: run.id,
+        facet: { facetId: run.facetId, version: run.facetVersion },
+        timeRange: cohortRange.data,
+        filter: input.filter,
+      },
+      prisma,
+    ),
   };
 }
 
@@ -600,6 +667,34 @@ export const topicsRouter = createTRPCRouter({
         now: new Date(),
       }),
     ),
+  /** Measures a sample of matching traces in the background; no model is called. */
+  startCostEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .mutation(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) throw new InvalidRequestError("Pick a summary model first.");
+      const estimate = await startTopicCostEstimate({
+        projectId: input.projectId,
+        ...inputs,
+      });
+      return { key: estimate.key };
+    }),
+  /** The estimate for these inputs, priced with current model prices; null before one starts. */
+  costEstimate: topicsWriteProcedure
+    .input(costEstimateInput)
+    .query(async ({ input }) => {
+      const inputs = await costEstimateInputs(input);
+      if (!inputs) return null;
+      const estimate = await readTopicCostEstimate(
+        input.projectId,
+        topicCostEstimateKey(inputs),
+      );
+      if (!estimate) return null;
+      return {
+        ...estimate,
+        prices: await priceTopicCostEstimate(input.projectId, estimate),
+      };
+    }),
   setupTraceNames: topicsProcedure.query(({ input }) =>
     getTopicSetupTraceNames({ projectId: input.projectId, now: new Date() }),
   ),
@@ -670,4 +765,8 @@ export const topicsRouter = createTRPCRouter({
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
+  /** The map's points whose traces meet the tracing filters, for the map highlight. */
+  mapMatches: topicsProcedure
+    .input(mapInput.extend({ filter: traceFilterInput }))
+    .query(({ input, ctx }) => topicMapMatches(input, ctx.prisma)),
 });

@@ -18,6 +18,7 @@
 use std::sync::LazyLock;
 
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
+use memchr::memmem::Finder;
 
 // Leave sub-KiB encoded candidates (including a Data URI header) for the later
 // media pass to limit per-occurrence descriptors and hash entries. The 1 KiB
@@ -29,6 +30,35 @@ pub(super) const DATA_URI_PREFIX: &str = "data:";
 pub(super) const BASE64_MARKER: &str = ";base64,";
 pub(super) const MEDIA_REFERENCE_PREFIX: &str = "@@@langfuseMedia:";
 pub(super) const MEDIA_REFERENCE_SUFFIX: &str = "@@@";
+
+// `str::find` builds a searcher on every call, which costs more than the scan itself on the
+// short strings most attributes hold. Each marker shares one prebuilt searcher instead.
+static DATA_URI_FINDER: LazyLock<Finder<'static>> = LazyLock::new(|| Finder::new(DATA_URI_PREFIX));
+static MEDIA_REFERENCE_PREFIX_FINDER: LazyLock<Finder<'static>> =
+    LazyLock::new(|| Finder::new(MEDIA_REFERENCE_PREFIX));
+static MEDIA_REFERENCE_SUFFIX_FINDER: LazyLock<Finder<'static>> =
+    LazyLock::new(|| Finder::new(MEDIA_REFERENCE_SUFFIX));
+static UNICODE_ESCAPE_FINDER: LazyLock<Finder<'static>> = LazyLock::new(|| Finder::new("\\u"));
+
+/// Byte offset of the first `data:` in `text`.
+pub(super) fn find_data_uri_prefix(text: &str) -> Option<usize> {
+    DATA_URI_FINDER.find(text.as_bytes())
+}
+
+/// Byte offset of the first `@@@langfuseMedia:` in `text`.
+pub(crate) fn find_media_reference_prefix(text: &str) -> Option<usize> {
+    MEDIA_REFERENCE_PREFIX_FINDER.find(text.as_bytes())
+}
+
+/// Byte offset of the first `@@@` in `text`.
+pub(super) fn find_media_reference_suffix(text: &str) -> Option<usize> {
+    MEDIA_REFERENCE_SUFFIX_FINDER.find(text.as_bytes())
+}
+
+/// Whether `text` contains a `\u` escape.
+pub(super) fn contains_unicode_escape(text: &str) -> bool {
+    UNICODE_ESCAPE_FINDER.find(text.as_bytes()).is_some()
+}
 static MEDIA_CANDIDATE_MARKERS: LazyLock<AhoCorasick> = LazyLock::new(|| {
     // This predicate only asks whether any marker occurs. One matcher avoids
     // rescanning marker-free input once for every literal. In local ARM64
@@ -193,7 +223,7 @@ pub(super) fn is_media_reference(value: &str) -> bool {
         .strip_prefix(MEDIA_REFERENCE_PREFIX)
         .is_some_and(|body| {
             body.ends_with(MEDIA_REFERENCE_SUFFIX)
-                && body.find(MEDIA_REFERENCE_SUFFIX)
+                && find_media_reference_suffix(body)
                     == Some(body.len() - MEDIA_REFERENCE_SUFFIX.len())
         })
 }

@@ -209,6 +209,28 @@ it("shows the empty state when no views are pinned", () => {
   expect(result.current.draft).toBeNull();
 });
 
+it("restores a custom session view from a unified trace link", () => {
+  mocks.router.asPath =
+    "/project/project/traces/trace?aggregation=session&sessionView=list&tracesWithoutMatches=hide";
+  mocks.query = {
+    aggregation: "session",
+    sessionView: "list",
+    tracesWithoutMatches: "hide",
+  };
+  const { result, rerender } = setup();
+
+  expect(result.current.selectedId).toBe("saved");
+  expect(result.current.configuration.viewMode).toBe("list");
+  expect(result.current.configuration.unmatchedTraces).toBe("hide");
+
+  act(() => result.current.select("messages"));
+  mocks.query = { aggregation: "session" };
+  rerender();
+
+  expect(result.current.selectedId).toBe("messages");
+  expect(result.current.configuration.viewMode).toBe("conversational");
+});
+
 it.each([true, false])(
   "recovers after the selected view is deleted (Messages pinned: %s)",
   (messagesPinned) => {

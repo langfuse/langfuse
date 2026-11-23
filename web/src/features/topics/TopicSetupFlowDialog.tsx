@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { TopicSliceFields } from "./TopicSliceFields";
@@ -17,6 +17,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -59,6 +60,8 @@ export type TopicSetupFlowDialogProps = {
   busy: boolean;
   canWrite: boolean;
   clustering: JudgeModel | null;
+  /** Shown in the Review step below the trace summary. */
+  costEstimate?: ReactNode;
   connectionCaption: string;
   /** False when the project has no AI connection yet; models cannot be picked. */
   hasConnection: boolean;
@@ -75,6 +78,9 @@ export type TopicSetupFlowDialogProps = {
   connectionSettingsUrl: string;
   onEdit: (step: "questions" | "traces") => void;
   onEmbeddingChange: (model: JudgeModel) => void;
+  /** Name of the map the setup creates, edited on the review step. */
+  name: string;
+  onNameChange: (name: string) => void;
   onNext: () => void;
   onQuestionEnabled: (
     name: TopicSetupQuestion["name"],
@@ -102,6 +108,7 @@ export function TopicSetupFlowDialog({
   busy,
   canWrite,
   clustering,
+  costEstimate,
   connectionCaption,
   hasConnection,
   canAddConnection,
@@ -115,6 +122,8 @@ export function TopicSetupFlowDialog({
   connectionSettingsUrl,
   onEdit,
   onEmbeddingChange,
+  name,
+  onNameChange,
   onNext,
   onQuestionEnabled,
   onSamplePercentChange,
@@ -152,7 +161,11 @@ export function TopicSetupFlowDialog({
     clustering,
   });
   // The server picks its own traces, so a failed estimate must not block Start.
-  const canStart = canWrite && !busy && pastCount.status !== "loading";
+  const canStart =
+    canWrite &&
+    !busy &&
+    pastCount.status !== "loading" &&
+    name.trim().length > 0;
   // Without a connection, people who cannot add one only get a link to share and Close.
   const viewerBlocked = !hasConnection && !canAddConnection;
   // Without a connection Next stays clickable and opens the connection settings instead.
@@ -324,12 +337,24 @@ export function TopicSetupFlowDialog({
                   pastCount.status === "ready" ? pastCount.dailyTraces : null
                 }
                 disabled={!canWrite}
-                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+                tooltip={`Share of new matching traces Topics analyzes once automatic processing is on. The first backfill runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} traces at any rate.`}
               />
             </div>
           ) : null}
           {step === "review" ? (
             <div className="flex flex-col gap-2.5">
+              <div className="ph-no-capture mb-2.5">
+                <TopicSliceFields.Section label="Name">
+                  <Input
+                    aria-label="Map name"
+                    placeholder="e.g. Support agent"
+                    value={name}
+                    maxLength={100}
+                    disabled={!canWrite}
+                    onChange={(event) => onNameChange(event.target.value)}
+                  />
+                </TopicSliceFields.Section>
+              </div>
               <ReviewRow
                 label="Look for"
                 onEdit={() => onEdit("questions")}
@@ -389,6 +414,7 @@ export function TopicSetupFlowDialog({
                   New traces show up {waitMinutes} min after their last activity
                 </span>
               </div>
+              {costEstimate}
             </div>
           ) : null}
           {step !== "questions" && error ? (
@@ -433,7 +459,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
   if (count.matched === 0) return "No matching traces in the last 30 days";
-  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
+  return `Runs on up to ${count.matched.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({

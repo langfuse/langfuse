@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { createHash, getFips } from "crypto";
+import { createHash, generateKeyPairSync, getFips } from "crypto";
 import { subscribe, unsubscribe } from "node:diagnostics_channel";
 import { once } from "events";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
@@ -527,6 +527,40 @@ describe("StorageServiceFactory GCS credentials", () => {
         awsSseKmsKeyId: undefined,
       }),
     ).toThrow("Failed to initialize Google Cloud Storage");
+  });
+
+  it("creates v4 signed URLs locally from a service-account key", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys(undefined, undefined),
+      bucketName: "test-bucket",
+      endpoint: undefined,
+      region: undefined,
+      forcePathStyle: false,
+      useGoogleCloudStorage: true,
+      googleCloudCredentials: JSON.stringify({
+        type: "service_account",
+        project_id: "test-project",
+        private_key_id: "test-key-id",
+        private_key: privateKey.export({ type: "pkcs8", format: "pem" }),
+        client_email: serviceAccountEmail,
+        client_id: "1234567890",
+        auth_uri: "https://accounts.google.com/o/oauth2/auth",
+        token_uri: "https://oauth2.googleapis.com/token",
+        auth_provider_x509_cert_url:
+          "https://www.googleapis.com/oauth2/v1/certs",
+        client_x509_cert_url:
+          "https://www.googleapis.com/robot/v1/metadata/x509/test",
+      }),
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const signedUrl = new URL(await service.getSignedUrl("f.json", 60));
+
+    expect(signedUrl.searchParams.get("X-Goog-Credential")).toMatch(
+      new RegExp(`^${serviceAccountEmail}/`),
+    );
   });
 
   it("uses the deployment storage key when GCS is selected by env", () => {
@@ -1161,5 +1195,28 @@ describe("S3StorageService request handler socket pool", () => {
       socket.emit("timeout");
       await expect(downloads).resolves.toEqual(["first", "second"]);
     });
+  });
+});
+
+describe("S3StorageService attachment URLs", () => {
+  it("signs a header-safe disposition for keys outside ISO-8859-1", async () => {
+    const service = StorageServiceFactory.getInstance({
+      credentials: storageKeys("test-access-key", "test-secret-key"),
+      bucketName: "test-bucket",
+      endpoint: "http://localhost:9090",
+      region: "us-east-1",
+      forcePathStyle: true,
+      useAzureBlob: false,
+      useGoogleCloudStorage: false,
+      useOCIObjectStorage: false,
+      awsSse: undefined,
+      awsSseKmsKeyId: undefined,
+    });
+
+    const url = await service.getSignedUrl('customer/图片 "1".png', 60, true);
+
+    expect(new URL(url).searchParams.get("response-content-disposition")).toBe(
+      `attachment; filename="customer/__ _1_.png"; filename*=UTF-8''customer%2F%E5%9B%BE%E7%89%87%20%221%22.png`,
+    );
   });
 });

@@ -2,18 +2,19 @@ import { api } from "@/src/utils/api";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { castToNumberMap } from "@/src/utils/map-utils";
 import { useMemo } from "react";
+import { type TraceTarget } from "../types/traceScope";
 
 export type UseTraceCommentsParams = {
   projectId: string;
-  traceId: string;
-  sessionId: string | undefined;
+  target: TraceTarget;
 };
 
 export function useTraceComments({
   projectId,
-  traceId,
-  sessionId,
+  target,
 }: UseTraceCommentsParams) {
+  const traceId = target.type === "trace" ? target.traceId : undefined;
+  const sessionId = target.type === "session" ? target.sessionId : undefined;
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
 
@@ -31,12 +32,12 @@ export function useTraceComments({
   const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
-      objectId: traceId,
+      objectId: traceId ?? "",
       objectType: "TRACE",
     },
     {
       refetchOnMount: false,
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && !!traceId,
     },
   );
 
@@ -53,18 +54,22 @@ export function useTraceComments({
   const traceCommentCountMap = traceCommentCounts.data
     ? castToNumberMap(traceCommentCounts.data)
     : undefined;
-  const traceCount = traceCommentCountMap?.get(traceId) ?? 0;
+  const traceCount = traceId ? (traceCommentCountMap?.get(traceId) ?? 0) : 0;
   const sessionCounts = useMemo(
     () =>
       castToNumberMap(sessionId ? sessionTraceCommentCounts.data : undefined) ??
       new Map<string, number>(),
     [sessionId, sessionTraceCommentCounts.data],
   );
+  const observationCounts = useMemo(
+    () =>
+      castToNumberMap(observationCommentCounts.data) ??
+      new Map<string, number>(),
+    [observationCommentCounts.data],
+  );
 
   return {
-    observationCommentCounts: observationCommentCounts.data
-      ? castToNumberMap(observationCommentCounts.data)
-      : new Map<string, number>(),
+    observationCommentCounts: observationCounts,
     traceCommentCount: traceCount,
     sessionTraceCommentCounts: sessionCounts,
     isLoading:

@@ -1,6 +1,6 @@
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/Page";

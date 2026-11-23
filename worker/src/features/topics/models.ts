@@ -269,19 +269,23 @@ Recordings come from many frameworks and can be messy. Repeated, partial, or pas
 Status says whether the facet applies, not whether the run succeeded.
 </status>`;
 
+type KeyedTopicFacet = {
+  key: string;
+  facet: TopicFacetVersion;
+  builtIn: boolean;
+};
+
 /**
- * Summarizes all given facets of one trace in a single call. The system prompt
+ * The summary request for all given facets of one trace. The system prompt
  * is identical across traces; each facet is listed under its key and answered
  * independently, with short evidence notes before each summary. Built-in
  * facets end the first cached prefix and custom facets the second, so callers
  * must pass facets in a stable order with built-ins first.
  */
-export async function summarizeTopicTraceFacets(
-  models: TopicsModels,
-  facets: { key: string; facet: TopicFacetVersion; builtIn: boolean }[],
+export function buildTopicSummaryRequest(
+  facets: KeyedTopicFacet[],
   text: string,
   config: TopicProcessingConfig,
-  metadata?: Record<string, unknown>,
 ) {
   const entry = z.object({
     notes: z
@@ -319,6 +323,27 @@ ${facetBlock(true)}`,
     ...(customFacets ? [{ text: customFacets, cache: true }] : []),
   ];
   const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`;
+  return {
+    system,
+    input,
+    schema,
+    maxOutputTokens: config.maxOutputTokens * facets.length,
+  };
+}
+
+/** Summarizes all given facets of one trace in a single call. */
+export async function summarizeTopicTraceFacets(
+  models: TopicsModels,
+  facets: KeyedTopicFacet[],
+  text: string,
+  config: TopicProcessingConfig,
+  metadata?: Record<string, unknown>,
+) {
+  const { system, input, schema, maxOutputTokens } = buildTopicSummaryRequest(
+    facets,
+    text,
+    config,
+  );
   if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
       `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
@@ -327,7 +352,7 @@ ${facetBlock(true)}`,
     system,
     input,
     schema,
-    config.maxOutputTokens * facets.length,
+    maxOutputTokens,
     "summary",
     models.summary,
     models.projectId,

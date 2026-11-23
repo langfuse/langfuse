@@ -97,7 +97,6 @@
       "src/features/dashboard/components/cards/ChevronButton.tsx: component ExpandListButton != filename",
       "src/features/dashboard/components/ModelSelector.tsx: component ModelSelectorPopover != filename",
       "src/features/dashboard/components/TabsComponent.tsx: component TabComponent != filename",
-      "src/features/datasets/components/DatasetIOCells.tsx: 2 components: DatasetItemIOCell, TraceObservationIOCell",
       "src/features/datasets/components/DatasetItemMediaAttachments.tsx: 3 components: DatasetItemFieldToolbar, DatasetItemSavedMediaAttachments, DatasetItemFormMediaAttachments",
       "src/features/evals/components/code-eval-template-form-body.tsx: filename not PascalCase",
       "src/features/evals/components/code-eval-test-run-card.tsx: filename not PascalCase",

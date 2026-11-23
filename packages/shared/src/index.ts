@@ -69,6 +69,8 @@ export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 export * from "./domain/home-dashboard";
+export { getEvalVariableColumnIds } from "./domain/getEvalVariableColumnIds";
+export { evalVariableMappingListSchema } from "./domain/evalVariableMappingListSchema";
 
 // llm api
 export * from "./server/llm/types";
@@ -87,6 +89,7 @@ export {
 } from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
+export * from "./features/evals/traceTranscriptEval";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";
