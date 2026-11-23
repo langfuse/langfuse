@@ -2,7 +2,6 @@ import { Lock } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   memberCountLabel,
   type StackMember,
@@ -45,7 +44,7 @@ export function GroupSummaryCard({
       </div>
       <div className="flex items-center justify-between gap-2 px-4 py-2.5">
         <span className="text-muted-foreground">Access level</span>
-        <Badge color="blue" text={roleName(role)} />
+        <span className="font-bold">{roleName(role)}</span>
       </div>
       {memberPreview.length > 0 && (
         <div className="flex flex-col gap-2 px-4 py-3">
