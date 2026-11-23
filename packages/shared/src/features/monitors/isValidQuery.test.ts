@@ -158,4 +158,24 @@ describe("isValidQuery", () => {
       expect(result.reason).toContain("unique");
     }
   });
+
+  it("rejects a filter whose type the view's column does not take", () => {
+    const result = isValidQuery({
+      view: "scores-numeric",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          type: "numberObject",
+          column: "metadata",
+          key: "latency_ms",
+          operator: ">",
+          value: 2000,
+        },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("Invalid filter for field 'metadata'");
+    }
+  });
 });

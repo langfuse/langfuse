@@ -13,6 +13,7 @@ import { Label } from "@/src/components/ui/label";
 import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
 import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
 import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
+import { translateFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 import {
@@ -60,8 +61,16 @@ export const MonitorMetricDefinition = ({
     }
   };
 
-  /** changeView resets the metric to a bare count when the new view lacks the measure or pairing. */
+  /** changeView moves the filters onto the new view and resets the metric to a bare count when the new view lacks the measure or pairing. */
   const changeView = (next: MonitorView) => {
+    form.setValue(
+      "filters",
+      translateFiltersToView(
+        form.getValues("view"),
+        next,
+        form.getValues("filters") ?? [],
+      ),
+    );
     form.setValue("view", next, { shouldValidate: true });
     const { measure, aggregation: currentAggregation } =
       form.getValues("metric");

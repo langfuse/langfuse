@@ -31,6 +31,10 @@ import {
 } from "../types";
 
 import { eventsObservationsView, getViewDeclaration } from "../dataModel";
+import {
+  invalidViewFilterReason,
+  resolveFilterDimension,
+} from "../viewFilterValidation";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
@@ -79,12 +83,6 @@ import {
   compileEventsTraceAttributesSubquery,
   referencedTraceAttributeColumns,
 } from "./eventsTraceAttributes";
-import {
-  getCompatibleFilterTypes,
-  isFilterColumnType,
-  type CompatibleFilterType,
-  type FilterColumnType,
-} from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
 type AppliedDimensionType = {
   /** The dimension's key in the view. */
@@ -115,51 +113,6 @@ type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
 };
-
-const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
-  dimensionType === "string[]" || dimensionType === "arrayString";
-
-const getFilterColumnTypeForQueryDimension = (
-  dimensionType: string | undefined,
-): FilterColumnType | null => {
-  if (isQueryArrayDimensionType(dimensionType)) {
-    return "arrayOptions";
-  }
-
-  if (dimensionType === "null" || dimensionType === "positionInTrace") {
-    return null;
-  }
-
-  return isFilterColumnType(dimensionType) ? dimensionType : null;
-};
-
-const getCompatibleFilterTypesForQueryDimension = (
-  dimensionType: string | undefined,
-): readonly CompatibleFilterType[] | null => {
-  const filterColumnType = getFilterColumnTypeForQueryDimension(dimensionType);
-
-  if (!filterColumnType) {
-    return null;
-  }
-
-  // Query array dimensions are ClickHouse Array(String) expressions. The shared
-  // table also allows stringOptions for legacy UI array columns, but metrics
-  // queries must use arrayOptions so QueryBuilder generates hasAny/hasAll in SQL.
-  if (isQueryArrayDimensionType(dimensionType)) {
-    return ["arrayOptions"];
-  }
-
-  return getCompatibleFilterTypes(filterColumnType);
-};
-
-const formatExpectedFilterTypes = (
-  filterTypes: readonly CompatibleFilterType[],
-) =>
-  filterTypes.length === 1
-    ? `'${filterTypes[0]}'`
-    : filterTypes
-        .map((filterType) => `'${filterType}'`)
-        .join(filterTypes.length === 2 ? " or " : ", ");
 
 type AppliedBucketingDimension =
   | { type: "none" }
@@ -560,77 +513,10 @@ export class QueryBuilder {
   private validateFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
-    { numericMetadata = false }: { numericMetadata?: boolean } = {},
+    options: { numericMetadata?: boolean } = {},
   ) {
-    for (const filter of filters) {
-      // Validate filters on dimension fields
-      const dimension = this.resolveDimension(filter.column, view);
-
-      if (dimension) {
-        if (dimension.pairExpand) {
-          throw new InvalidRequestError(
-            `Field '${filter.column}' cannot be used as a filter.`,
-          );
-        }
-
-        const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
-          dimension.type,
-        );
-
-        if (!compatibleFilterTypes) {
-          throw new InvalidRequestError(
-            `Invalid query dimension '${filter.column}': Unsupported dimension type '${dimension.type ?? "undefined"}'.`,
-          );
-        }
-
-        if (filter.type === "null") {
-          continue;
-        }
-
-        if (!compatibleFilterTypes.includes(filter.type)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for dimension type '${dimension.type ?? "string"}'. ` +
-              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
-          );
-        }
-
-        if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
-          );
-        }
-      }
-
-      // Special validation for time dimension filters
-      else if (filter.column === view.timeDimension) {
-        const compatibleFilterTypes: CompatibleFilterType[] = ["datetime"];
-
-        if (filter.type === "null") {
-          continue;
-        }
-
-        if (!compatibleFilterTypes.includes(filter.type)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for time dimension '${view.timeDimension}'. ` +
-              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
-          );
-        }
-      }
-
-      // Metadata filters: the `singleFilter` schema already requires `key`
-      // and a value of the filter type's kind, so only the type is checked.
-      else if (filter.column === "metadata") {
-        const acceptedTypes: CompatibleFilterType[] = numericMetadata
-          ? ["stringObject", "numberObject"]
-          : ["stringObject"];
-        if (!acceptedTypes.includes(filter.type)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': Metadata filters require type ${formatExpectedFilterTypes(acceptedTypes)} with a 'key' property, not '${filter.type}'. ` +
-              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
-          );
-        }
-      }
-    }
+    const reason = invalidViewFilterReason(filters, view, options);
+    if (reason) throw new InvalidRequestError(reason);
   }
 
   private actualTableName(view: ViewDeclarationType): string {
@@ -657,14 +543,7 @@ export class QueryBuilder {
     filterColumn: string,
     view: ViewDeclarationType,
   ): ViewDeclarationType["dimensions"][string] | undefined {
-    if (filterColumn in view.dimensions) {
-      return view.dimensions[filterColumn];
-    }
-    // Fallback: scoreName/traceName → "name" dimension (LFE-4838)
-    if (filterColumn.endsWith("Name") && "name" in view.dimensions) {
-      return view.dimensions["name"];
-    }
-    return undefined;
+    return resolveFilterDimension(filterColumn, view);
   }
 
   /**

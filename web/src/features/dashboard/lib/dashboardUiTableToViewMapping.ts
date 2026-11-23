@@ -584,3 +584,21 @@ export const mapViewFilterToUiTableFilter = (
     return definition ? { ...filter, column: definition.uiTableName } : filter;
   });
 };
+
+/**
+ * translateFiltersToView moves form filters from one view's column names to
+ * another's through their UI-table label; a filter the new view lacks keeps
+ * its label, so saves drop it and switching back restores it.
+ */
+export const translateFiltersToView = (
+  fromView: z.infer<typeof views>,
+  toView: z.infer<typeof views>,
+  filters: z.infer<typeof FilterArray>,
+): z.infer<typeof FilterArray> => {
+  const { mappedFilters, unsupportedFilters } =
+    partitionWidgetUiTableFiltersToView(
+      toView,
+      mapViewFilterToUiTableFilter(fromView, filters),
+    );
+  return [...mappedFilters, ...unsupportedFilters];
+};

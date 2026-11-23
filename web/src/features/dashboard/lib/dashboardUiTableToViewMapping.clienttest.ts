@@ -8,6 +8,7 @@ import {
   mapViewFilterToUiTableFilter,
   mapWidgetUiTableFilterToView,
   partitionWidgetQueryFiltersToView,
+  translateFiltersToView,
 } from "./dashboardUiTableToViewMapping";
 
 describe("partitionWidgetQueryFiltersToView", () => {
@@ -31,6 +32,32 @@ describe("partitionWidgetQueryFiltersToView", () => {
 
       expect(mappedFilters).toEqual(queried ? [numericMetadata] : []);
       expect(unsupportedFilters).toEqual(queried ? [] : [numericMetadata]);
+    },
+  );
+});
+
+describe("translateFiltersToView", () => {
+  it.each([
+    ["observations", "scores-numeric", "providedModelName", []],
+    ["observations", "scores-numeric", "name", ["observationName"]],
+    ["scores-numeric", "observations", "name", []],
+  ] as const)(
+    "%s -> %s: a %s filter saves as %j and restores on switching back",
+    (fromView, toView, column, savedColumns) => {
+      const filter = {
+        column,
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["gpt-3.5-turbo"],
+      };
+
+      const switched = translateFiltersToView(fromView, toView, [filter]);
+      const saved = partitionWidgetQueryFiltersToView(toView, "v2", switched);
+
+      expect(saved.mappedFilters.map((f) => f.column)).toEqual(savedColumns);
+      expect(translateFiltersToView(toView, fromView, switched)).toEqual([
+        filter,
+      ]);
     },
   );
 });

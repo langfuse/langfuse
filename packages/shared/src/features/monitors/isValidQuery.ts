@@ -4,7 +4,7 @@
 import { type z } from "zod";
 
 import { type singleFilter } from "../../interfaces/filters";
-import { getViewDeclaration } from "../query/dataModel";
+import { eventsObservationsView, getViewDeclaration } from "../query/dataModel";
 import {
   getValidAggregationsForMeasureType,
   type MeasureDefinition,
@@ -12,6 +12,7 @@ import {
   type metricAggregations,
   type viewsV2,
 } from "../query/types";
+import { invalidViewFilterReason } from "../query/viewFilterValidation";
 import { disallowedMonitorFilterColumns } from "./filterColumns";
 
 /** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram`, and pinned to the measure's inner `aggs.agg` when set (e.g. observations.count is always `count`). */
@@ -34,10 +35,8 @@ export const getValidMonitorAggregationsForMeasure = (
  * isValidQuery partitions a monitor's metrics against the view's v2
  * declaration. A bad filter is a whole-query failure (every metric rejected);
  * otherwise each metric is partitioned by the measure-exists + aggregation
- * checks, `reason` carrying the first rejection. Filter-column-vs-view
- * alignment is intentionally NOT checked here (see LF-2181) — dimensions are
- * the group-by surface, not the filter surface, so the dimension map is the
- * wrong proxy.
+ * checks, `reason` carrying the first rejection. Filters are checked with the
+ * query builder's filter validation, so a query that passes here runs.
  */
 export function isValidQuery(input: {
   view: z.infer<typeof viewsV2>;
@@ -80,6 +79,10 @@ function invalidFilterReason(
   declaration: ReturnType<typeof getViewDeclaration>,
   filters: z.infer<typeof singleFilter>[],
 ): string | undefined {
+  const viewFilterReason = invalidViewFilterReason(filters, declaration, {
+    numericMetadata: declaration === eventsObservationsView,
+  });
+  if (viewFilterReason) return viewFilterReason;
   for (const filter of filters) {
     if (disallowedMonitorFilterColumns.includes(filter.column)) {
       return (

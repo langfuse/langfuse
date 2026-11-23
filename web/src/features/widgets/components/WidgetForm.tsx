@@ -25,6 +25,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetQueryFiltersToView,
+  translateFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useMemo, useRef } from "react";
 import {
@@ -387,13 +388,17 @@ export function WidgetForm({
       dimensions = [];
     }
 
-    // Filters are kept across view changes; MetricsFilterBuilder surfaces any
-    // now-invalid rows in its banner rather than silently dropping them.
+    // Rows the new view lacks stay in the form, hidden by MetricsFilterBuilder's banner.
+    const filters = translateFiltersToView(
+      selectedView,
+      newView,
+      values.filters,
+    );
     const candidate = normalizeWidgetFormValues(
-      { ...values, view: newView, metrics, dimensions },
+      { ...values, view: newView, metrics, dimensions, filters },
       newViewVersion,
     );
-    commitHealed(candidate, { view: true });
+    commitHealed(candidate, { view: true, filters: true });
   };
 
   // Chart-type change (ports breakdown-wipe / pivot-dims-reset / trim-metrics
@@ -1803,7 +1808,7 @@ export function useWidgetFormState({
         hasUnsupportedNumericMetadata &&
           "Numeric metadata filters are only supported on observations view (v4).",
         unsupportedFilterColumns &&
-          `Unsupported legacy filter column(s): ${unsupportedFilterColumns}.`,
+          `Filter column(s) this view does not support: ${unsupportedFilterColumns}.`,
       ].filter(Boolean);
       return {
         valid: false as const,
