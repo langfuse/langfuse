@@ -412,7 +412,6 @@ export { getScoresForBlobStorageExportParquet } from "./repositories/scores";
 export { getScoresForAnalyticsIntegrations } from "./repositories/scores";
 export { hasAnyScore } from "./repositories/scores";
 export { getScoreMetadataById } from "./repositories/scores";
-export { getScoreCountsByProjectAndDay } from "./repositories/scores";
 export { ScoresCursorV3 } from "./repositories/scores";
 export { type ScoresCursorV3Type } from "./repositories/scores";
 export { EncodedScoresCursorV3 } from "./repositories/scores";
@@ -454,7 +453,6 @@ export { getTracesForBlobStorageExportParquet } from "./repositories/traces";
 export { getTracesForAnalyticsIntegrations } from "./repositories/traces";
 export { getTracesByIdsForAnyProject } from "./repositories/traces";
 export { getAgentGraphData } from "./repositories/traces";
-export { getTraceCountsByProjectAndDay } from "./repositories/traces";
 export { TRACE_FIELD_GROUPS } from "./repositories/traces";
 export { type TraceFieldGroup } from "./repositories/traces";
 export { type TraceQueryType } from "./repositories/traces";
@@ -496,7 +494,6 @@ export { getObservationsForBlobStorageExport } from "./repositories/observations
 export { getObservationsForBlobStorageExportRaw } from "./repositories/observations";
 export { getObservationsForBlobStorageExportParquet } from "./repositories/observations";
 export { getGenerationsForAnalyticsIntegrations } from "./repositories/observations";
-export { getObservationCountsByProjectAndDay } from "./repositories/observations";
 export { getCostByEvaluatorIds } from "./repositories/observations";
 export { getAvgCostByEvaluatorIdsFromObservations } from "./repositories/observations";
 export { generateObservationsForPublicApi } from "./repositories/observations";
@@ -757,6 +754,7 @@ export {
   getBillableEventsLedgerStart,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
