@@ -167,6 +167,8 @@ export async function listModelDefinitions(params: {
         m.model_name,
         m.created_at DESC NULLS LAST,
         m.id
+      LIMIT ${limit}
+      OFFSET ${limit * page}
     `,
     prisma.$queryRaw<{ count: number }[]>`
       SELECT COUNT(DISTINCT (m.scope, m.model_name))
@@ -176,9 +178,8 @@ export async function listModelDefinitions(params: {
     `,
   ]);
 
-  const models = z.array(ModelListItemSchema).parse(rows);
   return {
-    models: models.slice(limit * page, limit * (page + 1)),
+    models: z.array(ModelListItemSchema).parse(rows),
     totalCount: z.coerce.number().parse(countRows[0].count),
   };
 }

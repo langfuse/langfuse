@@ -292,6 +292,32 @@ describe("organization model definitions", () => {
         [ids.orgAOnly]: false,
       });
     });
+
+    it("pages definitions across scopes with a stable total", async () => {
+      const caller = createCaller(orgA.orgId, orgA.projectId);
+      const getPage = (page: number, limit: number) =>
+        caller.models.getAll({
+          projectId: orgA.projectId,
+          page,
+          limit,
+          searchString: suffix,
+        });
+
+      const all = await getPage(0, 100);
+      const pages = await Promise.all([0, 1, 2].map((p) => getPage(p, 3)));
+
+      expect(pages.map((p) => p.models.length)).toEqual([3, 1, 0]);
+      expect(pages.map((p) => p.totalCount)).toEqual([4, 4, 4]);
+      expect(pages.flatMap((p) => p.models.map((m) => m.id))).toEqual(
+        all.models.map((m) => m.id),
+      );
+      expect(all.models.map((m) => m.id)).toEqual([
+        ids.projectA1Shared,
+        ids.orgAOnly,
+        ids.orgAShared,
+        ids.langfuseShared,
+      ]);
+    });
   });
 
   describe("tRPC organization models router", () => {
