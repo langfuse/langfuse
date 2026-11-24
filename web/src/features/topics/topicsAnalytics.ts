@@ -72,7 +72,6 @@ type TopicsEventProperties = {
   "topics:map_refreshed": {
     filterCount: number;
     facetCount: number;
-    samplePercent: number;
     /** Minutes since the map's previous refit; null before its first fit. */
     minutesSinceLastRefit: number | null;
   };
@@ -115,7 +114,6 @@ export function mapRefreshedProperties(
   rule: {
     filter: readonly unknown[];
     facetIds: readonly string[];
-    sampling: number;
     lastRefitAt: string | null;
   },
   now: number,
@@ -126,7 +124,6 @@ export function mapRefreshedProperties(
   return {
     filterCount: rule.filter.length,
     facetCount: rule.facetIds.length,
-    samplePercent: Math.round(rule.sampling * 1000) / 10,
     minutesSinceLastRefit: Number.isFinite(lastRefitMs)
       ? Math.max(0, Math.round((now - lastRefitMs) / 60_000))
       : null,
