@@ -252,7 +252,7 @@ describe("native Rust trace activity", () => {
     );
     const processing = {
       complete: vi.fn().mockResolvedValue({
-        finalized: { events: records, evaluationRows: [] },
+        finalized: { events: records },
         overflowRequests: [],
       }),
       dispose: vi.fn().mockResolvedValue(undefined),
@@ -286,7 +286,7 @@ describe("native Rust trace activity", () => {
         [],
         encodeOtelLookups([]),
         undefined,
-        false,
+        undefined,
         traceIds,
       );
       expect(addToQueue).toHaveBeenCalledTimes(records.length);
@@ -367,10 +367,7 @@ describe("native Rust trace activity", () => {
       byteLength: 2048,
       sha256Hash: `hash-${index}`,
     }));
-    const finalize = vi.fn().mockResolvedValue({
-      events: [],
-      evaluationRows: [],
-    });
+    const finalize = vi.fn().mockResolvedValue({ events: [] });
     const processing = {
       complete: vi.fn().mockResolvedValue({
         finalized: undefined,
@@ -423,7 +420,7 @@ describe("native Rust trace activity", () => {
           index,
           reference: `@@@langfuseMedia:type=text/plain|id=media-${index}|source=field_size_limit@@@`,
         })),
-        false,
+        undefined,
         undefined,
       );
     } finally {
