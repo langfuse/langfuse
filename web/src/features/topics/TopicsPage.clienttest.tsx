@@ -1,5 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   QueryClient,
   QueryClientProvider,
@@ -19,6 +25,8 @@ const state = vi.hoisted(() => ({
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
   retry: vi.fn(),
+  refreshRuleMap: vi.fn(),
+  refreshRuleMapFails: false,
   refetchExecution: vi.fn(),
   queryCosts: vi.fn<() => Promise<Record<string, TopicRunCost>>>(),
   dateRange: undefined as string | undefined,
@@ -287,6 +295,15 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
+      refreshRuleMap: {
+        useMutation: ({ onSuccess }: { onSuccess?: () => void }) => ({
+          isPending: false,
+          mutate: (input: unknown) => {
+            state.refreshRuleMap(input);
+            if (!state.refreshRuleMapFails) onSuccess?.();
+          },
+        }),
+      },
       analysisResults: { useQuery: () => ({}) },
       // The map picker's preview pane.
       currentResults: { useQuery: () => ({ isLoading: false }) },
@@ -324,6 +341,7 @@ vi.mock("@/src/utils/api", () => ({
       topics: {
         modelSettings: { invalidate: vi.fn() },
         maps: { invalidate: vi.fn() },
+        ruleMapCosts: { invalidate: vi.fn() },
         executions: { invalidate: vi.fn() },
       },
     }),
@@ -363,6 +381,7 @@ beforeEach(() => {
   state.resultFacets = [];
   state.hasStoredSummaries = true;
   state.status = "failed";
+  state.refreshRuleMapFails = false;
   state.executionUpdatedAt = 110;
   state.updatedAt = "2026-09-23T12:00:00Z";
   state.dateRange = undefined;
@@ -707,4 +726,82 @@ it("shows the setup landing until the project's first stored summary exists", ()
     "topics:page_viewed",
     expect.objectContaining({ ...context, pageState: "landing" }),
   );
+});
+
+it("captures topics:map_refreshed with metadata only once refreshRuleMap succeeds", async () => {
+  withSummaries();
+  state.settings = { ...state.settings, enabled: true };
+  state.maps = {
+    rules: [
+      {
+        id: "rule-support",
+        projectId: "project",
+        name: "Support tickets",
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: "secret-trace-name",
+          },
+        ],
+        sampling: 0.255,
+        facetIds: ["intent", "outcome"],
+        enabled: true,
+        updatedAt: "2026-10-09T10:30:00Z",
+        lastRefitAt: "2026-10-09T10:30:00Z",
+        refresh: { availableAt: null, running: false },
+      },
+    ],
+    analyses: [],
+  };
+  renderTopicsPage();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Topic map: Support tickets" }),
+  );
+  const picker = within(
+    await screen.findByRole("dialog", { name: "Topic maps" }),
+  );
+  fireEvent.click(picker.getByRole("button", { name: "Refresh" }));
+
+  const confirm = within(
+    await screen.findByRole("dialog", { name: "Refresh “Support tickets”?" }),
+  );
+  const refreshedCalls = () =>
+    state.capture.mock.calls.filter(
+      ([event]) => event === "topics:map_refreshed",
+    );
+  expect(refreshedCalls()).toHaveLength(0);
+
+  state.refreshRuleMapFails = true;
+  fireEvent.click(confirm.getByRole("button", { name: "Refresh" }));
+  expect(state.refreshRuleMap).toHaveBeenCalledWith({
+    projectId: "project",
+    ruleId: "rule-support",
+  });
+  expect(refreshedCalls()).toHaveLength(0);
+
+  state.refreshRuleMapFails = false;
+  fireEvent.click(confirm.getByRole("button", { name: "Refresh" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Refresh “Support tickets”?" }),
+    ).toBeNull(),
+  );
+  expect(refreshedCalls()).toHaveLength(1);
+  const [, payload] = refreshedCalls()[0]!;
+  expect(payload).toEqual({
+    filterCount: 1,
+    facetCount: 2,
+    samplePercent: 25.5,
+    minutesSinceLastRefit: 90,
+    projectId: "project",
+    orgId: "org",
+    isV4: true,
+  });
+  const serialized = JSON.stringify(payload);
+  expect(serialized).not.toContain("Support tickets");
+  expect(serialized).not.toContain("secret-trace-name");
+  expect(serialized).not.toContain("rule-support");
 });

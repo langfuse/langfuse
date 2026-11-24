@@ -69,6 +69,13 @@ type TopicsEventProperties = {
     facetCount: number;
     samplePercent: number;
   };
+  "topics:map_refreshed": {
+    filterCount: number;
+    facetCount: number;
+    samplePercent: number;
+    /** Minutes since the map's previous refit; null before its first fit. */
+    minutesSinceLastRefit: number | null;
+  };
   "topics:snapshot_started": {
     filterCount: number;
     facetCount: number;
