@@ -259,10 +259,88 @@ The reasoning or explanation stored with the score.`,
 The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
+const TYPESCRIPT_TRACE_HOVER_DOCS = {
+  evaluate: `function evaluate(ctx: EvaluationContext<"observation" | "trace">): EvaluationResult
+
+The TypeScript function Langfuse executes for each matched target observation or trace.`,
+  EvaluationContext: `type EvaluationContext<T extends "observation" | "trace" = "observation"> =
+  Extract<
+    ObservationEvaluationContext | TraceEvaluationContext,
+    { targetType: T }
+  >;
+
+The data Langfuse passes to a TypeScript evaluator. Observation rules pass
+EvaluationContext<"observation"> (the default), trace rules pass
+EvaluationContext<"trace">.`,
+  ObservationEvaluationContext: `type ObservationEvaluationContext = {
+  targetType: "observation";
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+    toolCalls: ToolCall[];
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+}
+
+The data Langfuse passes for an observation target.`,
+  TraceEvaluationContext: `type TraceEvaluationContext = {
+  targetType: "trace";
+  threads: Thread[];
+}
+
+The data Langfuse passes for a trace target.`,
+  Thread: `type Thread = {
+  conversationHistory: any[];
+  currentTurn: {
+    nestingLevel: number;
+    messages: any[];
+  };
+}
+
+One conversation thread of the trace transcript, shaped like the threads LLM-as-a-judge evaluators read.`,
+  targetType: `property EvaluationContext.targetType: "observation" | "trace"
+
+Whether the evaluator runs on an observation or on a trace transcript.`,
+  threads: `property TraceEvaluationContext.threads: Thread[]
+
+The conversation threads of the trace transcript.`,
+} satisfies CodeEvalHoverDocs;
+
+const PYTHON_TRACE_HOVER_DOCS = {
+  EvaluationContext: `@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+    target_type: str = "observation"
+    threads: list[dict[str, Any]] = field(default_factory=list)
+
+The data Langfuse passes to a Python evaluator. target_type is "observation"
+or "trace"; threads is set for trace targets.`,
+  target_type: `property ctx.target_type: str
+
+"observation" or "trace": whether the evaluator runs on an observation or on a trace transcript.`,
+  threads: `property ctx.threads: list[dict[str, Any]]
+
+The conversation threads of the trace transcript. Each thread has
+conversationHistory and currentTurn (nestingLevel, messages).`,
+} satisfies CodeEvalHoverDocs;
+
 export function getCodeEvalHoverDocs(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
+  traceEvalsAvailable = false,
 ): CodeEvalHoverDocs {
-  return sourceCodeLanguage === "PYTHON"
-    ? PYTHON_CODE_EVAL_HOVER_DOCS
+  if (sourceCodeLanguage === "PYTHON") {
+    return traceEvalsAvailable
+      ? { ...PYTHON_CODE_EVAL_HOVER_DOCS, ...PYTHON_TRACE_HOVER_DOCS }
+      : PYTHON_CODE_EVAL_HOVER_DOCS;
+  }
+  return traceEvalsAvailable
+    ? { ...TYPESCRIPT_CODE_EVAL_HOVER_DOCS, ...TYPESCRIPT_TRACE_HOVER_DOCS }
     : TYPESCRIPT_CODE_EVAL_HOVER_DOCS;
 }

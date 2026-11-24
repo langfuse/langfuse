@@ -1,4 +1,7 @@
-import { TRACE_TRANSCRIPT_EVAL_TYPES } from "@langfuse/shared";
+import {
+  EvalTemplateTypeEnum,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
+} from "@langfuse/shared";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
@@ -188,7 +191,12 @@ async function loadTranscriptEvalAssignments(
       evaluator: {
         projectId,
         blockedAt: null,
-        type: { in: [...TRACE_TRANSCRIPT_EVAL_TYPES] },
+        // Code evaluators can be assigned but do not run on transcripts yet.
+        type: {
+          in: TRACE_TRANSCRIPT_EVAL_TYPES.filter(
+            (type) => type !== EvalTemplateTypeEnum.CODE,
+          ),
+        },
       },
     },
     select: {

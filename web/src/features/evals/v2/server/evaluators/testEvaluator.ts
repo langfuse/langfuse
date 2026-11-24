@@ -95,7 +95,12 @@ export async function testEvaluatorOnTrace(params: {
   const startedAt = Date.now();
   if (!isTraceTranscriptEvalType(params.definition.type)) {
     throw new InvalidRequestError(
-      "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+      "Trace evaluations support LLM-as-a-judge, decision-model, and code evaluators.",
+    );
+  }
+  if (params.definition.type === "CODE") {
+    throw new InvalidRequestError(
+      "Testing code evaluators on a trace is not available yet.",
     );
   }
   const variableMapping = resolveTestVariableMapping(params.definition);

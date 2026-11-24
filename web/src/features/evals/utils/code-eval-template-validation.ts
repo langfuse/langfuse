@@ -2,6 +2,8 @@ import type * as ts from "@typescript/typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
   PYTHON_CODE_EVAL_CONTRACT,
+  TRACE_PYTHON_CODE_EVAL_CONTRACT,
+  TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
@@ -48,6 +50,19 @@ type __LangfuseExpectedEvaluate = (
   ctx: EvaluationContext,
 ) => EvaluationResult | Promise<EvaluationResult>;
 const __langfuseEvaluateCheck: __LangfuseExpectedEvaluate = evaluate;
+`;
+
+const TARGET_AWARE_SYNTHETIC_ASSERTION = `
+type __LangfuseExpectedEvaluate<TTarget extends "observation" | "trace"> = (
+  ctx: EvaluationContext<TTarget>,
+) => EvaluationResult | Promise<EvaluationResult>;
+const __langfuseEvaluateCheck:
+  | __LangfuseExpectedEvaluate<"observation">
+  | __LangfuseExpectedEvaluate<"trace"> = evaluate;
+`;
+
+const TRACE_CONTRACT_DECLARATIONS = `
+type Extract<T, U> = T extends U ? T : never;
 `;
 
 const CONTRACT_DECLARATIONS = `
@@ -603,32 +618,39 @@ let ruffWorkspacePromise: Promise<RuffWorkspace> | null = null;
 export async function validateCodeEvalSourceWithLanguage({
   source,
   sourceCodeLanguage,
+  traceEvalsAvailable = false,
 }: {
   source: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
+  traceEvalsAvailable?: boolean;
 }): Promise<CodeEvalValidationResult> {
   if (sourceCodeLanguage === "PYTHON") {
-    return validateCodeEvalSourceWithPython(source);
+    return validateCodeEvalSourceWithPython(source, traceEvalsAvailable);
   }
 
-  return validateCodeEvalSourceWithTypescript(source);
+  return validateCodeEvalSourceWithTypescript(source, traceEvalsAvailable);
 }
 
 async function validateCodeEvalSourceWithTypescript(
   source: string,
+  traceEvalsAvailable: boolean,
 ): Promise<CodeEvalValidationResult> {
   const tsModule = await import("@typescript/typescript6");
-  return validateCodeEvalSource(source, tsModule);
+  return validateCodeEvalSource(source, tsModule, traceEvalsAvailable);
 }
 
 export async function validateCodeEvalSourceWithPython(
   source: string,
+  traceEvalsAvailable = false,
 ): Promise<CodeEvalValidationResult> {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
+  const contract = traceEvalsAvailable
+    ? TRACE_PYTHON_CODE_EVAL_CONTRACT
+    : PYTHON_CODE_EVAL_CONTRACT;
   const validationSource = hasPythonContractDeclarations(source)
     ? source
-    : `${PYTHON_CODE_EVAL_CONTRACT}\n\n${source}`;
+    : `${contract}\n\n${source}`;
 
   collectBasicSourceDiagnostics({
     source,
@@ -657,7 +679,7 @@ export async function validateCodeEvalSourceWithPython(
           source,
           locationSource: validationSource,
           diagnostic,
-          offset: validationSource === source ? 0 : -getValidationOffset(),
+          offset: validationSource === source ? 0 : -`${contract}\n\n`.length,
         }),
       ),
     );
@@ -690,6 +712,7 @@ export async function formatPythonCodeEvalSourceWithRuff(source: string) {
 function validateCodeEvalSource(
   source: string,
   tsModule: TypeScriptModule,
+  traceEvalsAvailable: boolean,
 ): CodeEvalValidationResult {
   const sourceBytes = getUtf8ByteLength(source);
   const diagnostics: CodeEvalDiagnostic[] = [];
@@ -728,6 +751,7 @@ function validateCodeEvalSource(
       source,
       evaluatePosition,
       tsModule,
+      traceEvalsAvailable,
     }),
   );
 
@@ -744,19 +768,26 @@ function getTypeScriptDiagnostics({
   source,
   evaluatePosition,
   tsModule,
+  traceEvalsAvailable,
 }: {
   source: string;
   evaluatePosition: number;
   tsModule: TypeScriptModule;
+  traceEvalsAvailable: boolean;
 }): CodeEvalDiagnostic[] {
   const validationPrelude = [
     CONTRACT_DECLARATIONS,
-    getTypeScriptContractForValidation(source),
+    traceEvalsAvailable ? TRACE_CONTRACT_DECLARATIONS : "",
+    getTypeScriptContractForValidation(source, traceEvalsAvailable),
   ]
     .filter(Boolean)
     .join("\n");
   const contractOffset = validationPrelude.length;
-  const validationSource = `${validationPrelude}\n${source}\n${SYNTHETIC_ASSERTION_PREFIX}`;
+  const syntheticAssertion =
+    traceEvalsAvailable && !/\btype\s+EvaluationContext\s*=/.test(source)
+      ? TARGET_AWARE_SYNTHETIC_ASSERTION
+      : SYNTHETIC_ASSERTION_PREFIX;
+  const validationSource = `${validationPrelude}\n${source}\n${syntheticAssertion}`;
   const fileName = "code-eval-template.ts";
   const compilerOptions: ts.CompilerOptions = {
     target: tsModule.ScriptTarget.ES2022,
@@ -822,15 +853,25 @@ function getTypeScriptDiagnostics({
   });
 }
 
-function getTypeScriptContractForValidation(source: string) {
-  return hasTypeScriptContractDeclarations(source)
-    ? ""
+function getTypeScriptContractForValidation(
+  source: string,
+  traceEvalsAvailable: boolean,
+) {
+  if (hasTypeScriptContractDeclarations(source, traceEvalsAvailable)) return "";
+  return traceEvalsAvailable
+    ? TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT
     : TYPESCRIPT_CODE_EVAL_CONTRACT;
 }
 
-function hasTypeScriptContractDeclarations(source: string) {
+function hasTypeScriptContractDeclarations(
+  source: string,
+  traceEvalsAvailable: boolean,
+) {
+  const evaluationContextDeclaration = traceEvalsAvailable
+    ? /\btype\s+EvaluationContext\s*[<=]/
+    : /\btype\s+EvaluationContext\s*=/;
   return (
-    /\btype\s+EvaluationContext\s*=/.test(source) &&
+    evaluationContextDeclaration.test(source) &&
     /\btype\s+Score\s*=/.test(source) &&
     /\btype\s+EvaluationResult\s*=/.test(source)
   );
@@ -1097,10 +1138,6 @@ function mapRuffDiagnosticToCodeEvalDiagnostic({
       ? `${diagnostic.code}: ${diagnostic.message}`
       : diagnostic.message,
   };
-}
-
-function getValidationOffset() {
-  return `${PYTHON_CODE_EVAL_CONTRACT}\n\n`.length;
 }
 
 function getRuffDiagnosticSeverity(

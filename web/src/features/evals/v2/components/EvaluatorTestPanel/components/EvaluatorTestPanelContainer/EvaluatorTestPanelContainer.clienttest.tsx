@@ -21,10 +21,6 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/evals/transcriptEvalsAccess", () => ({
-  useCanViewTraceTranscriptsEvals: () => false,
-}));
-
 describe("EvaluatorTestPanelContainer", () => {
   it("subscribes to model validity without requiring it from the page", () => {
     const store = createEvaluatorSetupStore({
@@ -36,6 +32,7 @@ describe("EvaluatorTestPanelContainer", () => {
       <EvaluatorTestPanelContainer
         projectId="project-1"
         store={store}
+        traceEvalsAvailable={false}
         timeRange={null}
         onOpenTrace={vi.fn()}
         onScopeChange={vi.fn()}

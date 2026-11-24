@@ -176,7 +176,7 @@ export type EvaluatorSetupStoreState = {
 
 export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
-/** Code evaluators cannot run on a trace transcript, so they always use observations. */
+/** Evaluator types that cannot run on a trace transcript always use observations. */
 export const selectSampleScope = (
   state: Pick<EvaluatorSetupStoreState, "type" | "sampleScope">,
 ): EvaluatorSampleScope =>
@@ -193,6 +193,23 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   }
   return true;
 };
+
+// An unedited starter of a new code evaluator follows the sample scope.
+function starterForScope(
+  state: Pick<EvaluatorSetupStoreState, "initialDefinition">,
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage,
+  sourceCode: string | undefined,
+  sampleScope: EvaluatorSampleScope,
+) {
+  const isUneditedStarter =
+    state.initialDefinition?.type !== EvalTemplateTypeEnum.CODE &&
+    (sourceCode === undefined ||
+      sourceCode === getDefaultCodeEvalSource(sourceCodeLanguage) ||
+      sourceCode === getDefaultCodeEvalSource(sourceCodeLanguage, "trace"));
+  return isUneditedStarter
+    ? getDefaultCodeEvalSource(sourceCodeLanguage, sampleScope)
+    : (sourceCode ?? getDefaultCodeEvalSource(sourceCodeLanguage));
+}
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
@@ -482,9 +499,12 @@ export function createEvaluatorSetupStore({
 
           return {
             sourceCodeLanguage,
-            sourceCode:
-              sourceCodeDrafts[sourceCodeLanguage] ??
-              getDefaultCodeEvalSource(sourceCodeLanguage),
+            sourceCode: starterForScope(
+              state,
+              sourceCodeLanguage,
+              sourceCodeDrafts[sourceCodeLanguage],
+              state.sampleScope,
+            ),
             sourceCodeDrafts,
           };
         }),
@@ -527,7 +547,16 @@ export function createEvaluatorSetupStore({
         set((state) =>
           state.sampleScope === sampleScope
             ? state
-            : { sampleScope, activeMapping: null },
+            : {
+                sampleScope,
+                activeMapping: null,
+                sourceCode: starterForScope(
+                  state,
+                  state.sourceCodeLanguage,
+                  state.sourceCode,
+                  sampleScope,
+                ),
+              },
         ),
       setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
       setTraceVariableField: (variable, fieldState) =>

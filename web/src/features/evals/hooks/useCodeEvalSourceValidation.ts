@@ -11,6 +11,7 @@ type UseCodeEvalSourceValidationParams = {
   enabled: boolean;
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
+  traceEvalsAvailable?: boolean;
 };
 
 type ValidateCodeEvalSourceParams = {
@@ -27,14 +28,17 @@ function getLanguageLabel(sourceCodeLanguage: CodeEvalSourceCodeLanguage) {
 async function getCodeEvalValidationResult({
   sourceCode,
   sourceCodeLanguage,
+  traceEvalsAvailable,
 }: {
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
+  traceEvalsAvailable: boolean;
 }): Promise<CodeEvalValidationResult> {
   try {
     return await validateCodeEvalSourceWithLanguage({
       source: sourceCode,
       sourceCodeLanguage,
+      traceEvalsAvailable,
     });
   } catch (error) {
     return {
@@ -59,6 +63,7 @@ export function useCodeEvalSourceValidation({
   enabled,
   sourceCode,
   sourceCodeLanguage,
+  traceEvalsAvailable = false,
 }: UseCodeEvalSourceValidationParams) {
   const [validationResult, setValidationResult] =
     useState<CodeEvalValidationResult | null>(null);
@@ -79,13 +84,14 @@ export function useCodeEvalSourceValidation({
       const result = await getCodeEvalValidationResult({
         sourceCode: nextSourceCode,
         sourceCodeLanguage: nextSourceCodeLanguage,
+        traceEvalsAvailable,
       });
       setValidationResult(result);
       setIsPending(false);
 
       return !result.hasErrors;
     },
-    [sourceCode, sourceCodeLanguage],
+    [sourceCode, sourceCodeLanguage, traceEvalsAvailable],
   );
 
   useEffect(() => {
@@ -98,7 +104,11 @@ export function useCodeEvalSourceValidation({
     setIsPending(true);
 
     const timeout = setTimeout(() => {
-      getCodeEvalValidationResult({ sourceCode, sourceCodeLanguage })
+      getCodeEvalValidationResult({
+        sourceCode,
+        sourceCodeLanguage,
+        traceEvalsAvailable,
+      })
         .then((result) => {
           if (!isActive) return;
           setValidationResult(result);
@@ -112,7 +122,7 @@ export function useCodeEvalSourceValidation({
       isActive = false;
       clearTimeout(timeout);
     };
-  }, [enabled, reset, sourceCode, sourceCodeLanguage]);
+  }, [enabled, reset, sourceCode, sourceCodeLanguage, traceEvalsAvailable]);
 
   return {
     isValid: Boolean(validationResult) && !validationResult?.hasErrors,

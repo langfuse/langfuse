@@ -56,6 +56,7 @@ type CodeEvalTemplateFormBodyProps = {
   validationResult: CodeEvalValidationResult | null;
   ctxSample: string | null;
   headerAction?: ReactNode;
+  traceEvalsAvailable?: boolean;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -227,6 +228,7 @@ export function CodeEvalTemplateFormBody({
   validationResult,
   ctxSample,
   headerAction,
+  traceEvalsAvailable = false,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -364,12 +366,21 @@ export function CodeEvalTemplateFormBody({
   const codeEvalHoverExtension = useMemo(
     () =>
       createCodeEvalHoverExtension({
-        hoverDocs: getCodeEvalHoverDocs(sourceCodeLanguage),
+        hoverDocs: getCodeEvalHoverDocs(
+          sourceCodeLanguage,
+          traceEvalsAvailable,
+        ),
         ctxSample,
         languageExtension,
         codeMirrorTheme,
       }),
-    [codeMirrorTheme, ctxSample, languageExtension, sourceCodeLanguage],
+    [
+      codeMirrorTheme,
+      ctxSample,
+      languageExtension,
+      sourceCodeLanguage,
+      traceEvalsAvailable,
+    ],
   );
   const codeEvalCompletionExtension = useMemo(
     () => getCodeEvalCompletionExtension(sourceCodeLanguage),

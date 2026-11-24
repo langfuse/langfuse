@@ -929,13 +929,15 @@ export class RuleService {
       const evaluator = evaluatorById.get(assignment.evaluatorId)!;
       if (!isTraceTranscriptEvalType(evaluator.type)) {
         throw new InvalidRequestError(
-          "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+          "Trace evaluations support LLM-as-a-judge, decision-model, and code evaluators.",
         );
       }
       const latestVersion = evaluator.versions[0];
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
+      // Code evaluators read the whole transcript, so they have no mapping to check.
+      if (evaluator.type === EvalTemplateType.CODE) continue;
       // A null mapping normalizes to empty so validation rejects it, not crashes.
       const variableMapping = assignment.variableMapping ?? [];
       const extracted = extractTranscriptEvalVariables(null, variableMapping);

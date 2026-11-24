@@ -67,6 +67,7 @@ import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/pre
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
@@ -290,10 +291,12 @@ export function EvaluatorSetupPage(
       sourceCodeLanguage: state.sourceCodeLanguage,
     })),
   );
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const codeValidation = useCodeEvalSourceValidation({
     enabled: codeDraft.type === "CODE",
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
+    traceEvalsAvailable,
   });
   const fallbackDecisionModel = useFallbackDecisionModel(
     projectId,
@@ -825,6 +828,7 @@ export function EvaluatorSetupPage(
           codeValidationResult={
             codeValidation.isPending ? null : codeValidation.validationResult
           }
+          traceEvalsAvailable={traceEvalsAvailable}
           onStepOpenChange={setStepOpen}
           nameAIAssistance={
             !nameAIAssistanceAvailable
@@ -892,6 +896,7 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
+      traceEvalsAvailable={traceEvalsAvailable}
       timeRange={absoluteTimeRange}
       onOpenTrace={openSampleTrace}
       onScopeChange={changeSampleScope}

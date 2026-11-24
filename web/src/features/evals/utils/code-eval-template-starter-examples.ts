@@ -150,30 +150,15 @@ type _PythonToolCallCompletionsMatchRuntime = Expect<
   >
 >;
 
-export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type ToolCall = {
+const TYPESCRIPT_TOOL_CALL_CONTRACT = `type ToolCall = {
   id: string;
   name: string;
   arguments: unknown;
   type: string;
   index: number;
-};
+};`;
 
-type EvaluationContext = {
-  observation: {
-    input: any;
-    output: any;
-    metadata: any;
-    toolCalls: ToolCall[];
-  };
-  experiment:
-    | {
-        itemExpectedOutput: any;
-        itemMetadata: any;
-      }
-    | undefined;
-};
-
-type ScoreBase = {
+const TYPESCRIPT_RESULT_CONTRACT = `type ScoreBase = {
   name: string;
   comment?: string;
   configId?: string | null;
@@ -191,6 +176,65 @@ type EvaluationResult = {
   scores: Score[];
 };
 `;
+
+export const TYPESCRIPT_CODE_EVAL_CONTRACT = `${TYPESCRIPT_TOOL_CALL_CONTRACT}
+
+type EvaluationContext = {
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+    toolCalls: ToolCall[];
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+${TYPESCRIPT_RESULT_CONTRACT}`;
+
+/** The contract when trace evals are available: EvaluationContext also covers trace targets. */
+export const TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT = `${TYPESCRIPT_TOOL_CALL_CONTRACT}
+
+type Thread = {
+  conversationHistory: any[];
+  currentTurn: {
+    nestingLevel: number;
+    messages: any[];
+  };
+};
+
+type ObservationEvaluationContext = {
+  targetType: "observation";
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+    toolCalls: ToolCall[];
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+type TraceEvaluationContext = {
+  targetType: "trace";
+  threads: Thread[];
+};
+
+type EvaluationContext<T extends "observation" | "trace" = "observation"> =
+  Extract<
+    ObservationEvaluationContext | TraceEvaluationContext,
+    { targetType: T }
+  >;
+
+${TYPESCRIPT_RESULT_CONTRACT}`;
 
 // Keep in sync with the Prettier output so the Format button is a no-op on
 // the untouched starter code.
@@ -276,6 +320,54 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationCont
           if matches_output
           else "Output does not match the input."
         ),
+      )
+    ]
+  )`;
+
+export const TRACE_PYTHON_CODE_EVAL_CONTRACT =
+  PYTHON_CODE_EVAL_CONTRACT.replace(
+    "    experiment: ExperimentContext | None = None\n",
+    `    experiment: ExperimentContext | None = None
+    target_type: str = "observation"
+    threads: list[dict[str, Any]] = field(default_factory=list)
+`,
+  );
+
+const TRACE_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext<"trace">): EvaluationResult {
+  const messageCount = ctx.threads.reduce(
+    (count, thread) =>
+      count +
+      thread.conversationHistory.length +
+      thread.currentTurn.messages.length,
+    0,
+  );
+
+  return {
+    scores: [
+      {
+        name: "Message count",
+        value: messageCount,
+        dataType: "NUMERIC",
+        comment: "Messages across all threads of the trace transcript.",
+      },
+    ],
+  };
+}`;
+
+const TRACE_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+  """Evaluates one trace transcript and returns one or more Langfuse scores."""
+  message_count = sum(
+    len(thread["conversationHistory"]) + len(thread["currentTurn"]["messages"])
+    for thread in ctx.threads
+  )
+
+  return EvaluationResult(
+    scores=[
+      Score(
+        name="Message count",
+        value=message_count,
+        data_type="NUMERIC",
+        comment="Messages across all threads of the trace transcript.",
       )
     ]
   )`;
@@ -483,7 +575,13 @@ export type CodeEvalSourceCodeLanguage = "PYTHON" | "TYPESCRIPT";
 
 export function getDefaultCodeEvalSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
+  sampleScope: "observation" | "trace" = "observation",
 ) {
+  if (sampleScope === "trace") {
+    return sourceCodeLanguage === "PYTHON"
+      ? TRACE_PYTHON_CODE_EVAL_SOURCE
+      : TRACE_TYPESCRIPT_CODE_EVAL_SOURCE;
+  }
   return sourceCodeLanguage === "PYTHON"
     ? DEFAULT_PYTHON_CODE_EVAL_SOURCE
     : DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE;
@@ -516,8 +614,13 @@ function stripCodeEvalContract({
   // so try every shipped version, newest first.
   const contracts =
     sourceCodeLanguage === "PYTHON"
-      ? [PYTHON_CODE_EVAL_CONTRACT, ...PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS]
+      ? [
+          TRACE_PYTHON_CODE_EVAL_CONTRACT,
+          PYTHON_CODE_EVAL_CONTRACT,
+          ...PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
+        ]
       : [
+          TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT,
           TYPESCRIPT_CODE_EVAL_CONTRACT,
           ...PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
         ];

@@ -8,7 +8,6 @@ import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components
 import { TestSectionContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestSectionContainer/TestSectionContainer";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { EvaluatorTestStrip } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStrip";
-import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   selectHasValidModel,
   selectSampleScope,
@@ -18,12 +17,13 @@ import {
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 
 /**
- * The single trace-evals gate for the test panel: off renders the observation
- * panel, on renders the scope-aware panel. Shared pieces stay flag-free.
+ * The trace-evals gate for the test panel: off renders the observation panel,
+ * on renders the scope-aware panel. Shared pieces stay flag-free.
  */
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
+  traceEvalsAvailable,
   timeRange,
   onOpenTrace,
   onScopeChange,
@@ -36,6 +36,7 @@ export function EvaluatorTestPanelContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
+  traceEvalsAvailable: boolean;
   timeRange: AbsoluteTimeRange | null;
   onOpenTrace: (observation: SampleObservation) => void;
   onScopeChange: (scope: EvaluatorSampleScope) => void;
@@ -46,7 +47,6 @@ export function EvaluatorTestPanelContainer({
   onRunTest: () => void;
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
-  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const open = useStore(store, (state) => state.testPanelOpen);
   const hasValidModel = useStore(store, selectHasValidModel);
   const sampleScope = useStore(store, selectSampleScope);
