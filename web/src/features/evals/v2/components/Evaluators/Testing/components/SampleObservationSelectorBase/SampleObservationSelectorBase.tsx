@@ -680,7 +680,6 @@ export function SampleObservationSelectorBase(
           <EvaluatorSampleDetail
             projectId={projectId}
             targetObject={targetObject}
-            filterState={filterState}
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}

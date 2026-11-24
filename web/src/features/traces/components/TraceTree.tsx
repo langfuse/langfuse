@@ -8,11 +8,8 @@ import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
-import {
-  useObservationEvaluationHint,
-  type ObservationEvaluationHint,
-} from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
@@ -159,7 +156,12 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
 }) {
-  const evaluationHint = useObservationEvaluationHint(node);
+  const { isEmbedded, preferredObservationId } = useTracePresentation();
+  const isSelectedObservation =
+    isEmbedded &&
+    preferredObservationId != null &&
+    node.type !== "TRACE" &&
+    (node.observationId ?? node.id) === preferredObservationId;
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -169,10 +171,13 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      surfaceClassName={evaluationSurface(evaluationHint)}
+      surfaceClassName={
+        isSelectedObservation ? "bg-light-violet text-foreground" : undefined
+      }
     >
       <SpanContent
         node={node}
+        isSelectedObservation={isSelectedObservation}
         emphasis={emphasis}
         commentCount={commentCount}
         onSelect={onSelect}
@@ -180,10 +185,4 @@ function TraceTreeRow({
       />
     </VirtualizedTreeNodeWrapper>
   );
-}
-
-function evaluationSurface(hint: ObservationEvaluationHint | null) {
-  if (hint === "tested") return "bg-light-violet text-foreground";
-  if (hint === "also") return "bg-light-violet/45 text-foreground";
-  return undefined;
 }

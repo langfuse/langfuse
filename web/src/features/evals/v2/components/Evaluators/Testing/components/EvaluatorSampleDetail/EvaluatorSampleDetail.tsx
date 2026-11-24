@@ -1,34 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "@langfuse/icons";
-import { TopicsTargetObject, type FilterState } from "@langfuse/shared";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { Button } from "@/src/components/ui/button";
-import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
-import {
-  observationTreeHints,
-  spanPropertiesFromObservation,
-  type ObservationTreeHint,
-} from "@/src/features/evals/v2/fns/evaluatorTesting/spanSampleFilters";
 import { useTraceSampleTranscript } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { ObservationEvaluationHintsProvider } from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import { TracePresentationProvider } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 const SAMPLE_LIST_KEY = "evaluator-samples";
-const NO_HINTS = new Map<string, ObservationTreeHint>();
 
 /** One sample in the trace view, with its count and prev/next arrows above it. */
 export function EvaluatorSampleDetail({
   projectId,
   targetObject,
-  filterState,
   observations,
   selectedObservationId,
   pending,
@@ -36,7 +27,6 @@ export function EvaluatorSampleDetail({
 }: {
   projectId: string;
   targetObject: RuleTargetObject;
-  filterState: FilterState;
   observations: SampleObservation[];
   selectedObservationId: string | null;
   pending: boolean;
@@ -71,19 +61,6 @@ export function EvaluatorSampleDetail({
     sample: selected,
     enabled: isTraceTarget,
   });
-  const canViewTraceEvals = useCanViewTraceTranscriptsEvals(projectId);
-  const hints = useMemo(() => {
-    if (!canViewTraceEvals || isTraceTarget || !selected || !detail.data) {
-      return NO_HINTS;
-    }
-    return observationTreeHints(
-      detail.data.observations.map((observation) =>
-        spanPropertiesFromObservation(observation, detail.data),
-      ),
-      filterState,
-      selected.id,
-    );
-  }, [canViewTraceEvals, detail.data, filterState, isTraceTarget, selected]);
   const [dismissedNoMessagesFor, setDismissedNoMessagesFor] = useState<
     string | null
   >(null);
@@ -199,22 +176,20 @@ export function EvaluatorSampleDetail({
           presentation={view.presentation}
           preferredObservationId={view.observationId}
         >
-          <ObservationEvaluationHintsProvider hints={hints}>
-            <TraceDetailBody
-              trace={detail.data}
-              context="peek"
-              truncatedAtObservations={detail.truncatedAtObservations}
-              isPlaceholderData={detail.isPlaceholderData}
-              keySuffix={sampleTraceId}
-              header={{
-                variant: "page",
-                headerProps: {
-                  title: traceName,
-                  itemType: "TRACE",
-                },
-              }}
-            />
-          </ObservationEvaluationHintsProvider>
+          <TraceDetailBody
+            trace={detail.data}
+            context="peek"
+            truncatedAtObservations={detail.truncatedAtObservations}
+            isPlaceholderData={detail.isPlaceholderData}
+            keySuffix={sampleTraceId}
+            header={{
+              variant: "page",
+              headerProps: {
+                title: traceName,
+                itemType: "TRACE",
+              },
+            }}
+          />
         </TracePresentationProvider>
       </div>
     </div>

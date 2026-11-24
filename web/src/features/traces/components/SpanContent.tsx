@@ -33,7 +33,6 @@ import {
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useObservationEvaluationHint } from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   selectNodeCorrections,
@@ -44,6 +43,8 @@ interface SpanContentProps {
   node: TreeNode;
   emphasis?: MetricEmphasisContext;
   commentCount?: number;
+  /** The observation an embedder will evaluate. */
+  isSelectedObservation?: boolean;
   onSelect?: () => void;
   onHover?: () => void;
   className?: string;
@@ -77,6 +78,7 @@ function LoadedSpanContent({
   node,
   emphasis,
   commentCount,
+  isSelectedObservation = false,
   onSelect,
   onHover,
   className,
@@ -130,7 +132,6 @@ function LoadedSpanContent({
     );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
-  const evaluationHint = useObservationEvaluationHint(node);
 
   return (
     <button
@@ -170,16 +171,8 @@ function LoadedSpanContent({
           </div>
         </div>
 
-        {evaluationHint ? (
-          <Badge
-            color="violet"
-            size="sm"
-            text={
-              evaluationHint === "tested"
-                ? "Will be evaluated"
-                : "Also evaluated"
-            }
-          />
+        {isSelectedObservation ? (
+          <Badge color="violet" size="sm" text="Will be evaluated" />
         ) : null}
 
         {/* Metrics and scores row */}
