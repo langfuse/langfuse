@@ -147,6 +147,28 @@ function validateEntityDimension(
 }
 
 /**
+ * unsupportedFilterReason returns why a filter column can't be queried on the
+ * view, or undefined when every filter can. Only billable units restrict
+ * their filters: the query builder lets every view filter on `metadata` and
+ * `*Name` columns, which the billing ledger does not have.
+ */
+export function unsupportedFilterReason(
+  view: QueryType["view"],
+  filters: QueryType["filters"],
+  version: ViewVersion,
+): string | undefined {
+  if (view !== "billable-units") return undefined;
+  const declaration = getViewDeclaration(view, version);
+  const unsupported = filters.find(
+    (filter) =>
+      !(filter.column in declaration.dimensions) &&
+      filter.column !== declaration.timeDimension,
+  );
+  if (!unsupported) return undefined;
+  return `Billable units can't be filtered by '${unsupported.column}'. Supported filters: ${Object.keys(declaration.dimensions).join(", ")}`;
+}
+
+/**
  * Validates a query for safety before execution.
  * Performs sanity checks for high cardinality dimension validation.
  *
@@ -173,21 +195,13 @@ export function validateQuery(
     };
   }
 
-  // The query builder lets every view filter on `metadata`, which the
-  // billing ledger does not have.
-  if (query.view === "billable-units") {
-    const declaration = getViewDeclaration(query.view, version);
-    const unsupported = query.filters.find(
-      (filter) =>
-        !(filter.column in declaration.dimensions) &&
-        filter.column !== declaration.timeDimension,
-    );
-    if (unsupported) {
-      return {
-        valid: false,
-        reason: `Billable units can't be filtered by '${unsupported.column}'. Supported filters: ${Object.keys(declaration.dimensions).join(", ")}`,
-      };
-    }
+  const filterReason = unsupportedFilterReason(
+    query.view,
+    query.filters,
+    version,
+  );
+  if (filterReason) {
+    return { valid: false, reason: filterReason };
   }
 
   if (query.entityDimension && version !== "v2") {

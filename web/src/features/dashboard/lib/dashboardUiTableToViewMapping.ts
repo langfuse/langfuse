@@ -82,8 +82,9 @@ const viewFilterDefinitions: Record<
   ViewName,
   readonly DashboardViewFieldDefinition[]
 > = {
-  // The billing ledger only carries the environment of each unit.
+  // The billing ledger only carries the type and environment of each unit.
   "billable-units": [
+    defineField("unitType", sourceSpec("Unit type", { uiTableId: "unitType" })),
     defineField(
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),

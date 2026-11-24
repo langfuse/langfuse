@@ -58,6 +58,23 @@ describe("widget filter mappings", () => {
       ]);
     },
   );
+
+  it("round-trips the billable-units unit type filter between editor and query view space", () => {
+    const canonicalFilter = {
+      column: "unitType",
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: ["trace"],
+    };
+    const editorFilter = { ...canonicalFilter, column: "Unit type" };
+
+    expect(
+      mapWidgetUiTableFilterToView("billable-units", [editorFilter]),
+    ).toEqual([canonicalFilter]);
+    expect(
+      mapViewFilterToUiTableFilter("billable-units", [canonicalFilter]),
+    ).toEqual([editorFilter]);
+  });
 });
 
 describe("displayNameForFilterColumn", () => {

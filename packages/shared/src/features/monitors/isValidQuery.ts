@@ -12,6 +12,7 @@ import {
   type metricAggregations,
   type viewsV2,
 } from "../query/types";
+import { unsupportedFilterReason } from "../query/validateQuery";
 import { disallowedMonitorFilterColumns } from "./filterColumns";
 
 /** getValidMonitorAggregationsForMeasure returns the aggregations valid for a monitor metric: the widget set minus `histogram`, and pinned to the measure's inner `aggs.agg` when set (e.g. observations.count is always `count`). */
@@ -37,7 +38,8 @@ export const getValidMonitorAggregationsForMeasure = (
  * checks, `reason` carrying the first rejection. Filter-column-vs-view
  * alignment is intentionally NOT checked here (see LF-2181) — dimensions are
  * the group-by surface, not the filter surface, so the dimension map is the
- * wrong proxy.
+ * wrong proxy. Billable units are the exception: the billing ledger has only
+ * the columns its view declares (`unsupportedFilterReason`).
  */
 export function isValidQuery(input: {
   view: z.infer<typeof viewsV2>;
@@ -46,7 +48,9 @@ export function isValidQuery(input: {
 }): QueryValidation {
   const declaration = getViewDeclaration(input.view, "v2");
 
-  const filterReason = invalidFilterReason(declaration, input.filters);
+  const filterReason =
+    unsupportedFilterReason(input.view, input.filters, "v2") ??
+    invalidFilterReason(declaration, input.filters);
   if (filterReason) {
     return {
       valid: false,
