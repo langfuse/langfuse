@@ -2,10 +2,6 @@
 
 With the employee authoring preview enabled and permission to edit the dashboard, choose **Add widget → New multi-query chart** to compare independently filtered populations. Use **Add series** for the second population, name each one, and choose a chart type in the live preview. Save the chart to this dashboard. Choose **Add widget → Markdown** to place an explanation above a chart row. Everyone with access to the dashboard can read the saved chart or note. The employee preview controls who can author them.
 
-![A Markdown note explains the two independently filtered metadata counts above a row of classic charts.](./docs/project-dashboard.png)
-
-![The live multi-query editor with two metadata populations and a visual chart picker.](./docs/chart-editor.png)
-
 ## Implementation
 
 `useDashboardBlocksData` loads saved blocks independently of the employee’s authoring permissions and supplies placement labels. `DashboardBlocksProvider` owns editor opening. The save/remove hooks in `useDashboardBlockMutations` own cache invalidation. `DashboardBlockEditor` owns revision-aware save inputs. `DashboardBlockCard` renders Markdown or the multi-query chart and owns removal confirmation. Markdown uses the existing safe Markdown renderer and design-system form fields backed by React Hook Form.
@@ -20,7 +16,7 @@ The `multi-query/` subtree owns its query editor, execution, preparation, and ch
 
 This release uses the existing PostgreSQL `dashboards.definition` JSON column. It requires no database migration, backfill or ClickHouse changes.
 
-When the upgraded app reads a classic `{ "widgets": [...] }` dashboard, it treats the placements as v1 blocks in memory. The read leaves the stored definition and its update timestamp untouched. The next layout edit or new-block save writes the root version `"1"` and both arrays, even if the edit only moves a classic card. This works for dashboards created by an older server during a rolling deployment. Newly created dashboards on upgraded servers can write v1 immediately. That array contains all classic placements and the new blocks. The `widgets` array mirrors only classic chart and preset placements, so older readers can display it unchanged. For example, a dashboard with a Home card and a note can be stored as follows.
+When the upgraded app reads a classic `{ "widgets": [...] }` dashboard, it treats the placements as v1 blocks in memory. The read leaves the stored definition and its update timestamp untouched. The next layout edit or new-block save writes the root version `"1"` and both arrays, even if the edit only moves a classic card. This works for dashboards created by an older server during a rolling deployment. Newly created dashboards on upgraded servers can write v1 immediately. The `blocks` array holds every supported placement. The `widgets` array mirrors the classic charts and presets that older readers can display. For example, a dashboard with a Home card and a note can be stored as follows.
 
 ```json
 {
@@ -45,13 +41,17 @@ Once every web replica supports the versioned definition and clone path, staff c
 | Employee opted out, or another authorized dashboard reader | Yes                               | No                                   |
 | Person without dashboard read permission                   | No                                | No                                   |
 
-![An unflagged project member sees the saved observation count, the Markdown note, and a classic Home card.](./docs/reader-without-preview.png)
-
 The existing dashboard read includes a presence hint so an ordinary classic dashboard can load without a separate block-list request. A new client pointed at a pre-feature server falls back to the classic dashboard. Older application versions continue to read and save the original grid. Turning the preview off keeps both the document and its contents visible on the upgraded app. A true application rollback restores the pre-feature layout writer. Opening a dashboard on that version preserves the complete document, but saving a classic layout replaces it with `{widgets}` and drops the new blocks on that dashboard. During a rollback, pause layout edits on pilot dashboards that must retain their blocks or back up their definitions before editing.
 
 A block refers to an existing chart placement or the end of the dashboard. If its anchor disappears, it displays at the end. Upgraded same-project clones include stored blocks and revisions are checked on updates. A clone created by a pre-feature server contains only the classic grid. The classic JSON export contains the original grid.
 
 Multi-query schedules up to five ordinary analytics queries per chart. For example, an observation containing both `metadata.abc` and `metadata.bbc` contributes to both independently filtered counts. Compatible presentation changes reuse existing results. Abandoned v4 streams can be aborted. On the legacy transport an already submitted request retains its concurrency slot until it settles.
+
+## Migrating a Home card
+
+Upgrading the dashboard definition keeps each Home card as a preset. An opted-in editor can add a candidate chart to the same project dashboard and compare both over the same dates and filters. For **Model costs**, start with Observations and add **Sum total cost** and **Sum total tokens**. Group by **Model** and filter **Type** to Generation, Agent, Tool, Chain, Retriever, Evaluator, Embedding and Guardrail. Choose **Table**, sort by total cost with the largest first, and set **Rows per series** to 20. The preset hides unnamed models and shows a cost subtotal. The editable table labels an unnamed model “Unknown” and gives each metric its own row. Compare these details as well as the query results before switching the card.
+
+The pilot places an inline chart above a row or at the end of the dashboard. A preset can occupy half a row. Anchoring a candidate to the right-hand preset puts it above both tiles. Deleting that preset moves the candidate to the end. Before converting a saved customer card, give the replacement its original grid position and size and retain enough of the original preset to undo the conversion. The managed default Home uses its own classic renderer and needs a separate rollout. After a recipe is verified, the chooser can offer it for new dashboards while existing dashboards keep their saved cards.
 
 ## Public API and MCP
 
