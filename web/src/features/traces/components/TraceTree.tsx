@@ -8,6 +8,7 @@ import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
@@ -155,6 +156,12 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
 }) {
+  const { isEmbedded, preferredObservationId } = useTracePresentation();
+  const isSelectedObservation =
+    isEmbedded &&
+    preferredObservationId != null &&
+    node.type !== "TRACE" &&
+    (node.observationId ?? node.id) === preferredObservationId;
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -164,9 +171,13 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
+      surfaceClassName={
+        isSelectedObservation ? "bg-light-violet text-foreground" : undefined
+      }
     >
       <SpanContent
         node={node}
+        isSelectedObservation={isSelectedObservation}
         emphasis={emphasis}
         commentCount={commentCount}
         onSelect={onSelect}
