@@ -1409,18 +1409,17 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
     { name: "nested" },
     { toString: null },
     [{ toString: null }],
-  ].map(
-    (name) =>
-      ["none", "object", "stringified"].map((attributes) => ({
-        scope: "other" as const,
-        sources: [],
-        toolMetadata: {
-          root: true,
-          attributes:
-            attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
-          name,
-        },
-      })),
+  ].map((name) =>
+    ["none", "object", "stringified"].map((attributes) => ({
+      scope: "other" as const,
+      sources: [],
+      toolMetadata: {
+        root: true,
+        attributes:
+          attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
+        name,
+      },
+    })),
   ),
   [aiProviderSeed([{ key: "tag.tags", value: "" }])],
   [
