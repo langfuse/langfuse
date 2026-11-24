@@ -2022,6 +2022,14 @@ async fn bedrock_guardrails_evaluate_last_turn_and_map_intervened_or_fail_open()
         ("block", StatusCode::OK, "NONE", StatusCode::OK, 1, false),
         (
             "block",
+            StatusCode::BAD_REQUEST,
+            "NONE",
+            StatusCode::BAD_REQUEST,
+            0,
+            true,
+        ),
+        (
+            "block",
             StatusCode::SERVICE_UNAVAILABLE,
             "NONE",
             StatusCode::OK,

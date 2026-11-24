@@ -21,10 +21,173 @@ use regex_automata::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
+use tokio::sync::Semaphore;
+use tracing::Instrument;
 
-use crate::resolution::ApiFormat;
+use crate::{
+    cpu::{CpuJob, CpuWork},
+    http::ParsedRequest,
+    inference::MemoryReservation,
+    providers::OutboundPolicy,
+    resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
+};
 use bedrock::BedrockGuardrail;
+use external::{ExternalGuardrailClient, ExternalPayloads};
 use text::{LastTurn, Unreadable};
+
+/// Evaluates local regex and external provider guardrails against a request's
+/// last turn, keeping CPU work off the async workers and reserving memory for
+/// external prompt copies.
+pub(crate) struct Guardrails {
+    external: ExternalGuardrailClient,
+    cpu: CpuWork,
+    memory_budget: Arc<Semaphore>,
+}
+
+impl Guardrails {
+    pub(crate) fn new(
+        policy: OutboundPolicy,
+        cpu: CpuWork,
+        memory_budget: Arc<Semaphore>,
+    ) -> Result<Self, ResolutionError> {
+        Ok(Self {
+            external: ExternalGuardrailClient::new(policy)?,
+            cpu,
+            memory_budget,
+        })
+    }
+
+    /// Scans the request's last turn with the guardrails resolved for its key.
+    /// Finding the last turn reads the whole conversation; the scan reads only
+    /// the last turn, so each step leaves the async worker based on what it reads.
+    /// External guardrails run concurrently after local regexes unless a local
+    /// `block` rule already matched.
+    pub(crate) async fn check(
+        &self,
+        api_format: ApiFormat,
+        context: &ResolvedRequestContext,
+        request: &ParsedRequest,
+    ) -> Result<Outcome, ResolutionError> {
+        if !context.guardrails().iter().any(Guardrail::is_active) {
+            return Ok(Outcome::default());
+        }
+        let guardrails: Arc<[Guardrail]> = context.guardrails().into();
+        let organization_id = context.attribution().organization_id().as_str().to_owned();
+        let body = request.body().clone();
+        let scanned = request.scanned.clone();
+        async move {
+            let (turn, finding) = self
+                .cpu
+                .run(CpuJob::FindLastTurn, scanned.len(), {
+                    let body = body.clone();
+                    let scanned = scanned.clone();
+                    move || {
+                        let started = std::time::Instant::now();
+                        let turn = last_turn(api_format, &body, &scanned);
+                        (turn, started.elapsed())
+                    }
+                })
+                .await
+                .ok_or(ResolutionError::Busy)?;
+            let bytes = turn.as_ref().map_or(0, LastTurn::bytes);
+            let has_external = guardrails.iter().any(Guardrail::is_external);
+            let turn_text_reservation = (has_external && bytes > 0)
+                .then(|| MemoryReservation::try_reserve(&self.memory_budget, bytes, "guardrails"))
+                .transpose()?;
+            let (mut local, scanning) = self
+                .cpu
+                .run(CpuJob::ScanGuardrails, bytes, {
+                    let guardrails = Arc::clone(&guardrails);
+                    move || {
+                        let started = std::time::Instant::now();
+                        let local = scan_local(&guardrails, &body, &scanned, &turn);
+                        (local, started.elapsed())
+                    }
+                })
+                .await
+                .ok_or(ResolutionError::Busy)?;
+            let turn_text = local.take_turn_text();
+            let mut total_duration = finding + scanning;
+            let external_matches = if !local.is_unreadable()
+                && !local.has_local_block(&guardrails)
+                && !turn_text.is_empty()
+            {
+                let (matches, elapsed) = self
+                    .evaluate_external(
+                        &local.external_targets(&guardrails),
+                        turn_text,
+                        turn_text_reservation,
+                        bytes,
+                        &organization_id,
+                    )
+                    .await?;
+                total_duration += elapsed;
+                matches
+            } else {
+                drop(turn_text);
+                drop(turn_text_reservation);
+                Vec::new()
+            };
+            crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
+            Ok(local.into_outcome(&guardrails, &external_matches))
+        }
+        .instrument(tracing::info_span!(
+            "request.guardrails",
+            otel.kind = "internal"
+        ))
+        .await
+    }
+
+    async fn evaluate_external(
+        &self,
+        targets: &[(usize, &Guardrail)],
+        turn_text: String,
+        turn_text_reservation: Option<MemoryReservation>,
+        turn_bytes: usize,
+        organization_id: &str,
+    ) -> Result<(Vec<(usize, bool)>, Duration), ResolutionError> {
+        if targets.is_empty() {
+            drop(turn_text);
+            drop(turn_text_reservation);
+            return Ok((Vec::new(), Duration::ZERO));
+        }
+        // Reserve for the serialized provider payload while `turn_text` is
+        // still live, then release `turn_text` and its budget before awaiting I/O.
+        let payload_reservation = MemoryReservation::try_reserve(
+            &self.memory_budget,
+            turn_bytes.saturating_add(64),
+            "guardrails",
+        )?;
+        let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
+        let payloads = ExternalPayloads::serialize(&guardrails, &turn_text);
+        drop(turn_text);
+        drop(turn_text_reservation);
+        let started = std::time::Instant::now();
+        let results = self
+            .external
+            .evaluate_many(&guardrails, &payloads, organization_id)
+            .await;
+        let elapsed = started.elapsed();
+        drop(payload_reservation);
+        let matches = targets
+            .iter()
+            .zip(results)
+            .map(|((slot, _), matched)| (*slot, matched))
+            .collect();
+        Ok((matches, elapsed))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_external(mut self, external: ExternalGuardrailClient) -> Self {
+        self.external = external;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_memory_budget(&mut self, memory_budget: Arc<Semaphore>) {
+        self.memory_budget = memory_budget;
+    }
+}
 
 /// Provider-specific configuration of a resolved guardrail.
 #[derive(Clone, Debug)]
@@ -48,7 +211,7 @@ pub(crate) struct Guardrail {
 }
 
 impl Guardrail {
-    pub(crate) fn is_active(&self) -> bool {
+    fn is_active(&self) -> bool {
         if self.action == GuardrailAction::Unknown {
             return false;
         }
@@ -78,7 +241,7 @@ impl Guardrail {
         }
     }
 
-    pub(crate) fn is_external(&self) -> bool {
+    fn is_external(&self) -> bool {
         self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
     }
 }
@@ -242,7 +405,7 @@ static COMPILED: LazyLock<Cache<GuardrailPatterns, Arc<Compiled>, CompiledWeight
 
 /// Finds `body`'s last turn. A conversation the gateway cannot read the way a
 /// provider might, such as a member or field that appears twice, is unreadable.
-pub(crate) fn last_turn(
+fn last_turn(
     api_format: ApiFormat,
     body: &[u8],
     scanned: &ScannedMembers,
@@ -262,7 +425,7 @@ fn member<'a>(body: &'a [u8], scanned: &ScannedMembers) -> impl Fn(&str) -> Opti
 
 /// Result of the CPU-bound local pass: regex matches plus the last turn's text
 /// when external guardrails also need to evaluate it.
-pub(crate) struct LocalScan {
+struct LocalScan {
     active_indices: Vec<usize>,
     matched: Vec<bool>,
     unreadable: bool,
@@ -270,11 +433,11 @@ pub(crate) struct LocalScan {
 }
 
 impl LocalScan {
-    pub(crate) fn is_unreadable(&self) -> bool {
+    fn is_unreadable(&self) -> bool {
         self.unreadable
     }
 
-    pub(crate) fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
+    fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
         self.active_indices
             .iter()
             .zip(&self.matched)
@@ -286,10 +449,7 @@ impl LocalScan {
             })
     }
 
-    pub(crate) fn external_targets<'a>(
-        &self,
-        guardrails: &'a [Guardrail],
-    ) -> Vec<(usize, &'a Guardrail)> {
+    fn external_targets<'a>(&self, guardrails: &'a [Guardrail]) -> Vec<(usize, &'a Guardrail)> {
         self.active_indices
             .iter()
             .enumerate()
@@ -300,11 +460,11 @@ impl LocalScan {
             .collect()
     }
 
-    pub(crate) fn take_turn_text(&mut self) -> String {
+    fn take_turn_text(&mut self) -> String {
         std::mem::take(&mut self.turn_text)
     }
 
-    pub(crate) fn into_outcome(
+    fn into_outcome(
         mut self,
         guardrails: &[Guardrail],
         external_matches: &[(usize, bool)],
@@ -338,7 +498,7 @@ impl LocalScan {
 /// Guardrails fail open: a regex whose patterns do not compile matches nothing.
 /// An unreadable turn is not a failure but a way to show the provider other text
 /// than the gateway scans, so it matches every active guardrail.
-pub(crate) fn scan_local(
+fn scan_local(
     guardrails: &[Guardrail],
     body: &[u8],
     scanned: &ScannedMembers,

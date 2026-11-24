@@ -26,7 +26,7 @@ use crate::{
 pub struct InferenceService {
     control_plane: Arc<ControlPlaneClient>,
     provider: ProviderTransport,
-    external_guardrails: crate::guardrails::external::ExternalGuardrailClient,
+    guardrails: crate::guardrails::Guardrails,
     request_limits: RequestLimits,
     memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -86,6 +86,27 @@ pub(crate) struct MemoryReservation {
 }
 
 impl MemoryReservation {
+    /// Reserve temporary working memory from `budget` without waiting.
+    pub(crate) fn try_reserve(
+        budget: &Arc<Semaphore>,
+        bytes: usize,
+        phase: &'static str,
+    ) -> Result<Self, ResolutionError> {
+        let reserved = u32::try_from(bytes)
+            .ok()
+            .and_then(|bytes| Arc::clone(budget).try_acquire_many_owned(bytes).ok())
+            .ok_or_else(|| {
+                crate::observability::rejected(phase);
+                ResolutionError::Busy
+            })?;
+        crate::observability::memory_reserved(bytes);
+        Ok(Self {
+            bytes: reserved,
+            overhead: 0,
+            budget: Arc::clone(budget),
+        })
+    }
+
     /// Grow the reservation to the overhead plus `body` bytes without waiting.
     ///
     /// # Errors
@@ -168,6 +189,13 @@ impl InferenceService {
         )?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         let control_plane = Arc::new(ControlPlaneClient::new(control_plane)?);
+        let memory_budget = Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes));
+        let cpu = CpuWork::new();
+        let guardrails = crate::guardrails::Guardrails::new(
+            config.outbound_policy.clone(),
+            cpu.clone(),
+            Arc::clone(&memory_budget),
+        )?;
         Ok(Self {
             control_plane: Arc::clone(&control_plane),
             provider: ProviderTransport::new(
@@ -176,17 +204,15 @@ impl InferenceService {
             )
             .map_err(|_| ResolutionError::Configuration)?
             .with_telemetry(telemetry.clone()),
-            external_guardrails: crate::guardrails::external::ExternalGuardrailClient::new(
-                config.outbound_policy.clone(),
-            )?,
+            guardrails,
             request_limits: config.request_limits,
-            memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
+            memory_budget,
             telemetry: Some(telemetry),
             spend_limits: crate::spend::SpendLimits::new(
                 config.spend_counters.clone(),
                 control_plane,
             ),
-            cpu: CpuWork::new(),
+            cpu,
         })
     }
 
@@ -255,31 +281,6 @@ impl InferenceService {
         Ok(MemoryReservation {
             bytes,
             overhead,
-            budget: Arc::clone(&self.memory_budget),
-        })
-    }
-
-    /// Reserve temporary working memory from the shared budget without waiting.
-    fn try_reserve_extra(
-        &self,
-        bytes: usize,
-        phase: &'static str,
-    ) -> Result<MemoryReservation, ResolutionError> {
-        let reserved = u32::try_from(bytes)
-            .ok()
-            .and_then(|bytes| {
-                Arc::clone(&self.memory_budget)
-                    .try_acquire_many_owned(bytes)
-                    .ok()
-            })
-            .ok_or_else(|| {
-                crate::observability::rejected(phase);
-                ResolutionError::Busy
-            })?;
-        crate::observability::memory_reserved(bytes);
-        Ok(MemoryReservation {
-            bytes: reserved,
-            overhead: 0,
             budget: Arc::clone(&self.memory_budget),
         })
     }
@@ -411,7 +412,7 @@ impl InferenceService {
             } else {
                 None
             };
-            let guardrails = self.check_guardrails(api_format, &context, request).await?;
+            let guardrails = self.guardrails.check(api_format, &context, request).await?;
             if let Some(blocking) = guardrails.blocking() {
                 let error = ResolutionError::GuardrailBlocked(
                     format!("Request blocked by guardrail \"{}\"", blocking.name).into(),
@@ -458,129 +459,6 @@ impl InferenceService {
         }
     }
 
-    /// Scans the request's last turn with the guardrails resolved for its key. Finding
-    /// the last turn reads the whole conversation; the scan reads only the last turn,
-    /// so each step leaves the async worker based on what it reads. External guardrails
-    /// run concurrently after local regexes unless a local `block` rule already matched.
-    async fn check_guardrails(
-        &self,
-        api_format: ApiFormat,
-        context: &ResolvedRequestContext,
-        request: &ParsedRequest,
-    ) -> Result<crate::guardrails::Outcome, ResolutionError> {
-        if !context
-            .guardrails()
-            .iter()
-            .any(crate::guardrails::Guardrail::is_active)
-        {
-            return Ok(crate::guardrails::Outcome::default());
-        }
-        let guardrails: Arc<[crate::guardrails::Guardrail]> = context.guardrails().into();
-        let organization_id = context.attribution().organization_id().as_str().to_owned();
-        let body = request.body().clone();
-        let scanned = request.scanned.clone();
-        async move {
-            let (turn, finding) = self
-                .run_cpu(CpuJob::FindLastTurn, scanned.len(), {
-                    let body = body.clone();
-                    let scanned = scanned.clone();
-                    move || {
-                        let started = std::time::Instant::now();
-                        let turn = crate::guardrails::last_turn(api_format, &body, &scanned);
-                        (turn, started.elapsed())
-                    }
-                })
-                .await?;
-            let bytes = turn
-                .as_ref()
-                .map_or(0, crate::guardrails::text::LastTurn::bytes);
-            let has_external = guardrails
-                .iter()
-                .any(crate::guardrails::Guardrail::is_external);
-            let turn_text_reservation = (has_external && bytes > 0)
-                .then(|| self.try_reserve_extra(bytes, "guardrails"))
-                .transpose()?;
-            let (mut local, scanning) = self
-                .run_cpu(CpuJob::ScanGuardrails, bytes, {
-                    let guardrails = Arc::clone(&guardrails);
-                    move || {
-                        let started = std::time::Instant::now();
-                        let local =
-                            crate::guardrails::scan_local(&guardrails, &body, &scanned, &turn);
-                        (local, started.elapsed())
-                    }
-                })
-                .await?;
-            let turn_text = local.take_turn_text();
-            let mut total_duration = finding + scanning;
-            let external_matches = if !local.is_unreadable()
-                && !local.has_local_block(&guardrails)
-                && !turn_text.is_empty()
-            {
-                let (matches, elapsed) = self
-                    .evaluate_external_guardrails(
-                        &local.external_targets(&guardrails),
-                        turn_text,
-                        turn_text_reservation,
-                        bytes,
-                        &organization_id,
-                    )
-                    .await?;
-                total_duration += elapsed;
-                matches
-            } else {
-                drop(turn_text);
-                drop(turn_text_reservation);
-                Vec::new()
-            };
-            crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
-            Ok(local.into_outcome(&guardrails, &external_matches))
-        }
-        .instrument(tracing::info_span!(
-            "request.guardrails",
-            otel.kind = "internal"
-        ))
-        .await
-    }
-
-    async fn evaluate_external_guardrails(
-        &self,
-        targets: &[(usize, &crate::guardrails::Guardrail)],
-        turn_text: String,
-        turn_text_reservation: Option<MemoryReservation>,
-        turn_bytes: usize,
-        organization_id: &str,
-    ) -> Result<(Vec<(usize, bool)>, Duration), ResolutionError> {
-        if targets.is_empty() {
-            drop(turn_text);
-            drop(turn_text_reservation);
-            return Ok((Vec::new(), Duration::ZERO));
-        }
-        // Reserve for the serialized provider payload while `turn_text` is
-        // still live, then release `turn_text` and its budget before awaiting I/O.
-        let payload_reservation =
-            self.try_reserve_extra(turn_bytes.saturating_add(64), "guardrails")?;
-        let guardrails: Vec<&crate::guardrails::Guardrail> =
-            targets.iter().map(|(_, guardrail)| *guardrail).collect();
-        let payloads =
-            crate::guardrails::external::ExternalPayloads::serialize(&guardrails, &turn_text);
-        drop(turn_text);
-        drop(turn_text_reservation);
-        let started = std::time::Instant::now();
-        let results = self
-            .external_guardrails
-            .evaluate_many(&guardrails, &payloads, organization_id)
-            .await;
-        let elapsed = started.elapsed();
-        drop(payload_reservation);
-        let matches = targets
-            .iter()
-            .zip(results)
-            .map(|((slot, _), matched)| (*slot, matched))
-            .collect();
-        Ok((matches, elapsed))
-    }
-
     /// Records the refused request as a generation, like one the provider answered.
     fn record_rejection(
         &self,
@@ -621,18 +499,23 @@ impl InferenceService {
 
     #[cfg(test)]
     pub(crate) fn for_test(control_plane: ControlPlaneClient, provider: ProviderTransport) -> Self {
+        let memory_budget = Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes));
+        let cpu = CpuWork::new();
+        let guardrails = crate::guardrails::Guardrails::new(
+            crate::providers::OutboundPolicy::default(),
+            cpu.clone(),
+            Arc::clone(&memory_budget),
+        )
+        .unwrap();
         Self {
             control_plane: Arc::new(control_plane),
             provider,
-            external_guardrails: crate::guardrails::external::ExternalGuardrailClient::new(
-                crate::providers::OutboundPolicy::default(),
-            )
-            .unwrap(),
+            guardrails,
             request_limits: RequestLimits::default(),
-            memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
+            memory_budget,
             telemetry: None,
             spend_limits: crate::spend::SpendLimits::default(),
-            cpu: CpuWork::new(),
+            cpu,
         }
     }
 
@@ -641,7 +524,7 @@ impl InferenceService {
         mut self,
         external_guardrails: crate::guardrails::external::ExternalGuardrailClient,
     ) -> Self {
-        self.external_guardrails = external_guardrails;
+        self.guardrails = self.guardrails.with_external(external_guardrails);
         self
     }
 
@@ -654,6 +537,8 @@ impl InferenceService {
     #[cfg(test)]
     pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
         self.memory_budget = Arc::new(Semaphore::new(request_limits.memory_budget_bytes));
+        self.guardrails
+            .set_memory_budget(Arc::clone(&self.memory_budget));
         self.request_limits = request_limits;
         self
     }

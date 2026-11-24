@@ -1,6 +1,7 @@
 //! AWS Bedrock `ApplyGuardrail` adapter authenticated with a Bedrock API key
-//! (`Authorization: Bearer`). Failures and timeouts fail open, matching the
-//! gateway's guardrail failure policy.
+//! (`Authorization: Bearer`). Input-rejected 4xx responses (400/413/422) fail
+//! closed so a caller cannot bypass a `block` rule by crafting input Bedrock
+//! rejects; outages, auth/config errors, throttling, and timeouts fail open.
 use std::{fmt, fmt::Write as _, time::Duration};
 
 use axum::body::Bytes;
@@ -113,15 +114,17 @@ pub(crate) async fn evaluate_one(
     match tokio::time::timeout(timeout, send_and_parse(request)).await {
         Ok(Ok(intervened)) => intervened,
         Ok(Err(failure)) => {
+            let matched = failure.fails_closed();
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
                 organization_id,
                 region = %config.region,
                 reason = failure.reason(),
                 status = failure.status(),
-                "bedrock guardrail check failed; failing open"
+                fail_closed = matched,
+                "bedrock guardrail check failed"
             );
-            false
+            matched
         }
         Err(_) => {
             tracing::warn!(
@@ -129,6 +132,7 @@ pub(crate) async fn evaluate_one(
                 organization_id,
                 region = %config.region,
                 reason = "timeout",
+                fail_closed = false,
                 "bedrock guardrail check timed out; failing open"
             );
             false
@@ -194,6 +198,21 @@ impl BedrockFailure {
             Self::HttpStatus(status) => Some(status.as_u16()),
             _ => None,
         }
+    }
+
+    /// Input-rejected 4xx statuses (such as Bedrock `ValidationException` for
+    /// oversized or malformed content) fail closed so callers cannot bypass a
+    /// `block` guardrail by crafting rejected input. Outages, auth/config errors,
+    /// throttling, and timeouts fail open.
+    fn fails_closed(&self) -> bool {
+        matches!(
+            self,
+            Self::HttpStatus(
+                StatusCode::BAD_REQUEST
+                    | StatusCode::PAYLOAD_TOO_LARGE
+                    | StatusCode::UNPROCESSABLE_ENTITY
+            )
+        )
     }
 }
 
@@ -335,6 +354,11 @@ mod tests {
                 Response::new(Body::from(r#"{"action":"GUARDRAIL_INTERVENED"}"#))
             } else if path == "/guardrail/pass/version/1/apply" {
                 Response::new(Body::from(r#"{"action":"NONE"}"#))
+            } else if path == "/guardrail/badinput/version/1/apply" {
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from(r#"{"message":"input too long"}"#))
+                    .unwrap()
             } else if path == "/guardrail/slow/version/1/apply" {
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 Response::new(Body::from(r#"{"action":"GUARDRAIL_INTERVENED"}"#))
@@ -352,12 +376,13 @@ mod tests {
         let guardrails = [
             sample_guardrail("g1", "intervene"),
             sample_guardrail("g2", "pass"),
-            sample_guardrail("g3", "slow"),
-            sample_guardrail("g4", "error"),
+            sample_guardrail("g3", "badinput"),
+            sample_guardrail("g4", "slow"),
+            sample_guardrail("g5", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::serialize(&refs, "hello world");
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
-        assert_eq!(results, vec![true, false, false, false]);
+        assert_eq!(results, vec![true, false, true, false, false]);
     }
 }
