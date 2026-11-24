@@ -3566,8 +3566,11 @@ export class OtelIngestionProcessor {
     }
 
     // Vercel AI SDK: <= v6 reports milliseconds, v7 reports the GenAI
-    // semconv metric name in seconds.
+    // semconv metric name in seconds. Other exporters use the GenAI semconv
+    // span attribute (seconds) or Strands' server metric (milliseconds).
     try {
+      const semconvSecondsToFirstChunk =
+        attributes["gen_ai.response.time_to_first_chunk"];
       const secondsToFirstChunk =
         attributes["gen_ai.client.operation.time_to_first_chunk"];
       const msToFirstChunk =
@@ -3575,7 +3578,12 @@ export class OtelIngestionProcessor {
         attributes["ai.stream.msToFirstChunk"] ??
         (secondsToFirstChunk != null && secondsToFirstChunk !== ""
           ? Number(secondsToFirstChunk) * 1000
-          : undefined);
+          : undefined) ??
+        (semconvSecondsToFirstChunk != null &&
+        semconvSecondsToFirstChunk !== ""
+          ? Number(semconvSecondsToFirstChunk) * 1000
+          : undefined) ??
+        attributes["gen_ai.server.time_to_first_token"];
       if (msToFirstChunk && startTimeISO) {
         const msToFirstChunkNumber = Math.ceil(Number(msToFirstChunk));
 
