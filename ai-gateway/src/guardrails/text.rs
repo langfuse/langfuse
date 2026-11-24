@@ -173,6 +173,38 @@ pub(crate) fn for_each<'a, T: Deserialize<'a>>(
         .map_err(|_| Unreadable)
 }
 
+/// A conversation message with a `role` and `content`, as in Chat Completions and
+/// Anthropic Messages.
+#[derive(Deserialize)]
+struct RoleMessage<'a> {
+    #[serde(borrow, default)]
+    role: Option<&'a RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a RawValue>,
+}
+
+/// An `assistant` message is the model's; every other role is a caller message.
+pub(crate) fn classify_role_message(item: &RawValue) -> Result<TurnItem, Unreadable> {
+    let message: RoleMessage<'_> = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
+    Ok(
+        if message.role.and_then(string).as_deref() == Some("assistant") {
+            TurnItem::Model
+        } else {
+            TurnItem::Message
+        },
+    )
+}
+
+pub(crate) fn read_role_message(
+    item: &RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), Unreadable> {
+    let message: RoleMessage<'_> = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
+    message
+        .content
+        .map_or(Ok(()), |content| collect(content, sink))
+}
+
 /// Who produced a conversation item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TurnItem {

@@ -467,27 +467,6 @@ impl AnthropicMessagesCapture {
 /// The top-level members guardrails scan.
 pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
 
-#[derive(serde::Deserialize)]
-struct GuardrailMessage<'a> {
-    #[serde(borrow, default)]
-    role: Option<&'a serde_json::value::RawValue>,
-    #[serde(borrow, default)]
-    content: Option<&'a serde_json::value::RawValue>,
-}
-
-impl GuardrailMessage<'_> {
-    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
-        match self
-            .role
-            .and_then(crate::guardrails::text::string)
-            .as_deref()
-        {
-            Some("assistant") => crate::guardrails::text::TurnItem::Model,
-            _ => crate::guardrails::text::TurnItem::Message,
-        }
-    }
-}
-
 pub(super) fn guardrail_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
@@ -496,8 +475,8 @@ pub(super) fn guardrail_turn<'a>(
         Some(messages) => turn.push_items(
             "messages",
             messages,
-            classify_guardrail_message,
-            read_guardrail_message,
+            crate::guardrails::text::classify_role_message,
+            crate::guardrails::text::read_role_message,
         )?,
         None => false,
     };
@@ -505,25 +484,6 @@ pub(super) fn guardrail_turn<'a>(
         turn.push_member("system", system);
     }
     Ok(turn)
-}
-
-fn classify_guardrail_message(
-    item: &serde_json::value::RawValue,
-) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
-    let message: GuardrailMessage<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    Ok(message.turn_item())
-}
-
-fn read_guardrail_message(
-    item: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let message: GuardrailMessage<'_> =
-        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
-    message.content.map_or(Ok(()), |content| {
-        crate::guardrails::text::collect(content, sink)
-    })
 }
 
 #[cfg(test)]
