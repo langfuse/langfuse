@@ -5,12 +5,6 @@ import { type TopicTraceQuery, type TopicTracesResult } from "./facet-topics";
 /** Which map the Topics page shows: a rule's live map, an analysis snapshot, or every rule. */
 export type TopicMapScope = { ruleId?: string; analysisId?: string };
 
-type TraceSourceInput = TopicMapScope & {
-  projectId?: string;
-  facetId?: string;
-  traceId?: string;
-};
-
 export const FacetTraceSource = createContext<
   ({ projectId: string; facetId: string } & TopicMapScope) | null
 >(null);
@@ -33,20 +27,15 @@ export function useFacetTopicTraces(
     {
       enabled: Boolean(source) && query !== null,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
-      // Another topic or filter of the same question keeps its rows until these
-      // load; another question, map or looked-up trace starts empty.
-      placeholderData: (previous, previousQuery) => {
-        const input = (
-          previousQuery?.queryKey[1] as { input?: TraceSourceInput } | undefined
-        )?.input;
-        return input?.projectId === projectId &&
-          input.facetId === facetId &&
-          input.ruleId === source?.ruleId &&
-          input.analysisId === source?.analysisId &&
-          input.traceId === query?.traceId
+      // The previous rows stay, dimmed, until these load; only another project starts empty.
+      placeholderData: (previous, previousQuery) =>
+        (
+          previousQuery?.queryKey[1] as
+            | { input?: { projectId?: string } }
+            | undefined
+        )?.input?.projectId === projectId
           ? previous
-          : undefined;
-      },
+          : undefined,
       meta: { toastOperation: "topics.load" },
     },
   );

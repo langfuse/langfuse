@@ -737,6 +737,14 @@ function TopicsWorkspaceContent({
                   options={unassignedSwitch}
                 />
               )}
+              {selectedAnalysis && (
+                <TopicMapStrip.Analysis
+                  analysis={selectedAnalysis}
+                  onViewRun={() => openExecution(selectedAnalysis.id)}
+                  controls={viewControls}
+                  options={unassignedSwitch}
+                />
+              )}
               <div
                 className={cn(
                   "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
@@ -754,14 +762,6 @@ function TopicsWorkspaceContent({
                       />
                     )}
                   </div>
-                )}
-                {selectedAnalysis && (
-                  <TopicMapStrip.Analysis
-                    analysis={selectedAnalysis}
-                    onViewRun={() => openExecution(selectedAnalysis.id)}
-                    controls={viewControls}
-                    options={unassignedSwitch}
-                  />
                 )}
                 <TopicSetupNotice
                   notice={modelSettings.notice}
