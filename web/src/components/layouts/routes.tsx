@@ -25,6 +25,7 @@ import {
   Box,
   Gauge,
   KeyRound,
+  NotebookText,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
@@ -188,6 +189,13 @@ export const ROUTES: Route[] = [
     ]),
     icon: LayoutDashboard,
     productModule: "dashboards",
+    section: RouteSection.Main,
+  },
+  {
+    title: "Notebooks",
+    href: "/project/[projectId]/notebooks",
+    icon: NotebookText,
+    projectRbacScopes: ["notebooks:read"],
     section: RouteSection.Main,
   },
   {

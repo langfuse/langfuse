@@ -30,6 +30,7 @@ import { experimentsFeature } from "./experiments";
 import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { monitorsFeature } from "./monitors";
 import { topicsFeature } from "./topics";
+import { notebooksFeature } from "./notebooks";
 import { v4MigrationFeature } from "./v4Migration";
 import { appsFeature } from "./apps";
 
@@ -54,6 +55,7 @@ const MCP_FEATURES = [
   externalMediaStorageFeature,
   monitorsFeature,
   topicsFeature,
+  notebooksFeature,
   v4MigrationFeature,
   appsFeature,
 ] as const satisfies readonly McpFeatureModule[];

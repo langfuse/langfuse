@@ -86,7 +86,13 @@ export const MobilePageTitle = ({
           single `⋯` overflow popover pinned to the right, so the header top
           block stays ~2 rows instead of the 4–5 it used to take. */}
       {!headerProps.hideTitleRow && (
-        <div className="mt-2 flex min-w-0 items-center gap-2">
+        <div
+          className={cn(
+            "mt-2 flex min-w-0 items-center gap-2",
+            // Add to the outer px-3 so the title matches the reading column.
+            headerProps.titleLayout === "reading" && "mx-1 sm:mx-3",
+          )}
+        >
           {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
             session id, the common case) squeezes it. */}
           {titleTabs && (

@@ -207,8 +207,9 @@ model Project {
   LlmSchema                         LlmSchema[]
   LlmTool                           LlmTool[]
   PromptProtectedLabels             PromptProtectedLabels[]
-  Dashboard                         Dashboard[]
-  DashboardWidget                   DashboardWidget[]
+    Dashboard                         Dashboard[]
+    DashboardWidget                   DashboardWidget[]
+    notebooks                         Notebook[]
   TableViewPreset                   TableViewPreset[]
   sessionViews                      SessionView[]
   sessionViewPinOverrides           SessionViewPinOverride[]
@@ -1984,6 +1985,73 @@ model LlmTool {
 
   @@unique([projectId, name])
   @@map("llm_tools")
+}
+
+model Notebook {
+  id                     String              @id @default(cuid())
+  projectId              String              @map("project_id")
+  project                Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title                  String
+  latestPublishedVersion Int?                @map("latest_published_version")
+  dirty                  Boolean             @default(true)
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+  versions               NotebookVersion[]
+  editGroups             NotebookEditGroup[]
+
+  @@unique([id, projectId])
+  @@index([projectId, id])
+  @@map("notebooks")
+}
+
+model NotebookVersion {
+  notebookId  String                    @map("notebook_id")
+  notebook    Notebook                  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  number      Int
+  publishedAt DateTime?                 @map("published_at")
+  layout      Json                      @default("{\"kind\":\"default\"}")
+  documents   NotebookVersionDocument[]
+
+  @@id([notebookId, number])
+  @@map("notebook_versions")
+}
+
+enum NotebookDocumentWidth {
+  contained
+  full
+}
+
+model NotebookVersionDocument {
+  notebookId  String                @map("notebook_id")
+  version     Int
+  snapshot    NotebookVersion       @relation(fields: [notebookId, version], references: [notebookId, number], onDelete: Cascade)
+  documentId  String                @map("document_id")
+  jsonl       String
+  contentHash String                @map("content_hash")
+  width       NotebookDocumentWidth @default(contained)
+
+  @@id([notebookId, version, documentId])
+  @@map("notebook_version_documents")
+}
+
+model NotebookEditGroup {
+  id          String                 @id @default(cuid())
+  notebookId  String                 @map("notebook_id")
+  projectId   String                 @map("project_id")
+  notebook    Notebook               @relation(fields: [notebookId, projectId], references: [id, projectId], onDelete: Cascade)
+  documentId  String                 @map("document_id")
+  runKey      String?                @map("run_key")
+  beforeJsonl String?                @map("before_jsonl")
+  afterJsonl  String                 @map("after_jsonl")
+  beforeWidth NotebookDocumentWidth? @map("before_width")
+  afterWidth  NotebookDocumentWidth  @default(contained) @map("after_width")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  closedAt    DateTime?              @map("closed_at")
+
+  @@index([projectId, runKey, closedAt])
+  @@index([notebookId, documentId, createdAt])
+  @@map("notebook_edit_groups")
 }
 
 model Dashboard {

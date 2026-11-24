@@ -69,7 +69,7 @@ export interface McpFeatureModule {
  * Manages registration and lookup of MCP tools across all features.
  * Singleton pattern ensures consistent state across application.
  */
-class ToolRegistry {
+export class ToolRegistry {
   private features = new Map<string, McpFeatureModule>();
   private tools = new Map<string, RegisteredTool>();
 

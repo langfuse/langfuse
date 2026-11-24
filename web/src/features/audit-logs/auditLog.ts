@@ -43,6 +43,7 @@ type AuditableResource =
   | "model"
   | "defaultLlmModel"
   | "notificationPreference"
+  | "notebook"
   | "prompt"
   | "promptProtectedLabel"
   | "skill"

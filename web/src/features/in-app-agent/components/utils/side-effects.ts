@@ -22,6 +22,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "experiments"
   | "externalMediaStorage"
   | "models"
+  | "notebooks"
   | "prompts"
   | "scoreAnalytics"
   | "scoreConfigs"
@@ -163,6 +164,15 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_addDashboardPlacement: ["dashboard"],
   langfuse_updateDashboardPlacement: ["dashboard"],
   langfuse_deleteDashboardPlacement: ["dashboard"],
+  langfuse_list_notebooks: [],
+  langfuse_get_notebook: [],
+  langfuse_create_notebook: ["notebooks"],
+  langfuse_validate_notebook: [],
+  langfuse_publish_notebook: ["notebooks"],
+  langfuse_read_document: [],
+  langfuse_write_document: ["notebooks"],
+  langfuse_patch_document: ["notebooks"],
+  langfuse_update_notebook_layout: ["notebooks"],
 } as const satisfies Record<
   InAppAgentMcpToolName,
   readonly InAppAgentTrpcInvalidationTarget[]
@@ -233,6 +243,9 @@ function performTargetInvalidation(
   }
   if (target === "models") {
     return utils.models.invalidate();
+  }
+  if (target === "notebooks") {
+    return utils.notebooks.invalidate();
   }
   if (target === "prompts") {
     return utils.prompts.invalidate();

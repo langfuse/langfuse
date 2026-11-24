@@ -280,6 +280,42 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "llmApiKeys:read" },
   },
+  list_notebooks: {
+    approval: "auto",
+    availability: { scope: "notebooks:read" },
+  },
+  get_notebook: {
+    approval: "auto",
+    availability: { scope: "notebooks:read" },
+  },
+  create_notebook: {
+    approval: "approval",
+    availability: { scope: "notebooks:CUD" },
+  },
+  validate_notebook: {
+    approval: "auto",
+    availability: { scope: "notebooks:read" },
+  },
+  publish_notebook: {
+    approval: "approval",
+    availability: { scope: "notebooks:CUD" },
+  },
+  read_document: {
+    approval: "auto",
+    availability: { scope: "notebooks:read" },
+  },
+  write_document: {
+    approval: "approval",
+    availability: { scope: "notebooks:CUD" },
+  },
+  patch_document: {
+    approval: "approval",
+    availability: { scope: "notebooks:CUD" },
+  },
+  update_notebook_layout: {
+    approval: "approval",
+    availability: { scope: "notebooks:CUD" },
+  },
   listObservations: {
     approval: "auto",
     availability: { scope: "project:read" },
