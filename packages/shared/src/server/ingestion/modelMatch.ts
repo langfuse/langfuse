@@ -482,6 +482,15 @@ export const redisModelToPrismaModel = (
   };
 };
 
+/**
+ * A failed clear is not thrown, so the committed change it follows is not
+ * reported as failed; the stale matches it leaves live until their TTL. Count
+ * failures so they can be alerted on.
+ */
+const recordCacheClearFailure = (
+  scope: "project" | "organization" | "global",
+) => recordIncrement("langfuse.model_match.cache_clear_failed", 1, { scope });
+
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
@@ -497,6 +506,7 @@ export async function clearModelCacheForProject(
       PROJECT_EPOCH_TTL_SECONDS,
     );
   } catch (error) {
+    recordCacheClearFailure("project");
     logger.error(
       `Error clearing model cache for project ${projectId}: ${error}`,
     );
@@ -535,6 +545,7 @@ export async function clearModelCacheForOrganization(
     const failed = results?.find(([error]) => error);
     if (failed) throw failed[0];
   } catch (error) {
+    recordCacheClearFailure("organization");
     logger.error(
       `Error clearing model cache for organization ${orgId}: ${error}`,
     );
@@ -559,6 +570,7 @@ export async function clearFullModelCache() {
     );
     logger.info("Cleared full model cache.");
   } catch (error) {
+    recordCacheClearFailure("global");
     logger.error(`Error clearing full model cache: ${error}`);
   }
 }

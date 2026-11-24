@@ -160,6 +160,8 @@ const orgRoutes: Route[] = [
     route: "organizations/llm-connections/[id]",
     methods: ["DELETE"],
   },
+  { route: "organizations/models/index", methods: ["GET", "PUT"] },
+  { route: "organizations/models/[id]", methods: ["GET", "DELETE"] },
   {
     route: "organizations/memberships/index",
     methods: ["GET", "PUT", "DELETE"],
