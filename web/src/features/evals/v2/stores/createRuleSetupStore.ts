@@ -1,4 +1,8 @@
-import { TRACE_TRANSCRIPT_EVAL_COLUMN } from "@langfuse/shared";
+import {
+  TRACE_TRANSCRIPT_EVAL_COLUMN,
+  type FilterState,
+} from "@langfuse/shared";
+import isEqual from "lodash/isEqual";
 import { createStore } from "zustand/vanilla";
 
 import type {
@@ -10,11 +14,17 @@ import type {
 
 export function createRuleSetupStore(
   initialDraft: RuleDraft,
-  scopeSetup: { scope: RuleScope; scopeControl: RuleScopeControl } = {
+  scopeSetup: {
+    scope: RuleScope;
+    scopeControl: RuleScopeControl;
+    /** Switching scope swaps these while the filter still equals the current scope's default. */
+    defaultFilters?: Record<RuleScope, FilterState>;
+  } = {
     scope: "observation",
     scopeControl: "hidden",
   },
 ): RuleSetupStore {
+  const { defaultFilters } = scopeSetup;
   return createStore<ReturnType<RuleSetupStore["getState"]>>((set) => ({
     ...initialDraft,
     initialDraft,
@@ -28,6 +38,10 @@ export function createRuleSetupStore(
       setScope: (scope) =>
         set((state) => ({
           scope,
+          ...(defaultFilters &&
+          isEqual(state.filter, defaultFilters[state.scope])
+            ? { filter: defaultFilters[scope] }
+            : {}),
           assignments: state.assignments.map((assignment) =>
             assignment.variableMapping?.some(
               ({ selectedColumnId }) =>

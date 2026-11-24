@@ -65,8 +65,8 @@ export function useEvaluatorTestAvailability({
   }
   if (scope === "trace") {
     if (!selectedObservation) return "Select a sample trace first.";
-    if (traceSample.hasNoTranscript) {
-      return "This trace has no transcript to evaluate.";
+    if (traceSample.hasNoMessages) {
+      return "This trace has no messages to evaluate.";
     }
     if (traceSample.error) {
       return `Couldn't load the selected trace: ${traceSample.error}`;

@@ -89,7 +89,14 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
     : formatProjectIdleTime(settings.data?.traceIdleMs);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <section className="mt-2 flex max-w-xl flex-col gap-2">
+      <div>
+        <h3 className="text-sm font-bold">Idle time</h3>
+        <p className="text-muted-foreground text-sm">
+          How long to wait after the last observation arrives before evaluating
+          the trace.
+        </p>
+      </div>
       <PopoverController
         align="start"
         contentClassName="w-80"
@@ -153,6 +160,6 @@ export function TraceRuleIdleTime({ projectId }: { projectId: string }) {
           </Trigger>
         )}
       </PopoverController>
-    </div>
+    </section>
   );
 }

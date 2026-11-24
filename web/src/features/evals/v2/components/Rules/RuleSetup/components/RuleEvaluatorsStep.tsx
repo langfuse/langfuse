@@ -120,7 +120,11 @@ export function RuleEvaluatorsStep({
     <Stepper
       number={2}
       title="Attach evaluators"
-      description="Choose which evaluators should run on matching observations."
+      description={
+        traceScope
+          ? "Choose which evaluators should run on matching traces."
+          : "Choose which evaluators should run on matching observations."
+      }
     >
       <EvalVariableSourceColumnsProvider
         value={traceScope ? TRACE_TRANSCRIPT_SOURCE_COLUMNS : sourceColumns}
@@ -140,6 +144,11 @@ export function RuleEvaluatorsStep({
           sourceUnavailableMessage={
             traceScope
               ? "No sample trace is available to validate JSON paths."
+              : undefined
+          }
+          emptyDescription={
+            traceScope
+              ? "Attach an evaluator to run on matching traces."
               : undefined
           }
           costEstimates={costEstimate.estimates}

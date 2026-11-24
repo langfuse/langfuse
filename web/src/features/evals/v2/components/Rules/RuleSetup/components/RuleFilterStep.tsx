@@ -9,6 +9,7 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
   TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { ruleScopeCopy } from "@/src/features/evals/v2/constants/ruleScopeCopy";
 import { env } from "@/src/env.mjs";
 import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/TraceRuleIdleTime/TraceRuleIdleTime";
 import { RuleSamplingSection } from "./RuleSamplingSection";
@@ -36,15 +37,12 @@ export function RuleFilterStep({
   const actions = store.getState().actions;
   const traceTranscript = scope === "trace";
   const scopeLocked = scopeControl === "locked";
+  const copy = ruleScopeCopy(scope, scopeControl !== "hidden");
   return (
     <Stepper
       number={1}
       title="Configure rule scope"
-      description={
-        traceTranscript
-          ? "Set filters and a sampling rate to control which traces are evaluated."
-          : "Set filters and a sampling rate to control which incoming observations are evaluated."
-      }
+      description={copy.stepDescription}
     >
       {scopeControl !== "hidden" && (
         <div
@@ -70,7 +68,7 @@ export function RuleFilterStep({
               disabled={scopeLocked}
               onChange={() => actions.setScope("trace")}
             />
-            Trace
+            Trace messages
           </label>
           {scopeLocked ? (
             <span className="text-muted-foreground text-xs">
@@ -94,6 +92,9 @@ export function RuleFilterStep({
         onSelect={actions.setSelectedObservation}
         sampleScope={scope}
         showMatches={!traceTranscript}
+        filterTitle={copy.filterTitle}
+        filterDescription={copy.filterDescription}
+        filterTooltip={copy.filterTooltip}
         onOpenTrace={(observation) => {
           if (!observation.traceId) return;
           const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -105,7 +106,7 @@ export function RuleFilterStep({
         }}
       />
       {traceTranscript ? <TraceRuleIdleTime projectId={projectId} /> : null}
-      <RuleSamplingSection store={store} />
+      <RuleSamplingSection store={store} {...copy.sampling} />
     </Stepper>
   );
 }

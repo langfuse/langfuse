@@ -84,8 +84,8 @@ export type TraceProps = {
   preferredObservationId?: string | null;
   /**
    * Embedded sample view. "messages" opens the transcript. "observation" opens
-   * the span. Both hide the metrics row and start with input and output
-   * collapsed. Unset on the standalone trace page.
+   * the span preview, has no Messages tab and ignores tree clicks. Both hide
+   * the metrics row. Unset on the standalone trace page.
    */
   presentation?: TracePresentation;
 };
@@ -95,32 +95,26 @@ const DESKTOP_LAYOUTS = {
     groupId: "trace-layout-v3",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
-    defaultDetailCollapsed: false,
   },
   peek: {
     groupId: "trace-layout-peek-v1",
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
-    defaultDetailCollapsed: false,
   },
-  // Observation samples open with the span detail on its rail.
-  "peek-detail-collapsed": {
-    groupId: "trace-layout-observation-detail-collapsed-v1",
+  "peek-observation-sample": {
+    groupId: "trace-layout-observation-sample-v1",
     defaultNavigationCollapsed: false,
-    expandDetailOnMount: false,
-    defaultDetailCollapsed: true,
+    expandDetailOnMount: true,
   },
   "peek-observation-focused": {
     groupId: "trace-layout-peek-navigation-collapsed-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: false,
-    defaultDetailCollapsed: false,
   },
   annotation: {
     groupId: "trace-layout-annotation-v1",
     defaultNavigationCollapsed: true,
     expandDetailOnMount: true,
-    defaultDetailCollapsed: false,
   },
 } as const;
 
@@ -136,7 +130,7 @@ function desktopLayoutKeyFor({
   traceContext: "fullscreen" | "peek" | "annotation";
   layout: TraceProps["layout"];
 }): DesktopLayoutKey {
-  if (presentation === "observation") return "peek-detail-collapsed";
+  if (presentation === "observation") return "peek-observation-sample";
   if (traceContext === "peek" && layout === "observation-focused") {
     return "peek-observation-focused";
   }
@@ -276,7 +270,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
           defaultObservationId={defaultObservationId}
           isMobile={isMobile}
           expandDetailOnMount={desktopLayout.expandDetailOnMount}
-          collapseDetailInitially={desktopLayout.defaultDetailCollapsed}
+          selectionLocked={presentation === "observation"}
         >
           {props.isLoading === true ? (
             <TraceLoading desktopLayout={desktopLayout} header={props.header} />
@@ -579,7 +573,8 @@ function TraceContent({
   const { isV4 } = useReadPath();
   // The embedded eval panel decides its own gate and asks for the transcript.
   const showMessagesTab =
-    presentation === "messages" || (isV4 && unifiedTraceSessionViewEnabled);
+    presentation === "messages" ||
+    (presentation == null && isV4 && unifiedTraceSessionViewEnabled);
   const activeView = traceTab({
     presentation,
     showMessagesTab,

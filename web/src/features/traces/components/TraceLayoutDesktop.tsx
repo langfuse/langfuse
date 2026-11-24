@@ -170,7 +170,6 @@ type TraceLayoutDesktopProps = {
   children: ReactNode;
   groupId: string;
   defaultNavigationCollapsed: boolean;
-  defaultDetailCollapsed?: boolean;
   reviewOpen: boolean;
   reviewPanel: ReactNode;
 };
@@ -201,17 +200,12 @@ function TraceNavigationDetailLayout({
   children,
   groupId,
   defaultNavigationCollapsed,
-  defaultDetailCollapsed = false,
   reviewOpen,
   reviewNavigationCollapsed,
   toggleReviewNavigation,
 }: Pick<
   TraceLayoutDesktopProps,
-  | "children"
-  | "groupId"
-  | "defaultNavigationCollapsed"
-  | "defaultDetailCollapsed"
-  | "reviewOpen"
+  "children" | "groupId" | "defaultNavigationCollapsed" | "reviewOpen"
 > & {
   reviewNavigationCollapsed: boolean;
   toggleReviewNavigation: () => void;
@@ -235,21 +229,13 @@ function TraceNavigationDetailLayout({
   // first open (no saved layout); memoized so the Group sees a stable prop.
   // Undefined during SSR.
   const computedDefaultLayout = useMemo(() => {
-    if (!(containerWidthPx > 0)) return undefined;
-    if (defaultDetailCollapsed) {
-      const detailPercent = (COLLAPSED_PANEL_PX / containerWidthPx) * 100;
-      return {
-        [RESIZABLE_PANEL_NAVIGATION_ID]: 100 - detailPercent,
-        [RESIZABLE_PANEL_PREVIEW_ID]: detailPercent,
-      };
-    }
     const navPercent = computeNavPercent(containerWidthPx);
     if (navPercent === undefined) return undefined;
     return {
       [RESIZABLE_PANEL_NAVIGATION_ID]: navPercent,
       [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navPercent,
     };
-  }, [containerWidthPx, defaultDetailCollapsed]);
+  }, [containerWidthPx]);
 
   // Restored layout for this group. Read before the collapse flags so we can
   // seed them from what the library is about to restore on mount — otherwise the
@@ -296,12 +282,11 @@ function TraceNavigationDetailLayout({
   const detailPanelRef = usePanelRef();
   const isDetailPanelCollapsed =
     detailPanelCollapsed ??
-    ((defaultDetailCollapsed && !defaultLayout) ||
-      isPanelCollapsedInLayout(
-        defaultLayout,
-        RESIZABLE_PANEL_PREVIEW_ID,
-        collapseSeedMaxSharePct,
-      ));
+    isPanelCollapsedInLayout(
+      defaultLayout,
+      RESIZABLE_PANEL_PREVIEW_ID,
+      collapseSeedMaxSharePct,
+    );
 
   // Group ref — drives the whole layout atomically (setLayout) when reopening a
   // collapsed panel, which is more robust than chaining the per-panel
@@ -509,15 +494,6 @@ function TraceNavigationDetailLayout({
     ) {
       panelRef.current.collapse();
       setIsNavigationPanelCollapsed(true);
-    }
-    if (
-      defaultDetailCollapsed &&
-      !defaultLayout &&
-      detailPanelRef.current &&
-      !detailPanelRef.current.isCollapsed()
-    ) {
-      detailPanelRef.current.collapse();
-      setIsDetailPanelCollapsed(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -9,6 +9,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
+import { cn } from "@/src/utils/tailwind";
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
@@ -72,8 +73,13 @@ function LoadedTraceTree() {
     trace,
     isNavigationReady,
   } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed, collapseAll } =
-    useSelection();
+  const {
+    selectedNodeId,
+    selectionLocked,
+    collapsedNodes,
+    toggleCollapsed,
+    collapseAll,
+  } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
   const scope = traceScope.type;
@@ -120,6 +126,7 @@ function LoadedTraceTree() {
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
+            selectionLocked={selectionLocked}
           />
         );
       }}
@@ -138,6 +145,7 @@ function TraceTreeRow({
   emphasis,
   commentCount,
   onHover,
+  selectionLocked,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
@@ -148,6 +156,7 @@ function TraceTreeRow({
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
+  selectionLocked: boolean;
 }) {
   return (
     <VirtualizedTreeNodeWrapper
@@ -158,6 +167,16 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
+      surfaceClassName={
+        selectionLocked
+          ? cn(
+              "cursor-default",
+              isSelected
+                ? "bg-muted text-foreground"
+                : "dark:text-muted-foreground",
+            )
+          : undefined
+      }
     >
       <SpanContent
         node={node}

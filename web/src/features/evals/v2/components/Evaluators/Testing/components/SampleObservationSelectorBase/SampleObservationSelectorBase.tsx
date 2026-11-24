@@ -1,6 +1,13 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useRef, useState, type UIEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import {
   CircleAlert,
   Database,
@@ -168,8 +175,9 @@ export type SampleObservationSelectorBaseProps = {
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
+  filterTitle?: string;
   filterDescription: string;
-  filterTooltip: string;
+  filterTooltip: ReactNode;
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;
@@ -234,6 +242,7 @@ export function SampleObservationSelectorBase(
     leadingColumns,
     resolveSelection,
     getRowClassName,
+    filterTitle = "Filter observations",
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -625,7 +634,7 @@ export function SampleObservationSelectorBase(
           </div>
         ) : (
           <SectionHeader
-            title="Filter observations"
+            title={filterTitle}
             meta={null}
             description={filterDescription}
             tooltip={filterTooltip}

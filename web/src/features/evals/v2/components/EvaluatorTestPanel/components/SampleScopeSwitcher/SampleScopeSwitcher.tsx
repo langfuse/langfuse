@@ -9,7 +9,7 @@ export function SampleScopeSwitcher({
 }: {
   scope: EvaluatorSampleScope;
   onScopeChange: (scope: EvaluatorSampleScope) => void;
-  /** Shows Trace disabled, e.g. for evaluator types without trace testing. */
+  /** Shows Trace messages disabled, e.g. for evaluator types without trace testing. */
   traceComingSoon?: boolean;
 }) {
   return (
@@ -31,14 +31,14 @@ export function SampleScopeSwitcher({
           />
           {traceComingSoon ? (
             <Tabs.Trigger value="trace" disabled title="Coming soon">
-              Trace
+              Trace messages
               <FeatureReleaseStatus status="coming-soon" />
             </Tabs.Trigger>
           ) : (
             <Tabs.Trigger
               value="trace"
-              label="Trace"
-              tooltip="Evaluate the whole conversation of a trace as a transcript."
+              label="Trace messages"
+              tooltip="Evaluate all the messages within a trace as one transcript."
             />
           )}
         </Tabs.List>

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
@@ -43,6 +43,9 @@ export function RuleSampleObservationSelector({
   onOpenTrace,
   sampleScope = "observation",
   showMatches = true,
+  filterTitle,
+  filterDescription,
+  filterTooltip,
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -55,6 +58,9 @@ export function RuleSampleObservationSelector({
   onOpenTrace: (observation: SampleObservation) => void;
   sampleScope?: "trace" | "observation";
   showMatches?: boolean;
+  filterTitle: string;
+  filterDescription: string;
+  filterTooltip: ReactNode;
 }) {
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),
@@ -78,16 +84,9 @@ export function RuleSampleObservationSelector({
       getRowClassName={undefined}
       sampleScope={sampleScope}
       showMatches={showMatches}
-      filterDescription={
-        sampleScope === "trace"
-          ? "Define which incoming traces match this rule."
-          : "Define which incoming observations match this rule."
-      }
-      filterTooltip={
-        sampleScope === "trace"
-          ? "Only new traces matching these filters are evaluated by this rule."
-          : "Only new observations matching these filters are evaluated by this rule."
-      }
+      filterTitle={filterTitle}
+      filterDescription={filterDescription}
+      filterTooltip={filterTooltip}
       matchingDescription="The first match is used to preview attached evaluator mappings."
       matchingTooltip={
         sampleScope === "trace"

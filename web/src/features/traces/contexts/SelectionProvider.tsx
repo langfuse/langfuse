@@ -49,6 +49,7 @@ const VALID_PREFS: ViewPref[] = ["formatted", "json"];
 interface SelectionContextValue {
   defaultObservationId: string | null;
   selectedNodeId: string | null;
+  selectionLocked: boolean;
   setSelectedNodeId: (id: string | null) => void;
   selectNode: (id: string | null) => void;
   openDetails: () => void;
@@ -91,8 +92,8 @@ interface SelectionProviderProps {
   defaultObservationId: string | null;
   isMobile: boolean;
   expandDetailOnMount: boolean;
-  /** The preselected observation does not open the detail pane. */
-  collapseDetailInitially?: boolean;
+  /** The caller owns the URL selection; tree, timeline and graph clicks do not change it. */
+  selectionLocked?: boolean;
 }
 
 export function SelectionProvider({
@@ -100,7 +101,7 @@ export function SelectionProvider({
   defaultObservationId,
   isMobile,
   expandDetailOnMount,
-  collapseDetailInitially = false,
+  selectionLocked = false,
 }: SelectionProviderProps) {
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -135,9 +136,7 @@ export function SelectionProvider({
   const [pendingPanelExpand, setPendingPanelExpand] = useState<
     "navigation" | "detail" | null
   >(
-    !isMobile &&
-      !collapseDetailInitially &&
-      (currentObservationId || expandDetailOnMount)
+    !isMobile && (currentObservationId || expandDetailOnMount)
       ? "detail"
       : null,
   );
@@ -159,19 +158,21 @@ export function SelectionProvider({
   }, [isMobile, setMobileTab, detailPanelCollapsed]);
   const selectNode = useCallback(
     (id: string | null) => {
+      if (selectionLocked) return;
       pendingObservationId.current = id;
       setCurrentObservationId(id);
       openDetails();
     },
-    [setCurrentObservationId, openDetails],
+    [selectionLocked, setCurrentObservationId, openDetails],
   );
   const setSelectedNodeId = useCallback(
     (id: string | null) => {
+      if (selectionLocked) return;
       // Synthetic graph nodes intentionally change selection without opening details.
       pendingObservationId.current = id;
       setCurrentObservationId(id);
     },
-    [setCurrentObservationId],
+    [selectionLocked, setCurrentObservationId],
   );
 
   // History navigation bypasses selectNode. Watch only the explicit URL
@@ -189,12 +190,9 @@ export function SelectionProvider({
     pendingObservationId.current = undefined;
     if (pendingId === observationId || isMobile) return;
     if (observationId === null) return;
-    // Samples write each preselected observation into the URL; those writes are
-    // not clicks, so they must not reopen a detail pane that starts collapsed.
-    if (collapseDetailInitially) return;
 
     openDetails();
-  }, [currentObservationId, isMobile, openDetails, collapseDetailInitially]);
+  }, [currentObservationId, isMobile, openDetails]);
 
   // Get localStorage default for view preference
   const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
@@ -284,6 +282,7 @@ export function SelectionProvider({
     () => ({
       defaultObservationId,
       selectedNodeId: currentObservationId ?? defaultObservationId,
+      selectionLocked,
       setSelectedNodeId,
       selectNode,
       openDetails,
@@ -311,6 +310,7 @@ export function SelectionProvider({
     [
       currentObservationId,
       defaultObservationId,
+      selectionLocked,
       setSelectedNodeId,
       selectNode,
       openDetails,

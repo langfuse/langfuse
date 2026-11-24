@@ -12,7 +12,7 @@ vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
 vi.mock("@/src/features/evals/v2/hooks/useEvaluatorTraceSample", () => ({
   useEvaluatorTraceSample: () => ({
     sourceObject: undefined,
-    hasNoTranscript: false,
+    hasNoMessages: false,
   }),
 }));
 

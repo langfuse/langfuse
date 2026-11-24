@@ -18,7 +18,6 @@ import {
 import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
 import { useStatusMessage } from "./hooks/useStatusMessage";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -97,7 +96,6 @@ export function IOPreviewJSONSimple({
   showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
   const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
-  const collapseIo = useTracePresentation() != null;
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
   // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
@@ -226,7 +224,7 @@ export function IOPreviewJSONSimple({
       )}
       {showInput &&
         (inputTooLarge ? (
-          <IOSection title="Input" defaultCollapsed={collapseIo}>
+          <IOSection title="Input">
             <LargeJsonFieldFallback
               title="Input"
               hideTitle
@@ -253,11 +251,7 @@ export function IOPreviewJSONSimple({
             }
           >
             {(state) => (
-              <IOSection
-                title="Input"
-                onCopy={state.copy}
-                defaultCollapsed={collapseIo}
-              >
+              <IOSection title="Input" onCopy={state.copy}>
                 <PrettyJsonViewContent state={state} title="Input" borderless />
               </IOSection>
             )}
@@ -265,11 +259,7 @@ export function IOPreviewJSONSimple({
         ))}
       {showOutput &&
         (outputTooLarge ? (
-          <IOSection
-            title="Output"
-            actions={outputActions}
-            defaultCollapsed={collapseIo}
-          >
+          <IOSection title="Output" actions={outputActions}>
             <LargeJsonFieldFallback
               title="Output"
               hideTitle
@@ -299,7 +289,6 @@ export function IOPreviewJSONSimple({
                 title="Output"
                 onCopy={state.copy}
                 actions={outputActions}
-                defaultCollapsed={collapseIo}
               >
                 <PrettyJsonViewContent
                   state={state}

@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared";
 
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { TRACE_TRANSCRIPT_DEFAULT_JSON_SELECTOR } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   selectSampleScope,
   type EvaluatorSetupStoreState,
@@ -17,21 +18,26 @@ type ScopedDraftState = TraceTranscriptDraftState &
   Pick<EvaluatorSetupStoreState, "sampleScope">;
 
 /**
- * Trace-scope bindings: every variable reads `threads`, optionally narrowed
- * by a JSONPath.
+ * Trace-scope bindings: every variable reads `threads`, narrowed by a
+ * JSONPath. Unset variables start on the first thread's messages.
  */
 function traceTranscriptVariableFields(
   variables: string[],
   traceVariableFields: Record<string, VariableFieldState>,
 ) {
   return Object.fromEntries(
-    variables.map((variable) => [
-      variable,
-      {
-        selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
-        jsonSelector: traceVariableFields[variable]?.jsonSelector ?? null,
-      },
-    ]),
+    variables.map((variable) => {
+      const field = traceVariableFields[variable];
+      return [
+        variable,
+        {
+          selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+          jsonSelector: field
+            ? field.jsonSelector
+            : TRACE_TRANSCRIPT_DEFAULT_JSON_SELECTOR,
+        },
+      ];
+    }),
   );
 }
 

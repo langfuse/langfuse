@@ -70,12 +70,16 @@ export function CreateRuleDialogContent({
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
-  const [ruleSetupStore] = useState(() =>
-    createRuleSetupStore(
+  const [ruleSetupStore] = useState(() => {
+    const ruleScope = traceEvalsAvailable ? initialScope : "observation";
+    const defaultFilters = {
+      observation: resolveInitialRuleFilters(initialFilter),
+      trace: [],
+    };
+    return createRuleSetupStore(
       {
         name: initialDraft?.name ?? "",
-        filter:
-          initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
+        filter: initialDraft?.filter ?? defaultFilters[ruleScope],
         sampling: initialDraft?.sampling ?? 1,
         assignments:
           initialDraft?.assignments ??
@@ -93,11 +97,12 @@ export function CreateRuleDialogContent({
             : []),
       },
       {
-        scope: traceEvalsAvailable ? initialScope : "observation",
+        scope: ruleScope,
         scopeControl: traceEvalsAvailable ? "editable" : "hidden",
+        defaultFilters: initialDraft ? undefined : defaultFilters,
       },
-    ),
-  );
+    );
+  });
   const scope = useStore(ruleSetupStore, (state) => state.scope);
   const traceScope = scope === "trace";
   const hasRequestedName = useRef(false);

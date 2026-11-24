@@ -95,7 +95,7 @@ export function VariableMappingEditorContainer({
       : (resolvedSample ?? lastCompletedSample.current);
   const sourceUnavailableMessage =
     scope === "trace"
-      ? traceSourceUnavailableMessage(traceSample.hasNoTranscript)
+      ? traceSourceUnavailableMessage(traceSample.hasNoMessages)
       : SOURCE_UNAVAILABLE_MESSAGE;
   const withSourceColumns = (editor: ReactNode) =>
     scope === "trace" ? (
@@ -147,8 +147,8 @@ export function VariableMappingEditorContainer({
   );
 }
 
-function traceSourceUnavailableMessage(hasNoTranscript: boolean) {
-  return hasNoTranscript
-    ? "This trace has no transcript. Pick another trace in the test panel."
+function traceSourceUnavailableMessage(hasNoMessages: boolean) {
+  return hasNoMessages
+    ? "This trace has no messages. Pick another trace in the test panel."
     : TRACE_SOURCE_UNAVAILABLE_MESSAGE;
 }

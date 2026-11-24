@@ -8,6 +8,7 @@ import {
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { resolveSelection } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
 import { TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { TRACE_FILTER_TOOLTIP } from "@/src/features/evals/v2/constants/ruleScopeCopy";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 const NO_LEADING_COLUMNS: Parameters<
@@ -53,8 +54,8 @@ export function TraceSampleSelectorContainer({
       leadingColumns={NO_LEADING_COLUMNS}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      filterDescription="A trace matches when one of its observations matches every filter. The rule you save uses these filters."
-      filterTooltip="Filters are checked per observation. A trace matches when a single observation meets every condition. Example: name = llm-call and level = ERROR finds traces with a failed llm-call, not traces with an llm-call and some other failed observation."
+      filterDescription="A trace matches if at least one of its observations matches all filters. The rule you save uses these filters."
+      filterTooltip={TRACE_FILTER_TOOLTIP}
       matchingDescription=""
       matchingTooltip=""
       formatCount={(count) => compactNumberFormatter(count)}
