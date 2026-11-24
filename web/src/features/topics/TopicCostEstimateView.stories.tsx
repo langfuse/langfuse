@@ -2,7 +2,7 @@ import { expect, fn, within } from "storybook/test";
 import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
 import preview from "../../../.storybook/preview";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
-import { costEstimateFixture as estimate } from "./topicCostEstimateFixture";
+import { costEstimateFixture as estimate } from "@/.storybook/fixtures/topicCostEstimateFixture";
 
 const meta = preview.meta({
   component: TopicCostEstimateView,

@@ -25,6 +25,7 @@ import {
 const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
+// New views build their SQL on the query AST, not from these `sql` strings: see ./AGENTS.md.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
 
 export const traceView: ViewDeclarationType = {

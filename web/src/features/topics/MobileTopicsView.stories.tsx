@@ -8,7 +8,10 @@ import { MobileTopicsView } from "./MobileTopicsView";
 import { PAGE_SIZE } from "./TopicMobileTraceList";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { prepareTopicsActions } from "./prepare-topics-actions";
-import { staticTopicTraces, storyFacet } from "./topic-story-traces";
+import {
+  staticTopicTraces,
+  storyFacet,
+} from "@/.storybook/fixtures/topic-story-traces";
 
 const topics = [
   {
