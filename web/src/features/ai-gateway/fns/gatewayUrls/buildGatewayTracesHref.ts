@@ -12,7 +12,11 @@ const metadataKeysBySubject = {
 
 type GatewayTracesSubject = keyof typeof metadataKeysBySubject;
 
-/** Link to the ingestion project's traces view filtered to one gateway user or API key. */
+/**
+ * Link to the ingestion project's observations route filtered to one gateway
+ * user or API key. On v4 this renders the unified events table; on legacy v3 it
+ * searches observation metadata where the gateway writes these keys.
+ */
 export function buildGatewayTracesHref({
   projectId,
   subject,
@@ -32,5 +36,5 @@ export function buildGatewayTracesHref({
     },
   ];
 
-  return `/project/${encodeURIComponent(projectId)}/traces?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
+  return `/project/${encodeURIComponent(projectId)}/observations?filter=${encodeURIComponent(encodeFiltersGeneric(filter))}`;
 }

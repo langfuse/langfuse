@@ -12,7 +12,7 @@ describe("buildGatewayTracesHref", () => {
     });
     const url = new URL(href, "http://localhost");
 
-    expect(url.pathname).toBe("/project/proj-1/traces");
+    expect(url.pathname).toBe("/project/proj-1/observations");
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
         column: "metadata",
@@ -32,7 +32,7 @@ describe("buildGatewayTracesHref", () => {
     });
     const url = new URL(href, "http://localhost");
 
-    expect(url.pathname).toBe("/project/proj%2F1/traces");
+    expect(url.pathname).toBe("/project/proj%2F1/observations");
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
         column: "metadata",
