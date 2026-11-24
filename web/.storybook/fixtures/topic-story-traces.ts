@@ -4,7 +4,7 @@ import {
   type FacetRow,
   type TopicTraceQuery,
   type UseTopicTraces,
-} from "./facet-topics";
+} from "@/src/features/topics/facet-topics";
 
 type StoryRow = Omit<FacetRow, "outcome"> & { outcome: string };
 

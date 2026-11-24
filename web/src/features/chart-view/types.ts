@@ -6,10 +6,6 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
  * spec below is deliberately flat and enum-heavy: cheap to put in the URL, and
  * easy for an LLM to generate (phase 2's "Ask AI → chart"). Happy path only —
  * 1 metric × 1 dimension × 1 standard chart type.
- *
- * The Storybook design harness in `features/chart-view-prototype` renders these
- * same components against mock fixtures; the production wiring (`EventsChartView`)
- * renders them against the real v4 aggregate query.
  */
 
 export type ViewMode = "table" | "chart";
