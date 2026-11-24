@@ -12,23 +12,29 @@ import { assertUnreachable } from "@/src/utils/types";
 export function assignmentsToTargetOptions(
   assignments: GatewayGuardrailRow["assignments"],
 ): TagAutocompleteOption[] {
-  return assignments.map((assignment) => {
+  return assignments.flatMap((assignment) => {
     switch (assignment.scope) {
       case "ORGANIZATION":
-        return EVERYONE_TARGET_OPTION;
+        return [EVERYONE_TARGET_OPTION];
       case "USER":
-        return {
-          value: `${USER_TARGET_PREFIX}${assignment.userId}`,
-          label: assignment.label,
-          secondaryLabel: assignment.secondaryLabel,
-          icon: User,
-        };
+        if (assignment.userId === null) return [];
+        return [
+          {
+            value: `${USER_TARGET_PREFIX}${assignment.userId}`,
+            label: assignment.label,
+            secondaryLabel: assignment.secondaryLabel,
+            icon: User,
+          },
+        ];
       case "API_KEY":
-        return {
-          value: `${API_KEY_TARGET_PREFIX}${assignment.apiKeyId}`,
-          label: assignment.label,
-          icon: KeyRound,
-        };
+        if (assignment.apiKeyId === null) return [];
+        return [
+          {
+            value: `${API_KEY_TARGET_PREFIX}${assignment.apiKeyId}`,
+            label: assignment.label,
+            icon: KeyRound,
+          },
+        ];
       default:
         return assertUnreachable(assignment);
     }

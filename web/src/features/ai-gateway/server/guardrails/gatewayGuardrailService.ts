@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import {
   InvalidRequestError,
   LangfuseConflictError,
@@ -104,6 +103,8 @@ export class GatewayGuardrailService {
     searchQuery?: string;
     page: number;
     limit: number;
+    /** Only gateway managers see other members' names/emails and other users' key names. */
+    viewer: { canManageGateway: boolean; userId: string };
   }) {
     const { rows, totalCount, organizationCount } =
       await this.repository.listPage(params);
@@ -122,7 +123,9 @@ export class GatewayGuardrailService {
     return {
       totalCount,
       organizationCount,
-      rows: rows.map((row) => toGuardrailDto(row, flaggedCounts)),
+      rows: rows.map((row) =>
+        toGuardrailDto(row, flaggedCounts, params.viewer),
+      ),
     };
   }
 
@@ -146,10 +149,7 @@ export class GatewayGuardrailService {
       params.organizationId,
     );
     if (!recordingProjectId) {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: "Gateway requests are not recorded",
-      });
+      throw new InvalidRequestError("Gateway requests are not recorded");
     }
 
     const guardrailIds = await this.resolveTimeSeriesGuardrailIds(
@@ -240,7 +240,10 @@ export class GatewayGuardrailService {
     });
 
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
-    return toGuardrailDto(created, null);
+    return toGuardrailDto(created, null, {
+      canManageGateway: true,
+      userId: params.session.user.id,
+    });
   }
 
   async update(params: {
@@ -253,14 +256,10 @@ export class GatewayGuardrailService {
     session: OrgAuthedContext["session"];
   }) {
     const presets = [...new Set(params.presets)];
-    const assignments = await this.normalizeAndValidateAssignments(
-      params.organizationId,
-      params.assignments,
-    );
 
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
-      // Lock the guardrail row before replacing assignments so concurrent saves cannot interleave.
+      // Lock the guardrail row before reading/replacing assignments so concurrent saves cannot interleave.
       const locked = await repo.lockById({
         organizationId: params.organizationId,
         id: params.id,
@@ -271,12 +270,42 @@ export class GatewayGuardrailService {
         id: params.id,
       });
       if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
+
+      const existingApiKeyIds = new Set(
+        existing.assignments.flatMap((assignment) =>
+          assignment.apiKeyId ? [assignment.apiKeyId] : [],
+        ),
+      );
+      const existingUserIds = new Set(
+        existing.assignments.flatMap((assignment) =>
+          assignment.userId ? [assignment.userId] : [],
+        ),
+      );
+      const assignments = await this.normalizeAndValidateAssignments(
+        params.organizationId,
+        params.assignments,
+        { existingApiKeyIds, existingUserIds, repository: repo },
+      );
+
+      // Preserve stored preset IDs unknown to this build (e.g. from a newer pod during rollout).
+      const existingConfig = GatewayRegexGuardrailConfigSchema.safeParse(
+        existing.config,
+      );
+      const preservedUnknownPresets = existingConfig.success
+        ? existingConfig.data.presets.filter(
+            (preset) => !isKnownGuardrailPreset(preset),
+          )
+        : [];
+      const mergedPresets = [
+        ...new Set([...presets, ...preservedUnknownPresets]),
+      ];
+
       const record = await repo.update({
         organizationId: params.organizationId,
         id: existing.id,
         name: params.name,
         action: params.action,
-        presets,
+        presets: mergedPresets,
         assignments,
       });
       await audit(tx, {
@@ -289,7 +318,10 @@ export class GatewayGuardrailService {
     });
 
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
-    return toGuardrailDto(updated, null);
+    return toGuardrailDto(updated, null, {
+      canManageGateway: true,
+      userId: params.session.user.id,
+    });
   }
 
   async deleteMany(params: {
@@ -341,6 +373,11 @@ export class GatewayGuardrailService {
   private async normalizeAndValidateAssignments(
     organizationId: string,
     assignments: GatewayGuardrailAssignmentInput[],
+    existing?: {
+      existingApiKeyIds: ReadonlySet<string>;
+      existingUserIds: ReadonlySet<string>;
+      repository?: GatewayGuardrailRepository;
+    },
   ): Promise<GatewayGuardrailAssignmentInput[]> {
     const deduped = deduplicateAssignments(assignments);
     if (deduped.length === 0) {
@@ -356,13 +393,24 @@ export class GatewayGuardrailService {
     }
     if (hasOrgScope) return [{ scope: "ORGANIZATION" }];
 
+    // Only validate targets being newly added; existing assignments stay editable even if a member was removed.
     const apiKeyIds = deduped.flatMap((assignment) =>
-      assignment.scope === "API_KEY" ? [assignment.apiKeyId] : [],
+      assignment.scope === "API_KEY" &&
+      !existing?.existingApiKeyIds.has(assignment.apiKeyId)
+        ? [assignment.apiKeyId]
+        : [],
     );
     const userIds = deduped.flatMap((assignment) =>
-      assignment.scope === "USER" ? [assignment.userId] : [],
+      assignment.scope === "USER" &&
+      !existing?.existingUserIds.has(assignment.userId)
+        ? [assignment.userId]
+        : [],
     );
-    const valid = await this.repository.findValidTargetIds({
+    if (apiKeyIds.length === 0 && userIds.length === 0) {
+      return deduped;
+    }
+    const repo = existing?.repository ?? this.repository;
+    const valid = await repo.findValidTargetIds({
       organizationId,
       apiKeyIds,
       userIds,
@@ -447,6 +495,7 @@ function assignmentKey(assignment: GatewayGuardrailAssignmentInput): string {
 function toGuardrailDto(
   record: GatewayGuardrailRecord,
   flaggedCounts: Map<string, number> | null,
+  viewer: { canManageGateway: boolean; userId: string },
 ) {
   const parsed = GatewayRegexGuardrailConfigSchema.safeParse(record.config);
   const presets = parsed.success
@@ -467,7 +516,18 @@ function toGuardrailDto(
             scope: "ORGANIZATION" as const,
             label: "Everyone",
           };
-        case "API_KEY":
+        case "API_KEY": {
+          const canSeeKey =
+            viewer.canManageGateway ||
+            assignment.apiKey?.userId === viewer.userId;
+          if (!canSeeKey) {
+            return {
+              id: assignment.id,
+              scope: "API_KEY" as const,
+              apiKeyId: null,
+              label: null,
+            };
+          }
           return {
             id: assignment.id,
             scope: "API_KEY" as const,
@@ -477,7 +537,19 @@ function toGuardrailDto(
               assignment.apiKey?.displaySecretKey ??
               assignment.apiKeyId!,
           };
-        case "USER":
+        }
+        case "USER": {
+          const canSeeUser =
+            viewer.canManageGateway || assignment.userId === viewer.userId;
+          if (!canSeeUser) {
+            return {
+              id: assignment.id,
+              scope: "USER" as const,
+              userId: null,
+              label: null,
+              secondaryLabel: undefined,
+            };
+          }
           return {
             id: assignment.id,
             scope: "USER" as const,
@@ -491,6 +563,7 @@ function toGuardrailDto(
                 ? assignment.user.email
                 : undefined,
           };
+        }
         default:
           return assertUnreachable(assignment.scope);
       }

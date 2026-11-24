@@ -15,7 +15,6 @@ import { LoaderCircle, X, type IconComponent } from "@langfuse/icons";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { TagAutocompleteChip } from "@/src/components/TagAutocompleteInput/components/TagAutocompleteChip/TagAutocompleteChip";
 import { TagAutocompleteOptionItem } from "@/src/components/TagAutocompleteInput/components/TagAutocompleteOptionItem/TagAutocompleteOptionItem";
-import { rankTagAutocompleteOptions } from "@/src/components/TagAutocompleteInput/fns/rankTagAutocompleteOptions";
 import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/types/tagAutocompleteOption";
 import { Command, CommandList } from "@/src/components/ui/command";
 import {
@@ -42,8 +41,8 @@ export type TagAutocompleteInputProps<V extends string = string> = {
    * toggling the option in `value`.
    */
   onOptionSelect?: (option: TagAutocompleteOption<V>) => void;
-  /** Controlled search for async or custom-parsed options; omit for local auto-suggest. */
-  search?: {
+  /** Caller-owned search query; options are rendered as supplied (static or async). */
+  search: {
     value: string;
     onValueChange: (value: string) => void;
   };
@@ -66,10 +65,9 @@ export type TagAutocompleteInputProps<V extends string = string> = {
 };
 
 /**
- * Inline multi-select tag input with an auto-suggest popover. Supports static
- * options (filtered locally) or async options (via controlled `search` and
- * `loading`), optional icons on chips and dropdown rows, and keyboard chip
- * navigation from the inline input.
+ * Controlled inline multi-select tag input with an auto-suggest popover.
+ * Callers own `search` and supply either filtered static options or async
+ * results, with optional icons on chips and dropdown rows.
  */
 export function TagAutocompleteInput<V extends string = string>({
   label,
@@ -92,22 +90,9 @@ export function TagAutocompleteInput<V extends string = string>({
   onBlur,
   inputRef,
 }: TagAutocompleteInputProps<V>) {
-  const [uncontrolledQuery, setUncontrolledQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
-
-  const isControlledSearch = search !== undefined;
-  const query = isControlledSearch ? search.value : uncontrolledQuery;
-  const setQuery = isControlledSearch
-    ? search.onValueChange
-    : setUncontrolledQuery;
-
-  const displayedOptions = useMemo(
-    () =>
-      isControlledSearch ? options : rankTagAutocompleteOptions(options, query),
-    [isControlledSearch, options, query],
-  );
 
   const selectedValues = useMemo(
     () => new Set(value.map((item) => item.value)),
@@ -124,7 +109,7 @@ export function TagAutocompleteInput<V extends string = string>({
       onOptionSelect(option);
       return;
     }
-    setQuery("");
+    search.onValueChange("");
     if (selectedValues.has(option.value)) {
       onValueChange(value.filter((item) => item.value !== option.value));
       return;
@@ -136,7 +121,7 @@ export function TagAutocompleteInput<V extends string = string>({
     if (disabled) return;
     setOpen(true);
     setActiveIndex(null);
-    setQuery(nextValue);
+    search.onValueChange(nextValue);
   };
 
   const handleEdit = (item: TagAutocompleteOption<V>) => {
@@ -229,17 +214,16 @@ export function TagAutocompleteInput<V extends string = string>({
 
   const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
     if (event.relatedTarget?.closest("[data-tag-autocomplete-input]")) return;
-    const currentQuery = query;
+    const currentQuery = search.value;
     setOpen(false);
     setActiveIndex(null);
-    if (!isControlledSearch) setUncontrolledQuery("");
     onBlur?.(currentQuery);
   };
 
   const handleClear = () => {
     if (disabled) return;
     onValueChange([]);
-    setQuery("");
+    search.onValueChange("");
   };
 
   const handleContainerMouseDown = (event: MouseEvent<HTMLDivElement>) => {
@@ -270,12 +254,11 @@ export function TagAutocompleteInput<V extends string = string>({
   const handleOpenChange = (nextOpen: boolean) => {
     if (disabled) return;
     setOpen(nextOpen);
-    if (!nextOpen && !isControlledSearch) setUncontrolledQuery("");
   };
 
   const showClearButton =
     !disabled && (value.length > 0 || emptyTag !== undefined);
-  const showEmpty = !loading && displayedOptions.length === 0;
+  const showEmpty = !loading && options.length === 0;
 
   return (
     <Command
@@ -329,7 +312,7 @@ export function TagAutocompleteInput<V extends string = string>({
                 aria-invalid={error || undefined}
                 className="placeholder:text-muted-foreground h-6 min-w-28 flex-1 border-0 bg-transparent p-0 px-1 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
                 placeholder={placeholder}
-                value={query}
+                value={search.value}
                 onValueChange={handleQueryChange}
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
@@ -359,7 +342,7 @@ export function TagAutocompleteInput<V extends string = string>({
           className="w-(--radix-popover-trigger-width) min-w-0 overflow-hidden p-0"
         >
           <CommandList className="ph-no-capture max-h-96 p-1.5">
-            {displayedOptions.map((option) => (
+            {options.map((option) => (
               <TagAutocompleteOptionItem
                 key={option.value}
                 option={option}

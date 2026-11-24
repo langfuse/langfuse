@@ -58,6 +58,9 @@ export function GatewayGuardrailsPage({
     canManageGateway &&
     (table.guardrails.data?.organizationCount ?? 0) >=
       GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION;
+  const notRecordingMessage = canManageGateway
+    ? "Flagged request counts come from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion on the Overview page to see counts here."
+    : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see flagged request counts here.";
 
   return (
     <>
@@ -91,9 +94,7 @@ export function GatewayGuardrailsPage({
         ) : null}
         {isRecording === false ? (
           <Banner title="Gateway requests aren’t recorded">
-            {canManageGateway
-              ? "Flagged request counts come from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion on the Overview page to see counts here."
-              : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see flagged request counts here."}
+            {notRecordingMessage}
           </Banner>
         ) : null}
         {isRecording === undefined ? (

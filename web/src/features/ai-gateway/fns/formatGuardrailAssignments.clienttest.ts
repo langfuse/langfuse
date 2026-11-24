@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { formatGuardrailAssignments } from "@/src/features/ai-gateway/fns/formatGuardrailAssignments";
 
 describe("formatGuardrailAssignments", () => {
-  it("formats Everyone, single target, multiple targets, and empty", () => {
+  it("formats Everyone, single target, multiple targets, redacted targets, and empty", () => {
     expect(
       formatGuardrailAssignments([
         { scope: "ORGANIZATION", label: "Everyone" },
@@ -17,6 +17,10 @@ describe("formatGuardrailAssignments", () => {
     ).toEqual({ primary: "support-bot-prod" });
 
     expect(
+      formatGuardrailAssignments([{ scope: "USER", label: null }]),
+    ).toEqual({ primary: "1 target" });
+
+    expect(
       formatGuardrailAssignments([
         { scope: "API_KEY", label: "support-bot-prod" },
         { scope: "USER", label: "Jonas Weber" },
@@ -24,6 +28,15 @@ describe("formatGuardrailAssignments", () => {
     ).toEqual({
       primary: "2 targets",
       secondary: "support-bot-prod, Jonas Weber",
+    });
+
+    expect(
+      formatGuardrailAssignments([
+        { scope: "API_KEY", label: null },
+        { scope: "USER", label: null },
+      ]),
+    ).toEqual({
+      primary: "2 targets",
     });
 
     expect(

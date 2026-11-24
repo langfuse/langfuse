@@ -1038,11 +1038,17 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
         orgId: input.orgId,
       });
+      const canManageGateway = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "gateway:manage",
+      });
       return new GatewayGuardrailService(ctx.prisma).list({
         organizationId: input.orgId,
         searchQuery: input.searchQuery || undefined,
         page: input.page,
         limit: input.limit,
+        viewer: { canManageGateway, userId: ctx.session.user.id },
       });
     }),
 

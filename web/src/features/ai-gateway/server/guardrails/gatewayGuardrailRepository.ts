@@ -36,6 +36,7 @@ const GUARDRAIL_SELECT = {
           id: true,
           note: true,
           displaySecretKey: true,
+          userId: true,
         },
       },
       user: {
@@ -193,7 +194,7 @@ export class GatewayGuardrailRepository {
     id: string;
     name: string;
     action: GatewayGuardrailAction;
-    presets: GatewayGuardrailPreset[];
+    presets: string[];
     assignments: GatewayGuardrailAssignmentInput[];
   }) {
     await this.prisma.gatewayGuardrailAssignment.deleteMany({

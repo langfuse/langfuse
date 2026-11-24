@@ -10,7 +10,7 @@ export type GuardrailAssignmentSummary = {
 export function formatGuardrailAssignments(
   assignments: readonly {
     scope: "ORGANIZATION" | "API_KEY" | "USER";
-    label: string;
+    label: string | null;
   }[],
 ): GuardrailAssignmentSummary {
   if (assignments.length === 0) {
@@ -20,11 +20,16 @@ export function formatGuardrailAssignments(
     return { primary: "Everyone" };
   }
   if (assignments.length === 1) {
-    return { primary: assignments[0]!.label };
+    const first = assignments[0]!;
+    return { primary: first.label ?? "1 target" };
   }
-  const preview = assignments
-    .slice(0, MAX_PREVIEW_NAMES)
-    .map((assignment) => assignment.label);
+  const visibleLabels = assignments.flatMap((assignment) =>
+    assignment.label ? [assignment.label] : [],
+  );
+  if (visibleLabels.length === 0) {
+    return { primary: `${assignments.length} targets` };
+  }
+  const preview = visibleLabels.slice(0, MAX_PREVIEW_NAMES);
   const remaining = assignments.length - preview.length;
   return {
     primary: `${assignments.length} targets`,

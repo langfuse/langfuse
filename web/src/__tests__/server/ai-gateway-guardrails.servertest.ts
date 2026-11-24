@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { createOrgMembership } from "@langfuse/shared/memberships";
+import {
+  createOrgMembership,
+  deleteOrgMembership,
+} from "@langfuse/shared/memberships";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
@@ -221,9 +224,9 @@ describe("aiGateway guardrails tRPC", () => {
       NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
       LANGFUSE_AI_GATEWAY_ENABLED: "true",
     });
-    await expect(caller.aiGateway.listGuardrails({ orgId })).rejects.toThrow(
-      /not enabled/i,
-    );
+    await expect(
+      caller.aiGateway.listGuardrails({ orgId }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     // Self-hosted production: blocked
     Object.assign(env, {
@@ -233,9 +236,9 @@ describe("aiGateway guardrails tRPC", () => {
       LANGFUSE_AI_GATEWAY_ENABLED: "true",
       LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
     });
-    await expect(caller.aiGateway.listGuardrails({ orgId })).rejects.toThrow(
-      /not enabled/i,
-    );
+    await expect(
+      caller.aiGateway.listGuardrails({ orgId }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     // Staging: allowed
     Object.assign(env, {
@@ -257,7 +260,7 @@ describe("aiGateway guardrails tRPC", () => {
     expect(previewResult.rows).toEqual([]);
   });
 
-  it("enforces OWNER/ADMIN management vs read-only access and CRUD constraints", async () => {
+  it("enforces OWNER/ADMIN management, redacts other identities for non-managers, and validates CRUD", async () => {
     Object.assign(env, {
       NODE_ENV: "production",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
@@ -324,7 +327,7 @@ describe("aiGateway guardrails tRPC", () => {
       expect.objectContaining({ scope: "ORGANIZATION", label: "Everyone" }),
     ]);
 
-    // Duplicate name rejected
+    // Duplicate name rejected with CONFLICT
     await expect(
       ownerCaller.aiGateway.createGuardrail({
         orgId,
@@ -333,9 +336,9 @@ describe("aiGateway guardrails tRPC", () => {
         presets: ["email"],
         assignments: [{ scope: "ORGANIZATION" }],
       }),
-    ).rejects.toThrow(/already exists/i);
+    ).rejects.toMatchObject({ code: "CONFLICT" });
 
-    // Combining Everyone with a specific user/key rejected
+    // Combining Everyone with a specific user/key rejected with BAD_REQUEST
     await expect(
       ownerCaller.aiGateway.createGuardrail({
         orgId,
@@ -347,9 +350,9 @@ describe("aiGateway guardrails tRPC", () => {
           { scope: "API_KEY", apiKeyId: keyId },
         ],
       }),
-    ).rejects.toThrow(/Everyone cannot be combined/i);
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
-    // Cross-tenant key rejected
+    // Cross-tenant key rejected with NOT_FOUND
     await expect(
       ownerCaller.aiGateway.createGuardrail({
         orgId,
@@ -358,14 +361,9 @@ describe("aiGateway guardrails tRPC", () => {
         presets: ["email"],
         assignments: [{ scope: "API_KEY", apiKeyId: otherOrgKeyId }],
       }),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    // Non-admins can list read-only, but cannot manage or search targets
-    const memberList = await memberCaller.aiGateway.listGuardrails({ orgId });
-    expect(memberList.totalCount).toBe(1);
-    const viewerList = await viewerCaller.aiGateway.listGuardrails({ orgId });
-    expect(viewerList.totalCount).toBe(1);
-
+    // Non-admins cannot create, search targets, or delete (FORBIDDEN)
     await expect(
       memberCaller.aiGateway.createGuardrail({
         orgId,
@@ -374,16 +372,16 @@ describe("aiGateway guardrails tRPC", () => {
         presets: ["email"],
         assignments: [{ scope: "ORGANIZATION" }],
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       memberCaller.aiGateway.searchGuardrailTargets({ orgId }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       viewerCaller.aiGateway.deleteGuardrails({
         orgId,
         target: { type: "ids", ids: [created.id] },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     // Admin searches targets and updates guardrail to specific user + key
     const targets = await ownerCaller.aiGateway.searchGuardrailTargets({
@@ -407,16 +405,100 @@ describe("aiGateway guardrails tRPC", () => {
     expect(updated.action).toBe("LOG");
     expect(updated.assignments).toHaveLength(2);
 
+    // VIEWER sees the guardrail read-only, with other members' identities and key names redacted
+    const viewerList = await viewerCaller.aiGateway.listGuardrails({ orgId });
+    expect(viewerList.totalCount).toBe(1);
+    expect(viewerList.rows[0]?.assignments).toEqual([
+      expect.objectContaining({
+        scope: "API_KEY",
+        apiKeyId: null,
+        label: null,
+      }),
+      expect.objectContaining({ scope: "USER", userId: null, label: null }),
+    ]);
+
+    // MEMBER sees their own user and own key labels
+    const memberList = await memberCaller.aiGateway.listGuardrails({ orgId });
+    expect(memberList.rows[0]?.assignments).toEqual([
+      expect.objectContaining({
+        scope: "API_KEY",
+        apiKeyId: keyId,
+        label: "support-bot-prod",
+      }),
+      expect.objectContaining({
+        scope: "USER",
+        userId: member.id,
+        label: "Member User",
+      }),
+    ]);
+
+    // Removing a targeted member still allows admins to edit/rename the guardrail
+    await deleteOrgMembership(prisma, { orgId, userId: member.id });
+    const renamedAfterMemberRemoval =
+      await ownerCaller.aiGateway.updateGuardrail({
+        orgId,
+        id: created.id,
+        name: "Log PII renamed",
+        action: "LOG",
+        presets: ["email"],
+        assignments: [
+          { scope: "USER", userId: member.id },
+          { scope: "API_KEY", apiKeyId: keyId },
+        ],
+      });
+    expect(renamedAfterMemberRemoval.name).toBe("Log PII renamed");
+
     // Bulk delete by matching search
     const deleted = await ownerCaller.aiGateway.deleteGuardrails({
       orgId,
-      target: { type: "matching", searchQuery: "support" },
+      target: { type: "matching", searchQuery: "renamed" },
     });
     expect(deleted.deletedCount).toBe(1);
 
     const afterDelete = await ownerCaller.aiGateway.listGuardrails({ orgId });
     expect(afterDelete.totalCount).toBe(0);
     expect(afterDelete.organizationCount).toBe(0);
+  });
+
+  it("preserves unknown stored presets when editing a guardrail", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Preset Owner");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+
+    const guardrail = await createGuardrail({
+      organizationId: orgId,
+      name: "Future preset rule",
+      config: { presets: ["email", "future_preset_v2"] },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+
+    await ownerCaller.aiGateway.updateGuardrail({
+      orgId,
+      id: guardrail.id,
+      name: "Future preset rule renamed",
+      action: "LOG",
+      presets: ["email"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+
+    const stored = await prisma.gatewayGuardrail.findUniqueOrThrow({
+      where: { id: guardrail.id },
+      select: { config: true },
+    });
+    expect(stored.config).toEqual({
+      presets: ["email", "future_preset_v2"],
+    });
   });
 
   it("enforces a maximum of 20 guardrails per organization", async () => {
@@ -464,7 +546,7 @@ describe("aiGateway guardrails tRPC", () => {
       GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
     );
 
-    // 21st guardrail in the same org is rejected with the support guidance message.
+    // 21st guardrail in the same org is rejected with BAD_REQUEST and the support guidance message.
     await expect(
       ownerCaller.aiGateway.createGuardrail({
         orgId,
@@ -473,7 +555,10 @@ describe("aiGateway guardrails tRPC", () => {
         presets: ["email"],
         assignments: [{ scope: "ORGANIZATION" }],
       }),
-    ).rejects.toThrow(GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE);
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
+    });
 
     // Another organization is unaffected.
     const otherCreated = await otherOrgCaller.aiGateway.createGuardrail({

@@ -39,13 +39,24 @@ function InteractiveTagAutocomplete({
   error?: boolean;
 }) {
   const [value, setValue] = useState<TagAutocompleteOption[]>(initialValue);
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const options = needle
+    ? SAMPLE_OPTIONS.filter(
+        (option) =>
+          option.label.toLowerCase().includes(needle) ||
+          option.secondaryLabel?.toLowerCase().includes(needle),
+      )
+    : SAMPLE_OPTIONS;
+
   return (
     <div className="w-96">
       <TagAutocompleteInput
         label="Applies to"
         value={value}
-        options={SAMPLE_OPTIONS}
+        options={options}
         onValueChange={setValue}
+        search={{ value: query, onValueChange: setQuery }}
         placeholder="Add users or API keys"
         loading={loading}
         error={error}
