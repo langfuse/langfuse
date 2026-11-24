@@ -1,4 +1,4 @@
-import type { TopicCostEstimate } from "@langfuse/shared/topics";
+import { type TopicCostEstimate } from "@langfuse/shared/topics";
 
 /** A finished estimate for stories; override fields to show other states. */
 export const costEstimateFixture = (

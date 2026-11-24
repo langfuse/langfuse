@@ -169,6 +169,18 @@ impl<'a> ToolColumns<'a> {
         {
             return self.call(value, false);
         }
+        // An OpenAI Responses object lists its calls as items of `output`. They are read
+        // like the items of an output array, before the object's own call arrays.
+        if top_level {
+            for item in object
+                .get("output")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                self.output_item(item, false)?;
+            }
+        }
         self.call_array(object, &["tool_calls", "toolCalls"])?;
         if top_level {
             for choice in object
