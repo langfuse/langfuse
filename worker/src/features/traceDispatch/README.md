@@ -1,6 +1,6 @@
 # Trace readiness and dispatch
 
-Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). Events dispatch is on by default. Set `LANGFUSE_EVENTS_DISPATCH_ENABLED=false` to disable the pipeline. `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
+Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). Events dispatch is on by default. Set `LANGFUSE_EVENTS_DISPATCH_ENABLED=false` to disable the pipeline. `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (default on) picks the services that run the consumer and the dispatcher (worker-cpu on Langfuse Cloud); a Redis lock keeps one dispatcher active.
 
 - **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling, using a deterministic trace-ID value.
 
@@ -76,7 +76,7 @@ Redis CPU/memory. Queue metrics are under `langfuse.events_dispatch`.
 The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDispatch/config.ts) (`traceDispatchConfig`, `eventsDispatchConfig`); the env surface is:
 
 - `LANGFUSE_EVENTS_DISPATCH_ENABLED` turns on recording at ingestion, the dispatcher and the consumer.
-- `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
+- `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (default on; worker-cpu only on Langfuse Cloud) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
 - `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120, at most 1,000) caps traces per events-dispatch job.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
 
