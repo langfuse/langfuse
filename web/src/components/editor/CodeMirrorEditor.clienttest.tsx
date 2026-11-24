@@ -1,20 +1,41 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type * as ReactCodeMirror from "@uiw/react-codemirror";
+import type { Extension } from "@codemirror/state";
 import {
   CodeMirrorEditor,
   getPromptVariableDiagnostics,
 } from "@/src/components/editor/CodeMirrorEditor";
+
+const editorHarness = vi.hoisted(() => ({
+  extensionSnapshots: [] as Array<Extension[] | undefined>,
+}));
 
 vi.mock("@uiw/react-codemirror", async (importOriginal) => {
   const actual = await importOriginal<typeof ReactCodeMirror>();
 
   return {
     ...actual,
-    default: ({ className }: { className?: string }) => (
-      <div className={className} data-testid="code-mirror" />
-    ),
+    default: ({
+      className,
+      extensions,
+      onChange,
+    }: {
+      className?: string;
+      extensions?: Extension[];
+      onChange?: (value: string) => void;
+    }) => {
+      editorHarness.extensionSnapshots.push(extensions);
+      return (
+        <button
+          type="button"
+          className={className}
+          data-testid="code-mirror"
+          onClick={() => onChange?.("hello")}
+        />
+      );
+    },
   };
 });
 
@@ -23,6 +44,21 @@ describe("CodeMirrorEditor session recording privacy", () => {
     render(<CodeMirrorEditor value="customer payload" mode="text" />);
 
     expect(screen.getByTestId("code-mirror")).toHaveClass("ph-no-capture");
+  });
+});
+
+describe("CodeMirrorEditor extension identity", () => {
+  it("does not rebuild prompt-mode extensions after the first character", () => {
+    editorHarness.extensionSnapshots.length = 0;
+
+    render(<CodeMirrorEditor value="" mode="prompt" onChange={vi.fn()} />);
+
+    const extensionsBefore = editorHarness.extensionSnapshots.at(-1);
+    fireEvent.click(screen.getByTestId("code-mirror"));
+    const extensionsAfter = editorHarness.extensionSnapshots.at(-1);
+
+    expect(extensionsBefore).toBeDefined();
+    expect(extensionsAfter).toBe(extensionsBefore);
   });
 });
 
