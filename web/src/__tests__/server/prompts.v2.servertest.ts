@@ -3619,6 +3619,22 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it.each(["", "0", "-1"])(
+      "rejects an invalid version selector (%j) before looking up the prompt",
+      async (version) => {
+        const { auth } = await createOrgProjectAndApiKey();
+        const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+          method: "DELETE",
+          query: { promptName: uuidv4(), version },
+          headers: { authorization: auth },
+        });
+
+        await promptNameHandler(req, res);
+
+        expect(res._getStatusCode()).toBe(400);
+      },
+    );
+
     it("returns a bodyless 204", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const name = "deletePromptBodyless" + uuidv4();

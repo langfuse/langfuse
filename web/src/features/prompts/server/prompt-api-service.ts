@@ -181,10 +181,17 @@ export const deletePromptForApi = async ({
   label?: string;
   ctx?: AuthorizationContext;
 }) => {
+  if (
+    version !== undefined &&
+    (version === null || !Number.isSafeInteger(version) || version < 1)
+  ) {
+    throw new InvalidRequestError("Prompt version must be a positive integer");
+  }
+
   const where = {
     projectId: context.projectId,
     name: promptName,
-    ...(version ? { version } : {}),
+    ...(version !== undefined ? { version } : {}),
     ...(label ? { labels: { has: label } } : {}),
   };
 
