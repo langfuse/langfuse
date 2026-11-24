@@ -43,9 +43,12 @@ pub struct NormalizedObservation {
 /// Normalize tool metadata, augment the input when needed, then extract storage columns.
 ///
 /// Append definitions from metadata to input before extracting definitions from it.
-/// Extract tool calls from output in a separate pass. A definition name whose JavaScript
-/// property-key conversion throws clears the tool columns. Input, output and metadata stay
-/// as they were after the metadata move, matching the TypeScript `catch`.
+/// Extract tool calls from output in a separate pass. A JavaScript conversion that throws
+/// inside the TypeScript `try` clears the tool columns: a definition name that cannot be a
+/// property key, a call name that `ToString` rejects while building an id-less dedupe key,
+/// or `String(type)` inside `isToolCallLike`. When the input produced no definitions and the
+/// output is an OpenAI Responses object, definitions are read from `output.tools` before
+/// that. Input, output and metadata stay as they were after the metadata move.
 pub fn normalize_tools_for_observation(
     mut input: Option<Value>,
     output: Option<Value>,
@@ -59,12 +62,13 @@ pub fn normalize_tools_for_observation(
     let mut columns = ToolColumns::new(parse_cache);
     let tools = match input.as_ref().map(|value| columns.input(value)) {
         Some(Err(_)) => NormalizedTools::default(),
-        _ => {
-            if let Some(value) = &output {
-                columns.output(value);
-            }
-            columns.finish()
-        }
+        _ => match output.as_ref().map(|value| {
+            columns.responses_tool_definitions(value)?;
+            columns.output(value)
+        }) {
+            Some(Err(_)) => NormalizedTools::default(),
+            _ => columns.finish(),
+        },
     };
     NormalizedObservation {
         input,
@@ -401,6 +405,17 @@ fn definition_name_js(value: &Value) -> Result<Option<JsString>, PropertyKeyType
         Value::String(value) => value.clone(),
         value => javascript_string(value).into(),
     }))
+}
+
+/// Whether JavaScript `ToString` throws for a JSON value.
+///
+/// `String(value)` and a template substitution both use `ToString`. `ToPropertyKey` starts
+/// with the same `ToPrimitive` hint String (`toString`, then `valueOf`). A symbol is a valid
+/// property key, while `ToString` throws on a symbol. JSON cannot represent a symbol or a
+/// callable `toString` or `valueOf`, so a JSON value throws for one exactly when it throws
+/// for the other.
+pub(super) fn javascript_to_string_throws(value: &Value) -> bool {
+    property_key_conversion_throws(value)
 }
 
 /// Whether `ToPropertyKey` throws. Hint String tries `toString`, then `valueOf`.
@@ -838,6 +853,94 @@ mod tests {
             normalized.input.unwrap()["tools"].as_array().unwrap().len(),
             2
         );
+    }
+
+    #[test]
+    fn drops_tool_columns_when_a_call_name_cannot_be_stringified() {
+        let normalized = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {"name": "weather", "arguments": {}}
+                    },
+                    {"name": {"toString": null}, "arguments": {}}
+                ]
+            })),
+            json!({}),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+    }
+
+    #[test]
+    fn drops_tool_columns_when_output_type_cannot_be_stringified() {
+        let normalized = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "type": {"toString": null},
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+    }
+
+    #[test]
+    fn reads_response_tools_when_input_has_no_definitions() {
+        let normalized = normalize(
+            None,
+            Some(json!({
+                "output": [{
+                    "type": "function_call",
+                    "call_id": "c",
+                    "name": "get_weather",
+                    "arguments": "{}"
+                }],
+                "tools": [{"name": "get_weather", "description": "forecast"}]
+            })),
+            json!({}),
+        );
+        assert!(normalized
+            .tools
+            .tool_definitions
+            .contains_key("get_weather"));
+
+        let thrown = normalize(
+            None,
+            Some(json!({
+                "output": [],
+                "tools": [{"name": {"toString": null}}, {"name": "a"}],
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        assert!(thrown.tools.tool_definitions.is_empty());
+        assert!(thrown.tools.tool_calls.is_empty());
+        assert!(thrown.tools.tool_call_names.is_empty());
+
+        let kept = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "output": [],
+                "tools": [{"name": {"toString": null}}]
+            })),
+            json!({}),
+        );
+        assert!(kept.tools.tool_definitions.contains_key("a"));
     }
 
     #[test]

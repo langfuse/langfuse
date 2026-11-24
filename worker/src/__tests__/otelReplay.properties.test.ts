@@ -1504,6 +1504,52 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       },
     ]),
   ],
+  // Tool columns clear when a call name or an output type cannot be stringified,
+  // and Responses output.tools fills definitions the input did not provide.
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "weather", arguments: {} },
+            },
+            { name: { toString: null }, arguments: {} },
+          ],
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({ type: { toString: null } }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          output: [],
+          tools: [{ name: "get_weather", description: "forecast" }],
+        }),
+      },
+    ]),
+  ],
   [
     genericProviderSeed([
       {
