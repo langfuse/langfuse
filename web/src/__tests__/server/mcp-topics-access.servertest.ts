@@ -17,16 +17,13 @@ import {
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
 import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
+import { topicsFeature } from "@/src/features/mcp/server/topics";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import type { ServerContext } from "@/src/features/mcp/types";
 
-const TOPICS_TOOLS = [
-  "listTopicRules",
-  "listTopicFacets",
-  "listTopics",
-  "listTopicSummaries",
-  "listTopicAssignments",
-];
+const TOPICS_TOOLS = topicsFeature.tools.map(
+  ({ definition }) => definition.name,
+);
 
 async function contextFor(key: {
   projectId: string;
@@ -161,6 +158,11 @@ describe("Topics MCP tools access", () => {
       ["listTopicAssignments", { filter: byTopic }, owner.traceId],
     ];
 
+    // A new Topics tool must add its read here.
+    expect(reads.map(([tool]) => tool).sort()).toEqual(
+      [...TOPICS_TOOLS].sort(),
+    );
+
     // Positive control: the owner's key reads each id through the same tool.
     for (const [tool, args, id] of reads) {
       const result = await callText(ownerClient, tool, args);
@@ -180,6 +182,10 @@ describe("Topics MCP tools access", () => {
   });
 
   it("denies a key without topics:read", async () => {
+    // Every Topics tool is read-only; a write tool needs its own role test.
+    expect(
+      new Set(topicsFeature.tools.map(({ definition }) => definition.action)),
+    ).toEqual(new Set(["topics:read"]));
     const creator = await prisma.user.create({
       data: { email: `topics-mcp-ingest-${randomUUID()}@example.com` },
     });
