@@ -45,10 +45,10 @@
 
 # GitHub workflows, actions and repo config (workflows hold release secrets).
 # Also covers this file, so changing ownership needs a pod lead.
-/.github/ @Steffen911 @hassiebp @nimarb
+/.github/ @Steffen911 @hassiebp @nimarb @maxdeichmann
 
 # CI pipeline scripts
-/scripts/ci/ @Steffen911 @hassiebp @nimarb
+/scripts/ci/ @Steffen911 @hassiebp @nimarb @maxdeichmann
 
 # Public APIs (REST routes, auth/rate limiting/middleware, shared types)
 /web/src/pages/api/public/ @Steffen911 @hassiebp @nimarb
