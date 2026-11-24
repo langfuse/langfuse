@@ -20,7 +20,6 @@ import {
 import {
   GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
   GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
-  getEffectiveDefaultCountingStartedAt,
 } from "./gatewayDefaultSpendLimits";
 import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 
@@ -217,19 +216,9 @@ async function findReportedLimits(
             where: { scope: "USER" },
             select: { organizationId: true },
           },
-          gatewaySpendLimitResets: {
-            select: {
-              organizationId: true,
-              spendLimitId: true,
-              countingStartedAt: true,
-            },
-          },
         },
       },
       gatewayAssociation: { select: { apiKeyId: true } },
-      gatewaySpendLimitResets: {
-        select: { spendLimitId: true, countingStartedAt: true },
-      },
       _count: { select: { gatewaySpendLimits: true } },
     },
   });
@@ -310,22 +299,6 @@ async function findReportedLimits(
     name: user.name,
   };
 
-  const defaultResetByScopeAndLimit = new Map<string, Date>();
-  for (const reset of callingKey.gatewaySpendLimitResets) {
-    defaultResetByScopeAndLimit.set(
-      `${GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY}:${reset.spendLimitId}`,
-      reset.countingStartedAt,
-    );
-  }
-  for (const reset of user?.gatewaySpendLimitResets ?? []) {
-    if (reset.organizationId === orgId) {
-      defaultResetByScopeAndLimit.set(
-        `${GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.USER}:${reset.spendLimitId}`,
-        reset.countingStartedAt,
-      );
-    }
-  }
-
   return reported.flatMap(
     ({
       spendLimitId,
@@ -334,18 +307,11 @@ async function findReportedLimits(
       windowStart,
       thresholdPercent,
     }) => {
-      const found = limits.find(({ id, scope, countingStartedAt: started }) => {
-        if (id !== spendLimitId) return false;
-        const effectiveStarted =
-          scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY ||
-          scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.USER
-            ? getEffectiveDefaultCountingStartedAt(
-                started,
-                defaultResetByScopeAndLimit.get(`${scope}:${id}`),
-              )
-            : started;
-        return effectiveStarted.getTime() === countingStartedAt.getTime();
-      });
+      const found = limits.find(
+        ({ id, countingStartedAt: started }) =>
+          id === spendLimitId &&
+          started.getTime() === countingStartedAt.getTime(),
+      );
       if (!found || !found.alertThresholds.includes(thresholdPercent)) {
         return [];
       }
@@ -369,10 +335,6 @@ async function findReportedLimits(
       }
       if (defaultSubjects.get(scope) !== subjectId) return [];
       const appliesToKey = scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES.API_KEY;
-      const effectiveCountingStartedAt = getEffectiveDefaultCountingStartedAt(
-        limit.countingStartedAt,
-        defaultResetByScopeAndLimit.get(`${scope}:${limit.id}`),
-      );
       return [
         {
           subjectId,
@@ -380,7 +342,6 @@ async function findReportedLimits(
           thresholdPercent,
           limit: {
             ...limit,
-            countingStartedAt: effectiveCountingStartedAt,
             apiKey: appliesToKey
               ? {
                   id: callingKey.id,

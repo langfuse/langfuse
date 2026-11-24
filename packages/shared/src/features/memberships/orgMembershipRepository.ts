@@ -96,9 +96,6 @@ export async function deleteOrgMembership(
     await tx.gatewaySpendLimit.deleteMany({
       where: { organizationId: orgId, userId, scope: "USER" },
     });
-    await tx.gatewaySpendLimitReset.deleteMany({
-      where: { organizationId: orgId, userId },
-    });
     await revokeRolesForPrincipal(tx, {
       tenantId: OrganizationId(orgId),
       principalId: UserId(userId),

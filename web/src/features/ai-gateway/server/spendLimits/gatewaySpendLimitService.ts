@@ -43,10 +43,7 @@ import {
   type GatewaySpendLimitRecord,
   type GatewaySubjectlessSpendLimitScope,
 } from "./gatewaySpendLimitRepository";
-import {
-  GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
-  getEffectiveDefaultCountingStartedAt,
-} from "./gatewayDefaultSpendLimits";
+import { GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES } from "./gatewayDefaultSpendLimits";
 import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "./gatewayOrganizationSpendLimitScope";
 import {
   type GatewaySpendLimitScope,
@@ -127,30 +124,14 @@ export class GatewaySpendLimitService {
       scope: "API_KEY",
     });
     const withOwnLimit = new Set(ownLimits.map(({ apiKeyId }) => apiKeyId));
-    const defaultApiKeyIds = fallback
-      ? await this.apiKeys.filterVisibleGatewayApiKeyIds({
-          organizationId: params.organizationId,
-          ownerUserId,
-          apiKeyIds: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
-        })
-      : [];
-    const defaultResets =
-      fallback && defaultApiKeyIds.length > 0
-        ? await this.repository.listResetsForDefault({
-            spendLimitId: fallback.id,
-            scope: "API_KEY",
-            subjectIds: defaultApiKeyIds,
-          })
-        : new Map<string, Date>();
     const defaultLimits = fallback
-      ? defaultApiKeyIds.map((apiKeyId) => ({
-          ...fallback,
-          apiKeyId,
-          countingStartedAt: getEffectiveDefaultCountingStartedAt(
-            fallback.countingStartedAt,
-            defaultResets.get(apiKeyId),
-          ),
-        }))
+      ? (
+          await this.apiKeys.filterVisibleGatewayApiKeyIds({
+            organizationId: params.organizationId,
+            ownerUserId,
+            apiKeyIds: params.apiKeyIds.filter((id) => !withOwnLimit.has(id)),
+          })
+        ).map((apiKeyId) => ({ ...fallback, apiKeyId }))
       : [];
     const budgeted = [...ownLimits, ...defaultLimits].flatMap((limit) =>
       limit.apiKeyId ? [{ subjectId: limit.apiKeyId, limit }] : [],
@@ -280,34 +261,9 @@ export class GatewaySpendLimitService {
     fallback: GatewaySpendLimitRecord | null;
   }) {
     const ownUserId = getKeyOwnerFilter(params.usageScope);
-    const defaultSubjectIds = params.fallback
-      ? params.rows
-          .filter(({ limit }) => limit === null)
-          .map(({ subjectId }) => subjectId)
-      : [];
-    const defaultResets =
-      params.fallback && defaultSubjectIds.length > 0
-        ? await this.repository.listResetsForDefault({
-            spendLimitId: params.fallback.id,
-            scope: params.scope,
-            subjectIds: defaultSubjectIds,
-          })
-        : new Map<string, Date>();
     const budgeted = params.rows.flatMap(({ subjectId, limit }) => {
-      if (limit) return [{ subjectId, limit }];
-      if (!params.fallback) return [];
-      return [
-        {
-          subjectId,
-          limit: {
-            ...params.fallback,
-            countingStartedAt: getEffectiveDefaultCountingStartedAt(
-              params.fallback.countingStartedAt,
-              defaultResets.get(subjectId),
-            ),
-          },
-        },
-      ];
+      const applied = limit ?? params.fallback;
+      return applied ? [{ subjectId, limit: applied }] : [];
     });
     const recordingProjectId =
       budgeted.length > 0
@@ -403,8 +359,10 @@ export class GatewaySpendLimitService {
 
   /**
    * Zeros the current period's spend for one key or user budget while keeping
-   * the limit intact. Only gateway managers may reset user budgets or another
-   * member's key; everyone else may reset only their own keys.
+   * the limit intact. If the subject inherits the organization's default
+   * budget, creates an explicit budget for the subject copied from the default
+   * with a fresh counting start. Only gateway managers may reset user budgets
+   * or another member's key; everyone else may reset only their own keys.
    */
   async resetForSubject(params: {
     organizationId: string;
@@ -422,80 +380,81 @@ export class GatewaySpendLimitService {
       usageScope: params.usageScope,
       scope,
     });
-    await this.prisma.$transaction(async (tx) => {
-      const repo = new GatewaySpendLimitRepository(tx);
-      const existing = await repo.listForUpdate({
-        organizationId: params.organizationId,
-        scope,
-      });
-      if (existing.length > 0) {
-        const now = new Date();
-        for (const before of existing) {
-          const after = await repo.resetCountingStartedAt({
-            id: before.id,
-            countingStartedAt: nextCountingStartedAt(
-              before.countingStartedAt,
-              now,
-            ),
-          });
-          await audit(tx, {
-            session: params.session,
-            action: "reset",
-            before,
-            after,
-          });
-        }
-        return;
-      }
 
-      const fallback = await repo.findDefault({
-        organizationId: params.organizationId,
-        scope: params.scope,
-      });
-      if (!fallback) {
-        throw new LangfuseNotFoundError(
-          params.scope === "API_KEY"
-            ? "Gateway key has no spend budget"
-            : "User has no spend budget",
-        );
-      }
-      const existingReset = await repo.findResetForDefaultForUpdate({
-        spendLimitId: fallback.id,
-        scope,
-      });
-      const previousCountingStartedAt = getEffectiveDefaultCountingStartedAt(
-        fallback.countingStartedAt,
-        existingReset?.countingStartedAt,
-      );
-      const savedReset = await repo.upsertResetForDefault({
-        organizationId: params.organizationId,
-        spendLimitId: fallback.id,
-        scope,
-        countingStartedAt: nextCountingStartedAt(
-          previousCountingStartedAt,
-          new Date(),
-        ),
-      });
-      await auditLog(
-        {
+    const runReset = () =>
+      this.prisma.$transaction(async (tx) => {
+        const repo = new GatewaySpendLimitRepository(tx);
+        const existing = await repo.listForUpdate({
+          organizationId: params.organizationId,
+          scope,
+        });
+        if (existing.length > 0) {
+          const now = new Date();
+          for (const before of existing) {
+            const after = await repo.resetCountingStartedAt({
+              id: before.id,
+              countingStartedAt: nextCountingStartedAt(
+                before.countingStartedAt,
+                now,
+              ),
+            });
+            await audit(tx, {
+              session: params.session,
+              action: "reset",
+              before,
+              after,
+            });
+          }
+          return;
+        }
+
+        const fallback = await repo.findDefault({
+          organizationId: params.organizationId,
+          scope: params.scope,
+        });
+        if (!fallback) {
+          throw new LangfuseNotFoundError(
+            params.scope === "API_KEY"
+              ? "Gateway key has no spend budget"
+              : "User has no spend budget",
+          );
+        }
+        const created = await repo.create({
+          organizationId: params.organizationId,
+          scope,
+          interval: fallback.interval,
+          limitUsd: fallback.limitUsd.toNumber(),
+          alertThresholds: normalizeGatewaySpendBudgetAlertThresholds(
+            fallback.alertThresholds,
+          ),
+          countingStartedAt: nextCountingStartedAt(
+            fallback.countingStartedAt,
+            new Date(),
+          ),
+          // Preserve the default's owner so members cannot subsequently edit or remove an admin-set default cap.
+          ownerUserId: fallback.ownerUserId,
+        });
+        await audit(tx, {
           session: params.session,
-          resourceType: "gatewaySpendLimit",
-          resourceId: fallback.id,
           action: "reset",
-          before: {
-            ...fallback,
-            subjectId: params.subjectId,
-            countingStartedAt: previousCountingStartedAt,
-          },
-          after: {
-            ...fallback,
-            subjectId: params.subjectId,
-            countingStartedAt: savedReset.countingStartedAt,
-          },
-        },
-        tx,
-      );
-    });
+          before: fallback,
+          after: created,
+        });
+      });
+
+    try {
+      await runReset();
+    } catch (error) {
+      // Two concurrent first resets of a default-budgeted subject race on creating its row; retry onto the locked update path.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        await runReset();
+      } else {
+        throw error;
+      }
+    }
     await subject.invalidateResolveCache();
   }
 

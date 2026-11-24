@@ -3184,57 +3184,79 @@ describe("AI gateway control plane", () => {
       subjectId: aiGatewayUserId!,
     });
 
-    // No custom GatewaySpendLimit row was created for either default-budgeted subject.
-    expect(
-      await prisma.gatewaySpendLimit.count({
+    // Resetting a default-budgeted subject creates an explicit budget copied from the default
+    // (preserving its admin ownerUserId) with a fresh countingStartedAt.
+    const materializedKeyLimit =
+      await prisma.gatewaySpendLimit.findFirstOrThrow({
         where: { apiKeyId: memberSecondKey.id },
+      });
+    expect(materializedKeyLimit.limitUsd.toNumber()).toBe(20);
+    expect(materializedKeyLimit.interval).toBe("MONTHLY");
+    expect(materializedKeyLimit.ownerUserId).toBe(keyDefault.ownerUserId);
+    expect(materializedKeyLimit.countingStartedAt.getTime()).toBeGreaterThan(
+      keyDefault.countingStartedAt.getTime(),
+    );
+    // Member still cannot edit or remove the materialized budget because it kept the default's admin owner.
+    await expect(
+      member.aiGateway.setSpendLimits({
+        orgId: owner.org.id,
+        scope: "API_KEY",
+        subjects: { type: "ids", subjectIds: [memberSecondKey.id] },
+        spendLimit: null,
       }),
-    ).toBe(0);
-    expect(
-      await prisma.gatewaySpendLimit.count({
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const materializedUserLimit =
+      await prisma.gatewaySpendLimit.findFirstOrThrow({
         where: {
           organizationId: owner.org.id,
           scope: "USER",
           userId: aiGatewayUserId!,
         },
-      }),
-    ).toBe(0);
+      });
+    expect(materializedUserLimit.limitUsd.toNumber()).toBe(40);
+    expect(materializedUserLimit.interval).toBe("MONTHLY");
+    expect(materializedUserLimit.countingStartedAt.getTime()).toBeGreaterThan(
+      userDefault.countingStartedAt.getTime(),
+    );
 
     const resolvedMemberSecondAfter = await resolveLimits(
       memberSecondKey.secretKey,
     );
-    const keyResetCountingStartedAt =
-      resolvedMemberSecondAfter[0]!.counting_started_at;
-    expect(keyResetCountingStartedAt).toBeGreaterThan(
-      keyDefault.countingStartedAt.getTime(),
-    );
-    // Another key on the same default budget is unaffected.
+    expect(resolvedMemberSecondAfter[0]).toMatchObject({
+      id: materializedKeyLimit.id,
+      limit_usd: 20,
+      counting_started_at: materializedKeyLimit.countingStartedAt.getTime(),
+    });
+    // Another key on the same default budget stays on the default untouched.
     expect((await resolveLimits(unbudgetedKey.secretKey))[0]).toMatchObject({
       id: `${keyDefault.id}:${unbudgetedKey.id}`,
       counting_started_at: keyDefault.countingStartedAt.getTime(),
     });
     // Reset default user budget updates aiGatewayKey's resolved user limit immediately.
     const resolvedAiGatewayAfter = await resolveLimits(aiGatewayKey.secretKey);
-    expect(resolvedAiGatewayAfter[1]!.counting_started_at).toBeGreaterThan(
-      userDefault.countingStartedAt.getTime(),
-    );
+    expect(resolvedAiGatewayAfter[1]).toMatchObject({
+      id: materializedUserLimit.id,
+      limit_usd: 40,
+      counting_started_at: materializedUserLimit.countingStartedAt.getTime(),
+    });
 
-    // Alerts fire again for the reset default budget with the new countingStartedAt.
+    // Alerts fire again for the materialized budget with its new countingStartedAt.
     await alertService.reportReached({
       fastHashedSecretKey: createShaHash(memberSecondKey.secretKey, env.SALT),
       limits: [
         {
-          limitId: `${keyDefault.id}:${memberSecondKey.id}`,
-          countingStartedAt: new Date(keyResetCountingStartedAt),
+          limitId: materializedKeyLimit.id,
+          countingStartedAt: materializedKeyLimit.countingStartedAt,
           windowStart,
         },
       ],
     });
     expect(
       await prisma.gatewaySpendLimitAlert.count({
-        where: { spendLimitId: keyDefault.id, subjectId: memberSecondKey.id },
+        where: { spendLimitId: materializedKeyLimit.id },
       }),
-    ).toBe(2);
+    ).toBe(1);
 
     // Every successful reset wrote a gatewaySpendLimit reset audit log with before/after timestamps.
     const resetAuditLogs = await prisma.auditLog.findMany({
@@ -3257,7 +3279,7 @@ describe("AI gateway control plane", () => {
       afterKeyLimit.countingStartedAt.toISOString(),
     );
 
-    // Removing a user from the organization also deletes their default-budget reset rows.
+    // Removing a user from the organization also deletes their materialized user budget.
     const aiGatewayMembership =
       await prisma.organizationMembership.findUniqueOrThrow({
         where: {
@@ -3269,7 +3291,7 @@ describe("AI gateway control plane", () => {
       orgMembershipId: aiGatewayMembership.id,
     });
     expect(
-      await prisma.gatewaySpendLimitReset.count({
+      await prisma.gatewaySpendLimit.count({
         where: { organizationId: owner.org.id, userId: aiGatewayUserId! },
       }),
     ).toBe(0);

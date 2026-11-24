@@ -35,7 +35,6 @@ import { GatewayResolveRepository } from "@/src/features/ai-gateway/server/resol
 import {
   GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR,
   GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES,
-  getEffectiveDefaultCountingStartedAt,
 } from "@/src/features/ai-gateway/server/spendLimits/gatewayDefaultSpendLimits";
 import { GATEWAY_ORGANIZATION_SPEND_LIMIT_SCOPE } from "@/src/features/ai-gateway/server/spendLimits/gatewayOrganizationSpendLimitScope";
 
@@ -194,7 +193,6 @@ export class GatewayApiKeyAuthenticator {
           defaults: row.gatewayAssociation
             ? organization.gatewaySpendLimits
             : [],
-          defaultResets: row.gatewaySpendLimitResets ?? [],
           scope: "API_KEY",
           subjectId: row.id,
         }),
@@ -204,9 +202,6 @@ export class GatewayApiKeyAuthenticator {
                 (limit) => limit.organizationId === organizationId,
               ),
               defaults: organization.gatewaySpendLimits,
-              defaultResets: (row.user?.gatewaySpendLimitResets ?? []).filter(
-                (reset) => reset.organizationId === organizationId,
-              ),
               scope: "USER",
               subjectId: row.userId,
             })
@@ -281,11 +276,6 @@ type ResolvedSpendLimit = {
   countingStartedAt: Date;
 };
 
-type DefaultSpendLimitReset = {
-  spendLimitId: string;
-  countingStartedAt: Date;
-};
-
 /**
  * A key's or user's own limits, or else the organization's default for it.
  * The default is sent under an id naming the key or user, because the gateway
@@ -294,16 +284,12 @@ type DefaultSpendLimitReset = {
 function toResolveSpendLimits(params: {
   own: ResolvedSpendLimit[];
   defaults: ResolvedSpendLimit[];
-  defaultResets: DefaultSpendLimitReset[];
   scope: keyof typeof GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES;
   subjectId: string;
 }): CachedResolveContext["spendLimits"] {
   const fallback = params.defaults.find(
     (limit) => limit.scope === GATEWAY_DEFAULT_SPEND_LIMIT_SCOPES[params.scope],
   );
-  const fallbackReset = fallback
-    ? params.defaultResets.find((reset) => reset.spendLimitId === fallback.id)
-    : undefined;
   const limits =
     params.own.length > 0 || !fallback
       ? params.own
@@ -311,10 +297,6 @@ function toResolveSpendLimits(params: {
           {
             ...fallback,
             id: `${fallback.id}${GATEWAY_DEFAULT_SPEND_LIMIT_ID_SEPARATOR}${params.subjectId}`,
-            countingStartedAt: getEffectiveDefaultCountingStartedAt(
-              fallback.countingStartedAt,
-              fallbackReset?.countingStartedAt,
-            ),
           },
         ];
   const scope = params.scope === "API_KEY" ? "api_key" : "user";

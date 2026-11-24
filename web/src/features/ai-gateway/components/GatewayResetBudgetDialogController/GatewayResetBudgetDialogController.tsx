@@ -14,6 +14,8 @@ export type GatewayResetBudgetTarget = {
   scope: ResetBudgetScope;
   subjectId: string;
   name: string;
+  /** True when the subject currently inherits the organization's default budget rather than having its own. */
+  isDefault: boolean;
 };
 
 type GatewayResetBudgetDialogControllerProps = {
@@ -76,7 +78,13 @@ function getResetTitle(target: GatewayResetBudgetTarget) {
 
 function getResetDescription(target: GatewayResetBudgetTarget) {
   if (target.scope === "USER") {
+    if (target.isDefault) {
+      return `This resets current-period spend for ${target.name} to $0 across all of their gateway keys and creates an explicit budget for them with the current default limit, so future changes to the default budget will no longer apply to them. Takes effect immediately.`;
+    }
     return `This resets current-period spend for ${target.name} to $0 across all of their gateway keys. The budget limit stays unchanged and takes effect immediately.`;
+  }
+  if (target.isDefault) {
+    return `This resets current-period spend for ${target.name} to $0 and creates an explicit budget for this key with the current default limit, so future changes to the default budget will no longer apply to it. Takes effect immediately.`;
   }
   return `This resets current-period spend for ${target.name} to $0. The budget limit stays unchanged and takes effect immediately.`;
 }

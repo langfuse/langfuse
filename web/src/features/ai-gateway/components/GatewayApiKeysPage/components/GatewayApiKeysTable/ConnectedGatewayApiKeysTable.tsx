@@ -135,6 +135,9 @@ export function ConnectedGatewayApiKeysTable({
                           scope: "API_KEY",
                           subjectId: row.apiKey.id,
                           name: row.apiKey.note ?? row.apiKey.displaySecretKey,
+                          isDefault:
+                            row.spendLimit === null &&
+                            row.defaultSpendLimit !== null,
                         })
                       }
                       onRevoke={openRevokeDialog}

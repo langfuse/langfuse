@@ -131,6 +131,7 @@ export function ConnectedGatewayBudgetsTable({
                         scope: GATEWAY_SPEND_TABS[tab].scope,
                         subjectId: row.subjectId,
                         name: row.name,
+                        isDefault: row.isDefault,
                       })
                     }
                     toolbarActions={

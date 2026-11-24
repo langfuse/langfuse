@@ -44,13 +44,6 @@ export class GatewayResolveRepository {
                 countingStartedAt: true,
               },
             },
-            gatewaySpendLimitResets: {
-              select: {
-                organizationId: true,
-                spendLimitId: true,
-                countingStartedAt: true,
-              },
-            },
           },
         },
         gatewayAssociation: { select: { metadata: true, allowedModels: true } },
@@ -62,12 +55,6 @@ export class GatewayResolveRepository {
             interval: true,
             limitUsd: true,
             alertThresholds: true,
-            countingStartedAt: true,
-          },
-        },
-        gatewaySpendLimitResets: {
-          select: {
-            spendLimitId: true,
             countingStartedAt: true,
           },
         },
