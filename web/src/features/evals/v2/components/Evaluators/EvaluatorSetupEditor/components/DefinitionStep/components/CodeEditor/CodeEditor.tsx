@@ -15,12 +15,10 @@ export function CodeEditor({
   projectId,
   store,
   validationResult,
-  traceEvalsAvailable,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
-  traceEvalsAvailable: boolean;
 }) {
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
@@ -46,13 +44,13 @@ export function CodeEditor({
 
   return (
     <CodeEvalTemplateFormBody
+      projectId={projectId}
       sourceCode={state.sourceCode}
       sourceCodeLanguage={state.sourceCodeLanguage}
       onSourceCodeChange={state.setSourceCode}
       editable
       validationResult={validationResult}
       ctxSample={ctxSample}
-      traceEvalsAvailable={traceEvalsAvailable}
     />
   );
 }

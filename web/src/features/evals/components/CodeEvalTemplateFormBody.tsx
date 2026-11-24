@@ -33,6 +33,7 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
@@ -49,6 +50,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
+  projectId: string;
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
   onSourceCodeChange: (value: string) => void;
@@ -56,7 +58,6 @@ type CodeEvalTemplateFormBodyProps = {
   validationResult: CodeEvalValidationResult | null;
   ctxSample: string | null;
   headerAction?: ReactNode;
-  traceEvalsAvailable?: boolean;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -221,6 +222,7 @@ async function formatTypeScriptSource(source: string) {
 }
 
 export function CodeEvalTemplateFormBody({
+  projectId,
   sourceCode,
   sourceCodeLanguage,
   onSourceCodeChange,
@@ -228,8 +230,8 @@ export function CodeEvalTemplateFormBody({
   validationResult,
   ctxSample,
   headerAction,
-  traceEvalsAvailable = false,
 }: CodeEvalTemplateFormBodyProps) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;

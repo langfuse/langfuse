@@ -1,6 +1,7 @@
 import { isTraceTranscriptEvalType } from "@langfuse/shared";
 import { useStore } from "zustand";
 
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { EvaluatorTestPanel } from "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
@@ -23,7 +24,6 @@ import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
-  traceEvalsAvailable,
   timeRange,
   onOpenTrace,
   onScopeChange,
@@ -36,7 +36,6 @@ export function EvaluatorTestPanelContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
-  traceEvalsAvailable: boolean;
   timeRange: AbsoluteTimeRange | null;
   onOpenTrace: (observation: SampleObservation) => void;
   onScopeChange: (scope: EvaluatorSampleScope) => void;
@@ -47,6 +46,7 @@ export function EvaluatorTestPanelContainer({
   onRunTest: () => void;
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const open = useStore(store, (state) => state.testPanelOpen);
   const hasValidModel = useStore(store, selectHasValidModel);
   const sampleScope = useStore(store, selectSampleScope);

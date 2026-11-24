@@ -313,6 +313,7 @@ const InnerEvalTemplateForm = (props: {
     validate: validateCodeEvalSource,
     reset: resetCodeEvalSourceValidation,
   } = useCodeEvalSourceValidation({
+    projectId: props.projectId,
     enabled: showCodeTemplateForm,
     sourceCode,
     sourceCodeLanguage,
@@ -642,6 +643,7 @@ const InnerEvalTemplateForm = (props: {
             name="sourceCode"
             render={({ field }) => (
               <CodeEvalTemplateFormBody
+                projectId={props.projectId}
                 sourceCode={field.value ?? ""}
                 sourceCodeLanguage={sourceCodeLanguage}
                 onSourceCodeChange={(value) => {

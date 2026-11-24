@@ -29,7 +29,6 @@ export function DefinitionStepContainer({
   onConfigureProviders,
   onSetProjectDefault,
   codeValidationResult,
-  traceEvalsAvailable,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
@@ -43,7 +42,6 @@ export function DefinitionStepContainer({
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
-  traceEvalsAvailable: boolean;
 }) {
   const onboardingAnalytics = useEvalOnboardingAnalytics();
   const state = useStore(
@@ -106,7 +104,6 @@ export function DefinitionStepContainer({
               projectId={projectId}
               store={store}
               validationResult={codeValidationResult}
-              traceEvalsAvailable={traceEvalsAvailable}
             />
           }
         />

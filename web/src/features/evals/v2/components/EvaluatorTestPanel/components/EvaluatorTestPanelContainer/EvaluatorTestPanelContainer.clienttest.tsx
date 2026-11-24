@@ -4,6 +4,10 @@ import { act, render, screen } from "@testing-library/react";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorTestPanelContainer } from "./EvaluatorTestPanelContainer";
 
+vi.mock("@/src/features/evals/transcriptEvalsAccess", () => ({
+  useCanViewTraceTranscriptsEvals: () => false,
+}));
+
 vi.mock(
   "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel",
   () => ({
@@ -32,7 +36,6 @@ describe("EvaluatorTestPanelContainer", () => {
       <EvaluatorTestPanelContainer
         projectId="project-1"
         store={store}
-        traceEvalsAvailable={false}
         timeRange={null}
         onOpenTrace={vi.fn()}
         onScopeChange={vi.fn()}

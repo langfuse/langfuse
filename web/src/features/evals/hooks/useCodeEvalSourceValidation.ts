@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -8,10 +9,10 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type UseCodeEvalSourceValidationParams = {
+  projectId: string;
   enabled: boolean;
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
-  traceEvalsAvailable?: boolean;
 };
 
 type ValidateCodeEvalSourceParams = {
@@ -60,11 +61,12 @@ async function getCodeEvalValidationResult({
 }
 
 export function useCodeEvalSourceValidation({
+  projectId,
   enabled,
   sourceCode,
   sourceCodeLanguage,
-  traceEvalsAvailable = false,
 }: UseCodeEvalSourceValidationParams) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const [validationResult, setValidationResult] =
     useState<CodeEvalValidationResult | null>(null);
   const [isPending, setIsPending] = useState(false);

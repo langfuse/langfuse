@@ -25,7 +25,6 @@ export function EvaluatorSetupEditor({
   onConfigureProviders,
   onSetProjectDefault,
   codeValidationResult,
-  traceEvalsAvailable,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
@@ -43,7 +42,6 @@ export function EvaluatorSetupEditor({
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
   codeValidationResult: CodeEvalValidationResult | null;
-  traceEvalsAvailable: boolean;
 }) {
   const type = useStore(store, (state) => state.type);
 
@@ -62,7 +60,6 @@ export function EvaluatorSetupEditor({
         onConfigureProviders={onConfigureProviders}
         onSetProjectDefault={onSetProjectDefault}
         codeValidationResult={codeValidationResult}
-        traceEvalsAvailable={traceEvalsAvailable}
       />
       {type === "LLM_AS_JUDGE" || type === "DECISION_MODEL" ? (
         <VariableMappingStepContainer
