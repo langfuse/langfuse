@@ -25,6 +25,13 @@ import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { registerSkillResources } from "./skills/resources";
+import { registerResources } from "./resources";
+import {
+  clientMayRenderApps,
+  isAppTool,
+  isAppToolResult,
+  MCP_APPS_EXTENSION,
+} from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 
@@ -77,7 +84,10 @@ export function createMcpServer(context: ServerContext): Server {
       capabilities: {
         tools: {},
         resources: {},
-        extensions: { "io.modelcontextprotocol/skills": {} },
+        extensions: {
+          "io.modelcontextprotocol/skills": {},
+          ...MCP_APPS_EXTENSION,
+        },
       },
       instructions: getMcpServerInstructions(),
       // 2025-era requests get JSON responses, which cannot carry the SDK's
@@ -87,10 +97,14 @@ export function createMcpServer(context: ServerContext): Server {
   );
 
   registerSkillResources(server);
+  registerResources(server);
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler("tools/list", async () => {
-    const tools = await toolRegistry.getToolDefinitions(context);
+  server.setRequestHandler("tools/list", async (_request, ctx) => {
+    const definitions = await toolRegistry.getToolDefinitions(context);
+    const tools = clientMayRenderApps(ctx)
+      ? definitions
+      : definitions.filter((definition) => !isAppTool(definition));
 
     logger.debug("MCP ListTools", {
       projectId: context.projectId,
@@ -139,6 +153,13 @@ export function createMcpServer(context: ServerContext): Server {
       );
 
       if (isInputRequiredResult(result)) return result;
+
+      if (isAppToolResult(result)) {
+        return {
+          content: [{ type: "text", text: result.text }],
+          _meta: result.meta,
+        };
+      }
 
       return {
         content: [

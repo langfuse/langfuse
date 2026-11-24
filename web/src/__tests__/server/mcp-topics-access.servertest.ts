@@ -17,16 +17,13 @@ import {
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
 import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
+import { topicsFeature } from "@/src/features/mcp/server/topics";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import type { ServerContext } from "@/src/features/mcp/types";
 
-const TOPICS_TOOLS = [
-  "listTopicRules",
-  "listTopicFacets",
-  "listTopics",
-  "listTopicSummaries",
-  "listTopicAssignments",
-];
+const TOPICS_TOOLS = topicsFeature.tools.map(
+  ({ definition }) => definition.name,
+);
 
 async function contextFor(key: {
   projectId: string;
@@ -87,7 +84,6 @@ describe("Topics MCP tools access", () => {
   let otherClient: Client;
   const original = {
     enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
     region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
 
@@ -97,23 +93,17 @@ describe("Topics MCP tools access", () => {
     // The Topics gate reads shared env in this process.
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      owner.projectId,
-      other.projectId,
-    ];
     ownerClient = await connect(await contextFor(owner));
     otherClient = await connect(await contextFor(other));
   });
 
   afterAll(async () => {
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
     await Promise.all([ownerClient.close(), otherClient.close()]);
   });
 
-  it("lists the Topics tools only for a Topics project", async () => {
+  it("lists the Topics tools for every project only while the deployment enables Topics", async () => {
     const names = async (client: Client) =>
       (await client.listTools()).tools.map(({ name }) => name);
     expect(await names(ownerClient)).toEqual(
@@ -123,16 +113,28 @@ describe("Topics MCP tools access", () => {
     const plain = await createOrgProjectAndApiKey();
     const plainClient = await connect(await contextFor(plain));
     try {
-      const plainTools = await names(plainClient);
-      expect(plainTools.length).toBeGreaterThan(0);
-      for (const tool of TOPICS_TOOLS) expect(plainTools).not.toContain(tool);
+      expect(await names(plainClient)).toEqual(
+        expect.arrayContaining(TOPICS_TOOLS),
+      );
+    } finally {
+      await plainClient.close();
+    }
+
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "false";
+    const disabledClient = await connect(await contextFor(plain));
+    try {
+      const disabledTools = await names(disabledClient);
+      expect(disabledTools.length).toBeGreaterThan(0);
+      for (const tool of TOPICS_TOOLS)
+        expect(disabledTools).not.toContain(tool);
       // A direct call fails like an unknown tool, not just a hidden listing.
       for (const tool of TOPICS_TOOLS)
         await expect(
-          plainClient.callTool({ name: tool, arguments: {} }),
+          disabledClient.callTool({ name: tool, arguments: {} }),
         ).rejects.toThrow(`Unknown tool: ${tool}`);
     } finally {
-      await plainClient.close();
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
+      await disabledClient.close();
     }
   });
 
@@ -161,6 +163,11 @@ describe("Topics MCP tools access", () => {
       ["listTopicAssignments", { filter: byTopic }, owner.traceId],
     ];
 
+    // A new Topics tool must add its read here.
+    expect(reads.map(([tool]) => tool).sort()).toEqual(
+      [...TOPICS_TOOLS].sort(),
+    );
+
     // Positive control: the owner's key reads each id through the same tool.
     for (const [tool, args, id] of reads) {
       const result = await callText(ownerClient, tool, args);
@@ -180,6 +187,10 @@ describe("Topics MCP tools access", () => {
   });
 
   it("denies a key without topics:read", async () => {
+    // Every Topics tool is read-only; a write tool needs its own role test.
+    expect(
+      new Set(topicsFeature.tools.map(({ definition }) => definition.action)),
+    ).toEqual(new Set(["topics:read"]));
     const creator = await prisma.user.create({
       data: { email: `topics-mcp-ingest-${randomUUID()}@example.com` },
     });

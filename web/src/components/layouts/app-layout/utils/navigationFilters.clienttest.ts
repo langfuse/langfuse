@@ -83,7 +83,7 @@ it.each([
   { topicsEnabled: true, visible: true },
   { topicsEnabled: false, visible: false },
 ])(
-  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
+  "shows the Topics entry only when the gate passes for the current project (switch on: $topicsEnabled)",
   ({ topicsEnabled, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
     const session = createSession({
@@ -92,9 +92,10 @@ it.each([
         {
           id: "org-1",
           role: "VIEWER",
-          projects: [{ id: "project-1", topicsEnabled }],
+          projects: [{ id: "project-1" }],
         },
       ],
+      environment: { topicsEnabled },
     });
     const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
