@@ -5,6 +5,7 @@ import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { cn } from "@/src/utils/tailwind";
 
 import styles from "./GatewayGuardrailTemplateGallery.module.css";
@@ -23,7 +24,7 @@ export function GatewayGuardrailTemplateGallery({
         Choose what to detect.
       </p>
       <Dialog.Body>
-        <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
           {GATEWAY_GUARDRAIL_TEMPLATES.map((template) => (
             <TemplateCard
               key={template.id}
@@ -66,9 +67,13 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
             )}
           >
             <span className="bg-popover/95 border-border/60 flex max-w-full min-w-0 items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-xs shadow-2xs">
-              <span className="text-muted-foreground shrink-0">
-                {template.preview.label}:
-              </span>
+              {template.id === "bedrock" ? (
+                <providerIcons.BEDROCK size="sm" aria-hidden />
+              ) : (
+                <span className="text-muted-foreground shrink-0">
+                  {template.preview.label}:
+                </span>
+              )}
               <span
                 className="text-foreground truncate font-medium"
                 title={template.preview.value}

@@ -80,17 +80,61 @@ export const GatewayResolveSpendLimitsSchema = z.array(
     .strict(),
 );
 
-/** Also the cached shape: every guardrail assigned to the key, its user or its organization. */
-export const GatewayResolveGuardrailsSchema = z.array(
-  z
-    .object({
-      id: z.string(),
-      name: z.string(),
-      action: z.enum(["block", "log"]),
-      // Regex patterns; the guardrail matches when any of them does.
-      patterns: z.array(z.string()),
-    })
-    .strict(),
+const GatewayResolveGuardrailActionSchema = z.enum(["block", "log"]);
+
+const GatewayRegexResolveGuardrailSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    type: z.literal("regex"),
+    action: GatewayResolveGuardrailActionSchema,
+    // Regex patterns; the guardrail matches when any of them does.
+    patterns: z.array(z.string()),
+  })
+  .strict();
+
+/**
+ * Cached shape in Redis: Bedrock API keys stay encrypted until `/resolve`
+ * builds the response, matching provider connections.
+ */
+export const GatewayCachedGuardrailsSchema = z.array(
+  z.discriminatedUnion("type", [
+    GatewayRegexResolveGuardrailSchema,
+    z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        type: z.literal("bedrock"),
+        action: GatewayResolveGuardrailActionSchema,
+        guardrail_id: z.string(),
+        guardrail_version: z.string(),
+        region: z.string(),
+        encrypted_credential: z.string(),
+      })
+      .strict(),
+  ]),
+);
+export type GatewayCachedGuardrails = z.infer<
+  typeof GatewayCachedGuardrailsSchema
+>;
+
+/** Wire shape sent from `/resolve` to `ai-gateway`. */
+const GatewayResolveGuardrailsSchema = z.array(
+  z.discriminatedUnion("type", [
+    GatewayRegexResolveGuardrailSchema,
+    z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        type: z.literal("bedrock"),
+        action: GatewayResolveGuardrailActionSchema,
+        guardrail_id: z.string(),
+        guardrail_version: z.string(),
+        region: z.string(),
+        api_key: z.string(),
+      })
+      .strict(),
+  ]),
 );
 export type GatewayResolveGuardrails = z.infer<
   typeof GatewayResolveGuardrailsSchema

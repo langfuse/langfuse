@@ -1,5 +1,6 @@
 import type {
   GatewayGuardrailAction,
+  GatewayGuardrailType,
   Prisma,
   PrismaClient,
   Role,
@@ -84,7 +85,14 @@ export class GatewayGuardrailRepository {
         },
       },
       orderBy: [{ name: "asc" }, { id: "asc" }],
-      select: { id: true, name: true, type: true, action: true, config: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        action: true,
+        config: true,
+        encryptedCredential: true,
+      },
     });
   }
 
@@ -129,6 +137,7 @@ export class GatewayGuardrailRepository {
     return this.prisma.gatewayGuardrail.findMany({
       where: {
         organizationId: params.organizationId,
+        type: "REGEX",
         ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
       },
       select: { id: true, config: true },
@@ -164,12 +173,10 @@ export class GatewayGuardrailRepository {
   create(params: {
     organizationId: string;
     name: string;
+    type: GatewayGuardrailType;
     action: GatewayGuardrailAction;
-    config: {
-      presets: string[];
-      secretPrefixes?: string[];
-      containsWords?: string[];
-    };
+    config: Prisma.InputJsonValue;
+    encryptedCredential?: string | null;
     assignments: GatewayGuardrailAssignmentInput[];
     createdBy: string;
   }) {
@@ -177,9 +184,12 @@ export class GatewayGuardrailRepository {
       data: {
         organizationId: params.organizationId,
         name: params.name,
-        type: "REGEX",
+        type: params.type,
         action: params.action,
         config: params.config,
+        ...(params.encryptedCredential !== undefined
+          ? { encryptedCredential: params.encryptedCredential }
+          : {}),
         createdBy: params.createdBy,
         assignments: {
           create: params.assignments.map((assignment) =>
@@ -222,11 +232,8 @@ export class GatewayGuardrailRepository {
     id: string;
     name: string;
     action: GatewayGuardrailAction;
-    config: {
-      presets: string[];
-      secretPrefixes?: string[];
-      containsWords?: string[];
-    };
+    config: Prisma.InputJsonValue;
+    encryptedCredential?: string;
     assignments: GatewayGuardrailAssignmentInput[];
   }) {
     await this.prisma.gatewayGuardrailAssignment.deleteMany({
@@ -238,6 +245,9 @@ export class GatewayGuardrailRepository {
         name: params.name,
         action: params.action,
         config: params.config,
+        ...(params.encryptedCredential !== undefined
+          ? { encryptedCredential: params.encryptedCredential }
+          : {}),
         assignments: {
           create: params.assignments.map((assignment) =>
             toAssignmentCreateData(params.organizationId, assignment),

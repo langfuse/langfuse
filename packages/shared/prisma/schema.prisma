@@ -496,6 +496,8 @@ model GatewaySpendLimitAlert {
 enum GatewayGuardrailType {
   // Built-in presets matched by the gateway.
   REGEX
+  // External AWS Bedrock Guardrail evaluated via ApplyGuardrail.
+  BEDROCK
 }
 
 enum GatewayGuardrailAction {
@@ -513,19 +515,22 @@ enum GatewayGuardrailAssignmentScope {
 // A rule set the AI gateway checks each request against. Assignments decide
 // which keys it applies to.
 model GatewayGuardrail {
-  id             String                       @id @default(cuid())
-  organizationId String                       @map("organization_id")
-  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
-  type           GatewayGuardrailType         @default(REGEX)
-  action         GatewayGuardrailAction
-  // For REGEX: { "presets": [...] } with ids of the control plane's presets; validated on read.
-  config         Json                         @default("{}") @db.JsonB
-  createdBy      String?                      @map("created_by")
-  createdByUser  User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
-  createdAt      DateTime                     @default(now()) @map("created_at")
-  updatedAt      DateTime                     @default(now()) @updatedAt @map("updated_at")
-  assignments    GatewayGuardrailAssignment[]
+  id                  String                       @id @default(cuid())
+  organizationId      String                       @map("organization_id")
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                String
+  type                GatewayGuardrailType         @default(REGEX)
+  action              GatewayGuardrailAction
+  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...] };
+  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
+  config              Json                         @default("{}") @db.JsonB
+  // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
+  encryptedCredential String?                      @map("encrypted_credentials")
+  createdBy           String?                      @map("created_by")
+  createdByUser       User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @default(now()) @updatedAt @map("updated_at")
+  assignments         GatewayGuardrailAssignment[]
 
   @@unique([organizationId, name])
   @@map("gateway_guardrails")

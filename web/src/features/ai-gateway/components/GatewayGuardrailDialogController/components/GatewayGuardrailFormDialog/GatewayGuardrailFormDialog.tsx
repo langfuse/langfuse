@@ -9,7 +9,7 @@ import {
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type Control } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -34,6 +34,7 @@ import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import {
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
@@ -45,10 +46,16 @@ import {
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
+  BEDROCK_API_KEY_MAX_LENGTH,
+  BEDROCK_AWS_REGION_REGEX,
+  BEDROCK_GUARDRAIL_ID_MAX_LENGTH,
+  BEDROCK_GUARDRAIL_ID_REGEX,
+  BEDROCK_GUARDRAIL_VERSION_REGEX,
   compileGuardrailConfigPatterns,
   estimateCompiledPatternsBytes,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
+  PRINTABLE_ASCII_NO_WHITESPACE_REGEX,
   parseContainsWordsText,
   validateContainsWordsText,
   validateSecretPrefix,
@@ -67,11 +74,46 @@ const ACTION_OPTIONS: Array<{
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 
+const BEDROCK_REGION_SELECT_OPTIONS = bedrockRegionGroups.map((group) => ({
+  type: "group" as const,
+  id: group.label,
+  label: group.label,
+  options: group.regions.map((region) => ({
+    value: region.value,
+    label: region.label,
+    badges: [{ text: region.value, color: "filled" as const }],
+  })),
+}));
+
+const KNOWN_BEDROCK_REGION_VALUES = new Set(
+  bedrockRegionGroups.flatMap((group) =>
+    group.regions.map((region) => region.value),
+  ),
+);
+
+const BEDROCK_API_KEY_DESCRIPTION = [
+  { type: "text", text: "Use " },
+  {
+    type: "link",
+    text: "Amazon Bedrock API keys",
+    href: "https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html",
+  },
+  {
+    type: "text",
+    text: ". The key needs ",
+  },
+  { type: "code", text: "bedrock:ApplyGuardrail" },
+  { type: "text", text: " permission in the selected region." },
+] as const;
+
 const PRESET_VALUE_PREFIX = "preset:";
 const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
 const ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
 
-function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
+function createGuardrailFormSchema(
+  templateKind: GatewayGuardrailTemplateKind,
+  hasSavedApiKey: boolean,
+) {
   return z
     .object({
       name: z
@@ -90,6 +132,10 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
           `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
         ),
       containsText: z.string(),
+      bedrockGuardrailId: z.string(),
+      bedrockGuardrailVersion: z.string(),
+      bedrockRegion: z.string(),
+      bedrockApiKey: z.string(),
       action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -100,6 +146,66 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
         ),
     })
     .superRefine((values, ctx) => {
+      if (templateKind === "bedrock") {
+        const guardrailId = values.bedrockGuardrailId.trim();
+        if (!guardrailId) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bedrockGuardrailId"],
+            message: "Enter a Bedrock guardrail ID or ARN",
+          });
+        } else if (
+          guardrailId.length > BEDROCK_GUARDRAIL_ID_MAX_LENGTH ||
+          !BEDROCK_GUARDRAIL_ID_REGEX.test(guardrailId)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bedrockGuardrailId"],
+            message:
+              "Enter a valid Bedrock guardrail ID (lowercase alphanumeric) or ARN",
+          });
+        }
+        const version = values.bedrockGuardrailVersion.trim();
+        if (!version || !BEDROCK_GUARDRAIL_VERSION_REGEX.test(version)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bedrockGuardrailVersion"],
+            message: "Enter a version number (e.g. 1) or DRAFT",
+          });
+        }
+        const region = values.bedrockRegion.trim();
+        if (!region || !BEDROCK_AWS_REGION_REGEX.test(region)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bedrockRegion"],
+            message: "Select an AWS region",
+          });
+        }
+        const apiKey = values.bedrockApiKey.trim();
+        if (!apiKey && !hasSavedApiKey) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bedrockApiKey"],
+            message: "Enter a Bedrock API key",
+          });
+        } else if (apiKey) {
+          if (apiKey.length > BEDROCK_API_KEY_MAX_LENGTH) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["bedrockApiKey"],
+              message: `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
+            });
+          } else if (!PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(apiKey)) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["bedrockApiKey"],
+              message:
+                "Bedrock API key must be printable ASCII with no whitespace",
+            });
+          }
+        }
+        return;
+      }
       if (templateKind === "contains") {
         const error = validateContainsWordsText(values.containsText);
         if (error) {
@@ -161,6 +267,12 @@ export type GatewayGuardrailFormValues = {
   presets: GatewayGuardrailPreset[];
   secretPrefixes: string[];
   containsWords: string[];
+  bedrock?: {
+    guardrailId: string;
+    guardrailVersion: string;
+    region: string;
+    apiKey?: string;
+  };
   action: GatewayGuardrailUiAction;
   targets: AsyncAutocompleteOption[];
 };
@@ -172,6 +284,8 @@ export type GatewayGuardrailFormDialogProps = {
   availablePresets: readonly GatewayGuardrailPreset[];
   initialValues: GatewayGuardrailFormValues;
   initialTestText?: string;
+  /** True when editing an existing external guardrail so a blank key keeps the saved secret. */
+  hasSavedApiKey?: boolean;
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
@@ -187,6 +301,7 @@ export function GatewayGuardrailFormDialog({
   availablePresets,
   initialValues,
   initialTestText = "",
+  hasSavedApiKey = false,
   targetPicker,
   isSubmitting,
   errorMessage,
@@ -201,8 +316,8 @@ export function GatewayGuardrailFormDialog({
   const [testText, setTestText] = useState(initialTestText);
 
   const schema = useMemo(
-    () => createGuardrailFormSchema(templateKind),
-    [templateKind],
+    () => createGuardrailFormSchema(templateKind, hasSavedApiKey),
+    [templateKind, hasSavedApiKey],
   );
   const form = useForm<GuardrailFormSchemaValues>({
     resolver: zodResolver(schema),
@@ -211,6 +326,10 @@ export function GatewayGuardrailFormDialog({
       presets: initialValues.presets,
       secretPrefixes: initialValues.secretPrefixes,
       containsText: initialValues.containsWords.join("\n"),
+      bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
+      bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
+      bedrockRegion: initialValues.bedrock?.region ?? "",
+      bedrockApiKey: "",
       action: initialValues.action,
       targets: initialValues.targets,
     },
@@ -220,13 +339,33 @@ export function GatewayGuardrailFormDialog({
   const selectedPresets = form.watch("presets");
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
+  const bedrockRegion = form.watch("bedrockRegion");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
+  const isBedrock = templateKind === "bedrock";
 
   const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
+    if (isBedrock) {
+      const apiKey = values.bedrockApiKey.trim();
+      onSubmit({
+        name: values.name.trim(),
+        presets: [],
+        secretPrefixes: [],
+        containsWords: [],
+        bedrock: {
+          guardrailId: values.bedrockGuardrailId.trim(),
+          guardrailVersion: values.bedrockGuardrailVersion.trim(),
+          region: values.bedrockRegion.trim(),
+          ...(apiKey ? { apiKey } : {}),
+        },
+        action: values.action,
+        targets: values.targets,
+      });
+      return;
+    }
     onSubmit({
       name: values.name.trim(),
       presets:
@@ -285,7 +424,10 @@ export function GatewayGuardrailFormDialog({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className="ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg"
+        className={cn(
+          "ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg",
+          isBedrock ? "sm:max-w-xl" : "sm:max-w-4xl",
+        )}
         onClick={handleStopClickPropagation}
         onKeyDown={handleKeyDown}
         onPointerDownOutside={handlePreventOutsideClose}
@@ -337,41 +479,31 @@ export function GatewayGuardrailFormDialog({
                         aria-describedby={inputDescribedById}
                         aria-invalid={Boolean(error)}
                         error={Boolean(error)}
-                        placeholder="e.g. Block SSNs"
+                        placeholder={
+                          isBedrock
+                            ? "e.g. Bedrock content filter"
+                            : "e.g. Block SSNs"
+                        }
                       />
                     )}
                   </FormField>
 
-                  {templateKind === "contains" ? (
-                    <Controller
-                      control={form.control}
-                      name="containsText"
-                      render={({ field, fieldState }) => (
-                        <ContainsWordListField
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          entryCount={parsedContains.length}
-                          errorMessage={fieldState.error?.message}
-                        />
-                      )}
-                    />
-                  ) : (
-                    <PresetMultiSelectField
-                      availablePresets={availablePresets}
-                      selectedPresets={selectedPresets}
-                      secretPrefixes={
-                        templateKind === "secrets" ? secretPrefixes : []
-                      }
-                      allowCustomPrefixes={templateKind === "secrets"}
-                      onPresetsChange={handlePresetsChange}
-                      onSecretPrefixesChange={handleSecretPrefixesChange}
-                      errorMessage={
-                        form.formState.errors.presets?.message ??
-                        form.formState.errors.secretPrefixes?.message
-                      }
-                    />
-                  )}
+                  <TemplateRuleFields
+                    templateKind={templateKind}
+                    control={form.control}
+                    availablePresets={availablePresets}
+                    selectedPresets={selectedPresets}
+                    secretPrefixes={secretPrefixes}
+                    containsEntryCount={parsedContains.length}
+                    bedrockRegion={bedrockRegion}
+                    hasSavedApiKey={hasSavedApiKey}
+                    presetErrorMessage={
+                      form.formState.errors.presets?.message ??
+                      form.formState.errors.secretPrefixes?.message
+                    }
+                    onPresetsChange={handlePresetsChange}
+                    onSecretPrefixesChange={handleSecretPrefixesChange}
+                  />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
@@ -455,19 +587,21 @@ export function GatewayGuardrailFormDialog({
                 </Form>
               </div>
 
-              <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
-                <GatewayGuardrailTestInput
-                  value={testText}
-                  onChange={setTestText}
-                  presets={templateKind === "contains" ? [] : selectedPresets}
-                  secretPrefixes={
-                    templateKind === "secrets" ? secretPrefixes : undefined
-                  }
-                  containsWords={
-                    templateKind === "contains" ? parsedContains : undefined
-                  }
-                />
-              </aside>
+              {!isBedrock ? (
+                <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
+                  <GatewayGuardrailTestInput
+                    value={testText}
+                    onChange={setTestText}
+                    presets={templateKind === "contains" ? [] : selectedPresets}
+                    secretPrefixes={
+                      templateKind === "secrets" ? secretPrefixes : undefined
+                    }
+                    containsWords={
+                      templateKind === "contains" ? parsedContains : undefined
+                    }
+                  />
+                </aside>
+              ) : null}
             </div>
           </PopoverLayerProvider>
 
@@ -492,6 +626,178 @@ export function GatewayGuardrailFormDialog({
         />
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
+  );
+}
+
+type TemplateRuleFieldsProps = {
+  templateKind: GatewayGuardrailTemplateKind;
+  control: Control<GuardrailFormSchemaValues>;
+  availablePresets: readonly GatewayGuardrailPreset[];
+  selectedPresets: readonly GatewayGuardrailPreset[];
+  secretPrefixes: readonly string[];
+  containsEntryCount: number;
+  bedrockRegion: string;
+  hasSavedApiKey: boolean;
+  presetErrorMessage?: string;
+  onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
+  onSecretPrefixesChange: (prefixes: string[]) => void;
+};
+
+function TemplateRuleFields({
+  templateKind,
+  control,
+  availablePresets,
+  selectedPresets,
+  secretPrefixes,
+  containsEntryCount,
+  bedrockRegion,
+  hasSavedApiKey,
+  presetErrorMessage,
+  onPresetsChange,
+  onSecretPrefixesChange,
+}: TemplateRuleFieldsProps) {
+  if (templateKind === "bedrock") {
+    return (
+      <BedrockGuardrailFields
+        control={control}
+        currentRegion={bedrockRegion}
+        hasSavedApiKey={hasSavedApiKey}
+      />
+    );
+  }
+  if (templateKind === "contains") {
+    return (
+      <Controller
+        control={control}
+        name="containsText"
+        render={({ field, fieldState }) => (
+          <ContainsWordListField
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            entryCount={containsEntryCount}
+            errorMessage={fieldState.error?.message}
+          />
+        )}
+      />
+    );
+  }
+  return (
+    <PresetMultiSelectField
+      availablePresets={availablePresets}
+      selectedPresets={selectedPresets}
+      secretPrefixes={templateKind === "secrets" ? secretPrefixes : []}
+      allowCustomPrefixes={templateKind === "secrets"}
+      onPresetsChange={onPresetsChange}
+      onSecretPrefixesChange={onSecretPrefixesChange}
+      errorMessage={presetErrorMessage}
+    />
+  );
+}
+
+type BedrockGuardrailFieldsProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  currentRegion: string;
+  hasSavedApiKey: boolean;
+};
+
+function BedrockGuardrailFields({
+  control,
+  currentRegion,
+  hasSavedApiKey,
+}: BedrockGuardrailFieldsProps) {
+  const regionOptions = useMemo(() => {
+    const trimmed = currentRegion.trim();
+    if (!trimmed || KNOWN_BEDROCK_REGION_VALUES.has(trimmed)) {
+      return BEDROCK_REGION_SELECT_OPTIONS;
+    }
+    return [
+      { value: trimmed, label: trimmed },
+      ...BEDROCK_REGION_SELECT_OPTIONS,
+    ];
+  }, [currentRegion]);
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="bedrockGuardrailId"
+        label="Guardrail ID"
+        description="ID or ARN of your guardrail in Amazon Bedrock."
+      >
+        {({ id, inputDescribedById, error, ...field }) => (
+          <Input
+            {...field}
+            id={id}
+            aria-describedby={inputDescribedById}
+            aria-invalid={Boolean(error)}
+            error={Boolean(error)}
+            placeholder="e.g. abc123def456 or arn:aws:bedrock:..."
+          />
+        )}
+      </FormField>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField
+          control={control}
+          name="bedrockGuardrailVersion"
+          label="Version"
+        >
+          {({ id, inputDescribedById, error, ...field }) => (
+            <Input
+              {...field}
+              id={id}
+              aria-describedby={inputDescribedById}
+              aria-invalid={Boolean(error)}
+              error={Boolean(error)}
+              placeholder="e.g. 1 or DRAFT"
+            />
+          )}
+        </FormField>
+
+        <FormField control={control} name="bedrockRegion" label="AWS region">
+          {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
+            <SelectInput
+              id={id}
+              aria-describedby={inputDescribedById}
+              aria-invalid={Boolean(error)}
+              error={Boolean(error)}
+              placeholder="Select a region"
+              emptyMessage="No matching region"
+              search={{ placeholder: "Search regions" }}
+              value={value}
+              onValueChange={onChange}
+              onBlur={onBlur}
+              options={regionOptions}
+            />
+          )}
+        </FormField>
+      </div>
+
+      <FormField
+        control={control}
+        name="bedrockApiKey"
+        label="Bedrock API key"
+        description={BEDROCK_API_KEY_DESCRIPTION}
+      >
+        {({ id, inputDescribedById, error, ...field }) => (
+          <Input
+            {...field}
+            id={id}
+            type="password"
+            autoComplete="new-password"
+            aria-describedby={inputDescribedById}
+            aria-invalid={Boolean(error)}
+            error={Boolean(error)}
+            placeholder={
+              hasSavedApiKey
+                ? "Leave blank to keep current key"
+                : "Enter Bedrock API key"
+            }
+          />
+        )}
+      </FormField>
+    </>
   );
 }
 

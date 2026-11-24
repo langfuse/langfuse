@@ -604,6 +604,10 @@ pub(super) fn decode(
             .extra_headers()
             .all(|(name, value)| valid_extra_header(name, value))
         || !valid_ingestion(&response, now)
+        || !response
+            .guardrails
+            .iter()
+            .all(crate::guardrails::Guardrail::is_valid_from_resolve)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),

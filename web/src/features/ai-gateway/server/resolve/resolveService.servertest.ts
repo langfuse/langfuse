@@ -30,13 +30,21 @@ vi.mock("@/src/server/utils/jwt", () => ({
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
-  decrypt: vi.fn(() => "sk-test"),
+  decrypt: vi.fn((value: string) =>
+    value === "encrypted-bedrock-guardrail"
+      ? JSON.stringify({ apiKey: "bedrock-guardrail-key" })
+      : "sk-test",
+  ),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
+const serviceWith = (
+  findFirst: () => Promise<unknown>,
+  keyOrgId = "org-1",
+  guardrails: unknown[] = [],
+) => {
   const prisma = {
     apiKey: { findFirst },
-    gatewayGuardrail: { findMany: () => Promise.resolve([]) },
+    gatewayGuardrail: { findMany: () => Promise.resolve(guardrails) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
@@ -384,6 +392,43 @@ describe("GatewayResolveService", () => {
     ).rejects.toMatchObject({
       status: 403,
       message: "Gateway is not enabled for this organization",
+    });
+  });
+
+  it("decrypts Bedrock guardrail API keys in the resolve response", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-bedrock",
+        name: "Bedrock filter",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      guardrails: [
+        {
+          id: "gr-bedrock",
+          name: "Bedrock filter",
+          type: "bedrock",
+          action: "block",
+          guardrail_id: "abc123def",
+          guardrail_version: "1",
+          region: "us-east-1",
+          api_key: "bedrock-guardrail-key",
+        },
+      ],
     });
   });
 });

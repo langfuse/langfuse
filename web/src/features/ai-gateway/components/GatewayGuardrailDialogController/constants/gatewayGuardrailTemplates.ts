@@ -3,7 +3,11 @@ import {
   type GatewayGuardrailPreset,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
-export type GatewayGuardrailTemplateKind = "pii" | "secrets" | "contains";
+export type GatewayGuardrailTemplateKind =
+  | "pii"
+  | "secrets"
+  | "contains"
+  | "bedrock";
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
@@ -80,5 +84,18 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultPresets: [],
       sampleTestText:
         "This document mentions Project Falcon and is internal only.",
+    },
+    {
+      id: "bedrock",
+      name: "Amazon Bedrock",
+      description:
+        "Evaluates prompts with an Amazon Bedrock guardrail via ApplyGuardrail.",
+      preview: {
+        label: "bedrock",
+        value: "ApplyGuardrail",
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "",
     },
   ];
