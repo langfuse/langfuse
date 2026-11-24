@@ -372,6 +372,41 @@ export const SelectMessagesAndTools = meta.story({
     await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1", "0:4");
   },
 });
+export const PeekedObservationTurn = meta.story({
+  name: "(Test) Highlights the turn containing the peeked observation",
+  args: {
+    ...loadedArgs,
+    activeTraceId: undefined,
+    activePeek: { traceId: "turn-1", observationId: "search" },
+    traces: [
+      { ...loadedArgs.traces[0]!, itemId: "turn-1:first" },
+      {
+        ...loadedArgs.traces[0]!,
+        itemId: "turn-1:second",
+        trace: { ...loadedArgs.traces[0]!.trace, name: "Search documentation" },
+        turnNumber: 2,
+        transcriptRows: [
+          {
+            id: "1:0",
+            role: "tool",
+            label: "search_documentation",
+            observationId: "search",
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvas }) => {
+    const firstTurn = await canvas.findByRole("group", {
+      name: "Configure tracing",
+    });
+    const secondTurn = await canvas.findByRole("group", {
+      name: "Search documentation",
+    });
+    await expect(firstTurn).not.toHaveAttribute("data-peeked");
+    await expect(secondTurn).toHaveAttribute("data-peeked", "true");
+  },
+});
 export const UniformRowHoverArea = meta.story({
   name: "(Test) Uniform Row Hover Area",
   args: loadedArgs,

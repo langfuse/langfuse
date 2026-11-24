@@ -51,6 +51,24 @@ export type SessionConversationSidebarTrace = {
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_SCROLL_PADDING = 16;
 
+type ActivePeek = { traceId: string; observationId: string | undefined };
+
+function selectPeekedTurnId(
+  traces: SessionConversationSidebarTrace[],
+  activePeek: ActivePeek | undefined,
+) {
+  if (!activePeek) return undefined;
+  const peekTrace =
+    traces.find(
+      ({ trace, transcriptRows }) =>
+        trace.id === activePeek.traceId &&
+        transcriptRows?.some(
+          (row) => row.observationId === activePeek.observationId,
+        ),
+    ) ?? traces.find(({ trace }) => trace.id === activePeek.traceId);
+  return peekTrace?.itemId ?? peekTrace?.trace.id;
+}
+
 export function SessionConversationSidebar(
   props: (
     | { state: "loading" }
@@ -58,6 +76,7 @@ export function SessionConversationSidebar(
         state: "loaded";
         traces: SessionConversationSidebarTrace[];
         activeTraceId: string | undefined;
+        activePeek?: ActivePeek;
         search: string;
         searchQuery?: string;
         onSearchChange: (search: string) => void;
@@ -83,8 +102,10 @@ export function SessionConversationSidebar(
   },
 ) {
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const activePeek = props.state === "loaded" ? props.activePeek : undefined;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
+  const peekedTurnId = selectPeekedTurnId(traces, activePeek);
   const appliedSearch =
     props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
   const listRef = useRef<HTMLDivElement>(null);
@@ -370,6 +391,7 @@ export function SessionConversationSidebar(
                     <SessionSidebarTraceCard
                       title={trace.name ?? "Trace"}
                       isActive={isActive}
+                      isPeeked={itemId === peekedTurnId}
                       number={sidebarTrace.displayNumber ?? turnNumber}
                       onSelect={() => props.onSelect(targetIndex)}
                       collapse={{

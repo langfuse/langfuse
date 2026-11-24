@@ -9,6 +9,7 @@ import React, {
 
 export const detailPageListKeys = {
   traces: "traces",
+  sessionTraces: "session-traces",
   observations: "observations",
   events: "events",
   sessions: "sessions",
@@ -65,7 +66,11 @@ export function useFirstDetailPageListEntry<
   return detailPagelists[key]?.[0] as TEntry | undefined;
 }
 
-export function DetailPageListsProvider(props: PropsWithChildren) {
+export function DetailPageListsProvider(
+  props: PropsWithChildren<{ overrides?: Record<string, ListEntry[]> }>,
+) {
+  const parent = useContext(DetailPageLists);
+  const { overrides } = props;
   const [detailPagelists, setLists] = useState<
     Record<string, Array<ListEntry>>
   >({});
@@ -77,10 +82,16 @@ export function DetailPageListsProvider(props: PropsWithChildren) {
     [],
   );
 
-  const contextValue = useMemo(
-    () => ({ detailPagelists, setDetailPageList }),
-    [detailPagelists, setDetailPageList],
-  );
+  const contextValue = useMemo(() => {
+    if (!overrides) return { detailPagelists, setDetailPageList };
+    return {
+      detailPagelists: {
+        ...(parent?.detailPagelists ?? detailPagelists),
+        ...overrides,
+      },
+      setDetailPageList: parent?.setDetailPageList ?? setDetailPageList,
+    };
+  }, [parent, detailPagelists, overrides, setDetailPageList]);
 
   return (
     <DetailPageLists.Provider value={contextValue}>
