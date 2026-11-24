@@ -33,7 +33,6 @@ import {
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   selectNodeCorrections,
   selectNodeScores,
@@ -171,14 +170,11 @@ function LoadedSpanContent({
           </div>
         </div>
 
-        {isSelectedObservation ? (
-          <Badge color="violet" size="sm" text="Will be evaluated" />
-        ) : null}
-
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
           shouldRenderScores ||
-          shouldRenderCorrection) && (
+          shouldRenderCorrection ||
+          isSelectedObservation) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -231,6 +227,13 @@ function LoadedSpanContent({
                 {shouldRenderCorrection && <CorrectionBadge />}
               </span>
             )}
+
+            {isSelectedObservation ? (
+              <span className="text-dark-violet flex shrink-0 items-center gap-1.5 font-sans text-xs whitespace-nowrap">
+                <span className="bg-dark-violet size-1.5 shrink-0 rounded-full" />
+                Will be evaluated
+              </span>
+            ) : null}
           </div>
         )}
       </div>
