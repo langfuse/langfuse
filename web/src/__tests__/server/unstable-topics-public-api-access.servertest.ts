@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,14 +33,30 @@ async function get(
   handler: Handler,
   authorization: string,
   query: Record<string, string> = {},
+  method: "GET" | "POST" = "GET",
 ) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-    method: "GET",
+    method,
     query,
     headers: { authorization },
   });
   await handler(req, res);
   return { status: res._getStatusCode(), body: res._getJSONData() };
+}
+
+/** Every Topics route by file, with a query naming one of the project's resources and that resource's id. */
+function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
+  const { topicId, facetId, ruleId, traceId } = project;
+  return {
+    "topics/index": [topicsHandler, {}, topicId],
+    "topics/[topicId]": [topicHandler, { topicId }, topicId],
+    "topic-facets/index": [facetsHandler, {}, facetId],
+    "topic-facets/[facetId]": [facetHandler, { facetId }, facetId],
+    "topic-rules/index": [rulesHandler, {}, ruleId],
+    "topic-rules/[ruleId]": [ruleHandler, { ruleId }, ruleId],
+    "topic-summaries/index": [summariesHandler, {}, traceId],
+    "topic-assignments/index": [assignmentsHandler, {}, traceId],
+  } satisfies Record<string, [Handler, Record<string, string>, string]>;
 }
 
 describe("unstable Topics public API access", () => {
@@ -69,32 +87,39 @@ describe("unstable Topics public API access", () => {
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 
-  it("does not expose a project's facets or topics to another project's key", async () => {
+  it("serves every Topics route read-only and only from the key's own project", async () => {
     const ownerAuth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
     const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
+    const routes = topicsRoutes(owner);
+    const files = readdirSync(
+      path.resolve(process.cwd(), "src/pages/api/public/unstable"),
+      { recursive: true, encoding: "utf8" },
+    ).flatMap((file) =>
+      file.startsWith("topic") && file.endsWith(".ts")
+        ? [file.slice(0, -3)]
+        : [],
+    );
+    // A new Topics route must join the table.
+    expect(Object.keys(routes).sort()).toEqual(files.sort());
 
-    // Positive control: the owner reads both, so the 404s below are not vacuous.
-    for (const [auth, status] of [
-      [ownerAuth, 200],
-      [otherAuth, 404],
-    ] as const) {
-      expect(
-        (await get(facetHandler, auth, { facetId: owner.facetId })).status,
-      ).toBe(status);
-      expect(
-        (await get(topicHandler, auth, { topicId: owner.topicId })).status,
-      ).toBe(status);
+    for (const [route, [handler, query, id]] of Object.entries(routes)) {
+      // Positive control: the owner reads the id, so the checks below are not vacuous.
+      const owned = await get(handler, ownerAuth, query);
+      expect(owned.status, route).toBe(200);
+      expect(JSON.stringify(owned.body), route).toContain(id);
+
+      const foreign = await get(handler, otherAuth, query);
+      expect([200, 404], route).toContain(foreign.status);
+      expect(JSON.stringify(foreign.body), route).not.toContain(id);
+
+      // A write method would need its own scope test.
+      expect((await get(handler, ownerAuth, query, "POST")).status, route).toBe(
+        405,
+      );
     }
-
-    const facets = await get(facetsHandler, otherAuth);
-    const topics = await get(topicsHandler, otherAuth);
-    expect(facets.status).toBe(200);
-    expect(topics.status).toBe(200);
-    expect(JSON.stringify(facets.body)).not.toContain(owner.facetId);
-    expect(JSON.stringify(topics.body)).not.toContain(owner.topicId);
   });
 
-  it("does not expose a project's rules, summaries or assignments to another project's key", async () => {
+  it("does not expose another project's rows through filters naming its ids", async () => {
     const ownerAuth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
     const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
     const filterOn = (column: string, value: string) => ({
@@ -126,21 +151,9 @@ describe("unstable Topics public API access", () => {
           .body,
       ),
     ).toContain(owner.topicId);
-    expect(JSON.stringify((await get(rulesHandler, ownerAuth)).body)).toContain(
-      owner.ruleId,
-    );
-    expect(
-      (await get(ruleHandler, ownerAuth, { ruleId: owner.ruleId })).status,
-    ).toBe(200);
 
-    expect(
-      (await get(ruleHandler, otherAuth, { ruleId: owner.ruleId })).status,
-    ).toBe(404);
-    expect(
-      JSON.stringify((await get(rulesHandler, otherAuth)).body),
-    ).not.toContain(owner.ruleId);
     for (const handler of [summariesHandler, assignmentsHandler])
-      for (const query of [{}, ...ownerFilters]) {
+      for (const query of ownerFilters) {
         const result = await get(handler, otherAuth, query);
         expect(result.status).toBe(200);
         expect(JSON.stringify(result.body)).not.toContain(owner.traceId);
@@ -156,16 +169,7 @@ describe("unstable Topics public API access", () => {
 
   it("returns not found once a project leaves the Topics allowlist", async () => {
     const auth = createBasicAuthHeader(other.publicKey, other.secretKey);
-    const routes = [
-      [facetsHandler, {}],
-      [facetHandler, { facetId: other.facetId }],
-      [topicsHandler, {}],
-      [topicHandler, { topicId: other.topicId }],
-      [rulesHandler, {}],
-      [ruleHandler, { ruleId: other.ruleId }],
-      [summariesHandler, {}],
-      [assignmentsHandler, {}],
-    ] as const;
+    const routes = Object.values(topicsRoutes(other));
     // Positive control: its own ids resolve while the project is allowed.
     for (const [handler, query] of routes)
       expect((await get(handler, auth, query)).status).toBe(200);
@@ -196,16 +200,7 @@ describe("unstable Topics public API access", () => {
       ingestKey.secretKey,
     );
 
-    for (const [handler, query] of [
-      [facetsHandler, {}],
-      [facetHandler, { facetId: owner.facetId }],
-      [topicsHandler, {}],
-      [topicHandler, { topicId: owner.topicId }],
-      [rulesHandler, {}],
-      [ruleHandler, { ruleId: owner.ruleId }],
-      [summariesHandler, {}],
-      [assignmentsHandler, {}],
-    ] as const)
+    for (const [handler, query] of Object.values(topicsRoutes(owner)))
       expect((await get(handler, auth, query)).status).toBe(403);
   });
 });
