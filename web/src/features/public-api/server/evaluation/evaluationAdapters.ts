@@ -4,6 +4,7 @@ import {
   extractVariables,
   InternalServerError,
   observationVariableMappingList,
+  parseDecisionModelQuestions,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
   variableMappingList,
@@ -30,6 +31,8 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  toInternalDecisionModelQuestion,
+  toPublicDecisionModelQuestion,
   type LegacyPromptVariableMappingType,
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
@@ -260,7 +263,7 @@ export function toEvaluatorServiceDefinition(
     case PUBLIC_EVALUATOR_TYPE_DECISION_MODEL:
       return EvaluatorDefinitionInputSchema.parse({
         type: EvalTemplateType.DECISION_MODEL,
-        questions: definition.questions,
+        questions: definition.questions.map(toInternalDecisionModelQuestion),
         modelConfig: definition.modelConfig,
         variableMapping: toStoredMappingList(definition.variableMapping),
       });
@@ -302,10 +305,16 @@ export function toPublicEvaluatorVersion(
         "Decision-model evaluator model configuration is corrupted",
       );
     }
+    const questions = parseDecisionModelQuestions(version.questions);
+    if (!questions.success) {
+      throw new InternalServerError(
+        "Decision-model evaluator questions are corrupted",
+      );
+    }
     return EvaluatorVersion.parse({
       ...common,
       type: PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
-      questions: version.questions,
+      questions: questions.data.map(toPublicDecisionModelQuestion),
       variables: version.vars,
       variableMapping: toApiReadMappings(version.variableMapping),
       modelConfig: { provider: version.provider, model: version.model },

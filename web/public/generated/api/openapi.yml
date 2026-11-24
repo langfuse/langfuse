@@ -12063,11 +12063,11 @@ components:
           description: Description of this level.
       required:
         - description
-    DecisionModelNoulCriteria:
-      title: DecisionModelNoulCriteria
+    DecisionModelBooleanCriteria:
+      title: DecisionModelBooleanCriteria
       type: object
       description: >-
-        Optional criteria for the `true` and `false` answers of a `noul`
+        Optional criteria for the `true` and `false` answers of a `boolean`
         question.
       properties:
         'true':
@@ -12134,8 +12134,8 @@ components:
         - scoreName
         - instructions
         - levels
-    DecisionModelNoulQuestion:
-      title: DecisionModelNoulQuestion
+    DecisionModelBooleanQuestion:
+      title: DecisionModelBooleanQuestion
       type: object
       description: Answer true or false. Produces a boolean score.
       properties:
@@ -12153,7 +12153,7 @@ components:
             Question instructions. Refer to state keys from `variableMapping` by
             name.
         criteria:
-          $ref: '#/components/schemas/DecisionModelNoulCriteria'
+          $ref: '#/components/schemas/DecisionModelBooleanCriteria'
           nullable: true
           description: Optional criteria for the true and false answers.
       required:
@@ -12194,11 +12194,11 @@ components:
                 type:
                   type: string
                   enum:
-                    - noul
-            - $ref: '#/components/schemas/DecisionModelNoulQuestion'
+                    - boolean
+            - $ref: '#/components/schemas/DecisionModelBooleanQuestion'
           required:
             - type
-          title: DecisionModelNoulQuestion
+          title: DecisionModelBooleanQuestion
       description: >-
         One typed question answered by a decision-model evaluator. Each question
         produces one score.

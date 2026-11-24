@@ -291,8 +291,8 @@ types:
         type: DecisionModelEntry
         docs: Description of this level.
 
-  DecisionModelNoulCriteria:
-    docs: Optional criteria for the `true` and `false` answers of a `noul` question.
+  DecisionModelBooleanCriteria:
+    docs: Optional criteria for the `true` and `false` answers of a `boolean` question.
     properties:
       "true":
         type: optional<nullable<DecisionModelEntry>>
@@ -333,7 +333,7 @@ types:
         type: list<DecisionModelScoreLevel>
         docs: Between 2 and 10 levels, ordered from lowest to highest.
 
-  DecisionModelNoulQuestion:
+  DecisionModelBooleanQuestion:
     docs: Answer true or false. Produces a boolean score.
     properties:
       id:
@@ -346,7 +346,7 @@ types:
         type: DecisionModelEntry
         docs: Question instructions. Refer to state keys from `variableMapping` by name.
       criteria:
-        type: optional<nullable<DecisionModelNoulCriteria>>
+        type: optional<nullable<DecisionModelBooleanCriteria>>
         docs: Optional criteria for the true and false answers.
 
   DecisionModelQuestion:
@@ -357,8 +357,8 @@ types:
         type: DecisionModelChoiceQuestion
       score:
         type: DecisionModelScoreQuestion
-      noul:
-        type: DecisionModelNoulQuestion
+      boolean:
+        type: DecisionModelBooleanQuestion
 
   DecisionModelEvaluatorVersion:
     extends: EvaluatorVersionBase

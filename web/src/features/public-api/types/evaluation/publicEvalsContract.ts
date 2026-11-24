@@ -1,7 +1,13 @@
 import {
   arrayOptionsFilter,
   categoryOptionsFilter,
+  DecisionModelChoiceQuestionSchema,
+  DecisionModelNoulQuestionSchema,
+  DecisionModelQuestionsSchema,
+  DecisionModelQuestionType,
+  DecisionModelScoreQuestionSchema,
   DecisionModelStateKeySchema,
+  type DecisionModelQuestion,
   nullFilter,
   numberFilter,
   numberObjectFilter,
@@ -183,6 +189,51 @@ export const DecisionModelStateMappingInput = z.union([
     variable: DecisionModelStateKeySchema,
   }),
 ]);
+
+const PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE = "boolean";
+
+export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
+  DecisionModelChoiceQuestionSchema,
+  DecisionModelScoreQuestionSchema,
+  DecisionModelNoulQuestionSchema.extend({
+    type: z.literal(PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE),
+  }),
+]);
+type PublicDecisionModelQuestionType = z.infer<
+  typeof PublicDecisionModelQuestion
+>;
+
+export function toInternalDecisionModelQuestion(
+  question: PublicDecisionModelQuestionType,
+): DecisionModelQuestion {
+  return question.type === PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE
+    ? { ...question, type: DecisionModelQuestionType.NOUL }
+    : question;
+}
+
+export function toPublicDecisionModelQuestion(
+  question: DecisionModelQuestion,
+): PublicDecisionModelQuestionType {
+  return question.type === DecisionModelQuestionType.NOUL
+    ? { ...question, type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE }
+    : question;
+}
+
+export const PublicDecisionModelQuestionsInput = z
+  .array(PublicDecisionModelQuestion)
+  .superRefine((questions, ctx) => {
+    const parsed = DecisionModelQuestionsSchema.safeParse(
+      questions.map(toInternalDecisionModelQuestion),
+    );
+    if (parsed.success) return;
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: issue.path,
+      });
+    }
+  });
 
 // This shape preserves incomplete mappings so callers can repair them.
 // Mapping inputs remain strict and require a concrete source.

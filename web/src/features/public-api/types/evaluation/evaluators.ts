@@ -1,6 +1,4 @@
 import {
-  DecisionModelQuestionSchema,
-  DecisionModelQuestionsSchema,
   EvaluatorPromptMessagesSchema,
   InvalidRequestError,
   publicApiPaginationLimitZod,
@@ -8,6 +6,8 @@ import {
 import { z } from "zod";
 import {
   DecisionModelStateMappingInput,
+  PublicDecisionModelQuestion,
+  PublicDecisionModelQuestionsInput,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
@@ -68,7 +68,7 @@ const CodeEvaluatorVersion = EvaluatorVersionBase.extend({
 
 const DecisionModelEvaluatorFields = z.object({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_DECISION_MODEL),
-  questions: z.array(DecisionModelQuestionSchema),
+  questions: z.array(PublicDecisionModelQuestion),
   variables: z.array(z.string()),
   variableMapping: z.array(PromptVariableMappingRead),
   modelConfig: EvaluatorModelConfig,
@@ -155,7 +155,7 @@ const CodeEvaluatorDefinition = z
 const DecisionModelEvaluatorDefinition = z
   .object({
     type: z.literal(PUBLIC_EVALUATOR_TYPE_DECISION_MODEL),
-    questions: DecisionModelQuestionsSchema,
+    questions: PublicDecisionModelQuestionsInput,
     modelConfig: EvaluatorModelConfig,
     variableMapping: z.array(DecisionModelStateMappingInput).min(1),
   })
