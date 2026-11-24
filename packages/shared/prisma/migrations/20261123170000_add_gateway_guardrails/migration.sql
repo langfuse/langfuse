@@ -23,13 +23,17 @@ CREATE TABLE IF NOT EXISTS "gateway_guardrails" (
     "type" "GatewayGuardrailType" NOT NULL DEFAULT 'REGEX',
     "action" "GatewayGuardrailAction" NOT NULL,
     "config" JSONB NOT NULL DEFAULT '{}',
+    "created_by" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "gateway_guardrails_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "gateway_guardrails_organization_id_fkey"
         FOREIGN KEY ("organization_id") REFERENCES "organizations"("id")
-        ON DELETE CASCADE ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "gateway_guardrails_created_by_fkey"
+        FOREIGN KEY ("created_by") REFERENCES "users"("id")
+        ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "gateway_guardrails_organization_id_name_key" ON "gateway_guardrails"("organization_id", "name");

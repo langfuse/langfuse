@@ -84,6 +84,7 @@ model User {
   topicConfigsUpdated       TopicConfig[]               @relation("UpdatedByUser")
   tracingReadinessCreated   TracingReadinessSettings[]  @relation("CreatedByUser")
   tracingReadinessUpdated   TracingReadinessSettings[]  @relation("UpdatedByUser")
+  gatewayGuardrailsCreated  GatewayGuardrail[]          @relation("CreatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
@@ -517,8 +518,10 @@ model GatewayGuardrail {
   name           String
   type           GatewayGuardrailType         @default(REGEX)
   action         GatewayGuardrailAction
-  // For REGEX: { "presets": [...] } with ids of the gateway's built-in rules; validated on read.
+  // For REGEX: { "presets": [...] } with ids of the control plane's presets; validated on read.
   config         Json                         @default("{}") @db.JsonB
+  createdBy      String?                      @map("created_by")
+  createdByUser  User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
   createdAt      DateTime                     @default(now()) @map("created_at")
   updatedAt      DateTime                     @default(now()) @updatedAt @map("updated_at")
   assignments    GatewayGuardrailAssignment[]
