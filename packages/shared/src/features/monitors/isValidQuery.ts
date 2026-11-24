@@ -38,8 +38,8 @@ export const getValidMonitorAggregationsForMeasure = (
  * checks, `reason` carrying the first rejection. Filter-column-vs-view
  * alignment is intentionally NOT checked here (see LF-2181) — dimensions are
  * the group-by surface, not the filter surface, so the dimension map is the
- * wrong proxy. Billable units are the exception: the billing ledger has only
- * the columns its view declares (`unsupportedFilterReason`).
+ * wrong proxy. Views that take filters only on a fixed list of columns
+ * (billable units) reject the others (`unsupportedFilterReason`).
  */
 export function isValidQuery(input: {
   view: z.infer<typeof viewsV2>;
@@ -49,7 +49,7 @@ export function isValidQuery(input: {
   const declaration = getViewDeclaration(input.view, "v2");
 
   const filterReason =
-    unsupportedFilterReason(input.view, input.filters, "v2") ??
+    unsupportedFilterReason(input.view, input.filters) ??
     invalidFilterReason(declaration, input.filters);
   if (filterReason) {
     return {

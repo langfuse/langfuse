@@ -1,5 +1,5 @@
 import { type QueryType, type ViewVersion } from "./types";
-import { getViewDeclaration } from "./dataModel";
+import { BILLABLE_UNITS_FILTER_COLUMNS, getViewDeclaration } from "./dataModel";
 
 /**
  * Result of query validation.
@@ -147,25 +147,35 @@ function validateEntityDimension(
 }
 
 /**
+ * The views whose query builder takes filters only on a fixed list of
+ * columns, with the view's name for the error message. A view not listed
+ * here is not restricted.
+ */
+const VIEW_FILTER_COLUMNS: Partial<
+  Record<QueryType["view"], { label: string; columns: readonly string[] }>
+> = {
+  "billable-units": {
+    label: "Billable units",
+    columns: BILLABLE_UNITS_FILTER_COLUMNS,
+  },
+};
+
+/**
  * unsupportedFilterReason returns why a filter column can't be queried on the
- * view, or undefined when every filter can. Only billable units restrict
- * their filters: the query builder lets every view filter on `metadata` and
- * `*Name` columns, which the billing ledger does not have.
+ * view, naming the column and the supported ones, or undefined when every
+ * filter can. Only the views of {@link VIEW_FILTER_COLUMNS} reject columns.
  */
 export function unsupportedFilterReason(
   view: QueryType["view"],
   filters: QueryType["filters"],
-  version: ViewVersion,
 ): string | undefined {
-  if (view !== "billable-units") return undefined;
-  const declaration = getViewDeclaration(view, version);
+  const restriction = VIEW_FILTER_COLUMNS[view];
+  if (!restriction) return undefined;
   const unsupported = filters.find(
-    (filter) =>
-      !(filter.column in declaration.dimensions) &&
-      filter.column !== declaration.timeDimension,
+    (filter) => !restriction.columns.includes(filter.column),
   );
   if (!unsupported) return undefined;
-  return `Billable units can't be filtered by '${unsupported.column}'. Supported filters: ${Object.keys(declaration.dimensions).join(", ")}`;
+  return `${restriction.label} can't be filtered by '${unsupported.column}'. Supported filters: ${restriction.columns.join(", ")}`;
 }
 
 /**
@@ -195,11 +205,7 @@ export function validateQuery(
     };
   }
 
-  const filterReason = unsupportedFilterReason(
-    query.view,
-    query.filters,
-    version,
-  );
+  const filterReason = unsupportedFilterReason(query.view, query.filters);
   if (filterReason) {
     return { valid: false, reason: filterReason };
   }
