@@ -417,3 +417,18 @@ fn the_last_turn_is_everything_after_the_last_assistant_message() {
         ["result a", "result b"]
     );
 }
+
+#[test]
+fn tool_results_the_model_already_answered_are_not_scanned_again() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"role":"system","content":"sys"},
+            {"role":"user","content":"q"},
+            {"role":"assistant","tool_calls":[{"id":"a","type":"function","function":{"name":"f","arguments":"{}"}}]},
+            {"role":"tool","tool_call_id":"a","content":"a@example.com"},
+            {"role":"assistant","content":"answer"},
+            {"role":"user","content":"thanks"}]"#
+        ),
+        ["thanks"]
+    );
+}

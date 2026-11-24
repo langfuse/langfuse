@@ -461,7 +461,7 @@ impl AnthropicMessagesCapture {
 }
 
 /// Anthropic Messages keeps the conversation in `messages` and the system prompt in
-/// `system`. The last turn is every message after the last assistant message; tool
+/// `system`. The last turn is the user's message after the model last answered; tool
 /// results arrive as `tool_result` blocks of one user message. The system prompt
 /// counts only on the first turn.
 /// The top-level members guardrails scan.

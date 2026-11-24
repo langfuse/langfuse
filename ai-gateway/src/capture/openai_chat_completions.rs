@@ -494,8 +494,9 @@ impl OpenAiChatCompletionsCapture {
 }
 
 /// Chat Completions keeps the whole conversation in `messages`. The last turn is
-/// every message after the last assistant message: the user's message, or the
-/// results of the assistant's (possibly parallel) tool calls.
+/// the user's message, or the results of the assistant's (possibly parallel) tool
+/// calls: `tool` messages count as caller messages, so an assistant answer after
+/// them ends their turn.
 /// The top-level members guardrails scan.
 pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages"];
 
@@ -509,14 +510,15 @@ struct GuardrailMessage<'a> {
 
 impl GuardrailMessage<'_> {
     fn turn_item(&self) -> crate::guardrails::text::TurnItem {
-        match self
+        if self
             .role
             .and_then(crate::guardrails::text::string)
             .as_deref()
+            == Some("assistant")
         {
-            Some("assistant") => crate::guardrails::text::TurnItem::Model,
-            Some("tool") => crate::guardrails::text::TurnItem::Output,
-            _ => crate::guardrails::text::TurnItem::Message,
+            crate::guardrails::text::TurnItem::Model
+        } else {
+            crate::guardrails::text::TurnItem::Message
         }
     }
 }
