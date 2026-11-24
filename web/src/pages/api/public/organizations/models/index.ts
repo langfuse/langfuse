@@ -18,7 +18,8 @@ import {
   toApiOrganizationModel,
 } from "@/src/features/public-api/types/organization-models";
 import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
-import { InvalidRequestError } from "@langfuse/shared";
+import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
+import { prisma } from "@langfuse/shared/src/db";
 
 export default withStablePublicApiMiddlewares({
   GET: async (req, res) => {
@@ -83,35 +84,26 @@ export default withStablePublicApiMiddlewares({
       );
     }
 
-    const owner = {
-      type: "organization",
-      organizationId: scope.orgId,
-    } as const;
-    let result: Awaited<
-      ReturnType<typeof putOrganizationModelDefinitionByName>
-    >;
-    try {
-      result = await putOrganizationModelDefinitionByName({
-        organizationId: scope.orgId,
-        actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId },
-        input: parsed.data,
-      });
-    } catch (error) {
-      // The only request error left after schema validation is a match
-      // pattern that Postgres cannot compile.
-      if (error instanceof InvalidRequestError) {
-        throw createStructuredPublicApiError({
+    if (!(await isValidPostgresRegex(parsed.data.matchPattern, prisma))) {
+      return sendStructuredPublicApiErrorResponse(
+        res,
+        createStructuredPublicApiError({
           httpCode: 400,
           code: "invalid_body",
-          message: error.message,
+          message: "Invalid regex, needs to be Postgres syntax",
           details: { field: "matchPattern" },
-        });
-      }
-      throw error;
+        }),
+      );
     }
 
+    const result = await putOrganizationModelDefinitionByName({
+      organizationId: scope.orgId,
+      actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId },
+      input: parsed.data,
+    });
+
     const model = await getModelDefinition({
-      owner,
+      owner: { type: "organization", organizationId: scope.orgId },
       modelId: result.model.id,
     });
     return res

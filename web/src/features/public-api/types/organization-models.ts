@@ -76,7 +76,12 @@ export const GetOrganizationModelV1Response = APIOrganizationModel;
 // PUT /organizations/models
 export const PutOrganizationModelV1Body = z
   .object({
-    modelName: z.string().trim().min(1).max(255),
+    // Not trimmed: the name addresses the stored row exactly, and settings UI
+    // names may carry surrounding whitespace.
+    modelName: z
+      .string()
+      .max(255)
+      .refine((name) => name.trim().length > 0, "modelName must not be blank"),
     matchPattern: z.string().min(1).max(1000),
     pricingTiers: z
       .array(

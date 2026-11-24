@@ -4161,11 +4161,12 @@ paths:
         it. Requires an organization-scoped API key.
 
 
-        Returns `201` when the model was created and `200` when it was replaced;
-        the id stays the same across replaces. Organization models apply to
-        every project of the organization that has no project model matching the
-        same observation. Using the `modelName` of a Langfuse model overrides
-        it.
+        Returns `201` with the created model when no organization model has this
+        `modelName`, and `200` with the replaced model otherwise; the id stays
+        the same across replaces. A tokenizer set on the model in the
+        organization settings is kept. Organization models apply to every
+        project of the organization that has no project model matching the same
+        observation. Using the `modelName` of a Langfuse model overrides it.
 
 
         Changes apply to observations ingested after the write, typically within
@@ -13774,8 +13775,9 @@ components:
         modelName:
           type: string
           description: >-
-            Name of the model, 1 to 255 characters after trimming. Identifies
-            the model to create or replace. Case-sensitive.
+            Name of the model, at most 255 characters and not blank. Identifies
+            the model to create or replace, matched exactly, including case and
+            surrounding whitespace.
         matchPattern:
           type: string
           description: >-

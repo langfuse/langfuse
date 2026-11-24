@@ -115,6 +115,28 @@ describe("/api/public/organizations/models", () => {
       where: { organizationId: orgId, modelName: name },
     });
     expect(stored).toHaveLength(1);
+
+    // Names are addressed exactly, so a name the settings UI stored with
+    // surrounding whitespace can be replaced through the API.
+    const spacedName = ` ${name} `;
+    const spaced = await makeZodVerifiedAPICall(
+      PutOrganizationModelV1Response,
+      "PUT",
+      BASE,
+      modelBody(spacedName),
+      orgAuth,
+      201,
+    );
+    expect(spaced.body.modelName).toBe(spacedName);
+    const spacedAgain = await makeZodVerifiedAPICall(
+      PutOrganizationModelV1Response,
+      "PUT",
+      BASE,
+      modelBody(spacedName),
+      orgAuth,
+      200,
+    );
+    expect(spacedAgain.body.id).toBe(spaced.body.id);
   });
 
   it("lists only organization models by default and Langfuse models on request", async () => {
