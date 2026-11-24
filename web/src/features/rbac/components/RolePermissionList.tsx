@@ -70,9 +70,11 @@ const entityLabels: Record<string, string> = {
   feedback: "Feedback",
 };
 
-/** RolePermissionList groups permissions by resource kind and entity. */
-export const RolePermissionList = ({ role }: { role: SystemRole }) => {
-  const { policies } = systemRoleAccessRights[role];
+/** RolePermissionList groups permissions by resource kind and entity; several roles list each permission once. */
+export const RolePermissionList = ({ roles }: { roles: SystemRole[] }) => {
+  const policies = roles.flatMap(
+    (role) => systemRoleAccessRights[role].policies,
+  );
 
   if (policies.length === 0)
     return (
@@ -177,17 +179,30 @@ const compareActions = (a: string, b: string): number => {
   return rankA - rankB;
 };
 
-export const rolePermissionCountLabel = (role: SystemRole): string =>
-  `${rolePermissionCount(role)} ${rolePermissionNoun(role)}`;
+export const permissionNoun = (count: number): string =>
+  count === 1 ? "permission" : "permissions";
 
-export const rolePermissionNoun = (role: SystemRole): string =>
-  rolePermissionCount(role) === 1 ? "permission" : "permissions";
+export const permissionCountLabel = (count: number): string =>
+  `${count} ${permissionNoun(count)}`;
+
+export const rolePermissionCountLabel = (role: SystemRole): string =>
+  permissionCountLabel(rolePermissionCount(role));
 
 export const rolePermissionCount = (role: SystemRole): number =>
   systemRoleAccessRights[role].policies.reduce(
     (total, policy) => total + policy.actions.length,
     0,
   );
+
+/** A permission that several of the roles give counts once. */
+export const combinedPermissionCount = (roles: SystemRole[]): number =>
+  new Set(
+    roles.flatMap((role) =>
+      systemRoleAccessRights[role].policies.flatMap((policy) =>
+        policy.actions.map((action) => `${policy.resourceKind}:${action}`),
+      ),
+    ),
+  ).size;
 
 type ResourceKind = SystemRolePolicy["resourceKind"];
 

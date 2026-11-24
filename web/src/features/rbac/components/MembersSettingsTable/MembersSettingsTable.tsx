@@ -150,6 +150,12 @@ function orgRoleBlockedReason(
   return undefined;
 }
 
+/** Hover text for a member whose groups do not raise their role. */
+const alsoInGroups = (effective: EffectiveRole) =>
+  effective.grants.length > 0
+    ? `Also in ${[...new Set(effective.grants.map((grant) => grant.groupName))].join(", ")}`
+    : undefined;
+
 function directRoleEditor(
   member: MembersSettingsTableRow,
   effective: EffectiveRole,
@@ -255,32 +261,36 @@ export function MembersSettingsTable({
                   groupRoles: member.groupRoles,
                   level: onProject ? "project" : "organization",
                 });
+                const editor = directRoleEditor(member, effective, {
+                  project,
+                  projectRolesEntitlement,
+                  hasOrgCudAccess,
+                  hasProjectCudAccess,
+                  canManageOrgOwnership,
+                  canManageProjectOwnership,
+                  isAiGatewayEnabled,
+                  updatingOrgRoleMembershipIds,
+                  updatingProjectRoleMembershipIds,
+                  onUpdateOrgRole,
+                  onUpdateProjectRole,
+                });
+                const cell = describeRoleCell(effective, onProject);
                 return (
                   <EffectiveRoleDialogController
                     effective={effective}
                     orgRole={member.orgRole}
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
-                    canSeeOrgSettings={hasOrgCudAccess}
+                    projectName={onProject ? project?.name : undefined}
                     canSeeOrgGroups={hasOrgViewAccess}
+                    canManageOrgGroups={hasOrgCudAccess}
                     member={{ name: member.user.name, email: member.email }}
-                    editor={directRoleEditor(member, effective, {
-                      project,
-                      projectRolesEntitlement,
-                      hasOrgCudAccess,
-                      hasProjectCudAccess,
-                      canManageOrgOwnership,
-                      canManageProjectOwnership,
-                      isAiGatewayEnabled,
-                      updatingOrgRoleMembershipIds,
-                      updatingProjectRoleMembershipIds,
-                      onUpdateOrgRole,
-                      onUpdateProjectRole,
-                    })}
+                    editor={editor}
                   >
                     {(openDialog) => (
                       <RoleCellTrigger
-                        {...describeRoleCell(effective, onProject)}
+                        {...cell}
+                        groupHint={cell.groupHint ?? alsoInGroups(effective)}
                         onClick={openDialog}
                       />
                     )}

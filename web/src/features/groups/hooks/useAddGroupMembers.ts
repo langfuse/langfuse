@@ -7,6 +7,7 @@ export function useAddGroupMembers(groupName: string) {
   return api.groups.addMembers.useMutation({
     onSuccess: () => {
       utils.groups.invalidate().catch(() => undefined);
+      utils.members.invalidate().catch(() => undefined);
       showSuccessToast({
         operation: "group_members.update",
         title: "Members added",

@@ -6,10 +6,10 @@ import { type PaginationBarProps } from "@/src/components/design-system/Paginati
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { roleName } from "@/src/features/rbac/components/roleDisplay";
 
 export type MembershipInvitesSettingsTableRow = {
   email: string;
@@ -43,16 +43,18 @@ export function MembershipInvitesSettingsTable({
         accessorKey: "email",
         header: "Email",
       }),
-      createBadgeTableColumn<MembershipInvitesSettingsTableRow>({
+      createTextTableColumn<MembershipInvitesSettingsTableRow, Role>({
         accessorKey: "orgRole",
         header: "Organization Role",
+        mapValue: (role) => (role ? roleName(role) : undefined),
       }),
       ...(showProjectRole
         ? [
-            createBadgeTableColumn<MembershipInvitesSettingsTableRow>({
+            createTextTableColumn<MembershipInvitesSettingsTableRow, Role>({
               accessorKey: "projectRole",
               header: "Project Role",
               nullValue: "-",
+              mapValue: (role) => (role ? roleName(role) : undefined),
             }),
           ]
         : []),

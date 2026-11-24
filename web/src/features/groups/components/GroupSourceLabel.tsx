@@ -5,7 +5,7 @@ export type GroupSource = keyof typeof GROUP_SOURCE_DISPLAY;
 
 export function GroupSourceLabel({ source }: { source: GroupSource }) {
   const display = GROUP_SOURCE_DISPLAY[source];
-  const Icon = display.icon;
+  const Icon = "icon" in display ? display.icon : undefined;
   return (
     <Tooltip label={display.description}>
       {({ getTriggerProps }) => (
@@ -14,7 +14,7 @@ export function GroupSourceLabel({ source }: { source: GroupSource }) {
           tabIndex={0}
           {...getTriggerProps()}
         >
-          <Icon size="sm" aria-hidden="true" />
+          {Icon && <Icon size="sm" aria-hidden="true" />}
           {display.label}
         </span>
       )}

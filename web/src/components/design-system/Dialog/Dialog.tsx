@@ -58,9 +58,8 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: React.ReactNode;
-  /** Shown before the title and description, e.g. an icon tile. */
+  /** Shown before the title, e.g. an icon tile. */
   titleMedia?: React.ReactNode;
-  description?: React.ReactNode;
   /** Shown at the start of the footer, beside the buttons. */
   footerNote?: React.ReactNode;
 } & (
@@ -84,7 +83,6 @@ function DialogRoot({
   text,
   title,
   titleMedia,
-  description,
   footerNote,
 }: DialogProps) {
   const container = useLayerContainer("modal");
@@ -180,25 +178,18 @@ function DialogRoot({
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
           <header className="bg-modal flex shrink-0 items-center gap-2.5 rounded-t-lg p-4">
             {titleMedia}
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex w-full items-center justify-between gap-4 text-left">
-                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                  {title}
-                </DialogPrimitive.Title>
-                {requireExplicitClose ? null : (
-                  <DialogPrimitive.Close
-                    className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-                    tabIndex={-1}
-                  >
-                    <X size="base" />
-                    <span className="sr-only">Close</span>
-                  </DialogPrimitive.Close>
-                )}
-              </div>
-              {description !== undefined && (
-                <DialogPrimitive.Description className="text-sm leading-relaxed">
-                  {description}
-                </DialogPrimitive.Description>
+            <div className="flex w-full min-w-0 flex-1 items-center justify-between gap-4 text-left">
+              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
+                {title}
+              </DialogPrimitive.Title>
+              {requireExplicitClose ? null : (
+                <DialogPrimitive.Close
+                  className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+                  tabIndex={-1}
+                >
+                  <X size="base" />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
               )}
             </div>
           </header>
