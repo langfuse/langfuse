@@ -6,8 +6,9 @@
 //! `[^,]` match full UTF-8 characters so match spans always land on char
 //! boundaries. Lookaround and backreferences are rejected by the parser.
 //!
-//! Size, length and rule-count limits ([`LIMITS`]) are enforced in the control
-//! plane via [`validate`], not in the gateway via [`compile`].
+//! All numeric limits are supplied by the caller to [`validate`] (control
+//! plane); no limits are hardcoded in the WebAssembly module or enforced in
+//! [`compile`] (gateway).
 use regex_automata::{
     meta,
     nfa::thompson::{self, State},
@@ -19,35 +20,19 @@ use regex_syntax::{
     },
     hir::{self, Hir},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// Control-plane limits on an organization's rules. Fixed-width so the
+/// Caller-supplied limits for control-plane validation. Fixed-width so the
 /// WebAssembly build (32-bit `usize`) and native builds measure identical sizes.
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Limits {
-    pub max_rules: u32,
     pub max_pattern_chars: u32,
     /// Compiled size of one rule, as measured by `compiled_size`.
     pub max_rule_bytes: u32,
     /// Compiled size of all of an organization's rules together.
     pub max_set_bytes: u32,
-    pub nest_limit: u32,
 }
 
-/// The limits of the Guardrails RFC: 500 characters per pattern (Bedrock's
-/// cap), 128 KiB compiled per rule and 512 KiB per organization (about 50
-/// rules). Enforced in the control plane via [`validate`].
-pub const LIMITS: Limits = Limits {
-    max_rules: 50,
-    max_pattern_chars: 500,
-    max_rule_bytes: 128 * 1024,
-    max_set_bytes: 512 * 1024,
-    nest_limit: 100,
-};
-
-/// Bounds memory while compiling a pattern before its size is measured. Far
-/// above any limit, so it only stops patterns rejected on every architecture.
-const COMPILE_GUARD_BYTES: usize = 32 << 20;
 const STATE_BYTES: u32 = 8;
 const TRANSITION_BYTES: u32 = 8;
 
@@ -335,7 +320,6 @@ fn fold_ascii_range(range: &ast::ClassSetRange) -> Option<ClassSetItem> {
 
 fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
     let mut ast = ast::parse::ParserBuilder::new()
-        .nest_limit(LIMITS.nest_limit)
         .build()
         .parse(pattern)
         .map_err(|error| describe(&error))?;
@@ -354,9 +338,13 @@ fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
 /// The compiled size of `hirs` together: 8 bytes per NFA state and 8 per
 /// transition. regex-automata's own size counts allocations, which grow with
 /// pointer width, so the same rule could measure differently on wasm32 and x86_64.
-fn compiled_size(hirs: &[&Hir]) -> Result<u32, String> {
+fn compiled_size(hirs: &[&Hir], limit: u32) -> Result<u32, String> {
+    // OOM ceiling while compiling so a short pattern like `a{99999999}` fails
+    // before allocating unbounded memory; kept far above `limit` so wasm32 and
+    // x86_64 never disagree near the caller's limit.
+    let guard = (limit as usize).saturating_mul(64).max(4 << 20);
     let nfa = thompson::Compiler::new()
-        .configure(thompson::Config::new().nfa_size_limit(Some(COMPILE_GUARD_BYTES)))
+        .configure(thompson::Config::new().nfa_size_limit(Some(guard)))
         .build_many_from_hir(hirs)
         .map_err(|error| describe(&error))?;
     nfa.states()
@@ -395,22 +383,26 @@ fn describe(error: &dyn std::error::Error) -> String {
         .to_owned()
 }
 
-fn check_rule(pattern: &str) -> Result<(Hir, u32), String> {
+fn check_rule(pattern: &str, limits: &Limits) -> Result<(Hir, u32), String> {
     if pattern.is_empty() {
         return Err("pattern is empty".into());
     }
-    if u32::try_from(pattern.chars().count()).map_or(true, |chars| chars > LIMITS.max_pattern_chars)
+    if u32::try_from(pattern.chars().count()).map_or(true, |chars| chars > limits.max_pattern_chars)
     {
         return Err(format!(
             "pattern is longer than {} characters",
-            LIMITS.max_pattern_chars
+            limits.max_pattern_chars
         ));
     }
     let hir = parse_to_hir(pattern)?;
     if hir.properties().minimum_len() == Some(0) {
         return Err("pattern matches the empty string".into());
     }
-    let bytes = within(compiled_size(&[&hir])?, LIMITS.max_rule_bytes, "rule")?;
+    let bytes = within(
+        compiled_size(&[&hir], limits.max_rule_bytes)?,
+        limits.max_rule_bytes,
+        "rule",
+    )?;
     Ok((hir, bytes))
 }
 
@@ -423,28 +415,15 @@ fn within(bytes: u32, limit: u32, what: &str) -> Result<u32, String> {
     Ok(bytes)
 }
 
-/// Validates an organization's rules in the control plane against [`LIMITS`]:
-/// rule count first, then each rule on its own, then all rules combined.
-pub fn validate(patterns: &[String]) -> Report {
-    if u32::try_from(patterns.len()).map_or(true, |count| count > LIMITS.max_rules) {
-        return Report {
-            ok: false,
-            rules: vec![],
-            set_error: Some(format!(
-                "{} rules exceed the limit of {}",
-                patterns.len(),
-                LIMITS.max_rules
-            )),
-            set_bytes: None,
-        };
-    }
-
+/// Validates an organization's rules in the control plane against `limits`:
+/// each rule on its own, then all rules combined.
+pub fn validate(patterns: &[String], limits: &Limits) -> Report {
     let mut rules = Vec::with_capacity(patterns.len());
     let mut hirs = Vec::with_capacity(patterns.len());
     let mut all_valid = true;
 
     for (index, pattern) in patterns.iter().enumerate() {
-        match check_rule(pattern) {
+        match check_rule(pattern, limits) {
             Ok((hir, bytes)) => {
                 hirs.push(hir);
                 rules.push(RuleResult {
@@ -466,7 +445,8 @@ pub fn validate(patterns: &[String]) -> Report {
 
     let (set_bytes, set_error) = if all_valid && !hirs.is_empty() {
         let refs: Vec<&Hir> = hirs.iter().collect();
-        match compiled_size(&refs).and_then(|bytes| within(bytes, LIMITS.max_set_bytes, "rule set"))
+        match compiled_size(&refs, limits.max_set_bytes)
+            .and_then(|bytes| within(bytes, limits.max_set_bytes, "rule set"))
         {
             Ok(bytes) => (Some(bytes), None),
             Err(error) => (None, Some(error)),
@@ -485,8 +465,8 @@ pub fn validate(patterns: &[String]) -> Report {
 
 /// Compiles rules into one multi-pattern regex using the same ASCII-only
 /// translation as [`validate`]; each match carries its span and the index of
-/// the rule that produced it. Size, length and rule-count limits are enforced
-/// in the control plane via [`validate`], not here.
+/// the rule that produced it. Size and length limits are enforced in the
+/// control plane via [`validate`], not here.
 pub fn compile(patterns: &[String]) -> Result<meta::Regex, String> {
     let hirs: Vec<Hir> = patterns
         .iter()
@@ -502,16 +482,17 @@ pub fn compile(patterns: &[String]) -> Result<meta::Regex, String> {
 mod wasm {
     use wasm_bindgen::prelude::*;
 
-    /// `input`: `{"patterns": [...]}`, checked against [`super::LIMITS`].
+    /// `input`: `{"patterns": [...], "limits": {"max_pattern_chars": ..., "max_rule_bytes": ..., "max_set_bytes": ...}}`.
     /// Returns the [`super::Report`] as JSON.
     #[wasm_bindgen]
     pub fn validate(input: &str) -> String {
         #[derive(serde::Deserialize)]
         struct Input {
             patterns: Vec<String>,
+            limits: super::Limits,
         }
         let report = match serde_json::from_str::<Input>(input) {
-            Ok(input) => super::validate(&input.patterns),
+            Ok(input) => super::validate(&input.patterns, &input.limits),
             Err(error) => super::Report {
                 ok: false,
                 rules: vec![],
@@ -521,20 +502,20 @@ mod wasm {
         };
         serde_json::to_string(&report).unwrap_or_else(|_| r#"{"ok":false,"rules":[]}"#.into())
     }
-
-    /// [`super::LIMITS`] as JSON, for the control plane to show.
-    #[wasm_bindgen]
-    pub fn limits() -> String {
-        serde_json::to_string(&super::LIMITS).unwrap_or_default()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const RFC_LIMITS: Limits = Limits {
+        max_pattern_chars: 500,
+        max_rule_bytes: 128 * 1024,
+        max_set_bytes: 512 * 1024,
+    };
+
     fn error(pattern: &str) -> Option<String> {
-        check_rule(pattern).err()
+        check_rule(pattern, &RFC_LIMITS).err()
     }
 
     #[test]
@@ -625,14 +606,14 @@ mod tests {
     }
 
     #[test]
-    fn enforces_control_plane_limits() {
+    fn enforces_caller_supplied_limits() {
         // Pattern length > 500 chars.
-        let too_long = "a".repeat(LIMITS.max_pattern_chars as usize + 1);
-        assert!(validate(&[too_long]).rules[0].error.is_some());
+        let too_long = "a".repeat(RFC_LIMITS.max_pattern_chars as usize + 1);
+        assert!(validate(&[too_long], &RFC_LIMITS).rules[0].error.is_some());
 
         // Single rule > 128 KiB compiled.
         let oversized_rule = r"\w{1,500}".repeat(5);
-        let report = validate(std::slice::from_ref(&oversized_rule));
+        let report = validate(std::slice::from_ref(&oversized_rule), &RFC_LIMITS);
         assert!(!report.ok);
         assert!(
             report.rules[0]
@@ -644,9 +625,9 @@ mod tests {
 
         // Org total > 512 KiB compiled (each rule fits under 128 KiB).
         let near_cap_rule = r"\w{1,500}".repeat(4);
-        assert!(check_rule(&near_cap_rule).is_ok());
+        assert!(check_rule(&near_cap_rule, &RFC_LIMITS).is_ok());
         let oversized_set = vec![near_cap_rule; 5];
-        let set_report = validate(&oversized_set);
+        let set_report = validate(&oversized_set, &RFC_LIMITS);
         assert!(!set_report.ok);
         assert!(set_report.rules.iter().all(|r| r.error.is_none()));
         assert!(
@@ -657,30 +638,22 @@ mod tests {
                 .contains("over the limit")
         );
 
-        // Rule count > 50 returns early without compiling individual rules.
-        let too_many: Vec<String> = (0..=LIMITS.max_rules).map(|i| format!("word{i}")).collect();
-        let count_report = validate(&too_many);
-        assert!(!count_report.ok);
-        assert!(count_report.rules.is_empty());
-        assert!(
-            count_report
-                .set_error
-                .as_deref()
-                .unwrap()
-                .contains("exceed")
-        );
+        // Tighter caller-supplied limits reject rules that pass under RFC_LIMITS.
+        let tighter = Limits {
+            max_pattern_chars: 10,
+            max_rule_bytes: 200,
+            max_set_bytes: 400,
+        };
+        assert!(validate(&[r"\b\d{3}-\d{2}-\d{4}\b".to_string()], &RFC_LIMITS).ok);
+        assert!(!validate(&[r"\b\d{3}-\d{2}-\d{4}\b".to_string()], &tighter).ok);
     }
 
     #[test]
     fn gateway_compile_skips_control_plane_limits_but_rejects_unicode() {
         // Limits are enforced in the control plane only, not in the gateway.
         let oversized_rule = r"\w{1,500}".repeat(5);
-        assert!(!validate(std::slice::from_ref(&oversized_rule)).ok);
+        assert!(!validate(std::slice::from_ref(&oversized_rule), &RFC_LIMITS).ok);
         assert!(compile(std::slice::from_ref(&oversized_rule)).is_ok());
-
-        let many: Vec<String> = (0..=LIMITS.max_rules).map(|i| format!("word{i}")).collect();
-        assert!(!validate(&many).ok);
-        assert!(compile(&many).is_ok());
 
         // Gateway still rejects Unicode patterns and bad syntax.
         assert!(compile(&[r"(?u:\w)+".to_string()]).is_err());
@@ -705,7 +678,7 @@ mod tests {
         let fixture: Fixture =
             serde_json::from_str(include_str!("../tests/compiled-sizes.json")).unwrap();
         for case in &fixture.rules {
-            let report = validate(std::slice::from_ref(&case.pattern));
+            let report = validate(std::slice::from_ref(&case.pattern), &RFC_LIMITS);
             assert_eq!(
                 report.rules[0].compiled_bytes, case.compiled_bytes,
                 "{}",
@@ -718,7 +691,10 @@ mod tests {
             .filter(|case| case.compiled_bytes.is_some())
             .map(|case| case.pattern)
             .collect();
-        assert_eq!(validate(&valid).set_bytes, Some(fixture.set_bytes));
+        assert_eq!(
+            validate(&valid, &RFC_LIMITS).set_bytes,
+            Some(fixture.set_bytes)
+        );
     }
 
     #[test]

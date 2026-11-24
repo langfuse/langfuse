@@ -2,12 +2,7 @@
 /* eslint-disable */
 
 /**
- * [`super::LIMITS`] as JSON, for the control plane to show.
- */
-export function limits(): string;
-
-/**
- * `input`: `{"patterns": [...]}`, checked against [`super::LIMITS`].
+ * `input`: `{"patterns": [...], "limits": {"max_pattern_chars": ..., "max_rule_bytes": ..., "max_set_bytes": ...}}`.
  * Returns the [`super::Report`] as JSON.
  */
 export function validate(input: string): string;

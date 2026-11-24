@@ -1,25 +1,7 @@
 /* @ts-self-types="./ai_gateway_guardrail_rules.d.ts" */
 
 /**
- * [`super::LIMITS`] as JSON, for the control plane to show.
- * @returns {string}
- */
-function limits() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.limits();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
-exports.limits = limits;
-
-/**
- * `input`: `{"patterns": [...]}`, checked against [`super::LIMITS`].
+ * `input`: `{"patterns": [...], "limits": {"max_pattern_chars": ..., "max_rule_bytes": ..., "max_set_bytes": ...}}`.
  * Returns the [`super::Report`] as JSON.
  * @param {string} input
  * @returns {string}
