@@ -140,7 +140,7 @@ function LoadedSpanContent({
       // No row-level title: it would pop a native tooltip from ANYWHERE in the
       // row — stacking on the score chips' own titles and the ScoreTag level
       // tooltip. The truncating name span below carries its own title.
-      className={cn(rootClassName, className)}
+      className={cn(rootClassName, !onSelect && "cursor-default", className)}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {/* Name and badges row */}

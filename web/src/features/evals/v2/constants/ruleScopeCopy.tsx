@@ -11,10 +11,6 @@ export const TRACE_FILTER_TOOLTIP = (
       llm-call observation. A trace whose llm-call succeeded while a different
       observation failed does not match.
     </span>
-    <span>
-      Observation filters check the same conditions on each observation, and
-      only the matching observations are evaluated.
-    </span>
   </span>
 );
 

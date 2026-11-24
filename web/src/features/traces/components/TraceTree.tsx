@@ -9,7 +9,6 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
-import { cn } from "@/src/utils/tailwind";
 import { type TreeNode } from "../types/treeNode";
 import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
 import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
@@ -122,11 +121,11 @@ function LoadedTraceTree() {
         return (
           <TraceTreeRow
             {...row}
+            onSelect={selectionLocked ? undefined : row.onSelect}
             node={typedNode}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
-            selectionLocked={selectionLocked}
           />
         );
       }}
@@ -145,18 +144,16 @@ function TraceTreeRow({
   emphasis,
   commentCount,
   onHover,
-  selectionLocked,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
   isSelected: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  onSelect: () => void;
+  onSelect: (() => void) | undefined;
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
-  selectionLocked: boolean;
 }) {
   return (
     <VirtualizedTreeNodeWrapper
@@ -167,16 +164,6 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      surfaceClassName={
-        selectionLocked
-          ? cn(
-              "cursor-default",
-              isSelected
-                ? "bg-muted text-foreground"
-                : "dark:text-muted-foreground",
-            )
-          : undefined
-      }
     >
       <SpanContent
         node={node}
