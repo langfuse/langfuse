@@ -62,6 +62,7 @@ export async function processBatchedObservationEval(params: {
           });
           await scheduleObservationEvals({
             observation,
+            loadSnapshot: () => observation,
             configs: evaluators,
             schedulerDeps,
             executionMode: "MANUAL",

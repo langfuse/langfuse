@@ -1426,6 +1426,13 @@ describe(
     );
 
     it("writes both enriched observations and preserves accounting through readback", async () => {
+      // Load each snapshot the way the scheduler does: while it is scheduling.
+      const snapshots: { span_id: string; output?: unknown }[] = [];
+      otelReplayMocks.scheduleObservationEvals.mockImplementation(
+        async ({ loadSnapshot }) => {
+          snapshots.push(loadSnapshot());
+        },
+      );
       const comparison = await runOtelReplayComparison({
         bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
         projectId: PROJECT_ID,
@@ -1438,8 +1445,7 @@ describe(
       expectRawNativeParity(comparison);
       expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(6);
       expect(
-        otelReplayMocks.scheduleObservationEvals.mock.calls
-          .map(([{ observation }]) => observation)
+        snapshots
           .filter((observation) => observation.span_id === SECOND_SPAN_ID)
           .map((observation) => observation.output),
       ).toEqual(Array(3).fill("x".repeat(1024)));

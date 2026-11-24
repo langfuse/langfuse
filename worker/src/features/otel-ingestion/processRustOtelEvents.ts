@@ -281,10 +281,12 @@ async function writeRecordsAndScheduleEvals(
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () =>
-              convertEventRecordToObservationForEval(
+            parseObservation: () => {
+              const observation = convertEventRecordToObservationForEval(
                 evaluationRows[index] as EventRecordInsertType,
-              ),
+              );
+              return { observation, loadSnapshot: () => observation };
+            },
             environment: record.environment,
             traceActivity,
             rules: evalConfigs,
