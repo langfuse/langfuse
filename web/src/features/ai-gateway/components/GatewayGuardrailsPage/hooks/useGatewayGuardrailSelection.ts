@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailsTableState";
+import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { api } from "@/src/utils/api";
 
 const ALL_TAG = "all";

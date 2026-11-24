@@ -1,11 +1,12 @@
 import { useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
 import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import {
   GatewayGuardrailTargetsInput,
@@ -43,8 +44,6 @@ export function GatewayBulkGuardrailTargetsDialog({
   onSubmit,
 }: GatewayBulkGuardrailTargetsDialogProps) {
   const formId = useId();
-  const targetsId = useId();
-  const targetsErrorId = useId();
   const form = useForm<BulkTargetsFormValues>({
     resolver: zodResolver(bulkTargetsFormSchema),
     defaultValues: { targets: initialTargets },
@@ -85,41 +84,18 @@ export function GatewayBulkGuardrailTargetsDialog({
           <p className="text-muted-foreground text-sm">
             Replaces who {countLabel} apply to.
           </p>
-          <Controller
-            control={form.control}
-            name="targets"
-            render={({ field, fieldState }) => {
-              const targetError = fieldState.error?.message;
-              return (
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor={targetsId}
-                    className="text-sm leading-none font-bold"
-                  >
-                    Applies to
-                  </label>
-                  <div className="flex flex-col gap-1">
-                    <GatewayGuardrailTargetsInput
-                      id={targetsId}
-                      describedById={targetError ? targetsErrorId : undefined}
-                      value={field.value}
-                      onChange={field.onChange}
-                      picker={targetPicker}
-                      error={Boolean(targetError)}
-                    />
-                    {targetError ? (
-                      <p
-                        id={targetsErrorId}
-                        className="text-destructive text-sm"
-                      >
-                        {targetError}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            }}
-          />
+          <FormField control={form.control} name="targets" label="Applies to">
+            {({ id, inputDescribedById, error, value, onChange }) => (
+              <GatewayGuardrailTargetsInput
+                id={id}
+                describedById={inputDescribedById}
+                value={value}
+                onChange={onChange}
+                picker={targetPicker}
+                error={Boolean(error)}
+              />
+            )}
+          </FormField>
           {errorMessage !== null ? (
             <Banner variant="error" title="Targets could not be updated">
               {errorMessage}

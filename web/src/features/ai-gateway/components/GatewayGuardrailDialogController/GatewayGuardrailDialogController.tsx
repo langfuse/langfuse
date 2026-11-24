@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
 import {
   GatewayGuardrailFormDialog,
   type GatewayGuardrailFormValues,
@@ -28,11 +30,22 @@ import {
   api,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  type RouterInputs,
 } from "@/src/utils/api";
+
+type BulkTargetsInput =
+  RouterInputs["aiGateway"]["setGuardrailsAssignments"]["target"];
 
 export type GuardrailDialogState =
   | { mode: "create" }
-  | { mode: "edit"; guardrail: GatewayGuardrailRow };
+  | { mode: "edit"; guardrail: GatewayGuardrailRow }
+  | {
+      mode: "bulkTargets";
+      target: BulkTargetsInput;
+      selectedCount: number;
+      initialTargets: TagAutocompleteOption[];
+      onAfterSave: () => void;
+    };
 
 export type GatewayGuardrailDialogControllerProps = {
   organizationId: string;
@@ -41,6 +54,7 @@ export type GatewayGuardrailDialogControllerProps = {
   }) => ReactNode;
 };
 
+/** Manages create, edit, and bulk "Set applies to" guardrail dialogs. */
 export function GatewayGuardrailDialogController({
   organizationId,
   children,
@@ -55,12 +69,21 @@ export function GatewayGuardrailDialogController({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
   });
+  const bulkTargetsMutation =
+    api.aiGateway.setGuardrailsAssignments.useMutation({
+      onError: (error) =>
+        reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
+    });
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    bulkTargetsMutation.isPending;
 
   const resetMutations = () => {
     createMutation.reset();
     updateMutation.reset();
+    bulkTargetsMutation.reset();
   };
 
   return (
@@ -68,11 +91,11 @@ export function GatewayGuardrailDialogController({
       onBeforeClose={() => !isPending}
       onDismiss={resetMutations}
       renderDialog={({ state, closeDialog }) => {
-        const activeMutation =
-          state.mode === "create" ? createMutation : updateMutation;
-        const errorMessage = activeMutation.isError
-          ? (activeMutation.error?.message ?? "Try again.")
-          : null;
+        const errorMessage = getMutationErrorMessage(state.mode, {
+          create: createMutation,
+          edit: updateMutation,
+          bulkTargets: bulkTargetsMutation,
+        });
 
         const handleContactSupport = () => {
           closeDialog();
@@ -80,47 +103,70 @@ export function GatewayGuardrailDialogController({
           openLimitFeedback();
         };
 
+        const handleSubmitForm = async (values: GatewayGuardrailFormValues) => {
+          const assignments = targetOptionsToAssignments(values.targets);
+          try {
+            if (state.mode === "create") {
+              await createMutation.mutateAsync({
+                orgId: organizationId,
+                name: values.name,
+                action: values.action,
+                presets: values.presets,
+                secretPrefixes: values.secretPrefixes,
+                containsWords: values.containsWords,
+                assignments,
+              });
+            } else if (state.mode === "edit") {
+              await updateMutation.mutateAsync({
+                orgId: organizationId,
+                id: state.guardrail.id,
+                name: values.name,
+                action: values.action,
+                presets: values.presets,
+                secretPrefixes: values.secretPrefixes,
+                containsWords: values.containsWords,
+                assignments,
+              });
+            }
+            closeDialog();
+            resetMutations();
+          } catch (error) {
+            reportNonTrpcError(error, "ai-gateway-guardrails");
+          } finally {
+            await invalidateGuardrails();
+          }
+        };
+
+        const handleSubmitBulkTargets = async (
+          targets: TagAutocompleteOption[],
+        ) => {
+          if (state.mode !== "bulkTargets") return;
+          try {
+            await bulkTargetsMutation.mutateAsync({
+              orgId: organizationId,
+              target: state.target,
+              assignments: targetOptionsToAssignments(targets),
+            });
+            state.onAfterSave();
+            closeDialog();
+            resetMutations();
+          } catch (error) {
+            reportNonTrpcError(error, "ai-gateway-guardrails");
+          } finally {
+            await invalidateGuardrails();
+          }
+        };
+
         return (
-          <ConnectedGuardrailDialog
+          <GuardrailDialogContent
             organizationId={organizationId}
             state={state}
             isSubmitting={isPending}
             errorMessage={errorMessage}
             onClearError={resetMutations}
             onContactSupport={handleContactSupport}
-            onSubmit={async (values) => {
-              const assignments = targetOptionsToAssignments(values.targets);
-              try {
-                if (state.mode === "create") {
-                  await createMutation.mutateAsync({
-                    orgId: organizationId,
-                    name: values.name,
-                    action: values.action,
-                    presets: values.presets,
-                    secretPrefixes: values.secretPrefixes,
-                    containsWords: values.containsWords,
-                    assignments,
-                  });
-                } else {
-                  await updateMutation.mutateAsync({
-                    orgId: organizationId,
-                    id: state.guardrail.id,
-                    name: values.name,
-                    action: values.action,
-                    presets: values.presets,
-                    secretPrefixes: values.secretPrefixes,
-                    containsWords: values.containsWords,
-                    assignments,
-                  });
-                }
-                closeDialog();
-                resetMutations();
-              } catch (error) {
-                reportNonTrpcError(error, "ai-gateway-guardrails");
-              } finally {
-                await invalidateGuardrails();
-              }
-            }}
+            onSubmitForm={handleSubmitForm}
+            onSubmitBulkTargets={handleSubmitBulkTargets}
           />
         );
       }}
@@ -130,33 +176,48 @@ export function GatewayGuardrailDialogController({
   );
 }
 
-type ConnectedGuardrailDialogProps = {
+type GuardrailDialogContentProps = {
   organizationId: string;
   state: GuardrailDialogState;
   isSubmitting: boolean;
   errorMessage: string | null;
   onClearError: () => void;
   onContactSupport: () => void;
-  onSubmit: (values: GatewayGuardrailFormValues) => void;
+  onSubmitForm: (values: GatewayGuardrailFormValues) => void;
+  onSubmitBulkTargets: (targets: TagAutocompleteOption[]) => void;
 };
 
-function ConnectedGuardrailDialog({
+function GuardrailDialogContent({
   organizationId,
   state,
   isSubmitting,
   errorMessage,
   onClearError,
   onContactSupport,
-  onSubmit,
-}: ConnectedGuardrailDialogProps) {
+  onSubmitForm,
+  onSubmitBulkTargets,
+}: GuardrailDialogContentProps) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<GatewayGuardrailTemplate | null>(null);
 
-  const isFormOpen = state.mode === "edit" || selectedTemplate !== null;
+  const needsTargets = state.mode !== "create" || selectedTemplate !== null;
   const targetPicker = useGatewayGuardrailTargetPicker(
     organizationId,
-    isFormOpen,
+    needsTargets,
   );
+
+  if (state.mode === "bulkTargets") {
+    return (
+      <GatewayBulkGuardrailTargetsDialog
+        selectedCount={state.selectedCount}
+        initialTargets={state.initialTargets}
+        targetPicker={targetPicker}
+        isSubmitting={isSubmitting}
+        errorMessage={errorMessage}
+        onSubmit={onSubmitBulkTargets}
+      />
+    );
+  }
 
   if (state.mode === "create" && selectedTemplate === null) {
     return (
@@ -190,7 +251,7 @@ function ConnectedGuardrailDialog({
         errorMessage={errorMessage}
         onBack={handleBack}
         onContactSupport={onContactSupport}
-        onSubmit={onSubmit}
+        onSubmit={onSubmitForm}
       />
     );
   }
@@ -221,9 +282,20 @@ function ConnectedGuardrailDialog({
       targetPicker={targetPicker}
       isSubmitting={isSubmitting}
       errorMessage={errorMessage}
-      onSubmit={onSubmit}
+      onSubmit={onSubmitForm}
     />
   );
+}
+
+function getMutationErrorMessage(
+  mode: GuardrailDialogState["mode"],
+  mutations: Record<
+    GuardrailDialogState["mode"],
+    { isError: boolean; error: { message?: string } | null }
+  >,
+) {
+  const active = mutations[mode];
+  return active.isError ? (active.error?.message ?? "Try again.") : null;
 }
 
 function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {

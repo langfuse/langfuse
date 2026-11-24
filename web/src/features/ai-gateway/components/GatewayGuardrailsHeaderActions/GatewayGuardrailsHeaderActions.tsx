@@ -4,7 +4,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { GatewayGuardrailDialogController } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
 import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import { api } from "@/src/utils/api";
+import { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 
 export type GatewayGuardrailsHeaderActionsProps = {
   organizationId: string;
@@ -14,11 +14,7 @@ export type GatewayGuardrailsHeaderActionsProps = {
 export function GatewayGuardrailsHeaderActions({
   organizationId,
 }: GatewayGuardrailsHeaderActionsProps) {
-  const guardrails = api.aiGateway.listGuardrails.useQuery({
-    orgId: organizationId,
-    page: 0,
-    limit: 10,
-  });
+  const { guardrails } = useGatewayGuardrailsTableState(organizationId);
   const isAtLimit =
     (guardrails.data?.organizationCount ?? 0) >=
     GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION;

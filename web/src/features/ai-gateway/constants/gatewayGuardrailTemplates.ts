@@ -79,12 +79,3 @@ export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   LOG: "Log",
   REDACT: "Mask",
 };
-
-export const GATEWAY_GUARDRAIL_INTERVALS = [
-  { value: "day", label: "Daily" },
-  { value: "week", label: "Weekly" },
-  { value: "month", label: "Monthly" },
-] as const;
-
-export type GatewayGuardrailInterval =
-  (typeof GATEWAY_GUARDRAIL_INTERVALS)[number]["value"];

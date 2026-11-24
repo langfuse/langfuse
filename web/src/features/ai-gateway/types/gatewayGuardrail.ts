@@ -274,6 +274,45 @@ function compileContainsPattern(words: readonly string[]): string | null {
   return `(?:^|[^A-Za-z0-9_])((?:${alternatives.join("|")}))(?:$|[^A-Za-z0-9_])`;
 }
 
+/** Parses newline-separated words/phrases and deduplicates case-insensitively. */
+export function parseContainsWordsText(text: string): string[] {
+  return deduplicateContainsWords(text.split(/\r?\n/));
+}
+
+export function validateSecretPrefix(prefix: string): string | null {
+  if (
+    prefix.length < GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH ||
+    prefix.length > GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH
+  ) {
+    return `Prefixes must be ${GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH}-${GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH} characters`;
+  }
+  if (!PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(prefix)) {
+    return "Prefixes must be printable ASCII with no whitespace";
+  }
+  return null;
+}
+
+export function validateContainsWordsText(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return "Enter at least one word or phrase to match";
+  const deduped = deduplicateContainsWords(lines);
+  if (deduped.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS) {
+    return `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`;
+  }
+  for (const word of deduped) {
+    if (word.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH) {
+      return `Each entry must be at most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} characters`;
+    }
+    if (!PRINTABLE_ASCII_TEXT_REGEX.test(word)) {
+      return "Only ASCII characters are supported in word lists";
+    }
+  }
+  return null;
+}
+
 export function deduplicateContainsWords(words: readonly string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];

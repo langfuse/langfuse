@@ -9,10 +9,10 @@ import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/compon
 import { GatewayGuardrailsChart } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsChart/GatewayGuardrailsChart";
 import { ConnectedGatewayGuardrailsTable } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsTable/ConnectedGatewayGuardrailsTable";
 import { useGatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
-import { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailsTableState";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import type { GatewayGuardrailInterval } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import type { GatewayTimeSeriesInterval } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
+import { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
@@ -40,7 +40,7 @@ export function GatewayGuardrailsPage({
     organizationId,
     table,
   );
-  const [interval, setInterval] = useState<GatewayGuardrailInterval>("day");
+  const [interval, setInterval] = useState<GatewayTimeSeriesInterval>("day");
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });

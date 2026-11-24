@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { MAX_TIME_SERIES_BREAKDOWN_VALUES } from "@langfuse/shared/query";
 
 import {
-  GATEWAY_GUARDRAIL_INTERVALS,
-  type GatewayGuardrailInterval,
-} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+  GATEWAY_TIME_SERIES_INTERVALS,
+  type GatewayTimeSeriesInterval,
+} from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
 import { buildGuardrailChartData } from "@/src/features/ai-gateway/fns/buildGuardrailChartData";
 import type { GatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
 import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
@@ -13,8 +13,8 @@ import { api } from "@/src/utils/api";
 export type GatewayGuardrailsChartProps = {
   organizationId: string;
   timeRange: { from: Date; to: Date };
-  interval: GatewayGuardrailInterval;
-  onIntervalChange: (interval: GatewayGuardrailInterval) => void;
+  interval: GatewayTimeSeriesInterval;
+  onIntervalChange: (interval: GatewayTimeSeriesInterval) => void;
   selection: GatewayGuardrailSelection;
   tags: { value: string; label: string }[];
   onRemoveTag: (value: string) => void;
@@ -71,7 +71,7 @@ export function GatewayGuardrailsChart({
   }, [query.data, timeRange, interval, labels]);
 
   const handleIntervalChange = (value: string) => {
-    const option = GATEWAY_GUARDRAIL_INTERVALS.find(
+    const option = GATEWAY_TIME_SERIES_INTERVALS.find(
       (candidate) => candidate.value === value,
     );
     if (option) onIntervalChange(option.value);
@@ -122,7 +122,7 @@ export function GatewayGuardrailsChart({
         }}
         tabs={{
           value: interval,
-          options: [...GATEWAY_GUARDRAIL_INTERVALS],
+          options: [...GATEWAY_TIME_SERIES_INTERVALS],
           onValueChange: handleIntervalChange,
           variant: "toggle",
         }}

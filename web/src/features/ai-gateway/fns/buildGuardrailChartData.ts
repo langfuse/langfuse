@@ -1,4 +1,4 @@
-import type { GatewayGuardrailInterval } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import type { GatewayTimeSeriesInterval } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
 import type {
   ChartProps,
   DataPoint,
@@ -23,7 +23,7 @@ export function buildGuardrailChartData(params: {
   groupByGuardrail: boolean;
   points: readonly RawGuardrailTimeSeriesPoint[];
   timeRange: { from: Date; to: Date };
-  interval: GatewayGuardrailInterval;
+  interval: GatewayTimeSeriesInterval;
   labels?: ReadonlyMap<string, string>;
 }): { data: DataPoint[]; config: NonNullable<ChartProps["config"]> } {
   if (params.points.length === 0) {
@@ -102,7 +102,7 @@ export function buildGuardrailChartData(params: {
 function buildUtcBuckets(
   from: Date,
   to: Date,
-  interval: GatewayGuardrailInterval,
+  interval: GatewayTimeSeriesInterval,
 ): string[] {
   const fromMs = from.getTime();
   const toMs = to.getTime();

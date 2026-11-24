@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "zustand";
 
-import { getGatewayGuardrailsTableStore } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/stores/gatewayGuardrailsTableStores";
+import { getGatewayGuardrailsTableStore } from "@/src/features/ai-gateway/stores/gatewayGuardrailsTableStores";
 import { api } from "@/src/utils/api";
 
 /**

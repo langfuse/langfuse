@@ -272,11 +272,13 @@ export class GatewayGuardrailService {
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
       // Lock the guardrail row before reading/replacing assignments so concurrent saves cannot interleave.
-      const locked = await repo.lockById({
+      const lockedIds = await repo.lockByIds({
         organizationId: params.organizationId,
-        id: params.id,
+        ids: [params.id],
       });
-      if (!locked) throw new LangfuseNotFoundError("Guardrail not found");
+      if (lockedIds.length === 0) {
+        throw new LangfuseNotFoundError("Guardrail not found");
+      }
       const existing = await repo.findById({
         organizationId: params.organizationId,
         id: params.id,
@@ -350,21 +352,11 @@ export class GatewayGuardrailService {
     target: GatewayGuardrailDeleteTarget;
     session: OrgAuthedContext["session"];
   }) {
-    const ids =
-      params.target.type === "ids"
-        ? [...new Set(params.target.ids)]
-        : (
-            await this.repository.listMatching({
-              organizationId: params.organizationId,
-              searchQuery: params.target.searchQuery,
-            })
-          ).map(({ id }) => id);
-
-    if (ids.length > GATEWAY_GUARDRAIL_MAX_BULK_DELETE) {
-      throw new InvalidRequestError(
-        `At most ${GATEWAY_GUARDRAIL_MAX_BULK_DELETE} guardrails can be deleted at once. Narrow the search filter.`,
-      );
-    }
+    const ids = await this.resolveBulkTargetIds(
+      params.organizationId,
+      params.target,
+      "deleted",
+    );
     if (ids.length === 0) return { deletedCount: 0 };
 
     const existing = await this.repository.findByIds({
@@ -397,21 +389,11 @@ export class GatewayGuardrailService {
     assignments: GatewayGuardrailAssignmentInput[];
     session: OrgAuthedContext["session"];
   }) {
-    const ids =
-      params.target.type === "ids"
-        ? [...new Set(params.target.ids)]
-        : (
-            await this.repository.listMatching({
-              organizationId: params.organizationId,
-              searchQuery: params.target.searchQuery,
-            })
-          ).map(({ id }) => id);
-
-    if (ids.length > GATEWAY_GUARDRAIL_MAX_BULK_DELETE) {
-      throw new InvalidRequestError(
-        `At most ${GATEWAY_GUARDRAIL_MAX_BULK_DELETE} guardrails can be updated at once. Narrow the search filter.`,
-      );
-    }
+    const ids = await this.resolveBulkTargetIds(
+      params.organizationId,
+      params.target,
+      "updated",
+    );
     if (ids.length === 0) return { updatedCount: 0 };
 
     const assignments = await this.normalizeAndValidateAssignments(
@@ -453,6 +435,29 @@ export class GatewayGuardrailService {
       await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     }
     return { updatedCount };
+  }
+
+  private async resolveBulkTargetIds(
+    organizationId: string,
+    target: GatewayGuardrailDeleteTarget,
+    actionVerb: "deleted" | "updated",
+  ) {
+    const ids =
+      target.type === "ids"
+        ? [...new Set(target.ids)]
+        : (
+            await this.repository.listMatching({
+              organizationId,
+              searchQuery: target.searchQuery,
+            })
+          ).map(({ id }) => id);
+
+    if (ids.length > GATEWAY_GUARDRAIL_MAX_BULK_DELETE) {
+      throw new InvalidRequestError(
+        `At most ${GATEWAY_GUARDRAIL_MAX_BULK_DELETE} guardrails can be ${actionVerb} at once. Narrow the search filter.`,
+      );
+    }
+    return ids;
   }
 
   private async normalizeAndValidateAssignments(

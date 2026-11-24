@@ -36,19 +36,17 @@ import {
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
-  GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
-  GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
-  deduplicateContainsWords,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
-  PRINTABLE_ASCII_NO_WHITESPACE_REGEX,
-  PRINTABLE_ASCII_TEXT_REGEX,
+  parseContainsWordsText,
+  validateContainsWordsText,
+  validateSecretPrefix,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -67,44 +65,6 @@ const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 const PRESET_VALUE_PREFIX = "preset:";
 const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
 const ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
-
-function parseContainsText(text: string): string[] {
-  return deduplicateContainsWords(text.split(/\r?\n/));
-}
-
-function validateContainsText(text: string): string | null {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length === 0) return "Enter at least one word or phrase to match";
-  const deduped = deduplicateContainsWords(lines);
-  if (deduped.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS) {
-    return `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`;
-  }
-  for (const word of deduped) {
-    if (word.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH) {
-      return `Each entry must be at most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} characters`;
-    }
-    if (!PRINTABLE_ASCII_TEXT_REGEX.test(word)) {
-      return "Only ASCII characters are supported in word lists";
-    }
-  }
-  return null;
-}
-
-function validateSecretPrefix(prefix: string): string | null {
-  if (
-    prefix.length < GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH ||
-    prefix.length > GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH
-  ) {
-    return `Prefixes must be ${GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH}-${GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH} characters`;
-  }
-  if (!PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(prefix)) {
-    return "Prefixes must be printable ASCII with no whitespace";
-  }
-  return null;
-}
 
 function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
   return z
@@ -136,7 +96,7 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
     })
     .superRefine((values, ctx) => {
       if (templateKind === "contains") {
-        const error = validateContainsText(values.containsText);
+        const error = validateContainsWordsText(values.containsText);
         if (error) {
           ctx.addIssue({
             code: "custom",
@@ -216,8 +176,6 @@ export function GatewayGuardrailFormDialog({
   onSubmit,
 }: GatewayGuardrailFormDialogProps) {
   const formId = useId();
-  const targetsId = useId();
-  const targetsErrorId = useId();
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
     useState<HTMLDivElement | null>(null);
@@ -244,7 +202,8 @@ export function GatewayGuardrailFormDialog({
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
   const parsedContains = useMemo(
-    () => (templateKind === "contains" ? parseContainsText(containsText) : []),
+    () =>
+      templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
 
@@ -255,7 +214,7 @@ export function GatewayGuardrailFormDialog({
       secretPrefixes: templateKind === "secrets" ? values.secretPrefixes : [],
       containsWords:
         templateKind === "contains"
-          ? parseContainsText(values.containsText)
+          ? parseContainsWordsText(values.containsText)
           : [],
       action: values.action,
       targets: values.targets,
@@ -441,43 +400,22 @@ export function GatewayGuardrailFormDialog({
                     </FormField>
                   </div>
 
-                  <Controller
+                  <FormField
                     control={form.control}
                     name="targets"
-                    render={({ field, fieldState }) => {
-                      const targetError = fieldState.error?.message;
-                      return (
-                        <div className="flex flex-col gap-2">
-                          <label
-                            htmlFor={targetsId}
-                            className="text-sm leading-none font-bold"
-                          >
-                            Applies to
-                          </label>
-                          <div className="flex flex-col gap-1">
-                            <GatewayGuardrailTargetsInput
-                              id={targetsId}
-                              describedById={
-                                targetError ? targetsErrorId : undefined
-                              }
-                              value={field.value}
-                              onChange={field.onChange}
-                              picker={targetPicker}
-                              error={Boolean(targetError)}
-                            />
-                            {targetError ? (
-                              <p
-                                id={targetsErrorId}
-                                className="text-destructive text-sm"
-                              >
-                                {targetError}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
+                    label="Applies to"
+                  >
+                    {({ id, inputDescribedById, error, value, onChange }) => (
+                      <GatewayGuardrailTargetsInput
+                        id={id}
+                        describedById={inputDescribedById}
+                        value={value}
+                        onChange={onChange}
+                        picker={targetPicker}
+                        error={Boolean(error)}
+                      />
+                    )}
+                  </FormField>
 
                   {errorMessage !== null ? (
                     <Banner
