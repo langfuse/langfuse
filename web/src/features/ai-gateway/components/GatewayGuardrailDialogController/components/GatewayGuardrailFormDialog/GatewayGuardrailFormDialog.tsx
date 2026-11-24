@@ -46,16 +46,12 @@ import {
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
-  BEDROCK_API_KEY_MAX_LENGTH,
-  BEDROCK_AWS_REGION_REGEX,
-  BEDROCK_GUARDRAIL_ID_MAX_LENGTH,
-  BEDROCK_GUARDRAIL_ID_REGEX,
-  BEDROCK_GUARDRAIL_VERSION_REGEX,
   compileGuardrailConfigPatterns,
   estimateCompiledPatternsBytes,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
-  PRINTABLE_ASCII_NO_WHITESPACE_REGEX,
+  GatewayBedrockGuardrailApiKeySchema,
+  GatewayBedrockGuardrailConfigSchema,
   parseContainsWordsText,
   validateContainsWordsText,
   validateSecretPrefix,
@@ -106,6 +102,12 @@ const BEDROCK_API_KEY_DESCRIPTION = [
   { type: "text", text: " permission in the selected region." },
 ] as const;
 
+const BEDROCK_FIELD_PATHS = {
+  guardrailId: "bedrockGuardrailId",
+  guardrailVersion: "bedrockGuardrailVersion",
+  region: "bedrockRegion",
+} as const;
+
 const PRESET_VALUE_PREFIX = "preset:";
 const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
 const ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
@@ -147,60 +149,37 @@ function createGuardrailFormSchema(
     })
     .superRefine((values, ctx) => {
       if (templateKind === "bedrock") {
-        const guardrailId = values.bedrockGuardrailId.trim();
-        if (!guardrailId) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["bedrockGuardrailId"],
-            message: "Enter a Bedrock guardrail ID or ARN",
-          });
-        } else if (
-          guardrailId.length > BEDROCK_GUARDRAIL_ID_MAX_LENGTH ||
-          !BEDROCK_GUARDRAIL_ID_REGEX.test(guardrailId)
-        ) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["bedrockGuardrailId"],
-            message:
-              "Enter a valid Bedrock guardrail ID (lowercase alphanumeric) or ARN",
-          });
+        const configResult = GatewayBedrockGuardrailConfigSchema.safeParse({
+          guardrailId: values.bedrockGuardrailId,
+          guardrailVersion: values.bedrockGuardrailVersion,
+          region: values.bedrockRegion,
+        });
+        if (!configResult.success) {
+          for (const issue of configResult.error.issues) {
+            const key = issue.path[0];
+            if (typeof key === "string" && key in BEDROCK_FIELD_PATHS) {
+              ctx.addIssue({
+                code: "custom",
+                path: [
+                  BEDROCK_FIELD_PATHS[key as keyof typeof BEDROCK_FIELD_PATHS],
+                ],
+                message: issue.message,
+              });
+            }
+          }
         }
-        const version = values.bedrockGuardrailVersion.trim();
-        if (!version || !BEDROCK_GUARDRAIL_VERSION_REGEX.test(version)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["bedrockGuardrailVersion"],
-            message: "Enter a version number (e.g. 1) or DRAFT",
-          });
-        }
-        const region = values.bedrockRegion.trim();
-        if (!region || !BEDROCK_AWS_REGION_REGEX.test(region)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["bedrockRegion"],
-            message: "Select an AWS region",
-          });
-        }
-        const apiKey = values.bedrockApiKey.trim();
-        if (!apiKey && !hasSavedApiKey) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["bedrockApiKey"],
-            message: "Enter a Bedrock API key",
-          });
-        } else if (apiKey) {
-          if (apiKey.length > BEDROCK_API_KEY_MAX_LENGTH) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["bedrockApiKey"],
-              message: `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
-            });
-          } else if (!PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(apiKey)) {
+        const trimmedApiKey = values.bedrockApiKey.trim();
+        if (!hasSavedApiKey || trimmedApiKey.length > 0) {
+          const apiKeyResult = GatewayBedrockGuardrailApiKeySchema.safeParse(
+            values.bedrockApiKey,
+          );
+          if (!apiKeyResult.success) {
             ctx.addIssue({
               code: "custom",
               path: ["bedrockApiKey"],
               message:
-                "Bedrock API key must be printable ASCII with no whitespace",
+                apiKeyResult.error.issues[0]?.message ??
+                "Enter a Bedrock API key",
             });
           }
         }

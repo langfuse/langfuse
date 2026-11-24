@@ -136,12 +136,12 @@ export const PRINTABLE_ASCII_NO_WHITESPACE_REGEX = /^[\x21-\x7E]+$/;
 export const PRINTABLE_ASCII_TEXT_REGEX = /^[\x20-\x7E]+$/;
 
 // Matches AWS Bedrock ApplyGuardrail URI parameter constraints and GatewayBedrockConfigSchema.
-export const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
-export const BEDROCK_API_KEY_MAX_LENGTH = 8192;
-export const BEDROCK_GUARDRAIL_ID_REGEX =
+const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
+const BEDROCK_API_KEY_MAX_LENGTH = 8192;
+const BEDROCK_GUARDRAIL_ID_REGEX =
   /^(?:[a-z0-9]+|arn:aws(?:-[a-z0-9-]+)?:bedrock:[a-z0-9-]{1,20}:[0-9]{12}:guardrail\/[a-z0-9]+)$/;
-export const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
-export const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
+const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
+const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
 
 export const GatewayBedrockGuardrailConfigSchema = z.object({
   guardrailId: z
@@ -175,7 +175,7 @@ export type GatewayBedrockGuardrailConfig = z.infer<
   typeof GatewayBedrockGuardrailConfigSchema
 >;
 
-const GatewayBedrockGuardrailApiKeySchema = z
+export const GatewayBedrockGuardrailApiKeySchema = z
   .string()
   .trim()
   .min(1, "Enter a Bedrock API key")

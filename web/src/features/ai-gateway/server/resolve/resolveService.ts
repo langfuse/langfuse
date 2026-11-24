@@ -283,6 +283,7 @@ function decryptResolvedGuardrails(
           name: guardrail.name,
           type: "bedrock" as const,
           action: guardrail.action,
+          patterns: [] as [],
           guardrail_id: guardrail.guardrail_id,
           guardrail_version: guardrail.guardrail_version,
           region: guardrail.region,

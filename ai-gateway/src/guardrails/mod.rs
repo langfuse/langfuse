@@ -28,7 +28,9 @@ use text::{LastTurn, Unreadable};
 /// Provider-specific configuration of a resolved guardrail.
 #[derive(Clone, Debug)]
 pub(crate) enum GuardrailKind {
-    Regex { patterns: Vec<String> },
+    Regex {
+        patterns: Vec<String>,
+    },
     Bedrock(BedrockGuardrail),
     /// A guardrail type this gateway does not know skips the guardrail rather
     /// than failing resolution, so Web can add types before every gateway upgrades.
@@ -121,7 +123,9 @@ impl<'de> Deserialize<'de> for Guardrail {
                 guardrail_version: raw
                     .guardrail_version
                     .ok_or_else(|| D::Error::missing_field("guardrail_version"))?,
-                region: raw.region.ok_or_else(|| D::Error::missing_field("region"))?,
+                region: raw
+                    .region
+                    .ok_or_else(|| D::Error::missing_field("region"))?,
                 api_key: raw
                     .api_key
                     .ok_or_else(|| D::Error::missing_field("api_key"))?,

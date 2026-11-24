@@ -268,7 +268,10 @@ impl BedrockFailure {
 async fn send_and_parse(
     request: reqwest_middleware::RequestBuilder,
 ) -> Result<bool, BedrockFailure> {
-    let response = request.send().await.map_err(|_| BedrockFailure::Transport)?;
+    let response = request
+        .send()
+        .await
+        .map_err(|_| BedrockFailure::Transport)?;
     let status = response.status();
     if status != StatusCode::OK {
         return Err(BedrockFailure::HttpStatus(status));
@@ -399,7 +402,8 @@ mod tests {
         })
         .await;
 
-        let client = BedrockGuardrailClient::for_test(server.url.clone(), Duration::from_millis(80));
+        let client =
+            BedrockGuardrailClient::for_test(server.url.clone(), Duration::from_millis(80));
         let intervene = sample_config("intervene", "1");
         let pass = sample_config("pass", "1");
         let slow = sample_config("slow", "1");

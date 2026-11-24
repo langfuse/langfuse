@@ -423,6 +423,7 @@ describe("GatewayResolveService", () => {
           name: "Bedrock filter",
           type: "bedrock",
           action: "block",
+          patterns: [],
           guardrail_id: "abc123def",
           guardrail_version: "1",
           region: "us-east-1",

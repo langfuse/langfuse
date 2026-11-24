@@ -128,6 +128,8 @@ const GatewayResolveGuardrailsSchema = z.array(
         name: z.string(),
         type: z.literal("bedrock"),
         action: GatewayResolveGuardrailActionSchema,
+        // Sent empty so gateways predating external guardrails decode and skip it.
+        patterns: z.tuple([]),
         guardrail_id: z.string(),
         guardrail_version: z.string(),
         region: z.string(),
