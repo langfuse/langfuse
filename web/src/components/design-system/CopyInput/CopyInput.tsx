@@ -1,30 +1,58 @@
 "use client";
 
-import { type ComponentProps } from "react";
-import { Input } from "../Input/Input";
+import { Check, Copy } from "@langfuse/icons";
+import { type ComponentPropsWithoutRef } from "react";
+import { type useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
+import { InputControl } from "../internal/InputControl/InputControl";
 
 /** A selectable, read-only value with a clipboard action. */
 export function CopyInput({
   value,
   copyLabel,
-  onCopyResult,
+  noCapture,
+  clipboard,
   ...inputProps
 }: Pick<
-  ComponentProps<typeof Input>,
-  "id" | "aria-describedby" | "aria-label" | "aria-labelledby" | "noCapture"
+  ComponentPropsWithoutRef<"input">,
+  "id" | "aria-describedby" | "aria-label" | "aria-labelledby"
 > & {
   value: string;
   copyLabel: string;
-  onCopyResult?: NonNullable<
-    ComponentProps<typeof Input>["copyAction"]
-  >["onCopyResult"];
+  noCapture?: boolean;
+  clipboard: Pick<ReturnType<typeof useCopyToClipboard>, "copy" | "copyStatus">;
 }) {
+  const { copy, copyStatus } = clipboard;
+  // Alternate mounted live regions so rapid successes produce fresh announcements.
+  const copyAnnouncementRegionIndex =
+    copyStatus.kind === "copied"
+      ? copyStatus.consecutiveSuccesses % 2
+      : undefined;
+
   return (
-    <Input
-      {...inputProps}
-      value={value}
-      readOnly
-      copyAction={{ label: copyLabel, onCopyResult }}
-    />
+    <div>
+      <InputControl
+        contentLayout="text"
+        trailingAction={{
+          label: copyLabel,
+          icon: copyStatus.kind === "copied" ? Check : Copy,
+          onClick: () => {
+            copy(value).catch(() => undefined);
+          },
+        }}
+      >
+        <input
+          {...inputProps}
+          className={noCapture ? "ph-no-capture" : undefined}
+          data-1p-ignore
+          value={value}
+          readOnly
+        />
+      </InputControl>
+      {[0, 1].map((index) => (
+        <span key={index} role="status" className="sr-only">
+          {copyAnnouncementRegionIndex === index && "Copied to clipboard."}
+        </span>
+      ))}
+    </div>
   );
 }

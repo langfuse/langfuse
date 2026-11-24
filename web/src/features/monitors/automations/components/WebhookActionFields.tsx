@@ -75,7 +75,7 @@ function WebhookHeadersField({
   return (
     <Form.CompositeField
       label="Headers"
-      description="Default headers are automatically added by Langfuse."
+      sublabel="Default headers are automatically added by Langfuse."
     >
       <div className="flex flex-col gap-2">
         {defaultHeaders.map((header) => (

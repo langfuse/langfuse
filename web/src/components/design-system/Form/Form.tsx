@@ -1,5 +1,4 @@
 import {
-  useState,
   type ComponentProps,
   type FormHTMLAttributes,
   type ReactNode,
@@ -22,6 +21,7 @@ import { FormCompositeField } from "@/src/components/design-system/FormComposite
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 /** Wraps Form.Field with SelectInput and its form bindings. */
 function FormSelectInputField<
@@ -103,7 +103,6 @@ function FormInputField<
     | "id"
     | "name"
     | "value"
-    | "copyAction"
     | "defaultValue"
     | "onChange"
     | "onBlur"
@@ -151,31 +150,27 @@ function FormInputField<
 function FormCopyInputField({
   label,
   description,
-  value,
-  copyLabel,
-  noCapture,
+  ...inputProps
 }: Pick<ComponentProps<typeof FormField>, "label" | "description"> &
   Pick<ComponentProps<typeof CopyInput>, "value" | "copyLabel" | "noCapture">) {
-  const [copyFailed, setCopyFailed] = useState(false);
+  const clipboard = useCopyToClipboard();
 
   return (
     <FormField
       label={label}
       description={description}
       error={
-        copyFailed
+        clipboard.copyStatus.kind === "failed"
           ? "Copy failed. Select the value and copy it manually."
           : undefined
       }
     >
       {({ id, inputDescribedById }) => (
         <CopyInput
+          {...inputProps}
           id={id}
           aria-describedby={inputDescribedById}
-          value={value}
-          copyLabel={copyLabel}
-          noCapture={noCapture}
-          onCopyResult={(result) => setCopyFailed(result === "failed")}
+          clipboard={clipboard}
         />
       )}
     </FormField>

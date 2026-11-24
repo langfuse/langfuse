@@ -35,11 +35,12 @@ function SlackConnectField({
   return (
     <Form.CompositeField
       label="Slack channel"
-      description={
-        slack.canManageIntegration
-          ? "Connect your Slack workspace to enable real-time notifications for your automations."
-          : "Connect your Slack workspace to enable real-time notifications for your automations. Ask a project admin to connect Slack."
-      }
+      sublabel={[
+        "Connect your Slack workspace to enable real-time notifications for your automations.",
+        !slack.canManageIntegration && "Ask a project admin to connect Slack.",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="flex flex-col gap-2">
         <div className="flex">

@@ -44,10 +44,10 @@ export function PasswordInput({
       error={error}
       disabled={disabled}
       trailingAction={{
-        kind: "button",
         label: isPasswordVisible ? "Hide password" : "Show password",
         icon: VisibilityIcon,
         pressed: isPasswordVisible,
+        tabIndex: -1,
         onClick: () => setIsPasswordVisible((visible) => !visible),
       }}
     >

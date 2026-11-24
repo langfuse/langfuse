@@ -26,6 +26,7 @@ export function FormFieldLayout(
     | {
         variant: "composite";
         labelId: string;
+        sublabel?: string;
       }
   ),
 ) {
@@ -41,6 +42,14 @@ export function FormFieldLayout(
   const Label = variant === "composite" ? "span" : "label";
   const labelId =
     props.variant === "composite" ? props.labelId : `${props.controlId}-label`;
+  const sublabel = props.variant === "composite" ? props.sublabel : undefined;
+  const sublabelId = `${labelId}-sublabel`;
+  const groupDescribedBy = [
+    sublabel ? sublabelId : undefined,
+    description ? descriptionId : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -48,7 +57,9 @@ export function FormFieldLayout(
       role={variant === "composite" ? "group" : undefined}
       aria-labelledby={variant === "composite" ? labelId : undefined}
       aria-describedby={
-        variant === "composite" && description ? descriptionId : undefined
+        variant === "composite" && groupDescribedBy
+          ? groupDescribedBy
+          : undefined
       }
     >
       <div className="flex items-center gap-1.5">
@@ -74,9 +85,13 @@ export function FormFieldLayout(
           </button>
         ) : null}
       </div>
-      <div className="space-y-1">
+      {sublabel ? (
+        <FormFieldDescription id={sublabelId} description={sublabel} />
+      ) : null}
+      <div className="flex flex-col gap-1">
         {children}
-        {props.variant === "field" && props.errorMessage ? (
+        {props.variant === "field" &&
+        (props.announceError || props.errorMessage) ? (
           <FormError
             id={props.errorId}
             message={props.errorMessage}

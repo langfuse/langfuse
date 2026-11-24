@@ -1,8 +1,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Check, Copy, type IconComponent } from "@langfuse/icons";
-import { useState, type ComponentPropsWithoutRef } from "react";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { type IconComponent } from "@langfuse/icons";
+import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const inputContentVariants = cva("", {
@@ -98,21 +97,14 @@ type InputControlProps = Omit<
     prefix?:
       | { label: string; icon?: IconComponent }
       | { label?: never; icon: IconComponent };
-    trailingAction?:
-      | {
-          kind: "button";
-          label: string;
-          icon: IconComponent;
-          disabled?: boolean;
-          pressed?: boolean;
-          onClick: () => void;
-        }
-      | {
-          kind: "copy";
-          label: string;
-          value: string;
-          onCopyResult?: (result: "copied" | "failed") => void;
-        };
+    trailingAction?: {
+      label: string;
+      icon: IconComponent;
+      disabled?: boolean;
+      pressed?: boolean;
+      tabIndex?: number;
+      onClick: () => void;
+    };
   };
 
 export function InputControl({
@@ -126,11 +118,6 @@ export function InputControl({
   prefix,
   ...props
 }: InputControlProps) {
-  const [isCopied, setIsCopied] = useState(false);
-  const copyAction =
-    trailingAction?.kind === "copy" ? trailingAction : undefined;
-  const buttonAction =
-    trailingAction?.kind === "button" ? trailingAction : undefined;
   const segmented = prefix !== undefined || trailingAction !== undefined;
   const controlClassName = inputControlVariants({
     height,
@@ -151,9 +138,7 @@ export function InputControl({
     return <Slot className={slotClassName} {...props} />;
   }
 
-  const CopyActionIcon = isCopied ? Check : Copy;
-  const TrailingActionIcon = copyAction ? CopyActionIcon : buttonAction?.icon;
-
+  const TrailingActionIcon = trailingAction?.icon;
   return (
     <div
       className={cn("relative", controlClassName)}
@@ -181,26 +166,11 @@ export function InputControl({
         <button
           type="button"
           aria-label={trailingAction.label}
-          aria-pressed={buttonAction?.pressed}
-          disabled={disabled || buttonAction?.disabled}
-          // Password visibility is a shortcut; copying is the field's primary action.
-          tabIndex={copyAction ? undefined : -1}
+          aria-pressed={trailingAction.pressed}
+          disabled={disabled || trailingAction.disabled}
+          tabIndex={trailingAction.tabIndex}
           className="bg-muted border-input focus-visible:ring-ring enabled:hover:bg-accent flex h-full shrink-0 cursor-pointer items-center justify-center border-l px-2.5 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed"
-          onClick={
-            copyAction
-              ? async () => {
-                  try {
-                    await copyTextToClipboard(copyAction.value);
-                  } catch {
-                    setIsCopied(false);
-                    copyAction.onCopyResult?.("failed");
-                    return;
-                  }
-                  setIsCopied(true);
-                  copyAction.onCopyResult?.("copied");
-                }
-              : buttonAction?.onClick
-          }
+          onClick={trailingAction.onClick}
         >
           <TrailingActionIcon
             aria-hidden="true"
@@ -208,11 +178,6 @@ export function InputControl({
             color={error ? "destructive" : "muted"}
           />
         </button>
-      )}
-      {copyAction && (
-        <span role="status" className="sr-only">
-          {isCopied && "Copied to clipboard."}
-        </span>
       )}
     </div>
   );

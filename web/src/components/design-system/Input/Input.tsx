@@ -92,21 +92,7 @@ type InputProps = Pick<
    */
   layout?: "block" | "inline";
   ref?: Ref<HTMLInputElement>;
-} & (
-    | { copyAction?: never }
-    | {
-        copyAction: Omit<
-          Extract<
-            ComponentProps<typeof InputControl>["trailingAction"],
-            { kind: "copy" }
-          >,
-          "kind" | "value"
-        >;
-        readOnly: true;
-        value: string;
-        valuePrefix?: never;
-      }
-  );
+};
 
 export function Input({
   allowPasswordManager,
@@ -117,8 +103,6 @@ export function Input({
   valuePrefix,
   ref,
   disabled,
-  copyAction,
-  value,
   ...props
 }: InputProps) {
   if (valuePrefix === undefined) {
@@ -128,13 +112,9 @@ export function Input({
         error={error}
         disabled={disabled}
         prefix={prefix}
-        trailingAction={
-          copyAction ? { ...copyAction, kind: "copy", value } : undefined
-        }
       >
         <input
           {...props}
-          value={value}
           className={inputVariants({ valuePrefixed: false, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
@@ -165,7 +145,6 @@ export function Input({
         </span>
         <input
           {...props}
-          value={value}
           className={inputVariants({ valuePrefixed: true, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
