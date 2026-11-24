@@ -101,6 +101,70 @@ describe("project dashboard blocks", () => {
     await prisma.user.delete({ where: { id: userId } });
   });
 
+  it("reads a legacy layout without writing and persists its mirrored placements on the next classic edit", async () => {
+    const editor = caller(projectId, "ADMIN", { optedIn: false });
+    const geometry = { x: 0, y: 0, x_size: 4, y_size: 3 };
+    const widget = {
+      ...geometry,
+      id: "latency",
+      type: "widget" as const,
+      widgetId: "latency-chart",
+    };
+    const preset = {
+      ...geometry,
+      y: 3,
+      id: "usage",
+      type: "preset" as const,
+      presetId: "home-model-usage",
+    };
+    const original = { widgets: [widget, preset] };
+    const { id: dashboardId, updatedAt } = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Legacy layout",
+        description: "",
+        definition: original,
+      },
+      select: { id: true, updatedAt: true },
+    });
+    const target = { projectId, dashboardId };
+    const stored = () =>
+      prisma.dashboard.findUniqueOrThrow({
+        where: { id: dashboardId, projectId },
+        select: { definition: true, updatedAt: true },
+      });
+    const [dashboard, blocks] = await Promise.all([
+      editor.dashboard.getDashboard(target),
+      editor.dashboard.getDashboardBlocks(target),
+    ]);
+    expect(dashboard).toMatchObject({
+      definition: original,
+      hasDashboardBlocks: false,
+    });
+    expect(blocks).toEqual([]);
+    await expect(stored()).resolves.toEqual({
+      definition: original,
+      updatedAt,
+    });
+
+    const widgets = [
+      { ...preset, y: 0 },
+      { ...widget, y: 3 },
+    ];
+    await editor.dashboard.updateDashboardDefinition({
+      ...target,
+      definition: { widgets },
+    });
+    expect((await stored()).definition).toEqual({
+      version: "1",
+      widgets,
+      blocks: widgets,
+    });
+    await expect(editor.dashboard.getDashboard(target)).resolves.toMatchObject({
+      hasDashboardBlocks: false,
+    });
+  });
+
   it("commits a concurrent classic layout and block patch to the same dashboard definition", async () => {
     const owner = caller(projectId);
     const { id: dashboardId } = await owner.dashboard.createDashboard({

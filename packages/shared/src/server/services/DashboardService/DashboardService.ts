@@ -244,7 +244,7 @@ export class DashboardService {
         });
         // Copy same-project content inside PostgreSQL, including unknown formats or
         // numbers that JavaScript cannot represent. Revisions belong to the clone.
-        const copied = await tx.$executeRaw`
+        await tx.$executeRaw`
           UPDATE dashboards AS target SET definition = CASE
             WHEN source.definition->'version' = '"1"'::jsonb AND jsonb_typeof(source.definition->'blocks') = 'array'
             THEN jsonb_set(source.definition, '{blocks}', (
@@ -258,7 +258,7 @@ export class DashboardService {
             AND source.id = ${dashboardId} AND source.project_id = ${projectId}
             AND (source.definition ? 'version' OR source.definition ? 'blocks')
         `;
-        if (copied && definition) {
+        if (definition) {
           await updateClassicLayout(
             tx,
             projectId,
@@ -376,14 +376,15 @@ export class DashboardService {
       return null;
     }
 
+    const classic = DashboardDomainSchema.parse({
+      ...dashboard,
+      owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+    });
     return {
-      ...DashboardDomainSchema.parse({
-        ...dashboard,
-        owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
-      }),
+      ...classic,
       hasDashboardBlocks:
         dashboard.projectId !== null &&
-        hasDashboardBlocks(dashboard.definition),
+        hasDashboardBlocks(dashboard.definition, classic.definition),
     };
   }
 

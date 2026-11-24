@@ -20,7 +20,7 @@ The `multi-query/` subtree owns its query editor, execution, preparation, and ch
 
 This release uses the existing PostgreSQL `dashboards.definition` JSON column. It requires no database migration, backfill or ClickHouse changes.
 
-A classic dashboard starts with `{ "widgets": [...] }`. Saving its first Markdown or multi-query block adds the root version `"1"` and a `blocks` array. That array contains all classic placements and the new blocks. The `widgets` array mirrors only classic chart and preset placements, so older readers can display it unchanged. For example, a dashboard with a Home card and a note can be stored as follows.
+When the upgraded app reads a classic `{ "widgets": [...] }` dashboard, it treats the placements as v1 blocks in memory. The read leaves the stored definition and its update timestamp untouched. The next layout edit or new-block save writes the root version `"1"` and both arrays, even if the edit only moves a classic card. This works for dashboards created by an older server during a rolling deployment. That array contains all classic placements and the new blocks. The `widgets` array mirrors only classic chart and preset placements, so older readers can display it unchanged. For example, a dashboard with a Home card and a note can be stored as follows.
 
 ```json
 {
