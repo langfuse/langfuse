@@ -72,8 +72,6 @@ export function ConnectedMembersSettingsTable({
   const canManageProjectOwnership = canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
-  // Groups ship with the admin API entitlement, as on the settings pages.
-  const isGroupsEnabled = useHasEntitlement("admin-api");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
     useState<Set<string>>(() => new Set());
   const [
@@ -231,7 +229,6 @@ export function ConnectedMembersSettingsTable({
           canManageOrgOwnership={canManageOrgOwnership}
           canManageProjectOwnership={canManageProjectOwnership}
           isAiGatewayEnabled={isAiGatewayEnabled}
-          isGroupsEnabled={isGroupsEnabled}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
@@ -334,16 +331,6 @@ export function ConnectedMembersSettingsTable({
               icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
-            ...(project && hasOrgCudAccess
-              ? [
-                  {
-                    id: "org-members",
-                    label: "Organization members",
-                    variant: "outline" as const,
-                    href: `/organization/${orgId}/settings/members`,
-                  },
-                ]
-              : []),
           ]}
           pagination={{
             mode: "offset",
@@ -379,7 +366,6 @@ function convertToTableRow(
     createdAt: membership.createdAt,
     orgRole: membership.role,
     projectRole: membership.projectRole,
-    groupRoles: membership.groupRoles,
     featurePreviews,
     featurePreviewManagement,
   };

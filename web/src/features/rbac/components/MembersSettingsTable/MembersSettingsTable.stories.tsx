@@ -1,4 +1,4 @@
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import {
@@ -15,7 +15,6 @@ const members: MembersSettingsTableRow[] = [
     providers: ["google"],
     createdAt: new Date("2026-09-01"),
     orgRole: "ADMIN",
-    groupRoles: [],
     featurePreviews: null,
     featurePreviewManagement: null,
     meta: { userId: "user-1", orgMembershipId: "membership-1" },
@@ -26,16 +25,6 @@ const members: MembersSettingsTableRow[] = [
     providers: ["github"],
     createdAt: new Date("2026-08-14"),
     orgRole: "MEMBER",
-    groupRoles: [
-      {
-        groupId: "group-1",
-        groupName: "platform-admins",
-        groupSource: "SCIM",
-        memberCount: 12,
-        role: "ADMIN",
-        level: "organization",
-      },
-    ],
     featurePreviews: null,
     featurePreviewManagement: null,
     meta: { userId: "user-2", orgMembershipId: "membership-2" },
@@ -46,7 +35,6 @@ const members: MembersSettingsTableRow[] = [
     providers: [],
     createdAt: new Date("2026-07-03"),
     orgRole: "VIEWER",
-    groupRoles: [],
     featurePreviews: null,
     featurePreviewManagement: null,
     meta: { userId: "user-3", orgMembershipId: "membership-3" },
@@ -57,7 +45,6 @@ const members: MembersSettingsTableRow[] = [
     providers: ["google", "github"],
     createdAt: new Date("2026-06-21"),
     orgRole: "ADMIN",
-    groupRoles: [],
     featurePreviews: null,
     featurePreviewManagement: null,
     meta: { userId: "user-4", orgMembershipId: "membership-4" },
@@ -68,7 +55,6 @@ const members: MembersSettingsTableRow[] = [
     providers: ["email"],
     createdAt: new Date("2026-05-09"),
     orgRole: "MEMBER",
-    groupRoles: [],
     featurePreviews: null,
     featurePreviewManagement: null,
     meta: { userId: "user-5", orgMembershipId: "membership-5" },
@@ -83,7 +69,6 @@ export const Default = meta.story({
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
     isAiGatewayEnabled: true,
-    isGroupsEnabled: true,
     projectRolesEntitlement: true,
     showFeaturePreviews: false,
     updatingOrgRoleMembershipIds: new Set(),
@@ -120,7 +105,6 @@ export const AdminViewingOwner = meta.story({
           providers: ["email"],
           createdAt: new Date("2026-04-02"),
           orgRole: "OWNER",
-          groupRoles: [],
           featurePreviews: null,
           featurePreviewManagement: null,
           meta: { userId: "user-6", orgMembershipId: "membership-6" },
@@ -131,22 +115,11 @@ export const AdminViewingOwner = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const openRoleDialogFor = async (name: RegExp) => {
-      const row = within(canvas.getByRole("row", { name }));
-      await userEvent.click(
-        row.getByRole("button", { name: /Open role details/ }),
-      );
-      return within(await screen.findByRole("dialog"));
-    };
+    const roleSelectFor = (name: RegExp) =>
+      within(canvas.getByRole("row", { name })).getByRole("combobox");
 
-    const owner = await openRoleDialogFor(/Barbara Liskov/);
-    await expect(owner.getByText("Requires owner access")).toBeInTheDocument();
-    await expect(owner.getByRole("button", { name: "Save" })).toBeDisabled();
-    await userEvent.click(owner.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-
-    const admin = await openRoleDialogFor(/Ada Lovelace/);
-    await expect(admin.queryByText("Requires owner access")).toBeNull();
+    await expect(roleSelectFor(/Barbara Liskov/)).toBeDisabled();
+    await expect(roleSelectFor(/Ada Lovelace/)).toBeEnabled();
   },
 });
 
@@ -158,7 +131,6 @@ export const FilteredByRole = meta.story({
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
     isAiGatewayEnabled: true,
-    isGroupsEnabled: true,
     projectRolesEntitlement: true,
     showFeaturePreviews: false,
     updatingOrgRoleMembershipIds: new Set(),
@@ -192,7 +164,6 @@ export const Loading = meta.story({
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
     isAiGatewayEnabled: true,
-    isGroupsEnabled: true,
     projectRolesEntitlement: true,
     showFeaturePreviews: false,
     updatingOrgRoleMembershipIds: new Set(),
@@ -212,61 +183,5 @@ export const Loading = meta.story({
       onChange: fn(),
     },
     data: { status: "loading" },
-  },
-});
-
-const groupMember: MembersSettingsTableRow = {
-  user: { name: "Vera Viewer", image: null },
-  email: "vera@example.com",
-  providers: ["okta"],
-  createdAt: new Date("2026-10-01"),
-  orgRole: "VIEWER",
-  projectRole: "VIEWER",
-  groupRoles: [
-    {
-      groupId: "group-admins",
-      groupName: "langfuse-org-admins",
-      groupSource: "SCIM",
-      memberCount: 4,
-      role: "ADMIN",
-      level: "organization",
-    },
-    {
-      groupId: "group-maintainers",
-      groupName: "llm-app-maintainers",
-      groupSource: "MANUAL",
-      memberCount: 17,
-      role: "MEMBER",
-      level: "project",
-    },
-  ],
-  featurePreviews: null,
-  featurePreviewManagement: null,
-  meta: { userId: "user-7", orgMembershipId: "membership-7" },
-};
-
-export const EffectiveRoleFromGroup = meta.story({
-  name: "(Test) A group raises the effective role",
-  args: {
-    ...Default.input.args,
-    data: { status: "success", data: [groupMember, ...members] },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const vera = within(canvas.getByRole("row", { name: /Vera Viewer/ }));
-    await expect(
-      vera.getByRole("button", {
-        name: "Admin, From langfuse-org-admins. Open role details",
-      }),
-    ).toBeInTheDocument();
-  },
-});
-
-export const ProjectMembersWithGroups = meta.story({
-  args: {
-    ...Default.input.args,
-    project: { id: "project-1", name: "LLM app" },
-    hasProjectCudAccess: true,
-    data: { status: "success", data: [groupMember, ...members] },
   },
 });

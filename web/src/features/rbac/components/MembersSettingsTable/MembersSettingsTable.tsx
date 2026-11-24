@@ -15,29 +15,27 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
-import { directRoleColumns } from "./directRoleColumns";
-import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
-import {
-  belowGroupFloor,
-  describeRoleCell,
-  EffectiveRoleDialogController,
-  resolveEffectiveRole,
-  type DirectRoleEditor,
-  type EffectiveRole,
-} from "./EffectiveRoleDialogController";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
-const allRoles = (Object.keys(orderedRoles) as Role[]).toSorted(
-  byPermissionCount,
-);
+/** allRoles lists the membership roles in display order. */
+const allRoles: Role[] = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "AI_GATEWAY",
+  "NONE",
+];
 
 const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
 
@@ -55,21 +53,11 @@ export type MembersSettingsTableRow = {
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
-  groupRoles: MemberGroupRole[];
   featurePreviews: Record<FeaturePreviewFlag, boolean> | null;
   featurePreviewManagement:
     | RouterOutput["members"]["allFromOrg"]["memberships"][number]["featurePreviewManagement"]
     | null;
   meta: { userId: string; orgMembershipId: string };
-};
-
-export type MemberGroupRole = {
-  groupId: string;
-  groupName: string;
-  groupSource: "SCIM" | "MANUAL";
-  memberCount: number;
-  role: Role;
-  level: "organization" | "project";
 };
 
 type MembersSettingsTableProps = Pick<
@@ -84,7 +72,6 @@ type MembersSettingsTableProps = Pick<
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
   isAiGatewayEnabled: boolean;
-  isGroupsEnabled: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
   updatingOrgRoleMembershipIds: ReadonlySet<string>;
@@ -104,91 +91,6 @@ type MembersSettingsTableProps = Pick<
   pagination: PaginationBarProps;
 };
 
-type DirectRoleEditorContext = Pick<
-  MembersSettingsTableProps,
-  | "project"
-  | "projectRolesEntitlement"
-  | "hasOrgCudAccess"
-  | "hasProjectCudAccess"
-  | "canManageOrgOwnership"
-  | "canManageProjectOwnership"
-  | "isAiGatewayEnabled"
-  | "updatingOrgRoleMembershipIds"
-  | "updatingProjectRoleMembershipIds"
-  | "onUpdateOrgRole"
-  | "onUpdateProjectRole"
->;
-
-function projectRoleBlockedReason(
-  member: MembersSettingsTableRow,
-  ctx: DirectRoleEditorContext,
-) {
-  if (!ctx.projectRolesEntitlement)
-    return "Project roles are not available on your plan.";
-  if (!ctx.hasOrgCudAccess && !ctx.hasProjectCudAccess)
-    return "You do not have permission to change roles on this project.";
-  if (
-    (member.projectRole === "OWNER" && !ctx.canManageProjectOwnership) ||
-    (member.orgRole === "OWNER" && !ctx.canManageOrgOwnership)
-  )
-    return ownerLockedLabel;
-  return undefined;
-}
-
-function orgRoleBlockedReason(
-  member: MembersSettingsTableRow,
-  ctx: DirectRoleEditorContext,
-) {
-  if (!ctx.hasOrgCudAccess)
-    return "You do not have permission to change roles in this organization.";
-  if (member.orgRole === "OWNER" && !ctx.canManageOrgOwnership)
-    return ownerLockedLabel;
-  return undefined;
-}
-
-function directRoleEditor(
-  member: MembersSettingsTableRow,
-  effective: EffectiveRole,
-  ctx: DirectRoleEditorContext,
-): DirectRoleEditor {
-  const onProject = Boolean(ctx.project);
-  const updating = (
-    onProject
-      ? ctx.updatingProjectRoleMembershipIds
-      : ctx.updatingOrgRoleMembershipIds
-  ).has(member.meta.orgMembershipId);
-  const canManageOwnership = onProject
-    ? ctx.canManageProjectOwnership
-    : ctx.canManageOrgOwnership;
-  const belowFloor = belowGroupFloor(effective, { allowNone: onProject });
-  const optionDisabledReason = (role: Role) => {
-    if (updating) return "Saving…";
-    if (role === "OWNER" && !canManageOwnership) return ownerLockedLabel;
-    return belowFloor(role);
-  };
-
-  if (onProject) {
-    return {
-      roles: allProjectRoles,
-      value: member.projectRole ?? "NONE",
-      isProjectRole: true,
-      disabledReason: projectRoleBlockedReason(member, ctx),
-      optionDisabledReason,
-      onChange: (role) => ctx.onUpdateProjectRole(member, role),
-    };
-  }
-  return {
-    roles: allRoles.filter(
-      (role) => ctx.isAiGatewayEnabled || role !== "AI_GATEWAY",
-    ),
-    value: member.orgRole,
-    isProjectRole: false,
-    disabledReason: orgRoleBlockedReason(member, ctx),
-    optionDisabledReason,
-    onChange: (role) => ctx.onUpdateOrgRole(member, role),
-  };
-}
-
 export function MembersSettingsTable({
   orgId,
   project,
@@ -198,7 +100,6 @@ export function MembersSettingsTable({
   canManageOrgOwnership,
   canManageProjectOwnership,
   isAiGatewayEnabled,
-  isGroupsEnabled,
   projectRolesEntitlement,
   showFeaturePreviews,
   updatingOrgRoleMembershipIds,
@@ -229,77 +130,132 @@ export function MembersSettingsTable({
         header: "SSO Provider",
         enableHiding: true,
       }),
-      ...(isGroupsEnabled
-        ? [
+      {
+        accessorKey: "orgRole",
+        header: "Organization Role",
+        headerTooltip: {
+          description:
+            "The organization role is the default role for this user across the organization and its projects.",
+          href: "https://langfuse.com/docs/administration/rbac",
+        },
+        size: 160,
+        cell: ({ row }) => {
+          const isOwnerLocked =
+            row.original.orgRole === "OWNER" && !canManageOrgOwnership;
+          const select = (
+            <RoleSelect
+              roles={allRoles.filter(
+                (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
+              )}
+              canManageOwnership={canManageOrgOwnership}
+              value={row.original.orgRole}
+              size="compact"
+              disabled={
+                !hasOrgCudAccess ||
+                Boolean(project) ||
+                isOwnerLocked ||
+                updatingOrgRoleMembershipIds.has(
+                  row.original.meta.orgMembershipId,
+                )
+              }
+              onValueChange={(role) => onUpdateOrgRole(row.original, role)}
+            />
+          );
+
+          if (!project && hasOrgCudAccess && isOwnerLocked) {
+            return (
+              <Tooltip label={ownerLockedLabel}>
+                {({ getTriggerProps }) => (
+                  <span className="inline-flex" {...getTriggerProps()}>
+                    {select}
+                  </span>
+                )}
+              </Tooltip>
+            );
+          }
+
+          if (!project || !hasOrgCudAccess) return select;
+
+          return (
+            <HoverCard
+              openDelay={0}
+              closeDelay={0}
+              placement="right"
+              content={
+                <div className="w-64 p-3">
+                  <p className="text-xs">
+                    The organization-level role can be edited in the{" "}
+                    <Link
+                      href={`/organization/${orgId}/settings/members`}
+                      className="underline"
+                    >
+                      organization settings
+                    </Link>
+                    .
+                  </p>
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <span className="inline-flex" {...getTriggerProps()}>
+                  {select}
+                </span>
+              )}
+            </HoverCard>
+          );
+        },
+      },
+      ...(project
+        ? ([
             {
-              accessorKey: project ? "projectRole" : "orgRole",
-              header: project ? "Project role" : "Organization role",
+              accessorKey: "projectRole",
+              header: "Project Role",
               headerTooltip: {
-                description: project
-                  ? "The roles this member has on this project, from their direct role and their groups. Click it to see where each role comes from and change the direct project role."
-                  : "The roles this member has in the organization, from their direct role and their groups. Click it to see where each role comes from and change the direct role.",
+                description:
+                  "The project role applies to this project and overrides the default organization role.",
                 href: "https://langfuse.com/docs/administration/rbac",
               },
-              size: 280,
+              size: 160,
               cell: ({ row }) => {
-                const member = row.original;
-                const onProject = Boolean(project) && projectRolesEntitlement;
-                const effective = resolveEffectiveRole({
-                  orgRole: member.orgRole,
-                  projectRole: onProject ? member.projectRole : undefined,
-                  groupRoles: member.groupRoles,
-                  level: onProject ? "project" : "organization",
-                });
+                if (!projectRolesEntitlement) return "N/A on plan";
+                const hasRoleAccess = hasOrgCudAccess || hasProjectCudAccess;
+                const isOwnerLocked =
+                  (row.original.projectRole === "OWNER" &&
+                    !canManageProjectOwnership) ||
+                  (row.original.orgRole === "OWNER" && !canManageOrgOwnership);
+                const select = (
+                  <RoleSelect
+                    roles={allProjectRoles}
+                    canManageOwnership={canManageProjectOwnership}
+                    value={row.original.projectRole ?? "NONE"}
+                    isProjectRole
+                    size="compact"
+                    disabled={
+                      !hasRoleAccess ||
+                      isOwnerLocked ||
+                      updatingProjectRoleMembershipIds.has(
+                        row.original.meta.orgMembershipId,
+                      )
+                    }
+                    onValueChange={(role) =>
+                      onUpdateProjectRole(row.original, role)
+                    }
+                  />
+                );
+                if (!hasRoleAccess || !isOwnerLocked) return select;
                 return (
-                  <EffectiveRoleDialogController
-                    effective={effective}
-                    orgRole={member.orgRole}
-                    orgId={orgId}
-                    projectId={onProject ? project?.id : undefined}
-                    canSeeOrgSettings={hasOrgCudAccess}
-                    member={{ name: member.user.name, email: member.email }}
-                    editor={directRoleEditor(member, effective, {
-                      project,
-                      projectRolesEntitlement,
-                      hasOrgCudAccess,
-                      hasProjectCudAccess,
-                      canManageOrgOwnership,
-                      canManageProjectOwnership,
-                      isAiGatewayEnabled,
-                      updatingOrgRoleMembershipIds,
-                      updatingProjectRoleMembershipIds,
-                      onUpdateOrgRole,
-                      onUpdateProjectRole,
-                    })}
-                  >
-                    {(openDialog) => (
-                      <RoleCellTrigger
-                        {...describeRoleCell(effective, onProject)}
-                        onClick={openDialog}
-                      />
+                  <Tooltip label={ownerLockedLabel}>
+                    {({ getTriggerProps }) => (
+                      <span className="inline-flex" {...getTriggerProps()}>
+                        {select}
+                      </span>
                     )}
-                  </EffectiveRoleDialogController>
+                  </Tooltip>
                 );
               },
-            } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
-          ]
-        : directRoleColumns({
-            project,
-            orgRoles: allRoles.filter(
-              (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
-            ),
-            projectRoles: allProjectRoles,
-            ownerLockedLabel,
-            hasOrgCudAccess,
-            hasProjectCudAccess,
-            canManageOrgOwnership,
-            canManageProjectOwnership,
-            projectRolesEntitlement,
-            updatingOrgRoleMembershipIds,
-            updatingProjectRoleMembershipIds,
-            onUpdateOrgRole,
-            onUpdateProjectRole,
-          })),
+            },
+          ] satisfies LangfuseColumnDef<MembersSettingsTableRow>[])
+        : []),
       ...(showFeaturePreviews
         ? ([
             {
@@ -350,7 +306,6 @@ export function MembersSettingsTable({
       hasOrgCudAccess,
       hasProjectCudAccess,
       isAiGatewayEnabled,
-      isGroupsEnabled,
       onUpdateOrgRole,
       onUpdateProjectRole,
       orgId,
@@ -405,7 +360,7 @@ export function MembersSettingsTable({
       filters={[
         {
           id: "roles",
-          label: project ? "Direct project role" : "Direct role",
+          label: project ? "Project role" : "Role",
           placeholder: "All roles",
           options: roleFilterOptions,
           value: roleFilter.value,
