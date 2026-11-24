@@ -34,6 +34,8 @@ import {
 import {
   addGroupMembers,
   deleteGroup,
+  evictAuthCaches,
+  groupMemberUserIds,
   removeGroupMembers,
   replaceGroupRoles,
   roleOf,
@@ -288,7 +290,8 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
-      await ctx.prisma.$transaction(async (tx) => {
+      const userIds = await ctx.prisma.$transaction(async (tx) => {
+        const userIds = await groupMemberUserIds(tx, group.id);
         const roles = await deleteGroup(tx, { id: group.id });
         await auditLog(
           {
@@ -300,7 +303,9 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+        return userIds;
       });
+      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
     }),
 
   /** Group roles are capped at ADMIN and this needs groups:CUD, so it grants no more than the caller could directly. */
@@ -337,6 +342,7 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
+      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
     }),
 
   removeMember: protectedOrganizationProcedure
@@ -365,6 +371,10 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+      });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: [input.userId],
       });
     }),
 
@@ -495,6 +505,10 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
+      });
       return after;
     }),
 
@@ -539,6 +553,10 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+      });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });
       return { role: input.role };
     }),
@@ -631,6 +649,10 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+      });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: ctx.session.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });
       return { projectId: input.projectId, role: input.role };
     }),

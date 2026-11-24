@@ -7,8 +7,32 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
 
 type Tx = Prisma.TransactionClient;
+
+export async function groupMemberUserIds(
+  db: Tx,
+  groupId: string,
+): Promise<string[]> {
+  const members = await db.groupMembership.findMany({
+    where: { groupId },
+    select: { organizationMembership: { select: { userId: true } } },
+  });
+  return members.map((m) => m.organizationMembership.userId);
+}
+
+/** evictAuthCaches removes the cached credentials of the users' USER keys in orgId, whose policies include their group roles; call after a group change commits. */
+export async function evictAuthCaches(
+  db: Tx,
+  { orgId, userIds }: { orgId: string; userIds: string[] },
+) {
+  if (userIds.length === 0) return;
+  const apiKeys = await db.apiKey.findMany({
+    where: { orgId, userId: { in: userIds }, scope: "USER" },
+  });
+  await invalidateCachedApiKeys(apiKeys, `group members in org ${orgId}`);
+}
 
 export class GroupMembersNotInOrgError extends InvalidRequestError {
   constructor(public readonly userIds: string[]) {

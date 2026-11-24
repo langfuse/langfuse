@@ -488,6 +488,35 @@ describe("API-key cache invalidation on membership role changes", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
+  it("groups.removeMember evicts the removed member's USER keys", async () => {
+    const orgId = await createOrg();
+    const admin = await createUserInOrgs([orgId]);
+    const member = await createUserInOrgs([orgId]);
+    const group = await prisma.group.create({
+      data: { orgId, displayName: "engineering", source: "MANUAL" },
+    });
+    await prisma.groupMembership.create({
+      data: {
+        groupId: group.id,
+        orgMembershipId: await orgMembershipIdOf(orgId, member.id),
+      },
+    });
+    const keys = await seedUserScopedKey(orgId, member.id);
+
+    const caller = makeCaller({
+      userId: admin.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
+    });
+    await caller.groups.removeMember({
+      orgId,
+      groupId: group.id,
+      userId: member.id,
+    });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
   it("deleteProjectMembership evicts the user's USER keys", async () => {
     const orgId = await createOrg();
     const projectId = await createProject(orgId);

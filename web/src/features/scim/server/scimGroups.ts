@@ -8,6 +8,8 @@ import { writeScimError } from "@/src/features/public-api/server/writeError";
 import {
   addGroupMembers,
   deleteGroup,
+  evictAuthCaches,
+  groupMemberUserIds,
   GroupMembersNotInOrgError,
   lockGroup,
   removeGroupMembers,
@@ -138,6 +140,21 @@ const groupWithMembers = {
 } satisfies Prisma.GroupDefaultArgs;
 
 type ScimGroupWithMembers = Prisma.GroupGetPayload<typeof groupWithMembers>;
+
+/** changedMemberIds returns the users who joined or left the group between the two states. */
+function changedMemberIds(
+  before: ScimGroupWithMembers,
+  after: ScimGroupWithMembers,
+): string[] {
+  const ids = (group: ScimGroupWithMembers) =>
+    new Set(group.members.map((m) => m.organizationMembership.userId));
+  const was = ids(before);
+  const is = ids(after);
+  return [
+    ...[...was].filter((id) => !is.has(id)),
+    ...[...is].filter((id) => !was.has(id)),
+  ];
+}
 
 export function toScimGroup(
   group: ScimGroupWithMembers,
@@ -343,7 +360,7 @@ export async function replaceScimGroup(
   const externalId = optionalString(body.externalId, "externalId") ?? null;
   const memberIds = parseMemberIds(body.members);
 
-  return transactOrConflict(async (tx) => {
+  const { before, updated } = await transactOrConflict(async (tx) => {
     await lockGroup(tx, groupId);
     const before = (await getScimGroup(orgId, groupId, tx)) ?? existing;
     await tx.group.update({
@@ -363,8 +380,13 @@ export async function replaceScimGroup(
       },
       tx,
     );
-    return updated;
+    return { before, updated };
   });
+  await evictAuthCaches(prisma, {
+    orgId,
+    userIds: changedMemberIds(before, updated),
+  });
+  return updated;
 }
 
 const MEMBER_FILTER_PATH = /^members\[\s*value\s+eq\s+"([^"]+)"\s*\]$/i;
@@ -397,7 +419,7 @@ export async function patchScimGroup(
   }
   const operations = body.Operations as PatchOperation[];
 
-  return transactOrConflict(async (tx) => {
+  const { before, updated } = await transactOrConflict(async (tx) => {
     await lockGroup(tx, groupId);
     const before = (await getScimGroup(orgId, groupId, tx)) ?? existing;
     for (const operation of operations) {
@@ -420,8 +442,13 @@ export async function patchScimGroup(
       },
       tx,
     );
-    return updated;
+    return { before, updated };
   });
+  await evictAuthCaches(prisma, {
+    orgId,
+    userIds: changedMemberIds(before, updated),
+  });
+  return updated;
 }
 
 async function applyPatchOperation(
@@ -545,7 +572,8 @@ export async function deleteScimGroup(
   actor: ScimActor,
   existing: ScimGroupWithMembers,
 ) {
-  await prisma.$transaction(async (tx) => {
+  const userIds = await prisma.$transaction(async (tx) => {
+    const userIds = await groupMemberUserIds(tx, existing.id);
     const roles = await deleteGroup(tx, {
       id: existing.id,
       orgId: actor.orgId,
@@ -561,7 +589,9 @@ export async function deleteScimGroup(
       },
       tx,
     );
+    return userIds;
   });
+  await evictAuthCaches(prisma, { orgId: actor.orgId, userIds });
 }
 
 export function handleScimGroupsError(
