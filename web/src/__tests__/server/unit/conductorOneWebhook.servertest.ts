@@ -218,7 +218,7 @@ describe("parseProvisionPayload", () => {
 });
 
 describe("provisionSupportAccess", () => {
-  const entitlementId = "ent-1";
+  const config = { entitlementId: "ent-1", deniedOrgIds: ["org-denied"] };
   const now = new Date("2026-10-23T12:00:00.000Z");
   const user = { id: "user-1", supportAccess: null };
   const grantRequest: GrantRequest = {
@@ -243,9 +243,7 @@ describe("provisionSupportAccess", () => {
   });
 
   it("grants VIEWER until now + duration", async () => {
-    expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
-    ).toEqual({
+    expect(await provisionSupportAccess(grantRequest, config, now)).toEqual({
       ok: true,
       message: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
     });
@@ -259,9 +257,7 @@ describe("provisionSupportAccess", () => {
     ["a non-ClickHouse email", { email: "eng@evil-clickhouse.com" }],
   ])("rejects %s", async (_, change) => {
     const request = { ...grantRequest, ...change };
-    expect(
-      await provisionSupportAccess(request, entitlementId, now),
-    ).toMatchObject({
+    expect(await provisionSupportAccess(request, config, now)).toMatchObject({
       ok: false,
     });
     expect(db.$executeRaw).not.toHaveBeenCalled();
@@ -270,7 +266,7 @@ describe("provisionSupportAccess", () => {
   it("rejects when there is no Langfuse user", async () => {
     db.user.findUnique.mockResolvedValue(null);
     expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
+      await provisionSupportAccess(grantRequest, config, now),
     ).toMatchObject({
       ok: false,
     });
@@ -283,9 +279,9 @@ describe("provisionSupportAccess", () => {
     db.project.findFirst.mockResolvedValue({ orgId: "org-of-project" });
     const request = { ...grantRequest, orgOrProjectId: "project-1" };
 
-    expect(
-      await provisionSupportAccess(request, entitlementId, now),
-    ).toMatchObject({ ok: true });
+    expect(await provisionSupportAccess(request, config, now)).toMatchObject({
+      ok: true,
+    });
     expect(db.project.findFirst).toHaveBeenCalledWith({
       where: {
         deletedAt: null,
@@ -296,19 +292,30 @@ describe("provisionSupportAccess", () => {
     expect(grantedOrgId()).toBe("org-of-project");
   });
 
+  it.each([
+    ["an organization id", "org-denied"],
+    ["a project id of that organization", "project-of-denied"],
+  ])("rejects a denied organization given %s", async (_, orgOrProjectId) => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-denied" });
+    const request = { ...grantRequest, orgOrProjectId };
+
+    expect(await provisionSupportAccess(request, config, now)).toMatchObject({
+      ok: false,
+    });
+    expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown organization", async () => {
     db.project.findFirst.mockResolvedValue(null);
     expect(
-      await provisionSupportAccess(grantRequest, entitlementId, now),
+      await provisionSupportAccess(grantRequest, config, now),
     ).toMatchObject({
       ok: false,
     });
   });
 
   it("revokes all support access", async () => {
-    expect(
-      await provisionSupportAccess(revokeRequest, entitlementId),
-    ).toMatchObject({
+    expect(await provisionSupportAccess(revokeRequest, config)).toMatchObject({
       ok: true,
     });
     expect(db.user.update).toHaveBeenCalledWith({
@@ -319,7 +326,7 @@ describe("provisionSupportAccess", () => {
 
   it("ignores revokes for another entitlement", async () => {
     const request = { ...revokeRequest, entitlementId: "other" };
-    expect(await provisionSupportAccess(request, entitlementId)).toMatchObject({
+    expect(await provisionSupportAccess(request, config)).toMatchObject({
       ok: false,
     });
     expect(db.user.update).not.toHaveBeenCalled();

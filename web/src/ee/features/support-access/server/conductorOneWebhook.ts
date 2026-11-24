@@ -80,7 +80,10 @@ export async function conductorOneWebhookHandler(
   }
 
   try {
-    const result = await provisionSupportAccess(request, entitlementId);
+    const result = await provisionSupportAccess(request, {
+      entitlementId,
+      deniedOrgIds: env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS,
+    });
     if (!result.ok) {
       logger.warn("ConductorOne provisioning rejected", {
         reason: result.message,
