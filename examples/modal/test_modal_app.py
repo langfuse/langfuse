@@ -1,8 +1,8 @@
 """Offline unit tests for examples/modal/modal_app.py.
 
-Validates configuration, secret generation, Caddyfile proxying, VM memory
-allocation, and Sandbox/Sidecar orchestration without requiring Modal
-credentials or the `modal` package to be installed.
+Validates configuration, secret generation, nginx TCP/HTTP proxying, DB
+endpoints Secret wiring, VM memory allocation, and CLI orchestration without
+requiring Modal credentials or third-party packages to be installed.
 """
 
 from __future__ import annotations
@@ -47,12 +47,11 @@ class FakeSidecarHandle:
 
 class FakeSandbox:
     def __init__(self, command: tuple[str, ...], kwargs: dict) -> None:
-        self.object_id = "sb-test-123"
+        self.object_id = "sb-db-test-123"
         self.command = command
         self.kwargs = kwargs
         self.sidecars: list[FakeSidecarHandle] = []
         self.exec_calls: list[tuple[str, ...]] = []
-        self.waited_ready = False
         self.detached = False
         self.terminated = False
         self._experimental_sidecars = types.SimpleNamespace(
@@ -65,19 +64,18 @@ class FakeSandbox:
         self.sidecars.append(handle)
         return handle
 
-    def wait_until_ready(self, timeout: int = 120) -> None:
-        self.waited_ready = True
-
     def tunnels(self) -> dict[int, types.SimpleNamespace]:
         return {
-            modal_app.WEB_PORT: types.SimpleNamespace(url="https://web-abc.modal.host"),
-            modal_app.GATEWAY_PORT: types.SimpleNamespace(url="https://gw-abc.modal.host"),
-            modal_app.MINIO_PUBLIC_PORT: types.SimpleNamespace(url="https://s3-abc.modal.host"),
+            modal_app.POSTGRES_PORT: types.SimpleNamespace(tcp_socket=("r1.modal.host", 40001)),
+            modal_app.REDIS_PORT: types.SimpleNamespace(tcp_socket=("r2.modal.host", 40002)),
+            modal_app.CLICKHOUSE_NATIVE_PORT: types.SimpleNamespace(tcp_socket=("r3.modal.host", 40003)),
+            modal_app.CLICKHOUSE_HTTP_PORT: types.SimpleNamespace(url="https://ch-abc.w.modal.host"),
+            modal_app.MINIO_PUBLIC_PORT: types.SimpleNamespace(url="https://s3-abc.w.modal.host"),
         }
 
     def exec(self, *cmd: str, timeout: int = 15) -> FakeExecProcess:
         self.exec_calls.append(cmd)
-        return FakeExecProcess(returncode=0, stdout='{"status":"ok"}\n')
+        return FakeExecProcess(returncode=0, stdout="Ok.\n")
 
     def detach(self) -> None:
         self.detached = True
@@ -106,16 +104,42 @@ class FakeImage:
         return self
 
 
+class FakeServer:
+    def __init__(self, name: str, url: str) -> None:
+        self.name = name
+        self._url = url
+        self.autoscaler_updates: list[dict] = []
+        self.autoscaler = types.SimpleNamespace(
+            update=self._update_autoscaler,
+            settings=lambda: types.SimpleNamespace(
+                min_containers=1, max_containers=4, target_concurrency=20.0
+            ),
+        )
+
+    def get_url(self) -> str:
+        return self._url
+
+    def _update_autoscaler(self, **kwargs) -> dict:
+        self.autoscaler_updates.append(kwargs)
+        return kwargs
+
+
 def make_fake_modal():
     created_secrets: dict[str, dict[str, str]] = {}
     created_sandboxes: list[FakeSandbox] = []
+    servers = {
+        "LangfuseWeb": FakeServer("LangfuseWeb", "https://ws--langfuse-web.modal.run"),
+        "LangfuseAiGateway": FakeServer("LangfuseAiGateway", "https://ws--langfuse-gw.modal.run"),
+        "LangfuseWorker": FakeServer("LangfuseWorker", "https://ws--langfuse-worker.modal.run"),
+    }
+    migration_calls: list[str] = []
 
     class FakeSecretObjects:
         @staticmethod
         def create(name: str, env_dict: dict[str, str], allow_existing: bool = False) -> None:
             if name in created_secrets and not allow_existing:
                 raise RuntimeError("already exists")
-            created_secrets.setdefault(name, dict(env_dict))
+            created_secrets[name] = dict(env_dict)
 
         @staticmethod
         def delete(name: str) -> None:
@@ -137,7 +161,19 @@ def make_fake_modal():
 
         @staticmethod
         def from_name(app_name: str, sandbox_name: str) -> FakeSandbox:
+            if not created_sandboxes:
+                raise RuntimeError("not found")
             return created_sandboxes[-1]
+
+    class FakeServerCls:
+        @staticmethod
+        def from_name(app_name: str, server_name: str) -> FakeServer:
+            return servers[server_name]
+
+    class FakeFunctionCls:
+        @staticmethod
+        def from_name(app_name: str, fn_name: str):
+            return types.SimpleNamespace(remote=lambda: migration_calls.append(fn_name))
 
     class FakeEnableOutput:
         def __enter__(self):
@@ -146,17 +182,21 @@ def make_fake_modal():
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    fake_modal = types.SimpleNamespace(
-        App=types.SimpleNamespace(lookup=lambda name, create_if_missing=True: types.SimpleNamespace(name=name)),
+    return types.SimpleNamespace(
+        App=types.SimpleNamespace(
+            lookup=lambda name, create_if_missing=True: types.SimpleNamespace(name=name)
+        ),
         Image=types.SimpleNamespace(from_registry=lambda uri: FakeImage(uri)),
         Secret=FakeSecret,
         Sandbox=FakeSandboxCls,
-        Probe=types.SimpleNamespace(with_tcp=lambda port: ("tcp", port)),
+        Server=FakeServerCls,
+        Function=FakeFunctionCls,
         enable_output=lambda: FakeEnableOutput(),
         _created_secrets=created_secrets,
         _created_sandboxes=created_sandboxes,
+        _servers=servers,
+        _migration_calls=migration_calls,
     )
-    return fake_modal
 
 
 class ModalAppTests(unittest.TestCase):
@@ -165,10 +205,7 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(set(payload.keys()), set(modal_app.REQUIRED_SECRET_KEYS))
         self.assertEqual(len(payload["ENCRYPTION_KEY"]), 64)
         self.assertIn("BEGIN PRIVATE KEY", payload["LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY"])
-        self.assertEqual(
-            payload["DATABASE_URL"],
-            f"postgresql://postgres:{payload['POSTGRES_PASSWORD']}@postgres:5432/postgres",
-        )
+        self.assertEqual(payload["POSTGRES_PASSWORD"], payload["DATABASE_PASSWORD"])
         self.assertEqual(payload["REDIS_AUTH"], payload["LANGFUSE_AI_GATEWAY_REDIS_AUTH"])
         self.assertEqual(
             payload["MINIO_ROOT_PASSWORD"],
@@ -179,93 +216,114 @@ class ModalAppTests(unittest.TestCase):
         self.assertTrue(payload["LANGFUSE_INIT_PROJECT_PUBLIC_KEY"].startswith("pk-lf-"))
         self.assertTrue(payload["LANGFUSE_INIT_PROJECT_SECRET_KEY"].startswith("sk-lf-"))
 
-    def test_render_caddyfile_wires_ports_and_streaming_headers(self) -> None:
-        caddyfile = modal_app.render_caddyfile()
-        self.assertIn(":3000", caddyfile)
-        self.assertIn("reverse_proxy http://web:3000", caddyfile)
-        self.assertIn("header_up X-Forwarded-Proto https", caddyfile)
-        self.assertIn(":3031", caddyfile)
-        self.assertIn("reverse_proxy http://ai-gateway:3031", caddyfile)
-        self.assertIn("flush_interval -1", caddyfile)
-        self.assertIn(":9090", caddyfile)
-        self.assertIn("reverse_proxy http://minio:9000", caddyfile)
+    def test_render_nginx_conf_proxies_tcp_and_http_sidecars(self) -> None:
+        conf = modal_app.render_nginx_conf()
+        self.assertIn("proxy_pass postgres:5432;", conf)
+        self.assertIn("proxy_pass redis:6379;", conf)
+        self.assertIn("proxy_pass clickhouse:9000;", conf)
+        self.assertIn("proxy_pass http://clickhouse:8123;", conf)
+        self.assertIn("proxy_pass http://minio:9000;", conf)
+        self.assertIn("proxy_set_header Host $http_host;", conf)
 
     def test_vm_memory_plan_partitions_reserve_without_overflow(self) -> None:
-        reserve, allocs = modal_app.compute_vm_memory_plan(10240)
-        self.assertEqual(reserve, 9216)
-        self.assertEqual(set(allocs.keys()), set(modal_app.VM_SIDECAR_MEMORY_WEIGHTS.keys()))
+        reserve, allocs = modal_app.compute_vm_memory_plan(6144)
+        self.assertEqual(reserve, 5632)
+        self.assertEqual(set(allocs.keys()), set(modal_app.VM_DB_SIDECAR_MEMORY_WEIGHTS.keys()))
         self.assertEqual(sum(allocs.values()), reserve)
         with self.assertRaises(ValueError):
-            modal_app.compute_vm_memory_plan(2048)
+            modal_app.compute_vm_memory_plan(1024)
 
-    def test_up_orchestrates_all_seven_sidecars_and_wires_gateway_to_web(self) -> None:
+    def test_up_starts_db_sandbox_runs_migrations_and_deploys_servers(self) -> None:
         fake_modal = make_fake_modal()
-        with mock.patch.object(modal_app, "require_modal", return_value=fake_modal):
-            rc = modal_app.main(["init-secret"])
-            self.assertEqual(rc, 0)
-            self.assertIn(modal_app.DEFAULT_SECRET_NAME, fake_modal._created_secrets)
+        deploy_calls: list[dict] = []
 
-            rc = modal_app.main(["up", "--runtime", "vm", "--memory", "10240"])
+        def fake_deploy(**kwargs) -> None:
+            deploy_calls.append(kwargs)
+
+        with (
+            mock.patch.object(modal_app, "require_modal", return_value=fake_modal),
+            mock.patch.object(modal_app, "_deploy_servers", side_effect=fake_deploy),
+            mock.patch.object(modal_app, "_wait_for_http"),
+        ):
+            self.assertEqual(modal_app.main(["init-secret"]), 0)
+            rc = modal_app.main(
+                ["up", "--runtime", "vm", "--db-memory", "6144", "--workers", "2", "--gateways", "3"]
+            )
             self.assertEqual(rc, 0)
 
+        # DB Sandbox launched with 4 isolated data Sidecars only.
         self.assertEqual(len(fake_modal._created_sandboxes), 1)
         sb = fake_modal._created_sandboxes[0]
-        self.assertTrue(sb.waited_ready)
         self.assertTrue(sb.detached)
-        self.assertEqual(sb.kwargs["encrypted_ports"], [3000, 3031, 9090])
-        self.assertNotIn("secrets", sb.kwargs)
-        self.assertEqual(
-            sb.kwargs["experimental_options"]["vm_sidecar_memory_reserve_mib"], 9216
-        )
-
-        names = [sc.name for sc in sb.sidecars]
-        self.assertEqual(
-            names,
-            ["postgres", "clickhouse", "redis", "minio", "web", "worker", "ai-gateway"],
-        )
-
-        by_name = {sc.name: sc for sc in sb.sidecars}
-        # Data sidecars have outbound egress blocked (local bridge still works).
-        for db_name in ("postgres", "clickhouse", "redis", "minio"):
-            self.assertEqual(by_name[db_name].kwargs["outbound_cidr_allowlist"], [])
-
-        # Web gets public tunnel URLs for NextAuth, AI Gateway, and MinIO.
-        web_env = by_name["web"].kwargs["env"]
-        self.assertEqual(web_env["NEXTAUTH_URL"], "https://web-abc.modal.host")
-        self.assertEqual(
-            web_env["LANGFUSE_AI_GATEWAY_PUBLIC_URL"], "https://gw-abc.modal.host"
-        )
-        self.assertEqual(
-            web_env["LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT"], "https://s3-abc.modal.host"
-        )
-        self.assertEqual(
-            web_env["LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT"], "http://minio:9000"
-        )
-        self.assertEqual(web_env["LANGFUSE_INIT_ORG_ID"], modal_app.DEFAULT_INIT_ORG_ID)
-        self.assertEqual(web_env["LANGFUSE_INIT_PROJECT_ID"], modal_app.DEFAULT_INIT_PROJECT_ID)
-
-        # Gateway talks to Web over the local bridge and Redis for spend budgets.
-        gw_env = by_name["ai-gateway"].kwargs["env"]
-        self.assertEqual(gw_env["LANGFUSE_AI_GATEWAY_WEB_URL"], "http://web:3000")
-        self.assertEqual(gw_env["LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL"], "true")
-        self.assertEqual(gw_env["LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS"], "0.0.0.0:3031")
-        self.assertEqual(gw_env["LANGFUSE_AI_GATEWAY_REDIS_URL"], "redis://redis:6379")
-
-        # Every Sidecar uses a published registry image with entrypoint cleared.
+        self.assertEqual(sb.kwargs["encrypted_ports"], [8123, 9090])
+        self.assertEqual(sb.kwargs["unencrypted_ports"], [5432, 6379, 9000])
+        self.assertEqual([sc.name for sc in sb.sidecars], ["postgres", "clickhouse", "redis", "minio"])
         for sc in sb.sidecars:
-            self.assertTrue(sc.kwargs["image"].built)
-            self.assertEqual(sc.kwargs["image"].entrypoints, [[]])
+            self.assertEqual(sc.kwargs["outbound_cidr_allowlist"], [])
 
-    def test_up_terminates_sandbox_when_readiness_fails(self) -> None:
+        # Endpoints Secret wired with DB Sandbox sockets + stable Modal Server URLs.
+        ep = fake_modal._created_secrets[modal_app.DEFAULT_ENDPOINTS_SECRET_NAME]
+        self.assertEqual(ep["DATABASE_HOST"], "r1.modal.host")
+        self.assertEqual(ep["DATABASE_PORT"], "40001")
+        self.assertEqual(ep["REDIS_HOST"], "r2.modal.host")
+        self.assertEqual(ep["REDIS_PORT"], "40002")
+        self.assertEqual(ep["CLICKHOUSE_MIGRATION_URL"], "clickhouse://r3.modal.host:40003")
+        self.assertEqual(ep["CLICKHOUSE_URL"], "https://ch-abc.w.modal.host")
+        self.assertEqual(ep["LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT"], "https://s3-abc.w.modal.host")
+        self.assertEqual(ep["NEXTAUTH_URL"], "https://ws--langfuse-web.modal.run")
+        self.assertEqual(ep["LANGFUSE_AI_GATEWAY_PUBLIC_URL"], "https://ws--langfuse-gw.modal.run")
+        self.assertEqual(ep["LANGFUSE_AI_GATEWAY_WEB_URL"], "https://ws--langfuse-web.modal.run")
+
+        # Initial zero-scale deploy -> migrations -> live deploy with requested scale.
+        self.assertEqual(len(deploy_calls), 2)
+        self.assertEqual(deploy_calls[0]["min_web"], 0)
+        self.assertEqual(deploy_calls[0]["min_workers"], 0)
+        self.assertEqual(deploy_calls[0]["min_gateways"], 0)
+        self.assertEqual(fake_modal._migration_calls, ["run_migrations"])
+        self.assertEqual(deploy_calls[1]["min_web"], 1)
+        self.assertEqual(deploy_calls[1]["min_workers"], 2)
+        self.assertEqual(deploy_calls[1]["min_gateways"], 3)
+
+    def test_up_external_db_skips_sandbox_and_keeps_user_endpoints(self) -> None:
+        fake_modal = make_fake_modal()
+        deploy_calls: list[dict] = []
+
+        with (
+            mock.patch.object(modal_app, "require_modal", return_value=fake_modal),
+            mock.patch.object(modal_app, "_deploy_servers", side_effect=lambda **kw: deploy_calls.append(kw)),
+            mock.patch.object(modal_app, "_wait_for_http"),
+        ):
+            rc = modal_app.main(["up", "--external-db", "--workers", "2"])
+            self.assertEqual(rc, 0)
+
+        self.assertEqual(len(fake_modal._created_sandboxes), 0)
+        self.assertNotIn(modal_app.DEFAULT_ENDPOINTS_SECRET_NAME, fake_modal._created_secrets)
+        self.assertEqual(fake_modal._migration_calls, ["run_migrations"])
+        self.assertEqual(deploy_calls[-1]["min_workers"], 2)
+
+    def test_scale_updates_modal_server_autoscalers(self) -> None:
+        fake_modal = make_fake_modal()
+        with mock.patch.object(modal_app, "require_modal", return_value=fake_modal):
+            rc = modal_app.main(
+                ["scale", "--web", "2", "--workers", "3", "--gateways", "4", "--max-gateways", "12"]
+            )
+            self.assertEqual(rc, 0)
+
+        self.assertEqual(fake_modal._servers["LangfuseWeb"].autoscaler_updates, [{"min_containers": 2}])
+        self.assertEqual(fake_modal._servers["LangfuseWorker"].autoscaler_updates, [{"min_containers": 3}])
+        self.assertEqual(
+            fake_modal._servers["LangfuseAiGateway"].autoscaler_updates,
+            [{"min_containers": 4, "max_containers": 12}],
+        )
+
+    def test_db_up_terminates_sandbox_when_readiness_fails(self) -> None:
         fake_modal = make_fake_modal()
         with (
             mock.patch.object(modal_app, "require_modal", return_value=fake_modal),
-            mock.patch.object(
-                modal_app, "_wait_for_exec", side_effect=TimeoutError("boom")
-            ),
+            mock.patch.object(modal_app, "_wait_for_exec", side_effect=TimeoutError("boom")),
         ):
             with self.assertRaises(TimeoutError):
-                modal_app.main(["up"])
+                modal_app.main(["db-up"])
 
         self.assertEqual(len(fake_modal._created_sandboxes), 1)
         self.assertTrue(fake_modal._created_sandboxes[0].terminated)
