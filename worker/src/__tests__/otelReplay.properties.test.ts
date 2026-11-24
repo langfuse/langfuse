@@ -1397,18 +1397,29 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       },
     ]),
   ],
-  ...[null, false, 0, 5e-324, true, "", [], [1], { name: "nested" }].map(
-    (name) =>
-      ["none", "object", "stringified"].map((attributes) => ({
-        scope: "other" as const,
-        sources: [],
-        toolMetadata: {
-          root: true,
-          attributes:
-            attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
-          name,
-        },
-      })),
+  ...[
+    null,
+    false,
+    0,
+    5e-324,
+    true,
+    "",
+    [],
+    [1],
+    { name: "nested" },
+    { toString: null },
+    [{ toString: null }],
+  ].map((name) =>
+    ["none", "object", "stringified"].map((attributes) => ({
+      scope: "other" as const,
+      sources: [],
+      toolMetadata: {
+        root: true,
+        attributes:
+          attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
+        name,
+      },
+    })),
   ),
   [aiProviderSeed([{ key: "tag.tags", value: "" }])],
   [
@@ -1489,6 +1500,52 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
           "\ud800": 1,
           "\ud801": 2,
           "\ufffd": 3,
+        }),
+      },
+    ]),
+  ],
+  // Tool columns clear when a call name or an output type cannot be stringified,
+  // and Responses output.tools fills definitions the input did not provide.
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "weather", arguments: {} },
+            },
+            { name: { toString: null }, arguments: {} },
+          ],
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({ type: { toString: null } }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          output: [],
+          tools: [{ name: "get_weather", description: "forecast" }],
         }),
       },
     ]),
