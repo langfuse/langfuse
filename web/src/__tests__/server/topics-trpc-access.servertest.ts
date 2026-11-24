@@ -241,7 +241,7 @@ describe("Topics tRPC access", () => {
     const projectId = a.projectId;
     const notFound = { code: "NOT_FOUND" };
     const ruleNotInProject = {
-      code: "BAD_REQUEST",
+      code: "NOT_FOUND",
       message: "Topic rule not found in this project.",
     };
     const bTrace = { traceId: b.traceId, timestamp: new Date() };
