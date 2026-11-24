@@ -40,7 +40,6 @@ const baseInput: DispatchInput = {
   execution: { jobExecutionId: "job-1" },
   code: { source: "function evaluate() {}" },
   payload: {
-    targetType: "observation",
     observation: {
       input: null,
       output: null,

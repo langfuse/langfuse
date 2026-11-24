@@ -194,23 +194,6 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   return true;
 };
 
-// An unedited starter of a new code evaluator follows the sample scope.
-function starterForScope(
-  state: Pick<EvaluatorSetupStoreState, "initialDefinition">,
-  sourceCodeLanguage: EvalTemplateSourceCodeLanguage,
-  sourceCode: string | undefined,
-  sampleScope: EvaluatorSampleScope,
-) {
-  const isUneditedStarter =
-    state.initialDefinition?.type !== EvalTemplateTypeEnum.CODE &&
-    (sourceCode === undefined ||
-      sourceCode === getDefaultCodeEvalSource(sourceCodeLanguage) ||
-      sourceCode === getDefaultCodeEvalSource(sourceCodeLanguage, "trace"));
-  return isUneditedStarter
-    ? getDefaultCodeEvalSource(sourceCodeLanguage, sampleScope)
-    : (sourceCode ?? getDefaultCodeEvalSource(sourceCodeLanguage));
-}
-
 export function createEvaluatorSetupStore({
   initialEvaluator,
   initialSampleFilter,
@@ -499,12 +482,9 @@ export function createEvaluatorSetupStore({
 
           return {
             sourceCodeLanguage,
-            sourceCode: starterForScope(
-              state,
-              sourceCodeLanguage,
-              sourceCodeDrafts[sourceCodeLanguage],
-              state.sampleScope,
-            ),
+            sourceCode:
+              sourceCodeDrafts[sourceCodeLanguage] ??
+              getDefaultCodeEvalSource(sourceCodeLanguage),
             sourceCodeDrafts,
           };
         }),
@@ -547,17 +527,7 @@ export function createEvaluatorSetupStore({
         set((state) =>
           state.sampleScope === sampleScope
             ? state
-            : {
-                sampleScope,
-                selectedObservation: null,
-                activeMapping: null,
-                sourceCode: starterForScope(
-                  state,
-                  state.sourceCodeLanguage,
-                  state.sourceCode,
-                  sampleScope,
-                ),
-              },
+            : { sampleScope, selectedObservation: null, activeMapping: null },
         ),
       setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
       setTraceVariableField: (variable, fieldState) =>

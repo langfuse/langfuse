@@ -229,7 +229,6 @@ describe("executeCodeBasedEvaluation", () => {
       expect.objectContaining({
         scope: expect.objectContaining({ evaluatorId: "template-1" }),
         payload: {
-          targetType: "observation",
           observation: {
             input: null,
             output: null,
@@ -274,7 +273,6 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          targetType: "observation",
           observation: {
             input: null,
             output: null,
@@ -323,7 +321,6 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          targetType: "observation",
           observation: {
             input: null,
             output: null,
@@ -529,7 +526,6 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage: "Code eval execution failed: runner exploded",
             input: JSON.stringify({
-              targetType: "observation",
               observation: {
                 input: "prompt",
                 output: null,

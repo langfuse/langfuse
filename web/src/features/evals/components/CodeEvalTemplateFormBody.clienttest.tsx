@@ -23,9 +23,6 @@ vi.mock(
 vi.mock("@/src/features/notifications/showErrorToast", () => ({
   showErrorToast: mocks.showErrorToast,
 }));
-vi.mock("@/src/features/evals/transcriptEvalsAccess", () => ({
-  useCanViewTraceTranscriptsEvals: () => false,
-}));
 
 beforeAll(() => {
   Object.defineProperty(Range.prototype, "getClientRects", {
@@ -46,7 +43,6 @@ describe("CodeEvalTemplateFormBody", () => {
   it("opens the search panel above the code editor", async () => {
     const { container } = render(
       <CodeEvalTemplateFormBody
-        projectId="project-1"
         sourceCode="return JSON.stringify(ctx)"
         sourceCodeLanguage="TYPESCRIPT"
         onSourceCodeChange={vi.fn()}
@@ -73,7 +69,6 @@ describe("CodeEvalTemplateFormBody", () => {
   it("blocks evaluator source from PostHog session recordings", () => {
     const { container } = render(
       <CodeEvalTemplateFormBody
-        projectId="project-1"
         sourceCode="customer evaluator source"
         sourceCodeLanguage="PYTHON"
         onSourceCodeChange={vi.fn()}
@@ -92,7 +87,6 @@ describe("CodeEvalTemplateFormBody", () => {
   it("shows Python validation errors that arrive after the editor mounts", async () => {
     const sourceCode = "def evaluate(ctx):\n  return missing_name";
     const props = {
-      projectId: "project-1",
       sourceCode,
       sourceCodeLanguage: "PYTHON" as const,
       onSourceCodeChange: vi.fn(),
@@ -135,7 +129,6 @@ describe("CodeEvalTemplateFormBody", () => {
 
     render(
       <CodeEvalTemplateFormBody
-        projectId="project-1"
         sourceCode="def evaluate(ctx)"
         sourceCodeLanguage="PYTHON"
         onSourceCodeChange={vi.fn()}
@@ -168,7 +161,6 @@ describe("CodeEvalTemplateFormBody", () => {
   it("does not format code with validation errors", async () => {
     render(
       <CodeEvalTemplateFormBody
-        projectId="project-1"
         sourceCode="def evaluate(ctx)"
         sourceCodeLanguage="PYTHON"
         onSourceCodeChange={vi.fn()}

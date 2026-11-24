@@ -5,10 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/CodeEvalTemplateFormBody";
 import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
-import {
-  selectSampleScope,
-  type EvaluatorSetupStore,
-} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
 
 export function CodeEditor({
@@ -27,24 +24,21 @@ export function CodeEditor({
       sourceCode: state.sourceCode,
       sourceCodeLanguage: state.sourceCodeLanguage,
       setSourceCode: state.actions.setSourceCode,
-      traceScope: selectSampleScope(state) === "trace",
     })),
   );
-  // The snippet shows an observation context, which a trace target never receives.
   const ctxSample = useMemo(
     () =>
-      sampleObservation && !state.traceScope
+      sampleObservation
         ? buildCodeEvalContextSnippet(
             sampleObservation,
             state.sourceCodeLanguage,
           )
         : null,
-    [sampleObservation, state.sourceCodeLanguage, state.traceScope],
+    [sampleObservation, state.sourceCodeLanguage],
   );
 
   return (
     <CodeEvalTemplateFormBody
-      projectId={projectId}
       sourceCode={state.sourceCode}
       sourceCodeLanguage={state.sourceCodeLanguage}
       onSourceCodeChange={state.setSourceCode}

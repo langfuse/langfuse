@@ -11,7 +11,6 @@ import { syntaxTree } from "@codemirror/language";
 
 import {
   CODE_EVAL_COMPLETION_CONTRACT,
-  CODE_EVAL_TRACE_COMPLETION_PATHS,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
@@ -901,86 +900,54 @@ function getPythonDataTypeValueCompletion(
   );
 }
 
-type PathProperties = Record<
-  string,
-  readonly { label: string; detail: string }[]
->;
-
-function mergePathProperties(base: PathProperties, extra: PathProperties) {
-  const merged: PathProperties = { ...base };
-  for (const [path, properties] of Object.entries(extra)) {
-    merged[path] = [...(merged[path] ?? []), ...properties];
+const COMPLETION_CONFIGS: Record<
+  CodeEvalSourceCodeLanguage,
+  {
+    language: typeof javascriptLanguage;
+    // Ordered syntax handlers; the first one returning a result wins.
+    handlers: readonly CompletionHandler[];
+    // Runs before the string/comment guard: enum values complete in strings.
+    dataTypeHandler: CompletionHandler;
   }
-  return merged;
-}
-
-type CompletionConfig = {
-  language: typeof javascriptLanguage;
-  // Ordered syntax handlers; the first one returning a result wins.
-  handlers: readonly CompletionHandler[];
-  // Runs before the string/comment guard: enum values complete in strings.
-  dataTypeHandler: CompletionHandler;
+> = {
+  TYPESCRIPT: {
+    language: javascriptLanguage,
+    handlers: [
+      makePathCompletionHandler(
+        buildPathCompletions(
+          TYPESCRIPT_CONTRACT.pathProperties,
+          TYPESCRIPT_CONTRACT.toolCallProperties,
+          "ctx.observation.toolCalls",
+        ),
+        TYPESCRIPT_PROPERTY_NAME,
+      ),
+      getTypeScriptReturnTypeCompletion,
+      getTypeScriptObjectPropertyCompletion,
+    ],
+    dataTypeHandler: getTypeScriptDataTypeValueCompletion,
+  },
+  PYTHON: {
+    language: pythonLanguage,
+    handlers: [
+      makePathCompletionHandler(
+        buildPathCompletions(
+          PYTHON_CONTRACT.pathProperties,
+          PYTHON_CONTRACT.toolCallProperties,
+          "ctx.observation.tool_calls",
+        ),
+        PYTHON_PROPERTY_NAME,
+      ),
+      getPythonConstructorParameterCompletion,
+      getPythonResultConstructorCompletion,
+    ],
+    dataTypeHandler: getPythonDataTypeValueCompletion,
+  },
 };
-
-function createCompletionConfigs(
-  traceEvalsAvailable: boolean,
-): Record<CodeEvalSourceCodeLanguage, CompletionConfig> {
-  return {
-    TYPESCRIPT: {
-      language: javascriptLanguage,
-      handlers: [
-        makePathCompletionHandler(
-          buildPathCompletions(
-            traceEvalsAvailable
-              ? mergePathProperties(
-                  TYPESCRIPT_CONTRACT.pathProperties,
-                  CODE_EVAL_TRACE_COMPLETION_PATHS.TYPESCRIPT,
-                )
-              : TYPESCRIPT_CONTRACT.pathProperties,
-            TYPESCRIPT_CONTRACT.toolCallProperties,
-            "ctx.observation.toolCalls",
-          ),
-          TYPESCRIPT_PROPERTY_NAME,
-        ),
-        getTypeScriptReturnTypeCompletion,
-        getTypeScriptObjectPropertyCompletion,
-      ],
-      dataTypeHandler: getTypeScriptDataTypeValueCompletion,
-    },
-    PYTHON: {
-      language: pythonLanguage,
-      handlers: [
-        makePathCompletionHandler(
-          buildPathCompletions(
-            traceEvalsAvailable
-              ? mergePathProperties(
-                  PYTHON_CONTRACT.pathProperties,
-                  CODE_EVAL_TRACE_COMPLETION_PATHS.PYTHON,
-                )
-              : PYTHON_CONTRACT.pathProperties,
-            PYTHON_CONTRACT.toolCallProperties,
-            "ctx.observation.tool_calls",
-          ),
-          PYTHON_PROPERTY_NAME,
-        ),
-        getPythonConstructorParameterCompletion,
-        getPythonResultConstructorCompletion,
-      ],
-      dataTypeHandler: getPythonDataTypeValueCompletion,
-    },
-  };
-}
-
-const COMPLETION_CONFIGS = createCompletionConfigs(false);
-const TRACE_COMPLETION_CONFIGS = createCompletionConfigs(true);
 
 export function getCodeEvalCompletionSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
-  traceEvalsAvailable = false,
 ): CompletionSource {
-  const config = (
-    traceEvalsAvailable ? TRACE_COMPLETION_CONFIGS : COMPLETION_CONFIGS
-  )[sourceCodeLanguage];
+  const config = COMPLETION_CONFIGS[sourceCodeLanguage];
 
   return (context: CompletionContext) => {
     const inner = syntaxTree(context.state).resolveInner(context.pos, -1);
@@ -1000,14 +967,10 @@ export function getCodeEvalCompletionSource(
 
 export function getCodeEvalCompletionExtension(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
-  traceEvalsAvailable = false,
 ) {
   return [
     COMPLETION_CONFIGS[sourceCodeLanguage].language.data.of({
-      autocomplete: getCodeEvalCompletionSource(
-        sourceCodeLanguage,
-        traceEvalsAvailable,
-      ),
+      autocomplete: getCodeEvalCompletionSource(sourceCodeLanguage),
     }),
     autocompletion({
       activateOnCompletion: (completion) =>

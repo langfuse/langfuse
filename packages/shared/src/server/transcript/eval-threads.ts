@@ -1,6 +1,3 @@
-import type { NormalizedMessage } from "../../utils/normalized-io/types";
-import type { Thread } from "./types";
-
 type MappingMessage = {
   id?: string;
   role: unknown;
@@ -42,34 +39,5 @@ export function toMappingThreads(threads: unknown) {
       ...(thread.conversationHistory ?? []),
       ...(thread.currentTurn?.messages ?? []),
     ].map(messageForMapping),
-  }));
-}
-
-type CodeEvalTraceMessage = NormalizedMessage & {
-  observationId?: string;
-  traceId?: string;
-  startTime?: string;
-  endTime?: string | null;
-};
-
-export type CodeEvalTraceThread = { messages: CodeEvalTraceMessage[] };
-
-/**
- * Transcript threads -> code evaluator threads: the mapping shape plus
- * provenance on current-turn messages. Dates are ISO strings so in-memory and
- * JSON dispatchers hand evaluators the same values.
- */
-export function toCodeEvalThreads(threads: Thread[]): CodeEvalTraceThread[] {
-  return threads.map((thread) => ({
-    messages: [
-      ...thread.conversationHistory,
-      ...thread.currentTurn.messages.map(
-        ({ startTime, endTime, ...message }) => ({
-          ...message,
-          startTime: startTime.toISOString(),
-          endTime: endTime?.toISOString() ?? null,
-        }),
-      ),
-    ],
   }));
 }

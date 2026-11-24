@@ -61,7 +61,7 @@ messages from the content.
 
 ### Eval threads
 
-[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toMappingThreads` flattens each thread into one `messages` list, history first and without provenance, which eval variable paths resolve against. `toCodeEvalThreads` keeps provenance on current-turn messages, with ISO date strings, for code evaluators.
+[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toMappingThreads` flattens each thread into one `messages` list, history first and without provenance, which eval variable paths resolve against.
 
 ## Execution issues
 

@@ -1,11 +1,6 @@
-import {
-  EvalTemplateTypeEnum,
-  TRACE_TRANSCRIPT_EVAL_TYPES,
-  type EvalTemplateType,
-} from "@langfuse/shared";
+import { TRACE_TRANSCRIPT_EVAL_TYPES } from "@langfuse/shared";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import {
-  CodeEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
@@ -20,7 +15,6 @@ export const TRACE_TRANSCRIPT_EVAL_CONSUMER = "trace-transcript-eval";
 type TraceTranscriptEvalAssignment = {
   id: string;
   evaluatorId: string;
-  evaluator: { type: EvalTemplateType };
   evaluationRule: { id: string; delay: number | null };
 };
 
@@ -31,7 +25,6 @@ type TraceTranscriptEvalJob = {
   revision: string;
   transcriptS3Path: string;
   evaluatorId: string;
-  evaluatorType: EvalTemplateType;
   evaluationRuleId: string;
   delay: number;
 };
@@ -72,7 +65,6 @@ function buildTraceTranscriptEvalJob(params: {
     revision: reference.revision,
     transcriptS3Path: params.transcriptS3Path,
     evaluatorId: assignment.evaluatorId,
-    evaluatorType: assignment.evaluator.type,
     evaluationRuleId: assignment.evaluationRule.id,
     delay: assignment.evaluationRule.delay ?? 0,
   };
@@ -157,36 +149,6 @@ async function addTraceTranscriptEvalJob(
   job: TraceTranscriptEvalJob,
 ): Promise<void> {
   const shardingKey = `${job.projectId}-${job.jobExecutionId}`;
-  const payload = {
-    type: "trace-transcript" as const,
-    projectId: job.projectId,
-    jobExecutionId: job.jobExecutionId,
-    traceId: job.traceId,
-    revision: job.revision,
-    transcriptS3Path: job.transcriptS3Path,
-    evaluatorId: job.evaluatorId,
-    evaluationRuleId: job.evaluationRuleId,
-  };
-  const options = { delay: job.delay, jobId: job.jobExecutionId };
-
-  if (job.evaluatorType === EvalTemplateTypeEnum.CODE) {
-    const queue = CodeEvalExecutionQueue.getInstance({ shardingKey });
-    if (!queue) {
-      throw new Error("CodeEvalExecutionQueue is not initialized");
-    }
-    await queue.add(
-      QueueName.CodeEvalExecution,
-      {
-        timestamp: new Date(),
-        id: job.jobExecutionId,
-        name: QueueJobs.CodeEvalExecution,
-        payload,
-      },
-      options,
-    );
-    return;
-  }
-
   const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
   if (!queue) {
     throw new Error("LLMAsJudgeExecutionQueue is not initialized");
@@ -197,9 +159,21 @@ async function addTraceTranscriptEvalJob(
       timestamp: new Date(),
       id: job.jobExecutionId,
       name: QueueJobs.LLMAsJudgeExecution,
-      payload,
+      payload: {
+        type: "trace-transcript",
+        projectId: job.projectId,
+        jobExecutionId: job.jobExecutionId,
+        traceId: job.traceId,
+        revision: job.revision,
+        transcriptS3Path: job.transcriptS3Path,
+        evaluatorId: job.evaluatorId,
+        evaluationRuleId: job.evaluationRuleId,
+      },
     },
-    options,
+    {
+      delay: job.delay,
+      jobId: job.jobExecutionId,
+    },
   );
 }
 
@@ -220,7 +194,6 @@ async function loadTranscriptEvalAssignments(
     select: {
       id: true,
       evaluatorId: true,
-      evaluator: { select: { type: true } },
       evaluationRule: {
         select: { id: true, delay: true },
       },
