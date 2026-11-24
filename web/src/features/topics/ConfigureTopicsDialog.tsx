@@ -289,6 +289,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   type="number"
                   inputMode="numeric"
                   min={60}
+                  max={3600}
                   value={idleSeconds}
                   onChange={(event) => setIdleSeconds(event.target.value)}
                 />
