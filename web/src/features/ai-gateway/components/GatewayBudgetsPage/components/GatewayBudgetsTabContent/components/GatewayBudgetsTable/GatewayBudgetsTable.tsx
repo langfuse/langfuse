@@ -1,4 +1,4 @@
-import { Pencil } from "@langfuse/icons";
+import { ListTree, Pencil } from "@langfuse/icons";
 
 import {
   TableCard,
@@ -22,6 +22,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
@@ -49,6 +50,8 @@ type GatewayBudgetsTableProps = Pick<
   selectColumn: LangfuseColumnDef<GatewayBudgetRow>;
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
+  /** Configured ingestion project the user can open; hides "Show traces" when absent. */
+  ingestionProjectId?: string | null;
   /** Right of the search and filter, e.g. the default budget. */
   toolbarActions?: TableCardProps<GatewayBudgetRow>["toolbarActions"];
 };
@@ -181,10 +184,38 @@ export function GatewayBudgetsTable({
   selectColumn,
   multiSelect,
   onEditBudget,
+  ingestionProjectId,
   toolbarActions,
 }: GatewayBudgetsTableProps) {
   const copy = copyByTab[tab];
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
+  const getRowActions = (row: GatewayBudgetRow) => [
+    {
+      id: "editBudget",
+      type: "item" as const,
+      title: "Edit budget",
+      icon: Pencil,
+      disabled: row.isEditable
+        ? undefined
+        : { reason: notEditableReasons[tab] },
+      onClick: () => onEditBudget(row),
+    },
+    ...(ingestionProjectId
+      ? [
+          {
+            id: "showTraces",
+            type: "item" as const,
+            title: "Show traces",
+            icon: ListTree,
+            href: buildGatewayTracesHref({
+              projectId: ingestionProjectId,
+              subject: GATEWAY_SPEND_TABS[tab].subject,
+              subjectId: row.subjectId,
+            }),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <TableCard
@@ -192,18 +223,7 @@ export function GatewayBudgetsTable({
       columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
       onRowClick={onRowClick}
-      actions={(row) => [
-        {
-          id: "editBudget",
-          type: "item",
-          title: "Edit budget",
-          icon: Pencil,
-          disabled: row.isEditable
-            ? undefined
-            : { reason: notEditableReasons[tab] },
-          onClick: () => onEditBudget(row),
-        },
-      ]}
+      actions={getRowActions}
       pagination={pagination}
       multiSelect={multiSelect}
       search={{ ...search, placeholder: copy.searchPlaceholder }}
