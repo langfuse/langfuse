@@ -1,14 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
-import { Input } from "@/src/components/ui/input";
+import { Form } from "@/src/components/design-system/Form/Form";
 import { Button } from "@/src/components/ui/button";
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -65,7 +57,7 @@ export const webhookSchema = z.object({
 });
 
 interface WebhookActionFormProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<{ webhook: z.infer<typeof webhookSchema> }>;
   disabled: boolean;
   projectId: string;
   action?: ActionDomain | ActionDomainWithSecrets;
@@ -117,72 +109,45 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
 
   return (
     <div className="space-y-4">
-      <FormField
+      <Form.InputField
         control={form.control}
         name="webhook.url"
-        rules={{ required: "Webhook URL is required" }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="flex items-center">
-              Webhook URL <span className="text-destructive ml-1">*</span>
-            </FormLabel>
-            <FormControl>
-              <Input
-                placeholder="https://example.com/webhook"
-                {...field}
-                disabled={disabled}
-              />
-            </FormControl>
-            <FormDescription>
-              The HTTP URL to call when the trigger fires. We will send a POST
-              request to this URL. Only HTTPS URLs are allowed for security.
-              {isUrlChanged
-                ? " Re-enter the values of secret headers when changing the URL."
-                : ""}
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
+        label="Webhook URL"
+        required
+        placeholder="https://example.com/webhook"
+        disabled={disabled}
+        description={`The HTTP URL to call when the trigger fires. We will send a POST request to this URL. Only HTTPS URLs are allowed for security.${
+          isUrlChanged
+            ? " Re-enter the values of secret headers when changing the URL."
+            : ""
+        }`}
       />
 
       <div>
-        <FormLabel>Headers</FormLabel>
+        <h3 className="text-sm font-bold">Headers</h3>
 
         {/* Default Headers Section */}
         <div className="mb-4">
-          <FormDescription className="mb-2">
+          <p className="text-muted-foreground mb-2 text-sm">
             Default headers (automatically added by Langfuse):
-          </FormDescription>
-          {Object.entries({
-            ...WebhookDefaultHeaders,
-            "x-langfuse-signature": `t=<timestamp>,v1=<signature>`,
-          }).map(([key, value]) => (
-            <div
-              key={key}
-              className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
-            >
-              <FormItem>
-                <FormControl>
-                  <Input value={key} disabled={true} className="bg-muted/50" />
-                </FormControl>
-              </FormItem>
-              <FormItem>
-                <FormControl>
-                  <Input
-                    value={value}
-                    disabled={true}
-                    className="bg-muted/50"
-                  />
-                </FormControl>
-              </FormItem>
-            </div>
-          ))}
+          </p>
+          <dl className="bg-muted/50 space-y-1 rounded-md p-3 font-mono text-xs">
+            {Object.entries({
+              ...WebhookDefaultHeaders,
+              "x-langfuse-signature": "t=<timestamp>,v1=<signature>",
+            }).map(([name, value]) => (
+              <div key={name} className="grid grid-cols-2 gap-2 wrap-anywhere">
+                <dt>{name}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
 
         {/* Custom Headers Section */}
-        <FormDescription className="mb-2">
+        <p className="text-muted-foreground mb-2 text-sm">
           Optional custom headers to include in the webhook request:
-        </FormDescription>
+        </p>
 
         {customHeaderFields.map((field) => {
           // Find the original index in the headerFields array
@@ -208,43 +173,26 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               key={field.id}
               className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
             >
-              <FormField
+              <Form.InputField
                 control={form.control}
                 name={`webhook.headers.${originalIndex}.name`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder="Header Name"
-                        {...field}
-                        disabled={disabled}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label="Header Name"
+                placeholder="Header Name"
+                disabled={disabled}
               />
-              <FormField
+              <Form.InputField
                 control={form.control}
                 name={`webhook.headers.${originalIndex}.value`}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input
-                        placeholder={valuePlaceholder}
-                        {...field}
-                        disabled={disabled}
-                        type={isSecret ? "password" : "text"}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label="Value"
+                placeholder={valuePlaceholder}
+                disabled={disabled}
+                type={isSecret ? "password" : "text"}
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="mt-5"
                 onClick={() => toggleHeaderSecret(originalIndex)}
                 disabled={disabled}
                 title={isSecret ? "Make header public" : "Make header secret"}
@@ -259,8 +207,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="mt-5"
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
+                aria-label="Remove header"
               >
                 <X size="base" color="default" />
               </Button>
@@ -282,11 +232,11 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
 
       {/* Webhook Secret Section */}
       <div>
-        <FormLabel>Webhook Secret</FormLabel>
-        <FormDescription className="mb-2">
+        <h3 className="text-sm font-bold">Webhook Secret</h3>
+        <p className="text-muted-foreground mb-2 text-sm">
           Use this secret to verify webhook signatures for security. The secret
           is automatically included in the x-langfuse-signature header.
-        </FormDescription>
+        </p>
 
         {action?.id ? (
           <div className="rounded-md border p-3">

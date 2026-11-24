@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { AutomationForm } from "@/src/features/automations/components/AutomationForm";
+import { ConnectedAutomationForm } from "@/src/features/automations/components/ConnectedAutomationForm";
 import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { ProjectNotificationChannelsList } from "@/src/features/notifications/components/ProjectNotificationChannelsList";
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
@@ -58,7 +58,7 @@ export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
 /**
  * ProjectNotificationChannels is the admin-only "Project Notifications"
  * settings section. It lists configured channels and delegates create/edit to
- * the shared <AutomationForm> scoped to the project-notification event source.
+ * the shared <ConnectedAutomationForm> scoped to the project-notification event source.
  */
 export function ProjectNotificationChannels({
   projectId,
@@ -137,7 +137,7 @@ export function ProjectNotificationChannels({
           </div>
         </div>
       ) : (
-        <AutomationForm
+        <ConnectedAutomationForm
           key={editingChannel?.id ?? "create"}
           projectId={projectId}
           isEditing
