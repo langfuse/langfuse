@@ -97,6 +97,15 @@ export async function replaceGroupMembers(
   await addGroupMembers(tx, { orgId, groupId, userIds });
 }
 
+/** lockGroup locks a group for the transaction so concurrent role saves for it run one after another. */
+async function lockGroup(tx: Tx, groupId: string): Promise<void> {
+  await tx.$queryRaw`
+    SELECT id FROM groups
+    WHERE id = ${groupId}
+    FOR UPDATE
+  `;
+}
+
 /** `projectId` null is the org role; `role` null removes it. */
 export async function setGroupRole(
   tx: Tx,
@@ -112,6 +121,7 @@ export async function setGroupRole(
     role: Role | null;
   },
 ) {
+  await lockGroup(tx, groupId);
   await tx.roleAssignment.deleteMany({ where: { groupId, projectId } });
   if (!role) return;
   const tenantId = OrganizationId(orgId);
@@ -139,6 +149,7 @@ export async function replaceGroupRoles(
     projectRoles: { projectId: string; role: Role }[];
   },
 ) {
+  await lockGroup(tx, groupId);
   await tx.roleAssignment.deleteMany({ where: { groupId } });
   await setGroupRole(tx, { orgId, groupId, projectId: null, role: orgRole });
   for (const { projectId, role } of projectRoles) {
