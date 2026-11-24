@@ -14,11 +14,15 @@ type TileCardContentProps = {
   description: string;
 };
 
-type TileCardProps = TileCardContentProps & {
-  onClick: () => void;
-  /** Call to action shown at the right edge on hover and keyboard focus. */
-  actionLabel?: string;
-};
+type TileCardProps = TileCardContentProps &
+  (
+    | {
+        onClick: () => void;
+        /** Call to action shown at the right edge on hover and keyboard focus. */
+        actionLabel?: string;
+      }
+    | { onClick?: never; actionLabel?: never }
+  );
 
 const CHROME = "flex w-full items-center border text-left";
 
@@ -73,7 +77,8 @@ function TileCardContent({
   );
 }
 
-function TileCardButton({
+/** A button when it has an `onClick`, a plain box without one. */
+export function TileCard({
   size,
   tile,
   title,
@@ -81,6 +86,19 @@ function TileCardButton({
   onClick,
   actionLabel,
 }: TileCardProps) {
+  const content = (
+    <TileCardContent
+      size={size}
+      tile={tile}
+      title={title}
+      description={description}
+    />
+  );
+
+  if (onClick === undefined) {
+    return <div className={cn(CHROME, SIZES[size].chrome)}>{content}</div>;
+  }
+
   return (
     <button
       type="button"
@@ -93,12 +111,7 @@ function TileCardButton({
         "cursor-pointer",
       )}
     >
-      <TileCardContent
-        size={size}
-        tile={tile}
-        title={title}
-        description={description}
-      />
+      {content}
       {actionLabel === undefined ? null : (
         <span className={cn("shrink-0", styles.action)}>
           <span className="text-link flex items-center gap-0.5 pl-3.5 text-sm whitespace-nowrap">
@@ -110,26 +123,3 @@ function TileCardButton({
     </button>
   );
 }
-
-function TileCardStatic({
-  size,
-  tile,
-  title,
-  description,
-}: TileCardContentProps) {
-  return (
-    <div className={cn(CHROME, SIZES[size].chrome)}>
-      <TileCardContent
-        size={size}
-        tile={tile}
-        title={title}
-        description={description}
-      />
-    </div>
-  );
-}
-
-/** `TileCard` is a button; `TileCard.Static` is the same row without an action. */
-export const TileCard = Object.assign(TileCardButton, {
-  Static: TileCardStatic,
-});

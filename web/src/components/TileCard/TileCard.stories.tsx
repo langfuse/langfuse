@@ -48,13 +48,11 @@ export const WithLongDescription = meta.story({
   },
 });
 
-export const Static = meta.story({
-  render: () => (
-    <TileCard.Static
-      size="md"
-      tile={tile}
-      title="Anthropic"
-      description="API key from console.anthropic.com"
-    />
-  ),
+export const NotClickable = meta.story({
+  args: {
+    size: "md",
+    tile,
+    title: "Anthropic",
+    description: "API key from console.anthropic.com",
+  },
 });

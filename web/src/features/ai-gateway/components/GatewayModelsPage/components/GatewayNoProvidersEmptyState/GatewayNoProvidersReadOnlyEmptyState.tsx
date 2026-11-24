@@ -27,7 +27,7 @@ export function GatewayNoProvidersReadOnlyEmptyState() {
       <NoProvidersProviderList>
         {GATEWAY_PROVIDER_OPTIONS.map(({ provider, hint }) => (
           <li key={provider}>
-            <TileCard.Static
+            <TileCard
               size="md"
               tile={<ProviderLogoTile provider={provider} />}
               title={providerLabels[provider]}
