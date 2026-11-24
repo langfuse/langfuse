@@ -230,11 +230,13 @@ jobs:
         run: |
           cargo clippy --locked --all-targets -- -D warnings
           cargo clippy --locked --target wasm32-unknown-unknown --features wasm -- -D warnings
-      - name: Run Rust tests
-        run: cargo test --locked
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen@0.2.130
+          tool: wasm-bindgen@0.2.130,cargo-deny@0.20.2
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
+      - name: Run Rust tests
+        run: cargo test --locked
       - name: Rebuild the WebAssembly module
         run: bash scripts/build-wasm.sh
       - name: Fail if the committed module is out of date

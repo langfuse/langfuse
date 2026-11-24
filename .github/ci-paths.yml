@@ -68,4 +68,5 @@ ai_gateway:
 ai_gateway_guardrail_rules:
   - .github/workflows/pipeline.yml
   - .github/ci-paths.yml
+  - deny.toml
   - packages/ai-gateway-guardrail-rules/**

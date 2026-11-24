@@ -1,26 +1,33 @@
-//! Guardrail regex rules: one validator shared by the gateway (Rust) and the
-//! control plane (WebAssembly).
+//! Guardrail regex rules: one ASCII-only regex engine shared by the control
+//! plane (WebAssembly) and the gateway (Rust).
 //!
-//! Rules are ASCII-only: `\w`, `\d`, `\s`, `\b` and `(?i)` follow ASCII rules,
-//! `\p{..}` and the inline `u` flag are rejected. Lookaround and backreferences
-//! are rejected by the parser. Each rule and the combined rule set must fit a
-//! compiled-size limit, which bounds search time (linear in compiled size times
-//! input length).
+//! `\w`, `\d`, `\s`, `\b` and `(?i)` use ASCII semantics; `\p{..}` and the
+//! inline `u` flag are rejected. `.`, `\S`, `\W`, `\D` and negated classes like
+//! `[^,]` match full UTF-8 characters so match spans always land on char
+//! boundaries. Lookaround and backreferences are rejected by the parser.
+//!
+//! Size, length and rule-count limits ([`LIMITS`]) are enforced in the control
+//! plane via [`validate`], not in the gateway via [`compile`].
 use regex_automata::{
     meta,
     nfa::thompson::{self, State},
-    util::syntax,
 };
-use regex_syntax::ast::{self, Ast, Flag, FlagsItemKind, Visitor};
+use regex_syntax::{
+    ast::{
+        self, Ast, ClassAscii, ClassAsciiKind, ClassPerlKind, ClassSet, ClassSetItem, Flag,
+        FlagsItemKind,
+    },
+    hir::{self, Hir},
+};
 use serde::Serialize;
 
-/// Limits on an organization's rules. Fixed-width, so the WebAssembly build
-/// (32-bit `usize`) and the gateway (64-bit) apply identical limits.
+/// Control-plane limits on an organization's rules. Fixed-width so the
+/// WebAssembly build (32-bit `usize`) and native builds measure identical sizes.
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 pub struct Limits {
     pub max_rules: u32,
     pub max_pattern_chars: u32,
-    /// Compiled size of one rule, as measured by [`compiled_size`].
+    /// Compiled size of one rule, as measured by `compiled_size`.
     pub max_rule_bytes: u32,
     /// Compiled size of all of an organization's rules together.
     pub max_set_bytes: u32,
@@ -29,8 +36,7 @@ pub struct Limits {
 
 /// The limits of the Guardrails RFC: 500 characters per pattern (Bedrock's
 /// cap), 128 KiB compiled per rule and 512 KiB per organization (about 50
-/// rules). The only definition; the gateway and the WebAssembly module both
-/// read it.
+/// rules). Enforced in the control plane via [`validate`].
 pub const LIMITS: Limits = Limits {
     max_rules: 50,
     max_pattern_chars: 500,
@@ -64,54 +70,294 @@ pub struct Report {
     pub set_bytes: Option<u32>,
 }
 
-/// Rejects any flag group that turns Unicode mode on, e.g. `(?u)` or `(?iu:..)`.
-struct NoUnicodeFlag;
+/// Rewrites an AST so `regex-syntax` translates it with `unicode(true)` and
+/// `utf8(true)` (keeping `.`, `\S`, `\W`, `\D` and `[^...]` on valid UTF-8
+/// boundaries) while enforcing ASCII semantics for `\d`, `\w`, `\s`, `\b` and
+/// `(?i)` and rejecting `\p{..}` and the inline `u` flag.
+struct AsciiNormalizer {
+    case_insensitive: bool,
+}
 
-impl Visitor for NoUnicodeFlag {
-    type Output = ();
-    type Err = String;
-
-    fn finish(self) -> Result<(), String> {
-        Ok(())
-    }
-
-    fn visit_pre(&mut self, ast: &Ast) -> Result<(), String> {
-        let flags = match ast {
-            Ast::Flags(set) => &set.flags,
-            Ast::Group(group) => match &group.kind {
-                ast::GroupKind::NonCapturing(flags) => flags,
-                _ => return Ok(()),
-            },
-            _ => return Ok(()),
-        };
-        let mut negated = false;
-        for item in &flags.items {
-            match item.kind {
-                FlagsItemKind::Negation => negated = true,
-                FlagsItemKind::Flag(Flag::Unicode) if !negated => {
-                    return Err("the `u` flag is not allowed: rules are ASCII-only".into());
+impl AsciiNormalizer {
+    fn rewrite_ast(&mut self, ast: &mut Ast) -> Result<(), String> {
+        match ast {
+            Ast::Empty(_) | Ast::Dot(_) => Ok(()),
+            Ast::Flags(set) => filter_flags(&mut set.flags, &mut self.case_insensitive),
+            Ast::Literal(lit) => {
+                if self.case_insensitive && lit.c.is_ascii_alphabetic() {
+                    let span = lit.span;
+                    let c = lit.c;
+                    *ast = Ast::ClassBracketed(Box::new(ast::ClassBracketed {
+                        span,
+                        negated: false,
+                        kind: ClassSet::union(ast::ClassSetUnion {
+                            span,
+                            items: vec![
+                                ClassSetItem::Literal(verbatim_literal(
+                                    span,
+                                    c.to_ascii_lowercase(),
+                                )),
+                                ClassSetItem::Literal(verbatim_literal(
+                                    span,
+                                    c.to_ascii_uppercase(),
+                                )),
+                            ],
+                        }),
+                    }));
                 }
-                _ => {}
+                Ok(())
+            }
+            Ast::Assertion(asst) => {
+                if is_word_boundary(&asst.kind) {
+                    let span = asst.span;
+                    let inner = std::mem::replace(ast, Ast::empty(span));
+                    *ast = Ast::Group(Box::new(ast::Group {
+                        span,
+                        kind: ast::GroupKind::NonCapturing(ast::Flags {
+                            span,
+                            items: vec![
+                                ast::FlagsItem {
+                                    span,
+                                    kind: FlagsItemKind::Negation,
+                                },
+                                ast::FlagsItem {
+                                    span,
+                                    kind: FlagsItemKind::Flag(Flag::Unicode),
+                                },
+                            ],
+                        }),
+                        ast: Box::new(inner),
+                    }));
+                }
+                Ok(())
+            }
+            Ast::ClassUnicode(_) => Err(
+                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only".into(),
+            ),
+            Ast::ClassPerl(perl) => {
+                let span = perl.span;
+                let ascii = perl_to_ascii(perl);
+                *ast = Ast::ClassBracketed(Box::new(ast::ClassBracketed {
+                    span,
+                    negated: false,
+                    kind: ClassSet::Item(ClassSetItem::Ascii(ascii)),
+                }));
+                Ok(())
+            }
+            Ast::ClassBracketed(cb) => self.rewrite_class_set(&mut cb.kind),
+            Ast::Repetition(rep) => self.rewrite_ast(&mut rep.ast),
+            Ast::Group(group) => {
+                let saved = self.case_insensitive;
+                if let ast::GroupKind::NonCapturing(ref mut flags) = group.kind {
+                    filter_flags(flags, &mut self.case_insensitive)?;
+                }
+                let result = self.rewrite_ast(&mut group.ast);
+                self.case_insensitive = saved;
+                result
+            }
+            Ast::Alternation(alt) => {
+                for branch in &mut alt.asts {
+                    self.rewrite_ast(branch)?;
+                }
+                Ok(())
+            }
+            Ast::Concat(concat) => {
+                for item in &mut concat.asts {
+                    self.rewrite_ast(item)?;
+                }
+                Ok(())
             }
         }
-        Ok(())
+    }
+
+    fn rewrite_class_set(&self, set: &mut ClassSet) -> Result<(), String> {
+        match set {
+            ClassSet::Item(item) => self.rewrite_class_item(item),
+            ClassSet::BinaryOp(op) => {
+                self.rewrite_class_set(&mut op.lhs)?;
+                self.rewrite_class_set(&mut op.rhs)
+            }
+        }
+    }
+
+    fn rewrite_class_item(&self, item: &mut ClassSetItem) -> Result<(), String> {
+        match item {
+            ClassSetItem::Empty(_) => Ok(()),
+            ClassSetItem::Literal(lit) => {
+                if self.case_insensitive && lit.c.is_ascii_alphabetic() {
+                    let span = lit.span;
+                    let c = lit.c;
+                    *item = ClassSetItem::Union(ast::ClassSetUnion {
+                        span,
+                        items: vec![
+                            ClassSetItem::Literal(verbatim_literal(span, c.to_ascii_lowercase())),
+                            ClassSetItem::Literal(verbatim_literal(span, c.to_ascii_uppercase())),
+                        ],
+                    });
+                }
+                Ok(())
+            }
+            ClassSetItem::Range(range) => {
+                if self.case_insensitive
+                    && let Some(union) = fold_ascii_range(range)
+                {
+                    *item = union;
+                }
+                Ok(())
+            }
+            ClassSetItem::Ascii(ascii) => {
+                if self.case_insensitive
+                    && matches!(ascii.kind, ClassAsciiKind::Lower | ClassAsciiKind::Upper)
+                {
+                    ascii.kind = ClassAsciiKind::Alpha;
+                }
+                Ok(())
+            }
+            ClassSetItem::Unicode(_) => Err(
+                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only".into(),
+            ),
+            ClassSetItem::Perl(perl) => {
+                *item = ClassSetItem::Ascii(perl_to_ascii(perl));
+                Ok(())
+            }
+            ClassSetItem::Bracketed(cb) => self.rewrite_class_set(&mut cb.kind),
+            ClassSetItem::Union(union) => {
+                for child in &mut union.items {
+                    self.rewrite_class_item(child)?;
+                }
+                Ok(())
+            }
+        }
     }
 }
 
-fn syntax_config(limits: &Limits) -> syntax::Config {
-    syntax::Config::new()
-        .unicode(false)
-        .nest_limit(limits.nest_limit)
+fn filter_flags(flags: &mut ast::Flags, case_insensitive: &mut bool) -> Result<(), String> {
+    let mut positive = Vec::new();
+    let mut negative = Vec::new();
+    let mut negated = false;
+    for item in flags.items.drain(..) {
+        match item.kind {
+            FlagsItemKind::Negation => negated = true,
+            FlagsItemKind::Flag(Flag::Unicode) if !negated => {
+                return Err("the `u` flag is not allowed: rules are ASCII-only".into());
+            }
+            FlagsItemKind::Flag(Flag::Unicode) => {}
+            FlagsItemKind::Flag(Flag::CaseInsensitive) => {
+                *case_insensitive = !negated;
+            }
+            FlagsItemKind::Flag(_) => {
+                if negated {
+                    negative.push(item);
+                } else {
+                    positive.push(item);
+                }
+            }
+        }
+    }
+    flags.items = positive;
+    if !negative.is_empty() {
+        flags.items.push(ast::FlagsItem {
+            span: flags.span,
+            kind: FlagsItemKind::Negation,
+        });
+        flags.items.extend(negative);
+    }
+    Ok(())
 }
 
-/// The compiled size of `patterns` together: 8 bytes per NFA state and 8 per
+fn perl_to_ascii(perl: &ast::ClassPerl) -> ClassAscii {
+    let kind = match perl.kind {
+        ClassPerlKind::Digit => ClassAsciiKind::Digit,
+        ClassPerlKind::Space => ClassAsciiKind::Space,
+        ClassPerlKind::Word => ClassAsciiKind::Word,
+    };
+    ClassAscii {
+        span: perl.span,
+        kind,
+        negated: perl.negated,
+    }
+}
+
+fn is_word_boundary(kind: &ast::AssertionKind) -> bool {
+    matches!(
+        kind,
+        ast::AssertionKind::WordBoundary
+            | ast::AssertionKind::NotWordBoundary
+            | ast::AssertionKind::WordBoundaryStart
+            | ast::AssertionKind::WordBoundaryEnd
+            | ast::AssertionKind::WordBoundaryStartAngle
+            | ast::AssertionKind::WordBoundaryEndAngle
+            | ast::AssertionKind::WordBoundaryStartHalf
+            | ast::AssertionKind::WordBoundaryEndHalf
+    )
+}
+
+fn verbatim_literal(span: ast::Span, c: char) -> ast::Literal {
+    ast::Literal {
+        span,
+        kind: ast::LiteralKind::Verbatim,
+        c,
+    }
+}
+
+fn fold_ascii_range(range: &ast::ClassSetRange) -> Option<ClassSetItem> {
+    if range.start.c > range.end.c {
+        return None;
+    }
+    let span = range.span;
+    let start = u32::from(range.start.c);
+    let end = u32::from(range.end.c);
+    let mut folded = Vec::new();
+    for (lo, hi, to_other) in [
+        (b'a', b'z', u8::to_ascii_uppercase as fn(&u8) -> u8),
+        (b'A', b'Z', u8::to_ascii_lowercase as fn(&u8) -> u8),
+    ] {
+        let s = start.max(u32::from(lo));
+        let e = end.min(u32::from(hi));
+        if s <= e
+            && let (Ok(sb), Ok(eb)) = (u8::try_from(s), u8::try_from(e))
+        {
+            folded.push(ClassSetItem::Range(ast::ClassSetRange {
+                span,
+                start: verbatim_literal(span, char::from(to_other(&sb))),
+                end: verbatim_literal(span, char::from(to_other(&eb))),
+            }));
+        }
+    }
+    if folded.is_empty() {
+        return None;
+    }
+    let mut items = Vec::with_capacity(1 + folded.len());
+    items.push(ClassSetItem::Range(range.clone()));
+    items.extend(folded);
+    Some(ClassSetItem::Union(ast::ClassSetUnion { span, items }))
+}
+
+fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
+    let mut ast = ast::parse::ParserBuilder::new()
+        .nest_limit(LIMITS.nest_limit)
+        .build()
+        .parse(pattern)
+        .map_err(|error| describe(&error))?;
+    let mut normalizer = AsciiNormalizer {
+        case_insensitive: false,
+    };
+    normalizer.rewrite_ast(&mut ast)?;
+    hir::translate::TranslatorBuilder::new()
+        .unicode(true)
+        .utf8(true)
+        .build()
+        .translate(pattern, &ast)
+        .map_err(|error| describe(&error))
+}
+
+/// The compiled size of `hirs` together: 8 bytes per NFA state and 8 per
 /// transition. regex-automata's own size counts allocations, which grow with
-/// pointer width, so the same rule could pass on wasm32 and fail on x86_64.
-pub fn compiled_size(patterns: &[&str], limits: &Limits) -> Result<u32, String> {
+/// pointer width, so the same rule could measure differently on wasm32 and x86_64.
+fn compiled_size(hirs: &[&Hir]) -> Result<u32, String> {
     let nfa = thompson::Compiler::new()
-        .syntax(syntax_config(limits))
         .configure(thompson::Config::new().nfa_size_limit(Some(COMPILE_GUARD_BYTES)))
-        .build_many(patterns)
+        .build_many_from_hir(hirs)
         .map_err(|error| describe(&error))?;
     nfa.states()
         .iter()
@@ -149,28 +395,23 @@ fn describe(error: &dyn std::error::Error) -> String {
         .to_owned()
 }
 
-fn check_rule(pattern: &str, limits: &Limits) -> Result<u32, String> {
+fn check_rule(pattern: &str) -> Result<(Hir, u32), String> {
     if pattern.is_empty() {
         return Err("pattern is empty".into());
     }
-    if u32::try_from(pattern.chars().count()).map_or(true, |chars| chars > limits.max_pattern_chars)
+    if u32::try_from(pattern.chars().count()).map_or(true, |chars| chars > LIMITS.max_pattern_chars)
     {
         return Err(format!(
             "pattern is longer than {} characters",
-            limits.max_pattern_chars
+            LIMITS.max_pattern_chars
         ));
     }
-    let parsed = ast::parse::ParserBuilder::new()
-        .nest_limit(limits.nest_limit)
-        .build()
-        .parse(pattern)
-        .map_err(|error| describe(&error))?;
-    ast::visit(&parsed, NoUnicodeFlag)?;
-    within(
-        compiled_size(&[pattern], limits)?,
-        limits.max_rule_bytes,
-        "rule",
-    )
+    let hir = parse_to_hir(pattern)?;
+    if hir.properties().minimum_len() == Some(0) {
+        return Err("pattern matches the empty string".into());
+    }
+    let bytes = within(compiled_size(&[&hir])?, LIMITS.max_rule_bytes, "rule")?;
+    Ok((hir, bytes))
 }
 
 fn within(bytes: u32, limit: u32, what: &str) -> Result<u32, String> {
@@ -182,40 +423,58 @@ fn within(bytes: u32, limit: u32, what: &str) -> Result<u32, String> {
     Ok(bytes)
 }
 
-/// Validates an organization's rules: each rule on its own, then all rules combined.
-pub fn validate(patterns: &[String], limits: &Limits) -> Report {
-    let checked: Vec<Result<u32, String>> = patterns
-        .iter()
-        .map(|pattern| check_rule(pattern, limits))
-        .collect();
-    let all_valid = checked.iter().all(Result::is_ok);
-    let rules: Vec<RuleResult> = checked
-        .into_iter()
-        .enumerate()
-        .map(|(index, checked)| RuleResult {
-            index,
-            compiled_bytes: checked.as_ref().ok().copied(),
-            error: checked.err(),
-        })
-        .collect();
-    let (set_bytes, set_error) =
-        if u32::try_from(patterns.len()).map_or(true, |count| count > limits.max_rules) {
-            (
-                None,
-                Some(format!(
-                    "{} rules exceed the limit of {}",
-                    patterns.len(),
-                    limits.max_rules
-                )),
-            )
-        } else if all_valid && !patterns.is_empty() {
-            match set_size(patterns, limits) {
-                Ok(bytes) => (Some(bytes), None),
-                Err(error) => (None, Some(error)),
-            }
-        } else {
-            (None, None)
+/// Validates an organization's rules in the control plane against [`LIMITS`]:
+/// rule count first, then each rule on its own, then all rules combined.
+pub fn validate(patterns: &[String]) -> Report {
+    if u32::try_from(patterns.len()).map_or(true, |count| count > LIMITS.max_rules) {
+        return Report {
+            ok: false,
+            rules: vec![],
+            set_error: Some(format!(
+                "{} rules exceed the limit of {}",
+                patterns.len(),
+                LIMITS.max_rules
+            )),
+            set_bytes: None,
         };
+    }
+
+    let mut rules = Vec::with_capacity(patterns.len());
+    let mut hirs = Vec::with_capacity(patterns.len());
+    let mut all_valid = true;
+
+    for (index, pattern) in patterns.iter().enumerate() {
+        match check_rule(pattern) {
+            Ok((hir, bytes)) => {
+                hirs.push(hir);
+                rules.push(RuleResult {
+                    index,
+                    compiled_bytes: Some(bytes),
+                    error: None,
+                });
+            }
+            Err(error) => {
+                all_valid = false;
+                rules.push(RuleResult {
+                    index,
+                    compiled_bytes: None,
+                    error: Some(error),
+                });
+            }
+        }
+    }
+
+    let (set_bytes, set_error) = if all_valid && !hirs.is_empty() {
+        let refs: Vec<&Hir> = hirs.iter().collect();
+        match compiled_size(&refs).and_then(|bytes| within(bytes, LIMITS.max_set_bytes, "rule set"))
+        {
+            Ok(bytes) => (Some(bytes), None),
+            Err(error) => (None, Some(error)),
+        }
+    } else {
+        (None, None)
+    };
+
     Report {
         ok: set_error.is_none() && all_valid,
         rules,
@@ -224,27 +483,18 @@ pub fn validate(patterns: &[String], limits: &Limits) -> Report {
     }
 }
 
-fn set_size(patterns: &[String], limits: &Limits) -> Result<u32, String> {
-    let patterns: Vec<&str> = patterns.iter().map(String::as_str).collect();
-    within(
-        compiled_size(&patterns, limits)?,
-        limits.max_set_bytes,
-        "rule set",
-    )
-}
-
-/// Compiles all rules into one multi-pattern regex; each match carries its
-/// span and the index of the rule that produced it. The gateway calls this
-/// when it loads an organization's rules, after the same size check the
-/// control plane ran, so both accept the same rule sets.
-pub fn compile(patterns: &[String], limits: &Limits) -> Result<meta::Regex, String> {
-    set_size(patterns, limits)?;
-    // The size check above bounds the regex; regex-automata's own limit would
-    // measure allocations and could disagree across architectures.
+/// Compiles rules into one multi-pattern regex using the same ASCII-only
+/// translation as [`validate`]; each match carries its span and the index of
+/// the rule that produced it. Size, length and rule-count limits are enforced
+/// in the control plane via [`validate`], not here.
+pub fn compile(patterns: &[String]) -> Result<meta::Regex, String> {
+    let hirs: Vec<Hir> = patterns
+        .iter()
+        .map(|pattern| parse_to_hir(pattern))
+        .collect::<Result<_, _>>()?;
     meta::Builder::new()
-        .syntax(syntax_config(limits))
         .configure(meta::Config::new().nfa_size_limit(None))
-        .build_many(patterns)
+        .build_many_from_hir(&hirs)
         .map_err(|error| describe(&error))
 }
 
@@ -261,7 +511,7 @@ mod wasm {
             patterns: Vec<String>,
         }
         let report = match serde_json::from_str::<Input>(input) {
-            Ok(input) => super::validate(&input.patterns, &super::LIMITS),
+            Ok(input) => super::validate(&input.patterns),
             Err(error) => super::Report {
                 ok: false,
                 rules: vec![],
@@ -284,57 +534,158 @@ mod tests {
     use super::*;
 
     fn error(pattern: &str) -> Option<String> {
-        check_rule(pattern, &LIMITS).err()
+        check_rule(pattern).err()
     }
 
     #[test]
-    fn accepts_ascii_rules() {
+    fn accepts_ascii_and_utf8_safe_rules() {
         for pattern in [
             r"\b\d{3}-\d{2}-\d{4}\b",
             r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{20,}",
             r"(?i-u)abc",
             r"\w{1,500}",
             "(?i)stra\u{df}e",
+            r"token=\S+",
+            r"password=.+",
+            r#""[^"]+""#,
+            r"[^\s,]+",
+            r"a\Db\Wc",
+            r"(?i)[^a]+",
+            r"(?i)[a-z]+",
+            r"(?i)[[:lower:]]+",
+            r"(?i)[[:^lower:]]+",
+            r"foo(?i)bar|baz",
         ] {
             assert_eq!(error(pattern), None, "{pattern}");
         }
     }
 
     #[test]
-    fn rejects_unicode_lookaround_and_backreferences() {
+    fn rejects_unicode_lookaround_backreferences_and_empty_matches() {
         for pattern in [
             r"\p{L}+",
+            r"[\p{L}]+",
             r"(?u:\w)+",
             r"(?iu)abc",
             r"foo(?=bar)",
             r"(?<=x)y",
             r"(a)\1",
+            "",
+            "(?i)",
+            "()",
+            "(?:)",
+            "x?",
+            r"\d*",
+            r"\b",
+            "^$",
+            "a|",
         ] {
             assert!(error(pattern).is_some(), "{pattern}");
         }
     }
 
     #[test]
-    fn rejects_rules_over_the_size_limit() {
-        let small = Limits {
-            max_rule_bytes: 16 << 10,
-            ..LIMITS
-        };
-        assert!(check_rule(r"[a-z]{1,1000}x", &small).is_err());
+    fn enforces_ascii_semantics_and_utf8_char_boundaries() {
+        // `\S`, `.`, and `[^,]` match full multi-byte UTF-8 characters so match
+        // spans stay on char boundaries for slicing/redaction.
+        let utf8 = compile(&[
+            r"token=\S".to_string(),
+            r"a.b".to_string(),
+            r"[^,]+".to_string(),
+        ])
+        .unwrap();
+        let text = "token=é";
+        let m = utf8.find(text).unwrap();
+        assert_eq!(&text[m.start()..m.end()], "token=é");
+
+        let dot = compile(&[r"a.b".to_string()]).unwrap();
+        assert!(dot.is_match("aéb"));
+
+        // `\w`, `\d`, `\s`, `\b`, and `(?i)` remain ASCII-only.
+        let ascii_classes = compile(&[
+            r"\w+".to_string(),
+            r"\d+".to_string(),
+            r"\s+".to_string(),
+            r"(?i)k".to_string(),
+        ])
+        .unwrap();
+        assert!(!ascii_classes.is_match("é"));
+        assert!(!ascii_classes.is_match("\u{0660}")); // Arabic-Indic digit 0
+        assert!(!ascii_classes.is_match("\u{00A0}")); // NBSP
+        assert!(!ascii_classes.is_match("\u{212A}")); // Kelvin sign
+
+        // `(?i)` folds ASCII case even inside negated classes and ranges.
+        let case_negated = compile(&[r"(?i)[^a]+".to_string()]).unwrap();
+        let m = case_negated.find("xyAz").unwrap();
+        assert_eq!(&"xyAz"[m.start()..m.end()], "xy");
+
+        let case_alt = compile(&[r"a(?i)b|c".to_string()]).unwrap();
+        assert!(case_alt.is_match("aB"));
+        assert!(case_alt.is_match("C"));
     }
 
     #[test]
-    fn reports_set_limit_and_rule_count() {
-        let patterns: Vec<String> = (0..3).map(|i| format!("word{i}")).collect();
-        let report = validate(
-            &patterns,
-            &Limits {
-                max_rules: 2,
-                ..LIMITS
-            },
-        );
+    fn enforces_control_plane_limits() {
+        // Pattern length > 500 chars.
+        let too_long = "a".repeat(LIMITS.max_pattern_chars as usize + 1);
+        assert!(validate(&[too_long]).rules[0].error.is_some());
+
+        // Single rule > 128 KiB compiled.
+        let oversized_rule = r"\w{1,500}".repeat(5);
+        let report = validate(std::slice::from_ref(&oversized_rule));
         assert!(!report.ok);
-        assert!(report.set_error.unwrap().contains("exceed"));
+        assert!(
+            report.rules[0]
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("over the limit")
+        );
+
+        // Org total > 512 KiB compiled (each rule fits under 128 KiB).
+        let near_cap_rule = r"\w{1,500}".repeat(4);
+        assert!(check_rule(&near_cap_rule).is_ok());
+        let oversized_set = vec![near_cap_rule; 5];
+        let set_report = validate(&oversized_set);
+        assert!(!set_report.ok);
+        assert!(set_report.rules.iter().all(|r| r.error.is_none()));
+        assert!(
+            set_report
+                .set_error
+                .as_deref()
+                .unwrap()
+                .contains("over the limit")
+        );
+
+        // Rule count > 50 returns early without compiling individual rules.
+        let too_many: Vec<String> = (0..=LIMITS.max_rules).map(|i| format!("word{i}")).collect();
+        let count_report = validate(&too_many);
+        assert!(!count_report.ok);
+        assert!(count_report.rules.is_empty());
+        assert!(
+            count_report
+                .set_error
+                .as_deref()
+                .unwrap()
+                .contains("exceed")
+        );
+    }
+
+    #[test]
+    fn gateway_compile_skips_control_plane_limits_but_rejects_unicode() {
+        // Limits are enforced in the control plane only, not in the gateway.
+        let oversized_rule = r"\w{1,500}".repeat(5);
+        assert!(!validate(std::slice::from_ref(&oversized_rule)).ok);
+        assert!(compile(std::slice::from_ref(&oversized_rule)).is_ok());
+
+        let many: Vec<String> = (0..=LIMITS.max_rules).map(|i| format!("word{i}")).collect();
+        assert!(!validate(&many).ok);
+        assert!(compile(&many).is_ok());
+
+        // Gateway still rejects Unicode patterns and bad syntax.
+        assert!(compile(&[r"(?u:\w)+".to_string()]).is_err());
+        assert!(compile(&[r"\p{L}+".to_string()]).is_err());
+        assert!(compile(&[r"foo(?=bar)".to_string()]).is_err());
     }
 
     /// The sizes the WebAssembly build must report too (`js/parity.test.mjs`):
@@ -354,7 +705,7 @@ mod tests {
         let fixture: Fixture =
             serde_json::from_str(include_str!("../tests/compiled-sizes.json")).unwrap();
         for case in &fixture.rules {
-            let report = validate(std::slice::from_ref(&case.pattern), &LIMITS);
+            let report = validate(std::slice::from_ref(&case.pattern));
             assert_eq!(
                 report.rules[0].compiled_bytes, case.compiled_bytes,
                 "{}",
@@ -367,7 +718,7 @@ mod tests {
             .filter(|case| case.compiled_bytes.is_some())
             .map(|case| case.pattern)
             .collect();
-        assert_eq!(validate(&valid, &LIMITS).set_bytes, Some(fixture.set_bytes));
+        assert_eq!(validate(&valid).set_bytes, Some(fixture.set_bytes));
     }
 
     #[test]
@@ -376,7 +727,7 @@ mod tests {
             r"\b\d{3}-\d{2}-\d{4}\b".to_string(),
             r"[a-z]+@[a-z]+\.com".to_string(),
         ];
-        let regex = compile(&patterns, &LIMITS).unwrap();
+        let regex = compile(&patterns).unwrap();
         let hits: Vec<usize> = regex
             .find_iter("mail a@b.com ssn 078-05-1120")
             .map(|m| m.pattern().as_usize())
