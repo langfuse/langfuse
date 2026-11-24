@@ -50,7 +50,6 @@ declare module "next-auth" {
               deletedAt: PrismaProject["deletedAt"];
               retentionDays: PrismaProject["retentionDays"];
               hasTraces: PrismaProject["hasTraces"];
-              topicsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               traceEvalsEnabled?: boolean; // deployment allowlist, resolved server-side; absent = off
               scoreEditsDisabled?: boolean; // scores are read without dedup, so existing scores stay immutable; absent = off
               forceV3Experience?: boolean; // LANGFUSE_FORCE_V3_EXPERIENCE allowlist, resolved server-side; absent = off
@@ -72,6 +71,8 @@ declare module "next-auth" {
       // Instance-wide in-app agent switch. Populated by the session callback.
       // Optional so existing session mocks need not set it.
       inAppAgentEnabled?: boolean;
+      // LANGFUSE_TOPICS_ENABLED. Optional so existing session mocks need not set it.
+      topicsEnabled?: boolean;
       // Whether LANGFUSE_AI_FEATURES_PROJECT_ID is set, so Cloud orgs can
       // opt out of product traces. Optional so existing session mocks need
       // not set it.

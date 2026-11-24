@@ -45,6 +45,7 @@ function caller(userId: string, memberships: [string, string, Role][]) {
       role,
       projects: [{ id: projectId }],
     })),
+    environment: { topicsEnabled: true },
   });
   return appRouter.createCaller({
     ...createInnerTRPCContext({ session, headers: {} }),
@@ -164,7 +165,6 @@ function topicsProcedures(type?: "query" | "mutation") {
 describe("Topics tRPC access", () => {
   const original = {
     enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
     region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   };
   let userId: string;
@@ -181,16 +181,10 @@ describe("Topics tRPC access", () => {
     b = await topicsProject(userId);
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      a.projectId,
-      b.projectId,
-    ];
   });
 
   afterAll(() => {
     (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 

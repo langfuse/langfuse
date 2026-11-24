@@ -16,8 +16,6 @@ const topicFilter = {
 
 beforeEach(() => {
   vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "true");
-  vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
-  vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "project-b");
 });
 
 afterEach(() => {
@@ -26,7 +24,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("rejects topic filters outside the project allowlist before reading anything", async () => {
+it("rejects topic filters when Topics is off before reading anything", async () => {
+  vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "false");
   const { topicFilterConditions } = await import("./trace-filter.js");
   await expect(
     topicFilterConditions("project-a", [topicFilter]),
