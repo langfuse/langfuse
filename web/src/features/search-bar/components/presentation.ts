@@ -14,15 +14,6 @@ export function composerPlaceholder(registry: FieldRegistry): string {
     : "Search";
 }
 
-/** DOM id for an option row — referenced by aria-activedescendant. Option ids
- *  embed observed values (`value:My Test Trace`) and recent queries, which can
- *  contain whitespace; an id with whitespace is invalid HTML and breaks the
- *  aria-activedescendant IDREF. encodeURIComponent escapes whitespace (→ `%20`)
- *  while leaving underscore literal, so it is injective — distinct option ids
- *  always map to distinct DOM ids (a `\s+ → _` collapse would alias
- *  `My Test`/`My_Test` to the same duplicate id). */
-export { optionDomId } from "@/src/components/design-system/QueryInput/QueryInput";
-
 /**
  * Why this token is NOT applied on the current surface (e.g. a column the chart
  * view can't filter on), or null when it is. Shared by the token styling (dim +
