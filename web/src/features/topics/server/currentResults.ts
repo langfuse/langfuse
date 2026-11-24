@@ -1,8 +1,4 @@
-import {
-  type FilterState,
-  InvalidRequestError,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,

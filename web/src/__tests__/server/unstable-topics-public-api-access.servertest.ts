@@ -21,6 +21,7 @@ import topicHandler from "@/src/pages/api/public/unstable/topics/[topicId]";
 import facetsHandler from "@/src/pages/api/public/unstable/topic-facets/index";
 import facetHandler from "@/src/pages/api/public/unstable/topic-facets/[facetId]";
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
+import type { HttpMethod } from "@/src/features/public-api/server/withMiddlewares";
 import summariesHandler from "@/src/pages/api/public/unstable/topic-summaries/index";
 import assignmentsHandler from "@/src/pages/api/public/unstable/topic-assignments/index";
 import rulesHandler from "@/src/pages/api/public/unstable/topic-rules/index";
@@ -33,7 +34,7 @@ async function get(
   handler: Handler,
   authorization: string,
   query: Record<string, string> = {},
-  method: "GET" | "POST" = "GET",
+  method: HttpMethod = "GET",
 ) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method,
@@ -44,19 +45,25 @@ async function get(
   return { status: res._getStatusCode(), body: res._getJSONData() };
 }
 
-/** Every Topics route by file, with a query naming one of the project's resources and that resource's id. */
+/**
+ * Every Topics route by file: a query naming one of the project's resources,
+ * that resource's id, and the status another project's key gets for it.
+ */
 function topicsRoutes(project: Awaited<ReturnType<typeof topicsProject>>) {
   const { topicId, facetId, ruleId, traceId } = project;
   return {
-    "topics/index": [topicsHandler, {}, topicId],
-    "topics/[topicId]": [topicHandler, { topicId }, topicId],
-    "topic-facets/index": [facetsHandler, {}, facetId],
-    "topic-facets/[facetId]": [facetHandler, { facetId }, facetId],
-    "topic-rules/index": [rulesHandler, {}, ruleId],
-    "topic-rules/[ruleId]": [ruleHandler, { ruleId }, ruleId],
-    "topic-summaries/index": [summariesHandler, {}, traceId],
-    "topic-assignments/index": [assignmentsHandler, {}, traceId],
-  } satisfies Record<string, [Handler, Record<string, string>, string]>;
+    "topics/index": [topicsHandler, {}, topicId, 200],
+    "topics/[topicId]": [topicHandler, { topicId }, topicId, 404],
+    "topic-facets/index": [facetsHandler, {}, facetId, 200],
+    "topic-facets/[facetId]": [facetHandler, { facetId }, facetId, 404],
+    "topic-rules/index": [rulesHandler, {}, ruleId, 200],
+    "topic-rules/[ruleId]": [ruleHandler, { ruleId }, ruleId, 404],
+    "topic-summaries/index": [summariesHandler, {}, traceId, 200],
+    "topic-assignments/index": [assignmentsHandler, {}, traceId, 200],
+  } satisfies Record<
+    string,
+    [Handler, Record<string, string>, string, 200 | 404]
+  >;
 }
 
 describe("unstable Topics public API access", () => {
@@ -102,20 +109,24 @@ describe("unstable Topics public API access", () => {
     // A new Topics route must join the table.
     expect(Object.keys(routes).sort()).toEqual(files.sort());
 
-    for (const [route, [handler, query, id]] of Object.entries(routes)) {
+    for (const [route, [handler, query, id, foreignStatus]] of Object.entries(
+      routes,
+    )) {
       // Positive control: the owner reads the id, so the checks below are not vacuous.
       const owned = await get(handler, ownerAuth, query);
       expect(owned.status, route).toBe(200);
       expect(JSON.stringify(owned.body), route).toContain(id);
 
       const foreign = await get(handler, otherAuth, query);
-      expect([200, 404], route).toContain(foreign.status);
+      expect(foreign.status, route).toBe(foreignStatus);
       expect(JSON.stringify(foreign.body), route).not.toContain(id);
 
       // A write method would need its own scope test.
-      expect((await get(handler, ownerAuth, query, "POST")).status, route).toBe(
-        405,
-      );
+      for (const method of ["POST", "PUT", "DELETE", "PATCH"] as const)
+        expect(
+          (await get(handler, ownerAuth, query, method)).status,
+          `${method} ${route}`,
+        ).toBe(405);
     }
   });
 
