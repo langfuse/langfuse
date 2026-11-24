@@ -313,21 +313,29 @@ export function buildNumericDistributionChartData(params: {
 } {
   const { distribution1, distribution2, binLabels } = params;
   const comparison = distribution2 !== undefined;
-  const countByBin = new Map(
+  const countByBin1 = new Map(
+    distribution1.map((item) => [item.binIndex, item.count]),
+  );
+  const countByBin2 = new Map(
     distribution2?.map((item) => [item.binIndex, item.count]),
   );
+  // Only non-empty bins come back for each score, so a bin can exist for
+  // score2 alone.
+  const binIndices = [
+    ...new Set([...countByBin1.keys(), ...countByBin2.keys()]),
+  ].sort((left, right) => left - right);
   const labelByKey = new Map<string, string>();
-  const data = [...distribution1]
-    .sort((left, right) => left.binIndex - right.binIndex)
-    .map((item) => {
-      const label = binLabels[item.binIndex] ?? `Bin ${item.binIndex}`;
-      // The chart key is the bin index. Rounded labels may repeat.
-      const key = `bin-${item.binIndex}`;
-      labelByKey.set(key, label);
-      const values: Record<string, number> = { score1: item.count };
-      if (comparison) values.score2 = countByBin.get(item.binIndex) ?? 0;
-      return { key, values };
-    });
+  const data = binIndices.map((binIndex) => {
+    const label = binLabels[binIndex] ?? `Bin ${binIndex}`;
+    // The chart key is the bin index. Rounded labels may repeat.
+    const key = `bin-${binIndex}`;
+    labelByKey.set(key, label);
+    const values: Record<string, number> = {
+      score1: countByBin1.get(binIndex) ?? 0,
+    };
+    if (comparison) values.score2 = countByBin2.get(binIndex) ?? 0;
+    return { key, values };
+  });
 
   return {
     data,
