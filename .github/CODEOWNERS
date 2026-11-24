@@ -32,3 +32,79 @@
 
 # Query AST
 /packages/shared/src/server/query-ast/ @niklassemmler
+
+# ---------------------------------------------------------------------------
+# Security-sensitive paths (GitHub hardening)
+#
+# Last matching pattern wins, so keep narrower rules after broader ones.
+# There is intentionally no global `*` owner: review is required only for the
+# paths below. A line with several owners is satisfied by any one of them.
+#
+# Pod leads: @Steffen911 @hassiebp @nimarb
+# ---------------------------------------------------------------------------
+
+# GitHub workflows, actions and repo config (workflows hold release secrets).
+# Also covers this file, so changing ownership needs a pod lead.
+/.github/ @Steffen911 @hassiebp @nimarb
+
+# CI pipeline scripts
+/scripts/ci/ @Steffen911 @hassiebp @nimarb
+
+# Public APIs (REST routes, auth/rate limiting/middleware, shared types)
+/web/src/pages/api/public/ @Steffen911 @hassiebp @nimarb
+/web/src/features/public-api/ @Steffen911 @hassiebp @nimarb
+
+# Ingestion API (declared after /web/src/pages/api/public/ so it takes precedence)
+/web/src/pages/api/public/ingestion.ts @sumerman @Steffen911
+/web/src/pages/api/public/otel/ @sumerman @Steffen911
+/packages/shared/src/server/ingestion/ @sumerman @Steffen911
+/worker/src/queues/ingestionQueue.ts @sumerman @Steffen911
+/worker/src/queues/otelIngestionQueue.ts @sumerman @Steffen911
+/worker/src/services/IngestionService/ @sumerman @Steffen911
+/worker/src/features/otel-ingestion/ @sumerman @Steffen911
+
+# RBAC and entitlements
+/packages/shared/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/authorize.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/getRolesForPrincipal.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/types.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/server/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/utils/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/server/entitlements/ @marksalpeter @jordibosch20 @Steffen911
+
+# Auth (NextAuth, credentials, API key and role checks)
+/web/src/server/auth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/pages/api/auth/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/auth/policy/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/auth-credentials/server/ @marksalpeter @jordibosch20 @Steffen911
+/packages/shared/src/server/auth/ @marksalpeter @jordibosch20 @Steffen911
+
+# tRPC configuration (context, procedures, auth middleware, handler)
+/web/src/server/api/trpc.ts @Steffen911 @nimarb @hassiebp
+/web/src/pages/api/trpc/ @Steffen911 @nimarb @hassiebp
+
+# Database migrations
+/packages/shared/clickhouse/migrations/ @Steffen911 @sumerman
+/packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb
+/packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb
+
+# Billing job (cloud usage metering)
+/worker/src/ee/cloudUsageMetering/ @Steffen911 @jordibosch20
+/worker/src/queues/cloudUsageMeteringQueue.ts @Steffen911 @jordibosch20
+
+# Query builder: code that applies the project_id (tenant isolation) filter
+/packages/shared/src/features/query/server/queryBuilder.ts @Steffen911 @hassiebp @nimarb
+/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @Steffen911 @hassiebp @nimarb
+# Declared after /packages/shared/src/server/query-ast/ so it keeps its existing owner
+/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @Steffen911 @hassiebp @nimarb
+
+# Dockerfiles
+**/Dockerfile @Steffen911 @hassiebp @nimarb
+
+# Next.js config and app shell
+/web/next.config.mjs @Steffen911 @hassiebp @nimarb
+/web/src/pages/_app.tsx @Steffen911 @hassiebp @nimarb
+/web/src/pages/_document.tsx @Steffen911 @hassiebp @nimarb
+/web/src/pages/_error.tsx @Steffen911 @hassiebp @nimarb
