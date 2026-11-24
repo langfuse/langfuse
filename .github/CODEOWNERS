@@ -44,7 +44,7 @@
 # ---------------------------------------------------------------------------
 
 # GitHub workflows, actions and repo config (workflows hold release secrets).
-# Also covers this file, so changing ownership needs a pod lead.
+# Also covers this file, so changing ownership needs one of these owners.
 /.github/ @Steffen911 @hassiebp @nimarb @maxdeichmann
 
 # CI pipeline scripts
