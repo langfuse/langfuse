@@ -165,6 +165,9 @@ describe("TypeScript SDK deprecations", () => {
       "api/resources/projects/types/ApiKeySummary.ts:ApiKeySummary.note",
       "api/resources/projects/types/ApiKeyResponse.ts:ApiKeyResponse.note",
       "api/resources/scim/client/requests/CreateUserRequest.ts:CreateUserRequest.password",
+      "api/resources/unstable/resources/dashboards/types/LegacyDashboardDefinition.ts:LegacyDashboardDefinition.widgets",
+      "api/resources/unstable/resources/dashboards/types/DashboardDefinitionV1.ts:DashboardDefinitionV1.widgets",
+      "api/resources/unstable/resources/dashboards/types/DashboardDefinitionV1Input.ts:DashboardDefinitionV1Input.widgets",
     ]);
   });
 
