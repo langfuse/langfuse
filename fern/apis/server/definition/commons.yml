@@ -718,16 +718,6 @@ types:
       - neq
 
   # Utilities
-  ModelScope:
-    docs: |
-      Owner of a model definition. When several definitions match, project definitions take precedence over organization definitions, which take precedence over Langfuse definitions.
-      - PROJECT: defined in the project
-      - ORGANIZATION: defined by the project's organization; applies to all of its projects
-      - LANGFUSE: built-in definition maintained by Langfuse
-    enum:
-      - PROJECT
-      - ORGANIZATION
-      - LANGFUSE
   ModelUsageUnit:
     docs: Unit of usage in Langfuse
     enum:
@@ -737,6 +727,12 @@ types:
       - SECONDS
       - IMAGES
       - REQUESTS
+  ModelScope:
+    docs: Owner of a model definition. Project definitions take precedence over organization definitions, which take precedence over Langfuse definitions.
+    enum:
+      - PROJECT
+      - ORGANIZATION
+      - LANGFUSE
   ObservationLevel:
     enum:
       - DEBUG
