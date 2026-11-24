@@ -1269,7 +1269,8 @@ export const scoresListableCountViewV2: ViewDeclarationType =
  * hours before it. The ledger is not backfilled, so it holds no usage from
  * before it started filling, and it stays empty in legacy v4 write mode.
  * The same declaration serves v1 and v2, since the ledger does not change
- * with the read path.
+ * with the read path. The query AST builds its SQL from
+ * `server/billableUnitsRegistry.ts`; the `sql` strings here only describe it.
  */
 export const billableUnitsView: ViewDeclarationType = {
   name: "billable_units",
@@ -1292,8 +1293,7 @@ export const billableUnitsView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "@@AGG1@@(billable_units.event_type, billable_units.event_id)",
-      aggs: { agg1: "uniq" },
+      sql: "tuple(billable_units.event_type, billable_units.event_id)",
       alias: "count",
       type: "string",
       description:
@@ -1301,10 +1301,12 @@ export const billableUnitsView: ViewDeclarationType = {
       unit: "units",
       defaultAggregation: "count",
       // A unit gets a ledger row every time it is ingested, so `count` would
-      // count rows. Both aggregations count distinct units instead.
+      // count rows. The override runs `count` as `uniq`, which the query
+      // builder reads as `queryAggregation`, while the widget keeps its
+      // `count` aggregation and `count_count` column.
       aggregationOverrides: {
         count: {
-          sql: "(billable_units.event_type, billable_units.event_id)",
+          sql: "tuple(billable_units.event_type, billable_units.event_id)",
           type: "string",
           queryAggregation: "uniq",
         },
