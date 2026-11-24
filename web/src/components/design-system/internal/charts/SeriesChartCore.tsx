@@ -38,6 +38,10 @@ export type LineChartLegend =
   | ({
       visibility: "auto" | "visible";
       summary: "none" | "sum";
+      /**
+       * Observes legend actions for analytics. The chart owns the selection state.
+       * Avoid using this callback to synchronize selection with a parent.
+       */
       onAfterInteraction?: (action: ChartLegendInteraction) => void;
     } & (
       | { interaction: "highlight" }
