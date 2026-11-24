@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import type { EventRecordInsertType } from "@langfuse/shared/src/server";
@@ -153,6 +154,39 @@ describe("applyObservationFieldOverflow", () => {
       "langfuse.ingestion.observation_field_overflow.processing_duration_ms",
       expect.any(Number),
     );
+  });
+
+  it("captures each overflow upload with its content digest and result", async () => {
+    const value = "x".repeat(100);
+    const effects: unknown[] = [];
+    mocks.uploadMediaForTrace.mockResolvedValue({
+      mediaId: "input-media",
+      outcome: "reused",
+    });
+
+    await applyObservationFieldOverflow(createEventRecord({ input: value }), {
+      capture: (effect) => effects.push(effect),
+    });
+
+    expect(effects).toEqual([
+      expect.objectContaining({
+        kind: "media",
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        contentType: "text/plain",
+        sha256Hash: createHash("sha256").update(value, "utf8").digest("base64"),
+        origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+        writePath: "direct",
+        request: { byteLengthUpperBound: Buffer.byteLength(value) },
+        result: expect.objectContaining({
+          mediaId: "input-media",
+          outcome: "reused",
+          byteLength: Buffer.byteLength(value),
+        }),
+      }),
+    ]);
   });
 
   it("applies the limit to each metadata value rather than their aggregate size", async () => {

@@ -47,3 +47,19 @@ export type RecordInsertType<T extends TableName> = T extends TableName.Scores
                   : T extends TableName.TopicAssignments
                     ? TopicAssignmentRecordInsertType
                     : never;
+
+export type ClickhouseWriterRowTerminalOutcome<Row> =
+  | {
+      status: "inserted";
+      row: Readonly<Row>;
+    }
+  | {
+      status: "dropped";
+      row: Readonly<Row>;
+      error: unknown;
+    };
+
+export type ClickhouseWriterRowCallbacks<Row> = {
+  /** Called synchronously once the row reaches a terminal writer outcome. */
+  onTerminal?: (outcome: ClickhouseWriterRowTerminalOutcome<Row>) => void;
+};

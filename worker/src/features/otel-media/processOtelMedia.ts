@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
   resolveExtractedMedia,
@@ -17,6 +18,11 @@ import {
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import { MediaAssociationOrigin } from "@langfuse/shared";
+import {
+  emitOtelEffect,
+  getOtelCaptureErrorType,
+  type OtelShadowCapture,
+} from "../otel-ingestion/otelEffectsCapture";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
@@ -55,6 +61,7 @@ export async function processOtelEventMedia(params: {
   mediaPrefix: string;
   inputByteLength?: number;
   processMedia?: typeof processOtelMedia;
+  shadowCapture?: OtelShadowCapture;
 }): Promise<OtelMediaPresence | undefined> {
   const {
     targets,
@@ -64,6 +71,7 @@ export async function processOtelEventMedia(params: {
     mediaBucket,
     mediaPrefix,
     processMedia = processOtelMedia,
+    shadowCapture,
   } = params;
   const mediaPath =
     params.mediaPath ?? (params.earlyBatch ? "early" : "reference");
@@ -97,11 +105,68 @@ export async function processOtelEventMedia(params: {
             mediaPath,
             mediaBucket,
             mediaPrefix,
-            uploadMedia: (uploadParams) =>
-              uploadMediaForTrace({
-                ...uploadParams,
-                origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-              }),
+            uploadMedia: async (uploadParams) => {
+              // TypeScript media uploads do not otherwise expose their digest.
+              // Hash only when a collector is present; the production path keeps
+              // the existing single hash inside uploadMediaForTrace().
+              const sha256Hash = shadowCapture?.capture
+                ? createHash("sha256")
+                    .update(uploadParams.contentBytes)
+                    .digest("base64")
+                : undefined;
+              try {
+                const uploadResult = await uploadMediaForTrace({
+                  ...uploadParams,
+                  ...(sha256Hash ? { sha256Hash } : {}),
+                  origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                });
+                if (sha256Hash) {
+                  emitOtelEffect(shadowCapture, {
+                    kind: "media",
+                    projectId: uploadParams.projectId,
+                    traceId: uploadParams.traceId,
+                    observationId: uploadParams.observationId,
+                    field: uploadParams.field,
+                    contentType: uploadParams.contentType,
+                    sha256Hash,
+                    origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                    writePath,
+                    mediaPath,
+                    request: {
+                      byteLengthUpperBound: uploadParams.contentBytes.length,
+                    },
+                    result: {
+                      ...uploadResult,
+                      byteLength: uploadParams.contentBytes.length,
+                    },
+                  });
+                }
+                return uploadResult;
+              } catch (error) {
+                if (sha256Hash) {
+                  emitOtelEffect(shadowCapture, {
+                    kind: "media",
+                    projectId: uploadParams.projectId,
+                    traceId: uploadParams.traceId,
+                    observationId: uploadParams.observationId,
+                    field: uploadParams.field,
+                    contentType: uploadParams.contentType,
+                    sha256Hash,
+                    origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                    writePath,
+                    mediaPath,
+                    request: {
+                      byteLengthUpperBound: uploadParams.contentBytes.length,
+                    },
+                    result: {
+                      outcome: "failed",
+                      error: { type: getOtelCaptureErrorType(error) },
+                    },
+                  });
+                }
+                throw error;
+              }
+            },
           });
 
           if (params.earlyBatch) {
@@ -112,6 +177,7 @@ export async function processOtelEventMedia(params: {
               mediaBucket,
               mediaPrefix,
               writePath,
+              shadowCapture,
             });
             result.uploaded += early.uploaded;
             result.reused += early.reused;

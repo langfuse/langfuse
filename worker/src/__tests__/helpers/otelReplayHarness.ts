@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, vi } from "vitest";
 import type { Job } from "bullmq";
 
+import * as sharedServer from "@langfuse/shared/src/server";
 import {
   clickhouseClient,
   getS3EventStorageClient,
@@ -16,6 +17,8 @@ import {
 
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { initializeEventByteAccounting } from "../../services/ClickhouseWriter/eventByteAccounting";
+import { drainOtelShadowRowVerifier } from "../../features/otel-ingestion/otelShadowRowVerifier";
+import { drainOtelShadows } from "../../features/otel-ingestion/runOtelShadow";
 import { otelIngestionQueueProcessorBuilder } from "../../queues/otelIngestionQueue";
 import { ingestionQueueProcessorBuilder } from "../../queues/ingestionQueue";
 import {
@@ -30,7 +33,18 @@ export type OtelReplayResult = {
   storedRows: OtelReplayStoredRow[];
   legacyRows?: Partial<Record<LegacyReplayTable, OtelReplayStoredRow[]>>;
   evaluatedSpans: [string, string][];
+  shadow?: OtelShadowReplayResult;
   sideEffects?: unknown;
+};
+
+type OtelShadowReplayResult = {
+  storedRows: OtelReplayStoredRow[];
+  primaryJsonInsertAttempts: number;
+  primaryJsonInsertSuccesses: number;
+  shadowNativeInsertAttempts: number;
+  shadowNativeInsertSuccesses: number;
+  operationLog: string[];
+  verificationQueries: number;
 };
 
 export type OtelRawReplayComparison = {
@@ -64,8 +78,16 @@ type RunOtelReplayParams = {
   overflowEnabled?: boolean;
   overflowSizeLimitBytes?: number;
   writeMode?: "events_only" | "dual";
+  forceDirect?: boolean;
   sdkName?: string;
   sdkVersion?: string;
+  shadow?: {
+    sampleRate?: number;
+    traceDispatchEnabled?: boolean;
+    failPrimaryInsert?: boolean;
+    failNativeInsert?: boolean;
+    maxAttempts?: number;
+  };
   captureSideEffects?: () => unknown;
 };
 
@@ -194,7 +216,11 @@ export async function runOneOtelReplay(
     earlyMediaExtractionEnabled: params.mode !== "original-ts",
     directImplementation: params.mode === "early-rust" ? "rust" : "ts",
     writeMode,
-    v4NativeOtelBehaviour: "direct",
+    shadowSampleRate: params.shadow?.sampleRate,
+    traceDispatchEnabled: params.shadow?.traceDispatchEnabled,
+    clickhouseMaxAttempts: params.shadow?.maxAttempts,
+    v4NativeOtelBehaviour:
+      params.forceDirect === false ? "dual_write" : "direct",
   });
 
   eventStorage.uploaded.clear();
@@ -212,6 +238,9 @@ export async function runOneOtelReplay(
   const isolatedTableNames = new Map<TableName, string>([
     [TableName.EventsFull, tableName],
   ]);
+  const shadowTableName = `${tableName}_events_native_test`;
+  const shadowEnabled =
+    params.mode !== "early-rust" && (params.shadow?.sampleRate ?? 0) > 0;
   if (writeMode === "dual") {
     for (const legacyTable of legacyReplayTables) {
       isolatedTableNames.set(legacyTable, `${tableName}_${legacyTable}`);
@@ -226,7 +255,17 @@ export async function runOneOtelReplay(
   let nativeWriter:
     | ReturnType<typeof ClickhouseWriter.getNativeInstance>
     | undefined;
+  let nativeTestWriter:
+    | ReturnType<typeof ClickhouseWriter.getNativeTestInstance>
+    | undefined;
   let jsonEventsFullInsertCount = 0;
+  let primaryJsonInsertAttempts = 0;
+  let primaryJsonInsertSuccesses = 0;
+  let shadowNativeInsertAttempts = 0;
+  let shadowNativeInsertSuccesses = 0;
+  const operationLog: string[] = [];
+  let verificationQueries = 0;
+  let restoreVerifierQuery: (() => void) | undefined;
   let nativeInsert = false;
   let replayResult: OtelReplayResult | undefined;
   let primaryError: Error | undefined;
@@ -241,15 +280,37 @@ export async function runOneOtelReplay(
       });
       createdTables.push(isolatedTable);
     }
+    if (shadowEnabled) {
+      await client.command({
+        query: `CREATE TABLE ${shadowTableName} AS ${TableName.EventsFull} ENGINE = Memory`,
+      });
+      createdTables.push(shadowTableName);
+      const read = sharedServer.queryClickhouse;
+      const spy = vi
+        .spyOn(sharedServer, "queryClickhouse")
+        .mockImplementation(<T>(options: Parameters<typeof read>[0]) => {
+          // Only shadow runs can issue verification reads. Route both sides to
+          // the same scratch tables that received the production-format inserts.
+          const query = options.query.replace(
+            /\b(events_full|events_native_test)\b/g,
+            (table) => (table === "events_full" ? tableName : shadowTableName),
+          );
+          if (query !== options.query) verificationQueries++;
+          return read<T>({ ...options, query });
+        });
+      restoreVerifierQuery = () => spy.mockRestore();
+    }
 
     const insert = async (
       insertParams: Parameters<ClickhouseClientType["insert"]>[0],
     ) => {
-      if (
-        params.mode === "early-rust" &&
-        insertParams.table === TableName.EventsFull
-      ) {
-        jsonEventsFullInsertCount += 1;
+      if (insertParams.table === TableName.EventsFull) {
+        if (params.mode === "early-rust") {
+          jsonEventsFullInsertCount += 1;
+        } else {
+          primaryJsonInsertAttempts += 1;
+          operationLog.push("primary-json-attempt");
+        }
       }
       const isolatedTable = isolatedTableNames.get(
         insertParams.table as TableName,
@@ -263,12 +324,61 @@ export async function runOneOtelReplay(
         throw error;
       }
 
-      return client.insert({ ...insertParams, table: isolatedTable });
+      try {
+        if (
+          params.shadow?.failPrimaryInsert &&
+          insertParams.table === TableName.EventsFull
+        ) {
+          throw new Error("simulated primary JSON insert failure");
+        }
+        const result = await client.insert({
+          ...insertParams,
+          table: isolatedTable,
+        });
+        if (
+          params.mode !== "early-rust" &&
+          insertParams.table === TableName.EventsFull
+        ) {
+          primaryJsonInsertSuccesses += 1;
+          operationLog.push("primary-json-success");
+        }
+        return result;
+      } catch (error) {
+        if (
+          params.mode !== "early-rust" &&
+          insertParams.table === TableName.EventsFull
+        ) {
+          operationLog.push("primary-json-failure");
+        }
+        throw error;
+      }
     };
     const exec = async (
       execParams: Parameters<ClickhouseClientType["exec"]>[0],
     ) => {
-      if (params.mode !== "early-rust") {
+      if (execParams.query === "INSERT INTO events_native_test FORMAT Native") {
+        shadowNativeInsertAttempts += 1;
+        operationLog.push("shadow-native-attempt");
+        if (params.shadow?.failNativeInsert) {
+          operationLog.push("shadow-native-failure");
+          throw new Error("simulated shadow native insert failure");
+        }
+        if (!("values" in execParams)) {
+          throw new Error("Shadow native insert has no values stream");
+        }
+        const result = await client.exec({
+          ...execParams,
+          query: `INSERT INTO ${shadowTableName} FORMAT Native`,
+          values: execParams.values,
+        });
+        shadowNativeInsertSuccesses += 1;
+        operationLog.push("shadow-native-success");
+        return result;
+      }
+      if (
+        params.mode !== "early-rust" ||
+        execParams.query !== "INSERT INTO events_full FORMAT Native"
+      ) {
         throw new Error(
           `${params.mode} replay unexpectedly used ClickHouse exec: ${execParams.query}`,
         );
@@ -283,11 +393,13 @@ export async function runOneOtelReplay(
       }
 
       nativeInsert = true;
-      return client.exec({
+      const result = await client.exec({
         ...execParams,
         query: `INSERT INTO ${tableName} FORMAT Native`,
         values: execParams.values,
       });
+      operationLog.push("primary-native-success");
+      return result;
     };
     const testClient = new Proxy(client, {
       get(target, property, receiver) {
@@ -297,9 +409,18 @@ export async function runOneOtelReplay(
       },
     });
 
+    // Flush primary rows first. Their terminal callbacks are what release the
+    // sampled input and start the native shadow; shutdownAll alone can snapshot
+    // the shadow writer before those callbacks enqueue anything.
+    await ClickhouseWriter.shutdownProduction();
+    await drainOtelShadows();
+    if (shadowEnabled) await drainOtelShadowRowVerifier();
     await ClickhouseWriter.shutdownAll();
     writer = ClickhouseWriter.getInstance(testClient);
     nativeWriter = ClickhouseWriter.getNativeInstance(testClient);
+    if (shadowEnabled) {
+      nativeTestWriter = ClickhouseWriter.getNativeTestInstance(testClient);
+    }
 
     const processor = otelIngestionQueueProcessorBuilder(false);
     const job = {
@@ -317,7 +438,7 @@ export async function runOneOtelReplay(
               accessLevel: "project",
             },
           },
-          ingestionVersion: "4",
+          ingestionVersion: params.forceDirect === false ? undefined : "4",
           sdkName: params.sdkName ?? "otel-replay",
           sdkVersion: params.sdkVersion ?? "test",
         },
@@ -368,6 +489,11 @@ export async function runOneOtelReplay(
       }
     }
 
+    // Finish the primary JSON writer first so its terminal receipts can start
+    // any sampled shadow. Only then drain shadows before the final teardown.
+    await ClickhouseWriter.shutdownProduction();
+    await drainOtelShadows();
+    if (shadowEnabled) await drainOtelShadowRowVerifier();
     await ClickhouseWriter.shutdownAll();
     if (params.mode === "early-rust") {
       expect(nativeInsert).toBe(true);
@@ -379,6 +505,7 @@ export async function runOneOtelReplay(
       for (const [format, candidate] of [
         ["JSONEachRow", writer],
         ["Native", nativeWriter],
+        ["NativeTest", nativeTestWriter],
       ] as const) {
         const pendingRows = candidate?.queue[table].length ?? 0;
         if (pendingRows > 0) {
@@ -416,6 +543,23 @@ export async function runOneOtelReplay(
             ),
           )
         : undefined;
+    const shadowRows = shadowEnabled
+      ? await client
+          .query({
+            query: `
+              SELECT *
+              FROM ${shadowTableName}
+              ORDER BY trace_id, span_id
+              SETTINGS asterisk_include_materialized_columns = 1,
+                asterisk_include_alias_columns = 1
+            `,
+            format: "JSONEachRow",
+          })
+          .then(
+            (shadowResult) =>
+              shadowResult.json() as Promise<OtelReplayStoredRow[]>,
+          )
+      : undefined;
 
     replayResult = {
       mode: params.mode,
@@ -428,6 +572,17 @@ export async function runOneOtelReplay(
           observation.span_id,
         ])
         .sort(),
+      shadow: shadowEnabled
+        ? {
+            storedRows: shadowRows ?? [],
+            primaryJsonInsertAttempts,
+            primaryJsonInsertSuccesses,
+            shadowNativeInsertAttempts,
+            shadowNativeInsertSuccesses,
+            operationLog: [...operationLog],
+            verificationQueries,
+          }
+        : undefined,
       sideEffects: params.captureSideEffects?.(),
     };
   } catch (error) {
@@ -436,6 +591,17 @@ export async function runOneOtelReplay(
       { cause: error },
     );
   } finally {
+    try {
+      // Keep the environment active until any shadow submitted by a primary
+      // terminal callback has completed. This is also the failure-path cleanup
+      // when the queue processor throws after accepting primary rows.
+      await ClickhouseWriter.shutdownProduction();
+      await drainOtelShadows();
+      if (shadowEnabled) await drainOtelShadowRowVerifier();
+      await ClickhouseWriter.shutdownAll();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     restoreEnvironment();
     const replayJobAdds = await Promise.allSettled(pendingReplayJobAdds);
     for (const restoreQueueAddSpy of restoreQueueAddSpies) {
@@ -452,6 +618,7 @@ export async function runOneOtelReplay(
     for (const result of queueCleanupResults) {
       if (result.status === "rejected") cleanupErrors.push(result.reason);
     }
+    restoreVerifierQuery?.();
     storageServiceSpy.mockRestore();
     vi.mocked(getS3EventStorageClient).mockReset();
     eventStorage.download.mockClear();
@@ -459,11 +626,6 @@ export async function runOneOtelReplay(
     eventStorage.uploaded.clear();
     eventStorage.source = undefined;
 
-    try {
-      await ClickhouseWriter.shutdownAll();
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
     if (unmappedInsertError) {
       cleanupErrors.push(unmappedInsertError);
     }

@@ -72,6 +72,11 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
+import {
+  emitOtelEventWriteQueued,
+  emitOtelEventWriteTerminal,
+  type OtelShadowCapture,
+} from "../../features/otel-ingestion/otelEffectsCapture";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -487,9 +492,10 @@ export class IngestionService {
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
+    shadowCapture?: OtelShadowCapture,
   ): Promise<EventRecordInsertType> {
     const { event_bytes: _eventBytes, ...persistedRecord } =
-      await applyObservationFieldOverflow(eventRecord);
+      await applyObservationFieldOverflow(eventRecord, shadowCapture);
 
     const recordToInsert = clickhouseComputesEventBytes()
       ? persistedRecord
@@ -500,7 +506,15 @@ export class IngestionService {
             "utf8",
           ),
         };
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    if (shadowCapture?.onEventWriteTerminal) {
+      this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert, {
+        onTerminal: (outcome) =>
+          emitOtelEventWriteTerminal(shadowCapture, outcome),
+      });
+    } else {
+      this.clickHouseWriter.addToQueue(TableName.EventsFull, recordToInsert);
+    }
+    if (shadowCapture) emitOtelEventWriteQueued(shadowCapture, recordToInsert);
     return recordToInsert;
   }
 

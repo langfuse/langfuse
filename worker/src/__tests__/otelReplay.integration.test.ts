@@ -11,6 +11,7 @@ import {
   describe,
   expect,
   it,
+  onTestFinished,
   vi,
 } from "vitest";
 import { env } from "../env";
@@ -24,7 +25,10 @@ import {
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import * as sharedServer from "@langfuse/shared/src/server";
 import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
+import * as traceDispatchSampling from "../features/traceDispatch/traceDispatchSampling";
+import type { EvalRules } from "../features/evaluation/fetchEvalRules";
 import * as otelPreparation from "../features/otel-ingestion/prepareOtelBatch";
 import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -37,6 +41,9 @@ import {
 } from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
+  enableOtelReplayEffectBoundarySpies,
+  getOtelReplayEffectBoundaryCounts,
+  getOtelReplayEffectBoundaryPayloads,
   otelReplayMocks,
 } from "./helpers/otelReplaySetup";
 
@@ -85,6 +92,75 @@ const TINY_PRICES = [
   "0.000000000003",
   "0.000000001234",
 ] as const;
+
+function buildShadowEvaluationRules(projectId: string): EvalRules {
+  return {
+    observationRules: [
+      {
+        id: "otel-replay-shadow-rule",
+        projectId,
+        filter: [],
+        sampling: new Decimal(1),
+        evalTemplateId: "otel-replay-shadow-template",
+        evalTemplate: { type: "LLM_AS_JUDGE" },
+        scoreName: "otel-replay-shadow-score",
+        status: "ACTIVE",
+        blockedAt: null,
+        targetObject: "event",
+        variableMapping: [],
+      },
+    ],
+    traceTranscriptRules: [],
+  };
+}
+
+function expectEqualEvalPayloadSnapshots(): void {
+  const { primary, shadow } = getOtelReplayEffectBoundaryPayloads();
+  expect(primary).toHaveLength(2);
+  expect(shadow).toHaveLength(2);
+  // Compare the JSON an evaluator receives, including omitted versus null fields.
+  // Object member order can differ between the two encoders.
+  const snapshots = (payloads: unknown[]) =>
+    payloads
+      .map(
+        (payload) => JSON.parse(JSON.stringify(payload)) as { span_id: string },
+      )
+      .sort((a, b) => a.span_id.localeCompare(b.span_id));
+  expect(snapshots(shadow)).toStrictEqual(snapshots(primary));
+}
+
+function expectShadowEffectsToMatchExpectedIntents(
+  traceDispatchEnabled: boolean,
+): void {
+  const expected = {
+    dispatches: 0,
+    evalUpserts: 2,
+    evalBlobUploads: 2,
+    evalEnqueues: 2,
+    traceRecordings: traceDispatchEnabled ? 2 : 0,
+  };
+  const counts = getOtelReplayEffectBoundaryCounts();
+  expect(counts.primary).toEqual({
+    ...expected,
+    dispatches: traceDispatchEnabled ? 1 : 0,
+  });
+  expect(counts.shadow).toEqual(expected);
+  expect(otelReplayMocks.recordTraceActivity).toHaveBeenCalledTimes(
+    traceDispatchEnabled ? 1 : 0,
+  );
+
+  const mismatchMetrics = otelReplayMocks.recordIncrement.mock.calls.filter(
+    ([metricName]) =>
+      metricName === "langfuse.ingestion.otel.shadow.effect_difference",
+  );
+  expect(mismatchMetrics).toEqual([]);
+  expect(otelReplayMocks.recordIncrement.mock.calls).toContainEqual([
+    "langfuse.ingestion.otel.shadow.batch",
+    1,
+    { outcome: "intents_match" },
+  ]);
+  expectEqualEvalPayloadSnapshots();
+}
 
 beforeAll(async () => {
   await initializeEventByteAccounting();
@@ -3209,5 +3285,234 @@ describe(
         }
       },
     );
+
+    it.each(["original-ts", "early-ts"] as const)(
+      "runs the sampled native shadow after a successful %s primary insert",
+      async (mode) => {
+        const projectId = `${PROJECT_ID}-shadow-${mode}`;
+        const durations = vi.spyOn(sharedServer, "recordDistribution");
+        onTestFinished(() => durations.mockRestore());
+        const traceDispatchEnabled = mode === "early-ts";
+        if (traceDispatchEnabled) {
+          const sampling = vi
+            .spyOn(traceDispatchSampling, "resolveTraceDispatchSamplingRate")
+            .mockResolvedValueOnce(1);
+          onTestFinished(() => sampling.mockRestore());
+        }
+        enableOtelReplayEffectBoundarySpies();
+        otelReplayMocks.fetchEvalRules.mockResolvedValue(
+          buildShadowEvaluationRules(projectId),
+        );
+        const result = await runOneOtelReplay({
+          mode,
+          bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+          projectId,
+          fileKey: `${FILE_KEY}.shadow-${mode}`,
+          mediaUploadEnabled: true,
+          overflowEnabled: true,
+          overflowSizeLimitBytes: 256,
+          shadow: { sampleRate: 1, traceDispatchEnabled },
+        });
+
+        const shadow = result.shadow;
+        expect(shadow).toBeDefined();
+        if (!shadow) return;
+
+        expect(shadow.primaryJsonInsertAttempts).toBe(1);
+        expect(shadow.primaryJsonInsertSuccesses).toBe(1);
+        expect(shadow.shadowNativeInsertAttempts).toBe(1);
+        expect(shadow.shadowNativeInsertSuccesses).toBe(1);
+        expect(
+          shadow.operationLog.indexOf("primary-json-success"),
+        ).toBeLessThan(shadow.operationLog.indexOf("shadow-native-attempt"));
+        expect(comparableOtelReplayRows(shadow.storedRows)).toEqual(
+          comparableOtelReplayRows(result.storedRows),
+        );
+        expectShadowEffectsToMatchExpectedIntents(traceDispatchEnabled);
+        expect(shadow.verificationQueries).toBe(1);
+        expect(otelReplayMocks.recordIncrement.mock.calls).toContainEqual([
+          "langfuse.ingestion.otel.shadow.row_verification",
+          2,
+          { outcome: "matched" },
+        ]);
+        const pair = durations.mock.calls.filter(
+          ([name]) =>
+            name ===
+            "langfuse.ingestion.otel.shadow.paired_processing_duration_ms",
+        );
+        expect(pair).toHaveLength(2);
+        expect(pair.map(([, , tags]) => tags?.implementation).sort()).toEqual([
+          "rust",
+          "ts",
+        ]);
+        for (const [, duration] of pair)
+          expect(duration).toBeGreaterThanOrEqual(0);
+
+        for (const rows of [result.storedRows, shadow.storedRows]) {
+          const rowsBySpanId = new Map(
+            rows.map((row) => [String(row.span_id), row]),
+          );
+          expect(String(rowsBySpanId.get(FIRST_SPAN_ID)?.input)).toContain(
+            "id=image-media-id",
+          );
+          expect(String(rowsBySpanId.get(SECOND_SPAN_ID)?.output)).toContain(
+            "id=overflow-media-id",
+          );
+        }
+
+        // The native replay consumes captured primary effects. It must not
+        // issue a second upload/eval/dispatch request for the same source file.
+        expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+        expect(await getTraceUpsertJobsForProject(projectId)).toHaveLength(0);
+      },
+    );
+
+    it("skips shadowing a sampled batch routed through legacy forwarding", async () => {
+      await runOneOtelReplay({
+        mode: "original-ts",
+        bytes: Buffer.from("[]"),
+        writeMode: "dual",
+        forceDirect: false,
+        shadow: { sampleRate: 1 },
+      });
+      const metrics = otelReplayMocks.recordIncrement.mock.calls;
+      expect(metrics).toContainEqual([
+        "langfuse.ingestion.otel.write_path",
+        1,
+        { path: "dual" },
+      ]);
+      expect(
+        metrics.some(
+          ([name]) => name === "langfuse.ingestion.otel.shadow.pair",
+        ),
+      ).toBe(false);
+    });
+
+    it("compares a TS preparation exception after masking and preserves the queue failure", async () => {
+      const prepare = vi
+        .spyOn(otelPreparation, "parsePreparedOtelBatch")
+        .mockRejectedValueOnce(new Error("injected TS preparation failure"));
+      try {
+        await expect(
+          runOneOtelReplay({
+            mode: "early-ts",
+            bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+            projectId: `${PROJECT_ID}-primary-exception`,
+            fileKey: `${FILE_KEY}.primary-exception`,
+            shadow: { sampleRate: 1 },
+          }),
+        ).rejects.toThrow("injected TS preparation failure");
+        expect(otelReplayMocks.recordIncrement.mock.calls).toContainEqual([
+          "langfuse.ingestion.otel.shadow.pair",
+          1,
+          expect.objectContaining({
+            primary_outcome: "exception",
+            shadow_outcome: "inserted",
+          }),
+        ]);
+      } finally {
+        prepare.mockRestore();
+      }
+    });
+
+    it.each([false, true])(
+      "runs Rust after the sampled primary insert drops (native insert fails: %s)",
+      async (failNativeInsert) => {
+        const result = await runOneOtelReplay({
+          mode: "original-ts",
+          bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+          projectId: `${PROJECT_ID}-primary-drop`,
+          fileKey: `${FILE_KEY}.primary-drop`,
+          shadow: {
+            sampleRate: 1,
+            failPrimaryInsert: true,
+            failNativeInsert,
+            maxAttempts: 1,
+          },
+        });
+        expect(result.storedRows).toHaveLength(0);
+        expect(result.shadow?.storedRows).toHaveLength(
+          failNativeInsert ? 0 : 2,
+        );
+        expect(otelReplayMocks.recordIncrement.mock.calls).toContainEqual([
+          "langfuse.ingestion.otel.shadow.pair",
+          1,
+          expect.objectContaining({
+            primary_outcome: "dropped",
+            shadow_outcome: failNativeInsert ? "dropped" : "inserted",
+          }),
+        ]);
+        expect(result.shadow?.operationLog).toEqual([
+          "primary-json-attempt",
+          "primary-json-failure",
+          "shadow-native-attempt",
+          failNativeInsert ? "shadow-native-failure" : "shadow-native-success",
+        ]);
+      },
+    );
+
+    it("does not retry or duplicate the primary after a native shadow failure", async () => {
+      const projectId = `${PROJECT_ID}-shadow-failure`;
+      enableOtelReplayEffectBoundarySpies();
+      otelReplayMocks.fetchEvalRules.mockResolvedValue(
+        buildShadowEvaluationRules(projectId),
+      );
+      const result = await runOneOtelReplay({
+        mode: "original-ts",
+        bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+        projectId,
+        fileKey: `${FILE_KEY}.shadow-failure`,
+        mediaUploadEnabled: true,
+        overflowEnabled: true,
+        overflowSizeLimitBytes: 256,
+        shadow: {
+          sampleRate: 1,
+          failNativeInsert: true,
+          maxAttempts: 1,
+        },
+      });
+
+      const shadow = result.shadow;
+      expect(shadow).toBeDefined();
+      if (!shadow) return;
+
+      expect(result.storedRows).toHaveLength(2);
+      expect(shadow.storedRows).toEqual([]);
+      expect(shadow.primaryJsonInsertAttempts).toBe(1);
+      expect(shadow.primaryJsonInsertSuccesses).toBe(1);
+      expect(shadow.shadowNativeInsertAttempts).toBe(1);
+      expect(shadow.shadowNativeInsertSuccesses).toBe(0);
+      expect(shadow.operationLog).toEqual([
+        "primary-json-attempt",
+        "primary-json-success",
+        "shadow-native-attempt",
+        "shadow-native-failure",
+      ]);
+
+      const counts = getOtelReplayEffectBoundaryCounts();
+      expect(counts.primary).toEqual({
+        dispatches: 0,
+        evalUpserts: 2,
+        evalBlobUploads: 2,
+        evalEnqueues: 2,
+        traceRecordings: 0,
+      });
+      expect(counts.shadow).toEqual(counts.primary);
+      expect(otelReplayMocks.recordTraceActivity).not.toHaveBeenCalled();
+      expect(
+        otelReplayMocks.recordIncrement.mock.calls.filter(
+          ([metricName]) =>
+            metricName === "langfuse.ingestion.otel.shadow.effect_difference",
+        ),
+      ).toEqual([]);
+      expect(otelReplayMocks.recordIncrement.mock.calls).toContainEqual([
+        "langfuse.ingestion.otel.shadow.batch",
+        1,
+        { outcome: "shadow_insert_failed" },
+      ]);
+
+      expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+      expect(await getTraceUpsertJobsForProject(projectId)).toHaveLength(0);
+    });
   },
 );

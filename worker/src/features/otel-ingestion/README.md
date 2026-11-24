@@ -73,3 +73,78 @@ Raw ingress limits and byte-length telemetry remain pre-media measurements. Trac
 `LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table writes in projects admitted by the early-media selector. It requires early extraction; media uploads remain optional. Unselected projects keep the original TypeScript path. Legacy writes remain in TypeScript in dual-write mode; events-only Rust jobs skip constructing the TypeScript span graph. The Rust path retains the native media registry through normalization and service calls.
 
 Native errors reject the job without falling back to TypeScript processing.
+
+## Comparing sampled TypeScript batches with Rust
+
+With TypeScript as the direct writer, `LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE`
+selects a stable cohort by project and source file. The default is `0`. Rates of
+`0.001`, `0.01`, and `0.05` select approximately 0.1%, 1%, and 5% of batches.
+A sampled batch retains the input approved by masking. Each worker retains up to
+four batches and 64 MiB of input in total. Saturation skips the comparison.
+
+Only batches routed to the direct events writer participate. The TypeScript
+queue job keeps its normal success or retry behavior. After its
+direct event writes reach a terminal outcome, a background task prepares a fresh
+native batch and runs the production Rust processor on the accepted input. The
+comparison also runs when TypeScript throws after input acceptance, produces no
+rows, or its writer drops rows. Masking rejections provide no input for a
+comparison. Samples are in memory: a worker crash can lose a comparison.
+
+Provision `events_native_test` on the same ClickHouse deployment before sampling.
+For an unreplicated local database the following creates an empty table with the
+current columns, defaults, partitioning, sorting key and engine:
+
+```sql
+CREATE TABLE events_native_test AS events_full;
+```
+
+For replicated tables, use the deployment's normal shard and replica topology
+and give the shadow table its own replication path. Keep schema changes and
+retention in sync with the comparison you intend to run. Only the primary table
+should feed production materialized views.
+
+The shadow writer uses the production Native transport with the isolated
+destination. Rust consumes the primary media and overflow upload outcomes.
+Evaluation and trace scheduling run their normal selection code, with adapters
+that capture the requested writes. Model, pricing, prompt and skill reads can
+observe changes between the two runs.
+
+### Reading the results
+
+- **Batch outcome.** `langfuse.ingestion.otel.shadow.pair` records the primary
+  and shadow outcomes and failure stages. Group by `primary_outcome` and
+  `shadow_outcome` to find one-sided failures. A real upload or queue failure and
+  a simulated request have different meanings: the shadow can compare what it
+  requested and what it did with the primary upload result.
+- **Side effects.** `langfuse.ingestion.otel.shadow.effect_difference` counts
+  missing and extra operations by kind, including evaluation payload digests.
+  Filter by `coverage:complete` for fully observed comparisons. Partial comparisons
+  retain the operations observed before a failure.
+  Evaluation capture covers the execution upsert, the snapshot upload and its
+  digest, and the job enqueue. Trace recording compares the span start and
+  matched rules. Each implementation estimates dispatch capacity independently.
+- **Stored rows.** `langfuse.ingestion.otel.shadow.row_verification` compares
+  the acknowledged row keys in both tables. The verifier waits at least five
+  seconds after the last batch fills the 4 MiB target. Sparse traffic flushes
+  when the oldest batch reaches 30 seconds. Each query reads up to 512 distinct keys across both
+  tables. One query runs at a time per worker. It uses the production primary-key
+  prefix, exact trace/span, start time and source file. ClickHouse hashes the
+  stored columns, including defaults and derived columns, excluding only the
+  ingestion clocks `created_at`, `updated_at`, and `event_ts`. The worker gets
+  counts and digests. The `map_order_only` outcome isolates ordering changes
+  within usage, cost and tool-definition maps. Each worker retains up to 16,384 pending locators or
+  8 MiB of locator metadata. Excess locators count toward the `capacity`
+  outcome. Difference logs include up to five row identifiers for follow-up. Duplicate or unattributable results are ambiguous. A query error
+  increments `langfuse.ingestion.otel.shadow.verification_read_error`.
+- **Timing.** Compare `langfuse.ingestion.otel.shadow.paired_processing_duration_ms`
+  by `implementation` on successful, events-only pairs, grouped by
+  `primary_media_path`. The distribution
+  `processing_rust_to_ts_ratio` divides Rust elapsed time by TypeScript elapsed
+  time for each individual batch. A value of 0.8 means Rust took 80% as long.
+  Dual-write primary timings also include legacy work. Inspect
+  `paired_writer_wait_duration_ms` separately: low shadow traffic can leave a
+  row waiting for a periodic flush. The primary performs real uploads and job
+  scheduling, while the shadow replays upload outcomes and captures requests.
+  Shadow model and prompt lookups bypass Redis caches. These timings include
+  that cost and the TypeScript side-effect I/O. The distributions measure the
+  rollout workload, so they can guide a production-path benchmark.

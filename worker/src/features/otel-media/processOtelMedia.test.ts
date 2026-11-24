@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   validateOtelJson,
@@ -261,6 +262,9 @@ describe("processOtelEventMedia", () => {
         origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
       }),
     );
+    expect(mocks.uploadMediaForTrace.mock.calls[0]?.[0]).not.toHaveProperty(
+      "sha256Hash",
+    );
     expect(mocks.instrumentAsync).toHaveBeenCalledWith(
       { name: "langfuse.ingestion.otel.media.process" },
       expect.any(Function),
@@ -294,6 +298,55 @@ describe("processOtelEventMedia", () => {
         media_presence: "present",
       },
     );
+  });
+
+  it("captures the direct media identity and completed upload result", async () => {
+    const contentBytes = Buffer.from("captured-media");
+    const effects: unknown[] = [];
+    const processMedia = vi.fn(async ({ uploadMedia }) => {
+      await uploadMedia({
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        contentType: "image/png",
+        contentBytes,
+        mediaBucket: "media-bucket",
+        mediaPrefix: "media/",
+      });
+      return processResult;
+    });
+
+    await processOtelEventMedia({
+      targets: createDirectOtelMediaTargets([
+        { traceId: "trace-id", spanId: "observation-id", input: "media" },
+      ]),
+      writePath: "direct",
+      ...MEDIA_DESTINATION,
+      fileKey: "file-key",
+      processMedia,
+      shadowCapture: { capture: (effect) => effects.push(effect) },
+    });
+
+    expect(effects).toEqual([
+      expect.objectContaining({
+        kind: "media",
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        contentType: "image/png",
+        sha256Hash: createHash("sha256").update(contentBytes).digest("base64"),
+        origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+        writePath: "direct",
+        request: { byteLengthUpperBound: contentBytes.length },
+        result: {
+          mediaId: "uploaded",
+          outcome: "uploaded",
+          byteLength: contentBytes.length,
+        },
+      }),
+    ]);
   });
 
   it("does not create a processing span when there are no media fields", async () => {
@@ -473,6 +526,33 @@ describe("processOtelEventMedia", () => {
     expect(JSON.stringify(payload.input.deep)).not.toContain(reference);
     expect(payload.input[reference]).toBe("object key stays structural");
     expect(batch.originalMedia).not.toHaveBeenCalled();
+  });
+
+  it("captures repeated extracted links, including batch-cache hits", async () => {
+    const { batch } = createFakeMediaBatch();
+    const payload = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: DEFAULT_MEDIA_REFERENCE,
+      output: DEFAULT_MEDIA_REFERENCE,
+    };
+    const effects: Array<{ result: { cacheHit?: boolean } }> = [];
+
+    await resolveExtractedMedia({
+      batch,
+      targets: createDirectOtelMediaTargets([payload]),
+      ...MEDIA_DESTINATION,
+      writePath: "direct",
+      shadowCapture: {
+        capture: (effect) => {
+          if (effect.kind === "media") effects.push(effect);
+        },
+      },
+    });
+
+    expect(effects).toHaveLength(2);
+    expect(effects.map(({ result }) => result.cacheHit)).toEqual([false, true]);
+    expect(mocks.linkMediaToTraceOrObservation).toHaveBeenCalledOnce();
   });
 
   it("uploads native refs in deeply nested serialized input, output, and metadata", async () => {
@@ -676,6 +756,7 @@ describe("processOtelEventMedia", () => {
       outcome: "uploaded",
       mediaId: "uploaded",
       byteLength: 5,
+      cacheHit: false,
     });
     expect(loadBody).toHaveBeenCalledOnce();
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledOnce();

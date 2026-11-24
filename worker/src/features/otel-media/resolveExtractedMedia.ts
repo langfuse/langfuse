@@ -24,6 +24,11 @@ import {
   rewriteMediaValues,
   type MediaRegistry,
 } from "./mediaReferenceText";
+import {
+  emitOtelEffect,
+  getOtelCaptureErrorType,
+  type OtelShadowCapture,
+} from "../otel-ingestion/otelEffectsCapture";
 
 const MEDIA_PAGE_SIZE = 4_096;
 
@@ -31,6 +36,8 @@ export type CachedMediaUpload = {
   mediaId: string;
   outcome: "uploaded" | "reused";
   byteLength: number;
+  /** True when the batch-local upload promise supplied this link. */
+  cacheHit: boolean;
 };
 
 // Retain descriptor metadata and completed upload results for the batch's lifetime.
@@ -130,7 +137,7 @@ export async function uploadExtractedMediaOnce(params: {
       field,
       origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     });
-    return { ...result, outcome: "reused" };
+    return { ...result, outcome: "reused", cacheHit: true };
   }
 
   const uploadPromise = otelMediaUploads.run(
@@ -151,6 +158,7 @@ export async function uploadExtractedMediaOnce(params: {
           origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
         })),
         byteLength: contentBytes.length,
+        cacheHit: false,
       };
     },
   );
@@ -200,9 +208,17 @@ export async function resolveExtractedMedia(params: {
   mediaBucket: string;
   mediaPrefix: string;
   writePath: OtelMediaWritePath;
+  shadowCapture?: OtelShadowCapture;
 }) {
-  const { batch, targets, projectId, mediaBucket, mediaPrefix, writePath } =
-    params;
+  const {
+    batch,
+    targets,
+    projectId,
+    mediaBucket,
+    mediaPrefix,
+    writePath,
+    shadowCapture,
+  } = params;
   const stats = {
     uploaded: 0,
     reused: 0,
@@ -252,6 +268,30 @@ export async function resolveExtractedMedia(params: {
         entry.originalByteLength - Buffer.byteLength(replacement),
       );
       stats.bytesRemoved += bytesRemoved;
+      if (shadowCapture?.capture) {
+        emitOtelEffect(shadowCapture, {
+          kind: "media",
+          projectId,
+          traceId: target.traceId,
+          observationId: target.observationId,
+          field,
+          contentType,
+          sha256Hash: entry.sha256Hash,
+          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+          writePath,
+          mediaPath: "early",
+          request: {
+            byteLengthUpperBound: entry.originalByteLength,
+          },
+          result: {
+            mediaId: result.mediaId,
+            outcome: result.outcome,
+            byteLength: result.byteLength,
+            cacheHit: result.cacheHit,
+            bytesRemoved,
+          },
+        });
+      }
       recordExtractedMediaUpload(
         result.outcome,
         entry.kind,
@@ -262,6 +302,27 @@ export async function resolveExtractedMedia(params: {
       return replacement;
     } catch (error) {
       stats.failed++;
+      if (shadowCapture?.capture) {
+        emitOtelEffect(shadowCapture, {
+          kind: "media",
+          projectId,
+          traceId: target.traceId,
+          observationId: target.observationId,
+          field,
+          contentType: entry.contentType,
+          sha256Hash: entry.sha256Hash,
+          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+          writePath,
+          mediaPath: "early",
+          request: {
+            byteLengthUpperBound: entry.originalByteLength,
+          },
+          result: {
+            outcome: "failed",
+            error: { type: getOtelCaptureErrorType(error) },
+          },
+        });
+      }
       recordExtractedMediaUpload("failed", entry.kind, writePath);
       logger.warn(
         "Extracted OTEL media upload failed; keeping the original inline value",

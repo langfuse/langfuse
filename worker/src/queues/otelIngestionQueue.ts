@@ -53,6 +53,14 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
+import {
+  reserveShadowInput,
+  sampleOtelShadow,
+} from "../features/otel-ingestion/otelShadowBatch";
+import {
+  createOtelShadowCapture,
+  submitOtelShadow,
+} from "../features/otel-ingestion/runOtelShadow";
 
 /**
  * Legacy media processing follows legacy persistence, independently of
@@ -540,16 +548,77 @@ export const otelIngestionQueueProcessorBuilder = (
     job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
   ): Promise<void> => {
     let earlyBatch: EarlyOtelBatch | undefined;
+    let shadowInput: ReturnType<typeof reserveShadowInput>;
+    let shadowCapture: ReturnType<typeof createOtelShadowCapture> | undefined;
+    let primaryTimingStartedAt = 0;
+    let shadowContext:
+      | Parameters<typeof processRustOtelEvents>[0]["context"]
+      | undefined;
+    let shadowDirectWriteResolved: boolean | undefined;
+    let primaryFailureStage:
+      | "primary_parse"
+      | "primary_convert"
+      | "primary_process" = "primary_process";
+    let shadowWriteMode: "events_only" | "dual" = "events_only";
     let mediaPath: "early" | "reference" | undefined;
     let mediaPresence: OtelMediaPresence | undefined;
     let inputByteLength: number | undefined;
     let inputPreparationDurationMs: number | undefined;
     const span = getCurrentSpan();
+
+    const acceptShadowInput = (input: string | Uint8Array) => {
+      const acceptedAt = performance.now();
+      shadowInput = reserveShadowInput(input);
+      if (shadowInput) {
+        shadowCapture = createOtelShadowCapture();
+        primaryTimingStartedAt = acceptedAt;
+      }
+    };
+
+    const submitSampledShadow = (params?: {
+      primaryOutcome?: {
+        outcome: "exception";
+        errorStage: "primary_parse" | "primary_convert" | "primary_process";
+      };
+      eligible?: boolean;
+    }): void => {
+      if (
+        !shadowInput ||
+        !shadowCapture ||
+        !shadowContext ||
+        params?.eligible === false
+      ) {
+        return;
+      }
+      const admittedInput = shadowInput;
+      submitOtelShadow({
+        input: admittedInput,
+        primary: shadowCapture,
+        context: shadowContext,
+        primaryMediaPath: mediaPath ?? "reference",
+        primaryDurationMs: performance.now() - primaryTimingStartedAt,
+        primaryOutcome: params?.primaryOutcome,
+        writeMode: shadowWriteMode,
+        extractMedia:
+          env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+          Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+      });
+      shadowInput = undefined;
+    };
+
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
       const publicKey = job.data.payload.data.publicKey ?? "";
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
+      const sampleShadow =
+        env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "ts" &&
+        v4WritesToEventsTable(env) &&
+        sampleOtelShadow(
+          projectId,
+          fileKey,
+          env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE,
+        );
       const isLangfuseInternal = job.data.payload.isLangfuseInternal === true;
       const attribution: IngestionAttribution = {
         ingestionApiKey: publicKey,
@@ -558,6 +627,16 @@ export const otelIngestionQueueProcessorBuilder = (
         ingestionSdkVersion:
           job.data.payload.sdkVersion || UNKNOWN_INGESTION_SDK_VALUE,
       };
+      if (sampleShadow)
+        shadowContext = {
+          projectId,
+          fileKey,
+          now: new Date().toISOString(),
+          isLangfuseInternal,
+          ingestionApiKey: attribution.ingestionApiKey,
+          ingestionSdkName: attribution.ingestionSdkName,
+          ingestionSdkVersion: attribution.ingestionSdkVersion,
+        };
 
       if (span) {
         span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
@@ -620,6 +699,7 @@ export const otelIngestionQueueProcessorBuilder = (
         env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
         v4WritesToEventsTable(env);
       const writesToLegacyTables = v4WritesToLegacyTables(env);
+      shadowWriteMode = writesToLegacyTables ? "dual" : "events_only";
       // Priority 0: deployment-level override.
       //   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct forces every batch
       //   onto the direct events_full path regardless of SDK headers/scopes.
@@ -641,6 +721,7 @@ export const otelIngestionQueueProcessorBuilder = (
           projectId,
           orgId: job.data.payload.authCheck.scope.orgId,
           propagatedHeaders: job.data.payload.propagatedHeaders,
+          onAcceptedInput: sampleShadow ? acceptShadowInput : undefined,
           retainNativeBatch,
           extractMedia:
             env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
@@ -671,6 +752,7 @@ export const otelIngestionQueueProcessorBuilder = (
         } else {
           // Parse the prepared JSON, or reuse unchanged download bytes, for
           // TypeScript processing.
+          primaryFailureStage = "primary_parse";
           ({ batch: earlyBatch, resourceSpans: parsedSpans } =
             await parsePreparedOtelBatch(prepared, bytes));
         }
@@ -690,11 +772,17 @@ export const otelIngestionQueueProcessorBuilder = (
           },
         );
 
+        const maskingEnabled = isIngestionMaskingEnabled();
+        if (!maskingEnabled && sampleShadow) {
+          acceptShadowInput(resourceSpans);
+        }
+
         // Parse spans from S3 download
+        primaryFailureStage = "primary_parse";
         parsedSpans = JSON.parse(resourceSpans);
 
         // Apply ingestion masking if enabled (EE feature)
-        if (isIngestionMaskingEnabled()) {
+        if (maskingEnabled) {
           const maskingResult = await applyIngestionMasking({
             data: parsedSpans,
             projectId,
@@ -717,6 +805,15 @@ export const otelIngestionQueueProcessorBuilder = (
             return;
           }
           parsedSpans = maskingResult.data;
+          if (sampleShadow) {
+            try {
+              acceptShadowInput(JSON.stringify(parsedSpans));
+            } catch {
+              recordIncrement("langfuse.ingestion.otel.shadow.batch", 1, {
+                outcome: "input_error",
+              });
+            }
+          }
         }
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       }
@@ -733,6 +830,7 @@ export const otelIngestionQueueProcessorBuilder = (
       let observations: IngestionEventType[] = [];
 
       if (parsedSpans) {
+        primaryFailureStage = "primary_convert";
         ({ traces, observations } = await prepareTypeScriptOtelEvents({
           processor,
           resourceSpans: parsedSpans,
@@ -743,6 +841,7 @@ export const otelIngestionQueueProcessorBuilder = (
           fileKey,
           span,
         }));
+        primaryFailureStage = "primary_process";
       } else if (needsTypeScriptSpans) {
         throw new Error(
           "OTEL resource spans missing before TypeScript processing",
@@ -843,6 +942,10 @@ export const otelIngestionQueueProcessorBuilder = (
         langfuseSdkTraffic,
       });
 
+      const shouldWriteToEventsTable =
+        v4WritesToEventsTable(env) && useDirectEventWrite;
+      shadowDirectWriteResolved = shouldWriteToEventsTable;
+
       span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
       recordIncrement("langfuse.ingestion.otel.write_path", 1, {
         path: writePath,
@@ -925,20 +1028,19 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       // Determine what processing is needed
-      const shouldWriteToEventsTable =
-        v4WritesToEventsTable(env) && useDirectEventWrite;
+      const nativeContext = () => ({
+        projectId,
+        fileKey,
+        now: new Date().toISOString(),
+        isLangfuseInternal,
+        ingestionApiKey: attribution.ingestionApiKey,
+        ingestionSdkName: attribution.ingestionSdkName,
+        ingestionSdkVersion: attribution.ingestionSdkVersion,
+      });
       if (retainNativeBatch && earlyBatch && shouldWriteToEventsTable) {
         const directMediaPresence = await processRustOtelEvents({
           batch: earlyBatch,
-          context: {
-            projectId,
-            fileKey,
-            now: new Date().toISOString(),
-            isLangfuseInternal,
-            ingestionApiKey: attribution.ingestionApiKey,
-            ingestionSdkName: attribution.ingestionSdkName,
-            ingestionSdkVersion: attribution.ingestionSdkVersion,
-          },
+          context: nativeContext(),
         });
         mediaPresence = combineOtelMediaPresence(
           mediaPresence,
@@ -960,7 +1062,9 @@ export const otelIngestionQueueProcessorBuilder = (
           earlyBatch,
           mediaPath,
           inputByteLength,
+          shadowCapture: shouldWriteToEventsTable ? shadowCapture : undefined,
         });
+        if (shouldWriteToEventsTable) submitSampledShadow();
         if (directMediaPresence) {
           mediaPresence = combineOtelMediaPresence(
             mediaPresence,
@@ -970,6 +1074,20 @@ export const otelIngestionQueueProcessorBuilder = (
       }
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
+      submitSampledShadow({
+        primaryOutcome: {
+          outcome: "exception",
+          errorStage: primaryFailureStage,
+        },
+        eligible:
+          shadowDirectWriteResolved ??
+          (v4ForceDirectOtelWrite(env) ||
+            checkHeaderBasedDirectWrite({
+              sdkName: job.data.payload.sdkName,
+              sdkVersion: job.data.payload.sdkVersion,
+              ingestionVersion: job.data.payload.ingestionVersion,
+            })),
+      });
       if (e instanceof ForbiddenError) {
         traceException(e);
         logger.warn(`Failed to parse otel observation: ${e.message}`, {
@@ -992,6 +1110,7 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       throw e;
     } finally {
+      shadowInput?.release();
       await earlyBatch?.dispose();
       setOtelInputPreparationSpanAttributes(span, {
         durationMs: inputPreparationDurationMs,

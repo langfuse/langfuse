@@ -91,10 +91,12 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
           }),
         );
       }
+      const onAcceptedInput = vi.fn<(bytes: Buffer) => void>();
       const prepared = await prepareOtelBatch({
         bytes,
         projectId: "project-id",
         extractMedia: !disabled,
+        onAcceptedInput,
       });
       try {
         if ("error" in prepared) throw new Error("unexpected masking failure");
@@ -104,6 +106,10 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
         expect(prepared.sourceUnchanged).toBe(sourceUnchanged);
         const parsed = await parsePreparedOtelBatch(prepared, bytes);
         expect(parsed.batch).toBe(sourceUnchanged ? undefined : prepared.batch);
+        expect(onAcceptedInput).toHaveBeenCalledTimes(1);
+        expect(
+          JSON.parse(onAcceptedInput.mock.calls[0]![0].toString("utf8")),
+        ).toEqual(parsed.resourceSpans);
         expect(parsed.resourceSpans).toEqual({
           note:
             inputKind === "sanitized"
@@ -117,6 +123,22 @@ describe("prepareOtelBatch native input boundary", { retry: 0 }, () => {
       }
     },
   );
+
+  it("excludes a rejected masking response from shadow processing", async () => {
+    maskingMocks.applyIngestionMasking.mockResolvedValue({
+      success: false,
+      error: "denied",
+    });
+    const onAcceptedInput = vi.fn();
+    const result = await prepareOtelBatch({
+      bytes: Buffer.from("[]"),
+      projectId: "project-id",
+      extractMedia: false,
+      onAcceptedInput,
+    });
+    expect(result).toEqual({ error: "denied" });
+    expect(onAcceptedInput).not.toHaveBeenCalled();
+  });
 
   it.each([
     [128 * 1024, false, 0],

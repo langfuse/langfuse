@@ -3,6 +3,8 @@ import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { drainOtelShadows } from "../features/otel-ingestion/runOtelShadow";
+import { drainOtelShadowRowVerifier } from "../features/otel-ingestion/otelShadowRowVerifier";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { WorkerManager } from "../queues/workerManager";
@@ -121,6 +123,9 @@ const runDrainAndClose = async () => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
+  await ClickhouseWriter.shutdownProduction();
+  await drainOtelShadows();
+  await drainOtelShadowRowVerifier();
   await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
 

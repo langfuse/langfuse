@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import {
   type EventRecordInsertType,
   instrumentAsync,
@@ -13,6 +14,11 @@ import {
 } from "@langfuse/shared";
 
 import { env } from "../../env";
+import {
+  emitOtelEffect,
+  getOtelCaptureErrorType,
+  type OtelShadowCapture,
+} from "../otel-ingestion/otelEffectsCapture";
 
 const OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE = 3;
 
@@ -34,6 +40,7 @@ type OverflowResult = {
 
 export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
+  shadowCapture?: OtelShadowCapture,
 ): Promise<EventRecordInsertType> {
   if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
     return eventRecord;
@@ -62,6 +69,7 @@ export async function applyObservationFieldOverflow(
             eventRecord,
             candidates,
             mediaBucket,
+            shadowCapture,
           );
 
           span.setAttributes({
@@ -141,6 +149,7 @@ async function uploadOverflowCandidates(
   eventRecord: EventRecordInsertType,
   candidates: OverflowCandidate[],
   mediaBucket: string,
+  shadowCapture?: OtelShadowCapture,
 ): Promise<OverflowResult[]> {
   const overflowResults: OverflowResult[] = [];
 
@@ -156,7 +165,12 @@ async function uploadOverflowCandidates(
     );
     const settledBatch = await Promise.allSettled(
       batch.map((candidate) =>
-        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
+        uploadOverflowCandidate(
+          eventRecord,
+          candidate,
+          mediaBucket,
+          shadowCapture,
+        ),
       ),
     );
 
@@ -205,8 +219,13 @@ async function uploadOverflowCandidate(
   eventRecord: EventRecordInsertType,
   candidate: OverflowCandidate,
   mediaBucket: string,
+  shadowCapture?: OtelShadowCapture,
 ): Promise<OverflowResult> {
   const { field, value, originalBytes } = candidate;
+  const hasMediaCapture = Boolean(shadowCapture?.capture);
+  const sha256Hash = hasMediaCapture
+    ? createHash("sha256").update(value, "utf8").digest("base64")
+    : undefined;
 
   const uploadResult = await uploadMediaForTrace({
     projectId: eventRecord.project_id,
@@ -215,10 +234,30 @@ async function uploadOverflowCandidate(
     field,
     contentType: MediaContentType.TXT,
     contentBytes: Buffer.from(value, "utf8"),
+    ...(sha256Hash ? { sha256Hash } : {}),
     mediaBucket,
     mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
     origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
   }).catch((error) => {
+    if (sha256Hash) {
+      emitOtelEffect(shadowCapture, {
+        kind: "media",
+        projectId: eventRecord.project_id,
+        traceId: eventRecord.trace_id,
+        observationId: eventRecord.span_id,
+        field,
+        contentType: MediaContentType.TXT,
+        sha256Hash,
+        origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+        writePath: "direct",
+        mediaPath: "reference",
+        request: { byteLengthUpperBound: originalBytes },
+        result: {
+          outcome: "failed",
+          error: { type: getOtelCaptureErrorType(error) },
+        },
+      });
+    }
     logger.warn(
       "Oversized observation field upload failed; persisting original field",
       {
@@ -261,6 +300,28 @@ async function uploadOverflowCandidate(
     originalBytes - Buffer.byteLength(mediaReference, "utf8"),
     0,
   );
+
+  if (sha256Hash) {
+    emitOtelEffect(shadowCapture, {
+      kind: "media",
+      projectId: eventRecord.project_id,
+      traceId: eventRecord.trace_id,
+      observationId: eventRecord.span_id,
+      field,
+      contentType: MediaContentType.TXT,
+      sha256Hash,
+      origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+      writePath: "direct",
+      mediaPath: "reference",
+      request: { byteLengthUpperBound: originalBytes },
+      result: {
+        mediaId: uploadResult.mediaId,
+        outcome: uploadResult.outcome,
+        byteLength: originalBytes,
+        bytesRemoved,
+      },
+    });
+  }
 
   recordIncrement(
     "langfuse.ingestion.observation_field_overflow",

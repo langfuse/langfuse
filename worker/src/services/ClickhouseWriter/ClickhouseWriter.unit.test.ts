@@ -256,6 +256,198 @@ describe("ClickhouseWriter", () => {
     expect(disabled).not.toHaveProperty("date_time_input_format");
   });
 
+  it("settles only pre-enqueued event callbacks after production success", async () => {
+    const terminal: Array<{
+      id: string;
+      status: string;
+      row: unknown;
+    }> = [];
+    writer.batchSize = 2;
+    const first = {
+      id: "event-1",
+      project_id: "project-1",
+      trace_id: "trace-1",
+      span_id: "span-1",
+      event_bytes: 101,
+    };
+    const second = {
+      id: "event-2",
+      project_id: "project-1",
+      trace_id: "trace-1",
+      span_id: "span-2",
+      event_bytes: 202,
+    };
+    const third = {
+      id: "event-3",
+      project_id: "project-2",
+      trace_id: "trace-2",
+      span_id: "span-3",
+      event_bytes: 303,
+    };
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("DB Error"))
+      .mockResolvedValueOnce()
+      .mockResolvedValueOnce();
+
+    const callbackFor = (id: string) => ({
+      onTerminal: (outcome: { status: string; row: unknown }) => {
+        terminal.push({ id, ...outcome });
+      },
+    });
+
+    // The second enqueue starts a threshold flush. The callback is already on
+    // the first queue item, so it cannot miss the flush that starts inside
+    // addToQueue.
+    writer.addToQueue(
+      TableName.EventsFull,
+      first as any,
+      callbackFor(first.id),
+    );
+    writer.addToQueue(TableName.EventsFull, second as any);
+
+    await vi.waitFor(() => expect(mockInsert).toHaveBeenCalledTimes(1));
+    expect(terminal).toEqual([]);
+
+    await vi.waitFor(() =>
+      expect(writer["queue"][TableName.EventsFull]).toHaveLength(2),
+    );
+    writer.addToQueue(
+      TableName.EventsFull,
+      third as any,
+      callbackFor(third.id),
+    );
+    await writer.flushAll(true);
+
+    expect(mockInsert).toHaveBeenCalledTimes(3);
+    expect(terminal.map(({ id, status }) => ({ id, status }))).toEqual([
+      { id: "event-1", status: "inserted" },
+      { id: "event-3", status: "inserted" },
+    ]);
+    expect(terminal.map(({ row }) => row)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          project_id: "project-1",
+          trace_id: "trace-1",
+          span_id: "span-1",
+          event_bytes: 101,
+        }),
+        expect.objectContaining({
+          project_id: "project-2",
+          trace_id: "trace-2",
+          span_id: "span-3",
+          event_bytes: 303,
+        }),
+      ]),
+    );
+  });
+
+  it("settles final drops and teardown callbacks without retaining sampled rows", async () => {
+    const terminal: Array<{ id: string; status: string }> = [];
+    writer.maxAttempts = 1;
+    writer.batchSize = 1;
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("permanent insert error"))
+      .mockRejectedValueOnce(new Error("teardown insert error"))
+      .mockRejectedValueOnce(new Error("teardown retry remains queued"));
+
+    writer.addToQueue(
+      TableName.EventsFull,
+      {
+        id: "dropped",
+        project_id: "project-1",
+        trace_id: "trace-1",
+        span_id: "span-dropped",
+      } as any,
+      {
+        onTerminal: ({ status, row }) => terminal.push({ id: row.id, status }),
+      },
+    );
+    await vi.waitFor(() => expect(terminal).toHaveLength(1));
+    expect(terminal).toEqual([{ id: "dropped", status: "dropped" }]);
+
+    writer.maxAttempts = 3;
+    writer.batchSize = 2;
+    writer.addToQueue(
+      TableName.EventsFull,
+      {
+        id: "teardown",
+        project_id: "project-1",
+        trace_id: "trace-1",
+        span_id: "span-teardown",
+      } as any,
+      {
+        onTerminal: ({ status, row }) => terminal.push({ id: row.id, status }),
+      },
+    );
+    writer.addToQueue(TableName.EventsFull, {
+      id: "unsampled-teardown",
+      project_id: "project-1",
+      trace_id: "trace-1",
+      span_id: "span-unsampled-teardown",
+    } as any);
+
+    await writer.shutdown();
+
+    expect(mockInsert).toHaveBeenCalledTimes(3);
+    expect(terminal).toEqual([
+      { id: "dropped", status: "dropped" },
+      { id: "teardown", status: "dropped" },
+    ]);
+    expect(writer["queue"][TableName.EventsFull]).toHaveLength(1);
+    expect(writer["queue"][TableName.EventsFull][0].data).toMatchObject({
+      id: "unsampled-teardown",
+    });
+  });
+
+  it("uses the fixed isolated table for the native test writer", async () => {
+    const nativeTestWriter =
+      ClickhouseWriter.getNativeTestInstance(clickhouseClientMock);
+    const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+    const event = preparedEvent("native-test-1");
+
+    nativeTestWriter.addToQueue(TableName.EventsFull, event);
+    await nativeTestWriter.flushAll(true);
+
+    expect(mockExec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "INSERT INTO events_native_test FORMAT Native",
+      }),
+    );
+    expect(nativeTestWriter["queue"][TableName.EventsFull]).toHaveLength(0);
+  });
+
+  it("drains shadow rows created by production terminal callbacks", async () => {
+    const nativeTestWriter =
+      ClickhouseWriter.getNativeTestInstance(clickhouseClientMock);
+    const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
+      stream: Readable.from([]),
+    });
+    const shadowEvent = preparedEvent("native-after-production");
+
+    writer.addToQueue(TableName.EventsFull, { id: "primary-1" } as any, {
+      onTerminal: ({ status }) => {
+        if (status === "inserted") {
+          nativeTestWriter.addToQueue(TableName.EventsFull, shadowEvent);
+        }
+      },
+    });
+    vi.spyOn(clickhouseClientMock, "insert").mockResolvedValue();
+
+    await ClickhouseWriter.shutdownProduction();
+    expect(mockExec).not.toHaveBeenCalled();
+
+    await nativeTestWriter.flushAll(true);
+    expect(mockExec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "INSERT INTO events_native_test FORMAT Native",
+      }),
+    );
+  });
+
   it("encodes a selected Native batch once and reuses its bytes on a transport retry", async () => {
     const event = preparedEvent("event-1");
     const bytes = Buffer.from("native-block");
@@ -643,11 +835,16 @@ describe("ClickhouseWriter", () => {
     const mockExec = vi.spyOn(clickhouseClientMock, "exec").mockResolvedValue({
       stream: Readable.from([]),
     });
+    const jsonShutdown = vi.spyOn(writer, "shutdown");
+    const nativeShutdown = vi.spyOn(nativeWriter, "shutdown");
 
+    await ClickhouseWriter.shutdownProduction();
     await ClickhouseWriter.shutdownAll();
 
     expect(mockInsert).toHaveBeenCalledTimes(1);
     expect(mockExec).toHaveBeenCalledTimes(1);
+    expect(jsonShutdown).toHaveBeenCalledTimes(1);
+    expect(nativeShutdown).toHaveBeenCalledTimes(1);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
     expect(nativeWriter["queue"][TableName.EventsFull]).toHaveLength(0);
     expect(writer["intervalId"]).toBeNull();

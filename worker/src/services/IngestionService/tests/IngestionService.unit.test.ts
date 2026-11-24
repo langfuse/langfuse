@@ -250,6 +250,7 @@ describe("IngestionService unit tests", () => {
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
+      undefined,
     );
     expect(eventRecord.input).toBe("original input");
     expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);
@@ -260,6 +261,41 @@ describe("IngestionService unit tests", () => {
       metadata_values: ["small", expect.stringContaining("metadata-media")],
     });
     expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
+  });
+
+  it("forwards shadow row queue and terminal callbacks", async () => {
+    const terminalRow = {
+      project_id: "project-id",
+      trace_id: "trace-id",
+      span_id: "observation-id",
+      metadata_names: [],
+      metadata_values: [],
+    } as any;
+    const onEventWriteQueued = vi.fn();
+    const onEventWriteTerminal = vi.fn();
+    const addToQueue = vi.fn((_table, row, options) => {
+      options?.onTerminal?.({ status: "inserted", row });
+    });
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+
+    await ingestionService.writeEventRecord(terminalRow, {
+      capture: vi.fn(),
+      onEventWriteQueued,
+      onEventWriteTerminal,
+    });
+
+    expect(onEventWriteQueued).toHaveBeenCalledWith(
+      addToQueue.mock.calls[0]?.[1],
+    );
+    expect(onEventWriteTerminal).toHaveBeenCalledWith({
+      status: "inserted",
+      row: addToQueue.mock.calls[0]?.[1],
+    });
   });
 
   it("promotes provided usage and cost for model-less direct events", async () => {

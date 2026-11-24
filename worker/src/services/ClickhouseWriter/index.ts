@@ -21,11 +21,23 @@ import {
   type ClickhouseWriteStrategy,
   type ClickhouseWriteStrategyFactory,
 } from "./writeStrategies";
-import { TableName, type RecordInsertType } from "./types";
+import {
+  TableName,
+  type ClickhouseWriterRowCallbacks,
+  type ClickhouseWriterRowTerminalOutcome,
+  type RecordInsertType,
+} from "./types";
 import { classifyJobFailure } from "../../queues/jobFailureReason";
-export { TableName } from "./types";
+export {
+  TableName,
+  type ClickhouseWriterRowCallbacks,
+  type ClickhouseWriterRowTerminalOutcome,
+} from "./types";
 
 const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
+const EVENTS_NATIVE_TEST_TABLE = "events_native_test" as const;
+
+type WriterTelemetryFormat = "json" | "native" | "native-test";
 
 function isRetryableClickhouseInsertError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -47,11 +59,17 @@ export class ClickhouseWriter<
   private static instance: ClickhouseWriter<JsonWriterPayloadMap> | null = null;
   private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
     null;
+  private static nativeTestInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
+    null;
   private client: ClickhouseClientType | null;
   private readonly strategyFactory: ClickhouseWriteStrategyFactory<
     PayloadMap[TableName]
   >;
   private readonly allowedTable: TableName | undefined;
+  private readonly destinationTable:
+    | typeof EVENTS_NATIVE_TEST_TABLE
+    | undefined;
+  private readonly telemetryFormat: WriterTelemetryFormat;
   private readonly logger: typeof logger;
   private readonly logPrefix: string;
   private readonly activeFlushes = new Set<Promise<void>>();
@@ -67,12 +85,18 @@ export class ClickhouseWriter<
     client: ClickhouseClientType | undefined,
     strategyFactory: ClickhouseWriteStrategyFactory<PayloadMap[TableName]>,
     allowedTable?: TableName,
+    destinationTable?: typeof EVENTS_NATIVE_TEST_TABLE,
   ) {
     this.client = client ?? null;
     this.strategyFactory = strategyFactory;
     this.allowedTable = allowedTable;
-    this.logger = logger.child({ format: strategyFactory.format });
-    this.logPrefix = strategyFactory.format === "native" ? "[native] " : "";
+    this.destinationTable = destinationTable;
+    this.telemetryFormat = destinationTable
+      ? "native-test"
+      : strategyFactory.format;
+    this.logger = logger.child({ format: this.telemetryFormat });
+    this.logPrefix =
+      this.telemetryFormat === "json" ? "" : `[${this.telemetryFormat}] `;
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -130,14 +154,51 @@ export class ClickhouseWriter<
     return instance;
   }
 
+  /** Use production Native encoding with the fixed shadow destination. */
+  public static getNativeTestInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<NativeWriterPayloadMap> {
+    let instance = ClickhouseWriter.nativeTestInstance;
+    if (!instance) {
+      instance = new ClickhouseWriter<NativeWriterPayloadMap>(
+        client,
+        nativeWriteStrategyFactory,
+        TableName.EventsFull,
+        EVENTS_NATIVE_TEST_TABLE,
+      );
+      ClickhouseWriter.nativeTestInstance = instance;
+    } else if (client) {
+      instance.client = client;
+    }
+    return instance;
+  }
+
+  /** Stop and drain only the production writers; keep the shadow writer alive. */
+  public static async shutdownProduction(): Promise<void> {
+    const jsonWriter = ClickhouseWriter.instance;
+    const nativeWriter = ClickhouseWriter.nativeInstance;
+    await Promise.all([jsonWriter?.shutdown(), nativeWriter?.shutdown()]);
+    // Mark the production side closed so a later shutdownAll() only closes the
+    // shadow writer; otherwise an explicit production -> shadow -> final
+    // shutdown sequence would call shutdown() on the same instances twice.
+    if (ClickhouseWriter.instance === jsonWriter) {
+      ClickhouseWriter.instance = null;
+    }
+    if (ClickhouseWriter.nativeInstance === nativeWriter) {
+      ClickhouseWriter.nativeInstance = null;
+    }
+  }
+
   /** Stop every writer instance created in this process. */
   public static async shutdownAll(): Promise<void> {
-    await Promise.all([
-      ClickhouseWriter.instance?.shutdown(),
-      ClickhouseWriter.nativeInstance?.shutdown(),
-    ]);
+    // Production success callbacks can enqueue into the isolated shadow
+    // writer. Drain production first, then close the shadow writer; its
+    // shutdown drains rows created by the final production flush.
+    await ClickhouseWriter.shutdownProduction();
+    await ClickhouseWriter.nativeTestInstance?.shutdown();
     ClickhouseWriter.instance = null;
     ClickhouseWriter.nativeInstance = null;
+    ClickhouseWriter.nativeTestInstance = null;
   }
 
   private start() {
@@ -170,6 +231,14 @@ export class ClickhouseWriter<
 
     await this.flushAll(true);
 
+    // A threshold flush can start while the full-queue flush is being
+    // scheduled. Wait for that work too before settling any rows that remain.
+    while (this.activeFlushes.size > 0) {
+      await Promise.all([...this.activeFlushes]);
+    }
+    this.settlePendingCallbacks(
+      new Error("ClickhouseWriter shutdown before queued rows were inserted"),
+    );
     this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
   }
 
@@ -183,9 +252,9 @@ export class ClickhouseWriter<
           name: "write-to-clickhouse",
         },
         async (span) => {
-          span.setAttribute("format", this.strategyFactory.format);
+          span.setAttribute("format", this.telemetryFormat);
           recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
-            format: this.strategyFactory.format,
+            format: this.telemetryFormat,
           });
           await Promise.all(
             tables.map((table) => this.flush(table, fullQueue)),
@@ -279,6 +348,72 @@ export class ClickhouseWriter<
     return { retryItems, requeueItems };
   }
 
+  private settleRow<Row>(
+    item: ClickhouseWriterQueueItem<Row>,
+    outcome: ClickhouseWriterRowTerminalOutcome<Row>,
+  ): void {
+    const onTerminal = item.onTerminal;
+    // Mark the callback as consumed before invoking user code. A callback is a
+    // terminal receipt, so even a throwing callback cannot be invoked twice.
+    item.onTerminal = undefined;
+    if (!onTerminal) return;
+
+    try {
+      onTerminal(outcome);
+    } catch (error) {
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter terminal row callback failed`,
+        { error },
+      );
+    }
+  }
+
+  private settleRows<Row>(
+    queueItems: ClickhouseWriterQueueItem<Row>[],
+    status: "inserted" | "dropped",
+    rows: Row[] | undefined,
+    error?: unknown,
+  ): void {
+    queueItems.forEach((item, index) => {
+      if (!item.onTerminal) return;
+      const row = rows?.[index] ?? item.data;
+      const outcome: ClickhouseWriterRowTerminalOutcome<Row> =
+        status === "inserted" ? { status, row } : { status, row, error };
+      this.settleRow(item, outcome);
+    });
+  }
+
+  private settlePendingCallbacks(error: Error): void {
+    for (const tableName of Object.values(TableName)) {
+      const entityQueue = this.queue[tableName];
+      const pendingRows: ClickhouseWriterQueueItem<
+        PayloadMap[typeof tableName]
+      >[] = [];
+      let retained = 0;
+      for (const item of entityQueue) {
+        if (item.onTerminal) pendingRows.push(item);
+        else entityQueue[retained++] = item;
+      }
+      if (pendingRows.length === 0) continue;
+      entityQueue.length = retained;
+
+      recordIncrement(
+        "langfuse.queue.clickhouse_writer.rows_dropped",
+        pendingRows.length,
+        {
+          entity_type: tableName,
+          format: this.telemetryFormat,
+          reason: "shutdown",
+        },
+      );
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter settled ${pendingRows.length} queued ${tableName} callback(s) during shutdown`,
+        { error },
+      );
+      this.settleRows(pendingRows, "dropped", undefined, error);
+    }
+  }
+
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
@@ -294,7 +429,7 @@ export class ClickhouseWriter<
     queueItems.forEach((item) => {
       const waitTime = Date.now() - item.enqueuedAt;
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
-        format: this.strategyFactory.format,
+        format: this.telemetryFormat,
         unit: "milliseconds",
       });
       recordDistribution(
@@ -304,7 +439,7 @@ export class ClickhouseWriter<
           entity_type: tableName,
           type: "wait",
           attempt: item.requeued ? "retry" : "first",
-          format: this.strategyFactory.format,
+          format: this.telemetryFormat,
           unit: "milliseconds",
         },
       );
@@ -432,6 +567,12 @@ export class ClickhouseWriter<
         },
       );
 
+      // The selected queue chunk is terminally successful only after the
+      // transport promise resolves. `queueItems` may be a split retry subset;
+      // `recordsToWrite` is therefore the accepted row list for this exact
+      // insert, not the original pre-split batch.
+      this.settleRows(queueItems, "inserted", recordsToWrite);
+
       // Log processing time
       const processingTime = Date.now() - processingStartTime;
 
@@ -439,7 +580,7 @@ export class ClickhouseWriter<
         "langfuse.queue.clickhouse_writer.processing_time",
         processingTime,
         {
-          format: this.strategyFactory.format,
+          format: this.telemetryFormat,
           unit: "milliseconds",
         },
       );
@@ -449,7 +590,7 @@ export class ClickhouseWriter<
         {
           entity_type: tableName,
           type: "processing",
-          format: this.strategyFactory.format,
+          format: this.telemetryFormat,
           unit: "milliseconds",
         },
       );
@@ -462,7 +603,7 @@ export class ClickhouseWriter<
         "ingestion_clickhouse_insert_queue_length",
         entityQueue.length,
         {
-          format: this.strategyFactory.format,
+          format: this.telemetryFormat,
           unit: "records",
           entityType: tableName,
         },
@@ -478,6 +619,7 @@ export class ClickhouseWriter<
       // Re-add the records to the queue with incremented attempts
       const reason = classifyJobFailure(err);
       let droppedCount = 0;
+      const droppedItems: ClickhouseWriterQueueItem<PayloadMap[T]>[] = [];
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
@@ -489,9 +631,10 @@ export class ClickhouseWriter<
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
-            format: this.strategyFactory.format,
+            format: this.telemetryFormat,
             reason,
           });
+          droppedItems.push(item);
           droppedCount++;
         }
       });
@@ -502,7 +645,7 @@ export class ClickhouseWriter<
           droppedCount,
           {
             entity_type: tableName,
-            format: this.strategyFactory.format,
+            format: this.telemetryFormat,
             reason,
           },
         );
@@ -516,6 +659,8 @@ export class ClickhouseWriter<
           { droppedIds },
         );
       }
+
+      this.settleRows(droppedItems, "dropped", undefined, err);
     }
   }
 
@@ -540,7 +685,11 @@ export class ClickhouseWriter<
     );
   }
 
-  public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
+  public addToQueue<T extends TableName>(
+    tableName: T,
+    data: PayloadMap[T],
+    callbacks?: ClickhouseWriterRowCallbacks<PayloadMap[T]>,
+  ) {
     if (this.allowedTable && tableName !== this.allowedTable) {
       throw new Error(
         `Native ClickHouse writer only accepts ${this.allowedTable}, got ${tableName}`,
@@ -553,6 +702,7 @@ export class ClickhouseWriter<
       requeued: false,
       attempts: 1,
       data,
+      onTerminal: callbacks?.onTerminal,
     });
 
     if (entityQueue.length >= this.batchSize) {
@@ -575,10 +725,9 @@ export class ClickhouseWriter<
     strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>;
   }): Promise<void> {
     const startTime = Date.now();
-
     await params.strategy
       .write(this.client ?? clickhouseClient(), {
-        table: params.table,
+        table: this.destinationTable ?? params.table,
         records: params.records,
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
@@ -599,7 +748,7 @@ export class ClickhouseWriter<
       `${this.logPrefix}ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
     recordGauge("ingestion_clickhouse_insert", params.records.length, {
-      format: this.strategyFactory.format,
+      format: this.telemetryFormat,
     });
   }
 }
@@ -630,4 +779,5 @@ type ClickhouseWriterQueueItem<Payload> = {
   requeued: boolean;
   attempts: number;
   data: Payload;
+  onTerminal?: ClickhouseWriterRowCallbacks<Payload>["onTerminal"];
 };

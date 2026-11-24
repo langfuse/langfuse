@@ -11,6 +11,7 @@ import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
+  type EvalSchedulerDeps,
 } from "../evaluation/scheduleEvals";
 import {
   isTraceDispatchSampled,
@@ -23,6 +24,14 @@ import {
 } from "../otel-media/processOtelMedia";
 import type { IngestionService } from "../../services/IngestionService";
 import { isEventsDispatchEnabled } from "../eventsDispatch/config";
+import {
+  emitOtelCaptureFailure,
+  emitOtelEffect,
+  emitOtelOperationFailure,
+  hashOtelObservation,
+  type OtelObservationEvalEffect,
+  type OtelShadowCapture,
+} from "./otelEffectsCapture";
 
 type ProcessOtelEventsParams = {
   processor: OtelIngestionProcessor;
@@ -34,6 +43,7 @@ type ProcessOtelEventsParams = {
   earlyBatch?: EarlyOtelBatch;
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
+  shadowCapture?: OtelShadowCapture;
 };
 
 /**
@@ -55,6 +65,7 @@ export async function processOtelEvents({
   earlyBatch,
   mediaPath,
   inputByteLength,
+  shadowCapture,
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
   // Evals and direct event writes share the enriched trace attributes.
   const eventInputs = processor.processToEvent(resourceSpans);
@@ -108,12 +119,24 @@ export async function processOtelEvents({
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
       mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+      ...(shadowCapture ? { shadowCapture } : {}),
     });
   }
 
   const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, rules)
     : null;
+
+  if (shadowCapture) {
+    emitOtelEffect(shadowCapture, {
+      kind: "scheduling-context",
+      projectId,
+      traceDispatchSamplingRate,
+      evalRules: rules,
+      traceTranscriptRules:
+        schedulerDeps?.traceTranscriptRules ?? Promise.resolve([] as never[]),
+    });
+  }
 
   await Promise.all(
     // Process each event independently
@@ -126,6 +149,14 @@ export async function processOtelEvents({
           fileKey,
         );
       } catch (error) {
+        emitOtelOperationFailure(shadowCapture, {
+          operation: "direct-row-create",
+          mode: "actual",
+          projectId,
+          traceId: eventInput.traceId,
+          observationId: eventInput.spanId,
+          error,
+        });
         traceException(error);
         logger.error(
           `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
@@ -134,6 +165,16 @@ export async function processOtelEvents({
 
         return;
       }
+
+      const eventSchedulerDeps =
+        schedulerDeps && shadowCapture?.capture
+          ? createShadowEvalSchedulerDeps({
+              schedulerDeps,
+              shadowCapture,
+              traceId: eventInput.traceId,
+              observationId: eventInput.spanId,
+            })
+          : schedulerDeps;
 
       // Step 2: Keep transcript matches even if observation scheduling fails.
       const traceActivity = isTraceDispatchSampled(
@@ -145,17 +186,29 @@ export async function processOtelEvents({
             spanStartTimeISO: eventInput.startTimeISO,
           }
         : undefined;
-      const matchedRuleIds = schedulerDeps
+      const matchedRuleIds = eventSchedulerDeps
         ? await scheduleEvals({
             parseObservation: () => {
-              const observation =
-                convertEventRecordToObservationForEval(eventRecord);
-              return { observation, loadSnapshot: () => observation };
+              try {
+                const observation =
+                  convertEventRecordToObservationForEval(eventRecord);
+                return { observation, loadSnapshot: () => observation };
+              } catch (error) {
+                emitOtelOperationFailure(shadowCapture, {
+                  operation: "observation-normalization",
+                  mode: "actual",
+                  projectId,
+                  traceId: eventInput.traceId,
+                  observationId: eventInput.spanId,
+                  error,
+                });
+                throw error;
+              }
             },
             environment: eventRecord.environment,
             traceActivity,
             rules,
-            schedulerDeps,
+            schedulerDeps: eventSchedulerDeps,
             buildFailureContext: () => ({
               projectId: eventInput.projectId,
               observationId: eventInput.spanId,
@@ -167,19 +220,43 @@ export async function processOtelEvents({
       // Step 3: Write to events table (independent of eval scheduling)
       if (shouldWriteToEventsTable) {
         try {
-          const persistedRecord =
-            await ingestionService.writeEventRecord(eventRecord);
+          const persistedRecord = shadowCapture
+            ? await ingestionService.writeEventRecord(
+                eventRecord,
+                shadowCapture,
+              )
+            : await ingestionService.writeEventRecord(eventRecord);
           // Record activity only after the event writer accepts the span.
-          if (traceActivity && schedulerDeps && matchedRuleIds !== undefined) {
-            schedulerDeps.collectTraceActivity({
+          if (
+            traceActivity &&
+            eventSchedulerDeps &&
+            matchedRuleIds !== undefined
+          ) {
+            const traceRecording = {
               ...traceActivity,
               ruleIds: matchedRuleIds,
               serializedEventBytes:
                 persistedRecord.event_bytes ??
                 Buffer.byteLength(JSON.stringify(persistedRecord), "utf8"),
-            });
+            };
+            if (shadowCapture?.capture) {
+              emitOtelEffect(shadowCapture, {
+                kind: "trace-recording",
+                projectId,
+                ...traceRecording,
+              });
+            }
+            eventSchedulerDeps.collectTraceActivity(traceRecording);
           }
         } catch (error) {
+          emitOtelOperationFailure(shadowCapture, {
+            operation: "direct-row-write",
+            mode: "actual",
+            projectId,
+            traceId: eventInput.traceId,
+            observationId: eventInput.spanId,
+            error,
+          });
           traceException(error);
           logger.error(
             `Failed to write event record for ${eventInput.spanId}`,
@@ -195,4 +272,124 @@ export async function processOtelEvents({
     await schedulerDeps.flushTraceActivity();
   }
   return mediaPresence;
+}
+
+function createShadowEvalSchedulerDeps(params: {
+  schedulerDeps: EvalSchedulerDeps;
+  shadowCapture: OtelShadowCapture | undefined;
+  traceId: string;
+  observationId: string;
+}): EvalSchedulerDeps {
+  const { schedulerDeps, shadowCapture } = params;
+  if (!shadowCapture?.capture) return schedulerDeps;
+
+  const jobExecutions = new Map<
+    string,
+    Parameters<EvalSchedulerDeps["upsertJobExecution"]>[0]
+  >();
+  let observationHash: string | undefined;
+
+  return {
+    ...schedulerDeps,
+    upsertJobExecution: async (jobExecution) => {
+      try {
+        const result = await schedulerDeps.upsertJobExecution(jobExecution);
+        jobExecutions.set(jobExecution.id, jobExecution);
+        emitOtelEffect(shadowCapture, {
+          kind: "eval-upsert",
+          projectId: jobExecution.projectId,
+          jobExecutionId: jobExecution.id,
+          jobConfigurationId: jobExecution.jobConfigurationId,
+        });
+        return result;
+      } catch (error) {
+        emitOtelOperationFailure(shadowCapture, {
+          operation: "eval-upsert",
+          mode: "actual",
+          projectId: jobExecution.projectId,
+          traceId: jobExecution.jobInputTraceId,
+          observationId: jobExecution.jobInputObservationId,
+          error,
+        });
+        throw error;
+      }
+    },
+    uploadObservationToS3: async (request) => {
+      try {
+        observationHash = hashOtelObservation(request.data);
+      } catch (error) {
+        observationHash = undefined;
+        emitOtelCaptureFailure(
+          shadowCapture,
+          "observation-hash",
+          "actual",
+          error,
+        );
+      }
+      try {
+        const path = await schedulerDeps.uploadObservationToS3(request);
+        if (observationHash !== undefined) {
+          emitOtelEffect(shadowCapture, {
+            kind: "eval-blob-upload",
+            projectId: request.projectId,
+            traceId: request.traceId,
+            observationId: request.observationId,
+            observationHash,
+          });
+        }
+        return path;
+      } catch (error) {
+        emitOtelOperationFailure(shadowCapture, {
+          operation: "eval-blob-upload",
+          mode: "actual",
+          projectId: request.projectId,
+          traceId: request.traceId,
+          observationId: request.observationId,
+          error,
+        });
+        throw error;
+      }
+    },
+    enqueueEvalJob: async (request) => {
+      const jobExecution = jobExecutions.get(request.jobExecutionId);
+      try {
+        await schedulerDeps.enqueueEvalJob(request);
+      } catch (error) {
+        emitOtelOperationFailure(shadowCapture, {
+          operation: "eval-enqueue",
+          mode: "actual",
+          projectId: request.projectId,
+          traceId: jobExecution?.jobInputTraceId,
+          observationId: jobExecution?.jobInputObservationId,
+          error,
+        });
+        throw error;
+      }
+      if (jobExecution && observationHash !== undefined) {
+        const effect: OtelObservationEvalEffect = {
+          kind: "observation-eval",
+          projectId: jobExecution.projectId,
+          traceId: params.traceId,
+          observationId: params.observationId,
+          jobExecutionId: jobExecution.id,
+          jobConfigurationId: jobExecution.jobConfigurationId,
+          jobTemplateId: jobExecution.jobTemplateId,
+          jobInputTraceId: jobExecution.jobInputTraceId,
+          jobInputObservationId: jobExecution.jobInputObservationId,
+          observationHash,
+          request,
+        };
+        emitOtelEffect(shadowCapture, effect);
+      } else if (!jobExecution) {
+        emitOtelOperationFailure(shadowCapture, {
+          operation: "eval-enqueue",
+          mode: "actual",
+          projectId: request.projectId,
+          error: new Error(
+            `Missing captured job execution for ${request.jobExecutionId}`,
+          ),
+        });
+      }
+    },
+  };
 }
