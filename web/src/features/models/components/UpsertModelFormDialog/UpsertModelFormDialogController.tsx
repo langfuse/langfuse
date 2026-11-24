@@ -2,14 +2,8 @@
 /* eslint @repo/no-style-props: "off" */
 import cloneDeep from "lodash/cloneDeep";
 import isEqual from "lodash/isEqual";
-import {
-  useImperativeHandle,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-} from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -45,7 +39,6 @@ import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
 import { useUpsertModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
-import { ConnectedLangfuseDefaultNameWarning } from "@/src/features/models/components/LangfuseDefaultNameWarning/ConnectedLangfuseDefaultNameWarning";
 import {
   modelDetailHref,
   type ModelOwner,
@@ -148,16 +141,6 @@ export function UpsertModelFormDialogContent({
       source={source}
       title={titleByAction[source.action]}
       description={describeSource(source)}
-      renderNameHint={
-        owner.scope === "organization"
-          ? (name) => (
-              <ConnectedLangfuseDefaultNameWarning
-                organizationId={owner.organizationId}
-                modelName={name}
-              />
-            )
-          : undefined
-      }
       isSubmitting={isPending}
       onSubmit={onSubmit}
       onCreated={(modelId) => {
@@ -185,7 +168,6 @@ export function ModelFormDialogContent({
   source,
   title,
   description,
-  renderNameHint,
   isSubmitting,
   onSubmit,
   onCreated,
@@ -195,8 +177,6 @@ export function ModelFormDialogContent({
   source: ModelFormSource;
   title: string;
   description?: string;
-  /** Rendered under the model name with its current value. */
-  renderNameHint?: (modelName: string) => ReactNode;
   isSubmitting: boolean;
   onSubmit: (values: FormUpsertModel) => Promise<{ id: string }>;
   onCreated: (modelId: string) => void;
@@ -208,7 +188,6 @@ export function ModelFormDialogContent({
     resolver: zodResolver(FormUpsertModelSchema),
     defaultValues: buildFormValues(source),
   });
-  const modelName = useWatch({ control: form.control, name: "modelName" });
   useImperativeHandle(
     closeGuardRef,
     () => () =>
@@ -295,7 +274,6 @@ export function ModelFormDialogContent({
                     />
                   </FormControl>
                   <FormMessage />
-                  {renderNameHint?.(modelName)}
                 </FormItem>
               )}
             />

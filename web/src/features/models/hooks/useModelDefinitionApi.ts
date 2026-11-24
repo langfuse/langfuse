@@ -156,20 +156,3 @@ export function useTestModelMatch(
   );
   return owner.scope === "project" ? projectQuery : organizationQuery;
 }
-
-/** Whether an organization model with this name would replace a Langfuse default. */
-export function useTakesLangfuseDefaultName(
-  organizationId: string,
-  modelName: string,
-) {
-  const name = modelName.trim();
-  const query = api.organizationModels.isLangfuseDefaultName.useQuery(
-    { orgId: organizationId, modelName: name },
-    {
-      enabled: name.length > 0,
-      staleTime: 1000 * 60 * 10,
-      placeholderData: (previous) => previous,
-    },
-  );
-  return name.length > 0 && query.data === true;
-}

@@ -322,14 +322,6 @@ export async function deleteModelDefinition(params: {
   return deleted;
 }
 
-export async function isLangfuseDefaultModelName(modelName: string) {
-  const model = await prisma.model.findFirst({
-    where: { scope: "LANGFUSE", modelName },
-    select: { id: true },
-  });
-  return model !== null;
-}
-
 export async function testModelDefinitionMatch(params: {
   owner: ModelDefinitionOwner;
   modelName: string;

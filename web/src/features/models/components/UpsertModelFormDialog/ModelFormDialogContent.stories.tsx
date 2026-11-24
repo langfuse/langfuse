@@ -2,7 +2,6 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { LangfuseDefaultNameWarning } from "@/src/features/models/components/LangfuseDefaultNameWarning/LangfuseDefaultNameWarning";
 import { ModelFormDialogContent } from "./UpsertModelFormDialogController";
 
 const meta = preview.meta({
@@ -91,7 +90,5 @@ export const CloneLangfuseDefaultToOrganization = meta.story({
       },
     },
     title: "Clone Model",
-    renderNameHint: (modelName) =>
-      modelName === "gpt-4o" ? <LangfuseDefaultNameWarning /> : null,
   },
 });
