@@ -191,7 +191,8 @@ export function ScatterTopicsView({
     );
   }, [topicHighlightIds, traceFieldMatches, mapData?.status]);
   // The map shows a selection only while it still matches, like the list.
-  const activeTraceId = peekTraceId ?? selectedTraceId;
+  // A fresh scatter click takes precedence over a closing peek param.
+  const activeTraceId = selectedTraceId ?? peekTraceId;
   const mapSelectedTraceId =
     activeTraceId &&
     (!highlightedTraceIds || highlightedTraceIds.has(activeTraceId))

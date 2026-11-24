@@ -290,6 +290,28 @@ it("highlights a trace clicked on the scatter plot in the trace list without ope
   );
 });
 
+it("prefers a newly clicked scatter trace over a still-closing peek query param", () => {
+  routerState.peek = "trace-2";
+  const openPeek = vi.fn();
+  render(<Harness openPeek={openPeek} />);
+
+  expect(screen.getByTestId("scatter-map")).toHaveAttribute(
+    "data-selected-trace",
+    "trace-2",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Dot trace-1" }));
+  expect(openPeek).not.toHaveBeenCalled();
+  expect(screen.getByTestId("scatter-map")).toHaveAttribute(
+    "data-selected-trace",
+    "trace-1",
+  );
+  expect(screen.getByText("trace-1").closest("tr")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
 it("clears the highlighted trace before clearing a picked topic when clicking empty map space", () => {
   const openPeek = vi.fn();
   render(
