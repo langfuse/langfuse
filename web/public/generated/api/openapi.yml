@@ -3372,8 +3372,9 @@ paths:
   /api/public/models/{id}:
     put:
       description: >-
-        Create or replace a project-owned model using its id. Built-in models
-        cannot be modified.
+        Create or replace a project-owned model using its id. Organization and
+        built-in models cannot be modified; targeting an organization model
+        returns 403.
       operationId: models_upsert
       tags:
         - Models
@@ -3468,9 +3469,9 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Delete a model. Cannot delete models managed by Langfuse. You can create
-        your own definition with the same modelName to override the definition
-        though.
+        Delete a project-owned model. Cannot delete organization models (returns
+        403) or models managed by Langfuse. You can create your own definition
+        with the same modelName to override the definition though.
       operationId: models_delete
       tags:
         - Models
@@ -10068,8 +10069,18 @@ components:
           description: >-
             Legacy tokenizer configuration retained for API compatibility.
             Ingestion no longer uses it to infer observation usage.
+        scope:
+          $ref: '#/components/schemas/ModelScope'
+          description: >-
+            Owner of the model definition. Only `PROJECT` models can be changed
+            through the project models API.
         isLangfuseManaged:
           type: boolean
+          description: >-
+            Deprecated. Use 'scope' instead. True when the model cannot be
+            changed through the project models API, i.e. `scope` is
+            `ORGANIZATION` or `LANGFUSE`.
+          deprecated: true
         createdAt:
           type: string
           format: date-time
@@ -10123,6 +10134,7 @@ components:
         - totalPrice
         - tokenizerId
         - tokenizerConfig
+        - scope
         - isLangfuseManaged
         - createdAt
         - prices
@@ -10475,6 +10487,24 @@ components:
         - eq
         - neq
       description: Comparison operators for pricing tier conditions
+    ModelScope:
+      title: ModelScope
+      type: string
+      enum:
+        - PROJECT
+        - ORGANIZATION
+        - LANGFUSE
+      description: >-
+        Owner of a model definition. When several definitions match, project
+        definitions take precedence over organization definitions, which take
+        precedence over Langfuse definitions.
+
+        - PROJECT: defined in the project
+
+        - ORGANIZATION: defined by the project's organization; applies to all of
+        its projects
+
+        - LANGFUSE: built-in definition maintained by Langfuse
     ModelUsageUnit:
       title: ModelUsageUnit
       type: string

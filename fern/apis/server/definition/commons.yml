@@ -482,8 +482,14 @@ types:
       tokenizerConfig:
         docs: Legacy tokenizer configuration retained for API compatibility. Ingestion no longer uses it to infer observation usage.
         type: unknown
+      scope:
+        docs: Owner of the model definition. Only `PROJECT` models can be changed through the project models API.
+        type: ModelScope
       isLangfuseManaged:
+        docs: Deprecated. Use 'scope' instead. True when the model cannot be changed through the project models API, i.e. `scope` is `ORGANIZATION` or `LANGFUSE`.
         type: boolean
+        availability:
+          status: deprecated
       createdAt:
         docs: Timestamp when the model was created
         type: datetime
@@ -711,6 +717,16 @@ types:
       - neq
 
   # Utilities
+  ModelScope:
+    docs: |
+      Owner of a model definition. When several definitions match, project definitions take precedence over organization definitions, which take precedence over Langfuse definitions.
+      - PROJECT: defined in the project
+      - ORGANIZATION: defined by the project's organization; applies to all of its projects
+      - LANGFUSE: built-in definition maintained by Langfuse
+    enum:
+      - PROJECT
+      - ORGANIZATION
+      - LANGFUSE
   ModelUsageUnit:
     docs: Unit of usage in Langfuse
     enum:
