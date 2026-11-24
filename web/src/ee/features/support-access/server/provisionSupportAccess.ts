@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -16,12 +17,6 @@ const SUPPORT_EMAIL_DOMAIN = "clickhouse.com";
 const MAX_GRANT_MS = 12 * 60 * 60 * 1000;
 
 export type ProvisionResult = { ok: boolean; message: string };
-
-export type ProvisionConfig = {
-  entitlementId: string;
-  /** Organizations that support access is never granted for. */
-  deniedOrgIds: readonly string[];
-};
 
 function accepted(message: string): ProvisionResult {
   return { ok: true, message };
@@ -56,7 +51,6 @@ async function resolveOrgId(orgOrProjectId: string): Promise<string | null> {
 async function grant(
   request: GrantRequest,
   user: User | null,
-  deniedOrgIds: readonly string[],
   now: Date,
 ): Promise<ProvisionResult> {
   if (!request.durationMs || request.durationMs > MAX_GRANT_MS) {
@@ -79,15 +73,8 @@ async function grant(
       `Organization or project ${request.orgOrProjectId} not found in this region.`,
     );
   }
-  if (deniedOrgIds.includes(orgId)) {
-    logger.info("ConductorOne support access denied for organization", {
-      userId: user.id,
-      orgId,
-      c1TaskId: request.taskId,
-    });
-    return rejected(
-      `Support access is disabled for organization ${orgId}. Contact the Langfuse team if you need access.`,
-    );
+  if (env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS.includes(orgId)) {
+    return rejected(`Support access is disabled for organization ${orgId}.`);
   }
 
   const expiresAt = new Date(now.getTime() + request.durationMs);
@@ -120,16 +107,16 @@ async function revoke(
 
 export async function provisionSupportAccess(
   request: SupportAccessRequest,
-  config: ProvisionConfig,
+  entitlementId: string,
   now: Date = new Date(),
 ): Promise<ProvisionResult> {
-  if (request.entitlementId !== config.entitlementId) {
+  if (request.entitlementId !== entitlementId) {
     return rejected(`This entitlement is not handled by this region`);
   }
 
   const user = await findUser(request.email);
   if (request.action === "grant") {
-    return grant(request, user, config.deniedOrgIds, now);
+    return grant(request, user, now);
   }
   return revoke(request, user);
 }
