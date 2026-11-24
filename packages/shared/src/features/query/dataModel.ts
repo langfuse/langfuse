@@ -1317,6 +1317,17 @@ export const billableUnitsView: ViewDeclarationType = {
   baseCte: "billable_events billable_units",
 };
 
+/**
+ * The columns a billable-units query can filter by: its dimensions and its
+ * time dimension, so a `metadata` or `*Name` filter is rejected.
+ * `server/billableUnitsRegistry.ts` lowers each.
+ */
+export const BILLABLE_UNITS_FILTER_COLUMNS = [
+  "unitType",
+  "environment",
+  "ingested_at",
+] as const;
+
 // Events-Observations View - queries from events table instead of observations table
 export const eventsObservationsView: ViewDeclarationType = {
   name: "events_observations",

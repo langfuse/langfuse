@@ -30,7 +30,7 @@ import {
   eventsTraceAttributes,
   TRACE_ATTRIBUTE_COLUMNS,
 } from "./eventsTraceAttributes";
-import { useFinal } from "../../../server/query-ast/extensions";
+import { useFinal, utcDateTime } from "../../../server/query-ast/extensions";
 import type { QueryLevel } from "./registryEntry";
 import {
   filterDimensionName,
@@ -39,7 +39,6 @@ import {
   type AppliedMetricType,
   type AppliedDimensionType,
   atLevel,
-  utcDateTime,
   applyBucketingDimension,
   astBucketSelection,
   astInnerMetrics,

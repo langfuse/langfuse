@@ -27,7 +27,6 @@ import {
   getValidAggregationsForMeasureType,
 } from "../types";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
-import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { compileClickhouseQuery } from "../../../server/query-ast/compile";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
 import { QueryCompileError } from "../../../server/query-ast/errors";
@@ -45,8 +44,8 @@ import {
   toStartOfInterval,
   toStartOfMinute,
   toStartOfMonth,
-  typedValue,
   uniq,
+  utcDateTime,
   withFill,
   type IntervalUnit,
   type IntervalValue,
@@ -168,17 +167,6 @@ export const WITH_FILL_STEPS: Record<
   "2d": { sql: "INTERVAL 2 DAY", approxMs: 2 * DAY_MS },
   "1w": { sql: "INTERVAL 7 DAY", approxMs: 7 * DAY_MS },
 };
-
-/**
- * A `Date` bound as `{p:DateTime64(3, 'UTC')}` with its UTC wall-clock
- * string, as the string builder binds time bounds; ClickHouse compares it
- * exactly against the `DateTime64(6)` / `DateTime64(3)` columns.
- */
-export const utcDateTime = (date: Date) =>
-  typedValue<Date>(
-    convertDateToClickhouseDateTime(date),
-    "DateTime64(3, 'UTC')",
-  );
 
 /** A time granularity after `auto` is resolved to one of the others. */
 type Granularity = Exclude<z.infer<typeof granularities>, "auto">;
