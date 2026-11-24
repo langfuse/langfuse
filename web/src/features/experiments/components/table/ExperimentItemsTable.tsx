@@ -10,7 +10,7 @@ import { ExperimentFilterSidebar } from "../filters/ExperimentFilterSidebar";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { LightbulbIcon } from "@langfuse/icons";
+import { LightbulbIcon, ListFilter } from "@langfuse/icons";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import type { TableAction } from "@/src/features/table/types";
@@ -110,7 +110,6 @@ import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 import { ExperimentListInputHeader } from "./ExperimentListInputHeader";
 import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
 import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
-import { ScoreColumnFilterMenuTrigger } from "./ScoreColumnFilterMenuTrigger";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
@@ -1054,9 +1053,18 @@ export default function ExperimentItemsTable({
                               asChild
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <ScoreColumnFilterMenuTrigger
-                                isActive={Boolean(activeComparisonFilter)}
-                              />
+                              <button
+                                type="button"
+                                aria-label="Filter items by this score"
+                                className={cn(
+                                  "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
+                                  activeComparisonFilter
+                                    ? "text-primary-accent"
+                                    : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                                )}
+                              >
+                                <ListFilter size="sm" />
+                              </button>
                             </Trigger>
                           )}
                         </ScoreColumnFilterMenu>
