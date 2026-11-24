@@ -48,10 +48,10 @@ export const OBSERVATION_MCP_NUMERIC_KEY_COLUMNS: ReadonlyMap<
       OBSERVATION_MCP_FILTER_CONFIG_COLUMN_OVERRIDES[publicColumn] ??
       publicColumn;
     const field = eventsPredicateSource.fields.find((f) => f.id === id);
-    const operators =
-      field?.type === "numberObject"
-        ? undefined
-        : field?.operators.numberObject;
+    // A field typed `numberObject` already lists it as its own type; only a
+    // second, numeric-key type on another field type needs an entry here.
+    if (!field || field.type === "numberObject") return [];
+    const operators = field.operators.numberObject;
     return operators ? [[publicColumn, operators] as const] : [];
   }),
 );
