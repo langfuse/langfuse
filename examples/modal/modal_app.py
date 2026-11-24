@@ -47,8 +47,9 @@ DEFAULT_LANGFUSE_TAG = "4"
 DEFAULT_TIMEOUT_SECONDS = 2 * 60 * 60  # 2 hours (Modal hard max is 24 hours)
 MAX_SANDBOX_TIMEOUT_SECONDS = 24 * 60 * 60
 DEFAULT_DB_CPU = 4.0
-DEFAULT_DB_MEMORY_MIB = 6144
+DEFAULT_DB_MEMORY_MIB = 8192
 DEFAULT_RUNTIME = "gvisor"
+CLICKHOUSE_MAX_MEMORY_BYTES = 3 * 1024 * 1024 * 1024  # 3 GiB cap inside 8 GiB DB Sandbox
 
 POSTGRES_PORT = 5432
 REDIS_PORT = 6379
@@ -265,7 +266,21 @@ def build_data_sidecar_specs() -> list[SidecarSpec]:
         SidecarSpec(
             name="clickhouse",
             image_uri=CLICKHOUSE_IMAGE_URI,
-            command=("/entrypoint.sh",),
+            command=(
+                "sh",
+                "-c",
+                (
+                    "mkdir -p /etc/clickhouse-server/config.d && "
+                    "cat <<'EOF' > /etc/clickhouse-server/config.d/memory-limit.xml\n"
+                    "<clickhouse>\n"
+                    f"  <max_server_memory_usage>{CLICKHOUSE_MAX_MEMORY_BYTES}</max_server_memory_usage>\n"
+                    "  <mark_cache_size>268435456</mark_cache_size>\n"
+                    "  <uncompressed_cache_size>134217728</uncompressed_cache_size>\n"
+                    "</clickhouse>\n"
+                    "EOF\n"
+                    "exec /entrypoint.sh"
+                ),
+            ),
             env={
                 "CLICKHOUSE_DB": "default",
                 "CLICKHOUSE_USER": "clickhouse",

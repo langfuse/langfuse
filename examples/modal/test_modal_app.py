@@ -260,6 +260,8 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual([sc.name for sc in sb.sidecars], ["postgres", "clickhouse", "redis", "minio"])
         for sc in sb.sidecars:
             self.assertEqual(sc.kwargs["outbound_cidr_allowlist"], [])
+        ch_sidecar = next(sc for sc in sb.sidecars if sc.name == "clickhouse")
+        self.assertIn("max_server_memory_usage", " ".join(ch_sidecar.command))
 
         # Endpoints Secret wired with DB Sandbox sockets + stable Modal Server URLs.
         ep = fake_modal._created_secrets[modal_app.DEFAULT_ENDPOINTS_SECRET_NAME]
