@@ -229,7 +229,7 @@ jobs:
       - name: Lint native and WebAssembly targets
         run: |
           cargo clippy --locked --all-targets -- -D warnings
-          cargo clippy --locked --target wasm32-unknown-unknown --features wasm -- -D warnings
+          cargo clippy --locked --no-default-features --target wasm32-unknown-unknown --features wasm -- -D warnings
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen@0.2.130,cargo-deny@0.20.2
@@ -248,8 +248,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
-      - name: Check the wasm32 build reports the native compiled sizes
-        run: node --test js/parity.test.mjs
+      - name: Test the committed WebAssembly module
+        run: node --test js/validate.test.mjs
 
   lint:
     timeout-minutes: 12

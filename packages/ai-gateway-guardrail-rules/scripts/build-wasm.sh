@@ -21,7 +21,7 @@ fi
 # Panic messages embed source paths; remap them so the binary does not depend
 # on the checkout or cargo home location.
 export RUSTFLAGS="--remap-path-prefix=$PWD=/ai-gateway-guardrail-rules --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
-CARGO_TARGET_DIR="$TARGET_DIR" cargo build --locked --release --target wasm32-unknown-unknown --features wasm
+CARGO_TARGET_DIR="$TARGET_DIR" cargo build --locked --release --no-default-features --target wasm32-unknown-unknown --features wasm
 
 rm -rf "$OUT"
 # The producers section records how each tool was built (a release binary of
