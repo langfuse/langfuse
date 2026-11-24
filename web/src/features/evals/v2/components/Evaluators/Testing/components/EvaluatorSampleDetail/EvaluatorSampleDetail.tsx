@@ -93,49 +93,59 @@ export function EvaluatorSampleDetail({
     sampleScope === "trace" &&
     transcript.hasNoMessages &&
     dismissedNoMessagesFor !== sampleTraceId;
+  const sampleLabel =
+    sampleScope === "trace" ? "Sample trace" : "Sample observation";
   const sampleNavigation = (
     <div className="flex shrink-0 items-center gap-3 border-b px-3 py-2">
-      <div className="flex flex-col">
-        <span className="text-muted-foreground text-xs">
-          {sampleScope === "trace" ? "Sample trace" : "Sample observation"}
+      <div className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+        <span
+          className="text-muted-foreground truncate text-xs"
+          title={sampleLabel}
+        >
+          {sampleLabel}
         </span>
-        <span className="text-sm font-medium tabular-nums">
+        <span aria-hidden className="text-muted-foreground text-xs">
+          ·
+        </span>
+        <span className="shrink-0 text-sm font-medium tabular-nums">
           {sampleIndex + 1} of {observations.length}
         </span>
       </div>
-      {observations.length > 1 ? (
-        <DetailPageNav
-          currentId={selected.id}
-          listKey={SAMPLE_LIST_KEY}
-          orientation="horizontal"
-          path={() => ""}
-          onNavigate={(entry) => {
-            const next = observations.find(
-              (observation) => observation.id === entry.id,
-            );
-            if (next) selectSample(next);
-          }}
-        />
-      ) : (
-        <div className="flex flex-row gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Previous sample"
-            disabled
-          >
-            <ChevronLeft size="base" color="default" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            aria-label="Next sample"
-            disabled
-          >
-            <ChevronRight size="base" color="default" />
-          </Button>
-        </div>
-      )}
+      <div className="shrink-0">
+        {observations.length > 1 ? (
+          <DetailPageNav
+            currentId={selected.id}
+            listKey={SAMPLE_LIST_KEY}
+            orientation="horizontal"
+            path={() => ""}
+            onNavigate={(entry) => {
+              const next = observations.find(
+                (observation) => observation.id === entry.id,
+              );
+              if (next) selectSample(next);
+            }}
+          />
+        ) : (
+          <div className="flex flex-row gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Previous sample"
+              disabled
+            >
+              <ChevronLeft size="base" color="default" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Next sample"
+              disabled
+            >
+              <ChevronRight size="base" color="default" />
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 
