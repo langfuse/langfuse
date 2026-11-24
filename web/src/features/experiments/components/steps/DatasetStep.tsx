@@ -19,14 +19,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
-import { Info, CircleCheck } from "@langfuse/icons";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 import { api } from "@/src/utils/api";
@@ -172,45 +166,28 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
       {selectedDatasetId && (
         <>
           {validationResult?.isValid === false && (
-            <Card className="border-dark-yellow bg-light-yellow relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
-              <CardHeader className="p-2">
-                <CardTitle className="text-dark-yellow flex items-center justify-between text-sm">
-                  <span>Invalid configuration</span>
-                  <Info size="base" />
-                </CardTitle>
-                <CardDescription className="text-foreground">
-                  {validationResult?.message}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <Banner variant="warning" title="Invalid configuration">
+              {validationResult?.message}
+            </Banner>
           )}
           {validationResult?.isValid === true && (
-            <Card className="border-dark-green bg-light-green relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">
-              <CardHeader className="p-2">
-                <CardTitle className="text-dark-green flex items-center justify-between text-sm">
-                  <span>Valid configuration</span>
-                  <CircleCheck size="base" />
-                </CardTitle>
-                <div className="text-sm">
-                  Matches between dataset items and prompt
-                  variables/placeholders
-                  <ul className="my-2 ml-2 list-inside list-disc">
-                    {Object.entries(validationResult.variablesMap ?? {}).map(
-                      ([variable, count]) => (
-                        <li key={variable}>
-                          <strong>{variable}:</strong> {count} /{" "}
-                          {validationResult?.isValid
-                            ? validationResult.totalItems
-                            : "unknown"}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                  Items missing all required variables and placeholders will be
-                  excluded from the dataset run.
-                </div>
-              </CardHeader>
-            </Card>
+            <Banner variant="success" title="Valid configuration">
+              Matches between dataset items and prompt variables/placeholders
+              <ul className="my-2 ml-2 list-inside list-disc">
+                {Object.entries(validationResult.variablesMap ?? {}).map(
+                  ([variable, count]) => (
+                    <li key={variable}>
+                      <strong>{variable}:</strong> {count} /{" "}
+                      {validationResult?.isValid
+                        ? validationResult.totalItems
+                        : "unknown"}
+                    </li>
+                  ),
+                )}
+              </ul>
+              Items missing all required variables and placeholders will be
+              excluded from the dataset run.
+            </Banner>
           )}
         </>
       )}

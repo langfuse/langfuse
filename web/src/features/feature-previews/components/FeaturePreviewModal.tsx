@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -173,8 +174,10 @@ export function FeaturePreviewModal({
             {selected && selectedState ? (
               <>
                 {selectedState.warningReason ? (
-                  <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200">
-                    {selectedState.warningReason}
+                  <div className="mb-4">
+                    <Banner variant="warning">
+                      {selectedState.warningReason}
+                    </Banner>
                   </div>
                 ) : null}
 

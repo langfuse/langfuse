@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -1293,11 +1294,7 @@ function FilterBuilderForm({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              {aiError && (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                  {aiError}
-                </div>
-              )}
+              {aiError && <Banner variant="error">{aiError}</Banner>}
             </div>
           )}
         </div>
