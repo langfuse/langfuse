@@ -6,12 +6,18 @@ import {
   LangfuseNotFoundError,
   TIME_RANGES,
 } from "@langfuse/shared";
-import { getResultUnit, validateQuery } from "@langfuse/shared/query";
+import {
+  getResultUnit,
+  getViewDeclaration,
+  validateQuery,
+  type QueryType,
+} from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   buildDashboardWidgetUrl,
   buildDashboardsUrl,
   DashboardService,
+  getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
@@ -32,6 +38,10 @@ import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { appToolResult } from "../../../core/mcp-app";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import {
+  convertSelectedEnvironmentsToFilter,
+  isEnvironmentVisibleByDefault,
+} from "@/src/utils/environmentFilter";
 import type { ServerContext } from "../../../types";
 import {
   type WidgetDefinition,
@@ -165,6 +175,175 @@ const adHocWidget = (input: RenderWidgetInput) => {
   }
 };
 
+type ChartedWidget = Awaited<ReturnType<typeof loadSavedWidget>>;
+
+type TimeWindow = { fromTimestamp: Date; toTimestamp: Date; label: string };
+
+/** The requested range ending now, shortened to the plan's data access limit. */
+const resolveTimeWindow = (
+  timeRange: string | undefined,
+  context: ServerContext,
+): TimeWindow => {
+  const range = TIME_RANGE_PRESETS.get(timeRange ?? "7d")!;
+  const toTimestamp = new Date();
+  const requestedFrom = new Date(
+    toTimestamp.getTime() - (range.minutes ?? 0) * 60_000,
+  );
+  const access = clampToDataAccessDays({
+    plan: context.plan,
+    fromTimestamp: requestedFrom.toISOString(),
+  });
+  const fromTimestamp = access.effectiveFromTimestamp ?? requestedFrom;
+  return {
+    fromTimestamp,
+    toTimestamp,
+    // Name the range actually queried when the plan shortened it.
+    label: access.wasClamped
+      ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
+      : range.label,
+  };
+};
+
+/**
+ * The widget's own filters (stored in the dashboard's table-column form),
+ * plus the dashboard's default environment selection unless the widget
+ * filters environments itself: Langfuse's own `langfuse-*` traffic is left
+ * out, as on the dashboard tile.
+ */
+const resolveFilters = async (
+  widget: ChartedWidget,
+  projectId: string,
+  window: TimeWindow,
+) => {
+  const ownFilters = mapLegacyUiTableFilterToView(widget.view, widget.filters);
+  if (ownFilters.some((filter) => filter.column === "environment")) {
+    return ownFilters;
+  }
+  const environments = await getEnvironmentsForProject({
+    projectId,
+    fromTimestamp: window.fromTimestamp,
+  });
+  return [
+    ...ownFilters,
+    ...convertSelectedEnvironmentsToFilter(
+      ["environment"],
+      environments
+        .map(({ environment }) => environment)
+        .filter(isEnvironmentVisibleByDefault),
+    ),
+  ];
+};
+
+/**
+ * The dashboard's query for the widget. Every row goes into one MCP
+ * response, so pivot tables get the same row limit as other breakdowns;
+ * validateQuery rejects unbounded high-cardinality time series.
+ */
+const buildRenderQuery = (
+  widget: ChartedWidget,
+  filters: QueryType["filters"],
+  window: TimeWindow,
+) => {
+  const query = buildWidgetQuery({
+    widget,
+    filters,
+    fromTimestamp: window.fromTimestamp,
+    toTimestamp: window.toTimestamp,
+    // The view has no sortable header, so a saved pivot's sort applies here;
+    // it decides which rows survive the row limit.
+    sortState:
+      widget.chartConfig.type === "PIVOT_TABLE"
+        ? (sanitizePivotTableDefaultSort(
+            widget.chartConfig.defaultSort,
+            widget,
+          ) ?? null)
+        : null,
+    version: VERSION,
+  });
+  if (
+    query.chartConfig &&
+    widget.dimensions.length > 0 &&
+    !isTimeSeriesChart(widget.chartType)
+  ) {
+    query.chartConfig.row_limit = query.chartConfig.row_limit ?? 100;
+  }
+  return query;
+};
+
+const runQuery = async (query: QueryType, projectId: string) => {
+  const validation = validateQuery(query, VERSION);
+  if (!validation.valid) {
+    throw new InvalidRequestError(validation.reason);
+  }
+  return executeQuery(projectId, query, VERSION, true, {
+    clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
+  });
+};
+
+/**
+ * Whether the first dimension can return one source row more than once:
+ * array dimensions (`toolNames`) and key-value dimensions (`costType`,
+ * whose keys include `total`). Its rows then do not add up to a total.
+ */
+const dimensionRepeatsRows = (widget: ChartedWidget) => {
+  const field = widget.dimensions[0]?.field;
+  if (!field) return false;
+  const declaration = getViewDeclaration(widget.view, VERSION).dimensions[
+    field
+  ];
+  return Boolean(declaration?.explodeArray || declaration?.pairExpand);
+};
+
+const toRenderResult = (params: {
+  widget: ChartedWidget;
+  rows: Record<string, unknown>[];
+  window: TimeWindow;
+  rowLimit: number | undefined;
+  url: string;
+}) => {
+  const { widget, rows, window } = params;
+  const firstMetric = widget.metrics[0]!;
+  const payload: WidgetPayload = {
+    name: widget.name,
+    description: widget.description,
+    chartType: widget.chartType,
+    chartConfig: widget.chartConfig,
+    view: widget.view,
+    version: VERSION,
+    metrics: widget.metrics,
+    dimensions: widget.dimensions,
+    rows,
+    timeRangeLabel: window.label,
+  };
+  return appToolResult({
+    text: JSON.stringify({
+      note: "Summary of the chart's data. When rowsLimited is set, only the top rows by the first metric were queried and the summary covers those. Hosts that support MCP Apps also show the chart to the user.",
+      title: widget.name,
+      chartType: widget.chartType,
+      metric: metricAlias(firstMetric),
+      unit: getResultUnit(
+        widget.view,
+        firstMetric.measure,
+        firstMetric.agg,
+        VERSION,
+      ),
+      dimension: widget.dimensions[0]?.field ?? null,
+      timeRange: window.label,
+      from: window.fromTimestamp.toISOString(),
+      to: window.toTimestamp.toISOString(),
+      ...summarizeWidget({
+        ...widget,
+        rows,
+        rowLimit: params.rowLimit,
+        dimensionRepeatsRows: dimensionRepeatsRows(widget),
+      }),
+      url: params.url,
+    }),
+    // Rows for the MCP App view; hosts keep result _meta from the model.
+    meta: { widget: payload },
+  });
+};
+
 export const [renderWidgetTool, handleRenderWidget] = defineTool({
   name: "renderWidget",
   action: "metrics:read",
@@ -172,7 +351,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
     "Render a Langfuse chart inline in the chat: a big number, a time series, a breakdown, a table or a histogram.",
     "Use it whenever a metrics question is better answered visually, e.g. 'what is our average cost?', 'latency by model this week', or to show a saved dashboard widget (pass widgetId).",
     "For an ad-hoc chart pass a widget definition in the same shape as createDashboardWidget (view, metrics with agg, dimensions, filters, chartType, chartConfig); it is rendered, not saved. To save the chart, pass the same arguments to createDashboardWidget.",
-    "Pick the time range with timeRange and call the tool again for another range. The text result is a complete summary of the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
+    "Pick the time range with timeRange and call the tool again for another range. The text result summarizes the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
   ].join(" "),
   baseSchema: RenderWidgetBaseSchema,
   inputSchema: RenderWidgetInputSchema,
@@ -191,106 +370,24 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         const widget = input.widgetId
           ? await loadSavedWidget(input.widgetId, context)
           : adHocWidget(input);
-        const url = input.widgetId
-          ? buildDashboardWidgetUrl({
-              projectId: context.projectId,
-              widgetId: input.widgetId,
-            })
-          : buildDashboardsUrl({ projectId: context.projectId });
-
-        const range = TIME_RANGE_PRESETS.get(input.timeRange ?? "7d")!;
-        const toTimestamp = new Date();
-        const requestedFrom = new Date(
-          toTimestamp.getTime() - (range.minutes ?? 0) * 60_000,
-        );
-        const access = clampToDataAccessDays({
-          plan: context.plan,
-          fromTimestamp: requestedFrom.toISOString(),
-        });
-        const fromTimestamp = access.effectiveFromTimestamp ?? requestedFrom;
-        // Name the range actually queried when the plan shortened it.
-        const timeRangeLabel = access.wasClamped
-          ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
-          : range.label;
-
-        const firstMetric = widget.metrics[0];
-        if (!firstMetric) {
+        if (widget.metrics.length === 0) {
           throw new InvalidRequestError("The widget has no metrics");
         }
-        const query = buildWidgetQuery({
+        const window = resolveTimeWindow(input.timeRange, context);
+        const filters = await resolveFilters(widget, context.projectId, window);
+        const query = buildRenderQuery(widget, filters, window);
+        const rows = await runQuery(query, context.projectId);
+        return toRenderResult({
           widget,
-          // Stored in the dashboard's table-column form, saved or ad hoc.
-          filters: mapLegacyUiTableFilterToView(widget.view, widget.filters),
-          fromTimestamp,
-          toTimestamp,
-          // The view has no sortable header, so a saved pivot's sort applies
-          // here; it decides which rows survive the row limit.
-          sortState:
-            widget.chartConfig.type === "PIVOT_TABLE"
-              ? (sanitizePivotTableDefaultSort(
-                  widget.chartConfig.defaultSort,
-                  widget,
-                ) ?? null)
-              : null,
-          version: VERSION,
-        });
-        // Every row goes into one MCP response, so pivot tables get the same
-        // row limit as other breakdowns. validateQuery rejects unbounded
-        // high-cardinality time series.
-        if (
-          query.chartConfig &&
-          widget.dimensions.length > 0 &&
-          !isTimeSeriesChart(widget.chartType)
-        ) {
-          query.chartConfig.row_limit = query.chartConfig.row_limit ?? 100;
-        }
-
-        const validation = validateQuery(query, VERSION);
-        if (!validation.valid) {
-          throw new InvalidRequestError(validation.reason);
-        }
-        const rows = await executeQuery(
-          context.projectId,
-          query,
-          VERSION,
-          true,
-          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
-        );
-
-        const payload: WidgetPayload = {
-          name: widget.name,
-          description: widget.description,
-          chartType: widget.chartType,
-          chartConfig: widget.chartConfig,
-          view: widget.view,
-          version: VERSION,
-          metrics: widget.metrics,
-          dimensions: widget.dimensions,
           rows,
-          timeRangeLabel,
-        };
-
-        return appToolResult({
-          text: JSON.stringify({
-            note: "Complete summary of the chart's data. Hosts that support MCP Apps also show the chart to the user.",
-            title: widget.name,
-            chartType: widget.chartType,
-            metric: metricAlias(firstMetric),
-            unit: getResultUnit(
-              widget.view,
-              firstMetric.measure,
-              firstMetric.agg,
-              VERSION,
-            ),
-            dimension: widget.dimensions[0]?.field ?? null,
-            timeRange: timeRangeLabel,
-            from: fromTimestamp.toISOString(),
-            to: toTimestamp.toISOString(),
-            ...summarizeWidget({ ...widget, rows }),
-            url,
-          }),
-          // Rows for the MCP App view; hosts keep result _meta from the model.
-          meta: { widget: payload },
+          window,
+          rowLimit: query.chartConfig?.row_limit,
+          url: input.widgetId
+            ? buildDashboardWidgetUrl({
+                projectId: context.projectId,
+                widgetId: input.widgetId,
+              })
+            : buildDashboardsUrl({ projectId: context.projectId }),
         });
       },
     }),

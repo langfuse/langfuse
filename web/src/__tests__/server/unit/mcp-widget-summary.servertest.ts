@@ -32,6 +32,30 @@ describe("summarizeWidget", () => {
     });
   });
 
+  it("gives no total when the rows hit the limit or repeat source rows", () => {
+    const breakdown = (params: {
+      rowLimit?: number;
+      dimensionRepeatsRows?: boolean;
+    }) =>
+      summarizeWidget({
+        rows: [
+          { tags: "a", count_count: 3 },
+          { tags: "b", count_count: 2 },
+        ],
+        chartType: "HORIZONTAL_BAR",
+        metrics: [{ measure: "count", agg: "count" }],
+        dimensions: [{ field: "tags" }],
+        ...params,
+      });
+
+    expect(breakdown({ rowLimit: 10 })).toMatchObject({ total: 5 });
+    expect(breakdown({ rowLimit: 2 })).not.toHaveProperty("total");
+    expect(breakdown({ rowLimit: 2 })).toMatchObject({ rowsLimited: true });
+    expect(breakdown({ dimensionRepeatsRows: true })).not.toHaveProperty(
+      "total",
+    );
+  });
+
   it("keeps histogram bins and every pivot column", () => {
     expect(
       summarizeWidget({

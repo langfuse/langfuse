@@ -2,9 +2,9 @@ import { type DashboardWidgetChartType } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 
 /**
- * The text a `renderWidget` result gives the model: a complete summary of
- * what the chart shows, so the model can talk about it without re-querying.
- * The full rows go only to the MCP App view.
+ * The text a `renderWidget` result gives the model: a summary of what the
+ * chart shows, so the model can talk about it without re-querying. The full
+ * rows go only to the MCP App view.
  */
 
 const MAX_SERIES = 10;
@@ -33,6 +33,13 @@ const round = (value: number) => Number(value.toPrecision(6));
 const isAdditive = (aggregation: string) =>
   aggregation === "sum" || aggregation === "count";
 
+/**
+ * How the rows relate to the data: whether a dimension value can repeat a
+ * source row (array and key-value dimensions), and whether the query's row
+ * limit cut the rows off. Either way, the rows do not add up to a total.
+ */
+type RowShape = { repeatsRows: boolean; limited: boolean };
+
 const peakOf = (points: Point[]) =>
   points.reduce<Point | undefined>(
     (peak, point) => (!peak || point.value > peak.value ? point : peak),
@@ -44,6 +51,7 @@ const summarizeSeries = (
   metricField: string,
   aggregation: string,
   dimensionField: string | undefined,
+  shape: RowShape,
 ) => {
   const bySeries = new Map<string, Point[]>();
   // Every bucket's summed value, also for buckets without data.
@@ -81,7 +89,10 @@ const summarizeSeries = (
     (a, b) => (b.total ?? b.peak?.value ?? 0) - (a.total ?? a.peak?.value ?? 0),
   );
 
-  const bucketTotals = additive
+  // Series overlap when a dimension repeats rows, so buckets then have no
+  // meaningful total across series.
+  const addsAcrossSeries = additive && !shape.repeatsRows;
+  const bucketTotals = addsAcrossSeries
     ? sortedBuckets.map((time) => ({ time, value: bucketSums.get(time) ?? 0 }))
     : [];
   const peakBucket = peakOf(bucketTotals);
@@ -92,7 +103,7 @@ const summarizeSeries = (
       first: sortedBuckets[0] ?? null,
       last: sortedBuckets.at(-1) ?? null,
     },
-    ...(additive
+    ...(addsAcrossSeries
       ? {
           total: round(bucketTotals.reduce((sum, b) => sum + b.value, 0)),
           peakBucket: peakBucket && {
@@ -113,6 +124,7 @@ const summarizeBreakdown = (
   metricField: string,
   aggregation: string,
   dimensionField: string | undefined,
+  shape: RowShape,
 ) => {
   const entries = rows
     .map((row) => ({
@@ -124,10 +136,13 @@ const summarizeBreakdown = (
     )
     .sort((a, b) => b.value - a.value)
     .map((entry) => ({ ...entry, value: round(entry.value) }));
+  const addsUp =
+    isAdditive(aggregation) && !shape.repeatsRows && !shape.limited;
   return {
-    ...(isAdditive(aggregation)
+    ...(addsUp
       ? { total: round(entries.reduce((sum, e) => sum + e.value, 0)) }
       : {}),
+    ...(shape.limited ? { rowsLimited: true } : {}),
     entries: entries.slice(0, MAX_ENTRIES),
     ...(entries.length > MAX_ENTRIES
       ? { entriesOmitted: entries.length - MAX_ENTRIES }
@@ -140,7 +155,9 @@ const summarizeTable = (
   rows: Row[],
   dimensionFields: string[],
   metricFields: string[],
+  shape: RowShape,
 ) => ({
+  ...(shape.limited ? { rowsLimited: true } : {}),
   rows: rows.slice(0, MAX_ENTRIES).map((row) => ({
     ...Object.fromEntries(
       dimensionFields.map((field) => [field, toLabel(row[field])]),
@@ -180,8 +197,16 @@ export function summarizeWidget(params: {
   chartType: DashboardWidgetChartType;
   metrics: { measure: string; agg: string }[];
   dimensions: { field: string }[];
+  /** The query's row limit, if any. */
+  rowLimit?: number;
+  /** Whether the first dimension can return one source row more than once. */
+  dimensionRepeatsRows?: boolean;
 }) {
   const { rows, chartType } = params;
+  const shape: RowShape = {
+    repeatsRows: params.dimensionRepeatsRows ?? false,
+    limited: params.rowLimit !== undefined && rows.length >= params.rowLimit,
+  };
   const metricFields = params.metrics.map((m) => `${m.agg}_${m.measure}`);
   const dimensionFields = params.dimensions.map((d) => d.field);
   const metricField = metricFields[0] ?? "";
@@ -195,9 +220,9 @@ export function summarizeWidget(params: {
     return summarizeHistogram(rows, metricField);
   }
   if (chartType === "PIVOT_TABLE") {
-    return summarizeTable(rows, dimensionFields, metricFields);
+    return summarizeTable(rows, dimensionFields, metricFields, shape);
   }
   return isTimeSeriesChart(chartType)
-    ? summarizeSeries(rows, metricField, aggregation, dimensionField)
-    : summarizeBreakdown(rows, metricField, aggregation, dimensionField);
+    ? summarizeSeries(rows, metricField, aggregation, dimensionField, shape)
+    : summarizeBreakdown(rows, metricField, aggregation, dimensionField, shape);
 }
