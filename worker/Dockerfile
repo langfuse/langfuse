@@ -30,7 +30,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.9 pnpm@12.16.1
+RUN npm install --global --prefix /opt/js-tools turbo@2.11.9 pnpm@12.16.1
+ENV PATH="/opt/js-tools/bin:${PATH}"
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -112,10 +113,8 @@ WORKDIR /app
 COPY . .
 RUN turbo prune worker --docker
 
-# UBI build toolchain: RPM Node, pnpm, turbo, gcc and Rust. CI's tests-fips job
-# also runs the web and worker test suites on this stage with the OpenSSL FIPS
-# provider forced on (scripts/ci/fips-tests.sh).
-FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS toolchain
+# BuildKit can install Rust while build-base downloads the JavaScript tools.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS rust-toolchain
 
 ARG TARGETARCH
 
@@ -143,6 +142,9 @@ RUN set -eux; \
     --components=rustc,cargo,rust-std-${triple}; \
     rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
+# These tools are needed to ship the addon, not to exercise it in FIPS mode.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} rust-toolchain AS audit-tools
+
 # cargo-about renders the third-party license notices for the native addon's
 # Rust dependencies. cargo-auditable embeds the addon's resolved dependency
 # list in the .node binary so image scanners (Trivy, Grype, Docker Scout) can
@@ -155,6 +157,12 @@ RUN cargo install --locked --root /usr/local --features cli cargo-about@0.9.2 &&
     rm -rf "${CARGO_HOME:-$HOME/.cargo}/registry" && \
     printf '#!/bin/sh\nexec /usr/local/bin/cargo auditable "$@"\n' > /usr/local/bin/cargo-auditable-shim && \
     chmod 0755 /usr/local/bin/cargo-auditable-shim
+
+# FIPS tests target this stage. Keep Red Hat's Node and OpenSSL for both suites.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} rust-toolchain AS toolchain
+COPY --from=build-base /opt/js-tools /opt/js-tools
+ENV PATH="/opt/js-tools/bin:${PATH}"
+ARG NODE_USE_ENV_PROXY
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} toolchain AS builder
 
@@ -184,6 +192,9 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# Only the audited build needs these binaries; the dependency install above can
+# run while audit-tools compiles them.
+COPY --from=audit-tools /usr/local/bin/cargo-about /usr/local/bin/cargo-auditable /usr/local/bin/cargo-auditable-shim /usr/local/bin/
 RUN CARGO=/usr/local/bin/cargo-auditable-shim turbo run build --filter=worker...
 
 # Runs after the build so `cargo fetch` adds the sources the build skipped (dev
