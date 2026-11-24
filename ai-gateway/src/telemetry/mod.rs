@@ -29,8 +29,8 @@ use crate::{
     capture::{InferenceFacts, InputOmissionReason},
     resolution::{ControlPlaneConfig, ProjectId, ResolutionError, ResolvedRequestContext},
 };
-use batch::{BatchPolicy, Batches, Pending};
 pub(crate) use batch::DEFAULT_BATCH_LINGER_MS;
+use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;

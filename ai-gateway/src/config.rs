@@ -1052,7 +1052,14 @@ mod tests {
                 Duration::from_millis(value)
             );
         }
-        for value in ["", "-1", "60001", "1.5", "5s", "secret-that-must-not-appear"] {
+        for value in [
+            "",
+            "-1",
+            "60001",
+            "1.5",
+            "5s",
+            "secret-that-must-not-appear",
+        ] {
             let error = telemetry_batch_linger(Some(value)).err().unwrap();
             assert_eq!(
                 error.to_string(),
