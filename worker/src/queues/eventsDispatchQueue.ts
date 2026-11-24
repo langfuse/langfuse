@@ -10,6 +10,7 @@ import {
 import { JOB_MAX_AGE_MS } from "../features/eventsDispatch/consumers";
 import { processEventsDispatchJob } from "../features/eventsDispatch/eventsDispatch";
 import { isEventsDispatchEnabled } from "../features/eventsDispatch/config";
+import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 
 export const eventsDispatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.EventsDispatch]
@@ -48,8 +49,7 @@ export const eventsDispatchQueueProcessor: Processor<
       try {
         return await processEventsDispatchJob(event);
       } catch (error) {
-        if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1))
-          lost("job_failed");
+        if (isFinalBullmqAttempt(job, error)) lost("job_failed");
         throw error;
       }
     },
