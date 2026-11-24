@@ -2,10 +2,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  createMcpEvaluatorService,
-  toMcpEvaluator,
-} from "../evaluator-service";
+import { createMcpEvaluatorService } from "../evaluator-service";
 
 const ListEvaluatorsInput = z.object({
   page: z.number().int().positive().default(1),
@@ -36,7 +33,7 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
           limit: input.limit,
         });
         const data = evaluators.map((evaluator) => ({
-          ...toMcpEvaluator(evaluator),
+          ...evaluator,
           url: buildEvaluatorUrl({
             projectId: context.projectId,
             evaluatorId: evaluator.id,

@@ -2,10 +2,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  createMcpEvaluatorService,
-  toMcpEvaluator,
-} from "../evaluator-service";
+import { createMcpEvaluatorService } from "../evaluator-service";
 import { EVALUATOR_ID_DESCRIPTION } from "./evaluatorInput";
 
 const GetEvaluatorInput = z.object({
@@ -31,7 +28,7 @@ export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
         );
 
         return {
-          ...toMcpEvaluator(evaluator),
+          ...evaluator,
           url: buildEvaluatorUrl({
             projectId: context.projectId,
             evaluatorId: evaluator.id,
