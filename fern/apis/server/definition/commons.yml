@@ -490,6 +490,7 @@ types:
         type: boolean
         availability:
           status: deprecated
+          message: Use scope instead.
       createdAt:
         docs: Timestamp when the model was created
         type: datetime
