@@ -1447,7 +1447,10 @@ describe("ClickhouseWriter", () => {
       expect(writer["queue"][TableName.Traces][1].data.id).toBe("3");
 
       await vi.advanceTimersByTimeAsync(100);
-      expect(settled).toEqual([["0", "inserted"], ["1", "inserted"]]);
+      expect(settled).toEqual([
+        ["0", "inserted"],
+        ["1", "inserted"],
+      ]);
 
       // Advance timer again to process the requeued items
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
