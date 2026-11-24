@@ -1397,7 +1397,19 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       },
     ]),
   ],
-  ...[null, false, 0, 5e-324, true, "", [], [1], { name: "nested" }].map(
+  ...[
+    null,
+    false,
+    0,
+    5e-324,
+    true,
+    "",
+    [],
+    [1],
+    { name: "nested" },
+    { toString: null },
+    [{ toString: null }],
+  ].map(
     (name) =>
       ["none", "object", "stringified"].map((attributes) => ({
         scope: "other" as const,

@@ -43,7 +43,9 @@ pub struct NormalizedObservation {
 /// Normalize tool metadata, augment the input when needed, then extract storage columns.
 ///
 /// Append definitions from metadata to input before extracting definitions from it.
-/// Extract tool calls from output in a separate pass.
+/// Extract tool calls from output in a separate pass. A definition name whose JavaScript
+/// property-key conversion throws clears the tool columns. Input, output and metadata stay
+/// as they were after the metadata move, matching the TypeScript `catch`.
 pub fn normalize_tools_for_observation(
     mut input: Option<Value>,
     output: Option<Value>,
@@ -55,17 +57,20 @@ pub fn normalize_tools_for_observation(
         cleanup.apply(&mut metadata, parse_cache);
     }
     let mut columns = ToolColumns::new(parse_cache);
-    if let Some(value) = &input {
-        columns.input(value);
-    }
-    if let Some(value) = &output {
-        columns.output(value);
-    }
+    let tools = match input.as_ref().map(|value| columns.input(value)) {
+        Some(Err(_)) => NormalizedTools::default(),
+        _ => {
+            if let Some(value) = &output {
+                columns.output(value);
+            }
+            columns.finish()
+        }
+    };
     NormalizedObservation {
         input,
         output,
         metadata,
-        tools: columns.finish(),
+        tools,
     }
 }
 
@@ -380,13 +385,63 @@ fn string_value_js(value: &Value) -> Option<JsString> {
     }
 }
 
-fn definition_name_js(value: &Value) -> Option<JsString> {
+/// `Object.defineProperty` rejects this name. The TypeScript normalizer catches that
+/// `TypeError` and drops every tool column.
+#[derive(Debug)]
+struct PropertyKeyTypeError;
+
+fn definition_name_js(value: &Value) -> Result<Option<JsString>, PropertyKeyTypeError> {
     if !is_js_truthy(value) {
-        return None;
+        return Ok(None);
     }
+    if property_key_conversion_throws(value) {
+        return Err(PropertyKeyTypeError);
+    }
+    Ok(Some(match value {
+        Value::String(value) => value.clone(),
+        value => javascript_string(value).into(),
+    }))
+}
+
+/// Whether `ToPropertyKey` throws. Hint String tries `toString`, then `valueOf`.
+///
+/// JSON values are never callable, so an own `toString` hides `Object.prototype.toString`.
+/// `Object.prototype.valueOf` then returns the receiver, which is not a primitive, and
+/// `OrdinaryToPrimitive` throws. A missing own `toString` uses the prototype and yields
+/// `"[object Object]"` without consulting `valueOf`. Arrays have no own `toString` or `join`
+/// after JSON parsing, so `Array.prototype.toString` joins elements and applies the same
+/// conversion to each one. `null` elements become empty strings and do not throw.
+fn property_key_conversion_throws(value: &Value) -> bool {
     match value {
-        Value::String(value) => Some(value.clone()),
-        _ => Some(javascript_string(value).into()),
+        Value::Array(values) => values.iter().any(property_key_conversion_throws),
+        Value::Object(object) => ordinary_to_primitive_throws(object),
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
+    }
+}
+
+fn ordinary_to_primitive_throws(object: &JsonObject) -> bool {
+    let Some(to_string) = object.get("toString") else {
+        return false;
+    };
+    if is_js_callable(to_string) {
+        return false;
+    }
+    // Own `toString` was not callable. A callable `valueOf` would be invoked next and
+    // could still produce a primitive. JSON cannot store one, and the prototype method
+    // returns this object, so the conversion throws.
+    !object.get("valueOf").is_some_and(is_js_callable)
+}
+
+/// `IsCallable` for a JSON value. None of these shapes are functions, so an own
+/// `toString` or `valueOf` property shadows the prototype method and is skipped.
+fn is_js_callable(value: &Value) -> bool {
+    match value {
+        Value::Null
+        | Value::Bool(_)
+        | Value::Number(_)
+        | Value::String(_)
+        | Value::Array(_)
+        | Value::Object(_) => false,
     }
 }
 
@@ -754,6 +809,29 @@ mod tests {
         assert!(normalized.tools.tool_call_names.is_empty());
         assert_eq!(normalized.input, Some(input));
         assert_eq!(normalized.output, Some(output));
+    }
+
+    #[test]
+    fn drops_tool_definitions_when_a_definition_name_cannot_be_a_property_key() {
+        let normalized = normalize(
+            None,
+            None,
+            json!({
+                "attributes": {
+                    "ai.prompt.tools": [
+                        {"name": {"toString": null}},
+                        {"name": "a"}
+                    ]
+                }
+            }),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+        assert_eq!(
+            normalized.input.unwrap()["tools"].as_array().unwrap().len(),
+            2
+        );
     }
 
     #[test]

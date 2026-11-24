@@ -34,53 +34,59 @@ impl<'a> ToolColumns<'a> {
         self.result
     }
 
-    pub(super) fn input(&mut self, value: &Value) {
+    pub(super) fn input(&mut self, value: &Value) -> Result<(), super::PropertyKeyTypeError> {
         let parsed = self.cache.shared_or_self(value);
         if let Some(tools) = parsed.get("tools") {
-            self.definitions(tools);
+            self.definitions(tools)?;
         }
         let messages = parsed
             .as_array()
             .or_else(|| parsed.get("messages").and_then(Value::as_array));
         for message in messages.into_iter().flatten() {
             if let Some(tools) = message.get("tools") {
-                self.definitions(tools);
+                self.definitions(tools)?;
             }
             if message.get("role").and_then(Value::as_str) == Some("tool") {
                 if let Some(content) = message.get("content").filter(|content| {
                     content.get("type").and_then(Value::as_str) == Some("function")
                         && content.get("function").is_some_and(is_js_truthy)
                 }) {
-                    self.definition(content);
+                    self.definition(content)?;
                 }
             }
         }
+        Ok(())
     }
 
-    fn definitions(&mut self, value: &Value) {
+    fn definitions(&mut self, value: &Value) -> Result<(), super::PropertyKeyTypeError> {
         if let Some(values) = value.as_array() {
             for value in values {
-                self.definition(value);
+                self.definition(value)?;
             }
         }
+        Ok(())
     }
 
-    fn definition(&mut self, value: &Value) {
+    fn definition(&mut self, value: &Value) -> Result<(), super::PropertyKeyTypeError> {
         let parsed = self.cache.shared_or_self(value);
         let Some(data) = definition_data(&parsed) else {
-            return;
+            return Ok(());
         };
-        let Some(name) = data.get("name").and_then(definition_name_js) else {
-            return;
+        let name = match data.get("name") {
+            Some(name) => definition_name_js(name)?,
+            None => None,
+        };
+        let Some(name) = name else {
+            return Ok(());
         };
         // Index columns use UTF-8 names. Store a key containing an unpaired UTF-16 surrogate only
         // in the payload because lossy replacement would merge distinct names.
         if name.as_utf8().is_none() {
-            return;
+            return Ok(());
         }
         if let Some(identity) = data.get("name").and_then(super::definition_name_identity) {
             if !self.names.insert(identity) {
-                return;
+                return Ok(());
             }
         }
         let description = first(data, &["description", "desc"])
@@ -101,6 +107,7 @@ impl<'a> ToolColumns<'a> {
             name.into_utf8_lossy(),
             javascript_json_stringify(&normalized),
         );
+        Ok(())
     }
 
     pub(super) fn output(&mut self, value: &Value) {
