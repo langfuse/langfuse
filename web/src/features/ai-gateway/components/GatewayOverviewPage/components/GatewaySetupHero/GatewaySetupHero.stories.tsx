@@ -23,32 +23,7 @@ export const NotStarted = meta.story({
   },
 });
 
-export const ProviderConnected = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: false },
-      { provider: "BEDROCK", isConnected: false },
-    ],
-  },
-});
-
-/** Every provider, OpenRouter, xAI, Vercel and Vertex AI included. */
-export const WithAllProviders = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
-      { provider: "BEDROCK", isConnected: false },
-      { provider: "OPENROUTER", isConnected: false },
-      { provider: "XAI", isConnected: false },
-      { provider: "VERCEL", isConnected: false },
-      { provider: "VERTEX", isConnected: false },
-    ],
-  },
-});
-
-/** Every provider plus "More soon", as in the Models empty state. */
+/** Every provider plus "More soon". */
 export const SwitchboardWithAllRows = meta.story({
   name: "(Test) All switchboard rows stay inside the diagram",
   args: { providers: [] },
