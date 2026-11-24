@@ -42,9 +42,6 @@ export function RuleFilterStep({
   const scopeSelectable =
     (traceEvalsAvailable || isTraceTranscript) &&
     targetObject !== EvalTargetObject.EXPERIMENT;
-  const observationTargetObject = isTraceTranscript
-    ? EvalTargetObject.EVENT
-    : targetObject;
   const scopeLocked = mode === "edit";
   const copy = ruleScopeCopy(targetObject, scopeSelectable);
   return (
@@ -62,10 +59,10 @@ export function RuleFilterStep({
           <label className="flex items-center gap-2 text-sm">
             <Radio
               name={scopeGroupName}
-              value={observationTargetObject}
+              value={EvalTargetObject.EVENT}
               checked={!isTraceTranscript}
               disabled={scopeLocked}
-              onChange={() => actions.setTargetObject(observationTargetObject)}
+              onChange={() => actions.setTargetObject(EvalTargetObject.EVENT)}
             />
             Observation
           </label>

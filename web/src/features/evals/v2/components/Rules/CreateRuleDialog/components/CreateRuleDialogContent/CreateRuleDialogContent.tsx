@@ -72,11 +72,10 @@ export function CreateRuleDialogContent({
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const [ruleSetupStore] = useState(() => {
-    const observationTargetObject = targetObject ?? EvalTargetObject.EVENT;
     const ruleTargetObject =
       traceEvalsAvailable && initialTargetObject === TopicsTargetObject
         ? TopicsTargetObject
-        : observationTargetObject;
+        : (targetObject ?? EvalTargetObject.EVENT);
     const observationFilter = resolveInitialRuleFilters(initialFilter);
     const defaultFilterFor = (target: RuleTargetObject): FilterState =>
       target === TopicsTargetObject ? [] : observationFilter;
