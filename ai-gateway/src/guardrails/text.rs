@@ -107,41 +107,14 @@ fn collect_source(
     }
 }
 
-/// Sends a JSON string to `sink`; other values hold no text. A lone surrogate
-/// escape, which a Rust string cannot hold, is read as U+FFFD, so the text around
-/// it is still scanned.
+/// Sends a JSON string to `sink`; other values hold no text. A string a Rust
+/// string cannot hold, such as one with a lone surrogate escape, is unreadable.
 fn collect_string(raw: &RawValue, sink: &mut dyn FnMut(&str)) -> Result<(), Unreadable> {
     if !raw.get().starts_with('"') {
         return Ok(());
     }
-    let text = string(raw)
-        .or_else(|| lossy_string(raw.get()).map(Cow::Owned))
-        .ok_or(Unreadable)?;
-    sink(&text);
+    sink(&string(raw).ok_or(Unreadable)?);
     Ok(())
-}
-
-fn lossy_string(raw: &str) -> Option<String> {
-    let mut repaired = String::with_capacity(raw.len());
-    let mut rest = raw;
-    while let Some(index) = rest.find('\\') {
-        let (before, escape) = rest.split_at(index);
-        repaired.push_str(before);
-        let surrogate = escape
-            .get(2..6)
-            .filter(|_| escape.as_bytes().get(1) == Some(&b'u'))
-            .and_then(|hex| u16::from_str_radix(hex, 16).ok())
-            .is_some_and(|unit| (0xD800..=0xDFFF).contains(&unit));
-        let (kept, next) = if surrogate {
-            ("\\ufffd", escape.get(6..)?)
-        } else {
-            (escape.get(..2)?, escape.get(2..)?)
-        };
-        repaired.push_str(kept);
-        rest = next;
-    }
-    repaired.push_str(rest);
-    serde_json::from_str(&repaired).ok()
 }
 
 /// Calls `visit` with each value of the JSON object `raw`, duplicated keys included.
@@ -383,17 +356,9 @@ mod tests {
     }
 
     #[test]
-    fn a_lone_surrogate_escape_is_read_lossily() {
-        assert_eq!(
-            texts(r#""ssn 123-45-6789 \ud83d""#).unwrap(),
-            ["ssn 123-45-6789 \u{fffd}"]
-        );
-        assert_eq!(
-            texts(r#"[{"type":"text","text":"\udc00 card"}]"#).unwrap(),
-            ["\u{fffd} card"]
-        );
-        // An escaped backslash before `u` is text, not an escape.
-        assert_eq!(texts(r#""\\ud83d""#).unwrap(), ["\\ud83d"]);
+    fn a_lone_surrogate_escape_is_unreadable() {
+        assert!(texts(r#""ssn 123-45-6789 \ud83d""#).is_err());
+        assert!(texts(r#"[{"type":"text","text":"\udc00 card"}]"#).is_err());
     }
 
     #[test]
