@@ -137,7 +137,7 @@ const appliesToColumn = createTableColumn<
 const flaggedColumn = createNumberTableColumn<GatewayGuardrailRow>({
   accessorFn: (row) => row.flaggedCount7d,
   id: "flagged7d",
-  header: "Flagged, 7d",
+  header: "Flagged 7d",
   size: 120,
   enableResizing: false,
   formatter: (value) => numberFormatter(value, 0),
