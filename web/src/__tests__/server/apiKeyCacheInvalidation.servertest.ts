@@ -488,7 +488,7 @@ describe("API-key cache invalidation on membership role changes", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
-  it("groups.removeMember evicts the removed member's USER keys", async () => {
+  it("groups.removeMember evicts the removed member's USER keys and gateway resolve cache", async () => {
     const orgId = await createOrg();
     const admin = await createUserInOrgs([orgId]);
     const member = await createUserInOrgs([orgId]);
@@ -501,7 +501,20 @@ describe("API-key cache invalidation on membership role changes", () => {
         orgMembershipId: await orgMembershipIdOf(orgId, member.id),
       },
     });
-    const keys = await seedUserScopedKey(orgId, member.id);
+    const { publicKey, secretKey } = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: UserId(member.id),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId(member.id),
+    });
+    const fastHash = createShaHash(secretKey, env.SALT!);
+    const keys = [
+      ...cacheKeysFor({ fastHash, publicKey }),
+      `ai-gateway:resolve:context:openai.responses:${fastHash}`,
+    ];
+    for (const key of keys) {
+      await setRedisValue(redis, key, "1");
+    }
 
     const caller = makeCaller({
       userId: admin.id,

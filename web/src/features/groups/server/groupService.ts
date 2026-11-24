@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
 import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 type Tx = Prisma.TransactionClient;
 
@@ -22,16 +23,26 @@ export async function groupMemberUserIds(
   return members.map((m) => m.organizationMembership.userId);
 }
 
-/** evictAuthCaches removes the cached credentials of the users' USER keys in orgId, whose policies include their group roles; call after a group change commits. */
+/** evictAuthCaches drops the cached access of the users' keys in orgId, which depends on their group roles: the credentials of USER keys and the gateway resolve context of every key. Call after a group change commits. */
 export async function evictAuthCaches(
   db: Tx,
   { orgId, userIds }: { orgId: string; userIds: string[] },
 ) {
   if (userIds.length === 0) return;
   const apiKeys = await db.apiKey.findMany({
-    where: { orgId, userId: { in: userIds }, scope: "USER" },
+    where: { orgId, userId: { in: userIds } },
   });
-  await invalidateCachedApiKeys(apiKeys, `group members in org ${orgId}`);
+  await invalidateCachedApiKeys(
+    apiKeys.filter((key) => key.scope === "USER"),
+    `group members in org ${orgId}`,
+  );
+  await Promise.all(
+    apiKeys.map((key) =>
+      key.fastHashedSecretKey
+        ? invalidateGatewayResolveCacheForApiKey(key.fastHashedSecretKey)
+        : undefined,
+    ),
+  );
 }
 
 export class GroupMembersNotInOrgError extends InvalidRequestError {
