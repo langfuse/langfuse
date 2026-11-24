@@ -312,7 +312,14 @@ impl OpenAiResponsesCapture {
 /// produced (an assistant message, a tool call or reasoning): the user's message or
 /// the outputs of the model's tool calls. Instructions count only on the first turn.
 /// The top-level members guardrails scan.
-pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input", "instructions"];
+/// `previous_response_id` and `conversation` are only read to tell whether earlier
+/// turns are stored upstream.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
+    "input",
+    "instructions",
+    "previous_response_id",
+    "conversation",
+];
 
 #[derive(serde::Deserialize)]
 struct GuardrailItem<'a> {
@@ -364,7 +371,15 @@ pub(super) fn guardrail_last_turn<'a>(
         }
         None => false,
     };
-    if !had_model_item && let Some(instructions) = member("instructions") {
+    // Instructions are resent on every turn, also when the provider stores the earlier
+    // turns, so they are scanned only on the first one.
+    let continues = ["previous_response_id", "conversation"]
+        .into_iter()
+        .any(|name| member(name).is_some_and(|value| value != "null"));
+    if !had_model_item
+        && !continues
+        && let Some(instructions) = member("instructions")
+    {
         let instructions: &serde_json::value::RawValue =
             serde_json::from_str(instructions).map_err(|_| crate::guardrails::text::Unreadable)?;
         crate::guardrails::text::collect(instructions, sink)?;

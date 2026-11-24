@@ -1142,12 +1142,17 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
 }
 
 fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
+    guardrail_scan_members(&[("instructions", instructions), ("input", input)])
+}
+
+fn guardrail_scan_members(members: &[(&str, &str)]) -> Vec<String> {
     let mut texts = Vec::new();
     guardrail_last_turn(
-        |name| match name {
-            "instructions" => Some(instructions),
-            "input" => Some(input),
-            _ => None,
+        |name| {
+            members
+                .iter()
+                .find(|(member, _)| *member == name)
+                .map(|(_, value)| *value)
         },
         &mut |text: &str| texts.push(text.to_owned()),
     )
@@ -1170,4 +1175,18 @@ fn the_last_turn_follows_the_last_item_the_model_produced() {
         ),
         ["result a", "result b"]
     );
+}
+
+#[test]
+fn instructions_are_scanned_only_when_no_earlier_turn_is_stored_upstream() {
+    let scan = |previous: (&str, &str)| {
+        guardrail_scan_members(&[
+            ("instructions", r#""sys""#),
+            ("input", r#"[{"role":"user","content":"hello"}]"#),
+            previous,
+        ])
+    };
+    assert_eq!(scan(("previous_response_id", r#""resp_1""#)), ["hello"]);
+    assert_eq!(scan(("conversation", r#""conv_1""#)), ["hello"]);
+    assert_eq!(scan(("previous_response_id", "null")), ["hello", "sys"]);
 }
