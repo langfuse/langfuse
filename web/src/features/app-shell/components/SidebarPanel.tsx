@@ -34,7 +34,7 @@ function SidebarPanelSection({ children }: { children: ReactNode }) {
 
 function SidebarPanelBody({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="scroll-fade-y flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
       {children}
     </div>
   );
@@ -45,7 +45,11 @@ function SidebarPanelSpacer() {
 }
 
 function SidebarPanelFooter({ children }: { children: ReactNode }) {
-  return <div className="shrink-0 px-2 pb-2">{children}</div>;
+  return (
+    <div className="border-sidebar-border shrink-0 border-t p-2">
+      {children}
+    </div>
+  );
 }
 
 /** Layout slots of the sidebar panel; the same panel renders expanded, in the icon rail, and in the mobile menu. */

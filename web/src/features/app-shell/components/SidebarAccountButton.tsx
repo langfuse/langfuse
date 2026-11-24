@@ -4,30 +4,31 @@ import { type ComponentProps } from "react";
 import { ChevronsUpDown } from "@langfuse/icons";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { type SidebarUser } from "@/src/features/app-shell/components/SidebarUserMenu";
-import { useSidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
+import { type SidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 
 /** The signed-in user's row; rendered under the account menu's `Trigger asChild`. */
 export function SidebarAccountButton({
   user,
+  surface,
   ...buttonProps
-}: { user: SidebarUser } & Omit<
+}: { user: SidebarUser; surface: SidebarSurface } & Omit<
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
-  const surface = useSidebarSurface();
   return (
     <button
       type="button"
       aria-label={`Account menu for ${user.name || user.email}`}
+      data-surface={surface}
       className={cn(
-        "ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring rounded-md outline-hidden transition-colors focus-visible:ring-2",
+        "ph-no-capture hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-sidebar-ring rounded-md text-sm leading-tight outline-hidden focus-visible:ring-2",
         motion.account,
       )}
       {...buttonProps}
     >
       <span className={motion.iconLane}>
         <Avatar
-          size="md"
+          size="sm"
           shape="rounded"
           src={user.avatar}
           displayName={user.name}
