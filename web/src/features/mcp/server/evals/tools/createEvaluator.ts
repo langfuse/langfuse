@@ -4,7 +4,10 @@ import {
   buildEvaluatorUrl,
   DECISION_MODEL_CONNECTIONS_HINT,
 } from "@langfuse/shared/src/server";
-import { createMcpEvaluatorService } from "../evaluator-service";
+import {
+  createMcpEvaluatorService,
+  toMcpEvaluator,
+} from "../evaluator-service";
 import {
   EVALUATOR_DEFINITION_FIELDS_DESCRIPTION,
   McpEvaluatorInput,
@@ -45,7 +48,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
         );
         span.setAttribute("mcp.evaluator_id", evaluator.id);
         return {
-          ...evaluator,
+          ...toMcpEvaluator(evaluator),
           url: buildEvaluatorUrl({
             projectId: context.projectId,
             evaluatorId: evaluator.id,
