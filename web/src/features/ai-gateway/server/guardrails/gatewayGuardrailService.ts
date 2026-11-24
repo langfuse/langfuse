@@ -3,7 +3,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { Prisma, Role, type PrismaClient } from "@langfuse/shared/src/db";
 import { MAX_TIME_SERIES_BREAKDOWN_VALUES } from "@langfuse/shared/query";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
@@ -28,7 +28,13 @@ import {
   GatewayGuardrailRepository,
   type GatewayGuardrailRecord,
 } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailRepository";
-import { encodeBedrockCredential } from "@/src/features/ai-gateway/server/provider/bedrock";
+import {
+  bedrockRuntimeOrigin,
+  decodeBedrockApiKey,
+  encodeBedrockCredential,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
 import type { GatewayCachedGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
@@ -53,6 +59,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_NAME_MESSAGE = "A guardrail with this name already exists";
+const EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS = 10_000;
+const GUARDRAIL_TEST_FAILED_MESSAGE = "Guardrail test failed";
 
 export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
@@ -242,6 +250,26 @@ export class GatewayGuardrailService {
     });
   }
 
+  async test(params: {
+    organizationId: string;
+    id?: string;
+    type: "BEDROCK";
+    bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
+  }) {
+    const config = GatewayBedrockGuardrailConfigSchema.parse({
+      guardrailId: params.bedrock.guardrailId,
+      guardrailVersion: params.bedrock.guardrailVersion,
+      region: params.bedrock.region,
+    });
+    const apiKey = await this.resolveBedrockApiKey({
+      organizationId: params.organizationId,
+      id: params.id,
+      apiKey: params.bedrock.apiKey,
+    });
+    await validateBedrockGuardrail({ ...config, apiKey });
+    return { success: true as const };
+  }
+
   async create(
     params: {
       organizationId: string;
@@ -266,11 +294,16 @@ export class GatewayGuardrailService {
     let encryptedCredential: string | null = null;
     let ruleBytes: number | null = null;
     if (params.type === "BEDROCK") {
-      config = GatewayBedrockGuardrailConfigSchema.parse({
+      const bedrockConfig = GatewayBedrockGuardrailConfigSchema.parse({
         guardrailId: params.bedrock.guardrailId,
         guardrailVersion: params.bedrock.guardrailVersion,
         region: params.bedrock.region,
       });
+      await validateBedrockGuardrail({
+        ...bedrockConfig,
+        apiKey: params.bedrock.apiKey,
+      });
+      config = bedrockConfig;
       encryptedCredential = encrypt(
         encodeBedrockCredential(params.bedrock.apiKey),
       );
@@ -346,6 +379,39 @@ export class GatewayGuardrailService {
         }
     ),
   ) {
+    if (params.type === "BEDROCK") {
+      const existingCredential = await this.repository.findCredentialById({
+        organizationId: params.organizationId,
+        id: params.id,
+      });
+      if (!existingCredential) {
+        throw new LangfuseNotFoundError("Guardrail not found");
+      }
+      if (existingCredential.type !== "BEDROCK") {
+        throw new InvalidRequestError("Guardrail type cannot be changed");
+      }
+      const nextConfig = GatewayBedrockGuardrailConfigSchema.parse({
+        guardrailId: params.bedrock.guardrailId,
+        guardrailVersion: params.bedrock.guardrailVersion,
+        region: params.bedrock.region,
+      });
+      const existingConfig = GatewayBedrockGuardrailConfigSchema.safeParse(
+        existingCredential.config,
+      );
+      const isBedrockConfigChanged =
+        params.bedrock.apiKey !== undefined ||
+        !existingConfig.success ||
+        existingConfig.data.guardrailId !== nextConfig.guardrailId ||
+        existingConfig.data.guardrailVersion !== nextConfig.guardrailVersion ||
+        existingConfig.data.region !== nextConfig.region;
+      if (isBedrockConfigChanged) {
+        const apiKey =
+          params.bedrock.apiKey ??
+          decryptStoredBedrockApiKey(existingCredential.encryptedCredential);
+        await validateBedrockGuardrail({ ...nextConfig, apiKey });
+      }
+    }
+
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
       const existing = await repo.findById({
@@ -523,6 +589,26 @@ export class GatewayGuardrailService {
     return { updatedCount };
   }
 
+  private async resolveBedrockApiKey(params: {
+    organizationId: string;
+    id?: string;
+    apiKey?: string;
+  }): Promise<string> {
+    if (params.apiKey) return params.apiKey;
+    if (!params.id) {
+      throw new InvalidRequestError("Enter a Bedrock API key");
+    }
+    const existing = await this.repository.findCredentialById({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
+    if (existing.type !== "BEDROCK") {
+      throw new InvalidRequestError("Guardrail is not a Bedrock guardrail");
+    }
+    return decryptStoredBedrockApiKey(existing.encryptedCredential);
+  }
+
   private async resolveBulkTargetIds(
     organizationId: string,
     target: GatewayGuardrailDeleteTarget,
@@ -640,6 +726,83 @@ export class GatewayGuardrailService {
       });
       return null;
     }
+  }
+}
+
+function decryptStoredBedrockApiKey(
+  encryptedCredential: string | null,
+): string {
+  if (!encryptedCredential) {
+    throw new InvalidRequestError("Enter a Bedrock API key");
+  }
+  return decodeBedrockApiKey(decrypt(encryptedCredential));
+}
+
+async function validateBedrockGuardrail(
+  params: GatewayBedrockGuardrailConfig & { apiKey: string },
+) {
+  const origin = bedrockRuntimeOrigin({ region: params.region });
+  const url = `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`;
+  const fetcher = getGatewayFetch({
+    baseURL: null,
+    extraHeaders: {},
+    logContext: "AI Gateway Bedrock guardrail validation",
+  });
+
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS),
+      headers: {
+        authorization: `Bearer ${params.apiKey}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        source: "INPUT",
+        content: [{ text: { text: "Hello" } }],
+      }),
+    });
+  } catch (error) {
+    if (error instanceof InvalidRequestError) throw error;
+    throw new ProviderCredentialRejectedError(
+      {
+        status: null,
+        body: "Could not reach Amazon Bedrock in the selected region.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
+  }
+
+  const body = await response.text().catch(() => "");
+  if (!response.ok) {
+    throw new ProviderCredentialRejectedError(
+      {
+        status: response.status,
+        body:
+          body || response.statusText || "Amazon Bedrock rejected the request.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
+  }
+
+  let action: unknown;
+  try {
+    const parsed = JSON.parse(body) as { action?: unknown };
+    action = parsed.action;
+  } catch {
+    action = null;
+  }
+  if (action !== "NONE" && action !== "GUARDRAIL_INTERVENED") {
+    throw new ProviderCredentialRejectedError(
+      {
+        status: response.status,
+        body: "Unexpected response from Amazon Bedrock.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
   }
 }
 

@@ -11,6 +11,7 @@ import {
   requireGatewayGuardrailsRead,
 } from "@/src/features/ai-gateway/server/gatewayAccess";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import {
   GatewayBedrockGuardrailCreateInputSchema,
   GatewayBedrockGuardrailUpdateInputSchema,
@@ -24,6 +25,7 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 
 const organizationInput = z.object({ orgId: z.string() });
@@ -224,7 +226,38 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       });
     }),
 
-  create: protectedOrganizationProcedure
+  test: protectedOrganizationProcedureWithoutTracing
+    .input(
+      organizationInput.extend({
+        id: z.string().optional(),
+        type: z.literal("BEDROCK"),
+        bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      try {
+        return await new GatewayGuardrailService(ctx.prisma).test({
+          organizationId: input.orgId,
+          id: input.id,
+          type: input.type,
+          bedrock: input.bedrock,
+        });
+      } catch (error) {
+        if (error instanceof ProviderCredentialRejectedError) {
+          return {
+            success: false as const,
+            providerResponse: error.providerResponse,
+          };
+        }
+        throw error;
+      }
+    }),
+
+  create: protectedOrganizationProcedureWithoutTracing
     .input(createGuardrailInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({
@@ -256,7 +289,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       });
     }),
 
-  update: protectedOrganizationProcedure
+  update: protectedOrganizationProcedureWithoutTracing
     .input(updateGuardrailInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({

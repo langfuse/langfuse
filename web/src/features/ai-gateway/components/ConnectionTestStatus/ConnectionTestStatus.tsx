@@ -7,6 +7,8 @@ import {
   type ConnectionTestFailure,
 } from "@/src/features/ai-gateway/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
 
+export type { ConnectionTestFailure };
+
 const STATUS_DISPLAY = {
   pending: {
     label: "Testing connection…",

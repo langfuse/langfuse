@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared/memberships";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { env } from "@/src/env.mjs";
@@ -116,6 +116,7 @@ const createGuardrail = async (params: {
 
 afterEach(() => {
   Object.assign(env, originalEnv);
+  vi.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -750,7 +751,16 @@ describe("aiGateway guardrails tRPC", () => {
       role: Role.OWNER,
     });
 
-    // Rejects invalid guardrail ID, version, or region
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ action: "NONE" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    // Rejects invalid guardrail ID, version, or region before calling AWS
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
@@ -766,6 +776,77 @@ describe("aiGateway guardrails tRPC", () => {
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Test endpoint returns provider response when AWS rejects the key
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Access denied" }), {
+        status: 403,
+        statusText: "Forbidden",
+      }),
+    );
+    const failedTest = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bad-key",
+      },
+    });
+    expect(failedTest).toEqual({
+      success: false,
+      providerResponse: {
+        status: 403,
+        statusText: "Forbidden",
+        body: JSON.stringify({ message: "Access denied" }),
+      },
+    });
+
+    // Save rejects if Bedrock rejects the guardrail test
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Guardrail not found" }), {
+        status: 404,
+      }),
+    );
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "BEDROCK",
+        name: "Missing guardrail",
+        action: "BLOCK",
+        bedrock: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "1",
+          region: "us-east-1",
+          apiKey: "bedrock-secret-1",
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    // Successful test & create sends ApplyGuardrail with Bearer auth
+    const passedTest = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bedrock-secret-1",
+      },
+    });
+    expect(passedTest).toEqual({ success: true });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/guardrail/abc123def456/version/1/apply",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer bedrock-secret-1",
+        }),
+      }),
+    );
 
     const created = await ownerCaller.aiGateway.guardrails.create({
       orgId,
@@ -829,7 +910,45 @@ describe("aiGateway guardrails tRPC", () => {
       },
     ]);
 
-    // Updating without apiKey keeps the stored encrypted key
+    // Testing an existing guardrail without apiKey reuses the stored encrypted key
+    const retestSaved = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+      },
+    });
+    expect(retestSaved).toEqual({ success: true });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/guardrail/abc123def456/version/1/apply",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer bedrock-secret-1",
+        }),
+      }),
+    );
+
+    // Renaming without changing Bedrock config skips re-calling AWS
+    const callsBeforeRename = fetchSpy.mock.calls.length;
+    await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      name: "Bedrock content filter renamed",
+      action: "LOG",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(fetchSpy.mock.calls.length).toBe(callsBeforeRename);
+
+    // Updating without apiKey keeps the stored encrypted key and validates the new region/ARN
     const updatedWithoutKey = await ownerCaller.aiGateway.guardrails.update({
       orgId,
       id: created.id,

@@ -159,6 +159,14 @@ export class GatewayGuardrailRepository {
     });
   }
 
+  /** Reads the encrypted credential for server-side validation/testing only; never exposed to clients or audit logs. */
+  findCredentialById(params: { organizationId: string; id: string }) {
+    return this.prisma.gatewayGuardrail.findFirst({
+      where: { organizationId: params.organizationId, id: params.id },
+      select: { id: true, type: true, config: true, encryptedCredential: true },
+    });
+  }
+
   findByIds(params: { organizationId: string; ids: string[] }) {
     if (params.ids.length === 0) return Promise.resolve([]);
     return this.prisma.gatewayGuardrail.findMany({

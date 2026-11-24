@@ -143,9 +143,14 @@ export const CreateKeywordBlocklist = meta.story({
 export const CreateBedrock = meta.story({
   args: {
     title: bedrockTemplate.name,
-    submitLabel: "Add guardrail",
+    submitLabel: "Test and save",
     templateKind: "bedrock",
     availablePresets: [],
+    externalTest: {
+      isPending: false,
+      outcome: null,
+      onTest: fn(),
+    },
     initialValues: {
       name: bedrockTemplate.name,
       presets: [],
@@ -163,10 +168,15 @@ export const CreateBedrock = meta.story({
 export const EditBedrock = meta.story({
   args: {
     title: "Edit guardrail",
-    submitLabel: "Save changes",
+    submitLabel: "Test and save",
     templateKind: "bedrock",
     availablePresets: [],
     hasSavedApiKey: true,
+    externalTest: {
+      isPending: false,
+      outcome: { status: "success" },
+      onTest: fn(),
+    },
     initialValues: {
       name: "Bedrock content filter",
       presets: [],

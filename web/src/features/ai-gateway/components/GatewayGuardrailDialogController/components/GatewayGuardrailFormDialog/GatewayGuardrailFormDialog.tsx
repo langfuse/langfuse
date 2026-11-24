@@ -30,6 +30,10 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
+import {
+  ConnectionTestStatus,
+  type ConnectionTestFailure,
+} from "@/src/features/ai-gateway/components/ConnectionTestStatus/ConnectionTestStatus";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
   GatewayGuardrailTargetsInput,
@@ -246,6 +250,17 @@ export type GatewayGuardrailFormValues = {
   targets: AsyncAutocompleteOption[];
 };
 
+export type ExternalGuardrailTestOutcome = {
+  status: "pending" | "success" | "error";
+  failure?: ConnectionTestFailure;
+};
+
+export type ExternalGuardrailTestControl = {
+  isPending: boolean;
+  outcome: ExternalGuardrailTestOutcome | null;
+  onTest: (values: GatewayGuardrailFormValues) => void;
+};
+
 export type GatewayGuardrailFormDialogProps = {
   title: string;
   submitLabel: string;
@@ -255,6 +270,7 @@ export type GatewayGuardrailFormDialogProps = {
   initialTestText?: string;
   /** True when editing an existing external guardrail so a blank key keeps the saved secret. */
   hasSavedApiKey?: boolean;
+  externalTest?: ExternalGuardrailTestControl;
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
@@ -271,6 +287,7 @@ export function GatewayGuardrailFormDialog({
   initialValues,
   initialTestText = "",
   hasSavedApiKey = false,
+  externalTest,
   targetPicker,
   isSubmitting,
   errorMessage,
@@ -308,6 +325,10 @@ export function GatewayGuardrailFormDialog({
   const selectedPresets = form.watch("presets");
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
+  const bedrockGuardrailId = form.watch("bedrockGuardrailId");
+  const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
+  const bedrockRegion = form.watch("bedrockRegion");
+  const bedrockApiKey = form.watch("bedrockApiKey");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -317,11 +338,26 @@ export function GatewayGuardrailFormDialog({
     GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
       ?.external ?? null;
   const isExternal = externalTemplate !== null;
+  const isTesting = externalTest?.isPending ?? false;
+  const isBusy = isSubmitting || isTesting;
+  const canTestExternal =
+    templateKind === "bedrock" &&
+    GatewayBedrockGuardrailConfigSchema.safeParse({
+      guardrailId: bedrockGuardrailId,
+      guardrailVersion: bedrockGuardrailVersion,
+      region: bedrockRegion,
+    }).success &&
+    (hasSavedApiKey
+      ? bedrockApiKey.trim().length === 0 ||
+        GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success
+      : GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success);
 
-  const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
+  const toFormValues = (
+    values: GuardrailFormSchemaValues,
+  ): GatewayGuardrailFormValues => {
     if (templateKind === "bedrock") {
       const apiKey = values.bedrockApiKey.trim();
-      onSubmit({
+      return {
         name: values.name.trim(),
         presets: [],
         secretPrefixes: [],
@@ -334,10 +370,9 @@ export function GatewayGuardrailFormDialog({
         },
         action: values.action,
         targets: values.targets,
-      });
-      return;
+      };
     }
-    onSubmit({
+    return {
       name: values.name.trim(),
       presets:
         templateKind === "contains" ? initialValues.presets : values.presets,
@@ -351,7 +386,15 @@ export function GatewayGuardrailFormDialog({
           : initialValues.containsWords,
       action: values.action,
       targets: values.targets,
-    });
+    };
+  };
+
+  const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
+    onSubmit(toFormValues(values));
+  };
+
+  const handleTestExternal = () => {
+    externalTest?.onTest(toFormValues(form.getValues()));
   };
 
   const handlePresetsChange = (nextPresets: GatewayGuardrailPreset[]) => {
@@ -588,16 +631,37 @@ export function GatewayGuardrailFormDialog({
           </PopoverLayerProvider>
 
           <footer className="bg-modal flex shrink-0 flex-col-reverse gap-2 rounded-b-lg border-t px-5 py-3.5 sm:flex-row sm:justify-end">
+            {externalTest?.outcome ? (
+              <ConnectionTestStatus
+                status={externalTest.outcome.status}
+                failure={externalTest.outcome.failure}
+              />
+            ) : null}
             <DialogPrimitive.Close asChild>
-              <Button variant="ghost" text="Cancel" disabled={isSubmitting} />
+              <Button variant="ghost" text="Cancel" disabled={isBusy} />
             </DialogPrimitive.Close>
+            {externalTest ? (
+              <Button
+                type="button"
+                variant="secondary"
+                text={
+                  externalTest.outcome &&
+                  externalTest.outcome.status !== "pending"
+                    ? "Test again"
+                    : "Test"
+                }
+                loading={isTesting}
+                disabled={!canTestExternal || isBusy}
+                onClick={handleTestExternal}
+              />
+            ) : null}
             <Button
               type="submit"
               form={formId}
               variant="primary"
               text={submitLabel}
               loading={isSubmitting}
-              disabled={!form.formState.isValid}
+              disabled={!form.formState.isValid || isBusy}
             />
           </footer>
         </div>
