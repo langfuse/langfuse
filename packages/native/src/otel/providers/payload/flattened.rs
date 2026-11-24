@@ -18,11 +18,10 @@ pub(super) fn flattened_payload(attributes: &JsonObject, prefix: &str) -> Option
     if let Some(value) = attributes.get(prefix).filter(|value| is_js_truthy(value)) {
         return Some(value.clone());
     }
-    let marker = format!("{prefix}.");
     let paths = attributes
         .iter()
         .filter_map(|(key, value)| {
-            let parts = split_wtf8_path(&key.strip_prefix(&marker)?);
+            let parts = split_wtf8_path(&key.strip_dotted_prefix(prefix)?);
             let valid = parts.len() <= MAX_PATH_DEPTH
                 && parts.iter().all(|part| {
                     !part.is_empty()

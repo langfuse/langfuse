@@ -4,8 +4,8 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { DecisionModelStateEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelStateEditor/DecisionModelStateEditor";
-import { OpenAIDecisionModelStateEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/OpenAIDecisionModelStateEditor/OpenAIDecisionModelStateEditor";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
+import { previewOpenAIDecisionQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
@@ -64,35 +64,11 @@ export function VariableMappingEditorContainer({
 
   const displayedSample = resolvedSample ?? lastCompletedSample.current;
 
-  if (
-    state.type === "DECISION_MODEL" &&
-    decisionModel != null &&
-    isTextAdapterDecisionModel(decisionModel.model)
-  ) {
-    const inputField = mappings.find((mapping) => mapping.variable === "input");
-    return (
-      <OpenAIDecisionModelStateEditor
-        field={{
-          key: "input",
-          fieldState: inputField?.fieldState ?? {
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        }}
-        activeMapping={state.activeMapping}
-        onActiveMappingChange={state.actions.setActiveMapping}
-        onChangeField={(fieldState) =>
-          state.actions.setVariableField("input", fieldState)
-        }
-        questions={state.questions}
-        sourceObject={displayedSample}
-        hasMatchingObservations={Boolean(displayedSample)}
-        sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}
-      />
-    );
-  }
-
   if (state.type === "DECISION_MODEL") {
+    const sentQuestions =
+      decisionModel != null && isTextAdapterDecisionModel(decisionModel.model)
+        ? previewOpenAIDecisionQuestions(state.questions)
+        : undefined;
     return (
       <DecisionModelStateEditor
         fields={mappings.map(({ variable, fieldState }) => ({
@@ -105,6 +81,7 @@ export function VariableMappingEditorContainer({
         onAddField={state.actions.addStateKey}
         onRenameField={state.actions.renameStateKey}
         onRemoveField={state.actions.removeStateKey}
+        sentQuestions={sentQuestions}
         sourceObject={displayedSample}
         hasMatchingObservations={Boolean(displayedSample)}
         sourceUnavailableMessage={SOURCE_UNAVAILABLE_MESSAGE}

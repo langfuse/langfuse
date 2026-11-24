@@ -24,6 +24,7 @@ export async function scheduleExperimentObservationEvals(
     const schedulerDeps = createObservationEvalSchedulerDeps();
     await scheduleObservationEvals({
       observation,
+      loadSnapshot: () => observation,
       configs,
       schedulerDeps,
     });

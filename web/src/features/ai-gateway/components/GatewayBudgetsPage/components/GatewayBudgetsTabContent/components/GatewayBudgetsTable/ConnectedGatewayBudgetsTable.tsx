@@ -11,6 +11,7 @@ import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/comp
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
 import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import {
   type GatewayBudgetRow,
@@ -57,6 +58,7 @@ export function ConnectedGatewayBudgetsTable({
   });
   const { setBudgets, mutation: removal } =
     useSetGatewayBudgets(organizationId);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
   const totalCount = budgets.data?.totalCount ?? null;
   const pageRows = budgets.data?.rows ?? [];
   const selectedCount = selectAll
@@ -157,6 +159,12 @@ export function ConnectedGatewayBudgetsTable({
                   });
                   if (!removed)
                     throw new Error("Budgets could not be removed.");
+                  captureBudgetChange({
+                    surface: "budgets_page",
+                    scope: GATEWAY_SPEND_TABS[tab].scope,
+                    subjectCount: selectedCount,
+                    spendLimit: null,
+                  });
                   clearSelection();
                 }}
               >

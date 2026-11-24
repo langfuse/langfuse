@@ -1,6 +1,6 @@
 # Langfuse design system - how to build with it
 
-Components are on `window.LangfuseDS` (e.g. `const { Button, Alert, Tabs, Badge } = window.LangfuseDS;`). Each component's `<Name>.d.ts` is its API contract and `<Name>.prompt.md` shows real usage - read both before using a component.
+Components are on `window.LangfuseDS` (e.g. `const { Button, Banner, Tabs, Badge } = window.LangfuseDS;`). Each component's `<Name>.d.ts` is its API contract and `<Name>.prompt.md` shows real usage - read both before using a component.
 
 ## Wrap everything in `LangfuseProvider`
 
@@ -8,7 +8,11 @@ Render your whole app inside `LangfuseDS.LangfuseProvider` exactly once, at the 
 
 ```jsx
 const { LangfuseProvider } = window.LangfuseDS;
-root.render(<LangfuseProvider><App /></LangfuseProvider>);
+root.render(
+  <LangfuseProvider>
+    <App />
+  </LangfuseProvider>,
+);
 ```
 
 Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dark` class lands on `<html>` and portalled dialogs, menus, tooltips and code highlighting switch too. A `<div className="dark bg-background text-foreground">` wrapper only flips inline content inside it, never overlays.
@@ -17,9 +21,9 @@ Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dar
 
 - Components take **no `className`/`style`** - style comes from enum props (`variant`, `size`), never Tailwind strings. Use only the values the `.d.ts` lists.
 - Labels are props, not children, where the API says so: `<Button text="Save" variant="primary" />`, `<Badge text="beta" />`.
-- Compound components hang off the parent: `Alert.Title`/`Alert.Description`, `Tabs.List`/`Tabs.Trigger`/`Tabs.Content`.
+- Compound components hang off the parent: `Accordion.Item`/`Accordion.Trigger`, `Tabs.List`/`Tabs.Trigger`/`Tabs.Content`.
 - Booleans are `is*`/`should*` or plain (`loading`, `disabled`); components never carry outer margin - spacing is the parent's job.
-- Prefer a library component over hand-rolled markup: `Button`, `IconButton`, `TextLink`, `Input`, `SearchInput`, `SelectInput`, `Checkbox`, `Switch`, `Tabs`, `Dialog` + `DialogController`, `Tooltip`, `Badge`, `Tag`, `Alert`, `Callout`, `StatusMessage`, `Codeblock`, `Table`, charts (`LineChart`, `BarChart`, `AreaChart`, `PieChart`, ...).
+- Prefer a library component over hand-rolled markup: `Button`, `IconButton`, `TextLink`, `Input`, `SearchInput`, `SelectInput`, `Checkbox`, `Switch`, `Tabs`, `Dialog` + `DialogController`, `Tooltip`, `Badge`, `Tag`, `Banner`, `Callout`, `StatusMessage`, `Codeblock`, `Table`, charts (`LineChart`, `BarChart`, `AreaChart`, `PieChart`, ...).
 - Header metrics and links (latency, cost, session, user) are `Metric`, not `Badge`. `Badge` colour = the badge's job: `outline` attributes, `filled` scores/tags/counts, `inverted` one strong marker, `error`/`warning`/`success`/`info` states, `<hue>Tint` categories (score levels, topics). Values in `font="mono"`. Full table: the Badge "Guidance" docs page (`Badge.mdx`).
 - Icons are typed `@langfuse/icons` wrappers on `window.LangfuseDS.LucideIcons`: `const { Plus, Trash2 } = window.LangfuseDS.LucideIcons;` then `<IconButton icon={Trash2} ... />` / `<Button icon={Plus} ... />`. For standalone icons, use semantic `size` and `color` props, not raw Lucide sizes, colors, `className`, or `style`. Never draw inline SVGs or use emoji.
 
@@ -31,21 +35,21 @@ The `playground` group holds Langfuse app components built for specific screens:
 
 Your own layout markup uses Tailwind classes - but only ones present in the shipped `_ds_bundle.css` (it is precompiled; classes it doesn't contain do nothing). Safe vocabulary:
 
-| Family | Classes |
-|---|---|
-| Surfaces | `bg-background` `bg-card` `bg-muted` `bg-secondary` `bg-surface-sunken` `bg-primary` |
-| Text | `text-foreground` `text-foreground-secondary` `text-foreground-tertiary` `text-muted-foreground` `text-primary` `text-primary-foreground` `text-link` `text-destructive` |
-| Status | `bg-light-red`/`text-dark-red`, `bg-light-yellow`/`text-dark-yellow`, `bg-light-green`/`text-dark-green` |
-| Borders | `border` `border-border` `divide-y` `rounded-md` `rounded-lg` `shadow-sm` |
-| Type | `text-2xs` `text-xs` `text-sm` `text-base` `text-lg` `text-xl` `text-2xl`, `font-bold` (the only bold weight), `font-mono` (IBM Plex Mono) |
-| Layout | `flex` `flex-col` `grid` `grid-cols-2` `grid-cols-3` `items-center` `justify-between` `gap-1..6` `p-2..6` `px-4` `py-3` `space-y-2` `space-y-4` `w-full` `h-full` `max-w-md` `max-w-lg` `truncate` `overflow-auto` |
+| Family   | Classes                                                                                                                                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Surfaces | `bg-background` `bg-card` `bg-muted` `bg-secondary` `bg-surface-sunken` `bg-primary`                                                                                                                               |
+| Text     | `text-foreground` `text-foreground-secondary` `text-foreground-tertiary` `text-muted-foreground` `text-primary` `text-primary-foreground` `text-link` `text-destructive`                                           |
+| Status   | `bg-light-red`/`text-dark-red`, `bg-light-yellow`/`text-dark-yellow`, `bg-light-green`/`text-dark-green`                                                                                                           |
+| Borders  | `border` `border-border` `divide-y` `rounded-md` `rounded-lg` `shadow-sm`                                                                                                                                          |
+| Type     | `text-2xs` `text-xs` `text-sm` `text-base` `text-lg` `text-xl` `text-2xl`, `font-bold` (the only bold weight), `font-mono` (IBM Plex Mono)                                                                         |
+| Layout   | `flex` `flex-col` `grid` `grid-cols-2` `grid-cols-3` `items-center` `justify-between` `gap-1..6` `p-2..6` `px-4` `py-3` `space-y-2` `space-y-4` `w-full` `h-full` `max-w-md` `max-w-lg` `truncate` `overflow-auto` |
 
 Never use hex colors or raw px; `font-medium`/`font-semibold` compile but are off-system drift - use `font-bold` or nothing. The token source is `styles.css` -> `_ds_bundle.css` (`--color-*`, `--radius`, `--text-*`).
 
 ## Example
 
 ```jsx
-const { LangfuseProvider, Alert, Button, Badge } = window.LangfuseDS;
+const { LangfuseProvider, Banner, Button, Badge } = window.LangfuseDS;
 
 function Panel() {
   return (
@@ -54,10 +58,9 @@ function Panel() {
         <h2 className="text-lg font-bold text-foreground">Evaluators</h2>
         <Badge text="beta" />
       </div>
-      <Alert variant="warning">
-        <Alert.Title>Quota almost reached</Alert.Title>
-        <Alert.Description>90% of this month's evaluations are used.</Alert.Description>
-      </Alert>
+      <Banner variant="warning" title="Quota almost reached">
+        90% of this month's evaluations are used.
+      </Banner>
       <div className="flex gap-2">
         <Button text="Cancel" variant="secondary" />
         <Button text="Upgrade" variant="primary" />

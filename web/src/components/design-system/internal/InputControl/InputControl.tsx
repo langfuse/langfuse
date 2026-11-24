@@ -18,7 +18,7 @@ const inputSlotVariants = cva(
   "placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed",
   {
     variants: {
-      prefixed: {
+      segmented: {
         true: "h-full min-w-0 flex-1 border-0 bg-transparent py-0 shadow-none outline-hidden focus:ring-0",
         false: null,
       },
@@ -43,12 +43,8 @@ const inputControlVariants = cva(
         true: "ring-ring ring-2 ring-offset-2",
         false: null,
       },
-      prefixed: {
+      segmented: {
         true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-        false: null,
-      },
-      trailingAction: {
-        true: "pr-10",
         false: null,
       },
       error: {
@@ -67,7 +63,7 @@ const inputControlVariants = cva(
     },
     compoundVariants: [
       {
-        prefixed: true,
+        segmented: true,
         error: true,
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
@@ -106,14 +102,11 @@ type InputControlProps = Omit<
       icon: IconComponent;
       disabled?: boolean;
       pressed?: boolean;
+      tabIndex?: number;
       onClick: () => void;
     };
   };
 
-/**
- * Owns shared form-control styling and optional prefix and action layout.
- * Specialized inputs own the interactive child's behavior.
- */
 export function InputControl({
   contentLayout,
   height,
@@ -125,31 +118,30 @@ export function InputControl({
   prefix,
   ...props
 }: InputControlProps) {
+  const segmented = prefix !== undefined || trailingAction !== undefined;
   const controlClassName = inputControlVariants({
     height,
     focusTarget,
     focused,
-    prefixed: prefix !== undefined,
+    segmented,
     error,
     disabled,
-    trailingAction: Boolean(trailingAction),
   });
   const PrefixIcon = prefix?.icon;
   const slotClassName = cn(
     inputContentVariants({ contentLayout }),
-    inputSlotVariants({ prefixed: prefix !== undefined }),
-    !prefix && controlClassName,
+    inputSlotVariants({ segmented }),
+    !segmented && controlClassName,
   );
 
-  if (!prefix && !trailingAction) {
+  if (!segmented) {
     return <Slot className={slotClassName} {...props} />;
   }
 
   const TrailingActionIcon = trailingAction?.icon;
-
   return (
     <div
-      className={cn("relative", prefix && controlClassName)}
+      className={cn("relative", controlClassName)}
       onMouseDown={(event) => {
         if (!prefix) return;
         const input = event.currentTarget.querySelector("input");
@@ -175,10 +167,9 @@ export function InputControl({
           type="button"
           aria-label={trailingAction.label}
           aria-pressed={trailingAction.pressed}
-          disabled={trailingAction.disabled}
-          // Keep the action out of the tab order so Tab moves between inputs.
-          tabIndex={-1}
-          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
+          disabled={disabled || trailingAction.disabled}
+          tabIndex={trailingAction.tabIndex}
+          className="bg-muted border-input focus-visible:ring-ring enabled:hover:bg-accent flex h-full shrink-0 cursor-pointer items-center justify-center border-l px-2.5 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed"
           onClick={trailingAction.onClick}
         >
           <TrailingActionIcon

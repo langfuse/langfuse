@@ -17,6 +17,7 @@ export function NewMapDialogView({
   onFacetIdsChange,
   disabledReason,
   samplingField,
+  costEstimateField,
   canStart,
   starting,
   errors,
@@ -67,8 +68,9 @@ export function NewMapDialogView({
               </span>
               <span className="flex items-center gap-2">
                 <Sparkles size="base" aria-hidden="true" />
-                Summarizes only the missing ones, at this sampling rate, for{" "}
-                {facetIds.length} selected{" "}
+                Summarizes only the missing ones for {
+                  facetIds.length
+                } selected{" "}
                 {facetIds.length === 1 ? "facet" : "facets"}
               </span>
               <span className="flex items-center gap-2">
@@ -82,6 +84,7 @@ export function NewMapDialogView({
               </span>
             </div>
           )}
+          {disabledReason ? null : costEstimateField}
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
           ))}
@@ -103,6 +106,8 @@ type NewMapDialogViewProps = {
   disabledReason?: string;
   /** The share of new matching traces the map analyzes. */
   samplingField: ReactNode;
+  /** Starts and shows a cost estimate for the selected facets and filter. */
+  costEstimateField?: ReactNode;
   canStart: boolean;
   starting: boolean;
   errors: string[];

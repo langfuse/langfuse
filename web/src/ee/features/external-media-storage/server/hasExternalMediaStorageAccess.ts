@@ -1,9 +1,8 @@
 import { type Organization } from "@langfuse/shared/src/db";
-import { parseDbOrg } from "@langfuse/shared";
+import { parseDbOrg, hasEntitlementBasedOnPlan } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 
 /**
  * External media storage requires the enterprise entitlement. On Langfuse

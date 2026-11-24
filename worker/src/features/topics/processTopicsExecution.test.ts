@@ -10,11 +10,12 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
-import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
+import {
+  recordIncrement,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
-import { ASSEMBLED_TRANSCRIPT_ID } from "./summarizeAssembledTrace";
-
 const { topicSourceKey } = vi.hoisted(() => ({
   topicSourceKey: (
     row: Pick<
@@ -162,13 +163,14 @@ vi.mock("@langfuse/shared/topics/server", () => {
             a.traceId < b.traceId ? -1 : a.traceId > b.traceId ? 1 : 0,
           ),
     ),
-    getNewestTopicClusteringSummaries: async (
+    getSampledTopicClusteringSummaries: async (
       projectId: string,
       facet: TopicFacetRef,
       embeddingConfig: TopicEmbeddingConfig,
       timeRange: TopicTimeRange,
-    ) =>
-      [...state.summaries.values()]
+    ) => ({
+      timeRange,
+      summaries: [...state.summaries.values()]
         .filter(
           (row) =>
             row.projectId === projectId &&
@@ -181,6 +183,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
             inTimeRange(row, timeRange),
         )
         .sort((a, b) => b.unitStartTime.localeCompare(a.unitStartTime)),
+    }),
     getTopicRun: async (_project: string, id: string) =>
       state.runs.get(id) ?? null,
     readTopicRunTraceIds: async (
@@ -250,7 +253,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
     },
   };
 });
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   prepareTopicNamingGroup: async (group: {
     members: { summary: string }[];
     contrasts: { id: string; summary: string }[];
@@ -312,15 +315,18 @@ function seedSummaries(
         facetVersion: selected.version,
         traceId,
         sessionId: "session",
-        triggerType: "manual",
+        triggerType: "rule",
+        ruleIds: [],
+        executionId: null,
         unitStartTime: "2026-01-01T00:00:00.000Z",
         environment: "production",
         traceName: "Customer support",
         state: "complete",
         summary: traceId,
         embedding,
-        transcriptId: ASSEMBLED_TRANSCRIPT_ID,
+        transcriptId: "revision",
         transcriptVersion: TOPICS_TEXT_VERSION,
+        transcriptBytes: 0,
         summaryModel: "gpt-4.1-nano",
         embeddingModel: "eu.cohere.embed-v4:0",
         providedUsageDetails: {},
@@ -473,11 +479,14 @@ describe("Topics execution", () => {
   it("publishes filtered naming groups and later retries their labels without changing membership", async () => {
     const facets = [facet, { ...facet, facetId: "sibling" }];
     seedSummaries(100, undefined, facets);
-    state.name.mockRejectedValueOnce(
-      new TopicsProviderUnavailable(
-        "The model filtered this response.",
-        "content_filter",
-      ),
+    state.name.mockImplementationOnce(
+      async (_group, _metadata, _conflict, onCost) => {
+        onCost?.({ naming_input: 0.001, total: 0.001 });
+        throw new TopicsProviderUnavailable(
+          "The model filtered this response.",
+          "content_filter",
+        );
+      },
     );
     state.executions.set("filtered", execution("filtered", 0, facets));
 
@@ -511,6 +520,7 @@ describe("Topics execution", () => {
     )!;
     const named = published.topics.find((topic) => topic !== placeholder)!;
     expect(placeholder).toMatchObject({
+      costDetails: { naming_input: 0.001, total: 0.001 },
       name: expect.any(String),
       description: expect.stringMatching(/filter/i),
     });
@@ -551,8 +561,7 @@ describe("Topics execution", () => {
     seedSummaries(100);
     await updateSelection("published");
     const published = [...state.runs.values()].at(-1)!;
-    for (const summary of state.summaries.values())
-      summary.embedding[3] += 0.001;
+    for (const summary of state.summaries.values()) summary.embedding[4] = 0.75;
     const naming = state.name.getMockImplementation()!;
     state.name
       .mockImplementationOnce(naming)
@@ -832,7 +841,7 @@ describe("Topics execution", () => {
   });
 
   it.each(["centroid", "radius"] as const)(
-    "creates a new version with the same stable identity when its %s changes",
+    "creates a new version with the same stable identity, named with its previous name as context, when its %s changes",
     async (changed) => {
       seedSummaries(100);
       const members = [...state.summaries.values()].filter(
@@ -862,6 +871,9 @@ describe("Topics execution", () => {
         first.topics.find((topic) => topic.centroid[1] > 0.5),
       );
       expect(state.name).toHaveBeenCalledTimes(3);
+      expect(state.name.mock.calls[2][0]).toMatchObject({
+        previousTopic: { name: old.name, description: old.description },
+      });
       expect(state.runs.get(first.id)).toEqual(first);
     },
   );
@@ -875,7 +887,7 @@ describe("Topics execution", () => {
       const first = [...state.runs.values()].at(-1)!;
       const unchanged = first.topics.find((topic) => topic.centroid[1] > 0.5)!;
       for (const summary of state.summaries.values()) {
-        if (summary.embedding[0] > 0.5) summary.embedding[3] += 0.001;
+        if (summary.embedding[0] > 0.5) summary.embedding[4] = 0.75;
       }
       const colliding = {
         output: {
@@ -884,10 +896,21 @@ describe("Topics execution", () => {
           evidenceSummaryIds: ["m1"],
         },
       };
-      state.name.mockResolvedValueOnce(colliding);
-      if (retry === "repeated") state.name.mockResolvedValueOnce(colliding);
-      if (retry === "failed")
-        state.name.mockRejectedValueOnce(new Error("Naming unavailable"));
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.1, naming_output: 0.02, total: 0.09 });
+          return colliding;
+        },
+      );
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.2, naming_cache_read: 0.01, total: 0.25 });
+          if (retry === "failed") throw new Error("Invalid naming response");
+          return retry === "repeated"
+            ? colliding
+            : { output: { ...colliding.output, name: "Distinct topic" } };
+        },
+      );
       const calls = state.name.mock.calls.length;
       await updateSelection("second");
       const [, conflictCall] = state.name.mock.calls.slice(calls);
@@ -896,6 +919,16 @@ describe("Topics execution", () => {
         description: unchanged.description,
       });
       const second = [...state.runs.values()].at(-1)!;
+      expect(second.topics).toContainEqual(unchanged);
+      expect(
+        second.topics.find((topic) => topic.createdByRunId === second.id)
+          ?.costDetails,
+      ).toEqual({
+        naming_input: 0.3,
+        naming_output: 0.02,
+        naming_cache_read: 0.01,
+        total: 0.34,
+      });
       expect(second.status).toBe("completed");
       expect(
         second.topics.filter((topic) => topic.name === unchanged.name),
@@ -940,6 +973,11 @@ describe("Topics execution", () => {
 
       const refit = state.runs.get("refit")!;
       expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.rule_fits",
+        1,
+        { outcome: "published", trigger: "automatic" },
+      );
       const sameTopics = refit.topics.some((topic) =>
         published.topics.some((other) => other.topicId === topic.topicId),
       );

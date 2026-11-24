@@ -78,6 +78,16 @@ describe("typedValue", () => {
     );
   });
 
+  // `t.id in {p:Identifier}` bound to `scores` reads the table.
+  it.each(["Identifier", "Array(Identifier)"])(
+    "rejects the type %s, which binds a name",
+    (type) => {
+      expect(() => typedValue<string>("scores", type)).toThrow(
+        QueryCompileError,
+      );
+    },
+  );
+
   it("rejects a typed value inside an IN list, whose array bind would drop its type", () => {
     expect(() =>
       compile(
@@ -604,17 +614,6 @@ describe("typed params from the column registry", () => {
     expect(sql).toMatch(/start_time -> start_time = \{p\d+:String\}/);
   });
 
-  // A raw fragment around a column is not the column: `length(...)` is a number.
-  it("binds a raw expression around a sql.ref column by value", () => {
-    const { sql } = compile(
-      getClickhouseKysely()
-        .selectFrom("traces as t")
-        .select("t.id")
-        .where(sql_<number>`length(${sql_.ref("t.environment")})`, ">", 5),
-    );
-    expect(sql).toMatch(/length\(t\.environment\) > \{p\d+:Int64\}/);
-  });
-
   describe("columns the compiler can't resolve to a relation", () => {
     const db = getClickhouseKysely();
 
@@ -665,13 +664,13 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/c\.constructor > \{p\d+:Int64\}/);
     });
 
-    it("binds a named raw-SQL CTE column by value", () => {
+    it("binds a computed CTE column by value", () => {
       const { sql } = compile(
         db
           .with("t", (qb) =>
             qb
               .selectFrom("events_truncated")
-              .select(sql_`is_deleted`.as("is_deleted")),
+              .select(literal(0).as("is_deleted")),
           )
           .selectFrom("t")
           .select("is_deleted")

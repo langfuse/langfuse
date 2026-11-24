@@ -7,16 +7,15 @@ import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
@@ -28,15 +27,24 @@ import { Button } from "@/src/components/ui/button";
 
 const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
-const allRoles = Object.keys(orderedRoles) as Role[];
+/** allRoles lists the membership roles in display order. */
+const allRoles: Role[] = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "AI_GATEWAY",
+  "NONE",
+];
 
 const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
 
 const ownerLockedLabel = "Requires owner access";
 
-const roleFilterOptions = allRoles
-  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
-  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
+const roleFilterOptions = allRoles.map((role) => ({
+  value: role,
+  label: formatRoleLabel(role),
+}));
 
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
@@ -79,7 +87,7 @@ type MembersSettingsTableProps = Pick<
     value: Role[];
     onChange: (roles: Role[]) => void;
   };
-  toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
+  toolbarActions: TableCardProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
 
@@ -332,7 +340,7 @@ export function MembersSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={project ? "project members" : "organization members"}
       columns={columns}
       actions={actions}

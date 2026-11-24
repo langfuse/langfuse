@@ -15,7 +15,13 @@ export function TopicRefreshMapDialog({
   const utils = api.useUtils();
   const refresh = api.topics.refreshRuleMap.useMutation({
     onSuccess: async () => {
-      await utils.topics.maps.invalidate({ projectId });
+      await Promise.all([
+        utils.topics.maps.invalidate({ projectId }),
+        utils.topics.ruleMapCosts.invalidate(
+          { projectId },
+          { refetchType: "none" },
+        ),
+      ]);
       closeDialog();
     },
   });

@@ -1,4 +1,9 @@
 import { useState, type ReactNode } from "react";
+import { useMediaQuery } from "react-responsive";
+import {
+  estimatedTopicCostDescription,
+  estimatedTopicCostLabel,
+} from "./topic-run-labels";
 import {
   CalendarRange,
   Camera,
@@ -11,7 +16,7 @@ import {
   Sparkles,
   type IconComponent,
 } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -49,6 +54,7 @@ export function TopicsMapPicker({
   facetId,
   onSelect,
   usePreviewTopics,
+  usePickerCost,
   processingOn,
   create,
   refresh,
@@ -60,6 +66,7 @@ export function TopicsMapPicker({
   facetId: string | undefined;
   onSelect: (selection: TopicMapSelection) => void;
   usePreviewTopics: UsePreviewTopics;
+  usePickerCost: UsePickerCost;
   /** Automatic analysis is on for the project; live runs show Paused otherwise. */
   processingOn: boolean;
   /** Footer entries for New map and New snapshot; null hides one. */
@@ -98,6 +105,26 @@ export function TopicsMapPicker({
     shown.kind === "analysis"
       ? overview.analyses.find((analysis) => analysis.id === shown.id)
       : undefined;
+  const hasPreviewPane = useMediaQuery({ query: "(min-width: 640px)" });
+  const costMap = hasPreviewPane
+    ? (shownRule ?? shownAnalysis)
+    : (selectedRule ?? selectedAnalysis);
+  const cost = usePickerCost(projectId, open ? costMap : undefined);
+  const costRow: [string, ReactNode] | undefined = costMap
+    ? [
+        estimatedTopicCostLabel,
+        <Tooltip key="cost" label={estimatedTopicCostDescription}>
+          {({ getTriggerProps }) => (
+            <span
+              {...getTriggerProps({ tabIndex: 0 })}
+              className="tabular-nums"
+            >
+              {cost}
+            </span>
+          )}
+        </Tooltip>,
+      ]
+    : undefined;
   const isSelected = (kind: TopicMapSelection["kind"], id: string) =>
     selection.kind === kind && selection.id === id;
   function choose(next: TopicMapSelection) {
@@ -182,13 +209,18 @@ export function TopicsMapPicker({
                 </p>
               )}
             </div>
-            {(refreshEntry || hasCreate) && (
+            {(refreshEntry || hasCreate || (!hasPreviewPane && costRow)) && (
               <div
                 className={cn(
                   "mt-auto flex flex-col border-t p-1.5",
                   !hasCreate && "sm:hidden",
                 )}
               >
+                {!hasPreviewPane && costRow && (
+                  <div className="px-2.5 py-2">
+                    <PreviewRows rows={[costRow]} />
+                  </div>
+                )}
                 {/* Phones have no preview card, so the selected map's refresh sits here. */}
                 {refreshEntry && (
                   <div className="flex flex-col sm:hidden">
@@ -228,35 +260,40 @@ export function TopicsMapPicker({
             )}
           </div>
           {/* Too narrow on phones, where a tap selects before the preview could help. */}
-          <div className="hidden w-3/5 min-w-0 flex-col overflow-y-auto p-4 sm:flex">
-            {shownRule && (
-              <RulePreview
-                key={shownRule.id}
-                projectId={projectId}
-                usePreviewTopics={usePreviewTopics}
-                rule={shownRule}
-                facetId={facetId}
-                processingOn={processingOn}
-                refresh={refresh ? refresh(shownRule) : null}
-                onRefreshChosen={() => changeOpen(false)}
-              />
-            )}
-            {shownAnalysis && (
-              <AnalysisPreview
-                key={shownAnalysis.id}
-                projectId={projectId}
-                usePreviewTopics={usePreviewTopics}
-                analysis={shownAnalysis}
-                facetId={facetId}
-              />
-            )}
-            {shown.kind === "create" && (
-              <CreatePreview
-                entry={shown.entry}
-                disabledReason={create?.[shown.entry]?.disabledReason}
-                processingOn={processingOn}
-              />
-            )}
+          <div className="hidden w-3/5 min-w-0 overflow-y-auto sm:block">
+            {/* At least as tall as a map preview with three top topics, so hovering between entries keeps the popover's height. Set inside the pane so short viewports still scroll it. */}
+            <div className="min-h-89.5 p-4">
+              {shownRule && (
+                <RulePreview
+                  key={shownRule.id}
+                  projectId={projectId}
+                  usePreviewTopics={usePreviewTopics}
+                  rule={shownRule}
+                  costRow={hasPreviewPane ? costRow : undefined}
+                  facetId={facetId}
+                  processingOn={processingOn}
+                  refresh={refresh ? refresh(shownRule) : null}
+                  onRefreshChosen={() => changeOpen(false)}
+                />
+              )}
+              {shownAnalysis && (
+                <AnalysisPreview
+                  key={shownAnalysis.id}
+                  projectId={projectId}
+                  usePreviewTopics={usePreviewTopics}
+                  analysis={shownAnalysis}
+                  costRow={hasPreviewPane ? costRow : undefined}
+                  facetId={facetId}
+                />
+              )}
+              {shown.kind === "create" && (
+                <CreatePreview
+                  entry={shown.entry}
+                  disabledReason={create?.[shown.entry]?.disabledReason}
+                  processingOn={processingOn}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -446,7 +483,8 @@ function PreviewHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    // As tall as the small action button, so every preview's title sits at the same spot.
+    <div className="flex h-7 min-w-0 items-center gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-base font-bold" title={name}>
           {name}
@@ -498,7 +536,7 @@ function RefreshMapButton({
 
 function PreviewRows({ rows }: { rows: [string, ReactNode][] }) {
   return (
-    <dl className="grid grid-cols-[6rem_1fr] items-start gap-x-4 gap-y-2 text-sm">
+    <dl className="grid grid-cols-[minmax(6rem,max-content)_minmax(0,1fr)] items-start gap-x-4 gap-y-2 text-sm">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           {/* Rows match the filter chip's height so plain values line up with it. */}
@@ -527,6 +565,7 @@ function FilterValue({ filter }: { filter: TopicRuleMap["filter"] }) {
 function RulePreview({
   projectId,
   rule,
+  costRow,
   facetId,
   usePreviewTopics,
   processingOn,
@@ -536,6 +575,7 @@ function RulePreview({
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   rule: TopicRuleMap;
+  costRow: [string, ReactNode] | undefined;
   facetId: string | undefined;
   processingOn: boolean;
   refresh: FooterEntry | null;
@@ -545,23 +585,21 @@ function RulePreview({
   const top = topTopicsOf(results, facetId);
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <PreviewHeader
-          name={rule.name}
-          badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
-          action={
-            refresh && (
-              <RefreshMapButton entry={refresh} onChosen={onRefreshChosen} />
-            )
-          }
-        />
-        {/* Touch screens show no tooltip, so the reason is on screen. */}
-        {refresh?.disabledReason && (
-          <p className="text-muted-foreground text-right text-xs">
-            {refresh.disabledReason}
-          </p>
-        )}
-      </div>
+      <PreviewHeader
+        name={rule.name}
+        badge={<LiveBadge paused={!processingOn || rule.enabled === false} />}
+        action={
+          refresh && (
+            <RefreshMapButton entry={refresh} onChosen={onRefreshChosen} />
+          )
+        }
+      />
+      {/* Touch screens show no tooltip, so the reason is on screen. */}
+      {refresh?.disabledReason && (
+        <p className="text-muted-foreground text-right text-xs">
+          {refresh.disabledReason}
+        </p>
+      )}
       <PreviewRows
         rows={[
           ["Filter", <FilterValue key="filter" filter={rule.filter} />],
@@ -569,6 +607,7 @@ function RulePreview({
           ...(rule.createdAt
             ? [["Since", topicDayLabel(rule.createdAt)] as [string, ReactNode]]
             : []),
+          ...(costRow ? [costRow] : []),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -579,12 +618,14 @@ function RulePreview({
 function AnalysisPreview({
   projectId,
   analysis,
+  costRow,
   facetId,
   usePreviewTopics,
 }: {
   projectId: string;
   usePreviewTopics: UsePreviewTopics;
   analysis: TopicAnalysisMap;
+  costRow: [string, ReactNode] | undefined;
   facetId: string | undefined;
 }) {
   const results = usePreviewTopics(projectId, {
@@ -600,6 +641,7 @@ function AnalysisPreview({
           ["Filter", <FilterValue key="filter" filter={analysis.filter} />],
           ["Window", topicWindowLabel(analysis.timeRange)],
           ["Traces", analysis.traceCount.toLocaleString("en-US")],
+          ...(costRow ? [costRow] : []),
         ]}
       />
       {top && <TopTopics {...top} />}
@@ -687,7 +729,7 @@ function CreatePreview({
         }
       />
       <p className="text-muted-foreground text-sm">{explanation.summary}</p>
-      <ul className="flex flex-col gap-2.5 text-sm">
+      <ul className="flex flex-col gap-2 text-sm">
         {explanation.points.map(({ icon: Icon, text }) => (
           <li key={text} className="flex items-start gap-2">
             <span className="flex h-5 shrink-0 items-center">
@@ -701,11 +743,7 @@ function CreatePreview({
         <span className="text-muted-foreground">Best for: </span>
         {explanation.bestFor}
       </p>
-      {notice ? (
-        <Alert variant="warning">
-          <Alert.Description>{notice}</Alert.Description>
-        </Alert>
-      ) : null}
+      {notice ? <Banner variant="warning">{notice}</Banner> : null}
     </div>
   );
 }
@@ -715,6 +753,11 @@ type PreviewFacet = {
   name: string;
   topics: { id: string; name: string; count: number }[];
 };
+
+export type UsePickerCost = (
+  projectId: string,
+  map: TopicRuleMap | TopicAnalysisMap | undefined,
+) => string;
 
 /** Topics of one map for the preview pane; null skips the request. */
 export type UsePreviewTopics = (
@@ -748,7 +791,7 @@ function TopTopics({
 }) {
   const maxCount = Math.max(1, ...topics.map((topic) => topic.count));
   return (
-    <div className="flex flex-col gap-3 pt-2">
+    <div className="flex flex-col gap-3">
       <span className="text-muted-foreground text-xs font-bold">
         {`Top ${pluralLabel(facetName)}`}
       </span>

@@ -44,6 +44,8 @@ const spendLimitAlertBodySchema = z
             // Unix milliseconds, as resolve returned them.
             countingStartedAt: z.number().int().nonnegative(),
             windowStart: z.number().int().nonnegative(),
+            // Omitted for 100% by older gateways and for rolling-deploy compatibility.
+            thresholdPercent: z.number().int().min(1).max(100).default(100),
           })
           .strict(),
       )
@@ -51,8 +53,13 @@ const spendLimitAlertBodySchema = z
       .max(MAX_REPORTED_SPEND_LIMITS)
       .refine(
         (limits) =>
-          new Set(limits.map(({ limitId }) => limitId)).size === limits.length,
-        "Each limit may be reported once",
+          new Set(
+            limits.map(
+              ({ limitId, thresholdPercent }) =>
+                `${limitId}:${thresholdPercent}`,
+            ),
+          ).size === limits.length,
+        "Each limit threshold may be reported once",
       ),
   })
   .strict();

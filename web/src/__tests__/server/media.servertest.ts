@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
 import type { Session } from "next-auth";
@@ -29,6 +28,7 @@ import {
   type TraceMedia,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -40,40 +40,16 @@ describe("Media Upload API", () => {
   const describeIfNotAzureBlobStorage = isAzureBlobMode
     ? describe.skip
     : describe;
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: "seed-org-id",
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: "Test Project",
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {} as any,
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: "seed-org-id",
+        role: "OWNER",
+        aiTelemetryEnabled: true,
+        projects: [{ id: projectId, role: "ADMIN" }],
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 

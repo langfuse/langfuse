@@ -10,9 +10,9 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import {
-  SettingsTable,
-  type SettingsTableToolbarAction,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardToolbarAction,
+} from "@/src/components/TableCard/TableCard";
 import {
   resolveRowHeightRendering,
   type RowHeight,
@@ -51,7 +51,7 @@ export function AuditLogsTable({
   pagination: PaginationBarProps;
   rowHeight: RowHeight;
   onRowHeightChange: (height: RowHeight) => void;
-  toolbarActions?: SettingsTableToolbarAction[];
+  toolbarActions?: TableCardToolbarAction[];
 }) {
   return (
     <DialogController<AuditLogRow>
@@ -154,7 +154,7 @@ export function AuditLogsTable({
         ];
 
         return (
-          <SettingsTable
+          <TableCard
             tableName={tableName}
             columns={columns}
             columnVisibilityKey={`${tableName}ColumnVisibility`}

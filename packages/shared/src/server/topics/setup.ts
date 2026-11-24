@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import {
   topicsAutomaticProcessingSchema,
@@ -46,7 +47,7 @@ export async function saveTopicsSetup(
     ? rules.find((rule) => rule.id === setup.ruleId)
     : undefined;
   if (setup.ruleId && !existing)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   const sendsRuleFields =
     setup.facets !== undefined ||
     setup.customFacetIds !== undefined ||
@@ -169,7 +170,7 @@ export async function setTopicsAutomaticProcessing(
     );
   const rule = ruleId ? rules.find((item) => item.id === ruleId) : undefined;
   if (ruleId && !rule)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   if (enabled) await checkStoredTopicsModels(config);
 
   await prisma.$transaction(async (tx) => {

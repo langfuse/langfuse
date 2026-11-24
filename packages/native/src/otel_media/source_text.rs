@@ -7,7 +7,10 @@ use std::collections::{HashMap, VecDeque};
 use super::json::validate_json;
 use super::json_cursor::{ContainerState, ContainerStep, JsonCursor};
 use super::payload::EarlyMediaError;
-use super::rules::{MEDIA_REFERENCE_PREFIX, MEDIA_REFERENCE_SUFFIX};
+use super::rules::{
+    find_media_reference_prefix, find_media_reference_suffix, MEDIA_REFERENCE_PREFIX,
+    MEDIA_REFERENCE_SUFFIX,
+};
 use super::WalkStats;
 
 const MAX_SERIALIZED_REFERENCE_LAYERS: u32 = 16;
@@ -123,7 +126,8 @@ fn collect_layers(
             stack.push(ContainerState::new(peek));
         } else {
             let token = cursor.consume_scalar(peek, &mut stats)?;
-            if peek == Peek::String && source[token.clone()].contains(MEDIA_REFERENCE_PREFIX) {
+            if peek == Peek::String && find_media_reference_prefix(&source[token.clone()]).is_some()
+            {
                 if let Ok(Value::String(text)) = Value::parse(&source[token]) {
                     if depth < MAX_SERIALIZED_REFERENCE_LAYERS
                         && validate_json(text.as_str()).is_ok()
@@ -167,13 +171,10 @@ pub(crate) fn for_each_media_reference(text: &str, mut visit: impl FnMut(&str) -
 
 fn scan_reference_ranges<'a>(text: &'a str, mut visit: impl FnMut(usize, usize, &'a str) -> bool) {
     let mut cursor = 0;
-    while let Some(relative) = text
-        .get(cursor..)
-        .and_then(|text| text.find(MEDIA_REFERENCE_PREFIX))
-    {
+    while let Some(relative) = text.get(cursor..).and_then(find_media_reference_prefix) {
         let start = cursor + relative;
         let suffix_start = start + MEDIA_REFERENCE_PREFIX.len();
-        let Some(relative_end) = text[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
+        let Some(relative_end) = find_media_reference_suffix(&text[suffix_start..]) else {
             break;
         };
         let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();
@@ -195,71 +196,88 @@ mod tests {
         MAX_SERIALIZED_REFERENCE_LAYERS,
     };
     use crate::otel::value::Value;
+    use proptest::prelude::*;
 
-    #[test]
-    fn malformed_markers_cannot_hide_later_known_references() {
-        let reference = "@@@langfuseMedia:type=image/png|id=one|source=bytes@@@";
-        for extra_ats in 0..=5 {
-            let plain = format!(
-                "é @@@langfuseMedia:unknown@@@ @@@langfuseMedia:unfinished {}{reference} tail {reference}",
-                "@".repeat(extra_ats),
-            );
-            for source in [plain.clone(), serde_json::to_string(&plain).unwrap()] {
-                let expected_starts = source
-                    .match_indices(reference)
-                    .map(|(index, _)| index)
-                    .collect::<Vec<_>>();
-                let mut references = std::collections::HashSet::new();
-                crate::otel_media::collect_media_references(&source, &mut references);
-                assert!(references.contains(reference));
-                let mut collected = 0;
-                for_each_media_reference(&source, |candidate| {
-                    if candidate == reference {
-                        collected += 1;
-                        true
-                    } else {
-                        false
-                    }
-                });
-                assert_eq!(collected, 2, "extra @ count: {extra_ats}");
-                assert_eq!(
-                    reference_spans(&source, reference)
-                        .into_iter()
-                        .map(|span| span.start)
-                        .collect::<Vec<_>>(),
-                    expected_starts,
-                );
-                let mut text = source.clone().into();
-                rewrite_known_references(
-                    &mut text,
-                    |candidate| candidate == reference,
-                    |_| false,
-                    |_, _| Ok::<_, ()>("uploaded-reference".to_owned()),
-                )
-                .unwrap();
-                assert_eq!(
-                    text.into_utf8_lossy(),
-                    source.replace(reference, "uploaded-reference"),
-                );
-            }
+    const REFERENCE: &str = "@@@langfuseMedia:type=image/png|id=one|source=bytes@@@";
+
+    /// Check that each occurrence of `REFERENCE` in `source`, and nothing else, is found and
+    /// rewritten.
+    fn check_known_reference(source: &str) -> Result<(), TestCaseError> {
+        let expected_starts = source
+            .match_indices(REFERENCE)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let spans = reference_spans(source, REFERENCE);
+        for span in &spans {
+            prop_assert_eq!(&source[span.start..span.end], REFERENCE);
         }
+        let starts = spans.into_iter().map(|span| span.start).collect::<Vec<_>>();
+        prop_assert_eq!(&starts, &expected_starts);
+
+        let mut references = std::collections::HashSet::new();
+        crate::otel_media::collect_media_references(source, &mut references);
+        prop_assert_eq!(references.contains(REFERENCE), !expected_starts.is_empty());
+        let mut collected = 0;
+        for_each_media_reference(source, |candidate| {
+            let known = candidate == REFERENCE;
+            collected += usize::from(known);
+            known
+        });
+        prop_assert_eq!(collected, expected_starts.len());
+
+        let mut text = source.to_owned().into();
+        rewrite_known_references(
+            &mut text,
+            |candidate| candidate == REFERENCE,
+            |_| false,
+            |_, _| Ok::<_, ()>("uploaded-reference".to_owned()),
+        )
+        .unwrap();
+        prop_assert_eq!(
+            text.into_utf8_lossy(),
+            source.replace(REFERENCE, "uploaded-reference")
+        );
+        Ok(())
     }
 
     #[test]
-    fn unknown_markers_cannot_steal_a_known_references_closing_delimiter() {
-        let reference = "@@@langfuseMedia:type=image/png|id=one|source=bytes@@@";
+    fn known_references_are_found_and_rewritten_wherever_they_occur() {
         for extra_ats in 0..=5 {
-            let source = format!(
-                "é {reference}{}langfuseMedia:unknown@@@ tail",
-                "@".repeat(extra_ats),
+            let ats = "@".repeat(extra_ats);
+            // An unknown marker and an unterminated one come before two references.
+            let hidden = format!(
+                "é @@@langfuseMedia:unknown@@@ @@@langfuseMedia:unfinished {ats}{REFERENCE} tail {REFERENCE}"
             );
-            let mut references = std::collections::HashSet::new();
-            crate::otel_media::collect_media_references(&source, &mut references);
-            assert!(references.contains(reference));
-            let spans = reference_spans(&source, reference);
-            assert_eq!(spans.len(), 1, "extra @ count: {extra_ats}");
-            assert_eq!(&source[spans[0].start..spans[0].end], reference);
+            // An unknown marker starts inside or right after the closing delimiter.
+            let borrowed = format!("é {REFERENCE}{ats}langfuseMedia:unknown@@@ tail");
+            for source in [serde_json::to_string(&hidden).unwrap(), hidden, borrowed] {
+                check_known_reference(&source).unwrap();
+            }
         }
+
+        let piece = prop_oneof![
+            3 => Just(REFERENCE.to_owned()),
+            1 => Just("@@@langfuseMedia:unknown@@@".to_owned()),
+            1 => Just("@@@langfuseMedia:unfinished ".to_owned()),
+            // Without an opening delimiter, a marker or a reference can borrow the `@` signs
+            // that end the text before it.
+            1 => Just("langfuseMedia:unknown@@@".to_owned()),
+            1 => Just(REFERENCE[3..].to_owned()),
+            2 => (0usize..=5).prop_map(|count| "@".repeat(count)),
+            2 => prop::sample::select(vec!["é ", " tail ", "雪\"\\"]).prop_map(str::to_owned),
+        ];
+        proptest!(|(
+            pieces in prop::collection::vec(piece, 0..12),
+            json_string in any::<bool>(),
+        )| {
+            let plain = pieces.concat();
+            let source = if json_string {
+                serde_json::to_string(&plain).unwrap()
+            } else {
+                plain
+            };
+            check_known_reference(&source)?;
+        });
     }
 
     #[test]

@@ -2,8 +2,6 @@
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
-
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -15,6 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const __orgIds: string[] = [];
 
@@ -24,43 +23,18 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiTelemetryEnabled: true,
+        projects: [{ id: project.id, role: "ADMIN", name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

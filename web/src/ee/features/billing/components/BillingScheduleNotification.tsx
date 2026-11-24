@@ -1,6 +1,6 @@
 // Langfuse Cloud only
 
-import { InfoIcon } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import type { UseBillingInformationResult } from "./useBillingInformation";
 
 type BillingScheduleNotificationProps =
@@ -22,28 +22,22 @@ export const BillingScheduleNotification = (
 ) => {
   if (props.type === "cancellation") {
     return (
-      <div className="mt-6 mb-4 flex overflow-x-auto rounded-lg border border-blue-200 bg-blue-100 py-2 text-sm text-blue-900 contrast-more:border-current ltr:pr-4 rtl:pl-4 dark:border-blue-200/30 dark:bg-blue-900/30 dark:text-blue-200 contrast-more:dark:border-current">
-        <div className="flex items-center gap-2 pl-3 leading-7">
-          <InfoIcon size="base" />
+      <div className="mt-6 mb-4">
+        <Banner variant="info">
           {`Your organization cancelled the subscription. Features of the ${props.planLabel} plan will be available until ${props.cancellation.formatted}.`}
-        </div>
+        </Banner>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 mb-4 flex overflow-x-auto rounded-lg border border-blue-200 bg-blue-100 py-2 text-sm text-blue-900 contrast-more:border-current ltr:pr-4 rtl:pl-4 dark:border-blue-200/30 dark:bg-blue-900/30 dark:text-blue-200 contrast-more:dark:border-current">
-      <div className="flex gap-2 pl-3">
-        <InfoIcon size="base" __rawClassName="mt-1" />
-        <div>
-          <div>{`Your organization is scheduled to switch from ${props.planLabel} to ${props.scheduledPlanSwitch.newPlanLabel} on ${props.scheduledPlanSwitch.formatted}.`}</div>
-          {props.scheduledPlanSwitch.message && (
-            <div className="mt-2 text-blue-800 dark:text-blue-300">
-              {props.scheduledPlanSwitch.message}
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="mt-6 mb-4">
+      <Banner variant="info">
+        {`Your organization is scheduled to switch from ${props.planLabel} to ${props.scheduledPlanSwitch.newPlanLabel} on ${props.scheduledPlanSwitch.formatted}.`}
+        {props.scheduledPlanSwitch.message && (
+          <div className="mt-2">{props.scheduledPlanSwitch.message}</div>
+        )}
+      </Banner>
     </div>
   );
 };

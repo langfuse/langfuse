@@ -81,7 +81,7 @@ const assignmentsFor = (principalId: string) => {
   if (principalId === "apiKey/key_u")
     return [orgAssignment(principal, "ADMIN")];
   if (principalId === "apiKey/key_ug")
-    return [orgAssignment(principal, "AI_GATEWAY")];
+    return [orgAssignment(principal, "AI_GATEWAY_INFERENCE")];
   if (principalId === `user/${MEMBER_USER}`)
     return [orgAssignment(principal, "MEMBER")];
   if (principalId === `user/${ADMIN_USER}`)
@@ -346,6 +346,9 @@ describe("expansion table: scope USER, privateKey", () => {
     expect(
       authorize(ctx, TENANT, "gateway:invoke", OrganizationId(ORG)).success,
     ).toBe(true);
+    expect(
+      authorize(ctx, TENANT, "gateway:read", OrganizationId(ORG)).success,
+    ).toBe(false);
     expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
       false,
     );

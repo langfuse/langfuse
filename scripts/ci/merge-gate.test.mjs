@@ -128,6 +128,34 @@ test("changed-file provider selection permits only explicit exclusions", () => {
   );
 });
 
+test("fork pull requests may skip the secret-bearing provider jobs", () => {
+  const needs = successfulJobs();
+  needs["llm-connections-filter"] = {
+    result: "success",
+    outputs: { llm_connections: "true", ai_gateway: "true" },
+  };
+  for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
+    needs[job] = { result: "skipped" };
+    assert.deepEqual(
+      evaluateGate({ event: "pull_request", needs, fork: true }),
+      [],
+      job,
+    );
+    assert.notEqual(
+      evaluateGate({ event: "pull_request", needs }).length,
+      0,
+      job,
+    );
+    needs[job] = { result: "failure" };
+    assert.notEqual(
+      evaluateGate({ event: "pull_request", needs, fork: true }).length,
+      0,
+      job,
+    );
+    needs[job] = { result: "success" };
+  }
+});
+
 test("a duplicate push cannot excuse a failed job or a failed tag check", () => {
   const needs = Object.fromEntries(
     requiredJobs.map((name) => [name, { result: "skipped" }]),

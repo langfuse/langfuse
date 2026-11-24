@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { SandboxFileSchema, SandboxOperationSchema } from "./contracts.js";
+import {
+  MAX_BASH_TIMEOUT_MS,
+  SandboxFileSchema,
+  SandboxOperationSchema,
+} from "./contracts.js";
 
 describe("SandboxOperationSchema", () => {
   it("accepts each supported sandbox operation", () => {
@@ -49,6 +53,27 @@ describe("SandboxOperationSchema", () => {
     });
   });
 
+  it("defaults an omitted bash timeout so the runtime always arms a kill timer", () => {
+    // `bashOperation` forwards `body.timeoutMs` directly to `runCommand`, which
+    // arms its kill timer only when that value is defined. Parsing must supply a
+    // finite default, otherwise a long-running command is never terminated.
+    expect(
+      SandboxOperationSchema.parse({
+        operation: "bash",
+        command: "while true; do sleep 1; done",
+      }),
+    ).toMatchObject({ operation: "bash", timeoutMs: MAX_BASH_TIMEOUT_MS });
+
+    // Control: an explicit caller value is respected unchanged.
+    expect(
+      SandboxOperationSchema.parse({
+        operation: "bash",
+        command: "sleep 1",
+        timeoutMs: 200,
+      }),
+    ).toMatchObject({ operation: "bash", timeoutMs: 200 });
+  });
+
   it("accepts optional toolCallFiles on operations", () => {
     const parsed = SandboxOperationSchema.parse({
       operation: "bash",
@@ -84,6 +109,24 @@ describe("SandboxOperationSchema", () => {
         timeoutMs: Number.POSITIVE_INFINITY,
       }).success,
     ).toBe(false);
+
+    for (const timeoutMs of [0, -1, 1.5, 120_001, 2 ** 31]) {
+      expect(
+        SandboxOperationSchema.safeParse({
+          operation: "bash",
+          command: "echo hi",
+          timeoutMs,
+        }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      SandboxOperationSchema.safeParse({
+        operation: "bash",
+        command: "echo hi",
+        timeoutMs: 120_000,
+      }).success,
+    ).toBe(true);
 
     expect(
       SandboxFileSchema.safeParse({ path: "/workspace/a.txt" }).success,

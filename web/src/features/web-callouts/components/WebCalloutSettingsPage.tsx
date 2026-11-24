@@ -8,7 +8,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -109,12 +109,9 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to manage integrations for this project.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to manage integrations for this project.
+        </Banner>
       </div>
     );
   }

@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { type Session } from "next-auth";
 
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
 
 vi.mock(
@@ -23,12 +25,9 @@ const PROJECT_ID = "proj_test123";
 
 /** signIn sets the session user's project role for PROJECT_ID. */
 const signIn = ({ role }: { role: "OWNER" | "VIEWER" }) => {
-  sessionMock.data = {
-    expires: "1",
-    user: {
-      organizations: [{ projects: [{ id: PROJECT_ID, role }] }],
-    },
-  } as unknown as Session;
+  sessionMock.data = createSession({
+    organizations: [{ id: "org-1", role, projects: [{ id: PROJECT_ID }] }],
+  });
 };
 
 describe("MonitorsOnboarding", () => {

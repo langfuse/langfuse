@@ -1,10 +1,8 @@
 import { format } from "date-fns";
-import { ChevronLeft, CircleAlert } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { ChevronLeft } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import {
   type TopicFacet,
@@ -13,13 +11,17 @@ import {
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 import {
   busy,
+  createsSummaries,
   executionBadgeTypes,
   executionLabels,
+  formatTopicCost,
   formatTopicRunCost,
   runLabel,
+  estimatedTopicCostDescription,
+  estimatedTopicCostLabel,
+  type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 
-type Run = RouterOutputs["topics"]["execution"];
 type FacetProgress = Run["facets"][number];
 
 type TopicRunDetailsProps = {
@@ -58,7 +60,7 @@ const questionStatuses: Record<
     label: "No topics found",
     dot: "bg-muted-foreground",
   },
-  failed: { label: "Stopped", dot: "bg-dark-red" },
+  failed: { label: "Stopped", dot: "bg-destructive" },
 };
 
 function formatCount(count: number) {
@@ -189,21 +191,24 @@ export function TopicRunDetails({
     ? Math.min(total, ...counts.map((c) => c.complete))
     : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
-  const costLabel = (() => {
-    return isUpdate ? "Estimated cost" : "Estimated processing cost";
-  })();
-  const costDescription = (() => {
-    if (isUpdate) return "Topic naming costs aren’t tracked yet.";
-    if (execution.estimatedCost == null)
-      return "No estimate is available for this run’s summaries and embeddings.";
-    return "Total for this run’s stored summaries and embeddings. Excludes topic naming and failed calls. May temporarily overcount or change when summaries are replaced or deleted.";
-  })();
+  const costs = execution.costBreakdown;
+  const expectsSummaries = createsSummaries(execution.input);
+  const summaryCost = expectsSummaries
+    ? formatTopicCost(costs == null ? costs : costs.summaries)
+    : "No new summaries";
+  const namingCost = costs == null ? costs : costs.naming;
+  const namingValue =
+    !isUpdate && namingCost == null
+      ? "Not part of this run"
+      : formatTopicCost(namingCost);
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
+  const exploratory =
+    execution.input.operation === "update" && execution.input.exploratory;
+  const defaultMinimum = exploratory ? 10 : 100;
   const minimum =
     execution.input.operation === "update"
-      ? (execution.input.minimumTraceCount ??
-        (execution.input.exploratory ? 10 : 100))
+      ? (execution.input.minimumTraceCount ?? defaultMinimum)
       : null;
   const name = runLabel(execution.input);
   const meta = [
@@ -211,9 +216,7 @@ export function TopicRunDetails({
     isUpdate
       ? `${formatCount(total)} summaries`
       : `${formatCount(total)} traces`,
-    ...(execution.input.operation === "update" && execution.input.exploratory
-      ? ["small sample"]
-      : []),
+    ...(exploratory ? ["small sample"] : []),
   ].join(" · ");
   const showBar = perTrace && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
@@ -260,32 +263,33 @@ export function TopicRunDetails({
       </header>
       {(failed || resumable) && (
         <div className="px-4 pt-4">
-          <Alert variant="destructive" icon={CircleAlert}>
-            <Alert.Title>Run stopped</Alert.Title>
-            <Alert.Description>
-              <div className="text-foreground-secondary flex flex-col gap-0.5">
-                {execution.error && (
-                  <p className="break-words">{execution.error}</p>
-                )}
-                {!isUpdate && complete > 0 && (
-                  <p>
-                    {formatCount(complete)} traces are already summarized and
-                    will be kept.
-                  </p>
-                )}
-              </div>
-              {resumable && (
-                <div className="pt-2.5">
-                  <Button
-                    text="Resume run"
-                    size="sm"
-                    loading={retry.isPending}
-                    onClick={() => retry.onRetry()}
-                  />
-                </div>
+          <Banner
+            variant="error"
+            title="Run stopped"
+            actions={
+              resumable
+                ? [
+                    {
+                      text: "Resume run",
+                      disabled: retry.isPending,
+                      onClick: () => retry.onRetry(),
+                    },
+                  ]
+                : undefined
+            }
+          >
+            <div className="flex flex-col gap-0.5">
+              {execution.error && (
+                <p className="break-words">{execution.error}</p>
               )}
-            </Alert.Description>
-          </Alert>
+              {!isUpdate && complete > 0 && (
+                <p>
+                  {formatCount(complete)} traces are already summarized and will
+                  be kept.
+                </p>
+              )}
+            </div>
+          </Banner>
         </div>
       )}
       {retry.errorMessage && (
@@ -302,7 +306,7 @@ export function TopicRunDetails({
             <div
               className={cn(
                 "h-full rounded-sm",
-                failed ? "bg-dark-red" : "bg-foreground",
+                failed ? "bg-destructive" : "bg-foreground",
               )}
               style={{ width: `${(complete / total) * 100}%` }}
             />
@@ -314,16 +318,19 @@ export function TopicRunDetails({
             <span className="font-mono text-xs">{summaryValue}</span>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2.5">
-          <span className="text-muted-foreground text-xs">{costLabel}</span>
-          <span className="font-mono text-xs">
-            {formatTopicRunCost(
-              execution.input.operation,
-              execution.estimatedCost,
-            )}
-          </span>
-        </div>
-        <p className="text-muted-foreground text-xs">{costDescription}</p>
+        <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
+          <dt className="font-medium">{estimatedTopicCostLabel}</dt>
+          <dd className="text-right font-mono font-medium">
+            {formatTopicRunCost(costs)}
+          </dd>
+          <dt className="text-muted-foreground">Summaries and embeddings</dt>
+          <dd className="text-right font-mono">{summaryCost}</dd>
+          <dt className="text-muted-foreground">Topic naming</dt>
+          <dd className="text-right font-mono">{namingValue}</dd>
+        </dl>
+        <p className="text-muted-foreground text-xs">
+          {estimatedTopicCostDescription}
+        </p>
       </div>
       <div className="flex flex-col">
         <h3 className="text-muted-foreground px-4 pt-3.5 pb-0.5 text-xs font-bold">

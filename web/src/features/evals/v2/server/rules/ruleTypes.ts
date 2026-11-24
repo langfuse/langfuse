@@ -1,6 +1,7 @@
 import {
   EvalTargetObject,
   observationVariableMappingList,
+  TopicsTargetObject,
   paginationLimitZod,
   singleFilterList,
 } from "@langfuse/shared";
@@ -40,9 +41,15 @@ export const ListRulesSchema = z.object({
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z
-    .array(z.enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT]))
+    .array(
+      z.enum([
+        EvalTargetObject.EVENT,
+        EvalTargetObject.EXPERIMENT,
+        TopicsTargetObject,
+      ]),
+    )
     .min(1)
-    .max(2)
+    .max(3)
     .optional(),
   filter: singleFilterList
     .superRefine((filters, ctx) => {
@@ -73,6 +80,14 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
     .describe(
       "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
     ),
+  enabled: z.boolean(),
+  evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
+});
+
+/** Assignment shape matches CreateRuleSchema; trace mapping checks live in assertTraceTranscriptAssignments. */
+export const CreateTraceTranscriptRuleSchema = RuleMetadataSchema.extend({
+  projectId: z.string(),
+  targetObject: z.literal(TopicsTargetObject),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
@@ -155,6 +170,9 @@ export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
 export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;
+export type CreateTraceTranscriptRuleInput = z.infer<
+  typeof CreateTraceTranscriptRuleSchema
+>;
 export type CreateOrAttachFromEvaluatorFiltersInput = z.infer<
   typeof CreateOrAttachFromEvaluatorFiltersSchema
 >;

@@ -10,6 +10,7 @@ import {
   type GatewayBudgetTarget,
   useSetGatewayBudgets,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
@@ -46,6 +47,7 @@ export function GatewayEditBudgetDialogController({
     useGatewaySettingsAccess(organizationId);
   const { setBudgets, mutation } = useSetGatewayBudgets(organizationId);
   const defaultBudget = useGatewayDefaultBudget(organizationId, subject);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
 
   const save = async (
     budgets: GatewayEditedBudgets,
@@ -58,6 +60,12 @@ export function GatewayEditBudgetDialogController({
       spendLimit,
     });
     if (!saved) return;
+    captureBudgetChange({
+      surface: "budgets_page",
+      scope: GATEWAY_SPEND_TABS[budgets.tab].scope,
+      subjectCount: budgets.count,
+      spendLimit,
+    });
     budgets.onAfterSave?.();
     closeDialog();
     mutation.reset();

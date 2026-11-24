@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
 import { useGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useGatewayDefaultBudget";
-import { useSetGatewayDefaultBudget } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayDefaultBudget";
+import { useSetGatewayDefaultBudget } from "@/src/features/ai-gateway/hooks/useSetGatewayDefaultBudget";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { GatewayBudgetDialog } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetDialog/GatewayBudgetDialog";
@@ -41,6 +42,7 @@ export function GatewayDefaultBudgetDialogController({
   const defaultBudget = useGatewayDefaultBudget(organizationId, subject);
   const { setDefaultBudget, mutation } =
     useSetGatewayDefaultBudget(organizationId);
+  const captureBudgetChange = useCaptureGatewayBudgetChange(organizationId);
 
   const save = async (
     spendLimit: GatewaySpendLimit | null,
@@ -48,6 +50,12 @@ export function GatewayDefaultBudgetDialogController({
   ) => {
     const saved = await setDefaultBudget({ subject, spendLimit });
     if (!saved) return;
+    captureBudgetChange({
+      surface: "budgets_page",
+      scope: subject === "key" ? "API_KEY_DEFAULT" : "USER_DEFAULT",
+      subjectCount: 1,
+      spendLimit,
+    });
     closeDialog();
     mutation.reset();
   };

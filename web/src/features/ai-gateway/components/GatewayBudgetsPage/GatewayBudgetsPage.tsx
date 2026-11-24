@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -61,14 +61,11 @@ export function GatewayBudgetsPage({
       </PageHeaderControlsPortal>
       <div className="flex flex-col gap-2">
         {isRecording === false && (
-          <Alert>
-            <Alert.Title>Gateway requests aren’t recorded</Alert.Title>
-            <Alert.Description>
-              {canManageGateway
-                ? "Spend is built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion on the Overview page to see spend here."
-                : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your spend here."}
-            </Alert.Description>
-          </Alert>
+          <Banner title="Gateway requests aren’t recorded">
+            {canManageGateway
+              ? "Spend is built from the traces the gateway writes to its ingestion project. Turn on usage or full ingestion on the Overview page to see spend here."
+              : "Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your spend here."}
+          </Banner>
         )}
         {isRecording === undefined && <Skeleton className="h-80 rounded-lg" />}
         <GatewayBudgetsTabContent

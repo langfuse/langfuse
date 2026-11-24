@@ -34,6 +34,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
+import {
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -116,21 +120,18 @@ const createProjectUser = async ({
     },
   });
 
-  const orgMembership = await prisma.organizationMembership.create({
-    data: {
-      orgId,
-      userId: user.id,
-      role: "MEMBER",
-    },
+  const orgMembership = await createOrgMembership(prisma, {
+    orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.create({
-    data: {
-      projectId,
-      userId: user.id,
-      role: "MEMBER",
-      orgMembershipId: orgMembership.id,
-    },
+  await createProjectMembership(prisma, {
+    orgId,
+    projectId,
+    userId: user.id,
+    role: "MEMBER",
+    orgMembershipId: orgMembership.id,
   });
 
   return user;

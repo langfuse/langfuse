@@ -551,6 +551,68 @@ describe("BatchDataRetentionCleaner", () => {
     });
   });
 
+  describe("processBatch - Topics results", () => {
+    it.each([
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ] as const)(
+      "should delete %s older than project retention by unit_start_time",
+      async (table) => {
+        const now = Date.now();
+        const { projectId } = await createOrgProjectAndApiKey();
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { retentionDays: 7 },
+        });
+        const oldTraceId = randomUUID();
+        const recentTraceId = randomUUID();
+        const sources = [
+          { traceId: oldTraceId, unitStartTime: now - 10 * 86_400_000 },
+          { traceId: recentTraceId, unitStartTime: now - 86_400_000 },
+        ].map(({ traceId, unitStartTime }) => ({
+          project_id: projectId,
+          facet_id: "intent",
+          facet_version: 1,
+          trace_id: traceId,
+          environment: "default",
+          unit_start_time: toClickhouseDateTime(unitStartTime),
+          created_at: toClickhouseDateTime(now),
+        }));
+        await Promise.all([
+          clickhouseClient().insert({
+            table: "topic_facet_summaries",
+            format: "JSONEachRow",
+            values: sources.map((source) => ({
+              ...source,
+              processing_state: "complete",
+              summary: "A trace summary.",
+            })),
+          }),
+          // Also fills topic_assignments_by_trace through its materialized view.
+          clickhouseClient().insert({
+            table: "topic_assignments",
+            format: "JSONEachRow",
+            values: sources.map((source) => ({
+              ...source,
+              clustering_run_id: "run",
+              summary_processed_at: toClickhouseDateTime(now),
+              origin: "online",
+            })),
+          }),
+        ]);
+
+        await new BatchDataRetentionCleaner(table).processBatch();
+
+        const rows = await queryClickhouse<{ trace_id: string }>({
+          query: `SELECT trace_id FROM ${table} WHERE project_id = {projectId: String}`,
+          params: { projectId },
+        });
+        expect(rows.map((row) => row.trace_id)).toEqual([recentTraceId]);
+      },
+    );
+  });
+
   describe("candidate discovery and enrichment", () => {
     const timestampColumns = TIMESTAMP_COLUMN_MAP as Record<string, string>;
     let tableName: string;

@@ -39,8 +39,8 @@ use super::payload::{
     MediaMetadata, MediaPayloadKind, MediaSource,
 };
 use super::rules::{
-    is_media_reference, is_supported_content_type, may_be_serialized_json,
-    may_contain_serialized_media, DATA_URI_PREFIX,
+    contains_unicode_escape, find_data_uri_prefix, is_media_reference, is_supported_content_type,
+    may_be_serialized_json, may_contain_serialized_media, DATA_URI_PREFIX,
 };
 use super::structural_walk::Candidate;
 use super::WalkStats;
@@ -188,8 +188,8 @@ impl MediaDiscovery<'_, '_, '_> {
         if !(allow_embedded_json
             && may_be_serialized_json(value)
             && self.embedded_depth < MAX_EMBEDDED_JSON_DEPTH
-            && (value.contains(DATA_URI_PREFIX)
-                || value.contains("\\u")
+            && (find_data_uri_prefix(value).is_some()
+                || contains_unicode_escape(value)
                 || may_contain_serialized_media(value))
             && super::json::validate_json(value).is_ok())
         {

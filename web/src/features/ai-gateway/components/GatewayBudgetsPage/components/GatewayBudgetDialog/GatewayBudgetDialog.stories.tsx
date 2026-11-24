@@ -33,6 +33,33 @@ const args = {
 
 export const EditKeyBudget = meta.story({ args });
 
+export const WithWarningThresholds = meta.story({
+  args: {
+    ...args,
+    spendLimit: {
+      interval: "MONTHLY" as const,
+      limitUsd: 100,
+      alertThresholds: [85, 95, 100],
+    },
+  },
+});
+
+export const OrganizationBudget = meta.story({
+  args: {
+    ...args,
+    title: "Organization budget",
+    description:
+      "Caps total gateway spend in this organization, across all members and keys. Key and user budgets still apply; whichever is reached first blocks the request.",
+    subject: "organization",
+    spendLimit: {
+      interval: "MONTHLY" as const,
+      limitUsd: 500,
+      alertThresholds: [85, 100],
+    },
+    saveLabel: "Save budget",
+  },
+});
+
 export const EditSeveralBudgets = meta.story({
   args: {
     ...args,

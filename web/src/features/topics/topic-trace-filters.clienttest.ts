@@ -316,6 +316,26 @@ describe("topic search registry", () => {
     ).toEqual(parsed.filters);
   });
 
+  it("keeps status: on the assignment state when trace fields are added", () => {
+    const traceRegistry = createTopicTraceRegistry(topics, [], {
+      traceFields: true,
+    });
+    expect(
+      astToFilterState(
+        parse('status:"Outlier"', traceRegistry).ast,
+        undefined,
+        traceRegistry,
+      ).filters,
+    ).toEqual([
+      {
+        column: "assignment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["outlier"],
+      },
+    ]);
+  });
+
   it("keeps duplicate topic labels distinct", () => {
     const duplicateRegistry = createTopicTraceRegistry([
       { id: "one", name: "Support" },

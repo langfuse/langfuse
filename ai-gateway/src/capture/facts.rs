@@ -34,7 +34,6 @@ impl RelayOutcome {
 pub(crate) enum InputOmissionReason {
     SizeLimit,
     ContentEncoding,
-    InvalidJson,
     RecordLimit,
     TelemetryBuffer,
 }

@@ -31,7 +31,6 @@ export class GatewayResolveRepository {
           select: {
             name: true,
             email: true,
-            organizationMemberships: { select: { orgId: true, role: true } },
             // Across the user's organizations; the caller keeps the key's.
             gatewaySpendLimits: {
               orderBy: { interval: "asc" },
@@ -41,6 +40,7 @@ export class GatewayResolveRepository {
                 scope: true,
                 interval: true,
                 limitUsd: true,
+                alertThresholds: true,
                 countingStartedAt: true,
               },
             },
@@ -54,6 +54,7 @@ export class GatewayResolveRepository {
             scope: true,
             interval: true,
             limitUsd: true,
+            alertThresholds: true,
             countingStartedAt: true,
           },
         },
@@ -80,6 +81,7 @@ export class GatewayResolveRepository {
                 scope: true,
                 interval: true,
                 limitUsd: true,
+                alertThresholds: true,
                 countingStartedAt: true,
               },
             },

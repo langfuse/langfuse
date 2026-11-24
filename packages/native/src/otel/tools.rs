@@ -81,13 +81,9 @@ fn definition_data(value: &Value) -> Option<&JsonObject> {
     }
 }
 
-fn is_definition_like(
-    value: &Value,
-    allow_provider_without_name: bool,
-    parse_cache: &mut JsonParseCache,
-) -> bool {
-    let parsed = parse_if_string(value, parse_cache);
-    definition_data(&parsed)
+/// Whether `parsed`, a definition already parsed from any JSON text, describes a tool.
+fn is_definition_like(parsed: &Value, allow_provider_without_name: bool) -> bool {
+    definition_data(parsed)
         .and_then(|data| data.get("name"))
         .is_some_and(is_js_truthy)
         || (allow_provider_without_name
@@ -107,8 +103,9 @@ fn parse_definition_array(
     let values = parsed.as_array()?;
     let mut valid = Vec::new();
     for value in values {
-        if is_definition_like(value, allow_provider_without_name, parse_cache) {
-            valid.push(parse_if_string(value, parse_cache).into_owned());
+        let definition = parse_if_string(value, parse_cache);
+        if is_definition_like(&definition, allow_provider_without_name) {
+            valid.push(definition.into_owned());
         }
     }
     if require_every_item && valid.len() != values.len() {
@@ -143,6 +140,8 @@ struct MetadataToolCleanup {
     attribute_keys: Vec<JsString>,
     rewrite_model_parameters: bool,
     remove_function_tools: bool,
+    /// The model request parameters as parsed from JSON text while collecting, for `apply`.
+    model_parameters: Option<Value>,
 }
 
 impl MetadataToolCleanup {
@@ -166,7 +165,12 @@ impl MetadataToolCleanup {
             let empty = attributes
                 .get_mut("model_request_parameters")
                 .is_some_and(|value| {
-                    clean_model_parameters(value, self.remove_function_tools, cache)
+                    clean_model_parameters(
+                        value,
+                        self.model_parameters,
+                        self.remove_function_tools,
+                        cache,
+                    )
                 });
             if empty {
                 attributes.shift_remove("model_request_parameters");
@@ -193,13 +197,18 @@ fn decoded_object_mut<'a>(
 }
 
 /// Remove the selected tool list, preserving whether parameters were stored as JSON text.
+/// `parsed` is that text as collection already parsed it, when the parameters are text.
 /// Return true when the remaining object is empty and its attribute can be removed.
 fn clean_model_parameters(
     value: &mut Value,
+    parsed: Option<Value>,
     remove_tools: bool,
     cache: &mut JsonParseCache,
 ) -> bool {
     let was_string = value.is_string();
+    if let (true, Some(parsed)) = (was_string, parsed) {
+        *value = parsed;
+    }
     let Some(parameters) = decoded_object_mut(value, cache) else {
         return false;
     };
@@ -280,6 +289,9 @@ fn collect_model_parameter_tools(
         tools.extend(values);
         cleanup.remove_function_tools = true;
     }
+    if let ParsedJson::Shared(_) = parsed {
+        cleanup.model_parameters = Some(parsed.into_owned());
+    }
 }
 
 fn collect_indexed_tools(
@@ -301,8 +313,9 @@ fn collect_indexed_tools(
     indexed.sort_by_key(|(index, _)| *index);
     for (_, key) in indexed {
         if let Some(value) = attributes.get(&key) {
-            if is_definition_like(value, false, cache) {
-                tools.push(parse_if_string(value, cache).into_owned());
+            let definition = parse_if_string(value, cache);
+            if is_definition_like(&definition, false) {
+                tools.push(definition.into_owned());
                 cleanup.attribute_keys.push(key);
             }
         }

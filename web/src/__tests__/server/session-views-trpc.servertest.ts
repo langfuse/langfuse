@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { onTestFinished } from "vitest";
-import { projectRoleAccessRights } from "@langfuse/shared";
 import { type Session } from "next-auth";
 import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import {
+  createOrgMembership,
+  createProjectMembership,
+  deleteOrgMembership,
+  updateOrgMembership,
+} from "@langfuse/shared/memberships";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { type Action } from "@langfuse/shared/rbac";
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -22,55 +28,40 @@ const prepare = async () => {
       where: { id: { in: [owner.id, other.id] } },
     });
   });
-  await prisma.organizationMembership.createMany({
-    data: [
-      { orgId: org.id, userId: owner.id, role: "ADMIN" },
-      { orgId: org.id, userId: other.id, role: "VIEWER" },
-    ],
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: owner.id,
+    role: "ADMIN",
+  });
+  await createOrgMembership(prisma, {
+    orgId: org.id,
+    userId: other.id,
+    role: "VIEWER",
   });
   const callerFor = (
     userId: string,
     role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    deniedActions: Action[] = [],
   ) => {
-    const session: Session = {
-      expires: "1",
-      user: {
-        id: userId,
-        canCreateOrganizations: true,
-        name: "Session view test user",
-        featureFlags: testFeatureFlags(),
-        organizations: [
-          {
-            id: org.id,
-            name: org.name,
-            role: "OWNER",
-            plan: "cloud:team",
-            cloudConfig: undefined,
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: true,
-            projects: [
-              {
-                id: project.id,
-                role,
-                retentionDays: 30,
-                deletedAt: null,
-                hasTraces: false,
-                name: project.name,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-      },
-      environment: {
-        enableExperimentalFeatures: false,
-        selfHostedInstancePlan: "cloud:hobby",
-      },
-    };
+    const session: Session = createSession({
+      user: { id: userId, name: "Session view test user" },
+      organizations: [
+        {
+          id: org.id,
+          role: "OWNER",
+          name: org.name,
+          plan: "cloud:team",
+          aiTelemetryEnabled: true,
+          projects: [{ id: project.id, role, name: project.name }],
+        },
+      ],
+      environment: { selfHostedInstancePlan: "cloud:hobby" },
+    });
     return appRouter.createCaller({
-      ...createInnerTRPCContext({ session, headers: {} }),
+      ...createInnerTRPCContext({
+        session: withoutActions(session, deniedActions),
+        headers: {},
+      }),
       prisma,
     });
   };
@@ -169,18 +160,11 @@ describe("session views", () => {
   });
   it("requires project write permission for promotion through either mutation", async () => {
     const { owner, callerFor, input } = await prepare();
-    const caller = callerFor(owner.id, "MEMBER");
-    const { view } = await caller.sessionViews.create({
+    const { view } = await callerFor(owner.id, "MEMBER").sessionViews.create({
       ...input,
       ownership: "PRIVATE",
     });
-    const original = projectRoleAccessRights.MEMBER;
-    onTestFinished(() => {
-      projectRoleAccessRights.MEMBER = original;
-    });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) => scope !== "SessionViews:CUD",
-    );
+    const caller = callerFor(owner.id, "MEMBER", ["SessionViews:CUD"]);
     await expect(
       caller.sessionViews.update({ ...input, id: view.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -198,14 +182,10 @@ describe("session views", () => {
     const { view } = await callerFor(owner.id, "ADMIN").sessionViews.create(
       input,
     );
-    const original = projectRoleAccessRights.MEMBER;
-    onTestFinished(() => {
-      projectRoleAccessRights.MEMBER = original;
-    });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) => scope !== "SessionViews:CUD" && scope !== "SessionViews:read",
-    );
-    const member = callerFor(other.id, "MEMBER");
+    const member = callerFor(other.id, "MEMBER", [
+      "SessionViews:CUD",
+      "SessionViews:read",
+    ]);
     expect(await member.sessionViews.list({ projectId: project.id })).toEqual(
       [],
     );
@@ -231,21 +211,20 @@ describe("session views", () => {
         sessionViewId: view.id,
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    projectRoleAccessRights.MEMBER = original.filter(
-      (scope) =>
-        scope !== "annotationQueues:CUD" &&
-        scope !== "TableViewPresets:CUD" &&
-        scope !== "TableViewPresets:read",
-    );
+    const projectWriter = callerFor(other.id, "MEMBER", [
+      "annotationQueues:CUD",
+      "TableViewPresets:CUD",
+      "TableViewPresets:read",
+    ]);
     await expect(
-      member.sessionViews.update({
+      projectWriter.sessionViews.update({
         ...input,
         id: view.id,
         name: "Project writer",
       }),
     ).resolves.toMatchObject({ view: { name: "Project writer" } });
     await expect(
-      member.sessionViews.create({
+      projectWriter.sessionViews.create({
         ...input,
         ownership: "PRIVATE",
         name: "Denied private",
@@ -415,17 +394,17 @@ describe("session views", () => {
         ...input,
         ownership: "PRIVATE",
       });
-      const membership = await prisma.organizationMembership.update({
-        where: { orgId_userId: { orgId: org.id, userId: other.id } },
-        data: { role: orgRole },
+      const membership = await updateOrgMembership(prisma, {
+        orgId: org.id,
+        userId: other.id,
+        role: orgRole,
       });
-      await prisma.projectMembership.create({
-        data: {
-          projectId: project.id,
-          userId: other.id,
-          orgMembershipId: membership.id,
-          role: "MEMBER",
-        },
+      await createProjectMembership(prisma, {
+        orgId: org.id,
+        projectId: project.id,
+        userId: other.id,
+        orgMembershipId: membership.id,
+        role: "MEMBER",
       });
       const { view: retained } = await admin.sessionViews.create({
         ...input,
@@ -577,11 +556,11 @@ describe("session views", () => {
       pinnedViewIds: [],
       unpinnedViewIds: ["messages"],
     });
-    await prisma.organizationMembership.delete({
-      where: { orgId_userId: { orgId: org.id, userId: other.id } },
-    });
-    await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: other.id, role: "VIEWER" },
+    await deleteOrgMembership(prisma, { orgId: org.id, userId: other.id });
+    await createOrgMembership(prisma, {
+      orgId: org.id,
+      userId: other.id,
+      role: "VIEWER",
     });
     await expect(
       caller.sessionViews.preferences({ projectId: project.id }),
@@ -1099,3 +1078,18 @@ describe("session views", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });
+
+/** withoutActions drops the denied actions from every policy the session binds. */
+function withoutActions(session: Session, deniedActions: Action[]): Session {
+  return {
+    ...session,
+    policies: session.policies.map((policies) =>
+      policies.map((policy) => ({
+        ...policy,
+        actions: policy.actions.filter(
+          (action) => !deniedActions.includes(action),
+        ),
+      })),
+    ),
+  };
+}
