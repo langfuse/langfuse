@@ -1,17 +1,17 @@
-import { Lock, Users } from "@langfuse/icons";
+import { Lock } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 
 import { GroupLink } from "@/src/features/groups/components/GroupLink";
 import {
   memberCountLabel,
-  type StackMember,
+  type GroupMember,
 } from "@/src/features/groups/components/GroupMemberStack";
 import {
   isScimManaged,
   SCIM_MANAGED_LABEL,
 } from "@/src/features/groups/groupSource";
 import { GroupMemberName } from "@/src/features/groups/components/GroupMemberName";
-import { IconTile } from "@/src/features/rbac/components/IconTile";
+import { GroupIcon } from "@/src/features/groups/components/GroupIcon";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
 
 type GroupLevel = "organization" | "project";
@@ -24,7 +24,7 @@ type GroupSummaryCardProps = {
   role: Role;
   memberCount: number;
   /** The group's first few members; `memberCount` is the full size. */
-  memberPreview: StackMember[];
+  memberPreview: GroupMember[];
   /** Opens the full member list; without it the hidden members are only counted. */
   membersHref?: string | null;
   /** Whether the viewer may change the group; names the link for groups created in Langfuse. */
@@ -47,7 +47,7 @@ export function GroupSummaryCard({
     <div className="ph-no-capture flex w-85 flex-col divide-y text-sm">
       <div className="flex flex-col gap-3.5 px-4 pt-4 pb-3.5">
         <div className="flex min-w-0 items-center gap-3">
-          <IconTile icon={Users} shape="largeCircle" />
+          <GroupIcon size="lg" />
           <div className="flex min-w-0 flex-col">
             <p className="text-base leading-5 font-bold break-words">{name}</p>
             <p className="text-muted-foreground leading-snug">

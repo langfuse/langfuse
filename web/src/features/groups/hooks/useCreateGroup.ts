@@ -2,6 +2,7 @@ import { useState } from "react";
 import { type Role } from "@langfuse/shared/src/db";
 import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useRefreshGroups } from "@/src/features/groups/hooks/useRefreshGroups";
 import { api } from "@/src/utils/api";
 
 type NewGroupInput = {
@@ -13,7 +14,7 @@ type NewGroupInput = {
 
 /** useCreateGroup creates a group, then gives it its organization role and members, and confirms it in one toast. */
 export function useCreateGroup() {
-  const utils = api.useUtils();
+  const refresh = useRefreshGroups();
   const create = api.groups.create.useMutation();
   const setOrgRole = api.groups.setOrgRole.useMutation();
   const addMembers = api.groups.addMembers.useMutation();
@@ -37,8 +38,7 @@ export function useCreateGroup() {
           ? undefined
           : addMembers.mutateAsync({ orgId, groupId: group.id, userIds }),
       ]);
-      await utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
+      await refresh();
       const partlySaved = results.some(
         (result) => result.status === "rejected",
       );

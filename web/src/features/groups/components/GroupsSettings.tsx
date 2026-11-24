@@ -417,11 +417,7 @@ function ConnectedCreateGroupDialog({
   return (
     <CreateGroupDialog
       roles={groupRoleOptions("organization", isAiGatewayEnabled)}
-      people={(orgMembers.data ?? []).map((user) => ({
-        value: user.id,
-        label: user.name ?? user.email ?? user.id,
-        secondaryLabel: user.name ? (user.email ?? undefined) : undefined,
-      }))}
+      people={orgMembers.data ?? []}
       isLoadingPeople={orgMembers.isLoading}
       isPending={isPending}
       error={error?.message}

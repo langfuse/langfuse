@@ -7,7 +7,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
-import { type GroupMember } from "./GroupMemberList";
+import { type GroupMember } from "./GroupMemberStack";
 import { GroupRoleDialogController } from "./GroupRoleDialogController";
 
 const meta = preview.meta({
@@ -265,7 +265,7 @@ export const TestProjectLevelPreviewsPickedRole = meta.story({
     const { dialog } = opened;
 
     await expect(
-      dialog.getByRole("heading", { name: /^Project access in llm-app for/ }),
+      dialog.getByRole("heading", { name: "Project access in llm-app" }),
     ).toBeVisible();
     await expect(
       dialog.getByRole("link", { name: "llm-app-maintainers" }),

@@ -8,13 +8,12 @@ import {
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
-import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
 import { GroupLink } from "@/src/features/groups/components/GroupLink";
+import { GroupMemberList } from "@/src/features/groups/components/GroupMemberList";
 import {
-  GroupMemberList,
+  memberCountLabel,
   type GroupMember,
-} from "@/src/features/groups/components/GroupMemberList";
-import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
+} from "@/src/features/groups/components/GroupMemberStack";
 import { SCIM_MANAGED_LABEL } from "@/src/features/groups/groupSource";
 import { AccessDialog } from "@/src/features/rbac/components/AccessDialog";
 import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
@@ -111,8 +110,6 @@ export type GroupRoleDialogProps = {
   isScimManaged?: boolean;
   /** Project level only. */
   projectName?: string;
-  /** Project level only: makes the project's name a link. */
-  projectHref?: string;
   memberCount: number;
   /** Lists the members; omitted when not all of them are known. */
   members?: GroupMember[];
@@ -137,7 +134,6 @@ export function GroupRoleDialog({
   groupHref,
   isScimManaged = false,
   projectName,
-  projectHref,
   memberCount,
   members,
   membersToolbar,
@@ -251,11 +247,10 @@ export function GroupRoleDialog({
     <AccessDialog
       level={level}
       projectName={projectName}
-      projectHref={projectHref}
       subject={
-        <span className="text-muted-foreground">
+        <>
           {groupLabel} · {memberCountLabel(memberCount)}
-        </span>
+        </>
       }
       isSaveDisabled={
         disabledReason !== undefined || selected === resolved.editing
@@ -264,14 +259,6 @@ export function GroupRoleDialog({
         onChange(selected === "NONE" ? null : (selected as GroupRole));
         onDone();
       }}
-      footerNote={
-        isScimManaged ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Lock size="sm" aria-hidden="true" />
-            {SCIM_MANAGED_LABEL}
-          </span>
-        ) : undefined
-      }
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3">
@@ -280,12 +267,9 @@ export function GroupRoleDialog({
           </label>
           {givenRole !== "NONE" && <RolePermissionsLink roles={[givenRole]} />}
         </div>
-        {disabledReason ? (
-          <DisabledActionTooltip label={disabledReason} isFullWidth>
-            {picker}
-          </DisabledActionTooltip>
-        ) : (
-          picker
+        {picker}
+        {disabledReason && (
+          <p className="text-muted-foreground">{disabledReason}</p>
         )}
         {roleNote && (
           <p className="text-muted-foreground">
@@ -303,6 +287,12 @@ export function GroupRoleDialog({
               {memberCount}
             </span>
           </p>
+          {isScimManaged && (
+            <p className="text-muted-foreground inline-flex items-center gap-1.5">
+              <Lock size="sm" aria-hidden="true" />
+              {SCIM_MANAGED_LABEL}
+            </p>
+          )}
           {membersToolbar}
           {members.length > 0 ? (
             <GroupMemberList members={members} onRemove={onRemoveMember} />

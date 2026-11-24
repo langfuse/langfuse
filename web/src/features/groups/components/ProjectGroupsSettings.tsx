@@ -217,7 +217,6 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
                 groupHref={groupHref(group.id)}
                 isScimManaged={isScimManaged(group)}
                 projectName={project?.name}
-                projectHref={`/project/${projectId}`}
                 memberCount={group.memberCount}
                 members={
                   // A partial list would read as the whole group.

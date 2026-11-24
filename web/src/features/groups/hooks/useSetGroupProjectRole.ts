@@ -1,14 +1,14 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
+import { useRefreshGroups } from "@/src/features/groups/hooks/useRefreshGroups";
 import { api } from "@/src/utils/api";
 
 /** useSetGroupProjectRole sets or removes a group's role on a project and confirms it in a toast. */
 export function useSetGroupProjectRole(groupName: (groupId: string) => string) {
-  const utils = api.useUtils();
+  const refresh = useRefreshGroups();
   return api.groups.setProjectRole.useMutation({
     onSuccess: (_, input) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
+      refresh();
       const name = groupName(input.groupId);
       showSuccessToast({
         operation: "group_project_role.update",

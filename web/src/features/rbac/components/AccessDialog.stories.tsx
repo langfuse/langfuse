@@ -57,7 +57,6 @@ export const OnAProject = meta.story({
   args: {
     level: "project",
     projectName: "llm-app",
-    projectHref: "/project/project-1",
     subject: "aiko.tanaka@northwind.example",
     isSaveDisabled: true,
     onSave: fn(),

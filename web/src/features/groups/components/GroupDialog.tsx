@@ -77,12 +77,7 @@ export function GroupDialog({
       groupName={group.displayName}
       isScimManaged={isScimManaged(group)}
       memberCount={group.members.length}
-      members={group.members.map((member) => ({
-        userId: member.userId,
-        name: member.name,
-        email: member.email,
-        image: member.image,
-      }))}
+      members={group.members}
       membersToolbar={
         canManageMembers ? (
           <AddGroupMembers orgId={orgId} group={group} />
@@ -112,13 +107,9 @@ function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
   const addMembers = useAddGroupMembers(group.displayName);
 
   const memberIds = new Set(group.members.map((m) => m.userId));
-  const options = (orgMembers.data ?? [])
-    .filter((user) => !memberIds.has(user.id))
-    .map((user) => ({
-      value: user.id,
-      label: user.name ?? user.email ?? user.id,
-      secondaryLabel: user.name ? (user.email ?? undefined) : undefined,
-    }));
+  const options = (orgMembers.data ?? []).filter(
+    (option) => !memberIds.has(option.value),
+  );
 
   return (
     <div className="flex flex-col gap-1.5">

@@ -5,14 +5,14 @@ const AVATAR_STACK_SIZE = 4;
 export const memberCountLabel = (count: number) =>
   `${count} ${count === 1 ? "member" : "members"}`;
 
-export type StackMember = {
+export type GroupMember = {
   userId: string;
   name: string | null;
   email: string | null;
   image: string | null;
 };
 
-export function GroupMemberStack({ members }: { members: StackMember[] }) {
+export function GroupMemberStack({ members }: { members: GroupMember[] }) {
   if (members.length === 0) {
     return <span className="text-muted-foreground">No members</span>;
   }

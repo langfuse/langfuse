@@ -1,9 +1,8 @@
+import { useRefreshGroups } from "@/src/features/groups/hooks/useRefreshGroups";
 import { api } from "@/src/utils/api";
 
 /** useRemoveGroupMember removes a member from a group. */
 export function useRemoveGroupMember() {
-  const utils = api.useUtils();
-  return api.groups.removeMember.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const refresh = useRefreshGroups();
+  return api.groups.removeMember.useMutation({ onSuccess: refresh });
 }

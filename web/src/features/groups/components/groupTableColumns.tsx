@@ -2,7 +2,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { GroupNameLabel } from "@/src/features/groups/components/GroupNameLabel";
 import {
   GroupMemberStack,
-  type StackMember,
+  type GroupMember,
 } from "@/src/features/groups/components/GroupMemberStack";
 import {
   GroupSourceLabel,
@@ -10,7 +10,7 @@ import {
 } from "@/src/features/groups/components/GroupSourceLabel";
 
 type GroupTableRow = {
-  group: { displayName: string; source: GroupSource; members: StackMember[] };
+  group: { displayName: string; source: GroupSource; members: GroupMember[] };
 };
 
 export function groupTableColumns<T extends GroupTableRow>() {

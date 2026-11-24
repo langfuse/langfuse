@@ -1,13 +1,13 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useRefreshGroups } from "@/src/features/groups/hooks/useRefreshGroups";
 import { api } from "@/src/utils/api";
 
 /** useAddGroupMembers adds organization members to a group and confirms it in a toast. */
 export function useAddGroupMembers(groupName: string) {
-  const utils = api.useUtils();
+  const refresh = useRefreshGroups();
   return api.groups.addMembers.useMutation({
     onSuccess: () => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
+      refresh();
       showSuccessToast({
         operation: "group_members.update",
         title: "Members added",

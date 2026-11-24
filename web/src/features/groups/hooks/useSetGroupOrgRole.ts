@@ -1,14 +1,14 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
+import { useRefreshGroups } from "@/src/features/groups/hooks/useRefreshGroups";
 import { api } from "@/src/utils/api";
 
 /** useSetGroupOrgRole sets or removes a group's organization role and confirms it in a toast. */
 export function useSetGroupOrgRole(groupName: string) {
-  const utils = api.useUtils();
+  const refresh = useRefreshGroups();
   return api.groups.setOrgRole.useMutation({
     onSuccess: ({ role }) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
+      refresh();
       showSuccessToast({
         operation: "group_roles.update",
         title: "Group role saved",

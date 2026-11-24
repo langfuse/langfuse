@@ -2,13 +2,7 @@ import { X } from "@langfuse/icons";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { GroupMemberName } from "@/src/features/groups/components/GroupMemberName";
-
-export type GroupMember = {
-  userId: string;
-  name: string | null;
-  email: string | null;
-  image: string | null;
-};
+import { type GroupMember } from "@/src/features/groups/components/GroupMemberStack";
 
 const sortKey = (member: GroupMember) => member.name ?? member.email ?? "";
 
@@ -25,7 +19,11 @@ export function GroupMemberList({
     sortKey(a).localeCompare(sortKey(b)),
   );
   return (
-    <ul aria-label="Members" className="flex flex-col rounded-lg border p-1">
+    <ul
+      aria-label="Members"
+      // Names and emails, also in the remove buttons, stay out of session replay.
+      className="ph-no-capture flex flex-col rounded-lg border p-1"
+    >
       {sorted.map((member) => (
         <li
           key={member.userId}

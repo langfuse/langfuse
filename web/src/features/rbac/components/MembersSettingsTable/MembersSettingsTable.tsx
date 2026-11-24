@@ -15,7 +15,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type StackMember } from "@/src/features/groups/components/GroupMemberStack";
+import { type GroupMember } from "@/src/features/groups/components/GroupMemberStack";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { directRoleColumns } from "./directRoleColumns";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
@@ -70,7 +70,7 @@ export type MemberGroupRole = {
   groupSource: "SCIM" | "MANUAL";
   memberCount: number;
   /** The group's first few members; `memberCount` is the full size. */
-  memberPreview: StackMember[];
+  memberPreview: GroupMember[];
   role: Role;
   level: "organization" | "project";
 };

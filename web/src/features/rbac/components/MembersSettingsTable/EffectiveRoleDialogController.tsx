@@ -457,7 +457,6 @@ function RoleDialog({
     <AccessDialog
       level={onProject ? "project" : "organization"}
       projectName={projectName}
-      projectHref={projectId ? `/project/${projectId}` : undefined}
       subject={member.email ?? displayName}
       isSaveDisabled={
         editor.disabledReason !== undefined || selected === editor.value
