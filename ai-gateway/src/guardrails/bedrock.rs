@@ -80,32 +80,31 @@ impl BedrockGuardrailClient {
         })
     }
 
-    /// Evaluates every `(langfuse_guardrail_id, config)` concurrently against `text`.
-    /// Returns one boolean per guardrail indicating whether Bedrock returned
-    /// `GUARDRAIL_INTERVENED`. Timeouts and errors fail open (`false`).
-    pub(crate) async fn evaluate_many(
-        &self,
-        guardrails: &[(&str, &BedrockGuardrail)],
-        text: &str,
-        organization_id: &str,
-    ) -> Vec<bool> {
-        if guardrails.is_empty() || text.is_empty() {
-            return vec![false; guardrails.len()];
-        }
-        let Ok(payload) = serde_json::to_vec(&ApplyGuardrailRequest {
+    /// Serializes `text` into the AWS Bedrock `ApplyGuardrail` JSON request body.
+    pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
+        serde_json::to_vec(&ApplyGuardrailRequest {
             source: "INPUT",
             content: [GuardrailContentBlock {
                 text: GuardrailTextBlock { text },
             }],
-        }) else {
-            tracing::warn!(
-                organization_id,
-                reason = "serialization",
-                "bedrock guardrail request failed to serialize; failing open"
-            );
+        })
+        .ok()
+        .map(Bytes::from)
+    }
+
+    /// Evaluates every `(langfuse_guardrail_id, config)` concurrently using a
+    /// pre-serialized `ApplyGuardrail` payload. Returns one boolean per guardrail
+    /// indicating whether Bedrock returned `GUARDRAIL_INTERVENED`. Timeouts and
+    /// errors fail open (`false`).
+    pub(crate) async fn evaluate_many(
+        &self,
+        guardrails: &[(&str, &BedrockGuardrail)],
+        payload: Bytes,
+        organization_id: &str,
+    ) -> Vec<bool> {
+        if guardrails.is_empty() || payload.is_empty() {
             return vec![false; guardrails.len()];
-        };
-        let payload = Bytes::from(payload);
+        }
         join_all(guardrails.iter().map(|(guardrail_id, config)| {
             self.evaluate_one(guardrail_id, config, payload.clone(), organization_id)
         }))
@@ -405,6 +404,7 @@ mod tests {
         let pass = sample_config("pass", "1");
         let slow = sample_config("slow", "1");
         let err = sample_config("error", "1");
+        let payload = BedrockGuardrailClient::serialize_request("hello world").unwrap();
         let results = client
             .evaluate_many(
                 &[
@@ -413,7 +413,7 @@ mod tests {
                     ("g3", &slow),
                     ("g4", &err),
                 ],
-                "hello world",
+                payload,
                 "org-1",
             )
             .await;

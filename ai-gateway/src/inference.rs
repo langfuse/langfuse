@@ -259,6 +259,31 @@ impl InferenceService {
         })
     }
 
+    /// Reserve temporary working memory from the shared budget without waiting.
+    fn try_reserve_extra(
+        &self,
+        bytes: usize,
+        phase: &'static str,
+    ) -> Result<MemoryReservation, ResolutionError> {
+        let reserved = u32::try_from(bytes)
+            .ok()
+            .and_then(|bytes| {
+                Arc::clone(&self.memory_budget)
+                    .try_acquire_many_owned(bytes)
+                    .ok()
+            })
+            .ok_or_else(|| {
+                crate::observability::rejected(phase);
+                ResolutionError::Busy
+            })?;
+        crate::observability::memory_reserved(bytes);
+        Ok(MemoryReservation {
+            bytes: reserved,
+            overhead: 0,
+            budget: Arc::clone(&self.memory_budget),
+        })
+    }
+
     /// Runs CPU-bound work over a request input of `input_bytes` without holding an
     /// async worker for long; see [`CpuWork::run`].
     ///
@@ -470,7 +495,13 @@ impl InferenceService {
             let bytes = turn
                 .as_ref()
                 .map_or(0, crate::guardrails::text::LastTurn::bytes);
-            let (local, scanning) = self
+            let has_bedrock = guardrails
+                .iter()
+                .any(crate::guardrails::Guardrail::is_bedrock);
+            let turn_text_reservation = (has_bedrock && bytes > 0)
+                .then(|| self.try_reserve_extra(bytes, "guardrails"))
+                .transpose()?;
+            let (mut local, scanning) = self
                 .run_cpu(CpuJob::ScanGuardrails, bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     move || {
@@ -481,29 +512,28 @@ impl InferenceService {
                     }
                 })
                 .await?;
+            let turn_text = local.take_turn_text();
             let mut total_duration = finding + scanning;
-            let mut bedrock_matches = Vec::new();
-            if !local.is_unreadable() && !local.has_local_block(&guardrails) {
-                let targets = local.bedrock_targets(&guardrails);
-                if !targets.is_empty() && !local.turn_text().is_empty() {
-                    let started = std::time::Instant::now();
-                    let inputs: Vec<(&str, &crate::guardrails::bedrock::BedrockGuardrail)> =
-                        targets
-                            .iter()
-                            .map(|(_, id, config)| (*id, *config))
-                            .collect();
-                    let results = self
-                        .bedrock_guardrails
-                        .evaluate_many(&inputs, local.turn_text(), &organization_id)
-                        .await;
-                    total_duration += started.elapsed();
-                    bedrock_matches = targets
-                        .into_iter()
-                        .zip(results)
-                        .map(|((slot, _, _), matched)| (slot, matched))
-                        .collect();
-                }
-            }
+            let bedrock_matches = if !local.is_unreadable()
+                && !local.has_local_block(&guardrails)
+                && !turn_text.is_empty()
+            {
+                let (matches, elapsed) = self
+                    .evaluate_bedrock_guardrails(
+                        &local.bedrock_targets(&guardrails),
+                        turn_text,
+                        turn_text_reservation,
+                        bytes,
+                        &organization_id,
+                    )
+                    .await?;
+                total_duration += elapsed;
+                matches
+            } else {
+                drop(turn_text);
+                drop(turn_text_reservation);
+                Vec::new()
+            };
             crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
             Ok(local.into_outcome(&guardrails, &bedrock_matches))
         }
@@ -512,6 +542,55 @@ impl InferenceService {
             otel.kind = "internal"
         ))
         .await
+    }
+
+    async fn evaluate_bedrock_guardrails(
+        &self,
+        targets: &[(usize, &str, &crate::guardrails::bedrock::BedrockGuardrail)],
+        turn_text: String,
+        turn_text_reservation: Option<MemoryReservation>,
+        turn_bytes: usize,
+        organization_id: &str,
+    ) -> Result<(Vec<(usize, bool)>, Duration), ResolutionError> {
+        if targets.is_empty() {
+            drop(turn_text);
+            drop(turn_text_reservation);
+            return Ok((Vec::new(), Duration::ZERO));
+        }
+        // Reserve for the serialized ApplyGuardrail payload while `turn_text` is
+        // still live, then release `turn_text` and its budget before awaiting I/O.
+        let payload_reservation =
+            self.try_reserve_extra(turn_bytes.saturating_add(64), "guardrails")?;
+        let payload =
+            crate::guardrails::bedrock::BedrockGuardrailClient::serialize_request(&turn_text);
+        drop(turn_text);
+        drop(turn_text_reservation);
+        let Some(payload) = payload else {
+            tracing::warn!(
+                organization_id,
+                reason = "serialization",
+                "bedrock guardrail request failed to serialize; failing open"
+            );
+            drop(payload_reservation);
+            return Ok((Vec::new(), Duration::ZERO));
+        };
+        let started = std::time::Instant::now();
+        let inputs: Vec<(&str, &crate::guardrails::bedrock::BedrockGuardrail)> = targets
+            .iter()
+            .map(|(_, id, config)| (*id, *config))
+            .collect();
+        let results = self
+            .bedrock_guardrails
+            .evaluate_many(&inputs, payload, organization_id)
+            .await;
+        let elapsed = started.elapsed();
+        drop(payload_reservation);
+        let matches = targets
+            .iter()
+            .zip(results)
+            .map(|((slot, _, _), matched)| (*slot, matched))
+            .collect();
+        Ok((matches, elapsed))
     }
 
     /// Records the refused request as a generation, like one the provider answered.

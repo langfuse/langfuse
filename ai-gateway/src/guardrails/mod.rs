@@ -75,6 +75,10 @@ impl Guardrail {
         }
     }
 
+    pub(crate) fn is_bedrock(&self) -> bool {
+        self.is_active() && self.bedrock().is_some()
+    }
+
     fn bedrock(&self) -> Option<&BedrockGuardrail> {
         match &self.kind {
             GuardrailKind::Bedrock(config) => Some(config),
@@ -299,8 +303,8 @@ impl LocalScan {
             .collect()
     }
 
-    pub(crate) fn turn_text(&self) -> &str {
-        &self.turn_text
+    pub(crate) fn take_turn_text(&mut self) -> String {
+        std::mem::take(&mut self.turn_text)
     }
 
     pub(crate) fn into_outcome(
