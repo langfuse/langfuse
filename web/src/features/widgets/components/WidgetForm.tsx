@@ -100,10 +100,6 @@ import {
   type WidgetSavePayload,
 } from "./widgetFormSchema";
 
-// Re-exported from the schema module so co-located tests keep importing it from
-// this file; it now backs the shared normalizeWidgetFormValues healing.
-export { resolveAggregationAndChartType } from "./widgetFormSchema";
-
 type ChartType = {
   group: "time-series" | "total-value";
   name: string;
