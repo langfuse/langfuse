@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { readFileSync } from "node:fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
