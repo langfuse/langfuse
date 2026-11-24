@@ -6,7 +6,7 @@ use std::{borrow::Cow, fmt, marker::PhantomData};
 
 use serde::{
     Deserialize,
-    de::{Error as _, SeqAccess, Visitor},
+    de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor},
 };
 use serde_json::value::RawValue;
 
@@ -50,53 +50,126 @@ pub(crate) fn collect(raw: &RawValue, sink: &mut dyn FnMut(&str)) -> Result<(), 
     collect_nested(raw, sink, 0)
 }
 
+/// Sends the text of one content part to `sink`.
+pub(crate) fn collect_part(raw: &RawValue, sink: &mut dyn FnMut(&str)) -> Result<(), Unreadable> {
+    collect_part_nested(raw, sink, 0)
+}
+
 fn collect_nested(
     raw: &RawValue,
     sink: &mut dyn FnMut(&str),
     depth: usize,
 ) -> Result<(), Unreadable> {
     match raw.get().as_bytes().first() {
-        Some(b'"') => {
-            if let Some(text) = string(raw) {
-                sink(&text);
-            }
-            Ok(())
-        }
+        Some(b'"') => collect_string(raw, sink),
         Some(b'[') if depth <= MAX_NESTING => for_each(raw.get(), |item: &RawValue| {
             match item.get().as_bytes().first() {
-                Some(b'"') => collect_nested(item, sink, depth),
-                Some(b'{') => {
-                    let part: Part<'_> =
-                        serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
-                    if let Some(text) = part.text.and_then(string) {
-                        sink(&text);
-                    }
-                    if let Some(source) = part.source.filter(|source| source.get().starts_with('{'))
-                    {
-                        let source: Source<'_> =
-                            serde_json::from_str(source.get()).map_err(|_| Unreadable)?;
-                        match source.kind.and_then(string).as_deref() {
-                            Some("text") => {
-                                if let Some(text) = source.data.and_then(string) {
-                                    sink(&text);
-                                }
-                            }
-                            Some("content") => {
-                                if let Some(content) = source.content {
-                                    collect_nested(content, sink, depth + 1)?;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    part.content
-                        .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1))
-                }
+                Some(b'"') => collect_string(item, sink),
+                Some(b'{') => collect_part_nested(item, sink, depth),
                 _ => Ok(()),
             }
         }),
         _ => Ok(()),
     }
+}
+
+/// A part's `text`, the text of a document source, and nested tool-result content.
+fn collect_part_nested(
+    raw: &RawValue,
+    sink: &mut dyn FnMut(&str),
+    depth: usize,
+) -> Result<(), Unreadable> {
+    let part: Part<'_> = serde_json::from_str(raw.get()).map_err(|_| Unreadable)?;
+    if let Some(text) = part.text {
+        collect_string(text, sink)?;
+    }
+    if let Some(source) = part.source.filter(|source| source.get().starts_with('{')) {
+        collect_source(source, sink, depth)?;
+    }
+    part.content
+        .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1))
+}
+
+fn collect_source(
+    raw: &RawValue,
+    sink: &mut dyn FnMut(&str),
+    depth: usize,
+) -> Result<(), Unreadable> {
+    let source: Source<'_> = serde_json::from_str(raw.get()).map_err(|_| Unreadable)?;
+    match source.kind.and_then(string).as_deref() {
+        Some("text") => source
+            .data
+            .map_or(Ok(()), |data| collect_string(data, sink)),
+        Some("content") => source
+            .content
+            .map_or(Ok(()), |content| collect_nested(content, sink, depth + 1)),
+        _ => Ok(()),
+    }
+}
+
+/// Sends a JSON string to `sink`; other values hold no text. A lone surrogate
+/// escape, which a Rust string cannot hold, is read as U+FFFD, so the text around
+/// it is still scanned.
+fn collect_string(raw: &RawValue, sink: &mut dyn FnMut(&str)) -> Result<(), Unreadable> {
+    if !raw.get().starts_with('"') {
+        return Ok(());
+    }
+    let text = string(raw)
+        .or_else(|| lossy_string(raw.get()).map(Cow::Owned))
+        .ok_or(Unreadable)?;
+    sink(&text);
+    Ok(())
+}
+
+fn lossy_string(raw: &str) -> Option<String> {
+    let mut repaired = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(index) = rest.find('\\') {
+        let (before, escape) = rest.split_at(index);
+        repaired.push_str(before);
+        let surrogate = escape
+            .get(2..6)
+            .filter(|_| escape.as_bytes().get(1) == Some(&b'u'))
+            .and_then(|hex| u16::from_str_radix(hex, 16).ok())
+            .is_some_and(|unit| (0xD800..=0xDFFF).contains(&unit));
+        let (kept, next) = if surrogate {
+            ("\\ufffd", escape.get(6..)?)
+        } else {
+            (escape.get(..2)?, escape.get(2..)?)
+        };
+        repaired.push_str(kept);
+        rest = next;
+    }
+    repaired.push_str(rest);
+    serde_json::from_str(&repaired).ok()
+}
+
+/// Calls `visit` with each value of the JSON object `raw`, duplicated keys included.
+pub(crate) fn for_each_value<'a>(
+    raw: &'a str,
+    visit: impl FnMut(&'a RawValue) -> Result<(), Unreadable>,
+) -> Result<(), Unreadable> {
+    struct Values<F>(F);
+
+    impl<'de, F: FnMut(&'de RawValue) -> Result<(), Unreadable>> Visitor<'de> for Values<F> {
+        type Value = ();
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a JSON object")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(mut self, mut entries: A) -> Result<(), A::Error> {
+            while let Some((_, value)) = entries.next_entry::<IgnoredAny, &'de RawValue>()? {
+                (self.0)(value).map_err(|_| A::Error::custom("unreadable value"))?;
+            }
+            Ok(())
+        }
+    }
+
+    let mut deserializer = serde_json::Deserializer::from_str(raw);
+    serde::Deserializer::deserialize_map(&mut deserializer, Values(visit))
+        .and_then(|()| deserializer.end())
+        .map_err(|_| Unreadable)
 }
 
 /// Calls `visit` with each item of the JSON array `raw`, without collecting them.
@@ -141,8 +214,11 @@ pub(crate) struct LastTurn {
 
 #[derive(Debug)]
 enum TurnPart {
-    /// Every string in a member.
-    Member(&'static str),
+    /// A whole member, read by `read`.
+    Member {
+        member: &'static str,
+        read: ReadItem,
+    },
     /// The items of a member's array from byte `start` on, each read by `read`.
     Items {
         member: &'static str,
@@ -159,7 +235,12 @@ impl LastTurn {
 
     /// Adds all of member `name`, whose JSON is `raw`.
     pub(crate) fn member(&mut self, name: &'static str, raw: &str) {
-        self.parts.push(TurnPart::Member(name));
+        self.member_with(name, raw, collect);
+    }
+
+    /// Adds member `name`, whose JSON is `raw`, read by `read`.
+    pub(crate) fn member_with(&mut self, name: &'static str, raw: &str, read: ReadItem) {
+        self.parts.push(TurnPart::Member { member: name, read });
         self.bytes += raw.len();
     }
 
@@ -210,10 +291,10 @@ impl LastTurn {
     ) -> Result<(), Unreadable> {
         for part in &self.parts {
             match *part {
-                TurnPart::Member(name) => {
+                TurnPart::Member { member: name, read } => {
                     let Some(raw) = member(name) else { continue };
                     let raw: &RawValue = serde_json::from_str(raw).map_err(|_| Unreadable)?;
-                    collect(raw, sink)?;
+                    read(raw, sink)?;
                 }
                 TurnPart::Items {
                     member: name,
@@ -275,6 +356,20 @@ mod tests {
         );
         assert!(texts("42").unwrap().is_empty());
         assert!(texts(r#"{"text":"not a list"}"#).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_lone_surrogate_escape_is_read_lossily() {
+        assert_eq!(
+            texts(r#""ssn 123-45-6789 \ud83d""#).unwrap(),
+            ["ssn 123-45-6789 \u{fffd}"]
+        );
+        assert_eq!(
+            texts(r#"[{"type":"text","text":"\udc00 card"}]"#).unwrap(),
+            ["\u{fffd} card"]
+        );
+        // An escaped backslash before `u` is text, not an escape.
+        assert_eq!(texts(r#""\\ud83d""#).unwrap(), ["\\ud83d"]);
     }
 
     #[test]

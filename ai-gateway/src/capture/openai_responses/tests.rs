@@ -1190,3 +1190,21 @@ fn instructions_are_scanned_only_when_no_earlier_turn_is_stored_upstream() {
     assert_eq!(scan(("conversation", r#""conv_1""#)), ["hello"]);
     assert_eq!(scan(("previous_response_id", "null")), ["hello", "sys"]);
 }
+
+#[test]
+fn prompt_variables_are_scanned_on_every_turn() {
+    assert_eq!(
+        guardrail_scan_members(&[
+            (
+                "input",
+                r#"[{"role":"assistant","content":"hi"},{"role":"user","content":"go"}]"#
+            ),
+            ("previous_response_id", r#""resp_1""#),
+            (
+                "prompt",
+                r#"{"id":"pmpt_1","variables":{"name":"ssn 123-45-6789","doc":{"type":"input_text","text":"card"},"img":{"type":"input_image","image_url":"https://x"}}}"#,
+            ),
+        ]),
+        ["go", "ssn 123-45-6789", "card"]
+    );
+}

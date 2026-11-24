@@ -7,9 +7,13 @@ pub(crate) mod text;
 use std::{
     ops::Range,
     sync::{Arc, LazyLock},
+    time::Duration,
 };
 
-use quick_cache::{Weighter, sync::Cache};
+use quick_cache::{
+    Weighter,
+    sync::{Cache, GuardResult},
+};
 use regex_automata::{
     Input, MatchKind, PatternSet, meta, nfa::thompson::WhichCaptures, util::syntax,
 };
@@ -181,21 +185,7 @@ pub(crate) fn check(
         .collect();
     let unreadable = turn.as_ref().map_or(true, |turn| {
         turn.read(member(body, scanned), &mut |text| {
-            for (matcher, found) in compiled.matchers.iter().zip(&mut found) {
-                found.clear();
-                matcher
-                    .regex
-                    .which_overlapping_matches(&Input::new(text.as_bytes()), found);
-                for pattern in found.iter() {
-                    if let Some(owner) = matcher
-                        .owners
-                        .get(pattern.as_usize())
-                        .and_then(|owner| matched.get_mut(*owner))
-                    {
-                        *owner = true;
-                    }
-                }
-            }
+            record_matches(&compiled.matchers, &mut found, &mut matched, text);
         })
         .is_err()
     });
@@ -216,42 +206,74 @@ pub(crate) fn check(
 /// One set over all guardrails' patterns, so each text is scanned once however
 /// many guardrails apply. If it does not compile, one set per guardrail, so a bad
 /// pattern only disables its own guardrail.
+/// Marks the guardrails whose patterns match `text`.
+fn record_matches(
+    matchers: &[Matcher],
+    found: &mut [PatternSet],
+    matched: &mut [bool],
+    text: &str,
+) {
+    for (matcher, found) in matchers.iter().zip(found) {
+        found.clear();
+        matcher
+            .regex
+            .which_overlapping_matches(&Input::new(text.as_bytes()), found);
+        for pattern in found.iter() {
+            if let Some(owner) = matcher
+                .owners
+                .get(pattern.as_usize())
+                .and_then(|owner| matched.get_mut(*owner))
+            {
+                *owner = true;
+            }
+        }
+    }
+}
+
 fn compiled(active: &[&Guardrail]) -> Arc<Compiled> {
     let key: GuardrailPatterns = active
         .iter()
         .map(|guardrail| guardrail.patterns.clone())
         .collect();
-    let compiled = COMPILED.get_or_insert_with(&key, || {
-        let owned_patterns = |owners: &[usize]| -> Vec<(usize, &String)> {
-            owners
-                .iter()
-                .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
-                .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
-                .collect()
-        };
-        let all: Vec<usize> = (0..key.len()).collect();
-        let matchers: Vec<Matcher> = match matcher(&owned_patterns(&all)) {
-            Some(combined) => vec![combined],
-            None => all
-                .iter()
-                .filter_map(|owner| matcher(&owned_patterns(std::slice::from_ref(owner))))
-                .collect(),
-        };
-        let pattern_bytes: usize = key.iter().flatten().map(String::len).sum();
-        let regex_bytes: usize = matchers
-            .iter()
-            .map(|matcher| matcher.regex.memory_usage())
-            .sum();
-        // At least one, since entries weighing nothing are never evicted.
-        let bytes = u64::try_from(pattern_bytes + regex_bytes)
-            .unwrap_or(u64::MAX)
-            .max(1);
-        Ok::<_, std::convert::Infallible>(Arc::new(Compiled { matchers, bytes }))
-    });
-    match compiled {
-        Ok(compiled) => compiled,
-        Err(never) => match never {},
+    // A request that finds the set being compiled elsewhere compiles its own copy
+    // rather than parking its thread, which may be an async worker, until then.
+    match COMPILED.get_value_or_guard(&key, Some(Duration::ZERO)) {
+        GuardResult::Value(compiled) => compiled,
+        GuardResult::Guard(guard) => {
+            let compiled = compile(&key);
+            let _ = guard.insert(Arc::clone(&compiled));
+            compiled
+        }
+        GuardResult::Timeout => compile(&key),
     }
+}
+
+fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
+    let owned_patterns = |owners: &[usize]| -> Vec<(usize, &String)> {
+        owners
+            .iter()
+            .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
+            .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
+            .collect()
+    };
+    let all: Vec<usize> = (0..key.len()).collect();
+    let matchers: Vec<Matcher> = match matcher(&owned_patterns(&all)) {
+        Some(combined) => vec![combined],
+        None => all
+            .iter()
+            .filter_map(|owner| matcher(&owned_patterns(std::slice::from_ref(owner))))
+            .collect(),
+    };
+    let pattern_bytes: usize = key.iter().flatten().map(String::len).sum();
+    let regex_bytes: usize = matchers
+        .iter()
+        .map(|matcher| matcher.regex.memory_usage())
+        .sum();
+    // At least one, since entries weighing nothing are never evicted.
+    let bytes = u64::try_from(pattern_bytes + regex_bytes)
+        .unwrap_or(u64::MAX)
+        .max(1);
+    Arc::new(Compiled { matchers, bytes })
 }
 
 /// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path

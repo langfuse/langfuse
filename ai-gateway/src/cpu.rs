@@ -8,7 +8,8 @@ use tokio::sync::Semaphore;
 /// worker past that, so they move to the blocking pool.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum CpuJob {
-    /// Parsing the request body, at roughly 3 GB/s for ASCII and 1 GB/s otherwise.
+    /// Parsing the request body, at roughly 7 GB/s for ASCII and 3 GB/s for
+    /// non-ASCII text, so 256 KiB takes under ~100 µs either way.
     ParseRequest,
     /// Finding a conversation's last turn, which reads its structure at about the
     /// speed of parsing it.

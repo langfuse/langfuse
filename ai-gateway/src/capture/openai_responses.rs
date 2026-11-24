@@ -313,12 +313,13 @@ impl OpenAiResponsesCapture {
 /// the outputs of the model's tool calls. Instructions count only on the first turn.
 /// The top-level members guardrails scan.
 /// `previous_response_id` and `conversation` are only read to tell whether earlier
-/// turns are stored upstream.
+/// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
 pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
     "input",
     "instructions",
     "previous_response_id",
     "conversation",
+    "prompt",
 ];
 
 #[derive(serde::Deserialize)]
@@ -376,7 +377,39 @@ pub(super) fn guardrail_turn<'a>(
     {
         turn.member("instructions", instructions);
     }
+    // Variables fill a stored prompt with new caller text on every request.
+    if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
+        turn.member_with("prompt", prompt, read_guardrail_prompt);
+    }
     Ok(turn)
+}
+
+#[derive(serde::Deserialize)]
+struct GuardrailPrompt<'a> {
+    #[serde(borrow, default)]
+    variables: Option<&'a serde_json::value::RawValue>,
+}
+
+/// Variable values are strings or input parts.
+fn read_guardrail_prompt(
+    prompt: &serde_json::value::RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let prompt: GuardrailPrompt<'_> =
+        serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let Some(variables) = prompt
+        .variables
+        .filter(|variables| variables.get().starts_with('{'))
+    else {
+        return Ok(());
+    };
+    crate::guardrails::text::for_each_value(variables.get(), |value| {
+        if value.get().starts_with('{') {
+            crate::guardrails::text::collect_part(value, sink)
+        } else {
+            crate::guardrails::text::collect(value, sink)
+        }
+    })
 }
 
 fn read_guardrail_item(
