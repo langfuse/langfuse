@@ -8,7 +8,6 @@ import {
   hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
-  isTopicsEnabled,
   listTopicFacets,
   listTopicRules,
   readTopicRuleSetup,
@@ -64,7 +63,6 @@ export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  if (!isTopicsEnabled()) return 0;
   const projects = [...(await getAllEnabledTopicsModels()).values()]
     .map((models) => ({
       projectId: models.projectId,

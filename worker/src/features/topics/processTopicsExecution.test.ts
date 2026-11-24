@@ -64,7 +64,6 @@ vi.mock("@langfuse/shared/topics/server", () => {
       sample: { seed: "seed", limit: 20_000 },
     }),
     getTopicTextResponseMetadata: () => undefined,
-    isTopicsEnabled: () => true,
     // A refit's rule selects every trace.
     getTopicRule: async () => ({ filter: [] }),
     getTopicsModels: async () => {

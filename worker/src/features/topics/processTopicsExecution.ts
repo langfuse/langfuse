@@ -7,7 +7,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  isTopicsEnabled,
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
@@ -846,7 +845,6 @@ export async function processTopicUpdateExecution({
   projectId: string;
   executionId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
   if (metadata.input.operation !== "update")
@@ -1008,7 +1006,6 @@ export async function processTopicRuleRefit({
   projectId: string;
   runId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const run = await getTopicRun(projectId, runId);
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
   if (run.status === "running") {

@@ -142,7 +142,7 @@ const EnvSchema = z.object({
         'Use "*" alone to select all projects, or a comma-separated list of project IDs',
     }),
   // Records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
-  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
