@@ -47,7 +47,7 @@ import {
   nameTopicGroup,
   prepareTopicNamingGroup,
   type NamingConflict,
-} from "./models";
+} from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,

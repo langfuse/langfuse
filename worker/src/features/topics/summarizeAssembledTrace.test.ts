@@ -29,7 +29,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
     }) => Promise<unknown>,
   ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   TopicInputTooLarge: class extends Error {},
   charsPerToken: () => 4,
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
