@@ -501,6 +501,7 @@ enum GatewayGuardrailType {
 enum GatewayGuardrailAction {
   BLOCK
   LOG
+  REDACT
 }
 
 enum GatewayGuardrailAssignmentScope {

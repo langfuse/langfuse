@@ -39,6 +39,7 @@ const createKey = async (orgId: string, userId: string | null) => {
 const createGuardrail = async (params: {
   organizationId: string;
   name: string;
+  action?: "BLOCK" | "LOG" | "REDACT";
   config?: object;
   assignments: Array<
     | { scope: "ORGANIZATION" }
@@ -50,7 +51,7 @@ const createGuardrail = async (params: {
     data: {
       organizationId: params.organizationId,
       name: params.name,
-      action: "BLOCK",
+      action: params.action ?? "BLOCK",
       config: params.config ?? { presets: ["email"] },
       assignments: {
         create: params.assignments.map((assignment) => ({
@@ -113,6 +114,12 @@ describe("GatewayGuardrailService", () => {
       organizationId,
       name: "Partly unknown presets",
       config: { presets: ["email", "not_a_preset"] },
+      assignments: [{ scope: "API_KEY", apiKeyId: key }],
+    });
+    await createGuardrail({
+      organizationId,
+      name: "Redact rule",
+      action: "REDACT",
       assignments: [{ scope: "API_KEY", apiKeyId: key }],
     });
     await createGuardrail({

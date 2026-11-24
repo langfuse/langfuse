@@ -5,7 +5,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE "GatewayGuardrailAction" AS ENUM ('BLOCK', 'LOG');
+  CREATE TYPE "GatewayGuardrailAction" AS ENUM ('BLOCK', 'LOG', 'REDACT');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;

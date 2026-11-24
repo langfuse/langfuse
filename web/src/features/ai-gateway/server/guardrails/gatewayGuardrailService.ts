@@ -23,6 +23,8 @@ export class GatewayGuardrailService {
   }): Promise<GatewayResolveGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap((guardrail) => {
+      // The gateway does not redact yet; shipping these would turn them into another action.
+      if (guardrail.action === "REDACT") return [];
       const config = GatewayRegexGuardrailConfigSchema.safeParse(
         guardrail.config,
       );
