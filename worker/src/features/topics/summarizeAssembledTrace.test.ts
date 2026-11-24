@@ -31,6 +31,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 vi.mock("./models", () => ({
   TopicInputTooLarge: class extends Error {},
+  charsPerToken: () => 4,
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
@@ -415,7 +416,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output" },
+        { stage: "summary", reason: "invalid_output", owner: "platform" },
       ],
     ]);
     // Rejected output is a local rule's decision; accepted output is the model's.
@@ -529,7 +530,11 @@ describe("summarizeAssembledTrace", () => {
         .mocked(recordIncrement)
         .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
     ).toEqual([
-      ["langfuse.topics.errors", 1, { stage: "embedding", reason: "unknown" }],
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "embedding", reason: "unknown", owner: "platform" },
+      ],
     ]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
@@ -674,7 +679,11 @@ describe("summarizeAssembledTrace", () => {
         .mocked(recordIncrement)
         .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
     ).toEqual([
-      ["langfuse.topics.errors", 1, { stage: "summary", reason: "unknown" }],
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "summary", reason: "unknown", owner: "platform" },
+      ],
     ]);
   });
 
@@ -711,7 +720,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output" },
+        { stage: "summary", reason: "invalid_output", owner: "platform" },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

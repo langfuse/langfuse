@@ -38,6 +38,23 @@ type TopicErrorReason =
   | "definition_readback"
   | "unknown";
 
+/** Who has to act on a failure. Topics builds the request and sets the size limits, so rejected or oversized input is ours. */
+export function topicFailureOwner(
+  reason: string,
+): "platform" | "upstream" | "customer" {
+  if (
+    [
+      "authentication",
+      "configuration",
+      "rate_limit",
+      "content_filter",
+    ].includes(reason)
+  )
+    return "customer";
+  if (["timeout", "provider_error"].includes(reason)) return "upstream";
+  return "platform";
+}
+
 // Statuses with their own operational meaning; exact codes are on the span.
 const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
@@ -70,6 +87,19 @@ export function recordTopicModelCall(
   else if (httpStatus >= 400 && httpStatus < 500) status = "4xx";
   else if (httpStatus >= 500 && httpStatus < 600) status = "5xx";
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
+}
+
+/** Request body size of one model call, counted when it is sent, whether or not it succeeds. */
+export function recordTopicRequestBytes(
+  stage: "summary" | "embedding" | "naming",
+  adapter: string,
+  bytes: number,
+): void {
+  recordDistribution("langfuse.topics.llm_request_bytes", bytes, {
+    stage,
+    adapter,
+    unit: "bytes",
+  });
 }
 
 /** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
@@ -118,6 +148,42 @@ export class TopicMetrics {
     recordDistribution("langfuse.topics.summary_input_characters", characters, {
       ...this.tags,
       format,
+    });
+  }
+
+  /** Approximate tokens of the text sent, from the cost estimate's characters-per-token ratio. */
+  summaryInputEstimatedTokens(tokens: number): void {
+    recordDistribution(
+      "langfuse.topics.summary_input_estimated_tokens",
+      tokens,
+      this.tags,
+    );
+  }
+
+  /** One fit of a rule's map, whether nightly, from setup or a manual refresh. */
+  ruleFit(
+    outcome: string,
+    trigger: "automatic" | "manual",
+    durationMs: number,
+    failure?: unknown,
+  ): void {
+    const tags = {
+      outcome,
+      trigger,
+      ...(outcome === "failed"
+        ? {
+            owner:
+              failure instanceof TopicsProviderUnavailable
+                ? topicFailureOwner(failure.reason)
+                : "platform",
+          }
+        : {}),
+    };
+    recordIncrement("langfuse.topics.rule_fits", 1, tags);
+    recordDistribution("langfuse.topics.rule_fit_duration_ms", durationMs, {
+      outcome,
+      trigger,
+      unit: "milliseconds",
     });
   }
 
@@ -193,6 +259,10 @@ export class TopicMetrics {
       ...this.tags,
       stage,
       reason,
+      owner:
+        error instanceof TopicsProviderUnavailable
+          ? topicFailureOwner(error.reason)
+          : "platform",
     });
   }
 }
