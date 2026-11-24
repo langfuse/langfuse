@@ -3,6 +3,7 @@ import {
   getCurrentSpan,
   QueueJobs,
   recordDistribution,
+  recordIncrement,
   TopicsTraceEventSchema,
   TopicsTraceQueue,
   type QueueName,
@@ -34,8 +35,21 @@ export const topicsTraceQueueProcessorBuilder =
       "messaging.bullmq.job.input.retryBaggage.attempt":
         job.data.retryBaggage?.attempt ?? 0,
     });
+    const attempt = job.data.retryBaggage?.attempt ?? 0;
+    // A throw records no outcome; after the last attempt nothing retries the trace.
+    const countLastFailure = (error: unknown) => {
+      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1))
+        recordIncrement("langfuse.topics.trace_outcomes", 1, {
+          source: "trace_queue",
+          outcome: "failed",
+          attempt: attempt ? "retry" : "first",
+          reason: "job_failed",
+          owner: "platform",
+        });
+      throw error;
+    };
     return processTopicsTrace(event, {
-      attempt: job.data.retryBaggage?.attempt ?? 0,
+      attempt,
       scheduleRetry: async (facetIds) => {
         const retry = await retryLLMRateLimitError(
           { data: { ...job.data, payload: { ...event, facetIds } } },
@@ -55,5 +69,5 @@ export const topicsTraceQueueProcessorBuilder =
             .catch(() => {});
         return retry.outcome;
       },
-    });
+    }).catch(countLastFailure);
   };

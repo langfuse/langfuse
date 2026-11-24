@@ -38,6 +38,23 @@ type TopicErrorReason =
   | "definition_readback"
   | "unknown";
 
+/** Who has to act on a failure. Topics builds the request and sets the size limits, so rejected or oversized input is ours. */
+export function topicFailureOwner(
+  reason: string,
+): "platform" | "upstream" | "customer" {
+  if (
+    [
+      "authentication",
+      "configuration",
+      "rate_limit",
+      "content_filter",
+    ].includes(reason)
+  )
+    return "customer";
+  if (["timeout", "provider_error"].includes(reason)) return "upstream";
+  return "platform";
+}
+
 // Statuses with their own operational meaning; exact codes are on the span.
 const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
@@ -121,6 +138,42 @@ export class TopicMetrics {
     });
   }
 
+  /** Approximate tokens of the text sent, from the cost estimate's characters-per-token ratio. */
+  summaryInputEstimatedTokens(tokens: number): void {
+    recordDistribution(
+      "langfuse.topics.summary_input_estimated_tokens",
+      tokens,
+      this.tags,
+    );
+  }
+
+  /** One fit of a rule's map, whether nightly, from setup or a manual refresh. */
+  ruleFit(
+    outcome: string,
+    trigger: "automatic" | "manual",
+    durationMs: number,
+    failure?: unknown,
+  ): void {
+    const tags = {
+      outcome,
+      trigger,
+      ...(outcome === "failed"
+        ? {
+            owner:
+              failure instanceof TopicsProviderUnavailable
+                ? topicFailureOwner(failure.reason)
+                : "platform",
+          }
+        : {}),
+    };
+    recordIncrement("langfuse.topics.rule_fits", 1, tags);
+    recordDistribution("langfuse.topics.rule_fit_duration_ms", durationMs, {
+      outcome,
+      trigger,
+      unit: "milliseconds",
+    });
+  }
+
   clusteringWorkload(vectors: number, dimensions: number): void {
     const tags = { dimensions: String(dimensions) };
     recordIncrement("langfuse.topics.clustering_vectors", vectors, tags);
@@ -193,6 +246,10 @@ export class TopicMetrics {
       ...this.tags,
       stage,
       reason,
+      owner:
+        error instanceof TopicsProviderUnavailable
+          ? topicFailureOwner(error.reason)
+          : "platform",
     });
   }
 }

@@ -22,6 +22,7 @@ import {
 import { context as otelContext } from "@opentelemetry/api";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
+  charsPerToken,
   embedTopicSummaries,
   summarizeTopicTraceFacets,
   TopicInputTooLarge,
@@ -312,6 +313,9 @@ async function summarizeTraceFacets(params: {
   }
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
   metrics.summaryInputCharacters("text", text.length);
+  metrics.summaryInputEstimatedTokens(
+    Math.ceil(text.length / charsPerToken(models.summary.model)),
+  );
   metrics.summaryInputCharacters("json", projection.text.length);
   // The caller lists built-in facets first, so the cached prompt prefix stays stable.
   const keyed = keyTopicTraceFacets(facets);

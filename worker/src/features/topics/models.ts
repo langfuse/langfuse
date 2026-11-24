@@ -105,6 +105,15 @@ type TopicCallMetadata = Record<string, unknown> & {
   run_id?: string;
 };
 
+// Characters per token by tokenizer family, measured on rendered Topics requests.
+export function charsPerToken(model: string) {
+  const name = model.toLowerCase();
+  if (/(^|[/.:])(gpt|o\d|chatgpt|text-embedding)/.test(name)) return 4.0;
+  if (name.includes("gemini")) return 4.0;
+  if (name.includes("claude")) return 3.2;
+  return 3.5;
+}
+
 /** One span, call counter and failure log per provider request. */
 async function topicModelCall<T>(
   stage: "summary" | "embedding" | "naming",

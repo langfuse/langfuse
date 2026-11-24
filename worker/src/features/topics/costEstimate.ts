@@ -28,7 +28,7 @@ import {
 import { env } from "../../env";
 import { toTraceEventObservation } from "../eventsDispatch/traceEvents";
 import { recordTopicCostEstimate } from "./metrics";
-import { buildTopicSummaryRequest } from "./models";
+import { buildTopicSummaryRequest, charsPerToken } from "./models";
 import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
 
 const DAY_MS = 86_400_000;
@@ -45,15 +45,6 @@ const DEADLINE_MS = 2 * 60_000;
 // Output tokens and embedding input tokens of one facet's summary, from a week of production usage.
 const OUTPUT_TOKENS_PER_FACET = 70;
 const EMBEDDING_TOKENS_PER_FACET = 15;
-
-// Characters per token by tokenizer family, measured on rendered Topics requests.
-function charsPerToken(model: string) {
-  const name = model.toLowerCase();
-  if (/(^|[/.:])(gpt|o\d|chatgpt|text-embedding)/.test(name)) return 4.0;
-  if (name.includes("gemini")) return 4.0;
-  if (name.includes("claude")) return 3.2;
-  return 3.5;
-}
 
 /** An error whose message is shown to the user. */
 class EstimateError extends Error {}
