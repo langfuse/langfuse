@@ -1208,3 +1208,28 @@ fn prompt_variables_are_scanned_on_every_turn() {
         ["go", "ssn 123-45-6789", "card"]
     );
 }
+
+#[test]
+fn every_output_answering_the_newest_calls_is_scanned_when_calls_and_outputs_interleave() {
+    let interleaved = r#"[{"role":"user","content":"old"},
+        {"type":"reasoning","summary":[]},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, interleaved),
+        ["result a", "result b"]
+    );
+    // Without a reasoning item, the caller message that led to the calls stays out.
+    let without_reasoning = r#"[{"role":"user","content":"old"},
+        {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"a","output":"result a"},
+        {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+        {"type":"function_call_output","call_id":"b","output":"result b"},
+        {"role":"user","content":"new"}]"#;
+    assert_eq!(
+        guardrail_scan(r#""sys""#, without_reasoning),
+        ["result a", "result b", "new"]
+    );
+}

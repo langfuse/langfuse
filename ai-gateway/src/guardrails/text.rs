@@ -200,6 +200,17 @@ pub(crate) fn for_each<'a, T: Deserialize<'a>>(
         .map_err(|_| Unreadable)
 }
 
+/// Who produced a conversation item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnItem {
+    /// A model reply: an assistant message or reasoning.
+    Reply,
+    /// A tool call from the model, which the caller answers with an output item.
+    Call,
+    /// A message or tool output from the caller.
+    Caller,
+}
+
 /// Reads the text of one conversation item.
 pub(crate) type ReadItem = fn(&RawValue, &mut dyn FnMut(&str)) -> Result<(), Unreadable>;
 
@@ -234,53 +245,66 @@ impl LastTurn {
     }
 
     /// Adds all of member `name`, whose JSON is `raw`.
-    pub(crate) fn member(&mut self, name: &'static str, raw: &str) {
-        self.member_with(name, raw, collect);
+    pub(crate) fn push_member(&mut self, name: &'static str, raw: &str) {
+        self.push_member_with(name, raw, collect);
     }
 
     /// Adds member `name`, whose JSON is `raw`, read by `read`.
-    pub(crate) fn member_with(&mut self, name: &'static str, raw: &str, read: ReadItem) {
+    pub(crate) fn push_member_with(&mut self, name: &'static str, raw: &str, read: ReadItem) {
         self.parts.push(TurnPart::Member { member: name, read });
         self.bytes += raw.len();
     }
 
     /// Adds the last turn of the conversation in member `name`: every item after
-    /// the last `is_boundary` item (a model turn) that precedes a non-boundary
-    /// item. Trailing boundary items, such as an assistant prefill, belong to it
-    /// too, so the newest caller message is never skipped. Returns whether an
-    /// earlier model turn exists.
-    pub(crate) fn items<'a, T: Deserialize<'a>>(
+    /// the last item from the model that precedes a caller item. Trailing model
+    /// items, such as an assistant prefill, belong to it too, so the newest caller
+    /// message is never skipped. When the items after the model's last reply hold
+    /// tool calls, the turn starts at the first of them, so every output answering
+    /// them belongs to it however calls and outputs interleave. Returns whether the
+    /// model spoke earlier.
+    pub(crate) fn push_items<'a, T: Deserialize<'a>>(
         &mut self,
         name: &'static str,
         raw: &'a str,
-        is_boundary: impl Fn(&T) -> bool,
+        classify: impl Fn(&T) -> TurnItem,
         read: ReadItem,
     ) -> Result<bool, Unreadable> {
         let mut first = None;
-        let mut after_boundary = None;
-        let mut previous_was_boundary = false;
+        let mut after_model = None;
+        let mut previous_from_model = false;
         let mut turn_start = None;
+        let mut first_call_since_reply = None;
+        let mut any_call = false;
         for_each(raw, |item: &'a RawValue| {
             let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
             first.get_or_insert(offset);
-            if previous_was_boundary {
-                after_boundary = Some(offset);
+            if previous_from_model {
+                after_model = Some(offset);
             }
             let parsed: T = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
-            previous_was_boundary = is_boundary(&parsed);
-            if !previous_was_boundary {
-                turn_start = after_boundary;
+            let kind = classify(&parsed);
+            previous_from_model = kind != TurnItem::Caller;
+            match kind {
+                TurnItem::Reply => first_call_since_reply = None,
+                TurnItem::Call => {
+                    any_call = true;
+                    first_call_since_reply.get_or_insert(offset);
+                }
+                TurnItem::Caller => turn_start = after_model,
             }
             Ok(())
         })?;
-        let start = turn_start.or(first).unwrap_or(raw.len());
+        let start = first_call_since_reply
+            .or(turn_start)
+            .or(first)
+            .unwrap_or(raw.len());
         self.parts.push(TurnPart::Items {
             member: name,
             start,
             read,
         });
         self.bytes += raw.len() - start;
-        Ok(turn_start.is_some())
+        Ok(turn_start.is_some() || any_call)
     }
 
     /// Sends the last turn's text to `sink`, reading the members `member` returns.
@@ -391,10 +415,14 @@ mod tests {
 
     fn turn(raw: &str) -> (Vec<String>, usize) {
         let mut turn = LastTurn::default();
-        turn.items(
+        turn.push_items(
             "messages",
             raw,
-            |role: &&str| *role == "assistant",
+            |role: &&str| match *role {
+                "assistant" => TurnItem::Reply,
+                "call" => TurnItem::Call,
+                _ => TurnItem::Caller,
+            },
             read_role,
         )
         .unwrap();

@@ -292,7 +292,7 @@ pub(super) fn guardrail_turn<'a>(
 ) -> crate::guardrails::text::LastTurn {
     let mut turn = crate::guardrails::text::LastTurn::default();
     if let Some(input) = member("input") {
-        turn.member("input", input);
+        turn.push_member("input", input);
     }
     turn
 }

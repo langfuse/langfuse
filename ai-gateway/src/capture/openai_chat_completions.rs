@@ -508,11 +508,17 @@ struct GuardrailMessage<'a> {
 }
 
 impl GuardrailMessage<'_> {
-    fn is_assistant(&self) -> bool {
-        self.role
+    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
+        if self
+            .role
             .and_then(crate::guardrails::text::string)
             .as_deref()
             == Some("assistant")
+        {
+            crate::guardrails::text::TurnItem::Reply
+        } else {
+            crate::guardrails::text::TurnItem::Caller
+        }
     }
 }
 
@@ -521,10 +527,10 @@ pub(super) fn guardrail_turn<'a>(
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     if let Some(messages) = member("messages") {
-        turn.items(
+        turn.push_items(
             "messages",
             messages,
-            GuardrailMessage::is_assistant,
+            GuardrailMessage::turn_item,
             read_guardrail_message,
         )?;
     }

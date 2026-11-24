@@ -336,16 +336,21 @@ struct GuardrailItem<'a> {
 }
 
 impl GuardrailItem<'_> {
-    /// Items the model produced: its messages, its tool calls (`function_call`,
-    /// `web_search_call`, `mcp_call`, ...) and its reasoning.
-    fn is_from_model(&self) -> bool {
+    /// The model's messages and reasoning are replies; its tool calls
+    /// (`function_call`, `web_search_call`, `mcp_call`, ...) are calls.
+    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
         let role = self.role.and_then(crate::guardrails::text::string);
         let kind = self.kind.and_then(crate::guardrails::text::string);
         let kind = kind.as_deref().unwrap_or_default();
-        role.as_deref() == Some("assistant")
-            || kind == "reasoning"
-            || kind.ends_with("_call")
+        if role.as_deref() == Some("assistant") || kind == "reasoning" {
+            crate::guardrails::text::TurnItem::Reply
+        } else if kind.ends_with("_call")
             || (kind.starts_with("mcp_") && kind != "mcp_approval_response")
+        {
+            crate::guardrails::text::TurnItem::Call
+        } else {
+            crate::guardrails::text::TurnItem::Caller
+        }
     }
 }
 
@@ -354,14 +359,14 @@ pub(super) fn guardrail_turn<'a>(
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_item = match member("input") {
-        Some(items) if items.starts_with('[') => turn.items(
+        Some(items) if items.starts_with('[') => turn.push_items(
             "input",
             items,
-            GuardrailItem::is_from_model,
+            GuardrailItem::turn_item,
             read_guardrail_item,
         )?,
         Some(input) => {
-            turn.member("input", input);
+            turn.push_member("input", input);
             false
         }
         None => false,
@@ -375,11 +380,11 @@ pub(super) fn guardrail_turn<'a>(
         && !continues
         && let Some(instructions) = member("instructions")
     {
-        turn.member("instructions", instructions);
+        turn.push_member("instructions", instructions);
     }
     // Variables fill a stored prompt with new caller text on every request.
     if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
-        turn.member_with("prompt", prompt, read_guardrail_prompt);
+        turn.push_member_with("prompt", prompt, read_guardrail_prompt);
     }
     Ok(turn)
 }
