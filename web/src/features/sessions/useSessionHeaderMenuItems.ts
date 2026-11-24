@@ -95,11 +95,13 @@ export function useSessionHeaderMenuItems({
   projectId,
   sessionId,
   isPublic,
+  shareUrl,
   ...displaySettings
 }: DisplaySettingProps & {
   projectId: string;
   sessionId: string;
   isPublic: boolean;
+  shareUrl?: string;
 }) {
   const capture = usePostHogClientCapture();
   const { copy } = useCopyToClipboard();
@@ -111,6 +113,7 @@ export function useSessionHeaderMenuItems({
     projectId,
     objectId: sessionId,
     isPublic,
+    shareUrl,
   });
   const displayItems = buildDisplayItems(displaySettings);
 

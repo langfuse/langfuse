@@ -3,10 +3,15 @@ import type {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   EvaluatorPromptMessage,
+  experimentTargetEvalVariableColumns,
   PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+/** Observation column a managed template variable maps to by default. */
+type ObservationColumnId =
+  (typeof experimentTargetEvalVariableColumns)[number]["id"];
 
 export type EvaluatorSetupDraft = {
   name: string;
@@ -29,7 +34,7 @@ export type ManagedTemplate = {
         promptMessages: EvaluatorPromptMessage[];
         variables: Array<{
           name: string;
-          defaultMapping: { field: string };
+          defaultMapping: { field: ObservationColumnId };
         }>;
         outputDefinition: PersistedEvalOutputDefinition;
       }
@@ -41,7 +46,10 @@ export type ManagedTemplate = {
     | {
         type: Extract<EvalTemplateType, "DECISION_MODEL">;
         questions: DecisionModelQuestions;
-        state: Array<{ key: string; defaultMapping: { field: string } }>;
+        state: Array<{
+          key: string;
+          defaultMapping: { field: ObservationColumnId };
+        }>;
       };
 };
 

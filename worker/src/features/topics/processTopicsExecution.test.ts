@@ -10,7 +10,10 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
-import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
+import {
+  recordIncrement,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
 const { topicSourceKey } = vi.hoisted(() => ({
@@ -476,11 +479,14 @@ describe("Topics execution", () => {
   it("publishes filtered naming groups and later retries their labels without changing membership", async () => {
     const facets = [facet, { ...facet, facetId: "sibling" }];
     seedSummaries(100, undefined, facets);
-    state.name.mockRejectedValueOnce(
-      new TopicsProviderUnavailable(
-        "The model filtered this response.",
-        "content_filter",
-      ),
+    state.name.mockImplementationOnce(
+      async (_group, _metadata, _conflict, onCost) => {
+        onCost?.({ naming_input: 0.001, total: 0.001 });
+        throw new TopicsProviderUnavailable(
+          "The model filtered this response.",
+          "content_filter",
+        );
+      },
     );
     state.executions.set("filtered", execution("filtered", 0, facets));
 
@@ -514,6 +520,7 @@ describe("Topics execution", () => {
     )!;
     const named = published.topics.find((topic) => topic !== placeholder)!;
     expect(placeholder).toMatchObject({
+      costDetails: { naming_input: 0.001, total: 0.001 },
       name: expect.any(String),
       description: expect.stringMatching(/filter/i),
     });
@@ -889,10 +896,21 @@ describe("Topics execution", () => {
           evidenceSummaryIds: ["m1"],
         },
       };
-      state.name.mockResolvedValueOnce(colliding);
-      if (retry === "repeated") state.name.mockResolvedValueOnce(colliding);
-      if (retry === "failed")
-        state.name.mockRejectedValueOnce(new Error("Naming unavailable"));
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.1, naming_output: 0.02, total: 0.09 });
+          return colliding;
+        },
+      );
+      state.name.mockImplementationOnce(
+        async (_group, _metadata, _conflict, onCost) => {
+          onCost?.({ naming_input: 0.2, naming_cache_read: 0.01, total: 0.25 });
+          if (retry === "failed") throw new Error("Invalid naming response");
+          return retry === "repeated"
+            ? colliding
+            : { output: { ...colliding.output, name: "Distinct topic" } };
+        },
+      );
       const calls = state.name.mock.calls.length;
       await updateSelection("second");
       const [, conflictCall] = state.name.mock.calls.slice(calls);
@@ -901,6 +919,16 @@ describe("Topics execution", () => {
         description: unchanged.description,
       });
       const second = [...state.runs.values()].at(-1)!;
+      expect(second.topics).toContainEqual(unchanged);
+      expect(
+        second.topics.find((topic) => topic.createdByRunId === second.id)
+          ?.costDetails,
+      ).toEqual({
+        naming_input: 0.3,
+        naming_output: 0.02,
+        naming_cache_read: 0.01,
+        total: 0.34,
+      });
       expect(second.status).toBe("completed");
       expect(
         second.topics.filter((topic) => topic.name === unchanged.name),
@@ -945,6 +973,11 @@ describe("Topics execution", () => {
 
       const refit = state.runs.get("refit")!;
       expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.rule_fits",
+        1,
+        { outcome: "published", trigger: "automatic" },
+      );
       const sameTopics = refit.topics.some((topic) =>
         published.topics.some((other) => other.topicId === topic.topicId),
       );

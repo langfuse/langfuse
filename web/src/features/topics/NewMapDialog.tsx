@@ -2,10 +2,15 @@ import { useForm } from "react-hook-form";
 import type { FilterState } from "@langfuse/shared";
 import { topicRuleFilterError, type TopicFacet } from "@langfuse/shared/topics";
 import { api } from "@/src/utils/api";
-import { TOPIC_SETUP_BACKFILL_DAYS } from "./topic-setup-flow";
+import {
+  TOPIC_SETUP_BACKFILL_DAYS,
+  TOPIC_SETUP_BACKFILL_LIMIT,
+} from "./topic-setup-flow";
+import { TopicCostEstimate } from "./TopicCostEstimate";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
+import { useTopicsCapture } from "./useTopicsCapture";
 import { NewMapDialogView } from "./NewMapDialogView";
 
 type NewMapForm = {
@@ -40,6 +45,7 @@ export function NewMapDialog({
   const { name, filter, facetIds, samplingPercent } = form.watch();
   const setFilter = (next: FilterState) => form.setValue("filter", next);
   const utils = api.useUtils();
+  const capture = useTopicsCapture();
 
   const traceFilter = useTopicTraceFilter({
     projectId,
@@ -53,7 +59,14 @@ export function NewMapDialog({
     { enabled: !filterError, retry: false },
   );
   const createRule = api.topics.saveRule.useMutation({
-    onSuccess: () => Promise.all([utils.topics.maps.invalidate({ projectId })]),
+    onSuccess: () =>
+      Promise.all([
+        utils.topics.maps.invalidate({ projectId }),
+        utils.topics.ruleMapCosts.invalidate(
+          { projectId },
+          { refetchType: "none" },
+        ),
+      ]),
   });
   const startRuleSetup = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
@@ -66,6 +79,11 @@ export function NewMapDialog({
       filter: values.filter,
       facetIds: values.facetIds,
       sampling: values.samplingPercent / 100,
+    });
+    capture("topics:map_created", {
+      filterCount: values.filter.length,
+      facetCount: values.facetIds.length,
+      samplePercent: values.samplingPercent,
     });
     // The rule exists either way: the error toast reports a failed start,
     // and the page then shows the rule's building state.
@@ -102,6 +120,28 @@ export function NewMapDialog({
               : null
           }
           tooltip="Share of new matching traces this map analyzes."
+        />
+      }
+      costEstimateField={
+        <TopicCostEstimate
+          projectId={projectId}
+          filter={filter}
+          facetIds={filterError ? [] : facetIds}
+          samplingPercent={samplingPercent}
+          dailyTraces={
+            traceCounts.data
+              ? traceCounts.data.finished7d / TOPIC_SETUP_BACKFILL_DAYS
+              : null
+          }
+          backfillTraces={
+            traceCounts.data
+              ? Math.min(
+                  TOPIC_SETUP_BACKFILL_LIMIT,
+                  traceCounts.data.finished30d,
+                )
+              : null
+          }
+          source="new_map"
         />
       }
       canStart={

@@ -386,6 +386,8 @@ export interface TopicDefinition {
   projectId: string;
   topicId: string;
   createdByRunId: string;
+  /** Naming costs for this version. Absent or empty when no price was available. */
+  costDetails?: Record<string, number>;
   createdAt: string;
   labels: string[];
   name: string;
@@ -469,3 +471,5 @@ export interface TopicExecution {
 export type TopicExecutionSummary = Omit<TopicExecution, "input"> & {
   input: TopicManualRunInput | TopicExecutionInput;
 };
+
+export * from "./cost-estimate";

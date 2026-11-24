@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
 import { singleFilterList } from "@langfuse/shared";
-import { type views } from "@langfuse/shared/query";
+import {
+  isNumericMetadataFilter,
+  type ViewVersion,
+  type views,
+} from "@langfuse/shared/query";
 
 export const FilterArray = singleFilterList;
 
@@ -435,6 +439,15 @@ type PartitionedWidgetFilters = {
   unsupportedFilters: z.infer<typeof FilterArray>;
 };
 
+/**
+ * partitionUiTableFiltersToView splits filters into the ones the view can
+ * query, with their column renamed to the view's dimension name, and the ones
+ * it cannot. A filter is unsupported only if its column is a known widget
+ * filter column of another view; unknown columns pass through so the server
+ * validates them. `source` picks which column names win when both match:
+ * legacy names for filters loaded from a saved widget, current names for
+ * filters from the editor.
+ */
 const partitionUiTableFiltersToView = (
   view: z.infer<typeof views>,
   filters: z.infer<typeof FilterArray>,
@@ -488,6 +501,40 @@ export const partitionWidgetUiTableFiltersToView = (
   filters: z.infer<typeof FilterArray>,
 ): PartitionedWidgetFilters =>
   partitionUiTableFiltersToView(view, filters, "editor");
+
+/** viewLowersNumericMetadata reports whether the view compares metadata as numbers: the other views' servers reject `numberObject` metadata filters. */
+export const viewLowersNumericMetadata = (
+  view: z.infer<typeof views>,
+  viewVersion: ViewVersion,
+): boolean => viewVersion === "v2" && view === "observations";
+
+export const UNSUPPORTED_NUMERIC_METADATA_REASON =
+  "Numeric metadata filters are only supported on observations view (v4).";
+
+/**
+ * partitionWidgetQueryFiltersToView partitions editor rows for a query on the
+ * view, like partitionWidgetUiTableFiltersToView, and also counts a numeric
+ * metadata row as unsupported on a view that does not lower it.
+ */
+export const partitionWidgetQueryFiltersToView = (
+  view: z.infer<typeof views>,
+  viewVersion: ViewVersion,
+  filters: z.infer<typeof FilterArray>,
+): PartitionedWidgetFilters => {
+  const partitioned = partitionWidgetUiTableFiltersToView(view, filters);
+  if (viewLowersNumericMetadata(view, viewVersion)) {
+    return partitioned;
+  }
+  return {
+    mappedFilters: partitioned.mappedFilters.filter(
+      (filter) => !isNumericMetadataFilter(filter),
+    ),
+    unsupportedFilters: [
+      ...partitioned.unsupportedFilters,
+      ...partitioned.mappedFilters.filter(isNumericMetadataFilter),
+    ],
+  };
+};
 
 export const mapLegacyUiTableFilterToView = (
   view: z.infer<typeof views>,

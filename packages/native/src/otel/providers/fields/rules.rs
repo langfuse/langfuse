@@ -96,7 +96,7 @@ pub(super) const PROMPT_VERSION_KEYS: &[&str] = &[
 
 pub(super) const PUBLIC_KEYS: &[&str] = &["langfuse.trace.public", "langfuse.public"];
 
-pub(super) const DECLARED_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
+pub(super) const EXPLICIT_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
     (
         "langfuse.observation.type",
         &[
@@ -125,6 +125,9 @@ pub(super) const DECLARED_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
             ("EVALUATOR", "EVALUATOR"),
         ],
     ),
+];
+
+pub(super) const PROVIDER_OBSERVATION_TYPES: &[(&str, &[(&str, &str)])] = &[
     (
         "gen_ai.operation.name",
         &[

@@ -37,6 +37,7 @@ export * from "./services/email/passwordReset/sendResetPasswordVerificationReque
 export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export type { UsageThresholdPlan } from "./services/email/usageThresholdPlan";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";
@@ -66,6 +67,8 @@ export * from "./evals/extractObservationVariables";
 export * from "./evals/classifyEvaluatorLlmError";
 export * from "./evals/llmEvaluatorExecution";
 export * from "./evals/decisionModelEvaluatorExecution";
+export * from "./evals/traceEvalsConfig";
+export * from "./evals/traceEvalsProcessingGate";
 export * from "./llm/createDecisionModelClient";
 export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";
@@ -186,6 +189,7 @@ export { type Turn } from "./transcript/types";
 export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
 export { createTraceTranscriptStorage } from "./eventsDispatch/storage";
+export { serializeTraceTranscriptInputs } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_MAX_CHARACTERS } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_PREFIX } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_RETENTION_MS } from "./eventsDispatch/storage";
@@ -410,7 +414,6 @@ export { getScoresForBlobStorageExportParquet } from "./repositories/scores";
 export { getScoresForAnalyticsIntegrations } from "./repositories/scores";
 export { hasAnyScore } from "./repositories/scores";
 export { getScoreMetadataById } from "./repositories/scores";
-export { getScoreCountsByProjectAndDay } from "./repositories/scores";
 export { ScoresCursorV3 } from "./repositories/scores";
 export { type ScoresCursorV3Type } from "./repositories/scores";
 export { EncodedScoresCursorV3 } from "./repositories/scores";
@@ -452,7 +455,6 @@ export { getTracesForBlobStorageExportParquet } from "./repositories/traces";
 export { getTracesForAnalyticsIntegrations } from "./repositories/traces";
 export { getTracesByIdsForAnyProject } from "./repositories/traces";
 export { getAgentGraphData } from "./repositories/traces";
-export { getTraceCountsByProjectAndDay } from "./repositories/traces";
 export { TRACE_FIELD_GROUPS } from "./repositories/traces";
 export { type TraceFieldGroup } from "./repositories/traces";
 export { type TraceQueryType } from "./repositories/traces";
@@ -494,7 +496,6 @@ export { getObservationsForBlobStorageExport } from "./repositories/observations
 export { getObservationsForBlobStorageExportRaw } from "./repositories/observations";
 export { getObservationsForBlobStorageExportParquet } from "./repositories/observations";
 export { getGenerationsForAnalyticsIntegrations } from "./repositories/observations";
-export { getObservationCountsByProjectAndDay } from "./repositories/observations";
 export { getCostByEvaluatorIds } from "./repositories/observations";
 export { getAvgCostByEvaluatorIdsFromObservations } from "./repositories/observations";
 export { generateObservationsForPublicApi } from "./repositories/observations";
@@ -574,6 +575,7 @@ export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
 export {
   getEventsDispatchEventStream,
+  getTopicCostEstimateEventStream,
   type EventsDispatchEventRow,
 } from "./repositories/events-dispatch";
 export { type TableCount } from "./repositories/types";
@@ -754,6 +756,7 @@ export {
   getBillableEventsLedgerStart,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {
@@ -762,7 +765,9 @@ export {
   TOPIC_SETUP_WINDOW_DAYS,
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
+export { getTopicCostEstimateSample } from "./repositories/topic-setup-events";
 export {
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,
@@ -950,7 +955,6 @@ export const getTracesIdentifierForSession =
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
   getTracesIdentifierForSessionRoutingWrapper;
 
-export * from "./billing/billingLedgerShadow";
 export * from "./entitlements/getPlan";
 
 export { isDnsCompatibleBucketName } from "./outbound-url/validation";

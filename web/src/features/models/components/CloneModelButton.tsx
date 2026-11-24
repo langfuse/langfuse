@@ -1,33 +1,32 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
+import {
+  cloneLabelFor,
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
 
 export const CloneModelButton = ({
   modelData,
-  projectId,
+  owner,
 }: {
   modelData: GetModelResult;
-  projectId: string;
+  owner: ModelOwner;
 }) => {
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const hasAccess = useCanEditModels(owner);
 
   return (
-    <UpsertModelFormDialogController
-      {...{ modelData, projectId, action: "clone" }}
-    >
+    <UpsertModelFormDialogController {...{ modelData, owner, action: "clone" }}>
       {({ openDialog }) => (
         <Button
           variant="outline"
           disabled={!hasAccess}
-          title="Clone model"
+          title={cloneLabelFor(owner)}
           className="flex items-center"
           onClick={openDialog}
         >
-          <span>Clone</span>
+          <span>{cloneLabelFor(owner)}</span>
         </Button>
       )}
     </UpsertModelFormDialogController>

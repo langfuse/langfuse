@@ -1,0 +1,71 @@
+/* Desktop density matches the classic sidebar; mobile keeps larger touch targets. */
+.row {
+  height: var(--sidebar-nav-row-height, 44px);
+  overflow: hidden;
+}
+
+.leading {
+  display: flex;
+  flex: 0 0 var(--sidebar-nav-leading-width, 30px);
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding-inline-end: 8px;
+  opacity: 1;
+  transform: translateX(0);
+  transition-property: opacity, transform;
+  transition-duration:
+    var(--sidebar-label-duration, 0ms), var(--sidebar-motion-duration, 0ms);
+  transition-timing-function: var(--sidebar-motion-ease, ease);
+  transition-delay: var(--sidebar-label-delay, 0ms), 0ms;
+}
+
+.row[data-collapsed="true"] .content {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition-delay: 0ms;
+}
+
+.caption {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trailing {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .row {
+    height: var(--sidebar-nav-row-height, 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .content {
+    transition: none;
+  }
+}

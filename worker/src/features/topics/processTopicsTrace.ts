@@ -24,6 +24,7 @@ import type {
 } from "@langfuse/shared/topics";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
+import { topicFailureOwner } from "./metrics";
 import { TopicInputTooLarge } from "./models";
 import {
   isRejectedConnection,
@@ -343,7 +344,9 @@ export async function processTopicsTrace(
     source: "trace_queue",
     outcome: result.outcome,
     attempt: deps.attempt ? "retry" : "first",
-    ...(result.outcome === "failed" ? { reason: result.reason } : {}),
+    ...(result.outcome === "failed"
+      ? { reason: result.reason, owner: topicFailureOwner(result.reason) }
+      : {}),
     ...("failedStage" in result && result.failedStage
       ? { failed_stage: result.failedStage }
       : {}),

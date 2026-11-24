@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getEventsDispatchEventStream,
   QueueJobs,
+  recordIncrement,
   redis,
   type QueueName,
   type TQueueJobTypes,
@@ -198,6 +199,35 @@ describe("events dispatch consumer", () => {
     );
     expect(due).toBeGreaterThanOrEqual(startedAt + 5 * MINUTE_MS - 1_000);
     expect(due).toBeLessThanOrEqual(Date.now() + 5 * MINUTE_MS + 1_000);
+  });
+
+  it("counts a job's traces as lost only when its last attempt fails", async () => {
+    const revisions = await recordAndAcknowledge(["first", "second"]);
+    vi.mocked(getEventsDispatchEventStream).mockImplementation(() => {
+      throw new Error("read failed");
+    });
+    const attempt = (attemptsMade: number) =>
+      Object.assign(
+        job(
+          [...revisions].map(([traceId, revision]) => ({ traceId, revision })),
+        ),
+        { attemptsMade, opts: { attempts: 2 } },
+      );
+    const lost = [
+      "langfuse.events_dispatch.trace_outcomes",
+      2,
+      { outcome: "lost", reason: "job_failed" },
+    ];
+
+    await expect(eventsDispatchQueueProcessor(attempt(0))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(...lost);
+
+    await expect(eventsDispatchQueueProcessor(attempt(1))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(...lost);
   });
 
   it("keeps newer activity's revision and drops a trace after its last retry", async () => {

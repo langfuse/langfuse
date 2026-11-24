@@ -1,9 +1,9 @@
 import { Pencil } from "@langfuse/icons";
 
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -50,7 +50,7 @@ type GatewayBudgetsTableProps = Pick<
   multiSelect: MultiSelect;
   onEditBudget: (row: GatewayBudgetRow) => void;
   /** Right of the search and filter, e.g. the default budget. */
-  toolbarActions?: SettingsTableProps<GatewayBudgetRow>["toolbarActions"];
+  toolbarActions?: TableCardProps<GatewayBudgetRow>["toolbarActions"];
 };
 
 const statusOptions: { value: GatewayBudgetStatus; label: string }[] = [
@@ -187,7 +187,7 @@ export function GatewayBudgetsTable({
   const isFiltered = search.value.trim().length > 0 || status.value !== "all";
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={GATEWAY_SPEND_TABS[tab].tableName}
       columns={[selectColumn, ...columnsByTab[tab]]}
       data={data}
