@@ -63,4 +63,21 @@ describe("findGuardrailMatches", () => {
     ]);
     expect(findGuardrailMatches("", { presets: ["us_ssn"] })).toEqual([]);
   });
+
+  it("does not flag C++/Rust/CSS scope operators as compressed IPv6 addresses", () => {
+    const code = "std::vector<int> Vec::new() Foo::bar a::before";
+    expect(findGuardrailMatches(code, { presets: ["ip_address"] })).toEqual([
+      { text: code, matched: false },
+    ]);
+    expect(
+      findGuardrailMatches("connect fe80::1 and ::1", {
+        presets: ["ip_address"],
+      }),
+    ).toEqual([
+      { text: "connect ", matched: false },
+      { text: "fe80::1", matched: true },
+      { text: " and ", matched: false },
+      { text: "::1", matched: true },
+    ]);
+  });
 });

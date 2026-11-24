@@ -212,12 +212,16 @@ export function GatewayGuardrailFormDialog({
   const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
     onSubmit({
       name: values.name.trim(),
-      presets: templateKind === "contains" ? [] : values.presets,
-      secretPrefixes: templateKind === "secrets" ? values.secretPrefixes : [],
+      presets:
+        templateKind === "contains" ? initialValues.presets : values.presets,
+      secretPrefixes:
+        templateKind === "secrets"
+          ? values.secretPrefixes
+          : initialValues.secretPrefixes,
       containsWords:
         templateKind === "contains"
           ? parseContainsWordsText(values.containsText)
-          : [],
+          : initialValues.containsWords,
       action: values.action,
       targets: values.targets,
     });

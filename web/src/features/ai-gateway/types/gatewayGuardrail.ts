@@ -52,7 +52,7 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
       // IPv6 (full 8-group)
       String.raw`\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b`,
       // IPv6 (compressed `::` form; capture group 1 holds the IP without surrounding boundary chars)
-      String.raw`(?:^|[^0-9A-Fa-f:])((?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,5}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4})(?:$|[^0-9A-Fa-f:])`,
+      String.raw`(?:^|[^0-9A-Za-z_:])((?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,5}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4})(?:$|[^0-9A-Za-z_:])`,
     ],
   },
   aws_access_key_id: {
