@@ -1024,6 +1024,8 @@ export async function processTopicRuleRefit({
   if (run.status !== "pending") return;
   const ruleId = run.ruleId;
   const metrics = new TopicMetrics();
+  const startedAt = performance.now();
+  let failure: unknown;
   const progress: TopicFacetProgress = {
     facetId: run.facetId,
     facetVersion: run.facetVersion,
@@ -1101,6 +1103,7 @@ export async function processTopicRuleRefit({
         );
       } catch (error) {
         progress.outcome = "failed";
+        failure = error;
         metrics.error("execution", error);
         if (isRejectedConnection(error))
           await pauseForRejectedConnection(projectId, error);
@@ -1128,5 +1131,11 @@ export async function processTopicRuleRefit({
       }
       span.setAttribute("langfuse.topics.facet_outcome", progress.outcome);
     },
+  );
+  metrics.ruleFit(
+    progress.outcome,
+    run.config.refresh === true ? "manual" : "automatic",
+    performance.now() - startedAt,
+    failure,
   );
 }

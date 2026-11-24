@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
+  distribution: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
   responseMetadata: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
+  recordDistribution: state.distribution,
   instrumentAsync: async (
     _options: unknown,
     call: (span: { setAttributes: typeof state.spanAttributes }) => unknown,
@@ -531,6 +533,12 @@ describe("Topics naming boundary", () => {
           adapter: LLMAdapter.Bedrock,
           status: reason,
         },
+      );
+      // A failed send still left the network.
+      expect(state.distribution).toHaveBeenCalledWith(
+        "langfuse.topics.llm_request_bytes",
+        expect.any(Number),
+        { stage: "naming", adapter: LLMAdapter.Bedrock, unit: "bytes" },
       );
     },
   );
