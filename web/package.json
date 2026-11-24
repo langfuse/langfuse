@@ -62,6 +62,7 @@
     "@langfuse/icons": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
+    "@modelcontextprotocol/ext-apps": "2.0.4",
     "@modelcontextprotocol/node": "2.1.2",
     "@modelcontextprotocol/server": "2.4.0",
     "@next-auth/prisma-adapter": "^1.0.7",
