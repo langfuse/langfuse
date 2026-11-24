@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { PlusCircle, Trash2 } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
@@ -68,10 +69,10 @@ export function TierConditionsEditor({
       </div>
 
       {fields.length === 0 && (
-        <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
+        <Banner variant="error">
           <strong>Warning:</strong> Non-default tiers require at least one
           condition. This tier will fail validation.
-        </div>
+        </Banner>
       )}
 
       {fields.map((condition, conditionIndex) => {

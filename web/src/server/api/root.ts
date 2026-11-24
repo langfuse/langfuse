@@ -18,6 +18,7 @@ import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { sessionViewsRouter } from "@/src/features/sessions/server/sessionViewsRouter";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
 import { modelRouter } from "@/src/server/api/routers/models";
+import { organizationModelRouter } from "@/src/features/models/server/organizationRouter";
 import { evalRouter } from "@/src/features/evals/server/router";
 import { evaluatorRouter } from "@/src/features/evals/v2/server/evaluators/evaluatorRouter";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
@@ -116,6 +117,7 @@ export const appRouter = createTRPCRouter({
   externalMediaStorage: externalMediaStorageRouter,
   llmApiKey: llmApiKeyRouter,
   organizationLlmApiKey: organizationLlmApiKeyRouter,
+  organizationModels: organizationModelRouter,
   llmSchemas: llmSchemaRouter,
   llmTools: llmToolRouter,
   public: publicRouter,

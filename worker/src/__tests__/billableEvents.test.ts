@@ -11,6 +11,7 @@ import {
   deleteScoresByTraceIds,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import type { TopicSummary } from "@langfuse/shared/topics";
@@ -565,6 +566,52 @@ describe("getBillableUnitCountsByProjectAndBucket", () => {
       { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
       { bucket: at(0).toISOString(), eventType: "trace", count: 3 },
       { bucket: at(24 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+  });
+});
+
+describe("getBillableUnitCountsForAllProjectsInRange", () => {
+  const T0 = new Date("2026-01-06T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once per project and event type in the range", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    await insertBillableEvents(projectA, [
+      { eventType: "trace", eventId: "id-1", at: at(-SECOND) },
+      { eventType: "trace", eventId: "id-1", at: at(MINUTE) },
+      { eventType: "trace", eventId: "id-1", at: at(20 * HOUR) },
+      { eventType: "trace", eventId: "id-2", at: at(-SECOND) },
+      { eventType: "score", eventId: "id-1", at: at(HOUR) },
+      // `to` is exclusive.
+      { eventType: "observation", eventId: "id-3", at: at(24 * HOUR) },
+    ]);
+    await insertBillableEvents(projectB, [
+      { eventType: "observation", eventId: "id-1", at: at(MINUTE) },
+    ]);
+
+    const rows = await getBillableUnitCountsForAllProjectsInRange({
+      from: T0,
+      to: at(24 * HOUR),
+    });
+
+    expect(
+      rows
+        .filter((row) => [projectA, projectB].includes(row.projectId))
+        .map((row) => ({
+          project: row.projectId === projectA ? "A" : "B",
+          eventType: row.eventType,
+          count: row.count,
+        }))
+        .sort(
+          (a, b) =>
+            a.project.localeCompare(b.project) ||
+            a.eventType.localeCompare(b.eventType),
+        ),
+    ).toEqual([
+      { project: "A", eventType: "score", count: 1 },
+      { project: "A", eventType: "trace", count: 1 },
+      { project: "B", eventType: "observation", count: 1 },
     ]);
   });
 });

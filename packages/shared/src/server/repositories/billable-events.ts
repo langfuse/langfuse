@@ -201,6 +201,60 @@ export const getBillableUnitCountsByProjectAndBucket = async ({
 };
 
 /**
+ * Approximate distinct billable units per project and event type ingested in
+ * `[from, to)` of `billable_events.ingested_at`, across every project. The
+ * free-tier threshold job reads one UTC day at a time and adds the days up, so
+ * a unit counts once in every day it appears in, as it does in the Usage tab
+ * at day granularity (`getBillableUnitCountsByProjectAndBucket`). Counts use
+ * the same `uniqCombined` estimate, which is exact for small counts.
+ */
+export const getBillableUnitCountsForAllProjectsInRange = async ({
+  from,
+  to,
+}: {
+  from: Date;
+  to: Date;
+}): Promise<
+  Array<{ projectId: string; eventType: BillableEventType; count: number }>
+> => {
+  if (to.getTime() <= from.getTime()) {
+    throw new Error(
+      `Usage range must end after it starts, got ${from.toISOString()} to ${to.toISOString()}`,
+    );
+  }
+
+  const rows = await queryClickhouse<{
+    project_id: string;
+    event_type: BillableEventType;
+    count: string;
+  }>({
+    query: `
+      SELECT
+        project_id,
+        event_type,
+        uniqCombined(event_id) AS count
+      FROM billable_events
+      WHERE ingested_at >= {from: DateTime64(3, 'UTC')}
+      AND ingested_at < {to: DateTime64(3, 'UTC')}
+      GROUP BY project_id, event_type
+    `,
+    params: {
+      from: convertDateToClickhouseDateTime(from),
+      to: convertDateToClickhouseDateTime(to),
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000,
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    eventType: row.event_type,
+    count: Number(row.count),
+  }));
+};
+
+/**
  * When the ledger got its first row, or null while it is empty. Usage before
  * that was never recorded, because the ledger is not backfilled. `min` and
  * `count` of the partition key column are answered from part metadata.

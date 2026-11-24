@@ -283,7 +283,7 @@ export const ObservationDetailViewHeader = memo(
     return (
       <UpsertModelFormDialogController
         action="create"
-        projectId={projectId}
+        owner={{ scope: "project", projectId }}
         prefilledModelData={{
           modelName: observation.model ?? undefined,
           prices:
