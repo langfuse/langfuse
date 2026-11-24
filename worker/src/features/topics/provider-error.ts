@@ -91,7 +91,8 @@ export function topicProviderError(
       record.name === "ZodError"
     )
       reason = "invalid_output";
-    current = record.cause;
+    // AI_RetryError keeps the final provider error in lastError, not cause.
+    current = record.cause ?? record.lastError;
   }
   // Same pause policy as evaluators; any other authentication failure (e.g. missing AWS credentials) still pauses.
   const blockReason = classifyEvaluatorLlmError(error)?.blockReason;

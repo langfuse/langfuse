@@ -13,10 +13,10 @@ import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { processTopicsTrace } from "../features/topics/processTopicsTrace";
 
-// Retries 1, 6 and 16 minutes after the first attempt; nothing runs after 30 minutes.
+// Retries 1, 3 and 10 minutes after the first attempt, each in a fresh per-minute quota window; nothing runs after 20 minutes.
 const TOPICS_TRACE_RETRY_SCHEDULE = {
-  offsetsSeconds: [60, 6 * 60, 16 * 60],
-  maxAgeSeconds: 30 * 60,
+  offsetsSeconds: [60, 3 * 60, 10 * 60],
+  maxAgeSeconds: 20 * 60,
 };
 
 /** Provider failures are requeued on the same shard with only the facets that failed. */
