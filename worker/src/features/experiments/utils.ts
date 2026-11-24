@@ -124,7 +124,7 @@ export const replaceVariablesInPrompt = (
       }
     }
     if (!Array.isArray(actualValue)) {
-      throw new Error(
+      throw new TypeError(
         `Placeholder '${placeholderName}' must be an array of messages`,
       );
     }

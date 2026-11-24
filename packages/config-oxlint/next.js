@@ -223,6 +223,7 @@ export default {
           },
         ],
         "typescript/no-inferrable-types": "warn",
+        "unicorn/prefer-type-error": "warn",
       },
     },
     {
