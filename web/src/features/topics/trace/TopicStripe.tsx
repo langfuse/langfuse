@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTopicsCapture } from "@/src/features/topics/useTopicsCapture";
 import {
   scatterSwatchColor,
   UNASSIGNED_SWATCH_COLOR,
@@ -39,7 +39,7 @@ export function TopicStripe({
   onToggle,
   details,
 }: TopicStripeProps) {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const topicCount = segments.reduce((sum, segment) => {
     if (segment.kind === "topic") return sum + 1;
     if (segment.kind === "more") return sum + segment.topicCount;
@@ -107,7 +107,6 @@ export function TopicStripe({
                       topic !== null
                         ? () => {
                             capture("topics:stripe_toggle", {
-                              isV4: true,
                               isSelected: !isSelected,
                               topicCount,
                             });

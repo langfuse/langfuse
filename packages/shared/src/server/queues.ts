@@ -658,10 +658,11 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     name: QueueJobs.TopicsSetup;
-    // A rule's setup, or a snapshot's summarizing before it groups.
+    // A rule's setup, a snapshot's summarizing before it groups, or a one-shot cost estimate.
     payload:
       | { projectId: string; ruleId: string }
-      | { projectId: string; executionId: string };
+      | { projectId: string; executionId: string }
+      | { projectId: string; estimateKey: string };
   };
   [QueueName.TraceUpsert]: {
     timestamp: Date;

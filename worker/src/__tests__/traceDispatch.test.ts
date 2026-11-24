@@ -1880,20 +1880,13 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(offset).toBeLessThan(610_000);
   });
 
-  it("does not dispatch or sample metrics on self-hosted deployments even with trace dispatch enabled", async () => {
+  it("dispatches on self-hosted deployments with events dispatch enabled", async () => {
     await recordActivity("project", [matched("trace")]);
     await makeDue("project", "trace");
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    const evaluate = vi.spyOn(client(), "eval");
-    const evaluateCached = vi.spyOn(client(), "evalsha");
-    const lock = vi.spyOn(client(), "set");
     await runner()["execute"]();
-    await new TraceDispatchMetricsRunner()["execute"]();
-    expect(evaluate).not.toHaveBeenCalled();
-    expect(evaluateCached).not.toHaveBeenCalled();
-    expect(lock).not.toHaveBeenCalled();
-    expect(await client().hlen(recordingKeys.pending)).toBe(1);
-    expect(await queue.count()).toBe(0);
+    expect(await client().hlen(recordingKeys.pending)).toBe(0);
+    expect(await queue.count()).toBe(1);
   });
 
   it("admits a stable trace-ID sample at the Topics rule's rate", async () => {

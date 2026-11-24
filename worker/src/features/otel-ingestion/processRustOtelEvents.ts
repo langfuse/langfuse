@@ -35,6 +35,7 @@ import { env, v4WritesToLegacyTables } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { TableName } from "../../services/ClickhouseWriter/types";
 import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
+import { encodeOtelLookups, type OtelLookupResult } from "./encodeOtelLookups";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -134,7 +135,7 @@ async function waitForServiceWork<T extends readonly Promise<unknown>[]>(
 async function completeOrFinalizeBatch(
   processing: RustOtelBatch,
   mediaResults: OtelMediaResolution[],
-  lookups: object[],
+  lookups: OtelLookupResult[],
   { evalConfigs, sampledTraceIds }: EvalRuleResolution,
   projectId: string,
 ): Promise<FinalizedOtelBatch> {
@@ -149,7 +150,7 @@ async function completeOrFinalizeBatch(
     sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
   const completion = await processing.complete(
     mediaResults,
-    lookups,
+    encodeOtelLookups(lookups),
     overflowLimitBytes,
     includeEvaluationRows,
     traceActivityIds,
@@ -406,10 +407,10 @@ async function uploadRequestedMedia(
 async function resolveLookups(
   lookupRequests: OtelLookupRequest[],
   { projectId, fileKey }: OtelProcessingContext,
-): Promise<object[]> {
+): Promise<OtelLookupResult[]> {
   const prompts = new PromptService(prisma, redis);
   const skills = new SkillCacheService(prisma, redis);
-  const lookups: object[] = [];
+  const lookups: OtelLookupResult[] = [];
   // Resolve up to 64 lookup requests at a time; event payloads stay in Rust.
   for (let offset = 0; offset < lookupRequests.length; offset += 64) {
     lookups.push(

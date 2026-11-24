@@ -229,15 +229,21 @@ describe("generateTopicText", () => {
           }),
         ),
       );
+      const onFailedResponseUsage = vi.fn();
       const error = await generateTopicText({
         model: bedrockModel("clustering", "eu.anthropic.claude-sonnet-5-5"),
         system: [{ text: "private system prompt" }],
         input: "private input",
         schema: z.object({ name: z.string() }),
         maxOutputTokens: 256,
+        onFailedResponseUsage,
       }).catch((error: unknown) => error);
 
       expect(error).toMatchObject({ name: errorName });
+      expect(onFailedResponseUsage).toHaveBeenCalledExactlyOnceWith({
+        usageDetails: expect.objectContaining({ input: 12, output: 4 }),
+        providedCostDetails: {},
+      });
       const metadata = getTopicTextResponseMetadata(error);
       expect(metadata).toEqual({
         "langfuse.topics.response.finish_reason": finishReason,

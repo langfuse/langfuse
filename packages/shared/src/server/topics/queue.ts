@@ -94,6 +94,26 @@ export async function enqueueTopicRuleSetup(
   );
 }
 
+/** Idempotent per estimate run: the job ID is the run ID. */
+export async function enqueueTopicCostEstimate(
+  projectId: string,
+  estimateKey: string,
+  runId: string,
+): Promise<void> {
+  const queue = TopicsSetupQueue.getInstance();
+  if (!queue) throw new Error("Topics cost estimates require Redis.");
+  await queue.add(
+    QueueJobs.TopicsSetup,
+    {
+      id: runId,
+      timestamp: new Date(),
+      name: QueueJobs.TopicsSetup,
+      payload: { projectId, estimateKey },
+    },
+    { jobId: runId },
+  );
+}
+
 const snapshotSetupJobId = (projectId: string, executionId: string) =>
   createHash("sha256")
     .update(JSON.stringify([projectId, executionId, "snapshot-setup"]))

@@ -40,6 +40,7 @@ import {
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
 import { prepareOtelBatch } from "../../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../../features/otel-ingestion/processRustOtelEvents";
+import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -283,7 +284,7 @@ describe("native Rust trace activity", () => {
 
       expect(processing.complete).toHaveBeenCalledWith(
         [],
-        [],
+        encodeOtelLookups([]),
         undefined,
         false,
         traceIds,
@@ -753,7 +754,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         });
 
         expect(normalize).not.toHaveBeenCalled();
-        if (rate > 0 && ingestionEnabled && cloud) {
+        if (rate > 0 && ingestionEnabled) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
             expect.any(Array),

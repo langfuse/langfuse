@@ -1,5 +1,6 @@
 import { env } from "../../env";
 import { type CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
+import { isEnterpriseTrialActive } from "../../features/entitlements/enterpriseTrial";
 import {
   chbPlanCodeToPlan,
   type Plan,
@@ -36,13 +37,15 @@ export function getOrganizationPlanServerSide(
       // ClickHouse Billing plan. Keyed on organizationId, not planCode, so a
       // CHB org can never fall through to stale Stripe state — the same
       // CHB-wins precedence getBillingProvider enforces. A missing plan code
-      // (drifted, so dropped by cloudConfigSchema) fails open to the free tier,
-      // never to a paid one; the paid gate for usage thresholds reads
-      // attachedPlanId
-      // instead, so a drifted code does not get a paying org ingestion-blocked.
+      // (drifted, so dropped by cloudConfigSchema, or a checkout that has not
+      // completed) fails open to the unpaid plan, never to a paid one; the
+      // paid gate for usage thresholds reads attachedPlanId instead, so a
+      // drifted code does not get a paying org ingestion-blocked.
       if (cloudConfig.clickhouse?.organizationId) {
         const { planCode } = cloudConfig.clickhouse;
-        return planCode ? chbPlanCodeToPlan[planCode] : "cloud:hobby";
+        return planCode
+          ? chbPlanCodeToPlan[planCode]
+          : getUnpaidCloudPlan(cloudConfig);
       }
 
       // stripe plan via product id
@@ -55,7 +58,7 @@ export function getOrganizationPlanServerSide(
         }
       }
     }
-    return "cloud:hobby";
+    return getUnpaidCloudPlan(cloudConfig);
   }
 
   const selfHostedPlan = getSelfHostedInstancePlanServerSide();
@@ -64,6 +67,18 @@ export function getOrganizationPlanServerSide(
   }
 
   return "oss";
+}
+
+/**
+ * Plan of a cloud org without paid billing state. An active enterprise trial
+ * ranks below every paid plan, so a completed checkout supersedes it, while a
+ * checkout that never completes (CHB persists the CH organization id before
+ * payment) leaves the trial in place.
+ */
+function getUnpaidCloudPlan(cloudConfig?: CloudConfigSchema): Plan {
+  return isEnterpriseTrialActive(cloudConfig)
+    ? "cloud:enterprise-trial"
+    : "cloud:hobby";
 }
 
 export function getSelfHostedInstancePlanServerSide(): Plan | null {

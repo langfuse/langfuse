@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   },
   workerEnv: { LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: 500_000 },
   call: vi.fn(),
+  onCost: vi.fn(),
   findModel: vi.fn(),
   embed: vi.fn(),
   increment: vi.fn(),
@@ -83,6 +84,9 @@ async function nameTopicGroup(
   return namePreparedTopicGroup(
     models,
     await prepareTopicNamingGroup(group, "naming-test"),
+    { run_id: "naming-run" },
+    undefined,
+    state.onCost,
   );
 }
 
@@ -131,6 +135,7 @@ beforeEach(() => {
   ];
   state.workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS = 500_000;
   state.call.mockReset();
+  state.onCost.mockReset();
   state.findModel.mockReset().mockResolvedValue({
     model: null,
     pricingTiers: [
@@ -456,6 +461,8 @@ describe("Topics naming boundary", () => {
       await expect(
         nameTopicGroup(topicsModels(), evidence),
       ).rejects.toMatchObject({ blockReason });
+      expect(state.call).toHaveBeenCalledOnce();
+      expect(state.onCost).not.toHaveBeenCalled();
     },
   );
 
@@ -479,7 +486,13 @@ describe("Topics naming boundary", () => {
       state.responseMetadata.mockImplementation((error) =>
         error === rejection ? response : undefined,
       );
-      state.call.mockRejectedValue(rejection);
+      state.call.mockImplementation(async ({ onFailedResponseUsage }) => {
+        await onFailedResponseUsage({
+          usageDetails: {},
+          providedCostDetails: { input: 0.025, total: 0.02 },
+        });
+        throw rejection;
+      });
 
       const failure = await nameTopicGroup(topicsModels(), evidence).catch(
         (error: unknown) => error,
@@ -491,6 +504,10 @@ describe("Topics naming boundary", () => {
             ? /filter/i
             : /returned no usable structured output/,
         ),
+      });
+      expect(state.onCost).toHaveBeenCalledExactlyOnceWith({
+        naming_input: 0.025,
+        total: 0.02,
       });
       expect((failure as Error).message).not.toMatch(/credentials|secret/);
       expect(logger.warn).toHaveBeenCalledOnce();
@@ -661,6 +678,7 @@ describe("Topics naming boundary", () => {
       facets,
       "RAW_TRANSCRIPT_SENTINEL",
       config,
+      { source_trace_id: "trace", rule_ids: ["rule-a", "rule-b"] },
     );
     expect(state.call).toHaveBeenCalledOnce();
     const request = state.call.mock.calls[0][0];
@@ -685,12 +703,20 @@ describe("Topics naming boundary", () => {
       environment: "langfuse-topics",
       metadata: {
         langfuse_project_id: "project",
+        source_trace_id: "trace",
+        rule_ids: ["rule-a", "rule-b"],
         facets: [
           { key: "intent_1", facet_id: "facet", facet_version: 1 },
           { key: "issues_2", facet_id: "issues", facet_version: 1 },
         ],
       },
     });
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.trace_id": "trace",
+        "langfuse.topics.rule_ids": ["rule-a", "rule-b"],
+      }),
+    );
     expect(state.project).toHaveBeenCalledWith({
       where: { id: "project", deletedAt: null },
       select: {
@@ -748,6 +774,7 @@ describe("Topics naming boundary", () => {
       evidenceSummaryIds: ["m400"],
     });
     expect(state.call).toHaveBeenCalledOnce();
+    expect(state.onCost).toHaveBeenCalledExactlyOnceWith(result.costDetails);
     expect(state.call.mock.calls[0][0].trace).toMatchObject({
       traceName: "topics-naming",
       environment: "langfuse-topics",
@@ -812,9 +839,22 @@ describe("Topics naming boundary", () => {
       },
       usage: {},
       usageDetails: {},
-      providedCostDetails: {},
+      providedCostDetails: { total: 0 },
     }));
-    await namePreparedTopicGroup(topicsModels(), prepared);
+    const metadata = { run_id: "naming-run", rule_id: "rule" };
+    await namePreparedTopicGroup(
+      topicsModels(),
+      prepared,
+      metadata,
+      undefined,
+      state.onCost,
+    );
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.run_id": "naming-run",
+        "langfuse.topics.rule_id": "rule",
+      }),
+    );
     const conflict = {
       name: "Billing support",
       description: "Support for billing problems.",
@@ -823,7 +863,14 @@ describe("Topics naming boundary", () => {
         "A billing question.",
       ],
     };
-    await namePreparedTopicGroup(topicsModels(), prepared, undefined, conflict);
+    await namePreparedTopicGroup(
+      topicsModels(),
+      prepared,
+      metadata,
+      conflict,
+      state.onCost,
+    );
+    expect(state.onCost.mock.calls).toEqual([[{ total: 0 }], [{ total: 0 }]]);
     const [initialCall, renameCall] = state.call.mock.calls.map(
       ([call]) => call,
     );
@@ -854,7 +901,7 @@ describe("Topics naming boundary", () => {
     await namePreparedTopicGroup(
       topicsModels(),
       { ...prepared, previousTopic },
-      undefined,
+      metadata,
       conflict,
     );
     const contextCall = state.call.mock.calls[2][0];
@@ -884,7 +931,9 @@ describe("Topics naming boundary", () => {
       providedCostDetails: {},
     });
     await expect(
-      namePreparedTopicGroup(topicsModels(), prepared),
+      namePreparedTopicGroup(topicsModels(), prepared, {
+        run_id: "naming-run",
+      }),
     ).rejects.toThrow("Evidence must cite a submitted cluster member.");
   });
 
@@ -997,6 +1046,7 @@ describe("Topics naming boundary", () => {
       providedCostDetails: {},
     });
     await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
+    expect(state.onCost).not.toHaveBeenCalled();
   });
 
   it("keeps the first three citations when the model cites more", async () => {
@@ -1031,6 +1081,11 @@ describe("Topics naming boundary", () => {
       });
       await expect(nameTopicGroup(topicsModels(), evidence)).rejects.toThrow();
       // Provider work is billable even when local output validation rejects it.
+      expect(state.onCost).toHaveBeenCalledExactlyOnceWith({
+        naming_input: 0.0001,
+        naming_output: 0.00015,
+        total: 0.00025,
+      });
       expect(tokenCalls()).toEqual([
         [
           "langfuse.topics.tokens",
@@ -1145,7 +1200,15 @@ describe("Topics naming boundary", () => {
       ["An invoice request.", "A billing question."],
       256,
       "project",
+      { source_trace_id: "trace", execution_id: "snapshot" },
     );
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.topics.trace_id": "trace",
+        "langfuse.topics.execution_id": "snapshot",
+      }),
+    );
+    expect(state.traceSink).not.toHaveBeenCalled();
     expect(result.costDetails).toEqual({
       embedding_input: 0.00012,
       total: 0.00012,

@@ -152,6 +152,14 @@ impl JsString {
             .and_then(|suffix| Self::from_wtf8(suffix.to_vec()).ok())
     }
 
+    /// Strip `prefix` and the `.` that follows it.
+    pub fn strip_dotted_prefix(&self, prefix: &str) -> Option<Self> {
+        self.as_bytes()
+            .strip_prefix(prefix.as_bytes())?
+            .strip_prefix(b".")
+            .and_then(|suffix| Self::from_wtf8(suffix.to_vec()).ok())
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self::Utf8(String::with_capacity(capacity))
     }
@@ -567,7 +575,7 @@ impl fmt::Display for Value {
 // Serde owns ordinary value decoding; the compatibility path below keeps structural traversal in
 // one Jiter cursor and borrows only the tokens that need its lossless raw representation.
 struct BytesVisitor;
-struct FastValue(Value);
+pub(crate) struct FastValue(pub(crate) Value);
 struct FastValueVisitor;
 
 impl<'de> Deserialize<'de> for FastValue {

@@ -635,6 +635,27 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
     expect(body).not.toHaveProperty("convertedToPaidAt");
   });
 
+  it("pushes Hobby when a paid org cancels during its enterprise trial — SFDC has no trial tier", async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const enterpriseTrial = {
+      startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+      endsAt: new Date(Date.now() + DAY_MS).toISOString(),
+    };
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: orgBefore({
+        ...stripeConfig(PRO_PRODUCT),
+        enterpriseTrial,
+      }),
+      updatedCloudConfig: { stripe: { customerId: "cus_1" }, enterpriseTrial },
+      billingCycleAnchor: null,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.plan).toBe("Hobby");
+    expect(body).not.toHaveProperty("convertedToPaidAt");
+  });
+
   it("does NOT push when the resolved plan is unchanged (monthly invoice cycling)", async () => {
     await syncOrgPlanChangeToSfdc({
       orgBeforeUpdate: orgBefore(stripeConfig(PRO_PRODUCT)),

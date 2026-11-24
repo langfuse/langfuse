@@ -1414,9 +1414,10 @@ describe(
         expect(comparison.earlyTs.sideEffects).toEqual(
           comparison.originalTs.sideEffects,
         );
-        expect(comparison.earlyRust.sideEffects).toEqual(
-          comparison.originalTs.sideEffects,
-        );
+        // The Rust path resolves each distinct lookup once and shares the result.
+        expect(comparison.earlyRust.sideEffects).toEqual([
+          ...new Set(expectedLookups),
+        ]);
         expect(comparison.originalTs.storedRows).toHaveLength(
           failLookup ? 9 : 18,
         );

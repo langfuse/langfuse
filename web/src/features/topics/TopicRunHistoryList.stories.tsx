@@ -66,7 +66,10 @@ function processRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost,
+    costBreakdown: {
+      summaries: estimatedCost,
+      naming: null,
+    },
     facets: facetRefs.map(({ facetId, version }) =>
       facetProgress(facetId, version, counts),
     ),
@@ -94,7 +97,7 @@ function updateRun(
     createdAt,
     updatedAt: createdAt,
     error,
-    estimatedCost: null,
+    costBreakdown: { summaries: null, naming: null },
     facets: facetRefs
       .slice(0, 2)
       .map(({ facetId, version }) =>
@@ -121,7 +124,10 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
   return {
     ...run,
     phase: "summarizing",
-    estimatedCost: 0.31,
+    costBreakdown: {
+      summaries: 0.31,
+      naming: 0,
+    },
     input: {
       ...run.input,
       analysis: {
@@ -141,7 +147,16 @@ function summarizingSnapshot(id: string, createdAt: string): Run {
 
 const runs: Run[] = [
   summarizingSnapshot("run-9", hoursAgo(0.4)),
-  updateRun("run-8", "queued", hoursAgo(0.3)),
+  {
+    ...summarizingSnapshot("run-8", hoursAgo(0.3)),
+    status: "queued",
+    phase: "queued",
+    facets: [],
+    costBreakdown: {
+      summaries: null,
+      naming: null,
+    },
+  },
   processRun("run-7", "completed", hoursAgo(17), 4.2, { requested: 1_412 }),
   processRun("run-6", "completed_with_errors", hoursAgo(46), 3.95, {
     requested: 1_330,
@@ -185,7 +200,10 @@ export const PinsRunningAndGroupsByDay = meta.story({
   name: "(Test) Pins the running run and groups past runs by day",
   args: {
     executions: [
-      updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
+      {
+        ...updateRun("regenerate-done", "completed", atDaysAgo(4, 10)),
+        costBreakdown: { summaries: null, naming: 0 },
+      },
       summarizingSnapshot("snapshot-running", atDaysAgo(0, 9)),
       processRun("analyze-done", "completed", atDaysAgo(1, 10), 0, {
         requested: 1_412,
@@ -210,7 +228,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
     const active = canvas.getByRole("status");
     await expect(active).toHaveTextContent("Snapshot · Checkout");
     await expect(active).toHaveTextContent("640 / 1,280");
-    await expect(active).toHaveTextContent("Summaries and embeddings");
+    await expect(active).toHaveTextContent("Estimated cost:");
     await expect(active).toHaveTextContent("~$0.31");
     await expect(
       within(active).getByRole("img", { name: "Running" }),
@@ -229,15 +247,15 @@ export const PinsRunningAndGroupsByDay = meta.story({
       .getAllByRole("button")
       .filter((row) => !active.contains(row));
     await expect(rows[0]).toHaveTextContent(
-      "1,412 traces · Summaries and embeddings · ~$0.00",
+      "1,412 traces · Estimated cost: ~$0.00",
     );
     await expect(rows[1]).toHaveTextContent(
-      "1,330 traces · Summaries and embeddings · Unavailable",
+      "1,330 traces · Estimated cost: Unavailable",
     );
     await expect(rows[1]).toHaveTextContent("12 traces failed");
-    await expect(rows[2]).toHaveTextContent("No new summaries");
+    await expect(rows[2]).toHaveTextContent("Estimated cost: Unavailable");
     await expect(rows[2]).toHaveTextContent("Embedding model returned 429.");
-    await expect(rows[3]).toHaveTextContent("No new summaries");
+    await expect(rows[3]).toHaveTextContent("Estimated cost: ~$0.00");
     await expect(within(rows[1]).getByText("Done with issues")).toBeVisible();
     await expect(within(rows[2]).getByText("Failed")).toBeVisible();
 
@@ -249,7 +267,7 @@ export const PinsRunningAndGroupsByDay = meta.story({
 export const ShowsRefetchErrorAboveRuns = meta.story({
   name: "(Test) A refetch error shows above the cached runs",
   args: {
-    executions: runs.slice(2, 4),
+    executions: runs.slice(1, 3),
     errorMessage: "Request timed out.",
   },
   play: async ({ canvasElement }) => {
@@ -258,6 +276,9 @@ export const ShowsRefetchErrorAboveRuns = meta.story({
       "Request timed out.",
     );
     await expect(canvas.getAllByRole("button")).toHaveLength(2);
+    await expect(
+      canvas.getByRole("button", { name: /Snapshot · Checkout.*Queued/ }),
+    ).toHaveTextContent("Estimated cost: Unavailable");
   },
 });
 

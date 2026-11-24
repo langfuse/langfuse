@@ -9,9 +9,11 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
 
 use crate::{
-    capture::{ExecutionCapture, GatewayRejection},
+    capture::{ExecutionCapture, GatewayRejection, RequestInput},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
+    cpu::CpuWork,
+    http::ParsedRequest,
     observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
@@ -27,6 +29,7 @@ pub struct InferenceService {
     memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
     spend_limits: crate::spend::SpendLimits,
+    cpu: CpuWork,
 }
 
 /// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
@@ -174,6 +177,7 @@ impl InferenceService {
                 config.spend_counters.clone(),
                 control_plane,
             ),
+            cpu: CpuWork::new(),
         })
     }
 
@@ -246,6 +250,22 @@ impl InferenceService {
         })
     }
 
+    /// Runs CPU-bound work over a request input of `input_bytes` without holding an
+    /// async worker for long; see [`CpuWork::run`].
+    ///
+    /// # Errors
+    /// Returns [`ResolutionError::Busy`] when the work did not complete.
+    pub(crate) async fn run_cpu<T: Send + 'static>(
+        &self,
+        input_bytes: usize,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> Result<T, ResolutionError> {
+        self.cpu
+            .run(input_bytes, work)
+            .await
+            .ok_or(ResolutionError::Busy)
+    }
+
     pub(crate) fn max_request_bytes(&self) -> usize {
         self.request_limits.max_request_bytes
     }
@@ -284,19 +304,19 @@ impl InferenceService {
     }
 
     /// Authenticate, then start the execution. The API format comes from the public route,
-    /// so Web selects a compatible connection, and `request_bytes` counts toward the
-    /// organization's byte rate limit. Memory is already reserved by the caller.
+    /// so Web selects a compatible connection, and the body size counts toward the
+    /// organization's byte rate limit. Memory is already reserved by the caller. A
+    /// refused request records the request's input, taking it.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         route: Route,
-        model: &str,
         headers: &HeaderMap,
-        body: &[u8],
+        request: &mut ParsedRequest,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let api_format = route.api_format();
-        let request_bytes = body.len();
+        let request_bytes = request.body_bytes();
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
@@ -312,7 +332,7 @@ impl InferenceService {
                     .resolve(
                         gateway_key,
                         api_format,
-                        model,
+                        &request.model,
                         request_bytes,
                         correlation.id(),
                     )
@@ -357,12 +377,12 @@ impl InferenceService {
                         span.record("otel.status_code", "ERROR");
                         span.record("error.type", reason);
                     }
-                    if route.captures_generation() {
+                    if let Some(input) = request.input.take() {
                         self.record_rejection(
                             api_format,
                             &context,
                             headers,
-                            body,
+                            input,
                             correlation,
                             crate::http::resolution_rejection(&error),
                         );
@@ -382,7 +402,7 @@ impl InferenceService {
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
-        body: &[u8],
+        input: RequestInput,
         correlation: &mut RequestCorrelation,
         rejection: GatewayRejection,
     ) {
@@ -392,7 +412,7 @@ impl InferenceService {
         if context.ingestion_mode() == IngestionMode::None {
             return;
         }
-        let mut capture = ExecutionCapture::for_request(api_format, context, headers, body);
+        let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
         capture.deliver_to(telemetry.clone(), context, headers, correlation);
         capture.set_provider_model(context.connection().provider_model());
         capture.reject(rejection);
@@ -421,6 +441,7 @@ impl InferenceService {
             memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
             telemetry: None,
             spend_limits: crate::spend::SpendLimits::default(),
+            cpu: CpuWork::new(),
         }
     }
 

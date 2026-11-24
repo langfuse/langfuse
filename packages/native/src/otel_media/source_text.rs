@@ -7,7 +7,10 @@ use std::collections::{HashMap, VecDeque};
 use super::json::validate_json;
 use super::json_cursor::{ContainerState, ContainerStep, JsonCursor};
 use super::payload::EarlyMediaError;
-use super::rules::{MEDIA_REFERENCE_PREFIX, MEDIA_REFERENCE_SUFFIX};
+use super::rules::{
+    find_media_reference_prefix, find_media_reference_suffix, MEDIA_REFERENCE_PREFIX,
+    MEDIA_REFERENCE_SUFFIX,
+};
 use super::WalkStats;
 
 const MAX_SERIALIZED_REFERENCE_LAYERS: u32 = 16;
@@ -123,7 +126,8 @@ fn collect_layers(
             stack.push(ContainerState::new(peek));
         } else {
             let token = cursor.consume_scalar(peek, &mut stats)?;
-            if peek == Peek::String && source[token.clone()].contains(MEDIA_REFERENCE_PREFIX) {
+            if peek == Peek::String && find_media_reference_prefix(&source[token.clone()]).is_some()
+            {
                 if let Ok(Value::String(text)) = Value::parse(&source[token]) {
                     if depth < MAX_SERIALIZED_REFERENCE_LAYERS
                         && validate_json(text.as_str()).is_ok()
@@ -167,13 +171,10 @@ pub(crate) fn for_each_media_reference(text: &str, mut visit: impl FnMut(&str) -
 
 fn scan_reference_ranges<'a>(text: &'a str, mut visit: impl FnMut(usize, usize, &'a str) -> bool) {
     let mut cursor = 0;
-    while let Some(relative) = text
-        .get(cursor..)
-        .and_then(|text| text.find(MEDIA_REFERENCE_PREFIX))
-    {
+    while let Some(relative) = text.get(cursor..).and_then(find_media_reference_prefix) {
         let start = cursor + relative;
         let suffix_start = start + MEDIA_REFERENCE_PREFIX.len();
-        let Some(relative_end) = text[suffix_start..].find(MEDIA_REFERENCE_SUFFIX) else {
+        let Some(relative_end) = find_media_reference_suffix(&text[suffix_start..]) else {
             break;
         };
         let end = suffix_start + relative_end + MEDIA_REFERENCE_SUFFIX.len();

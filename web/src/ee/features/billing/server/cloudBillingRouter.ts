@@ -5,6 +5,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedOrganizationProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -19,6 +20,7 @@ import {
   resolveBillingProvider,
   resolveBillingService,
 } from "./resolveBillingService";
+import { redeemEnterpriseTrial } from "./enterpriseTrial";
 import { isCloudBillingEnabled } from "../utils/isCloudBillingEnabled";
 import { env } from "@/src/env.mjs";
 import { CouponCodeSchema } from "../utils/coupons";
@@ -535,5 +537,45 @@ export const cloudBillingRouter = createTRPCRouter({
       });
 
       return payload;
+    }),
+  // Untraced: the input carries a coupon code that unlocks trials for any org.
+  redeemEnterpriseTrial: protectedOrganizationProcedureWithoutTracing
+    .input(
+      z.object({
+        orgId: z.string(),
+        code: z.string().min(1).max(256),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        organizationId: input.orgId,
+        scope: "langfuseCloudBilling:CRUD",
+        session: ctx.session,
+      });
+
+      if (!isCloudBillingEnabled()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Enterprise trials are only available on Langfuse Cloud. This feature requires NEXT_PUBLIC_LANGFUSE_CLOUD_REGION to be configured.",
+        });
+      }
+
+      const enterpriseTrial = await redeemEnterpriseTrial({
+        orgId: input.orgId,
+        code: input.code,
+        coupons: env.LANGFUSE_ENTERPRISE_TRIAL_COUPON_CODES,
+      });
+
+      auditLog({
+        session: ctx.session,
+        orgId: input.orgId,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "redeemEnterpriseTrial",
+        after: enterpriseTrial,
+      });
+
+      return enterpriseTrial;
     }),
 });

@@ -49,7 +49,7 @@ function processRun(overrides: Partial<Run>): Run {
     createdAt: "2026-10-23T09:12:00Z",
     updatedAt: "2026-10-23T09:40:00Z",
     error: null,
-    estimatedCost: 1.62,
+    costBreakdown: { summaries: 1.62, naming: null },
     facets: facetRefs.map(({ facetId }) => facetProgress(facetId)),
     input: {
       operation: "process",
@@ -72,7 +72,7 @@ const doneWithIssues = {
   createdAt: "2026-10-22T17:05:00Z",
   updatedAt: "2026-10-22T17:48:00Z",
   error: null,
-  estimatedCost: null,
+  costBreakdown: { summaries: null, naming: null },
   facets: [
     facetProgress("intent", {
       counts: {
@@ -135,7 +135,7 @@ const failedRun = processRun({
   status: "failed",
   phase: "summarizing",
   error: "Summary model returned 429 Too Many Requests for 3 batches.",
-  estimatedCost: 0.62,
+  costBreakdown: { summaries: 0.62, naming: null },
   facets: facetRefs.map(({ facetId }) =>
     facetProgress(facetId, {
       outcome: "failed",
@@ -194,6 +194,27 @@ export const Regenerating = meta.story({
 export const DoneWithIssues = meta.story({
   args: {
     execution: doneWithIssues,
+    retry: retryIdle,
+  },
+});
+
+export const ReuseOnlySnapshot = meta.story({
+  args: {
+    execution: {
+      ...doneWithIssues,
+      status: "completed",
+      phase: "completed",
+      facets: [facetProgress("intent")],
+      input: {
+        ...doneWithIssues.input,
+        facets: [facetRefs[0]!],
+        analysis: { label: "Checkout", filter: [], seed: "seed" },
+      },
+      costBreakdown: {
+        summaries: null,
+        naming: 0.08,
+      },
+    },
     retry: retryIdle,
   },
 });
@@ -281,8 +302,8 @@ export const QuestionStatusesExplainThemselves = meta.story({
     await expect(canvas.queryByRole("alert")).toBeNull();
     await expect(canvas.getByText("No new summaries")).toBeVisible();
     await expect(
-      canvas.getByText(/Your provider may charge for topic naming/),
-    ).toBeVisible();
+      canvas.getByText("Topic naming").nextElementSibling,
+    ).toHaveTextContent("Unavailable");
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
       canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),
@@ -307,11 +328,14 @@ export const QuestionStatusesExplainThemselves = meta.story({
 });
 
 export const SummarizingSnapshotShowsItsCost = meta.story({
-  name: "(Test) A snapshot that summarized traces shows their cost",
+  name: "(Test) A snapshot adds retained processing and naming costs",
   args: {
     execution: {
       ...doneWithIssues,
-      estimatedCost: 0.42,
+      costBreakdown: {
+        summaries: 0.42,
+        naming: 0.08,
+      },
       input: {
         ...doneWithIssues.input,
         analysis: {
@@ -326,7 +350,11 @@ export const SummarizingSnapshotShowsItsCost = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("~$0.42")).toBeVisible();
+    const summaries = canvas.getByText("Summaries and embeddings");
+    const summaryValue = summaries.nextElementSibling!;
+    await expect(summaryValue).toHaveTextContent("~$0.42");
+    await expect(canvas.getByText("~$0.08")).toBeVisible();
+    await expect(canvas.getByText("~$0.50")).toBeVisible();
     await expect(canvas.queryByText("No new summaries")).toBeNull();
   },
 });
