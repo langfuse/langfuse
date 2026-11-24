@@ -310,7 +310,7 @@ export type TopicSummaryState =
   | "insufficient_input"
   /** Written without a model call: the transcript has nothing for the model. */
   | "empty_input"
-  /** Written without a model call: the rendered text exceeds the input limit. */
+  /** Written without a model call: the rendered text exceeds the Topics input limit (`LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS`). */
   | "input_too_large";
 
 /** Results and counts report summaries written without a model call as `insufficient_input`. */
