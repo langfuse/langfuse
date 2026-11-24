@@ -1046,26 +1046,24 @@ export default function ExperimentItemsTable({
                             removeScoreComparisonFilter(activeComparisonFilter)
                           }
                         >
-                          {({ Trigger }) => (
+                          {({ getTriggerProps }) => (
                             // The header cell sorts on click, so opening the menu
                             // must not also reorder the table.
-                            <Trigger
-                              asChild
-                              onClick={(event) => event.stopPropagation()}
+                            <button
+                              type="button"
+                              aria-label="Filter items by this score"
+                              className={cn(
+                                "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
+                                activeComparisonFilter
+                                  ? "text-primary-accent"
+                                  : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                              )}
+                              {...getTriggerProps({
+                                onClick: (event) => event.stopPropagation(),
+                              })}
                             >
-                              <button
-                                type="button"
-                                aria-label="Filter items by this score"
-                                className={cn(
-                                  "hover:bg-muted mt-0.5 shrink-0 rounded-sm p-0.5",
-                                  activeComparisonFilter
-                                    ? "text-primary-accent"
-                                    : "text-muted-foreground opacity-0 group-hover:opacity-100",
-                                )}
-                              >
-                                <ListFilter size="sm" />
-                              </button>
-                            </Trigger>
+                              <ListFilter size="sm" />
+                            </button>
                           )}
                         </ScoreColumnFilterMenu>
                       )

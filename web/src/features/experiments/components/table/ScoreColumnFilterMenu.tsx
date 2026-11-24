@@ -1,16 +1,10 @@
-import { type ComponentProps } from "react";
 import {
-  DropdownMenuController,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/src/components/ui/dropdown-menu";
+  DropdownMenu,
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Check } from "@langfuse/icons";
 import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
+import { type ComponentProps } from "react";
 
 export type ScoreComparisonTarget = {
   experimentId: string;
@@ -56,91 +50,57 @@ export const ScoreColumnFilterMenu = ({
     comparisonExperimentId: string,
   ) => void;
   onClear: () => void;
-  /** Renders the trigger, so its presentation stays with the caller. */
-  children: ComponentProps<typeof DropdownMenuController>["children"];
+  children: ComponentProps<typeof DropdownMenu>["children"];
 }) => {
   const operators = hasOrder ? ORDERED_OPERATORS : (["differs"] as const);
   const isActive = (operator: ScoreComparisonOperator, experimentId: string) =>
     active?.operator === operator &&
     active?.comparisonExperimentId === experimentId;
 
+  const targetItem = (
+    operator: ScoreComparisonOperator,
+    target: ScoreComparisonTarget,
+  ): DropdownMenuItemDefinition => ({
+    type: "item",
+    id: `${operator}-${target.experimentId}`,
+    title:
+      targets.length === 1
+        ? `${OPERATOR_LABELS[operator]} ${target.experimentName}`
+        : target.experimentName,
+    icon: isActive(operator, target.experimentId) ? Check : undefined,
+    onClick: () => onSelect(operator, target.experimentId),
+  });
+
+  const items: DropdownMenuItemDefinition[] =
+    targets.length === 1
+      ? operators.map((operator) => targetItem(operator, targets[0]))
+      : operators.map((operator) => ({
+          type: "submenu",
+          id: operator,
+          title: `${OPERATOR_LABELS[operator]}…`,
+          items: targets.map((target) => targetItem(operator, target)),
+        }));
+
   return (
-    <DropdownMenuController
-      align="end"
-      maxWidth="16rem"
-      renderMenu={() => (
-        <>
-          <DropdownMenuLabel>Show only items</DropdownMenuLabel>
-          {operators.map((operator) =>
-            targets.length === 1 ? (
-              <DropdownMenuItem
-                key={operator}
-                onClick={() => onSelect(operator, targets[0].experimentId)}
-              >
-                {isActive(operator, targets[0].experimentId) ? (
-                  <Check size="base" color="default" __rawClassName="mr-2" />
-                ) : (
-                  <span className="mr-2 h-4 w-4 shrink-0" />
-                )}
-                <span
-                  className="truncate"
-                  title={`${OPERATOR_LABELS[operator]} ${targets[0].experimentName}`}
-                >
-                  {OPERATOR_LABELS[operator]} {targets[0].experimentName}
-                </span>
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuSub key={operator}>
-                <DropdownMenuSubTrigger>
-                  {OPERATOR_LABELS[operator]}…
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent className="w-56">
-                    {targets.map((target) => (
-                      <DropdownMenuItem
-                        key={target.experimentId}
-                        onClick={() => onSelect(operator, target.experimentId)}
-                      >
-                        {isActive(operator, target.experimentId) ? (
-                          <Check
-                            size="base"
-                            color="default"
-                            __rawClassName="mr-2"
-                          />
-                        ) : (
-                          <span className="mr-2 h-4 w-4 shrink-0" />
-                        )}
-                        <span
-                          className="truncate"
-                          title={target.experimentName}
-                        >
-                          {target.experimentName}
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-            ),
-          )}
-          {active && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onClear}>
-                <span className="mr-2 h-4 w-4 shrink-0" />
-                Remove this score&apos;s filter
-              </DropdownMenuItem>
-            </>
-          )}
-          <DropdownMenuSeparator />
-          <span className="text-muted-foreground block px-2 py-1.5 text-[10px]">
-            Compares the items loaded on this page — page through to check the
-            rest of the run.
-          </span>
-        </>
-      )}
+    <DropdownMenu
+      placement="bottom-end"
+      title="Show only items"
+      description="Compares the items loaded on this page — page through to check the rest of the run."
+      items={items}
+      footerItems={
+        active
+          ? [
+              {
+                type: "item",
+                id: "clear",
+                title: "Remove this score's filter",
+                onClick: onClear,
+              },
+            ]
+          : undefined
+      }
     >
       {children}
-    </DropdownMenuController>
+    </DropdownMenu>
   );
 };
