@@ -19,18 +19,77 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const originalModule = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...originalModule,
+    getBillableEventsLedgerStart: vi.fn(),
     getBillableUnitCountsForAllProjectsInRange: vi.fn(),
     parseDbOrg: vi.fn((org: any) => org), // Pass through by default
   };
 });
 
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: { LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual" },
+}));
+vi.mock("../env", () => ({ env: mockEnv }));
+
 import {
   buildProjectToOrgMap,
   aggregateByOrg,
+  processUsageAggregationForAllOrgs,
 } from "../ee/usageThresholds/usageAggregation";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  getBillableEventsLedgerStart,
+  getBillableUnitCountsForAllProjectsInRange,
+} from "@langfuse/shared/src/server";
 
 const mockProjectFindMany = prisma.project.findMany as Mock;
+
+describe("processUsageAggregationForAllOrgs", () => {
+  const referenceDate = new Date("2026-11-24T12:00:00Z");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    mockProjectFindMany.mockResolvedValue([]);
+    (prisma.organization.findMany as Mock).mockResolvedValue([]);
+    (getBillableUnitCountsForAllProjectsInRange as Mock).mockResolvedValue([]);
+  });
+
+  it("refuses to run in legacy write mode", async () => {
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await expect(
+      processUsageAggregationForAllOrgs(referenceDate),
+    ).rejects.toThrow(/legacy/);
+
+    expect(getBillableUnitCountsForAllProjectsInRange).not.toHaveBeenCalled();
+    expect(prisma.organization.findMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["has no rows", null],
+    ["starts after the first day read", new Date("2026-11-20T00:00:00Z")],
+  ])("refuses to run while the ledger %s", async (_label, ledgerStart) => {
+    (getBillableEventsLedgerStart as Mock).mockResolvedValue(ledgerStart);
+
+    await expect(
+      processUsageAggregationForAllOrgs(referenceDate),
+    ).rejects.toThrow(/ledger starts at/);
+
+    expect(getBillableUnitCountsForAllProjectsInRange).not.toHaveBeenCalled();
+    expect(prisma.organization.findMany).not.toHaveBeenCalled();
+  });
+
+  it("runs when the ledger covers every day read", async () => {
+    (getBillableEventsLedgerStart as Mock).mockResolvedValue(
+      new Date("2026-01-01T00:00:00Z"),
+    );
+
+    await expect(
+      processUsageAggregationForAllOrgs(referenceDate),
+    ).resolves.toBeDefined();
+    expect(getBillableUnitCountsForAllProjectsInRange).toHaveBeenCalled();
+  });
+});
 
 describe("buildProjectToOrgMap", () => {
   beforeEach(() => {
