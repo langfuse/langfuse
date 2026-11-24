@@ -13,6 +13,7 @@ import {
 } from "@langfuse/shared";
 import {
   type ObservationForEval,
+  type ObservationForScheduling,
   type ObservationEvalAssignment,
   type ObservationEvalRule,
   type ObservationEvalSchedulerDeps,
@@ -30,14 +31,7 @@ import {
 import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
-export interface ScheduleObservationEvalsParams {
-  /** The fields that rule matching and job creation read. */
-  observation: ObservationEvalFilterFields;
-  /**
-   * The full observation. Called once, for the snapshot upload, and only when
-   * a rule selects the observation.
-   */
-  loadSnapshot: () => ObservationForEval;
+interface ScheduleObservationEvalsParams extends ObservationForScheduling {
   configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
