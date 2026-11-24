@@ -1,7 +1,8 @@
-import { Pencil, Trash2 } from "@langfuse/icons";
+import { Globe, KeyRound, Pencil, Trash2, User } from "@langfuse/icons";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
+import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
@@ -10,11 +11,10 @@ import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GATEWAY_GUARDRAIL_ACTION_LABELS } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
-import { formatGuardrailAssignments } from "@/src/features/ai-gateway/fns/formatGuardrailAssignments";
 import { formatGuardrailPresetsSummary } from "@/src/features/ai-gateway/fns/formatGuardrailPresetsSummary";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { assertUnreachable } from "@/src/utils/types";
 
 export type GatewayGuardrailsTableProps = Pick<
   TableProps<GatewayGuardrailRow>,
@@ -29,6 +29,8 @@ export type GatewayGuardrailsTableProps = Pick<
   onDeleteGuardrail: (row: GatewayGuardrailRow) => void;
 };
 
+type GuardrailAssignment = GatewayGuardrailRow["assignments"][number];
+
 const guardrailCellSkeleton = (
   <div className="flex items-center gap-2.5">
     <Skeleton className="size-7 shrink-0 rounded-md" />
@@ -38,8 +40,6 @@ const guardrailCellSkeleton = (
     </div>
   </div>
 );
-
-const appliesToSkeleton = <Skeleton className="h-4 w-24" />;
 
 const guardrailColumn = createTableColumn<
   GatewayGuardrailRow,
@@ -98,39 +98,42 @@ const onMatchColumn = createTextTableColumn<GatewayGuardrailRow>({
   enableResizing: false,
 });
 
-const appliesToColumn = createTableColumn<
+const appliesToColumn = createBadgeListTableColumn<
   GatewayGuardrailRow,
-  GatewayGuardrailRow["assignments"]
+  GuardrailAssignment
 >({
   accessorFn: (row) => row.assignments,
   id: "appliesTo",
   header: "Applies to",
-  size: 220,
+  size: 260,
+  sensitive: true,
   enableResizing: false,
-  loadingCell: appliesToSkeleton,
-  renderCell: (assignments) => {
-    const formatted = formatGuardrailAssignments(assignments ?? []);
-    return (
-      <div className="ph-no-capture flex min-w-0 flex-col">
-        <span
-          className={cn(
-            "truncate text-sm",
-            formatted.muted ? "text-muted-foreground" : "text-foreground",
-          )}
-          title={formatted.primary}
-        >
-          {formatted.primary}
-        </span>
-        {formatted.secondary ? (
-          <span
-            className="text-muted-foreground truncate text-xs"
-            title={formatted.secondary}
-          >
-            {formatted.secondary}
-          </span>
-        ) : null}
-      </div>
-    );
+  getBadge: (assignment) => {
+    switch (assignment.scope) {
+      case "ORGANIZATION":
+        return {
+          key: assignment.id,
+          value: assignment.label,
+          icon: Globe,
+          variant: "secondary",
+        };
+      case "USER":
+        return {
+          key: assignment.id,
+          value: assignment.label ?? "User",
+          icon: User,
+          variant: "secondary",
+        };
+      case "API_KEY":
+        return {
+          key: assignment.id,
+          value: assignment.label ?? "API key",
+          icon: KeyRound,
+          variant: "secondary",
+        };
+      default:
+        return assertUnreachable(assignment);
+    }
   },
 });
 

@@ -83,11 +83,6 @@ export function TagAutocompleteChip<V extends string>({
               {item.label}
             </span>
           )}
-          {item.secondaryLabel ? (
-            <span className="text-foreground-tertiary shrink-0 py-0.5">
-              {item.secondaryLabel}
-            </span>
-          ) : null}
           <button
             type="button"
             disabled={isRemoveDisabled}
@@ -101,7 +96,6 @@ export function TagAutocompleteChip<V extends string>({
       ) : (
         <Tag
           text={item.label}
-          secondaryText={item.secondaryLabel}
           icon={item.icon}
           remove={{ onRemove: handleRemove, disabled: isRemoveDisabled }}
         />
