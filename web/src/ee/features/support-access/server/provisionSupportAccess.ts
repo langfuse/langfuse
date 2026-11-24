@@ -73,7 +73,7 @@ async function grant(
       `Organization or project ${request.orgOrProjectId} not found in this region.`,
     );
   }
-  if (env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS.includes(orgId)) {
+  if ((env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS ?? []).includes(orgId)) {
     return rejected(`Support access is disabled for organization ${orgId}.`);
   }
 
