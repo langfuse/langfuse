@@ -99,8 +99,9 @@ const dialogArgs = ({
     orgRole,
     orgId: "org-1",
     projectId: onProject ? "project-1" : undefined,
-    canSeeOrgSettings: true,
+    projectName: onProject ? "llm-app" : undefined,
     canSeeOrgGroups,
+    canManageOrgGroups: canSeeOrgGroups,
     member: { name: "Demo User 2", email: "member@example.com" },
     editor: {
       roles: onProject ? projectRoles : organizationRoles,
@@ -150,6 +151,36 @@ export const OnProject = meta.story({
   }),
 });
 
+export const OnProjectSameAsOrganization = meta.story({
+  args: dialogArgs({
+    orgRole: "VIEWER",
+    groupRoles: [platformAdmins],
+    onProject: true,
+  }),
+});
+
+export const OnProjectInNoGroup = meta.story({
+  args: dialogArgs({
+    orgRole: "VIEWER",
+    projectRole: "MEMBER",
+    groupRoles: [],
+    onProject: true,
+  }),
+});
+
+export const LongGroupName = meta.story({
+  args: dialogArgs({
+    orgRole: "VIEWER",
+    groupRoles: [
+      {
+        ...platformAdmins,
+        groupName: "customer-support-assistant-production-europe-west-admins",
+      },
+      support,
+    ],
+  }),
+});
+
 export const WithoutAccessToGroups = meta.story({
   args: dialogArgs({
     orgRole: "MEMBER",
@@ -175,6 +206,7 @@ export const TestRolesBelowGroupFloor = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const { body, dialog } = await openDialog(canvasElement);
+    await expect(dialog.queryByText(/has no effect/)).toBeNull();
     await userEvent.click(dialog.getByRole("combobox"));
 
     const viewer = await body.findByRole("option", { name: /Viewer/ });
@@ -182,11 +214,33 @@ export const TestRolesBelowGroupFloor = meta.story({
     await expect(viewer).toHaveTextContent(
       "platform-admins already gives Admin",
     );
+    // Clicking an unavailable role does not pick it.
+    await userEvent.click(within(viewer).getByText("Viewer"));
+    await expect(
+      dialog.getByRole("combobox", { hidden: true }),
+    ).toHaveTextContent("Member");
+    // The note on lowering a role shows once the options were tried.
+    await userEvent.keyboard("{Escape}");
+    await expect(
+      await dialog.findByText(/Anything below Admin has no effect/),
+    ).toBeVisible();
+    // The group's row and the note both link to the group that sets the floor.
+    const groupLinks = dialog.getAllByRole("link", {
+      name: /platform-admins/,
+      hidden: true,
+    });
+    await expect(groupLinks).toHaveLength(2);
+    for (const link of groupLinks) {
+      await expect(link).toHaveAttribute(
+        "href",
+        "/organization/org-1/settings/groups?group=group-admins",
+      );
+    }
   },
 });
 
 export const TestGroupChipSummarizesGroup = meta.story({
-  name: "(Test) Hovering a group chip summarizes the group",
+  name: "(Test) Hovering a group name summarizes the group",
   args: dialogArgs({
     orgRole: "MEMBER",
     groupRoles: [platformAdmins, support],
@@ -203,16 +257,21 @@ export const TestGroupChipSummarizesGroup = meta.story({
     await waitFor(
       () =>
         expect(
-          body.getByText("Managed in your identity provider"),
+          body.getByText("Members managed in your identity provider"),
         ).toBeVisible(),
       { timeout: 2000 },
     );
-    await expect(body.getByText("+3 more members")).toBeVisible();
+    await expect(
+      body.getByRole("link", { name: "View all 8 members" }),
+    ).toHaveAttribute(
+      "href",
+      "/organization/org-1/settings/groups?group=group-support",
+    );
   },
 });
 
 export const TestChipsWithoutGroupsAccess = meta.story({
-  name: "(Test) Without access to the Groups page the chips are not links",
+  name: "(Test) Without access to the Groups page the group names are not links",
   args: dialogArgs({
     orgRole: "MEMBER",
     groupRoles: [platformAdmins, support],
@@ -220,10 +279,100 @@ export const TestChipsWithoutGroupsAccess = meta.story({
   }),
   play: async ({ canvasElement }) => {
     const { dialog } = await openDialog(canvasElement);
-    // The chip is still there, by its label.
+    // The name is still there.
     await expect(dialog.getByTitle("platform-admins")).toBeVisible();
     await expect(
       dialog.queryByRole("link", { name: /platform-admins/ }),
     ).toBeNull();
+  },
+});
+
+const markedRows = (dialog: ReturnType<typeof within>) =>
+  dialog
+    .queryAllByRole("img", { name: "This role applies", hidden: true })
+    .map((marker: HTMLElement) => marker.closest("li")?.textContent);
+
+export const TestMarkerFollowsDirectRole = meta.story({
+  name: "(Test) The marker moves as the direct role changes",
+  args: dialogArgs({
+    orgRole: "MEMBER",
+    groupRoles: [platformAdmins, support],
+  }),
+  play: async ({ canvasElement }) => {
+    const { body, dialog } = await openDialog(canvasElement);
+    await expect(markedRows(dialog)).toEqual(["platform-adminsAdmin"]);
+    await expect(
+      dialog.getByRole("button", { name: "View 86 permissions combined" }),
+    ).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    await userEvent.click(dialog.getByRole("combobox"));
+    await userEvent.click(await body.findByRole("option", { name: /^Owner/ }));
+
+    await waitFor(() =>
+      expect(markedRows(dialog)).toEqual(["Directly assignedOwner"]),
+    );
+    await expect(
+      dialog.getByRole("button", { name: "View 92 permissions combined" }),
+    ).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Save" })).toBeEnabled();
+  },
+});
+
+export const TestNoMarkerWithoutGroups = meta.story({
+  name: "(Test) A member in no group gets no marker",
+  args: dialogArgs({ orgRole: "MEMBER", groupRoles: [] }),
+  play: async ({ canvasElement }) => {
+    const { dialog } = await openDialog(canvasElement);
+    await expect(markedRows(dialog)).toEqual([]);
+    await expect(dialog.getByRole("heading", { name: "Access" })).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "View 62 permissions" }),
+    ).toBeVisible();
+  },
+});
+
+export const TestOrganizationRoleOnProject = meta.story({
+  name: "(Test) The organization role stays listed when a project role replaces it",
+  args: dialogArgs({
+    orgRole: "VIEWER",
+    groupRoles: [platformAdmins],
+    onProject: true,
+  }),
+  play: async ({ canvasElement }) => {
+    const { body, dialog } = await openDialog(canvasElement);
+    await expect(dialog.getByText("Organization role")).toBeVisible();
+    await expect(dialog.getByRole("combobox")).toHaveTextContent("None");
+    await expect(markedRows(dialog)).toEqual(["platform-adminsAdmin"]);
+
+    await userEvent.click(dialog.getByRole("combobox"));
+    await userEvent.click(await body.findByRole("option", { name: /^Admin/ }));
+
+    // A tie marks every row that gives the role.
+    await waitFor(() =>
+      expect(markedRows(dialog)).toEqual([
+        "platform-adminsAdmin",
+        "Directly assignedAdmin",
+      ]),
+    );
+    await expect(dialog.getByText("Organization role")).toBeVisible();
+  },
+});
+
+export const TestMarkerNeedsTwoRoles = meta.story({
+  name: "(Test) The marker shows once a project role joins the organization role",
+  args: dialogArgs({ orgRole: "VIEWER", groupRoles: [], onProject: true }),
+  play: async ({ canvasElement }) => {
+    const { body, dialog } = await openDialog(canvasElement);
+    await expect(dialog.getByText("Organization role")).toBeVisible();
+    await expect(markedRows(dialog)).toEqual([]);
+
+    await userEvent.click(dialog.getByRole("combobox"));
+    await userEvent.click(await body.findByRole("option", { name: /^Member/ }));
+
+    await waitFor(() =>
+      expect(markedRows(dialog)).toEqual(["Directly assignedMember"]),
+    );
+    await expect(dialog.getByText("Organization role")).toBeVisible();
   },
 });

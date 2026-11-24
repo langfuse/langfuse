@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { projectRoleAccessRights, type Role } from "@langfuse/shared";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import Header from "@/src/components/layouts/header";
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -11,10 +12,14 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   describeGroupRoleCell,
-  GroupRoleDialogController,
-} from "@/src/features/groups/components/GroupRoleDialogController";
+  GroupRoleDialog,
+} from "@/src/features/groups/components/GroupRoleDialog";
+import { GroupDialogHost } from "@/src/features/groups/components/GroupDialogHost";
 import { groupTableColumns } from "@/src/features/groups/components/groupTableColumns";
-import { GROUP_SOURCE_DISPLAY } from "@/src/features/groups/groupSource";
+import {
+  GROUP_SOURCE_DISPLAY,
+  isScimManaged,
+} from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
@@ -36,19 +41,9 @@ type ProjectGroupRow = {
   memberCount: number;
 };
 
-type ColumnContext = {
-  editBlockedReason?: string;
-  pendingGroupId: string | null;
-  projectRoles: (current: string | null) => Role[];
-  onChange: (group: ProjectGroup, role: GroupRole | null) => void;
-};
-
-function projectGroupColumns({
-  editBlockedReason,
-  pendingGroupId,
-  projectRoles,
-  onChange,
-}: ColumnContext): LangfuseColumnDef<ProjectGroupRow>[] {
+function projectGroupColumns(
+  onOpenGroup: (group: ProjectGroup) => void,
+): LangfuseColumnDef<ProjectGroupRow>[] {
   const shared = groupTableColumns<ProjectGroupRow>();
   return [
     shared.name,
@@ -66,34 +61,15 @@ function projectGroupColumns({
       cell: ({ row }) => {
         const { group } = row.original;
         return (
-          <GroupRoleDialogController
-            level="project"
-            groupName={group.displayName}
-            memberCount={group.memberCount}
-            orgRole={group.orgRole}
-            projectRole={group.projectRole}
-            grantableRoles={projectRoles(group.projectRole)}
-            disabledReason={
-              pendingGroupId === group.id ? "Saving…" : editBlockedReason
-            }
-            onChange={(role) => {
-              // Project group roles never include AI Gateway.
-              if (role === "AI_GATEWAY") return;
-              onChange(group, role);
-            }}
-          >
-            {(openDialog) => (
-              <RoleCellTrigger
-                {...describeGroupRoleCell({
-                  level: "project",
-                  groupName: group.displayName,
-                  orgRole: group.orgRole,
-                  projectRole: group.projectRole,
-                })}
-                onClick={openDialog}
-              />
-            )}
-          </GroupRoleDialogController>
+          <RoleCellTrigger
+            {...describeGroupRoleCell({
+              level: "project",
+              groupName: group.displayName,
+              orgRole: group.orgRole,
+              projectRole: group.projectRole,
+            })}
+            onClick={() => onOpenGroup(group)}
+          />
         );
       },
     },
@@ -117,7 +93,7 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const session = useSession();
   const hasAdminApi = useHasEntitlement("admin-api");
   const hasProjectRoles = useHasEntitlement("rbac-project-roles");
-  const { organization } = useQueryProject();
+  const { organization, project } = useQueryProject();
   const canManageOrgGroups = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationMembers:CUD",
@@ -162,23 +138,21 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
     ? (setRole.variables?.groupId ?? null)
     : null;
 
-  const columns = projectGroupColumns({
-    editBlockedReason,
-    pendingGroupId,
-    // A role can be granted or taken away only if you hold all of its permissions.
-    projectRoles: (current) => [
-      "NONE",
-      ...GROUP_ROLES.filter(
-        (role) =>
-          role === current ||
-          projectRoleAccessRights[role].every((scope) =>
-            hasProjectAccess({ session: session.data, projectId, scope }),
-          ),
-      ),
-    ],
-    onChange: (group, role) =>
-      setRole.mutate({ projectId, groupId: group.id, role }),
-  });
+  const groupHref = (groupId: string) =>
+    canManageOrgGroups && organization
+      ? `/organization/${organization.id}/settings/groups?group=${encodeURIComponent(groupId)}`
+      : null;
+  // A role can be granted or taken away only if you hold all of its permissions.
+  const projectRoles = (current: string | null): Role[] => [
+    "NONE",
+    ...GROUP_ROLES.filter(
+      (role) =>
+        role === current ||
+        projectRoleAccessRights[role].every((scope) =>
+          hasProjectAccess({ session: session.data, projectId, scope }),
+        ),
+    ),
+  ];
 
   const data = useMemo<TableProps<ProjectGroupRow>["data"]>(() => {
     if (groups.isPending) return { status: "loading" };
@@ -233,6 +207,7 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   return (
     <div>
       {header}
+      {organization && <GroupDialogHost orgId={organization.id} />}
       {!hasProjectRoles && (
         <div className="mb-4">
           <Banner title="Project roles are not available on your plan">
@@ -247,32 +222,72 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
           </Banner>
         </div>
       )}
-      <SettingsTable
-        tableName="project groups"
-        columns={columns}
-        data={data}
-        getRowLabel={(row) => row.displayName}
-        columnVisibilityKey="groupsColumnVisibilityProject"
-        columnOrderKey="groupsColumnOrderProject"
-        noResultsMessage="This organization has no groups yet."
-        search={{
-          value: search,
-          placeholder: "Search name",
-          onChange: setSearch,
+      <DialogController<string>
+        renderDialog={({ state: groupId, closeDialog }) => {
+          const group = groups.data?.find((item) => item.id === groupId);
+          return (
+            group && (
+              <GroupRoleDialog
+                level="project"
+                groupName={group.displayName}
+                groupHref={groupHref(group.id)}
+                isScimManaged={isScimManaged(group)}
+                projectName={project?.name}
+                projectHref={`/project/${projectId}`}
+                memberCount={group.memberCount}
+                members={
+                  // A partial list would read as the whole group.
+                  group.members.length === group.memberCount
+                    ? group.members
+                    : undefined
+                }
+                orgRole={group.orgRole}
+                projectRole={group.projectRole}
+                grantableRoles={projectRoles(group.projectRole)}
+                disabledReason={
+                  pendingGroupId === group.id ? "Saving…" : editBlockedReason
+                }
+                onChange={(role) => {
+                  // Project group roles never include AI Gateway.
+                  if (role === "AI_GATEWAY") return;
+                  setRole.mutate({ projectId, groupId: group.id, role });
+                }}
+                onDone={closeDialog}
+              />
+            )
+          );
         }}
-        toolbarActions={
-          canManageOrgGroups && organization
-            ? [
-                {
-                  id: "org-groups",
-                  label: "Organization groups",
-                  variant: "outline" as const,
-                  href: `/organization/${organization.id}/settings/groups`,
-                },
-              ]
-            : undefined
-        }
-      />
+      >
+        {({ openDialog }) => (
+          <SettingsTable
+            tableName="project groups"
+            columns={projectGroupColumns((group) => openDialog(group.id))}
+            onRowClick={(row) => openDialog(row.group.id)}
+            data={data}
+            getRowLabel={(row) => row.displayName}
+            columnVisibilityKey="groupsColumnVisibilityProject"
+            columnOrderKey="groupsColumnOrderProject"
+            noResultsMessage="This organization has no groups yet."
+            search={{
+              value: search,
+              placeholder: "Search name",
+              onChange: setSearch,
+            }}
+            toolbarActions={
+              canManageOrgGroups && organization
+                ? [
+                    {
+                      id: "org-groups",
+                      label: "Organization groups",
+                      variant: "outline" as const,
+                      href: `/organization/${organization.id}/settings/groups`,
+                    },
+                  ]
+                : undefined
+            }
+          />
+        )}
+      </DialogController>
     </div>
   );
 }

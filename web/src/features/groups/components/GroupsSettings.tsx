@@ -1,21 +1,10 @@
 import { useCallback, useId, useMemo, useState } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
-import {
-  Lock,
-  PencilLine,
-  PlusIcon,
-  Trash,
-  UserPlus,
-  Users,
-} from "@langfuse/icons";
-import { type Role } from "@langfuse/shared";
+import { PencilLine, PlusIcon, Trash, Users } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -24,36 +13,36 @@ import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
+  CreateGroupDialog,
+  type NewGroup,
+} from "@/src/features/groups/components/CreateGroupDialog";
+import {
   describeGroupRoleCell,
-  GroupRoleDialogController,
-} from "@/src/features/groups/components/GroupRoleDialogController";
+  groupRoleOptions,
+} from "@/src/features/groups/components/GroupRoleDialog";
+import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
+import { GroupDialogHost } from "@/src/features/groups/components/GroupDialogHost";
 import { groupTableColumns } from "@/src/features/groups/components/groupTableColumns";
+import { useGroupDialogParam } from "@/src/features/groups/groupDialogLink";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import {
   GROUP_SOURCE_DISPLAY,
   isScimManaged,
-  SCIM_LOCK_LABEL,
+  NO_GROUP_EDIT_REASON,
 } from "@/src/features/groups/groupSource";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { resolveEffectiveRoles } from "@langfuse/shared/rbac";
-import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
-type GroupMember = Group["members"][number];
-type GroupMemberRow = GroupMember & { effectiveRole: string };
-
-const NO_EDIT_REASON = "You do not have permission to manage groups";
 
 const blockedReason = (
   canEdit: boolean,
   group: { source: string } | undefined,
   scimAction: "Change" | "Delete",
 ) => {
-  if (!canEdit) return { reason: NO_EDIT_REASON };
+  if (!canEdit) return { reason: NO_GROUP_EDIT_REASON };
   if (group && isScimManaged(group))
     return {
       reason: `Synced from your identity provider. ${scimAction} it there.`,
@@ -131,8 +120,7 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
 }
 
 function groupColumns(
-  orgId: string,
-  canEdit: boolean,
+  onOpenGroup: (group: Group) => void,
 ): LangfuseColumnDef<GroupRow>[] {
   const shared = groupTableColumns<GroupRow>();
   return [
@@ -156,10 +144,13 @@ function groupColumns(
       },
       size: 160,
       cell: ({ row }) => (
-        <GroupOrgRoleSelect
-          orgId={orgId}
-          group={row.original.group}
-          canEdit={canEdit}
+        <RoleCellTrigger
+          {...describeGroupRoleCell({
+            level: "organization",
+            groupName: row.original.group.displayName,
+            orgRole: row.original.group.orgRole,
+          })}
+          onClick={() => onOpenGroup(row.original.group)}
         />
       ),
     },
@@ -176,6 +167,8 @@ function groupColumns(
 function GroupsTable({ orgId, canEdit }: { orgId: string; canEdit: boolean }) {
   const groups = api.groups.list.useQuery({ orgId });
   const [search, setSearch] = useState("");
+  const [, setOpenGroupId] = useGroupDialogParam();
+  const openGroup = (group: Pick<Group, "id">) => setOpenGroupId(group.id);
 
   const data = useMemo<TableProps<GroupRow>["data"]>(() => {
     if (groups.isPending) return { status: "loading" };
@@ -194,60 +187,55 @@ function GroupsTable({ orgId, canEdit }: { orgId: string; canEdit: boolean }) {
     };
   }, [groups.isPending, groups.error, groups.data, search]);
 
-  const columns = useMemo(() => groupColumns(orgId, canEdit), [orgId, canEdit]);
-
   return (
-    <CreateGroupDialogController orgId={orgId}>
-      {(openCreate) => (
-        <GroupMembersDialogController orgId={orgId} canEdit={canEdit}>
-          {(openMembers) => (
-            <RenameGroupDialogController orgId={orgId}>
-              {(openRename) => (
-                <DeleteGroupDialogController orgId={orgId}>
-                  {(openDelete) => (
-                    <GroupsSettingsTable
-                      columns={columns}
-                      data={data}
-                      canEdit={canEdit}
-                      search={search}
-                      onSearchChange={setSearch}
-                      onCreate={openCreate}
-                      onMembers={openMembers}
-                      onRename={openRename}
-                      onDelete={openDelete}
-                    />
-                  )}
-                </DeleteGroupDialogController>
-              )}
-            </RenameGroupDialogController>
-          )}
-        </GroupMembersDialogController>
-      )}
-    </CreateGroupDialogController>
+    <>
+      <GroupDialogHost orgId={orgId} />
+      <CreateGroupDialogController orgId={orgId} onPartlySaved={openGroup}>
+        {(openCreate) => (
+          <RenameGroupDialogController orgId={orgId}>
+            {(openRename) => (
+              <DeleteGroupDialogController orgId={orgId}>
+                {(openDelete) => (
+                  <GroupsSettingsTable
+                    data={data}
+                    canEdit={canEdit}
+                    search={search}
+                    onSearchChange={setSearch}
+                    onCreate={openCreate}
+                    onOpenGroup={openGroup}
+                    onRename={openRename}
+                    onDelete={openDelete}
+                  />
+                )}
+              </DeleteGroupDialogController>
+            )}
+          </RenameGroupDialogController>
+        )}
+      </CreateGroupDialogController>
+    </>
   );
 }
 
 function GroupsSettingsTable({
-  columns,
   data,
   canEdit,
   search,
   onSearchChange,
   onCreate,
-  onMembers,
+  onOpenGroup,
   onRename,
   onDelete,
 }: {
-  columns: LangfuseColumnDef<GroupRow>[];
   data: TableProps<GroupRow>["data"];
   canEdit: boolean;
   search: string;
   onSearchChange: (value: string) => void;
   onCreate: () => void;
-  onMembers: (group: Group) => void;
+  onOpenGroup: (group: Group) => void;
   onRename: (group: Group) => void;
   onDelete: (group: Group) => void;
 }) {
+  const columns = useMemo(() => groupColumns(onOpenGroup), [onOpenGroup]);
   const actions = useCallback<NonNullable<TableProps<GroupRow>["actions"]>>(
     ({ group }) => [
       {
@@ -256,7 +244,7 @@ function GroupsSettingsTable({
         title:
           canEdit && !isScimManaged(group) ? "Manage members" : "View members",
         icon: Users,
-        onClick: () => onMembers(group),
+        onClick: () => onOpenGroup(group),
       },
       {
         id: "rename",
@@ -276,7 +264,7 @@ function GroupsSettingsTable({
         onClick: () => onDelete(group),
       },
     ],
-    [canEdit, onMembers, onRename, onDelete],
+    [canEdit, onOpenGroup, onRename, onDelete],
   );
 
   return (
@@ -285,7 +273,7 @@ function GroupsSettingsTable({
       columns={columns}
       data={data}
       actions={actions}
-      onRowClick={(row) => onMembers(row.group)}
+      onRowClick={(row) => onOpenGroup(row.group)}
       getRowLabel={(row) => row.displayName}
       columnVisibilityKey="groupsColumnVisibilityOrg"
       columnOrderKey="groupsColumnOrderOrg"
@@ -312,293 +300,7 @@ function GroupsSettingsTable({
   );
 }
 
-const orgRoleBlockedReason = (canEdit: boolean, isSaving: boolean) => {
-  if (!canEdit) return NO_EDIT_REASON;
-  if (isSaving) return "Saving…";
-  return undefined;
-};
-
-function GroupOrgRoleSelect({
-  orgId,
-  group,
-  canEdit,
-}: {
-  orgId: string;
-  group: Group;
-  canEdit: boolean;
-}) {
-  const utils = api.useUtils();
-  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    organizationId: orgId,
-  });
-  const setOrgRole = api.groups.setOrgRole.useMutation({
-    onSuccess: ({ role }) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      showSuccessToast({
-        operation: "group_roles.update",
-        title: "Group role saved",
-        description: role
-          ? `${group.displayName} is now ${roleName(role)} in this organization`
-          : `${group.displayName} no longer has an organization role`,
-        duration: 2000,
-      });
-    },
-  });
-  return (
-    <GroupRoleDialogController
-      level="organization"
-      groupName={group.displayName}
-      memberCount={group.members.length}
-      orgRole={group.orgRole}
-      isAiGatewayEnabled={isAiGatewayEnabled}
-      disabledReason={orgRoleBlockedReason(canEdit, setOrgRole.isPending)}
-      onChange={(role) => setOrgRole.mutate({ orgId, groupId: group.id, role })}
-    >
-      {(openDialog) => (
-        <RoleCellTrigger
-          {...describeGroupRoleCell({
-            level: "organization",
-            groupName: group.displayName,
-            orgRole: group.orgRole,
-          })}
-          onClick={openDialog}
-        />
-      )}
-    </GroupRoleDialogController>
-  );
-}
-
 type OpenWith<T> = (value: T) => void;
-
-function effectiveOrgRoleLabel(member: GroupMember) {
-  const [top = member.directOrgRole] = resolveEffectiveRoles(
-    [member.directOrgRole, ...member.groupOrgRoles.map((grant) => grant.role)],
-    "organization",
-  ).toSorted(byPermissionCount);
-  if (top === member.directOrgRole) return `${roleName(top)} (own role)`;
-  const sources = [
-    ...new Set(
-      member.groupOrgRoles
-        .filter((grant) => grant.role === top)
-        .map((grant) => grant.groupName),
-    ),
-  ];
-  return `${roleName(top)} via ${sources.join(", ")}`;
-}
-
-function grantsSummary(group: Group) {
-  const projects = group.projectRoles.length;
-  const org = group.orgRole
-    ? `${roleName(group.orgRole)} in the organization`
-    : "no organization role";
-  const project =
-    projects > 0
-      ? ` and roles in ${projects} ${projects === 1 ? "project" : "projects"}`
-      : "";
-  return `Grants ${org}${project}.`;
-}
-
-function GroupMembersDialogController({
-  orgId,
-  canEdit,
-  children,
-}: {
-  orgId: string;
-  canEdit: boolean;
-  children: (open: OpenWith<Group>) => React.ReactNode;
-}) {
-  // `?group=<id>` opens that group's members, so other pages can link to them.
-  const [linkedGroupId, setLinkedGroupId] = useQueryParam("group", StringParam);
-  return (
-    <DialogController<string>
-      initialState={() => linkedGroupId ?? undefined}
-      onDismiss={() => {
-        if (linkedGroupId) setLinkedGroupId(undefined);
-      }}
-      renderDialog={({ state: groupId }) => (
-        <GroupMembersDialog orgId={orgId} groupId={groupId} canEdit={canEdit} />
-      )}
-    >
-      {({ openDialog }) => children((group) => openDialog(group.id))}
-    </DialogController>
-  );
-}
-
-const memberColumns: LangfuseColumnDef<GroupMemberRow>[] = [
-  createTextTableColumn<GroupMemberRow>({
-    accessorKey: "name",
-    header: "Name",
-    nullValue: "-",
-  }),
-  createTextTableColumn<GroupMemberRow>({
-    accessorKey: "email",
-    header: "Email",
-    nullValue: "-",
-  }),
-  createTextTableColumn<GroupMemberRow>({
-    accessorKey: "directOrgRole",
-    header: "Own role",
-    mapValue: (value) => (value ? roleName(value as Role) : undefined),
-    size: 110,
-  }),
-  createTextTableColumn<GroupMemberRow>({
-    accessorKey: "effectiveRole",
-    header: "Effective role",
-    size: 200,
-  }),
-];
-
-function GroupMembersDialog({
-  orgId,
-  groupId,
-  canEdit,
-}: {
-  orgId: string;
-  groupId: string;
-  canEdit: boolean;
-}) {
-  // Read from the list query so the dialog reflects adds and removals.
-  const groups = api.groups.list.useQuery({ orgId });
-  const group = groups.data?.find((g) => g.id === groupId);
-  const utils = api.useUtils();
-  const removeMember = api.groups.removeMember.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
-
-  const actions = useCallback<
-    NonNullable<TableProps<GroupMemberRow>["actions"]>
-  >(
-    (member) => [
-      {
-        id: "remove",
-        type: "item",
-        title: "Remove from group",
-        icon: Trash,
-        variant: "destructive",
-        disabled: blockedReason(canEdit, group, "Change"),
-        onClick: () =>
-          removeMember.mutate({ orgId, groupId, userId: member.userId }),
-      },
-    ],
-    [canEdit, group, orgId, groupId, removeMember],
-  );
-
-  const membersData = useMemo<TableProps<GroupMemberRow>["data"]>(() => {
-    if (group)
-      return {
-        status: "success",
-        data: group.members.map((member) => ({
-          ...member,
-          effectiveRole: effectiveOrgRoleLabel(member),
-        })),
-      };
-    if (groups.error) return { status: "error", error: groups.error.message };
-    if (groups.data) return { status: "error", error: "Group not found" };
-    return { status: "loading" };
-  }, [group, groups.error, groups.data]);
-
-  return (
-    <Dialog
-      title={group ? `Members of ${group.displayName}` : "Group members"}
-      size="md"
-      closeLabel="Done"
-    >
-      <Dialog.Body>
-        <div className="flex flex-col gap-3">
-          {group && isScimManaged(group) && (
-            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
-              <Lock size="sm" aria-hidden />
-              {SCIM_LOCK_LABEL}
-            </p>
-          )}
-          {group && (
-            <p className="text-muted-foreground text-xs">
-              {grantsSummary(group)}
-            </p>
-          )}
-          {group && canEdit && !isScimManaged(group) && (
-            <AddGroupMembers orgId={orgId} group={group} />
-          )}
-          <SettingsTable
-            tableName="group members"
-            columns={memberColumns}
-            // Members of SCIM groups are managed in the identity provider.
-            actions={group && isScimManaged(group) ? undefined : actions}
-            data={membersData}
-            getRowLabel={(member) => member.email ?? member.name ?? ""}
-            noResultsMessage="This group has no members."
-          />
-          {removeMember.error && (
-            <p className="text-destructive text-sm">
-              {removeMember.error.message}
-            </p>
-          )}
-        </div>
-      </Dialog.Body>
-    </Dialog>
-  );
-}
-
-function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
-  const utils = api.useUtils();
-  const [selected, setSelected] = useState<string[]>([]);
-  const orgMembers = api.groups.orgMembers.useQuery({ orgId });
-  const addMembers = api.groups.addMembers.useMutation({
-    onSuccess: () => {
-      setSelected([]);
-      utils.groups.invalidate();
-      showSuccessToast({
-        operation: "group_members.update",
-        title: "Members added",
-        description: `Updated members of ${group.displayName}`,
-        duration: 2000,
-      });
-    },
-  });
-
-  const memberIds = new Set(group.members.map((m) => m.userId));
-  const options = (orgMembers.data ?? [])
-    .filter((user) => !memberIds.has(user.id))
-    .map((user) => ({
-      value: user.id,
-      label: user.name ?? user.email ?? user.id,
-      secondaryLabel: user.name ? (user.email ?? undefined) : undefined,
-    }));
-
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <MultiSelectInput
-            aria-label="Organization members to add"
-            value={selected}
-            options={options}
-            onValueChange={setSelected}
-            placeholder="Select organization members"
-            selectedLabel="members selected"
-            searchPlaceholder="Search members"
-            emptyMessage="No more organization members to add"
-            disabled={orgMembers.isLoading}
-          />
-        </div>
-        <Button
-          text="Add"
-          variant="secondary"
-          icon={UserPlus}
-          disabled={selected.length === 0}
-          loading={addMembers.isPending}
-          onClick={() =>
-            addMembers.mutate({ orgId, groupId: group.id, userIds: selected })
-          }
-        />
-      </div>
-      {addMembers.error && (
-        <p className="text-destructive text-sm">{addMembers.error.message}</p>
-      )}
-    </div>
-  );
-}
 
 function GroupNameDialog({
   title,
@@ -659,46 +361,100 @@ function GroupNameDialog({
 
 function CreateGroupDialogController({
   orgId,
+  onPartlySaved,
   children,
 }: {
   orgId: string;
+  /** The group exists but its role or members failed to save. */
+  onPartlySaved: OpenWith<Pick<Group, "id">>;
   children: (open: () => void) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const create = api.groups.create.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
   return (
     <DialogController
-      onDismiss={() => create.reset()}
       renderDialog={({ closeDialog }) => (
-        <GroupNameDialog
-          title="Create group"
-          submitLabel="Create"
-          initialName=""
-          isPending={create.isPending}
-          error={create.error?.message}
-          onSubmit={(displayName) =>
-            create.mutate(
-              { orgId, displayName },
-              {
-                onSuccess: (group) => {
-                  closeDialog();
-                  showSuccessToast({
-                    operation: "group.create",
-                    title: "Group created",
-                    description: `${group.displayName} created. Add members and set its role next.`,
-                    duration: 3000,
-                  });
-                },
-              },
-            )
-          }
+        <ConnectedCreateGroupDialog
+          orgId={orgId}
+          onPartlySaved={onPartlySaved}
+          onDone={closeDialog}
         />
       )}
     >
       {({ openDialog }) => children(() => openDialog())}
     </DialogController>
+  );
+}
+
+/** Creates the group, then gives it the picked role and members. */
+function ConnectedCreateGroupDialog({
+  orgId,
+  onPartlySaved,
+  onDone,
+}: {
+  orgId: string;
+  onPartlySaved: OpenWith<Pick<Group, "id">>;
+  onDone: () => void;
+}) {
+  const utils = api.useUtils();
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    organizationId: orgId,
+  });
+  const orgMembers = api.groups.orgMembers.useQuery({ orgId });
+  const create = api.groups.create.useMutation();
+  const setOrgRole = api.groups.setOrgRole.useMutation();
+  const addMembers = api.groups.addMembers.useMutation();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const submit = async ({ displayName, role, userIds }: NewGroup) => {
+    setIsSaving(true);
+    try {
+      const group = await create.mutateAsync({ orgId, displayName });
+      const results = await Promise.allSettled([
+        role === "NONE" || role === "OWNER"
+          ? undefined
+          : setOrgRole.mutateAsync({ orgId, groupId: group.id, role }),
+        userIds.length === 0
+          ? undefined
+          : addMembers.mutateAsync({ orgId, groupId: group.id, userIds }),
+      ]);
+      await utils.groups.invalidate().catch(() => undefined);
+      utils.members.invalidate().catch(() => undefined);
+      onDone();
+      if (results.some((result) => result.status === "rejected")) {
+        // Opens the new group, where the role and members can be finished.
+        onPartlySaved(group);
+        return;
+      }
+      showSuccessToast({
+        operation: "group.create",
+        title: "Group created",
+        description:
+          userIds.length > 0
+            ? `${group.displayName} created with ${memberCountLabel(userIds.length)}`
+            : `${group.displayName} created`,
+        duration: 3000,
+      });
+    } catch {
+      // The create error shows in the dialog.
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <CreateGroupDialog
+      roles={groupRoleOptions("organization", isAiGatewayEnabled)}
+      people={(orgMembers.data ?? []).map((user) => ({
+        value: user.id,
+        label: user.name ?? user.email ?? user.id,
+        secondaryLabel: user.name ? (user.email ?? undefined) : undefined,
+      }))}
+      isLoadingPeople={orgMembers.isLoading}
+      isPending={isSaving}
+      error={create.error?.message}
+      onSubmit={(group) => {
+        submit(group).catch(() => undefined);
+      }}
+    />
   );
 }
 

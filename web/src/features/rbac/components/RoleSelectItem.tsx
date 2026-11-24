@@ -33,7 +33,8 @@ export const RoleSelectItem = ({
       disabled={disabledReason !== undefined}
       className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
     >
-      <div className="flex w-full items-start gap-2 text-left">
+      {/* Takes the pointer on an unavailable option too, so hovering the row reveals the button. */}
+      <div className="pointer-events-auto flex w-full items-start gap-2 text-left">
         <div className="flex flex-col">
           <span className="font-bold">
             {label}
@@ -56,7 +57,7 @@ export const RoleSelectItem = ({
                 onViewPermissions(role);
               }}
               aria-label={`View ${label} permissions`}
-              className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-disabled:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
+              className="text-muted-foreground hover:bg-background hover:text-foreground pointer-events-auto ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
             >
               <SquareArrowOutUpRight size="base" />
             </button>

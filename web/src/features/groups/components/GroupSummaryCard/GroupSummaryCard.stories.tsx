@@ -1,3 +1,5 @@
+import { expect, within } from "storybook/test";
+
 import preview from "../../../../../.storybook/preview";
 import { GroupSummaryCard } from "./GroupSummaryCard";
 
@@ -91,5 +93,64 @@ export const MembersWithoutNames = meta.story({
       ...member,
       name: null,
     })),
+    membersHref: "/organization/org-1/settings/groups?group=group-1",
+    canEditGroup: true,
+  },
+});
+
+export const WithMembersLink = meta.story({
+  args: {
+    name: "Platform Engineering",
+    level: "organization",
+    source: "SCIM",
+    role: "ADMIN",
+    memberCount: 8,
+    memberPreview: memberPreview(5),
+    membersHref: "/organization/org-1/settings/groups?group=group-platform",
+  },
+});
+
+export const TestMembersLinkReplacesCount = meta.story({
+  name: "(Test) A members link replaces the hidden-member count",
+  args: {
+    name: "Platform Engineering",
+    level: "organization",
+    source: "SCIM",
+    role: "ADMIN",
+    memberCount: 8,
+    memberPreview: memberPreview(5),
+    membersHref: "/organization/org-1/settings/groups?group=group-platform",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("link", { name: "View all 8 members" }),
+    ).toHaveAttribute(
+      "href",
+      "/organization/org-1/settings/groups?group=group-platform",
+    );
+    await expect(canvas.queryByText("+3 more members")).toBeNull();
+    await expect(canvas.getByText("Access in this organization")).toBeVisible();
+    await expect(
+      canvas.getByText("Members managed in your identity provider"),
+    ).toBeVisible();
+  },
+});
+
+export const TestCountWithoutMembersLink = meta.story({
+  name: "(Test) Without a members link the hidden members are counted",
+  args: {
+    name: "Support",
+    level: "project",
+    source: "MANUAL",
+    role: "VIEWER",
+    memberCount: 8,
+    memberPreview: memberPreview(5),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("+3 more members")).toBeVisible();
+    await expect(canvas.queryByRole("link")).toBeNull();
+    await expect(canvas.getByText("Access on this project")).toBeVisible();
   },
 });
