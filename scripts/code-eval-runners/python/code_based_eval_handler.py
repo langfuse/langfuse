@@ -44,12 +44,16 @@ class ExperimentContext:
 class EvaluationContext:
     observation: ObservationContext
     experiment: ExperimentContext | None = None
+    target_type: str = "observation"
+    threads: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]):
         observation = payload.get("observation") or {}
         experiment = payload.get("experiment")
         return cls(
+            target_type=payload.get("targetType") or "observation",
+            threads=payload.get("threads") or [],
             observation=ObservationContext(
                 input=observation.get("input"),
                 output=observation.get("output"),

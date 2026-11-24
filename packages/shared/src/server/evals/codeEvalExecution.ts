@@ -27,6 +27,7 @@ import {
 import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
+import type { Thread } from "../transcript/types";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -113,7 +114,11 @@ type CodeBasedEvaluationDispatchResult =
 function buildCodeEvalPayload(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
+  threads?: Thread[];
 }): CodeEvalPayload {
+  if (params.threads) {
+    return { targetType: "trace", threads: params.threads };
+  }
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
@@ -133,22 +138,24 @@ function buildCodeEvalPayload(params: {
     );
   }
   const toolCalls = parsedToolCalls.success ? parsedToolCalls.data : [];
-  const payload: CodeEvalPayload = {
+  return {
+    targetType: "observation",
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
       metadata: byName.get("metadata") ?? null,
       toolCalls,
     },
+    ...(params.hasExperimentContext
+      ? {
+          experiment: {
+            itemExpectedOutput:
+              byName.get("experimentItemExpectedOutput") ?? null,
+            itemMetadata: byName.get("experimentItemMetadata") ?? null,
+          },
+        }
+      : {}),
   };
-  if (params.hasExperimentContext) {
-    payload.experiment = {
-      itemExpectedOutput: byName.get("experimentItemExpectedOutput") ?? null,
-      itemMetadata: byName.get("experimentItemMetadata") ?? null,
-    };
-  }
-
-  return payload;
 }
 
 function getCodeEvalErrorDetails(error: unknown): {
@@ -221,6 +228,8 @@ export async function runCodeBasedEvaluationDispatch(params: {
   };
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
+  /** Set for trace targets: the evaluator then receives only these threads. */
+  threads?: Thread[];
   traceName: string;
   metadata: Record<string, unknown>;
   evaluationContext?: EvalExecutionContext;
@@ -229,6 +238,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
   const payload = buildCodeEvalPayload({
     extractedVariables: params.extractedVariables,
     hasExperimentContext: params.hasExperimentContext ?? false,
+    threads: params.threads,
   });
   const traceStartTime = new Date();
   let dispatchResult: DispatchResult | undefined;
