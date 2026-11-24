@@ -63,13 +63,21 @@ impl ScannedMembers {
     }
 }
 
-/// A guardrail that matched the request.
+/// Which side of the exchange a guardrail matched.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GuardrailLocation {
+    Request,
+}
+
+/// A guardrail that matched the exchange.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub(crate) struct Finding {
     pub id: String,
     #[serde(skip)]
     pub name: String,
     pub action: GuardrailAction,
+    pub location: GuardrailLocation,
 }
 
 /// The guardrails a request matched, in resolution order.
@@ -199,6 +207,7 @@ pub(crate) fn check(
             id: guardrail.id.clone(),
             name: guardrail.name.clone(),
             action: guardrail.action,
+            location: GuardrailLocation::Request,
         })
         .collect();
     Outcome { findings }
@@ -336,6 +345,7 @@ mod tests {
                 id: "email".into(),
                 name: "email name".into(),
                 action: GuardrailAction::Log,
+                location: GuardrailLocation::Request,
             }]
         );
     }

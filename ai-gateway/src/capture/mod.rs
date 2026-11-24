@@ -358,8 +358,8 @@ impl ExecutionCapture {
         self.provider_model = bounded_string(model);
     }
 
-    /// Lists the guardrails the request matched in the generation's metadata, by id
-    /// and action, so generations can be filtered by either.
+    /// Lists the guardrails the request matched in the generation's metadata, by id,
+    /// action and location, so generations can be filtered by each.
     pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
         if !guardrails.is_empty()
             && let Some(metadata) = self.metadata.as_object_mut()

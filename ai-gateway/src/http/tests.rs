@@ -1829,7 +1829,7 @@ async fn guardrails_block_or_mark_requests_whose_last_turn_matches() {
             serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
         assert_eq!(
             metadata["langfuse.gateway.guardrails"],
-            serde_json::json!([{"id": format!("g-{action}"), "action": action}]),
+            serde_json::json!([{"id": format!("g-{action}"), "action": action, "location": "request"}]),
         );
     }
 }
