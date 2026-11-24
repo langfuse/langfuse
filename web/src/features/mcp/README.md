@@ -125,6 +125,7 @@ How a call flows:
 1. The model calls `renderWidget` (`server/apps/tools/renderWidget.ts`). The server runs the same query a dashboard tile runs and returns a text summary for the model (`widgetSummary.ts`) plus the widget definition and rows in the result's `_meta.widget`, which hosts keep away from the model.
 2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
 3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
+4. When the host proxies tool calls (`serverTools` capability) and has sent the call's arguments (`toolinput`), a toolbar above the card shows the dashboard's `TimeRangePicker` and a refresh button. Both call `renderWidget` again through the host (`app.callServerTool`) with the original arguments and the chosen window (`timeRange` for a preset, `fromTimestamp`/`toTimestamp` for a calendar range), and render that result in place. Picking another window while a call runs cancels it (an aborted `signal`, which the host is told about). The host sizes the frame to the document, so the view adds height while the picker's popover is open. The model does not see these calls, so the view passes the new text summary to the host with `updateModelContext`, which hosts add to the user's next message.
 
 The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), built and deployed with the app. The server fetches that page's HTML from itself and returns it as the resource. The host's sandboxed iframe then loads the page's scripts and styles from Langfuse:
 
@@ -135,6 +136,8 @@ The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), b
 The server declares the `io.modelcontextprotocol/ui` extension. App tools (and their `ui://` resources) are left out of discovery for clients that declare capabilities without it, which only 2026-07-28 clients do on every request. 2025-era clients declare capabilities only in `initialize`, which the stateless endpoint does not keep, so they still see app tools, which answer in text everywhere. The in-app agent never gets them (`apps/index.ts`).
 
 Hosts may cache the resource per conversation, so check view changes in a new one.
+
+A host sends a view its tool result once. A view that starts again in the same frame, such as after a hot update while developing it, gets no result: after 30 seconds without one (or on `tool-cancelled`) it shows Retry. When the host sent no arguments either, Retry posts a request for the chart to the chat (`app.sendMessage`, when the host supports `message`), and the model draws a new one.
 
 ---
 
