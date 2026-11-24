@@ -66,7 +66,7 @@ export type MembersSettingsTableRow = {
 export type MemberGroupRole = {
   groupId: string;
   groupName: string;
-  groupSource: "SCIM" | "MANUAL" | "SYSTEM";
+  groupSource: "SCIM" | "MANUAL";
   memberCount: number;
   role: Role;
   level: "organization" | "project";

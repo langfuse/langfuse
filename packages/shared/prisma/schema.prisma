@@ -661,7 +661,6 @@ model OrganizationMembership {
 
 enum GroupSource {
   SCIM // provisioned through SCIM /Groups
-  SYSTEM // created by Langfuse itself
   MANUAL // created by an org admin in the Langfuse UI; invisible to SCIM
 }
 

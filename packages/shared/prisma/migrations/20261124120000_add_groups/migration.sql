@@ -1,5 +1,8 @@
 -- CreateEnum
-CREATE TYPE "GroupSource" AS ENUM ('SCIM', 'SYSTEM');
+CREATE TYPE "GroupSource" AS ENUM ('SCIM', 'MANUAL');
+
+-- AlterTable
+ALTER TABLE "role_assignments" ADD COLUMN     "group_id" TEXT;
 
 -- CreateTable
 CREATE TABLE "groups" (
@@ -31,10 +34,16 @@ CREATE INDEX "groups_org_id_display_name_idx" ON "groups"("org_id", "display_nam
 CREATE UNIQUE INDEX "groups_org_id_external_id_key" ON "groups"("org_id", "external_id") WHERE "external_id" IS NOT NULL;
 
 -- CreateIndex
+CREATE INDEX "group_memberships_org_membership_id_idx" ON "group_memberships"("org_membership_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "group_memberships_group_id_org_membership_id_key" ON "group_memberships"("group_id", "org_membership_id");
 
 -- CreateIndex
-CREATE INDEX "group_memberships_org_membership_id_idx" ON "group_memberships"("org_membership_id");
+CREATE INDEX "role_assignments_group_id_idx" ON "role_assignments"("group_id");
+
+-- AddForeignKey
+ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "groups" ADD CONSTRAINT "groups_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -45,13 +54,7 @@ ALTER TABLE "group_memberships" ADD CONSTRAINT "group_memberships_group_id_fkey"
 -- AddForeignKey
 ALTER TABLE "group_memberships" ADD CONSTRAINT "group_memberships_org_membership_id_fkey" FOREIGN KEY ("org_membership_id") REFERENCES "organization_memberships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Role assignments gain a third principal kind: group/<id>.
-ALTER TABLE "role_assignments" ADD COLUMN "group_id" TEXT;
-
-CREATE INDEX "role_assignments_group_id_idx" ON "role_assignments"("group_id");
-
-ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
+-- Role assignments gain a third principal kind: group/<id>. Prisma cannot express CHECK constraints.
 ALTER TABLE "role_assignments" DROP CONSTRAINT "role_assignments_exactly_one_principal";
 ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_exactly_one_principal" CHECK (
     num_nonnulls("principal_user_id", "principal_api_key_id", "group_id") = 1
