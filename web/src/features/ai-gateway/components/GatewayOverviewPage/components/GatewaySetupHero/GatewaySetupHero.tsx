@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { BookOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayFanOutDiagram } from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/GatewayFanOutDiagram";
@@ -37,12 +36,7 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
             what it cost.
           </p>
           <div className="pt-3">
-            <Button
-              text="Setup guide"
-              icon={BookOpen}
-              href={GATEWAY_SETUP.docsUrl}
-              hideExternalIcon
-            />
+            <Button text="Setup guide" href={GATEWAY_SETUP.docsUrl} />
           </div>
           <p className="sr-only">
             {connectedLabels.length > 0
