@@ -815,12 +815,18 @@ mod tests {
     fn drops_tool_definitions_when_a_definition_name_cannot_be_a_property_key() {
         let normalized = normalize(
             None,
-            None,
+            Some(json!({
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {"city": "Amsterdam"}}
+                }]
+            })),
             json!({
                 "attributes": {
                     "ai.prompt.tools": [
-                        {"name": {"toString": null}},
-                        {"name": "a"}
+                        {"name": "a"},
+                        {"name": {"toString": null}}
                     ]
                 }
             }),
