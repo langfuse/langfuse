@@ -4,6 +4,7 @@ import {
   EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
@@ -17,7 +18,6 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
-import { ruleScopeOf } from "@/src/features/evals/v2/fns/rules/ruleScope";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -40,7 +40,6 @@ export function EditRuleDialogContent({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const scope = ruleScopeOf(rule.targetObject);
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore(
       {
@@ -67,7 +66,7 @@ export function EditRuleDialogContent({
           };
         }),
       },
-      { scope, scopeControl: "locked" },
+      { targetObject: rule.targetObject, scopeControl: "locked" },
     ),
   );
   const update = api.evalsV2.rules.update.useMutation({
@@ -95,7 +94,7 @@ export function EditRuleDialogContent({
       filter: draft.filter,
       sampling: draft.sampling,
       evaluatorMappings:
-        scope === "trace"
+        rule.targetObject === TopicsTargetObject
           ? traceTranscriptAssignments(draft.assignments)
           : draft.assignments.map((assignment) => ({
               evaluatorId: assignment.evaluatorId,

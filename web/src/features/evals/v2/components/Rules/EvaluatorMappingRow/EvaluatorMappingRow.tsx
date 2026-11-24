@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "@langfuse/icons";
 import {
+  TopicsTargetObject,
   type EvalTemplateType,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -59,10 +60,13 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
     store,
     (state) => state.actions.detachEvaluator,
   );
-  const traceScope = useStore(store, (state) => state.scope === "trace");
+  const isTraceTranscript = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const variableMapping = useVariableMappingController();
   const isCodeEvaluator = evaluatorType === "CODE";
-  const mapping = traceScope
+  const mapping = isTraceTranscript
     ? traceTranscriptMapping(variableMappingOverride ?? defaultVariableMapping)
     : (variableMappingOverride ?? defaultVariableMapping);
   const mappings = mapping.map((entry) => ({
@@ -169,7 +173,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
         <CollapsibleContent className="border-t p-3">
           {isCodeEvaluator ? (
             <p className="text-muted-foreground text-sm">
-              {traceScope
+              {isTraceTranscript
                 ? "The trace transcript is available directly in code evaluators, so no variable mapping is required."
                 : "Observation data is available directly in code evaluators, so no variable mapping is required."}
             </p>

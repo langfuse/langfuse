@@ -55,7 +55,6 @@ import {
   getRuleNavigationUrl,
 } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
-import { ruleScopeOf } from "@/src/features/evals/v2/fns/rules/ruleScope";
 import { TableViewPresetTableName, type OrderByState } from "@langfuse/shared";
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -291,7 +290,7 @@ function RulesTableContent({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
-              scope={ruleScopeOf(row.original.targetObject)}
+              targetObject={row.original.targetObject}
               onUpgrade={
                 upgradeRequired
                   ? () => {

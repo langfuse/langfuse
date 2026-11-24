@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   TRACE_TRANSCRIPT_EVAL_COLUMN,
   type FilterState,
 } from "@langfuse/shared";
@@ -7,40 +8,43 @@ import { createStore } from "zustand/vanilla";
 
 import type {
   RuleDraft,
-  RuleScope,
   RuleScopeControl,
   RuleSetupStore,
+  RuleTargetObject,
 } from "@/src/features/evals/v2/types/rules";
 
 export function createRuleSetupStore(
   initialDraft: RuleDraft,
-  scopeSetup: {
-    scope: RuleScope;
+  targetSetup: {
+    targetObject: RuleTargetObject;
+    observationTargetObject?: EvalTargetObject;
     scopeControl: RuleScopeControl;
-    /** Switching scope swaps these while the filter still equals the current scope's default. */
-    defaultFilters?: Record<RuleScope, FilterState>;
+    /** Switching target swaps the filter while it still equals the current target's default. */
+    defaultFilterFor?: (targetObject: RuleTargetObject) => FilterState;
   } = {
-    scope: "observation",
+    targetObject: EvalTargetObject.EVENT,
     scopeControl: "hidden",
   },
 ): RuleSetupStore {
-  const { defaultFilters } = scopeSetup;
+  const { defaultFilterFor } = targetSetup;
   return createStore<ReturnType<RuleSetupStore["getState"]>>((set) => ({
     ...initialDraft,
     initialDraft,
     selectedObservation: null,
-    scope: scopeSetup.scope,
-    scopeControl: scopeSetup.scopeControl,
+    targetObject: targetSetup.targetObject,
+    observationTargetObject:
+      targetSetup.observationTargetObject ?? EvalTargetObject.EVENT,
+    scopeControl: targetSetup.scopeControl,
     actions: {
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),
       setSampling: (sampling) => set({ sampling }),
-      setScope: (scope) =>
+      setTargetObject: (targetObject) =>
         set((state) => ({
-          scope,
-          ...(defaultFilters &&
-          isEqual(state.filter, defaultFilters[state.scope])
-            ? { filter: defaultFilters[scope] }
+          targetObject,
+          ...(defaultFilterFor &&
+          isEqual(state.filter, defaultFilterFor(state.targetObject))
+            ? { filter: defaultFilterFor(targetObject) }
             : {}),
           assignments: state.assignments.map((assignment) =>
             assignment.variableMapping?.some(

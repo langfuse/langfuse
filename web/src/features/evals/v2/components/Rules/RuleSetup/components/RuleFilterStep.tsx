@@ -1,3 +1,4 @@
+import { TopicsTargetObject } from "@langfuse/shared";
 import { useId, useState } from "react";
 import { useStore } from "zustand";
 
@@ -5,10 +6,6 @@ import { Radio } from "@/src/components/design-system/Radio/Radio";
 import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
-import {
-  RULE_SAMPLE_FIELD_REGISTRY,
-  TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY,
-} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { ruleScopeCopy } from "@/src/features/evals/v2/constants/ruleScopeCopy";
 import { env } from "@/src/env.mjs";
 import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/TraceRuleIdleTime/TraceRuleIdleTime";
@@ -27,17 +24,17 @@ export function RuleFilterStep({
     store,
     (state) => state.selectedObservation?.id ?? null,
   );
-  const scope = useStore(store, (state) => state.scope);
+  const targetObject = useStore(store, (state) => state.targetObject);
   const scopeControl = useStore(store, (state) => state.scopeControl);
   const [timeRange] = useState(() => {
     const to = new Date();
     return { from: new Date(to.getTime() - SEVEN_DAYS_MS), to };
   });
   const scopeGroupName = useId();
-  const actions = store.getState().actions;
-  const traceTranscript = scope === "trace";
+  const { actions, observationTargetObject } = store.getState();
+  const isTraceTranscript = targetObject === TopicsTargetObject;
   const scopeLocked = scopeControl === "locked";
-  const copy = ruleScopeCopy(scope, scopeControl !== "hidden");
+  const copy = ruleScopeCopy(targetObject, scopeControl !== "hidden");
   return (
     <Stepper
       number={1}
@@ -53,20 +50,20 @@ export function RuleFilterStep({
           <label className="flex items-center gap-2 text-sm">
             <Radio
               name={scopeGroupName}
-              value="observation"
-              checked={scope === "observation"}
+              value={observationTargetObject}
+              checked={!isTraceTranscript}
               disabled={scopeLocked}
-              onChange={() => actions.setScope("observation")}
+              onChange={() => actions.setTargetObject(observationTargetObject)}
             />
             Observation
           </label>
           <label className="flex items-center gap-2 text-sm">
             <Radio
               name={scopeGroupName}
-              value="trace"
-              checked={scope === "trace"}
+              value={TopicsTargetObject}
+              checked={isTraceTranscript}
               disabled={scopeLocked}
-              onChange={() => actions.setScope("trace")}
+              onChange={() => actions.setTargetObject(TopicsTargetObject)}
             />
             Trace messages
           </label>
@@ -83,15 +80,9 @@ export function RuleFilterStep({
         filterState={filter}
         onFilterStateChange={actions.setFilter}
         tableName="evaluation-rule-matching-observations"
-        registry={
-          traceTranscript
-            ? TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY
-            : RULE_SAMPLE_FIELD_REGISTRY
-        }
         selectedObservationId={selectedObservationId}
         onSelect={actions.setSelectedObservation}
-        sampleScope={scope}
-        showMatches={!traceTranscript}
+        targetObject={targetObject}
         filterTitle={copy.filterTitle}
         filterDescription={copy.filterDescription}
         filterTooltip={copy.filterTooltip}
@@ -105,7 +96,7 @@ export function RuleFilterStep({
           );
         }}
       />
-      {traceTranscript ? <TraceRuleIdleTime projectId={projectId} /> : null}
+      {isTraceTranscript ? <TraceRuleIdleTime projectId={projectId} /> : null}
       <RuleSamplingSection store={store} {...copy.sampling} />
     </Stepper>
   );

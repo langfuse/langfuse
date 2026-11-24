@@ -1,9 +1,13 @@
 import { useMemo } from "react";
-import type { FilterState } from "@langfuse/shared";
+import { TopicsTargetObject, type FilterState } from "@langfuse/shared";
 
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import {
+  RULE_SAMPLE_FIELD_REGISTRY,
+  TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 import {
   SampleObservationSelectorBase,
   type SampleObservation,
@@ -37,12 +41,10 @@ export function RuleSampleObservationSelector({
   filterState,
   onFilterStateChange,
   tableName,
-  registry,
   selectedObservationId,
   onSelect,
   onOpenTrace,
-  sampleScope = "observation",
-  showMatches = true,
+  targetObject,
   filterTitle,
   filterDescription,
   filterTooltip,
@@ -52,12 +54,10 @@ export function RuleSampleObservationSelector({
   filterState: FilterState;
   onFilterStateChange: (filters: FilterState) => void;
   tableName: string;
-  registry: FieldRegistry;
   selectedObservationId: string | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
-  sampleScope?: "trace" | "observation";
-  showMatches?: boolean;
+  targetObject: RuleTargetObject;
   filterTitle: string;
   filterDescription: string;
   filterTooltip: string;
@@ -66,6 +66,7 @@ export function RuleSampleObservationSelector({
     () => toEventsPreviewFilters(filterState),
     [filterState],
   );
+  const isTraceTranscript = targetObject === TopicsTargetObject;
 
   return (
     <SampleObservationSelectorBase
@@ -75,21 +76,25 @@ export function RuleSampleObservationSelector({
       onFilterStateChange={onFilterStateChange}
       previewFilters={previewFilters}
       tableName={tableName}
-      registry={registry}
+      registry={
+        isTraceTranscript
+          ? TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY
+          : RULE_SAMPLE_FIELD_REGISTRY
+      }
       selectedObservationId={selectedObservationId}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}
       leadingColumns={[]}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      sampleScope={sampleScope}
-      showMatches={showMatches}
+      sampleScope={isTraceTranscript ? "trace" : "observation"}
+      showMatches={!isTraceTranscript}
       filterTitle={filterTitle}
       filterDescription={filterDescription}
       filterTooltip={filterTooltip}
       matchingDescription="The first match is used to preview attached evaluator mappings."
       matchingTooltip={
-        sampleScope === "trace"
+        isTraceTranscript
           ? "Roots of traces that have a span matching the rule filters over the last seven days."
           : "Observations matching the rule filters over the last seven days."
       }

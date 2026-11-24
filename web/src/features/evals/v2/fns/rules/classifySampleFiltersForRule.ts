@@ -28,8 +28,9 @@ const SCORE_COLUMNS = new Set([
 
 function unsupportedFilterReason(
   filter: FilterState[number],
-  sample: "observation" | "trace",
+  targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject,
 ) {
+  const sample = targetObject === TopicsTargetObject ? "trace" : "observation";
   const suffix = `This filter will only be used to select a test ${sample}.`;
   if (MEASURE_COLUMNS.has(filter.column)) {
     return `Evaluation rules can't filter by latency, cost, or tokens at the moment. ${suffix}`;
@@ -64,10 +65,7 @@ export function classifySampleFiltersForRule(
     if (condition) {
       unsupportedReasons.set(
         index,
-        unsupportedFilterReason(
-          condition,
-          targetObject === TopicsTargetObject ? "trace" : "observation",
-        ),
+        unsupportedFilterReason(condition, targetObject),
       );
     }
   }

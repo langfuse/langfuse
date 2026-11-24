@@ -1,4 +1,6 @@
-import type { RuleScope } from "@/src/features/evals/v2/types/rules";
+import { TopicsTargetObject } from "@langfuse/shared";
+
+import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 
 export const TRACE_FILTER_TOOLTIP =
   "A trace matches if at least one of its observations matches all filters. All filters must match that same observation. Example: name = llm-call and level = ERROR matches traces with a failed llm-call observation. A trace whose llm-call succeeded while a different observation failed does not match.";
@@ -7,7 +9,10 @@ const OBSERVATION_FILTER_TOOLTIP =
   "Only new observations matching these filters are evaluated by this rule.";
 
 /** Copy for the rule scope step; projects without trace evals keep the observation-only wording. */
-export function ruleScopeCopy(scope: RuleScope, scopeSelectable: boolean) {
+export function ruleScopeCopy(
+  targetObject: RuleTargetObject,
+  scopeSelectable: boolean,
+) {
   if (!scopeSelectable) {
     return {
       stepDescription:
@@ -20,7 +25,7 @@ export function ruleScopeCopy(scope: RuleScope, scopeSelectable: boolean) {
   }
   const stepDescription =
     "Do you want to evaluate a single observation, or all the messages within a trace?";
-  if (scope === "trace") {
+  if (targetObject === TopicsTargetObject) {
     return {
       stepDescription,
       filterTitle: "Filter",

@@ -1,18 +1,21 @@
 /* eslint-disable no-nested-ternary */
+import { TopicsTargetObject } from "@langfuse/shared";
+
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 
 export function RuleNameCell({
   name,
   legacy,
-  scope = "observation",
+  targetObject,
   onUpgrade,
 }: {
   name: string;
   legacy: boolean;
-  /** A trace rule evaluates whole traces; the badge tells it apart in the list. */
-  scope?: "observation" | "trace";
+  /** A trace transcript rule evaluates whole traces; the badge tells it apart in the list. */
+  targetObject: RuleTargetObject;
   onUpgrade?: () => void;
 }) {
   return (
@@ -20,7 +23,7 @@ export function RuleNameCell({
       <span className="block truncate font-bold" title={name}>
         {name}
       </span>
-      {scope === "trace" ? (
+      {targetObject === TopicsTargetObject ? (
         <Badge color="outline" size="sm" text="Trace" />
       ) : null}
       {legacy ? (

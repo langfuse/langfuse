@@ -1,5 +1,8 @@
 /* eslint-disable no-nested-ternary */
-import { isTraceTranscriptEvalType } from "@langfuse/shared";
+import {
+  isTraceTranscriptEvalType,
+  TopicsTargetObject,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
@@ -38,12 +41,15 @@ export function RuleEvaluatorsStep({
     store,
     (state) => state.selectedObservation,
   );
-  const traceScope = useStore(store, (state) => state.scope === "trace");
+  const isTraceTranscript = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const sourceColumns = useEvalVariableSourceColumns();
   const traceSample = useEvaluatorTraceSample({
     projectId,
     store,
-    enabled: traceScope,
+    enabled: isTraceTranscript,
   });
   const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
@@ -62,7 +68,7 @@ export function RuleEvaluatorsStep({
     {
       ...sendAsPostOption,
       enabled: Boolean(
-        !traceScope &&
+        !isTraceTranscript &&
         selectedObservation?.id &&
         selectedObservation.traceId &&
         selectedObservation.startTime,
@@ -70,7 +76,7 @@ export function RuleEvaluatorsStep({
       select: (data) => data[0],
     },
   );
-  const sampleObject = traceScope
+  const sampleObject = isTraceTranscript
     ? traceSample.sourceObject
     : buildSelectedSampleObject({
         observation: selectedObservation,
@@ -121,17 +127,19 @@ export function RuleEvaluatorsStep({
       number={2}
       title="Attach evaluators"
       description={
-        traceScope
+        isTraceTranscript
           ? "Choose which evaluators should run on matching traces."
           : "Choose which evaluators should run on matching observations."
       }
     >
       <EvalVariableSourceColumnsProvider
-        value={traceScope ? TRACE_TRANSCRIPT_SOURCE_COLUMNS : sourceColumns}
+        value={
+          isTraceTranscript ? TRACE_TRANSCRIPT_SOURCE_COLUMNS : sourceColumns
+        }
       >
         <EvaluatorAssignmentsEditor
           evaluatorOptions={
-            traceScope
+            isTraceTranscript
               ? evaluatorOptions.filter(({ type }) =>
                   isTraceTranscriptEvalType(type),
                 )
@@ -142,12 +150,12 @@ export function RuleEvaluatorsStep({
           onSearchChange={onSearchChange}
           sampleObject={sampleObject}
           sourceUnavailableMessage={
-            traceScope
+            isTraceTranscript
               ? "No sample trace is available to validate JSON paths."
               : undefined
           }
           emptyDescription={
-            traceScope
+            isTraceTranscript
               ? "Attach an evaluator to run on matching traces."
               : undefined
           }

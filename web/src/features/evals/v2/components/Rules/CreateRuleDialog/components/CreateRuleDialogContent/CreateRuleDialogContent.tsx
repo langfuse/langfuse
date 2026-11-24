@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
+  EvalTargetObject,
   TopicsTargetObject,
-  type EvalTargetObject,
   type FilterState,
 } from "@langfuse/shared";
 import { useRef, useState } from "react";
@@ -21,7 +21,7 @@ import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleS
 import type {
   RuleDraft,
   RuleEvaluatorOption,
-  RuleScope,
+  RuleTargetObject,
 } from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -42,7 +42,7 @@ export function CreateRuleDialogContent({
   initialEvaluator,
   initialDraft,
   initialFilter,
-  initialScope = "observation",
+  initialTargetObject,
   targetObject,
   evaluatorSearch,
   successNotification,
@@ -56,7 +56,7 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
-  initialScope?: RuleScope;
+  initialTargetObject?: RuleTargetObject;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
@@ -71,15 +71,18 @@ export function CreateRuleDialogContent({
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const [ruleSetupStore] = useState(() => {
-    const ruleScope = traceEvalsAvailable ? initialScope : "observation";
-    const defaultFilters = {
-      observation: resolveInitialRuleFilters(initialFilter),
-      trace: [],
-    };
+    const observationTargetObject = targetObject ?? EvalTargetObject.EVENT;
+    const ruleTargetObject =
+      traceEvalsAvailable && initialTargetObject === TopicsTargetObject
+        ? TopicsTargetObject
+        : observationTargetObject;
+    const observationFilter = resolveInitialRuleFilters(initialFilter);
+    const defaultFilterFor = (target: RuleTargetObject): FilterState =>
+      target === TopicsTargetObject ? [] : observationFilter;
     return createRuleSetupStore(
       {
         name: initialDraft?.name ?? "",
-        filter: initialDraft?.filter ?? defaultFilters[ruleScope],
+        filter: initialDraft?.filter ?? defaultFilterFor(ruleTargetObject),
         sampling: initialDraft?.sampling ?? 1,
         assignments:
           initialDraft?.assignments ??
@@ -97,14 +100,17 @@ export function CreateRuleDialogContent({
             : []),
       },
       {
-        scope: ruleScope,
+        targetObject: ruleTargetObject,
+        observationTargetObject,
         scopeControl: traceEvalsAvailable ? "editable" : "hidden",
-        defaultFilters: initialDraft ? undefined : defaultFilters,
+        defaultFilterFor: initialDraft ? undefined : defaultFilterFor,
       },
     );
   });
-  const scope = useStore(ruleSetupStore, (state) => state.scope);
-  const traceScope = scope === "trace";
+  const isTraceTranscript = useStore(
+    ruleSetupStore,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule_name.generate"),
@@ -134,7 +140,7 @@ export function CreateRuleDialogContent({
   const create = async () => {
     const draft = ruleSetupStore.getState();
     const rule =
-      draft.scope === "trace"
+      draft.targetObject === TopicsTargetObject
         ? await createTraceTranscriptRule.mutateAsync({
             projectId,
             name: draft.name.trim(),
@@ -201,7 +207,7 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            {traceScope
+            {isTraceTranscript
               ? "Select which traces should trigger this evaluator."
               : "Select which incoming observations should trigger evaluators."}
           </DialogDescription>

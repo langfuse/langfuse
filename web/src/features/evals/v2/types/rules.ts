@@ -1,7 +1,9 @@
 import type {
+  EvalTargetObject,
   EvalTemplateType,
   FilterState,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -24,7 +26,7 @@ export type RuleDraft = {
   assignments: RuleDraftAssignment[];
 };
 
-export type RuleScope = "observation" | "trace";
+export type RuleTargetObject = EvalTargetObject | typeof TopicsTargetObject;
 
 /** Scope selector behavior: hidden (ungated create), editable (gated create), locked with a note (edit). */
 export type RuleScopeControl = "hidden" | "editable" | "locked";
@@ -64,13 +66,15 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
-  setScope: (scope: RuleScope) => void;
+  setTargetObject: (targetObject: RuleTargetObject) => void;
 };
 
 type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
-  scope: RuleScope;
+  targetObject: RuleTargetObject;
+  /** What the observation option of the scope selector selects. */
+  observationTargetObject: EvalTargetObject;
   scopeControl: RuleScopeControl;
   actions: RuleSetupStoreActions;
 };
