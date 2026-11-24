@@ -11,6 +11,7 @@ import {
   getLangfuseAITraceSinkParams,
   instrumentAsync,
   LangfuseInternalTraceEnvironment,
+  withoutBaggage,
 } from "@langfuse/shared/src/server";
 import {
   generateTopicEmbeddings,
@@ -153,7 +154,7 @@ async function topicModelCall<T>(
       recordTopicRequestBytes(stage, model.adapter, requestBytes);
       for (let attempt = 0; ; attempt++) {
         try {
-          const result = await call(ownRetries ? 0 : 2);
+          const result = await withoutBaggage(() => call(ownRetries ? 0 : 2));
           recordTopicModelCall(stage, model.adapter, {});
           // Shared egress metric; like llmaj, counted after a successful send.
           recordExportVolume({

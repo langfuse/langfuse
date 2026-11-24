@@ -1,3 +1,12 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  context as otelContext,
+  propagation as otelPropagation,
+  ROOT_CONTEXT,
+  type Baggage,
+  type Context,
+  type ContextManager,
+} from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Decimal } from "decimal.js";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -75,7 +84,7 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { recordTopicModelCall } from "../metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
@@ -1325,6 +1334,92 @@ describe("Topics naming boundary", () => {
     expect(state.spanAttributes).toHaveBeenCalledWith(
       expect.not.objectContaining({ "langfuse.org.id": expect.anything() }),
     );
+  });
+
+  it("strips active OTel baggage during outbound provider calls while keeping langfuse.org.id on spans", async () => {
+    const storage = new AsyncLocalStorage<Context>();
+    const contextManager: ContextManager = {
+      active: () => storage.getStore() ?? ROOT_CONTEXT,
+      with: (ctx, fn, thisArg, ...args) =>
+        storage.run(ctx, () => fn.apply(thisArg, args)),
+      bind: (_ctx, target) => target,
+      enable() {
+        return this;
+      },
+      disable() {
+        storage.disable();
+        return this;
+      },
+    };
+    otelContext.setGlobalContextManager(contextManager);
+    try {
+      let summaryBaggage: Baggage | undefined = otelPropagation.createBaggage();
+      let embeddingBaggage: Baggage | undefined =
+        otelPropagation.createBaggage();
+      state.call.mockImplementationOnce(async () => {
+        summaryBaggage = otelPropagation.getBaggage(otelContext.active());
+        return {
+          output: keyed({
+            summary: "User asks about an invoice.",
+            status: "applicable",
+          }),
+          usage: { inputTokens: 10, outputTokens: 5 },
+          usageDetails: { input: 10, output: 5 },
+          providedCostDetails: {},
+        };
+      });
+      state.embed.mockImplementationOnce(async () => {
+        embeddingBaggage = otelPropagation.getBaggage(otelContext.active());
+        return { embeddings: [Array(256).fill(0.25)], tokens: 10 };
+      });
+
+      const callerContext = otelContext.with(ROOT_CONTEXT, () =>
+        contextWithLangfuseProps({
+          projectId: "project",
+          orgId: "organization",
+        }),
+      );
+      await otelContext.with(callerContext, async () => {
+        await summarizeOne(
+          topicsModels(),
+          "User asks about an invoice.",
+          topicProcessingConfigSchema.parse({}),
+        );
+        await embedTopicSummaries(
+          topicsModels().embedding,
+          ["An invoice request."],
+          256,
+          "project",
+          undefined,
+          "organization",
+        );
+
+        const activeBaggage = otelPropagation.getBaggage(otelContext.active());
+        expect(activeBaggage?.getEntry("langfuse.org.id")?.value).toBe(
+          "organization",
+        );
+        expect(activeBaggage?.getEntry("langfuse.project.id")?.value).toBe(
+          "project",
+        );
+      });
+
+      expect(summaryBaggage).toBeUndefined();
+      expect(embeddingBaggage).toBeUndefined();
+      expect(state.spanAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.org.id": "organization",
+          "langfuse.topics.stage": "summary",
+        }),
+      );
+      expect(state.spanAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.org.id": "organization",
+          "langfuse.topics.stage": "embedding",
+        }),
+      );
+    } finally {
+      otelContext.disable();
+    }
   });
 
   it("records embedding input usage even when the returned vector is invalid", async () => {
