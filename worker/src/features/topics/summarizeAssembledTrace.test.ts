@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  contextWithLangfuseProps,
   recordDistribution,
   recordIncrement,
   type Transcript,
@@ -14,21 +15,24 @@ const state = vi.hoisted(() => ({
   setAttribute: vi.fn(),
 }));
 
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
-  isInternalEvalEnvironment: (
-    await importOriginal<typeof import("@langfuse/shared/src/server")>()
-  ).isInternalEvalEnvironment,
-  recordDistribution: vi.fn(),
-  recordIncrement: vi.fn(),
-  instrumentAsync: async (
-    _options: unknown,
-    action: (span: {
-      setAttributes: () => void;
-      setAttribute: typeof state.setAttribute;
-    }) => Promise<unknown>,
-  ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
-}));
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...original,
+    contextWithLangfuseProps: vi.fn(original.contextWithLangfuseProps),
+    isInternalEvalEnvironment: original.isInternalEvalEnvironment,
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
+    instrumentAsync: async (
+      _options: unknown,
+      action: (span: {
+        setAttributes: () => void;
+        setAttribute: typeof state.setAttribute;
+      }) => Promise<unknown>,
+    ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
+  };
+});
 vi.mock("./llm/models", () => ({
   TopicInputTooLarge: class extends Error {},
   charsPerToken: () => 4,
@@ -88,6 +92,7 @@ const slot = (name: "summary" | "embedding" | "clustering", model: string) => ({
 });
 const models = {
   projectId: "project-a",
+  orgId: "org-a",
   enabled: true,
   summary: slot("summary", "us.openai.gpt-5.6-luna"),
   embedding: { ...slot("embedding", "eu.cohere.embed-v4:0"), dimensions: 1024 },
@@ -128,6 +133,7 @@ const summarize = async (
 };
 
 beforeEach(() => {
+  vi.mocked(contextWithLangfuseProps).mockClear();
   vi.mocked(recordDistribution).mockClear();
   vi.mocked(recordIncrement).mockClear();
   state.facets.mockReset();
@@ -198,8 +204,13 @@ describe("summarizeAssembledTrace", () => {
       source_environment: "default",
       execution_id: "snapshot",
     };
+    expect(contextWithLangfuseProps).toHaveBeenCalledWith({
+      projectId: "project-a",
+      orgId: "org-a",
+    });
     expect(submitted[4]).toEqual(snapshotMetadata);
     expect(state.embed.mock.calls[0][4]).toEqual(snapshotMetadata);
+    expect(state.embed.mock.calls[0][5]).toBe("org-a");
     const written = summaries[0];
     expect(written).toMatchObject({
       projectId: "project-a",

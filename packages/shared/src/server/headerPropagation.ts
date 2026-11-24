@@ -14,6 +14,7 @@ export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
   userId?: string;
   projectId?: string;
+  orgId?: string;
   apiKeyId?: string;
   clickhouse?: {
     surface: ClickHouseQuerySurface;
@@ -23,7 +24,7 @@ export type LangfuseContextProps = {
 
 /**
  * Returns a new context containing baggage entries composed from
- * the supplied props (headers, userId, projectId). Existing baggage
+ * the supplied props (headers, userId, projectId, orgId). Existing baggage
  * entries are preserved.
  */
 export const contextWithLangfuseProps = (
@@ -107,6 +108,11 @@ export const contextWithLangfuseProps = (
     });
     baggage = baggage.setEntry("langfuse.project.size", {
       value: getProjectSize(props.projectId),
+    });
+  }
+  if (props.orgId) {
+    baggage = baggage.setEntry("langfuse.org.id", {
+      value: props.orgId,
     });
   }
   if (props.apiKeyId) {

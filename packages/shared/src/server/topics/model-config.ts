@@ -38,6 +38,7 @@ export type TopicsModel = {
 /** Resolved models of a project whose three slots are all configured. */
 export type TopicsModels = {
   projectId: string;
+  orgId: string;
   enabled: boolean;
   summary: TopicsModel;
   embedding: TopicsModel & { dimensions: number };
@@ -140,6 +141,7 @@ function resolveModels(
   if (!summary || !embedding || !clustering) return null;
   return {
     projectId: row.projectId,
+    orgId: row.project.orgId,
     enabled: row.enabled,
     summary,
     embedding: { ...embedding, dimensions: row.embeddingDimensions },

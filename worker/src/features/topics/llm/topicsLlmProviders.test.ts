@@ -93,6 +93,8 @@ describe("Topics LLM provider tests", () => {
             summaries.slice(0, 2),
             models.embedding.dimensions,
             models.projectId,
+            undefined,
+            models.orgId,
           );
 
           expect(embeddings).toHaveLength(2);

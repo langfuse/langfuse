@@ -105,6 +105,7 @@ function slot(slot: TopicsModel["slot"], model: string): TopicsModel {
 function topicsModels(summaryModel = "us.openai.gpt-5.6-luna"): TopicsModels {
   return {
     projectId: "project",
+    orgId: "organization",
     enabled: true,
     summary: slot("summary", summaryModel),
     embedding: {
@@ -517,6 +518,7 @@ describe("Topics naming boundary", () => {
       expect(message).toBe("Topics model request failed");
       expect(fields).toMatchObject({
         ...response,
+        "langfuse.org.id": "organization",
         "langfuse.topics.error.reason": reason,
         "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
       });
@@ -578,7 +580,11 @@ describe("Topics naming boundary", () => {
       ),
     ).rejects.toMatchObject({ reason: "invalid_input" });
     const [, fields] = vi.mocked(logger.warn).mock.calls.at(-1)!;
-    expect(fields).toMatchObject({ "http.status_code": 400 });
+    expect(fields).toMatchObject({
+      "langfuse.org.id": "organization",
+      "http.status_code": 400,
+    });
+    expect(state.spanAttributes).toHaveBeenCalledWith(fields);
     expect(JSON.stringify(fields)).not.toMatch(/secret/);
   });
 
@@ -771,6 +777,7 @@ describe("Topics naming boundary", () => {
     });
     expect(state.spanAttributes).toHaveBeenCalledWith(
       expect.objectContaining({
+        "langfuse.org.id": "organization",
         "langfuse.topics.trace_id": "trace",
         "langfuse.topics.rule_ids": ["rule-a", "rule-b"],
       }),
@@ -909,6 +916,7 @@ describe("Topics naming boundary", () => {
     );
     expect(state.spanAttributes).toHaveBeenCalledWith(
       expect.objectContaining({
+        "langfuse.org.id": "organization",
         "langfuse.topics.run_id": "naming-run",
         "langfuse.topics.rule_id": "rule",
       }),
@@ -1259,9 +1267,11 @@ describe("Topics naming boundary", () => {
       256,
       "project",
       { source_trace_id: "trace", execution_id: "snapshot" },
+      "organization",
     );
     expect(state.spanAttributes).toHaveBeenCalledWith(
       expect.objectContaining({
+        "langfuse.org.id": "organization",
         "langfuse.topics.trace_id": "trace",
         "langfuse.topics.execution_id": "snapshot",
       }),
@@ -1276,6 +1286,45 @@ describe("Topics naming boundary", () => {
       projectId: "project",
       model: "eu.cohere.embed-v4:0",
     });
+  });
+
+  it("attaches langfuse.org.id to failed embedding spans and logs, and omits it when absent", async () => {
+    state.embed.mockRejectedValueOnce(
+      Object.assign(new Error("rate limited"), { status: 429 }),
+    );
+    await expect(
+      embedTopicSummaries(
+        topicsModels().embedding,
+        ["An invoice request."],
+        256,
+        "project",
+        { source_trace_id: "trace" },
+        "organization",
+      ),
+    ).rejects.toMatchObject({ reason: "rate_limit" });
+    const [message, failed] = vi.mocked(logger.warn).mock.calls.at(-1)!;
+    expect(message).toBe("Topics model request failed");
+    expect(failed).toMatchObject({
+      "langfuse.org.id": "organization",
+      "langfuse.topics.stage": "embedding",
+      "http.status_code": 429,
+    });
+    expect(state.spanAttributes).toHaveBeenCalledWith(failed);
+
+    state.spanAttributes.mockClear();
+    state.embed.mockResolvedValueOnce({
+      embeddings: [Array(256).fill(0.25)],
+      tokens: 10,
+    });
+    await embedTopicSummaries(
+      topicsModels().embedding,
+      ["An invoice request."],
+      256,
+      "project",
+    );
+    expect(state.spanAttributes).toHaveBeenCalledWith(
+      expect.not.objectContaining({ "langfuse.org.id": expect.anything() }),
+    );
   });
 
   it("records embedding input usage even when the returned vector is invalid", async () => {

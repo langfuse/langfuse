@@ -104,6 +104,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
             projectId,
             {
               projectId,
+              orgId: `org-${projectId}`,
               enabled: true,
               summary: slot("summary", "us.openai.gpt-5.6-luna"),
               embedding: {

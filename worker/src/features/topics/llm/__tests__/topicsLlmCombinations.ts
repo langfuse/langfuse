@@ -119,6 +119,7 @@ export type TopicsLlmCombination = {
 };
 
 const PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const ORG_ID = "topics-llm-provider-test-org";
 
 const env = (name: string) => process.env[name]!;
 
@@ -253,6 +254,7 @@ export function resolveTopicsLlmCombination(
   return {
     models: {
       projectId: PROJECT_ID,
+      orgId: ORG_ID,
       enabled: true,
       summary: slot("summary", combination.summary),
       embedding: {

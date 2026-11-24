@@ -76,6 +76,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
       });
       return {
         projectId: "project",
+        orgId: "org",
         enabled: true,
         summary: slot("summary", "gpt-4.1-nano"),
         embedding: {

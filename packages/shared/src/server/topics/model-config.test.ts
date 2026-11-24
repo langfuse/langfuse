@@ -352,6 +352,7 @@ describe("getEnabledTopicsModels", () => {
       }),
     );
     expect([...models.keys()]).toEqual(["complete"]);
+    expect(models.get("complete")?.orgId).toBe("organization");
     expect(models.get("complete")?.embedding).toMatchObject({
       adapter: LLMAdapter.OpenAI,
       model: "text-embedding-3-small",

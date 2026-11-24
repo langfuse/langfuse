@@ -109,9 +109,10 @@ export async function summarizeAssembledTrace(
 ): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
-  // The baggage tags this trace's spans and logs with its project.
+  // The baggage tags this trace's spans and logs with its project and org.
   const projectContext = contextWithLangfuseProps({
     projectId: input.projectId,
+    orgId: input.models.orgId,
   });
   return otelContext.with(projectContext, () =>
     instrumentAsync(
@@ -241,6 +242,7 @@ async function summarizeEnabledTrace(
             models.embedding.dimensions,
             models.projectId,
             callMetadata(applicable.map(({ base }) => base)),
+            models.orgId,
           ),
         );
       } catch (error) {

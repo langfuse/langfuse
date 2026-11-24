@@ -123,6 +123,7 @@ async function topicModelCall<T>(
   stage: "summary" | "embedding" | "naming",
   model: TopicsModel,
   projectId: string,
+  orgId: string | undefined,
   requestBytes: number,
   metadata: TopicCallMetadata | undefined,
   call: (maxRetries: number) => Promise<T>,
@@ -133,6 +134,7 @@ async function topicModelCall<T>(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
       const fields: Record<string, string | number | string[]> = {
+        ...(orgId && { "langfuse.org.id": orgId }),
         "langfuse.topics.stage": stage,
         "langfuse.topics.model": model.model,
         "langfuse.topics.adapter": model.adapter,
@@ -210,6 +212,7 @@ async function structuredCall<T>(
   stage: "summary" | "naming",
   model: TopicsModel,
   projectId: string,
+  orgId: string | undefined,
   metadata?: TopicCallMetadata,
   traceName = `topics-${stage}`,
   onCost?: (costDetails: Record<string, number>) => void,
@@ -231,6 +234,7 @@ async function structuredCall<T>(
     stage,
     model,
     projectId,
+    orgId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
     metadata,
     (maxRetries) =>
@@ -411,6 +415,7 @@ export async function summarizeTopicTraceFacets(
     "summary",
     models.summary,
     models.projectId,
+    models.orgId,
     {
       ...metadata,
       facets: facets.map(({ key, facet }) => ({
@@ -764,6 +769,7 @@ export async function nameTopicGroup(
     "naming",
     models.clustering,
     models.projectId,
+    models.orgId,
     {
       ...metadata,
       naming_member_count: group.members.length,
@@ -783,6 +789,7 @@ export async function embedTopicSummaries(
   dimensions: number,
   projectId: string,
   metadata?: TopicCallMetadata,
+  orgId?: string,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -798,6 +805,7 @@ export async function embedTopicSummaries(
     "embedding",
     model,
     projectId,
+    orgId,
     llmRequestEgressBytes(summaries),
     metadata,
     () => generateTopicEmbeddings({ model, summaries, dimensions }),
