@@ -20,6 +20,7 @@ pub struct GatewayConfig {
     pub log_level: LevelFilter,
     pub log_format: LogFormat,
     pub telemetry_buffer_bytes: usize,
+    pub telemetry_batch_linger: Duration,
     pub request_limits: RequestLimits,
     pub memory_budget_source: MemoryBudgetSource,
     pub execution_limits: ExecutionLimits,
@@ -153,6 +154,9 @@ impl GatewayConfig {
         config.telemetry_buffer_bytes = telemetry_buffer_bytes(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES")?.as_deref(),
         )?;
+        config.telemetry_batch_linger = telemetry_batch_linger(
+            read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS")?.as_deref(),
+        )?;
         config.telemetry_shutdown_timeout = telemetry_shutdown_timeout(
             read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS")?.as_deref(),
         )?;
@@ -267,6 +271,9 @@ impl GatewayConfig {
             log_level,
             log_format,
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
+            telemetry_batch_linger: Duration::from_millis(
+                crate::telemetry::DEFAULT_BATCH_LINGER_MS,
+            ),
             request_limits: RequestLimits::default(),
             memory_budget_source: MemoryBudgetSource::Default,
             execution_limits: ExecutionLimits::default(),
@@ -504,6 +511,16 @@ fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigErr
     )
 }
 
+fn telemetry_batch_linger(value: Option<&str>) -> Result<Duration, GatewayConfigError> {
+    integer_setting(
+        value,
+        crate::telemetry::DEFAULT_BATCH_LINGER_MS,
+        0..=60_000,
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS must be an integer from 0 to 60000",
+    )
+    .map(Duration::from_millis)
+}
+
 /// The current name wins; the deprecated name keeps released deployments working.
 fn connection_drain_timeout_value(
     current: Option<String>,
@@ -692,6 +709,7 @@ mod tests {
         assert_eq!(default.log_level, LevelFilter::INFO);
         assert_eq!(default.log_format, LogFormat::Text);
         assert_eq!(default.telemetry_buffer_bytes, 64 * 1024 * 1024);
+        assert_eq!(default.telemetry_batch_linger, Duration::from_millis(5_000));
         let custom = GatewayConfig::from_values(
             Some("[::1]:9000"),
             Some("true"),
@@ -1018,6 +1036,34 @@ mod tests {
             assert_eq!(
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300"
+            );
+        }
+    }
+
+    #[test]
+    fn telemetry_batch_linger_is_read_in_milliseconds_within_bounds() {
+        assert_eq!(
+            telemetry_batch_linger(None).unwrap(),
+            Duration::from_millis(5_000)
+        );
+        for value in [0, 10, 5_000, 60_000] {
+            assert_eq!(
+                telemetry_batch_linger(Some(&value.to_string())).unwrap(),
+                Duration::from_millis(value)
+            );
+        }
+        for value in [
+            "",
+            "-1",
+            "60001",
+            "1.5",
+            "5s",
+            "secret-that-must-not-appear",
+        ] {
+            let error = telemetry_batch_linger(Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS must be an integer from 0 to 60000"
             );
         }
     }

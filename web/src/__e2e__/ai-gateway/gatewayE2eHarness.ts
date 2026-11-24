@@ -49,6 +49,7 @@ const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
 export const TEST_TIMEOUT_MS = 120_000;
 export const COMPLETION_TIMEOUT_MS = 180_000;
+export const POLL_INTERVAL_MS = 200;
 
 // Chat completions has no separate models route; the OpenAI route lists the
 // responses catalog.
@@ -493,7 +494,7 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
       });
     },
     90_000,
-    1_000,
+    POLL_INTERVAL_MS,
   );
   return { traceId: traceId!, observationId: observationId! };
 }
@@ -654,7 +655,7 @@ export async function ingestTrace(
       ]);
     },
     40_000,
-    1_000,
+    POLL_INTERVAL_MS,
   );
 
   return { traceId, observationId };
@@ -1078,6 +1079,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS: "10",
       LANGFUSE_AI_GATEWAY_REDIS_URL: gatewayRedisUrl(),
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",

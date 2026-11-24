@@ -3,16 +3,17 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { TestModelMatchDialog } from "./TestModelMatchDialog";
 import { FlaskConical } from "@langfuse/icons";
 import { type ButtonProps } from "@/src/components/ui/button";
+import { type ModelOwner } from "@/src/features/models/modelOwner";
 
 type TestModelMatchButtonProps = {
-  projectId: string;
+  owner: ModelOwner;
   variant?: ButtonProps["variant"];
 };
 
 export type { TestModelMatchButtonProps };
 
 export function TestModelMatchButton({
-  projectId,
+  owner,
   variant,
 }: TestModelMatchButtonProps) {
   const [open, setOpen] = useState(false);
@@ -28,11 +29,7 @@ export function TestModelMatchButton({
         Test Model Match
       </ActionButton>
 
-      <TestModelMatchDialog
-        projectId={projectId}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      <TestModelMatchDialog owner={owner} open={open} onOpenChange={setOpen} />
     </>
   );
 }

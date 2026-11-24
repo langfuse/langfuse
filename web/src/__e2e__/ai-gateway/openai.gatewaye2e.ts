@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getObservationByIdFromEventsTable } from "@langfuse/shared/src/server";
+import waitForExpect from "wait-for-expect";
 
 import { GatewayResolveResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import {
@@ -16,6 +17,7 @@ import {
   listGatewayModelIds,
   ORGANIZATION_ID,
   missingLocalEnv,
+  POLL_INTERVAL_MS,
   requiredEnv,
   setUpGatewayE2e,
   TEST_TIMEOUT_MS,
@@ -164,23 +166,31 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
             providerModel: model,
           });
 
-          const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${secretKey}`,
-              "Content-Type": "application/json",
+          // Spend counting runs asynchronously in Redis after the response, so
+          // retry briefly in case fast ingestion outruns the counter write.
+          await waitForExpect(
+            async () => {
+              const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${secretKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+              });
+              expect(response.headers.get("retry-after")).toBeNull();
+              await expectGatewayError(response, 429, {
+                error: {
+                  message: expect.stringContaining("total budget"),
+                  type: "insufficient_quota",
+                  param: null,
+                  code: "spend_limit_exceeded",
+                },
+              });
             },
-            body: JSON.stringify(body),
-          });
-          expect(response.headers.get("retry-after")).toBeNull();
-          await expectGatewayError(response, 429, {
-            error: {
-              message: expect.stringContaining("total budget"),
-              type: "insufficient_quota",
-              param: null,
-              code: "spend_limit_exceeded",
-            },
-          });
+            10_000,
+            POLL_INTERVAL_MS,
+          );
         },
         {
           spendLimit: {
@@ -289,19 +299,25 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
               body,
               providerModel: model,
             });
-            const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${first.secretKey}`,
-                "Content-Type": "application/json",
+            await waitForExpect(
+              async () => {
+                const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${first.secretKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(body),
+                });
+                await expectGatewayError(rejected, 429, {
+                  error: expect.objectContaining({
+                    code: "spend_limit_exceeded",
+                  }),
+                });
               },
-              body: JSON.stringify(body),
-            });
-            await expectGatewayError(rejected, 429, {
-              error: expect.objectContaining({
-                code: "spend_limit_exceeded",
-              }),
-            });
+              10_000,
+              POLL_INTERVAL_MS,
+            );
 
             // The first key spent the default, but the second has its own count.
             await completeAndExpectIngested({

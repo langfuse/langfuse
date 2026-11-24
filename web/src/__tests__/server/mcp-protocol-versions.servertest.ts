@@ -69,6 +69,7 @@ describe("MCP protocol versions", () => {
         expect(client.getNegotiatedProtocolVersion()).toBe(version);
         expect(client.getServerCapabilities()?.extensions).toEqual({
           "io.modelcontextprotocol/skills": {},
+          "io.modelcontextprotocol/ui": {},
         });
 
         const { tools } = await client.listTools();
@@ -90,6 +91,56 @@ describe("MCP protocol versions", () => {
         for (const contentType of contentTypes) {
           expect(contentType).toContain("application/json");
         }
+      } finally {
+        await client.close();
+      }
+    },
+  );
+
+  it.each([
+    {
+      case: "a 2026-07-28 client that renders MCP Apps",
+      negotiation: { mode: { pin: "2026-07-28" } },
+      rendersApps: true,
+      listed: true,
+    },
+    {
+      case: "a 2026-07-28 client without MCP Apps support",
+      negotiation: { mode: { pin: "2026-07-28" } },
+      rendersApps: false,
+      listed: false,
+    },
+    {
+      // Its capabilities stay with `initialize`, so tools/list cannot tell.
+      case: "a 2025-era client",
+      negotiation: undefined,
+      rendersApps: false,
+      listed: true,
+    },
+  ] as const)(
+    "lists app tools to $case: $listed",
+    async ({ negotiation, rendersApps, listed }) => {
+      const client = new Client(
+        { name: "protocol-versions-test", version: "1.0.0" },
+        {
+          ...(negotiation && { versionNegotiation: negotiation }),
+          ...(rendersApps && {
+            capabilities: {
+              extensions: {
+                "io.modelcontextprotocol/ui": {
+                  mimeTypes: ["text/html;profile=mcp-app"],
+                },
+              },
+            },
+          }),
+        },
+      );
+      await client.connect(new StreamableHTTPClientTransport(url));
+      try {
+        const { tools } = await client.listTools();
+        const names = tools.map((tool) => tool.name);
+        expect(names).toContain("listPrompts");
+        expect(names.includes("renderWidget")).toBe(listed);
       } finally {
         await client.close();
       }

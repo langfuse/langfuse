@@ -3,6 +3,7 @@ import { createMailTransport } from "../transport";
 // import { UsageThresholdUpcomingEnforcementEmailTemplate } from "./UsageThresholdUpcomingEnforcementEmailTemplate";
 import { UsageThresholdSuspensionEmailTemplate } from "./UsageThresholdSuspensionEmailTemplate";
 import { logger } from "../../../logger";
+import { type UsageThresholdPlan } from "../usageThresholdPlan";
 import { z } from "zod";
 
 export interface UsageThresholdSuspensionEmailProps {
@@ -21,6 +22,7 @@ export interface UsageThresholdSuspensionEmailProps {
   billingUrl: string;
   receiverEmail: string;
   resetDate: string; // ISO date string for when usage resets
+  plan?: UsageThresholdPlan;
 }
 
 export const sendUsageThresholdSuspensionEmail = async ({
@@ -31,6 +33,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
   billingUrl,
   receiverEmail,
   resetDate,
+  plan = "free-tier",
 }: UsageThresholdSuspensionEmailProps) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
@@ -52,6 +55,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
         billingUrl,
         receiverEmail,
         resetDate,
+        plan,
       }),
     );
 

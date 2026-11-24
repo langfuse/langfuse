@@ -97,6 +97,7 @@ export function CreateRuleDialog({
       initialEvaluator={resolvedInitialEvaluator}
       initialDraft={initialDraft}
       initialFilter={initialFilter}
+      initialTargetObject={initialRule?.targetObject}
       targetObject={targetObject}
       evaluatorSearch={evaluatorSearch}
       successNotification={successNotification}

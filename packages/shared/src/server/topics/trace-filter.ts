@@ -1,7 +1,6 @@
 import { type FilterState } from "../../types";
 import { isTopicFilter, TOPICS_MAX_TIME_RANGE_MS } from "../../topics";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
-import { isTopicsProjectEnabled } from "./config";
 import {
   currentTopicTraceIdsCondition,
   TRACE_START_SLACK_MS,
@@ -45,8 +44,6 @@ export async function topicFilterConditions(
 ) {
   const topicFilters = filter.filter(isTopicFilter);
   if (topicFilters.length === 0) return [];
-  if (!isTopicsProjectEnabled(projectId))
-    throw new InvalidRequestError("Topic filters are not available.");
 
   const timeRange = topicTimeRange(filter);
   // Non-overlapping date filters match no trace, so skip the lookup.

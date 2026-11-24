@@ -89,6 +89,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  renderWidget: "Charting metrics",
   runBatchEvaluation: "Running batch evaluation",
   setDefaultEvaluationModel: "Setting default evaluation model",
   submitFeedback: "Submitting user feedback",

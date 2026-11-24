@@ -24,7 +24,7 @@ import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
   const { roots, nodeMap } = useTraceData();
-  const { selectedNodeId, collapsedNodes } = useSelection();
+  const { selectedNodeId, collapsedNodes, selectionLocked } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
   // worse than no toggle.
@@ -104,7 +104,7 @@ export function TraceTimelineCompact() {
           compress={false}
           showReadout={false}
           selectedId={selectedNodeId}
-          onSelect={selectNode}
+          onSelect={selectionLocked ? undefined : selectNode}
           onHover={handleHoverNode}
           metricsOf={metricsOf}
           showDuration={showDuration}

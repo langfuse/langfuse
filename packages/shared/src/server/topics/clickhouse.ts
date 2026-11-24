@@ -19,6 +19,7 @@ import type {
   TopicTimeRange,
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
+import { Decimal } from "decimal.js";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -138,6 +139,11 @@ async function insertTopicRows<T extends { projectId: string }>(
   await flush();
 }
 
+const numberMap = (values: Record<string, number | string>) =>
+  Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, Number(value)]),
+  );
+
 export async function getTopicDefinitions(
   projectId: string,
   topicVersionIds: string[],
@@ -148,10 +154,11 @@ export async function getTopicDefinitions(
     const rows = await queryClickhouse<
       Omit<
         TopicDefinition,
-        "createdAt" | "metadata" | "representativeSummaries"
+        "createdAt" | "metadata" | "representativeSummaries" | "costDetails"
       > & {
         createdAtMs: string;
         metadataJson: string;
+        costDetails: Record<string, string | number>;
         representativeSummaries: {
           facet_id: string;
           facet_version: number;
@@ -164,7 +171,7 @@ export async function getTopicDefinitions(
         stable_id AS topicId, created_by_run_id AS createdByRunId,
         toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
         centroid, radius, labels, representative_summaries AS representativeSummaries,
-        metadata AS metadataJson
+        metadata AS metadataJson, cost_details AS costDetails
         FROM topics
         WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
           AND created_at >= {from:DateTime64(3)} AND created_at < {to:DateTime64(3)}
@@ -173,8 +180,11 @@ export async function getTopicDefinitions(
       tags: { route: "topics-definitions", projectId },
     });
     definitions.push(
-      ...rows.map(({ createdAtMs, metadataJson, ...row }) => ({
+      ...rows.map(({ createdAtMs, metadataJson, costDetails, ...row }) => ({
         ...row,
+        ...(Object.keys(costDetails).length > 0 && {
+          costDetails: numberMap(costDetails),
+        }),
         createdAt: new Date(Number(createdAtMs)).toISOString(),
         representativeSummaries: row.representativeSummaries.map((source) => ({
           facetId: source.facet_id,
@@ -209,6 +219,22 @@ export async function getTopicNames(
       })),
     );
   return names;
+}
+
+/** Keep prices representable by ClickHouse Decimal(18,12) at its stored precision. */
+export function normalizeTopicDefinitionCosts(
+  details: TopicDefinition["costDetails"],
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(details ?? {})
+      .filter(
+        ([, cost]) => Number.isFinite(cost) && cost >= 0 && cost < 1_000_000,
+      )
+      .map(([key, cost]) => [
+        key,
+        new Decimal(cost).toDecimalPlaces(12).toNumber(),
+      ]),
+  );
 }
 
 /** RowBinary column order matches the explicit definition INSERT below. */
@@ -261,6 +287,14 @@ function encodeTopicDefinition(row: TopicDefinition): Buffer {
     string(source.traceId === null ? source.sessionId! : "");
   }
   string(JSON.stringify(row.metadata));
+  const costs = Object.entries(normalizeTopicDefinitionCosts(row.costDetails));
+  length(costs.length);
+  for (const [key, cost] of costs) {
+    string(key);
+    const scaled = Buffer.allocUnsafe(8);
+    scaled.writeBigInt64LE(BigInt(new Decimal(cost).mul(1e12).toFixed(0)));
+    parts.push(scaled);
+  }
   return Buffer.concat(parts);
 }
 
@@ -289,7 +323,7 @@ export async function writeTopicDefinitions(
     const result = await clickhouseClient().exec({
       query: `INSERT INTO topics (project_id, id, stable_id, created_by_run_id,
         created_at, name, description, centroid, radius, labels,
-        representative_summaries, metadata) FORMAT RowBinary`,
+        representative_summaries, metadata, cost_details) FORMAT RowBinary`,
       values: Readable.from(values),
       clickhouse_settings: {
         async_insert: 1,
@@ -341,10 +375,6 @@ type SummaryRow = Omit<
   processedAtMs: string;
   executionId: string;
 };
-const numberMap = (values: Record<string, number>) =>
-  Object.fromEntries(
-    Object.entries(values).map(([key, value]) => [key, Number(value)]),
-  );
 function summarySourceAndTimestamps(
   row: Pick<
     SummaryRow,
@@ -797,32 +827,79 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate totals; retry and replacement rows can overcount until background merges. */
-export async function getTopicExecutionCosts(
+/** Estimates sum the stored rows. A retried insert can count twice until ClickHouse merges it. */
+async function readTopicCosts(
+  projectId: string,
+  ids: string[],
+  route: string,
+  query: string,
+): Promise<Record<string, number>> {
+  const costs: Record<string, number> = {};
+  try {
+    for (const batch of chunk([...new Set(ids)], LOOKUP_BATCH_SIZE)) {
+      const rows = await queryClickhouse<{ id: string; cost: string }>({
+        query,
+        params: { projectId, ids: batch },
+        preferredClickhouseService: "EventsReadOnly",
+        clickhouseSettings: { max_threads: 2, max_execution_time: 30 },
+        tags: { route, projectId },
+      });
+      for (const row of rows) costs[row.id] = Number(row.cost);
+    }
+  } catch (error) {
+    traceException(error);
+    logger.warn("Failed to estimate Topics costs", { projectId, route, error });
+  }
+  return costs;
+}
+
+export function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
-): Promise<Record<string, number>> {
-  if (executionIds.length === 0) return {};
-  const rows = await queryClickhouse<{ executionId: string; cost: string }>({
-    query: `SELECT execution_id AS executionId,
-        sum(cost_details['total']) AS cost
-      FROM topic_facet_summaries
-      WHERE project_id = {projectId:String}
-        AND execution_id IN {executionIds:Array(String)}
-        AND mapContains(cost_details, 'total')
-      GROUP BY execution_id`,
-    params: { projectId, executionIds },
-    tags: { route: "topics-execution-costs", projectId },
-  }).catch((error: unknown) => {
-    traceException(error);
-    logger.warn("Failed to estimate Topics execution costs", {
-      projectId,
-      error,
-    });
-    return [];
-  });
-  return Object.fromEntries(
-    rows.map((row) => [row.executionId, Number(row.cost)]),
+) {
+  return readTopicCosts(
+    projectId,
+    executionIds,
+    "topics-execution-costs",
+    `
+    SELECT execution_id AS id, sum(total_cost) AS cost
+    FROM topic_facet_summaries
+    WHERE project_id = {projectId:String} AND execution_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY execution_id`,
+  );
+}
+
+export function getTopicRuleProcessingCosts(
+  projectId: string,
+  ruleIds: string[],
+) {
+  return readTopicCosts(
+    projectId,
+    ruleIds,
+    "topics-rule-processing-cost",
+    `
+    WITH arrayDistinct(rule_ids) AS owners
+    SELECT arrayJoin(owners) AS id, sum(total_cost / greatest(length(owners), 1)) AS cost
+    FROM topic_facet_summaries
+    PREWHERE project_id = {projectId:String} AND empty(execution_id) AND hasAny(rule_ids, {ids:Array(String)})
+    WHERE id IN {ids:Array(String)} AND mapContains(cost_details, 'total')
+    GROUP BY id`,
+  );
+}
+
+/** Reusing a topic version leaves its naming cost with the run that created it. */
+export function getTopicRunNamingCosts(projectId: string, runIds: string[]) {
+  return readTopicCosts(
+    projectId,
+    runIds,
+    "topics-run-naming-costs",
+    `
+    SELECT created_by_run_id AS id, sum(cost_details['total']) AS cost
+    FROM topics
+    WHERE project_id = {projectId:String} AND created_by_run_id IN {ids:Array(String)}
+      AND mapContains(cost_details, 'total')
+    GROUP BY created_by_run_id`,
   );
 }
 

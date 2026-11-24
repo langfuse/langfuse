@@ -160,8 +160,11 @@ impl InferenceService {
         if config.request_limits.memory_budget_bytes > Semaphore::MAX_PERMITS {
             return Err(ResolutionError::Configuration);
         }
-        let telemetry =
-            crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
+        let telemetry = crate::telemetry::Telemetry::new(
+            &control_plane,
+            config.telemetry_buffer_bytes,
+            config.telemetry_batch_linger,
+        )?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         let control_plane = Arc::new(ControlPlaneClient::new(control_plane)?);
         Ok(Self {

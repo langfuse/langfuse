@@ -171,13 +171,17 @@ describe("MCP public API tools", () => {
     );
   });
 
-  it("exposes the same feature-enabled tools for in-app agent keys", async () => {
+  it("exposes the same feature-enabled tools for in-app agent keys, except MCP Apps", async () => {
     const toolNames = await getToolNames();
     const inAppToolNames = await getToolNames(
       mockServerContext({ inAppAgent: { permissions: "read" } }),
     );
 
-    expect(inAppToolNames.sort()).toEqual(toolNames.sort());
+    // The in-app agent renders no MCP Apps, so the apps feature is off for it.
+    expect(toolNames).toContain("renderWidget");
+    expect(inAppToolNames.sort()).toEqual(
+      toolNames.filter((name) => name !== "renderWidget").sort(),
+    );
   });
 
   it("does not resolve mutating tools for in-app agent keys without a run override", async () => {

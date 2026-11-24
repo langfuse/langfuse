@@ -12,7 +12,9 @@ import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/Gatew
 import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
 import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
 import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import {
   type GatewayBudgetRow,
   GatewayBudgetsTable,
@@ -47,6 +49,8 @@ export function ConnectedGatewayBudgetsTable({
 }: ConnectedGatewayBudgetsTableProps) {
   const { subject } = GATEWAY_SPEND_TABS[tab];
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
   const { budgets, selectionStore, selectedRows, selectAll, clearSelection } =
     table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
@@ -93,6 +97,7 @@ export function ConnectedGatewayBudgetsTable({
               <GatewayBudgetsTable
                 tab={tab}
                 data={toTableData(budgets)}
+                ingestionProjectId={ingestionProjectId}
                 onRowClick={handleRowClick}
                 selectColumn={{ ...selectActionColumn, enableResizing: false }}
                 multiSelect={{

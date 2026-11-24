@@ -15,7 +15,7 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Topics is gated per user (feature preview) on top of `topics:read`.
+  // Topics visibility from canViewTopics (`topics:read`).
   topicsAvailable?: boolean;
 };
 
@@ -253,6 +253,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "project:read" },
   },
   getMetricsSchema: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
+  renderWidget: {
     approval: "auto",
     availability: { scope: "project:read" },
   },

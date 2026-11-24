@@ -32,6 +32,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useViewPreferences } from "./ViewPreferencesProvider";
+import { useTracePresentation } from "./TracePresentationProvider";
 import { type MobileTraceTab } from "../components/TraceLayoutMobile";
 import {
   isPrettyLikeJsonView,
@@ -49,6 +50,7 @@ const VALID_PREFS: ViewPref[] = ["formatted", "json"];
 interface SelectionContextValue {
   defaultObservationId: string | null;
   selectedNodeId: string | null;
+  selectionLocked: boolean;
   setSelectedNodeId: (id: string | null) => void;
   selectNode: (id: string | null) => void;
   openDetails: () => void;
@@ -99,6 +101,8 @@ export function SelectionProvider({
   isMobile,
   expandDetailOnMount,
 }: SelectionProviderProps) {
+  // An observation sample keeps its URL selection; tree, timeline and graph clicks do not change it.
+  const selectionLocked = useTracePresentation().presentation === "observation";
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
@@ -154,19 +158,21 @@ export function SelectionProvider({
   }, [isMobile, setMobileTab, detailPanelCollapsed]);
   const selectNode = useCallback(
     (id: string | null) => {
+      if (selectionLocked) return;
       pendingObservationId.current = id;
       setCurrentObservationId(id);
       openDetails();
     },
-    [setCurrentObservationId, openDetails],
+    [selectionLocked, setCurrentObservationId, openDetails],
   );
   const setSelectedNodeId = useCallback(
     (id: string | null) => {
+      if (selectionLocked) return;
       // Synthetic graph nodes intentionally change selection without opening details.
       pendingObservationId.current = id;
       setCurrentObservationId(id);
     },
-    [setCurrentObservationId],
+    [selectionLocked, setCurrentObservationId],
   );
 
   // History navigation bypasses selectNode. Watch only the explicit URL
@@ -276,6 +282,7 @@ export function SelectionProvider({
     () => ({
       defaultObservationId,
       selectedNodeId: currentObservationId ?? defaultObservationId,
+      selectionLocked,
       setSelectedNodeId,
       selectNode,
       openDetails,
@@ -303,6 +310,7 @@ export function SelectionProvider({
     [
       currentObservationId,
       defaultObservationId,
+      selectionLocked,
       setSelectedNodeId,
       selectNode,
       openDetails,

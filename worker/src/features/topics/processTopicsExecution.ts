@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   getCurrentSpan,
@@ -6,7 +7,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  isTopicsEnabled,
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
@@ -37,11 +37,16 @@ import {
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicTimeRange,
+  reportedTopicSummaryState,
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
 import { prisma } from "@langfuse/shared/src/db";
-import { nameTopicGroup, prepareTopicNamingGroup } from "./models";
+import {
+  nameTopicGroup,
+  prepareTopicNamingGroup,
+  type NamingConflict,
+} from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -120,7 +125,7 @@ function countSummaries(
     (row) => row.state === "not_applicable",
   ).length;
   progress.counts.insufficientInput = summaries.filter(
-    (row) => row.state === "insufficient_input",
+    (row) => reportedTopicSummaryState(row.state) === "insufficient_input",
   ).length;
 }
 
@@ -466,6 +471,7 @@ async function clusterFacet(
         topics.push(retained);
         continue;
       }
+      const costDetails: Record<string, number> = {};
       const label = await instrumentAsync(
         { name: "topics.naming", traceScope: "topics" },
         (span) => {
@@ -504,6 +510,13 @@ async function clusterFacet(
                 effective_member_count: group.count,
                 selected_member_count: prepared.members.length,
               },
+              (attemptCost) => {
+                for (const [key, value] of Object.entries(attemptCost))
+                  costDetails[key] = Decimal.add(
+                    costDetails[key] ?? 0,
+                    value,
+                  ).toNumber();
+              },
             );
             return {
               ...label,
@@ -538,6 +551,7 @@ async function clusterFacet(
         projectId: scope.projectId,
         createdByRunId: run.id,
         createdAt: run.createdAt,
+        costDetails,
         labels: [],
         name: label?.name ?? `Unnamed topic ${topics.length + 1}`,
         description:
@@ -594,10 +608,7 @@ async function clusterFacet(
   }
 }
 
-type NamedTopics = Map<
-  string,
-  { name: string; description: string; summaries: string[] }
->;
+type NamedTopics = Map<string, NamingConflict>;
 
 /** Groups are named independently, so a name taken in the run gets one conflict-aware retry. */
 async function nameGroupAvoidingConflicts(
@@ -605,15 +616,17 @@ async function nameGroupAvoidingConflicts(
   models: TopicsModels,
   named: NamedTopics,
   group: Parameters<typeof nameTopicGroup>[1],
-  metadata: Record<string, unknown>,
+  metadata: Record<string, unknown> & { run_id: string },
+  onCost: (costDetails: Record<string, number>) => void,
 ) {
-  // TODO: Persist naming usage and costs, including conflict retries, with the run.
-  let { output: label } = await nameTopicGroup(models, group, metadata);
+  const nameGroup = (conflict?: NamingConflict) =>
+    nameTopicGroup(models, group, metadata, conflict, onCost);
+  let { output: label } = await nameGroup();
   const conflict = named.get(label.name.toLowerCase());
   if (conflict) {
     metrics.result("naming", "name_conflict");
     // The first name is valid, so a failed rename keeps it.
-    label = await nameTopicGroup(models, group, metadata, conflict).then(
+    label = await nameGroup(conflict).then(
       ({ output }) => output,
       (error: unknown) => {
         metrics.error("naming", error);
@@ -832,7 +845,6 @@ export async function processTopicUpdateExecution({
   projectId: string;
   executionId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
   if (metadata.input.operation !== "update")
@@ -994,7 +1006,6 @@ export async function processTopicRuleRefit({
   projectId: string;
   runId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const run = await getTopicRun(projectId, runId);
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
   if (run.status === "running") {
@@ -1010,6 +1021,8 @@ export async function processTopicRuleRefit({
   if (run.status !== "pending") return;
   const ruleId = run.ruleId;
   const metrics = new TopicMetrics();
+  const startedAt = performance.now();
+  let failure: unknown;
   const progress: TopicFacetProgress = {
     facetId: run.facetId,
     facetVersion: run.facetVersion,
@@ -1087,6 +1100,7 @@ export async function processTopicRuleRefit({
         );
       } catch (error) {
         progress.outcome = "failed";
+        failure = error;
         metrics.error("execution", error);
         if (isRejectedConnection(error))
           await pauseForRejectedConnection(projectId, error);
@@ -1114,5 +1128,11 @@ export async function processTopicRuleRefit({
       }
       span.setAttribute("langfuse.topics.facet_outcome", progress.outcome);
     },
+  );
+  metrics.ruleFit(
+    progress.outcome,
+    run.config.refresh === true ? "manual" : "automatic",
+    performance.now() - startedAt,
+    failure,
   );
 }
