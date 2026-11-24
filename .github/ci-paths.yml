@@ -59,8 +59,9 @@ ai_gateway:
   - web/src/features/ai-gateway/**
   - web/src/features/public-api/server/**
   - web/src/features/auth/policy/**
-  - web/src/features/rbac/{authorize,types}.ts
-  - web/src/features/rbac/utils/checkOrganizationAccess.ts
+  - web/src/features/rbac/{authorize,getRolesForPrincipal,types}.ts
+  - web/src/features/rbac/{constants,server,utils}/**
+  - web/src/features/audit-logs/**
   - web/src/features/entitlements/server/**
   - web/src/pages/api/internal/ai-gateway/**
   - web/src/pages/api/public/ingestion.ts
