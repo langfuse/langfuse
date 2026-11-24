@@ -119,6 +119,9 @@
 /web/src/ee/features/billing/server/ @jordibosch20 @Steffen911
 /web/src/app/api/billing/ @jordibosch20 @Steffen911
 
+# Support access (grants support staff access to customer organizations)
+/web/src/ee/features/support-access/ @jordibosch20 @Steffen911
+
 # SSO
 /web/src/ee/features/multi-tenant-sso/ @jordibosch20 @Steffen911 @marksalpeter
 
