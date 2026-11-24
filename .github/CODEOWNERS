@@ -37,6 +37,8 @@
 # Security-sensitive paths (GitHub hardening)
 #
 # Last matching pattern wins, so keep narrower rules after broader ones.
+# query-ast/tenancy.ts is listed after /packages/shared/src/server/query-ast/
+# so it overrides that rule for this one file.
 # There is intentionally no global `*` owner: review is required only for the
 # paths below. A line with several owners is satisfied by any one of them.
 #
@@ -50,10 +52,7 @@
 # CI pipeline scripts
 /scripts/ci/ @Steffen911 @hassiebp @nimarb @maxdeichmann
 
-# Public API routes
-/web/src/pages/api/public/ @Steffen911 @hassiebp @nimarb
-
-# Ingestion API (declared after /web/src/pages/api/public/ so it takes precedence)
+# Ingestion API
 /web/src/pages/api/public/ingestion.ts @sumerman @Steffen911
 /web/src/pages/api/public/otel/ @sumerman @Steffen911
 /packages/shared/src/server/ingestion/ @sumerman @Steffen911
@@ -68,11 +67,7 @@
 
 # RBAC and entitlements
 /packages/shared/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
-/web/src/features/rbac/authorize.ts @marksalpeter @jordibosch20 @Steffen911
-/web/src/features/rbac/getRolesForPrincipal.ts @marksalpeter @jordibosch20 @Steffen911
-/web/src/features/rbac/types.ts @marksalpeter @jordibosch20 @Steffen911
-/web/src/features/rbac/server/ @marksalpeter @jordibosch20 @Steffen911
-/web/src/features/rbac/utils/ @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
 /web/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
 /packages/shared/src/features/entitlements/ @marksalpeter @jordibosch20 @Steffen911
 /packages/shared/src/server/entitlements/ @marksalpeter @jordibosch20 @Steffen911
@@ -132,11 +127,11 @@
 /web/src/pages/api/internal/ @Steffen911 @hassiebp @nimarb
 /web/src/ee/features/admin-api/ @Steffen911 @hassiebp @nimarb
 
-# Query builder: code that applies the project_id (tenant isolation) filter
+# Query builder: code that applies the project_id (tenant isolation) filter.
+# tenancy.ts is narrower than /packages/shared/src/server/query-ast/ above, so it wins for this file.
 /packages/shared/src/features/query/server/queryBuilder.ts @niklassemmler
 /packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler
-# Declared after /packages/shared/src/server/query-ast/ (same owner) so the order stays explicit
-/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler
+/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @Steffen911 @sumerman
 
 # Dockerfiles and root docker-compose files
 **/Dockerfile @Steffen911 @hassiebp @nimarb
