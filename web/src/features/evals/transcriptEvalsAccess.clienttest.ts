@@ -40,12 +40,6 @@ describe("canViewTraceTranscriptsEvals", () => {
       false,
     ],
     [
-      "a project that is only on the Topics list",
-      { traceTranscriptEvals: true },
-      { topicsEnabled: true },
-      false,
-    ],
-    [
       "internal view on an unlisted project",
       { email: "member@clickhouse.com" },
       { traceEvalsEnabled: false },

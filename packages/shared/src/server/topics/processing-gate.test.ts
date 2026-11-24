@@ -6,12 +6,12 @@ import {
 } from "./processing-gate";
 
 const mocks = vi.hoisted(() => ({
-  allowlisted: vi.fn(),
+  enabled: vi.fn(),
   configFind: vi.fn(),
   ruleFind: vi.fn(),
   redis: { get: vi.fn(), set: vi.fn(), del: vi.fn() },
 }));
-vi.mock("./config", () => ({ isTopicsProjectEnabled: mocks.allowlisted }));
+vi.mock("./config", () => ({ isTopicsEnabled: mocks.enabled }));
 vi.mock("../redis/redis", () => ({ redis: mocks.redis }));
 vi.mock("../../db", () => ({
   JobConfigState: { ACTIVE: "ACTIVE" },
@@ -26,14 +26,14 @@ const key = "langfuse:topics:processing-active:project-a";
 describe("isTopicsProcessingActive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.allowlisted.mockReturnValue(true);
+    mocks.enabled.mockReturnValue(true);
     mocks.redis.get.mockResolvedValue(null);
     mocks.configFind.mockResolvedValue({ id: "config-a" });
     mocks.ruleFind.mockResolvedValue([{ id: "rule-a", sampling: 1 }]);
   });
 
-  it("skips Redis and Postgres for projects outside the allowlist", async () => {
-    mocks.allowlisted.mockReturnValue(false);
+  it("skips Redis and Postgres when Topics is off for the deployment", async () => {
+    mocks.enabled.mockReturnValue(false);
 
     await expect(isTopicsProcessingActive("project-a")).resolves.toBe(false);
     expect(mocks.redis.get).not.toHaveBeenCalled();
@@ -97,13 +97,13 @@ describe("isTopicsProcessingActive", () => {
     expect(mocks.ruleFind).toHaveBeenCalledTimes(1);
   });
 
-  it("propagates a Postgres error and caches the allowlist answer briefly", async () => {
+  it("propagates a Postgres error and briefly caches that nothing is admitted", async () => {
     mocks.ruleFind.mockRejectedValue(new Error("postgres down"));
 
     await expect(isTopicsProcessingActive("project-a")).rejects.toThrow(
       "postgres down",
     );
-    expect(mocks.redis.set).toHaveBeenCalledWith(key, "1", "EX", 30);
+    expect(mocks.redis.set).toHaveBeenCalledWith(key, "0", "EX", 30);
   });
 
   it("stops waiting on a hung Postgres lookup after the deadline", async () => {
@@ -115,7 +115,7 @@ describe("isTopicsProcessingActive", () => {
 
       await vi.advanceTimersByTimeAsync(2_000);
       await assertion;
-      expect(mocks.redis.set).toHaveBeenCalledWith(key, "1", "EX", 30);
+      expect(mocks.redis.set).toHaveBeenCalledWith(key, "0", "EX", 30);
     } finally {
       vi.useRealTimers();
     }

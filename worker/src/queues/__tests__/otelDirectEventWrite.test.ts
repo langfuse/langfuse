@@ -30,7 +30,6 @@ import {
 import {
   getTopicsProcessingSampling,
   isTopicsProcessingActive,
-  isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
 import { recordTraceActivity } from "../../features/traceDispatch/traceRuleRecording";
@@ -441,7 +440,6 @@ vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   isTopicsEnabled: vi.fn().mockReturnValue(false),
-  isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
   isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
   getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
@@ -508,7 +506,6 @@ describe("trace-rule recording at the evaluation stage", () => {
     }) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
       vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
       vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
         topicsEnabled ? 1 : 0,
@@ -675,7 +672,6 @@ describe("trace-rule recording at the evaluation stage", () => {
         });
       } finally {
         Object.assign(env, original);
-        vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
         vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
         vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(false);
