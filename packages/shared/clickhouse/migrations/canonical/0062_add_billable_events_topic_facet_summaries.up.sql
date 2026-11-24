@@ -3,12 +3,13 @@
 -- allow [a-zA-Z0-9_-] and trace ids are client-chosen, so event_id is
 -- '<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>',
 -- with session_id only for session summaries, as in the table's sorting key.
--- Only complete and not_applicable summaries are usage, matching the
--- self-hosted telemetry count
--- (getTopicFacetSummaryCountsByProjectInCreationInterval). insufficient_input
--- and states added later are not billed until listed here. Rows created
--- more than 48 hours ago are re-inserts, not new usage. The ledger starts
--- filling when this migration runs, and earlier summaries are not backfilled.
+-- Every summary is usage except those written without a model call
+-- (empty_input, input_too_large), matching the self-hosted telemetry count
+-- (getTopicFacetSummaryCountsByProjectInCreationInterval). A new state
+-- written without a model call must be added to this list, and to that
+-- count. Rows created more than 48 hours ago are re-inserts, not new usage.
+-- The ledger starts filling when this migration runs, and earlier summaries
+-- are not backfilled.
 CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_topic_facet_summaries_mv {CLICKHOUSE_CLUSTER_CLAUSE}
 TO billable_events AS
 SELECT
@@ -24,7 +25,7 @@ SELECT
     toUInt64(transcript_bytes) AS event_bytes,
     environment
 FROM topic_facet_summaries
-WHERE processing_state IN ('complete', 'not_applicable')
+WHERE processing_state NOT IN ('empty_input', 'input_too_large')
   AND created_at >= now() - INTERVAL 48 HOUR;
 
 -- A view created earlier by dev-tables.sh or by hand keeps its old query under
@@ -43,5 +44,5 @@ SELECT
     toUInt64(transcript_bytes) AS event_bytes,
     environment
 FROM topic_facet_summaries
-WHERE processing_state IN ('complete', 'not_applicable')
+WHERE processing_state NOT IN ('empty_input', 'input_too_large')
   AND created_at >= now() - INTERVAL 48 HOUR;

@@ -387,10 +387,16 @@ describe("billable_events materialized views", () => {
         summary: "",
         embedding: [],
       },
-      // Insufficient input and skipped model calls are not usage
-      ...(
-        ["insufficient_input", "empty_input", "input_too_large"] as const
-      ).map((state) => ({
+      // The model judged the input insufficient: still usage
+      {
+        ...summary,
+        facetId: "insufficient",
+        state: "insufficient_input",
+        summary: "",
+        embedding: [],
+      },
+      // Skipped model calls are not usage
+      ...(["empty_input", "input_too_large"] as const).map((state) => ({
         ...summary,
         facetId: state,
         state,
@@ -401,7 +407,7 @@ describe("billable_events materialized views", () => {
     ]);
 
     expect(await billedUnitsAroundNow(projectId)).toEqual({
-      topic_facet_summary: 4,
+      topic_facet_summary: 5,
     });
     const ledgerRows = await queryClickhouse<{
       environment: string;

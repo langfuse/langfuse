@@ -811,8 +811,8 @@ export async function getTopicResultCounts(input: {
 }
 
 /**
- * Complete and not-applicable facet summaries written in `[start, end)`, by
- * `created_at`, as billing counts them. Rows
+ * Facet summaries written in `[start, end)`, by `created_at`, except those
+ * written without a model call, as billing counts them. Rows
  * are not deduplicated (no `FINAL`), so a source re-summarized before a merge
  * counts once per write. `created_at` is outside the sort key, so this scans
  * the table; it runs only from the self-hosted telemetry job.
@@ -830,7 +830,7 @@ export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
       FROM topic_facet_summaries
       WHERE created_at >= {start: DateTime64(3)}
         AND created_at < {end: DateTime64(3)}
-        AND processing_state IN ('complete', 'not_applicable')
+        AND processing_state NOT IN ('empty_input', 'input_too_large')
       GROUP BY project_id
     `,
     params: {
