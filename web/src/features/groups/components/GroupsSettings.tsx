@@ -9,18 +9,14 @@ import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Header from "@/src/components/layouts/header";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import {
-  CreateGroupDialog,
-  type NewGroup,
-} from "@/src/features/groups/components/CreateGroupDialog";
+import { CreateGroupDialog } from "@/src/features/groups/components/CreateGroupDialog";
 import {
   describeGroupRoleCell,
   groupRoleOptions,
 } from "@/src/features/groups/components/GroupRoleDialog";
-import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
 import { GroupDialogHost } from "@/src/features/groups/components/GroupDialogHost";
 import { groupTableColumns } from "@/src/features/groups/components/groupTableColumns";
 import { useGroupDialogParam } from "@/src/features/groups/groupDialogLink";
@@ -30,10 +26,14 @@ import {
   isScimManaged,
   NO_GROUP_EDIT_REASON,
 } from "@/src/features/groups/groupSource";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useCreateGroup } from "@/src/features/groups/hooks/useCreateGroup";
+import { useDeleteGroup } from "@/src/features/groups/hooks/useDeleteGroup";
+import { useGroupOrgMembers } from "@/src/features/groups/hooks/useGroupOrgMembers";
+import { useOrgGroups } from "@/src/features/groups/hooks/useOrgGroups";
+import { useRenameGroup } from "@/src/features/groups/hooks/useRenameGroup";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
 
@@ -72,11 +72,11 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
   const hasEntitlement = useHasEntitlement("admin-api");
   const hasAccess = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:read",
+    scope: "groups:read",
   });
   const canEdit = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:CUD",
+    scope: "groups:CUD",
   });
 
   const header = (
@@ -105,7 +105,7 @@ export function GroupsSettings({ orgId }: { orgId: string }) {
       <div>
         {header}
         <Banner title="Access denied">
-          You do not have permission to view the members of this organization.
+          You do not have permission to view the groups of this organization.
         </Banner>
       </div>
     );
@@ -165,7 +165,7 @@ function groupColumns(
 }
 
 function GroupsTable({ orgId, canEdit }: { orgId: string; canEdit: boolean }) {
-  const groups = api.groups.list.useQuery({ orgId });
+  const groups = useOrgGroups(orgId);
   const [search, setSearch] = useState("");
   const [, setOpenGroupId] = useGroupDialogParam();
   const openGroup = (group: Pick<Group, "id">) => setOpenGroupId(group.id);
@@ -268,7 +268,7 @@ function GroupsSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="organization groups"
       columns={columns}
       data={data}
@@ -394,51 +394,12 @@ function ConnectedCreateGroupDialog({
   onPartlySaved: OpenWith<Pick<Group, "id">>;
   onDone: () => void;
 }) {
-  const utils = api.useUtils();
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     organizationId: orgId,
   });
-  const orgMembers = api.groups.orgMembers.useQuery({ orgId });
-  const create = api.groups.create.useMutation();
-  const setOrgRole = api.groups.setOrgRole.useMutation();
-  const addMembers = api.groups.addMembers.useMutation();
-  const [isSaving, setIsSaving] = useState(false);
-
-  const submit = async ({ displayName, role, userIds }: NewGroup) => {
-    setIsSaving(true);
-    try {
-      const group = await create.mutateAsync({ orgId, displayName });
-      const results = await Promise.allSettled([
-        role === "NONE" || role === "OWNER"
-          ? undefined
-          : setOrgRole.mutateAsync({ orgId, groupId: group.id, role }),
-        userIds.length === 0
-          ? undefined
-          : addMembers.mutateAsync({ orgId, groupId: group.id, userIds }),
-      ]);
-      await utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      onDone();
-      if (results.some((result) => result.status === "rejected")) {
-        // Opens the new group, where the role and members can be finished.
-        onPartlySaved(group);
-        return;
-      }
-      showSuccessToast({
-        operation: "group.create",
-        title: "Group created",
-        description:
-          userIds.length > 0
-            ? `${group.displayName} created with ${memberCountLabel(userIds.length)}`
-            : `${group.displayName} created`,
-        duration: 3000,
-      });
-    } catch {
-      // The create error shows in the dialog.
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const orgMembers = useGroupOrgMembers(orgId);
+  // On a partial save the new group opens, where the role and members can be finished.
+  const create = useCreateGroup({ orgId, onDone, onPartlySaved });
 
   return (
     <CreateGroupDialog
@@ -449,10 +410,10 @@ function ConnectedCreateGroupDialog({
         secondaryLabel: user.name ? (user.email ?? undefined) : undefined,
       }))}
       isLoadingPeople={orgMembers.isLoading}
-      isPending={isSaving}
-      error={create.error?.message}
+      isPending={create.isSaving}
+      error={create.error}
       onSubmit={(group) => {
-        submit(group).catch(() => undefined);
+        create.submit(group).catch(() => undefined);
       }}
     />
   );
@@ -465,10 +426,7 @@ function RenameGroupDialogController({
   orgId: string;
   children: (open: OpenWith<Group>) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const rename = api.groups.rename.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const rename = useRenameGroup();
   return (
     <DialogController<Group>
       onDismiss={() => rename.reset()}
@@ -501,10 +459,7 @@ function DeleteGroupDialogController({
   orgId: string;
   children: (open: OpenWith<Group>) => React.ReactNode;
 }) {
-  const utils = api.useUtils();
-  const remove = api.groups.delete.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
+  const remove = useDeleteGroup();
   return (
     <ConfirmationDialogController<Group>
       title={(group) => `Delete ${group.displayName}?`}

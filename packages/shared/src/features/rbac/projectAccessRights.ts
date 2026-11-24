@@ -76,6 +76,9 @@ export const projectScopes = [
 
   "projectAuditLogs:read",
 
+  "projectGroups:CUD",
+  "projectGroups:read",
+
   "projectMembers:CUD",
   "projectMembers:manageOwnership",
   "projectMembers:read",
@@ -168,6 +171,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "project:read",
     "project:update",
     "projectAuditLogs:read",
+    "projectGroups:CUD",
+    "projectGroups:read",
     "projectMembers:CUD",
     "projectMembers:manageOwnership",
     "projectMembers:read",
@@ -243,6 +248,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "project:read",
     "project:update",
     "projectAuditLogs:read",
+    "projectGroups:CUD",
+    "projectGroups:read",
     "projectMembers:CUD",
     "projectMembers:read",
     "promptExperiments:CUD",
@@ -306,6 +313,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "objects:tag",
     "playground:execute",
     "project:read",
+    "projectGroups:read",
     "projectMembers:read",
     "promptExperiments:CUD",
     "promptExperiments:read",

@@ -5,7 +5,7 @@ import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import Header from "@/src/components/layouts/header";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -20,14 +20,14 @@ import {
   GROUP_SOURCE_DISPLAY,
   isScimManaged,
 } from "@/src/features/groups/groupSource";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
-import { roleName } from "@/src/features/rbac/components/roleDisplay";
 import {
   hasProjectAccess,
   useHasProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useProjectGroups } from "@/src/features/groups/hooks/useProjectGroups";
+import { useSetGroupProjectRole } from "@/src/features/groups/hooks/useSetGroupProjectRole";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type ProjectGroup = RouterOutputs["groups"]["projectList"][number];
 type GroupRole = "ADMIN" | "MEMBER" | "VIEWER";
@@ -78,13 +78,13 @@ function projectGroupColumns(
 
 function projectRolesBlockedReason({
   hasProjectRoles,
-  canEditProjectMembers,
+  canEditProjectGroups,
 }: {
   hasProjectRoles: boolean;
-  canEditProjectMembers: boolean;
+  canEditProjectGroups: boolean;
 }) {
   if (!hasProjectRoles) return "Project roles are not available on your plan.";
-  if (!canEditProjectMembers)
+  if (!canEditProjectGroups)
     return "You do not have permission to change roles on this project.";
   return undefined;
 }
@@ -96,44 +96,28 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
   const { organization, project } = useQueryProject();
   const canManageOrgGroups = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "organizationMembers:CUD",
+    scope: "groups:CUD",
   });
   const canRead = useHasProjectAccess({
     projectId,
-    scope: "projectMembers:read",
+    scope: "projectGroups:read",
   });
-  const canEditProjectMembers = useHasProjectAccess({
+  const canEditProjectGroups = useHasProjectAccess({
     projectId,
-    scope: "projectMembers:CUD",
+    scope: "projectGroups:CUD",
   });
   const editBlockedReason = projectRolesBlockedReason({
     hasProjectRoles,
-    canEditProjectMembers,
+    canEditProjectGroups,
   });
-  const utils = api.useUtils();
   const [search, setSearch] = useState("");
 
-  const groups = api.groups.projectList.useQuery(
-    { projectId },
-    { enabled: hasAdminApi && canRead },
+  const groups = useProjectGroups(projectId, hasAdminApi && canRead);
+  const setRole = useSetGroupProjectRole(
+    (groupId) =>
+      groups.data?.find((group) => group.id === groupId)?.displayName ??
+      "Group",
   );
-  const setRole = api.groups.setProjectRole.useMutation({
-    onSuccess: (_, input) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      const name =
-        groups.data?.find((group) => group.id === input.groupId)?.displayName ??
-        "Group";
-      showSuccessToast({
-        operation: "group_project_role.update",
-        title: "Group role saved",
-        description: input.role
-          ? `${name} is now ${roleName(input.role)} on this project`
-          : `${name} no longer has a role on this project`,
-        duration: 2000,
-      });
-    },
-  });
   const pendingGroupId = setRole.isPending
     ? (setRole.variables?.groupId ?? null)
     : null;
@@ -259,7 +243,7 @@ export function ProjectGroupsSettings({ projectId }: { projectId: string }) {
         }}
       >
         {({ openDialog }) => (
-          <SettingsTable
+          <TableCard
             tableName="project groups"
             columns={projectGroupColumns((group) => openDialog(group.id))}
             onRowClick={(row) => openDialog(row.group.id)}

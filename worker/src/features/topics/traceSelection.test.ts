@@ -384,7 +384,6 @@ describe("Topics setup backfill selection", () => {
       idleMs: 60_000,
       now,
       days: 7,
-      sampling: 1,
       seed: "rule",
       summarized: {
         facets: [

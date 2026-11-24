@@ -1364,6 +1364,23 @@ describe("extractToolsFromObservation", () => {
           parameters: "",
         });
       });
+
+      it("keeps a tool named __proto__ as an own map entry", () => {
+        const map = convertDefinitionsToMap([
+          { name: "__proto__", description: "reserved", parameters: "{}" },
+          { name: "weather", description: "forecast" },
+        ]);
+
+        expect(Object.keys(map).sort()).toEqual(["__proto__", "weather"]);
+        expect(JSON.parse(map["__proto__"])).toEqual({
+          description: "reserved",
+          parameters: "{}",
+        });
+        expect(JSON.parse(map.weather)).toEqual({
+          description: "forecast",
+          parameters: "",
+        });
+      });
     });
 
     describe("convertCallsToArrays", () => {

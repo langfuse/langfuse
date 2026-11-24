@@ -5,6 +5,10 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import {
+  combinedPermissionCount,
+  permissionCountLabel,
+} from "@/src/features/rbac/components/RolePermissionList";
 
 import { type GroupMember } from "./GroupMemberList";
 import { GroupRoleDialogController } from "./GroupRoleDialogController";
@@ -13,6 +17,10 @@ const meta = preview.meta({
   component: GroupRoleDialogController,
   parameters: { layout: "centered" },
 });
+
+/** The permissions link's text for a role, so the tests follow the role definitions. */
+const viewPermissions = (role: Role, suffix = "") =>
+  `View ${permissionCountLabel(combinedPermissionCount([role]))}${suffix}`;
 
 const member = (name: string): GroupMember => ({
   userId: name.toLowerCase().replaceAll(" ", "-"),
@@ -189,7 +197,7 @@ export const TestPermissionsFollowPickedRole = meta.story({
     const { dialog } = opened;
 
     await expect(
-      dialog.getByRole("button", { name: "View 30 permissions" }),
+      dialog.getByRole("button", { name: viewPermissions("VIEWER") }),
     ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
     // Members read A to Z, whatever order they arrive in.
@@ -203,7 +211,7 @@ export const TestPermissionsFollowPickedRole = meta.story({
 
     await waitFor(() =>
       expect(
-        dialog.getByRole("button", { name: "View 86 permissions" }),
+        dialog.getByRole("button", { name: viewPermissions("ADMIN") }),
       ).toBeVisible(),
     );
     await expect(dialog.getByRole("button", { name: "Save" })).toBeEnabled();
@@ -272,7 +280,7 @@ export const TestProjectLevelPreviewsPickedRole = meta.story({
     await expect(picker).toHaveTextContent("Member");
 
     await expect(
-      dialog.getByRole("button", { name: "View 62 permissions" }),
+      dialog.getByRole("button", { name: viewPermissions("MEMBER") }),
     ).toBeVisible();
 
     // The organization role's own row is the "no project role" choice.
@@ -281,7 +289,7 @@ export const TestProjectLevelPreviewsPickedRole = meta.story({
       expect(picker).toHaveTextContent("Viewer · from organization"),
     );
     await expect(
-      dialog.getByRole("button", { name: "View 30 permissions" }),
+      dialog.getByRole("button", { name: viewPermissions("VIEWER") }),
     ).toBeVisible();
     // Without the full member list there is no list at all.
     await expect(dialog.queryByRole("list", { name: "Members" })).toBeNull();

@@ -1,11 +1,17 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
-import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import { createOrgMembership } from "@langfuse/shared/memberships";
+import { assignRole } from "@langfuse/shared/rbac/server";
+import {
+  GroupId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "@langfuse/shared/rbac";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 async function prepare() {
   const org = await prisma.organization.create({
@@ -24,28 +30,17 @@ async function prepare() {
     data: { orgId: org.id, displayName: "engineering", source: "MANUAL" },
   });
 
-  const session = {
-    expires: "1",
-    user: {
-      id: uuidv4(),
-      email: "owner@example.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      admin: false,
-      featureFlags: testFeatureFlags(),
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: Role.OWNER,
-          plan: "cloud:enterprise",
-          metadata: {},
-          projects: [],
-        },
-      ],
-    },
-    environment: {},
-  } as unknown as Session;
+  const session = createSession({
+    user: { id: uuidv4(), email: "owner@example.com", name: "Owner" },
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        role: Role.OWNER,
+        plan: "cloud:enterprise",
+      },
+    ],
+  });
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
@@ -370,5 +365,176 @@ describe("groups CRUD from the UI", () => {
       caller.groups.delete({ orgId: org.id, groupId: foreign.id }),
     ).rejects.toThrow("Group not found");
     expect(await prisma.group.count({ where: { id: foreign.id } })).toBe(1);
+  });
+});
+
+/** callerWithRoles signs in a user with `orgRole` on the org and `projectRole` on its project. */
+const callerWithRoles = (
+  orgId: string,
+  projectId: string,
+  orgRole: Role,
+  projectRole?: Role,
+) => {
+  const session = createSession({
+    organizations: [
+      {
+        id: orgId,
+        role: orgRole,
+        plan: "cloud:enterprise",
+        projects: [{ id: projectId, role: projectRole }],
+      },
+    ],
+  });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  return appRouter.createCaller({ ...ctx, prisma });
+};
+
+describe("groups.projectList", () => {
+  /** projectCaller signs in a user who has `orgRole` on the org and `projectRole` on its project. */
+  /** groupWithRole creates a group holding `role` on `ownerId`, or no role. */
+  const groupWithRole = async (
+    orgId: string,
+    displayName: string,
+    ownerId?: OrganizationId | ProjectId,
+    role?: Role,
+  ) => {
+    const group = await prisma.group.create({
+      data: { orgId, displayName, source: "MANUAL" },
+    });
+    if (ownerId && role)
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId,
+        principalId: GroupId(group.id),
+        roleId: SystemRoleId(role),
+        tags: [],
+      });
+    return group.displayName;
+  };
+
+  const setup = async () => {
+    const { org, project } = await prepare();
+    const otherProject = await prisma.project.create({
+      data: { name: "other", orgId: org.id },
+    });
+    const names = [
+      "engineering",
+      await groupWithRole(
+        org.id,
+        "chatbot-team",
+        ProjectId(project.id),
+        Role.VIEWER,
+      ),
+      await groupWithRole(
+        org.id,
+        "everyone",
+        OrganizationId(org.id),
+        Role.VIEWER,
+      ),
+      await groupWithRole(
+        org.id,
+        "finance-team",
+        ProjectId(otherProject.id),
+        Role.ADMIN,
+      ),
+      await groupWithRole(
+        org.id,
+        "gateway-users",
+        OrganizationId(org.id),
+        Role.AI_GATEWAY,
+      ),
+    ];
+    return { org, project, names };
+  };
+
+  it("shows a project-only member just the groups with access to the project", async () => {
+    const { org, project } = await setup();
+    const caller = callerWithRoles(org.id, project.id, Role.NONE, Role.MEMBER);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual([
+      "chatbot-team",
+      "everyone",
+    ]);
+  });
+
+  it("shows an org member with no access to the project every group of the org", async () => {
+    const { org, project, names } = await setup();
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER, Role.NONE);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
+  });
+
+  it("refuses a caller who can read neither the org's nor the project's groups", async () => {
+    const { org, project } = await setup();
+    const caller = callerWithRoles(org.id, project.id, Role.NONE, Role.VIEWER);
+
+    await expect(
+      caller.groups.projectList({ projectId: project.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("shows an org member every group of the org", async () => {
+    const { org, project, names } = await setup();
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER);
+
+    const groups = await caller.groups.projectList({ projectId: project.id });
+    expect(groups.map((g) => g.displayName)).toEqual(names.toSorted());
+  });
+});
+
+describe("groups scopes", () => {
+  it("lets a MEMBER read the org's groups but not change them", async () => {
+    const { org, project, group } = await prepare();
+    const caller = callerWithRoles(org.id, project.id, Role.MEMBER);
+
+    expect(
+      (await caller.groups.list({ orgId: org.id })).map((g) => g.id),
+    ).toEqual([group.id]);
+    await expect(
+      caller.groups.create({ orgId: org.id, displayName: "new" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      caller.groups.setOrgRole({
+        orgId: org.id,
+        groupId: group.id,
+        role: Role.VIEWER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("hides the org's groups from a VIEWER", async () => {
+    const { org, project } = await prepare();
+    const caller = callerWithRoles(org.id, project.id, Role.VIEWER);
+
+    await expect(caller.groups.list({ orgId: org.id })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("lets a project ADMIN set a group's project role and a project MEMBER only read it", async () => {
+    const { org, project, group } = await prepare();
+    const admin = callerWithRoles(org.id, project.id, Role.NONE, Role.ADMIN);
+    const member = callerWithRoles(org.id, project.id, Role.NONE, Role.MEMBER);
+
+    await admin.groups.setProjectRole({
+      projectId: project.id,
+      groupId: group.id,
+      role: Role.VIEWER,
+    });
+    expect(
+      (await member.groups.projectList({ projectId: project.id })).map((g) => [
+        g.id,
+        g.projectRole,
+      ]),
+    ).toEqual([[group.id, Role.VIEWER]]);
+    await expect(
+      member.groups.setProjectRole({
+        projectId: project.id,
+        groupId: group.id,
+        role: Role.MEMBER,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

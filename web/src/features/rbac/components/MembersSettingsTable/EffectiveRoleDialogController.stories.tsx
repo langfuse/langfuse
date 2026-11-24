@@ -3,6 +3,10 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
+import {
+  combinedPermissionCount,
+  permissionCountLabel,
+} from "@/src/features/rbac/components/RolePermissionList";
 
 import {
   belowGroupFloor,
@@ -15,6 +19,10 @@ const meta = preview.meta({
   component: EffectiveRoleDialogController,
   parameters: { layout: "centered" },
 });
+
+/** The permissions link's text for a role, so the tests follow the role definitions. */
+const viewPermissions = (role: Role, suffix = "") =>
+  `View ${permissionCountLabel(combinedPermissionCount([role]))}${suffix}`;
 
 const names = [
   "Demo User",
@@ -302,7 +310,9 @@ export const TestMarkerFollowsDirectRole = meta.story({
     const { body, dialog } = await openDialog(canvasElement);
     await expect(markedRows(dialog)).toEqual(["platform-adminsAdmin"]);
     await expect(
-      dialog.getByRole("button", { name: "View 86 permissions combined" }),
+      dialog.getByRole("button", {
+        name: viewPermissions("ADMIN", " combined"),
+      }),
     ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
 
@@ -313,7 +323,9 @@ export const TestMarkerFollowsDirectRole = meta.story({
       expect(markedRows(dialog)).toEqual(["Directly assignedOwner"]),
     );
     await expect(
-      dialog.getByRole("button", { name: "View 92 permissions combined" }),
+      dialog.getByRole("button", {
+        name: viewPermissions("OWNER", " combined"),
+      }),
     ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Save" })).toBeEnabled();
   },
@@ -327,7 +339,7 @@ export const TestNoMarkerWithoutGroups = meta.story({
     await expect(markedRows(dialog)).toEqual([]);
     await expect(dialog.getByRole("heading", { name: "Access" })).toBeVisible();
     await expect(
-      dialog.getByRole("button", { name: "View 62 permissions" }),
+      dialog.getByRole("button", { name: viewPermissions("MEMBER") }),
     ).toBeVisible();
   },
 });

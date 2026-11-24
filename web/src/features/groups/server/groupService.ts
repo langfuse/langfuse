@@ -7,8 +7,43 @@ import {
   SystemRoleId,
 } from "@langfuse/shared/rbac";
 import { assignRole } from "@langfuse/shared/rbac/server";
+import { invalidateCachedApiKeys } from "@langfuse/shared/src/server";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 type Tx = Prisma.TransactionClient;
+
+export async function groupMemberUserIds(
+  db: Tx,
+  groupId: string,
+): Promise<string[]> {
+  const members = await db.groupMembership.findMany({
+    where: { groupId },
+    select: { organizationMembership: { select: { userId: true } } },
+  });
+  return members.map((m) => m.organizationMembership.userId);
+}
+
+/** evictAuthCaches drops the cached access of the users' keys in orgId, which depends on their group roles: the credentials of USER keys and the gateway resolve context of every key. Call after a group change commits. */
+export async function evictAuthCaches(
+  db: Tx,
+  { orgId, userIds }: { orgId: string; userIds: string[] },
+) {
+  if (userIds.length === 0) return;
+  const apiKeys = await db.apiKey.findMany({
+    where: { orgId, userId: { in: userIds } },
+  });
+  await invalidateCachedApiKeys(
+    apiKeys.filter((key) => key.scope === "USER"),
+    `group members in org ${orgId}`,
+  );
+  await Promise.all(
+    apiKeys.map((key) =>
+      key.fastHashedSecretKey
+        ? invalidateGatewayResolveCacheForApiKey(key.fastHashedSecretKey)
+        : undefined,
+    ),
+  );
+}
 
 export class GroupMembersNotInOrgError extends InvalidRequestError {
   constructor(public readonly userIds: string[]) {
@@ -97,6 +132,15 @@ export async function replaceGroupMembers(
   await addGroupMembers(tx, { orgId, groupId, userIds });
 }
 
+/** lockGroup locks a group for the transaction so concurrent writes to its roles or members run one after another. */
+export async function lockGroup(tx: Tx, groupId: string): Promise<void> {
+  await tx.$queryRaw`
+    SELECT id FROM groups
+    WHERE id = ${groupId}
+    FOR UPDATE
+  `;
+}
+
 /** `projectId` null is the org role; `role` null removes it. */
 export async function setGroupRole(
   tx: Tx,
@@ -112,6 +156,7 @@ export async function setGroupRole(
     role: Role | null;
   },
 ) {
+  await lockGroup(tx, groupId);
   await tx.roleAssignment.deleteMany({ where: { groupId, projectId } });
   if (!role) return;
   const tenantId = OrganizationId(orgId);
@@ -139,6 +184,7 @@ export async function replaceGroupRoles(
     projectRoles: { projectId: string; role: Role }[];
   },
 ) {
+  await lockGroup(tx, groupId);
   await tx.roleAssignment.deleteMany({ where: { groupId } });
   await setGroupRole(tx, { orgId, groupId, projectId: null, role: orgRole });
   for (const { projectId, role } of projectRoles) {

@@ -5,9 +5,9 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -68,7 +68,7 @@ export function ModelDefinitionsTable({
   priceUnitMultiplier: number;
   priceUnitSelector?: ReactNode;
   lastUsed?: Record<string, Date>;
-  toolbarActions?: SettingsTableProps<ModelTableRow>["toolbarActions"];
+  toolbarActions?: TableCardProps<ModelTableRow>["toolbarActions"];
   modelActions: {
     canEdit: boolean;
     onClone: (model: ModelTableRow) => void;
@@ -155,7 +155,7 @@ export function ModelDefinitionsTable({
   ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="models"
       columns={columns}
       actions={(model) =>

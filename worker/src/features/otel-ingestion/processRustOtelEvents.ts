@@ -35,6 +35,7 @@ import { env, v4WritesToLegacyTables } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { TableName } from "../../services/ClickhouseWriter/types";
 import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
+import { serializeOtelLookups } from "./serializeOtelLookups";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -149,7 +150,7 @@ async function completeOrFinalizeBatch(
     sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
   const completion = await processing.complete(
     mediaResults,
-    lookups,
+    serializeOtelLookups(lookups),
     overflowLimitBytes,
     includeEvaluationRows,
     traceActivityIds,

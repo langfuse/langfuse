@@ -232,16 +232,29 @@ fn generic_usage(
     scope_name: &str,
     parse_cache: &mut JsonParseCache,
 ) -> Usage {
-    let generic = javascript_entries(attributes)
+    let usage_entries = javascript_entries(attributes)
         .into_iter()
         .filter_map(|(key, value)| {
             let key = key
                 .as_str()
                 .strip_prefix("gen_ai.usage.")
                 .or_else(|| key.as_str().strip_prefix("llm.token_count."))?;
-            (key != "cost").then_some((key.to_owned(), usage_number(value)?))
+            (key != "cost").then_some((key, value))
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let has_usage_attributes = !usage_entries.is_empty();
+    let mut generic = usage_entries
+        .into_iter()
+        .filter_map(|(key, value)| Some((key.to_owned(), usage_number(value)?)))
+        .collect::<Usage>();
+    // Claude Platform reports the cache-write TTL split outside gen_ai.usage.*.
+    for (key, attribute) in CLAUDE_CACHE_WRITE_TTL_ATTRIBUTES {
+        if has_usage_attributes && !generic.contains_key(key) {
+            if let Some(value) = attributes.get(attribute).and_then(usage_number) {
+                generic.insert(key.to_owned(), value);
+            }
+        }
+    }
     let mut usage = normalize_generic_usage(generic);
     if scope_name == "gcp.vertex.agent" && !usage.contains_key("input_cached_tokens") {
         if let Some(cached) = parse_cache
@@ -399,6 +412,13 @@ const OPENAI_RESPONSE_USAGE: [&str; 5] = [
 ];
 
 fn normalize_openai_usage(object: &JsonObject, fields: &[&str; 5]) -> Option<Usage> {
+    // An object without all three counts is not this shape; decide before building anything.
+    let has_counts = fields[..3]
+        .iter()
+        .all(|source| nonnegative_integer(object.get(*source)).is_some());
+    if !has_counts {
+        return None;
+    }
     let mut result = Usage::new();
     for (key, value) in javascript_entries(object) {
         if !fields.contains(&key.as_str()) {
@@ -547,6 +567,17 @@ const GENERIC_USAGE: [UsageRule; 9] = [
     ("output_audio_tokens", &["completion_details.audio"]),
 ];
 
+const CLAUDE_CACHE_WRITE_TTL_ATTRIBUTES: [(&str, &str); 2] = [
+    (
+        "cache_creation.5m_input_tokens",
+        "anthropic.usage.cache_creation.ephemeral_5m_input_tokens",
+    ),
+    (
+        "cache_creation.1h_input_tokens",
+        "anthropic.usage.cache_creation.ephemeral_1h_input_tokens",
+    ),
+];
+
 fn normalize_generic_usage(raw: Usage) -> Usage {
     let mut values =
         GENERIC_USAGE.map(|(_, sources)| sources.iter().find_map(|key| raw.get(*key)).copied());
@@ -588,6 +619,30 @@ fn normalize_generic_usage(raw: Usage) -> Usage {
 mod tests {
     use super::*;
     use crate::otel::value::json;
+
+    #[test]
+    fn generic_usage_splits_claude_platform_cache_write_ttls() {
+        let attrs = json!({
+            "gen_ai.usage.input_tokens": 6000,
+            "gen_ai.usage.cache_write.input_tokens": 4500,
+            "anthropic.usage.cache_creation.ephemeral_5m_input_tokens": 1500,
+            "anthropic.usage.cache_creation.ephemeral_1h_input_tokens": 3000,
+        });
+        let usage = extract_usage_details(
+            attrs.as_object().unwrap(),
+            "com.anthropic.claude-platform",
+            &mut JsonParseCache::default(),
+        );
+        for (key, expected) in [
+            ("input", 1500),
+            ("input_cache_creation", 0),
+            ("input_cache_creation_5m", 1500),
+            ("input_cache_creation_1h", 3000),
+        ] {
+            assert_eq!(usage.get(key), Some(&json!(expected)), "{key}");
+        }
+        assert_eq!(usage.len(), 4);
+    }
 
     #[test]
     fn generic_usage_subtracts_cache_and_reasoning() {

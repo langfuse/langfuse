@@ -426,10 +426,12 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       const storageService = createStorageService(integration);
       const [url, contentLength] = await Promise.all([
+        // Langfuse does not know the object's real type, so never let a
+        // browser render it inline from the customer's bucket.
         storageService.getSignedUrl(
           parsed.key,
           EXTERNAL_MEDIA_URL_TTL_SECONDS,
-          false,
+          true,
         ),
         storageService
           .getObjectContentLength(parsed.key)
@@ -479,7 +481,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       const signedUrl = await storageService.getSignedUrl(
         parsed.key,
         EXTERNAL_MEDIA_URL_TTL_SECONDS,
-        false,
+        true,
       );
 
       return { signedUrl };

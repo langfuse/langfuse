@@ -1,4 +1,5 @@
 import {
+  EvalTargetObject,
   getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -56,6 +57,7 @@ export async function testEvaluator(params: {
     assertCompleteEvaluatorVariableMapping({
       promptVariables: params.definition.vars,
       variableMapping: params.definition.variableMapping,
+      targetObject: EvalTargetObject.EVENT,
     });
     variableMapping = observationVariableMappingList.parse(
       params.definition.variableMapping,
@@ -67,6 +69,7 @@ export async function testEvaluator(params: {
         params.definition.promptMessages,
       ),
       variableMapping: llmVariableMapping,
+      targetObject: EvalTargetObject.EVENT,
     });
     variableMapping = observationVariableMappingList.parse(llmVariableMapping);
   }

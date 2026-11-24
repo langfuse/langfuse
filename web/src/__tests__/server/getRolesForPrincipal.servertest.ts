@@ -115,6 +115,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     expect(organizationRole?.policies).toEqual(
       systemRoleAccessRights.VIEWER.policies.map((policy) => ({
         id: `${roleId}:${policy.resourceKind}`,
+        principalId,
         roleId,
         tenantId: OrganizationId(organization.orgId),
         effect: policy.effect,
@@ -130,6 +131,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
         .filter((policy) => policy.resourceKind === "project")
         .map((policy) => ({
           id: `${roleId}:${policy.resourceKind}`,
+          principalId,
           roleId,
           tenantId: OrganizationId(project.orgId),
           effect: policy.effect,
@@ -158,6 +160,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     expect(policies).toEqual(
       systemRoleAccessRights.LEGACY_PROJECT_API_KEY.policies.map((p) => ({
         id: `${SystemRoleId("LEGACY_PROJECT_API_KEY")}:${p.resourceKind}`,
+        principalId: ApiKeyId(key.id),
         roleId: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         tenantId: OrganizationId(orgId),
         effect: p.effect,
@@ -186,6 +189,7 @@ describe("getRolesForPrincipal decision-equivalence", () => {
     expect(policies).toEqual(
       systemRoleAccessRights.LEGACY_ORGANIZATION_API_KEY.policies.map((p) => ({
         id: `${SystemRoleId("LEGACY_ORGANIZATION_API_KEY")}:${p.resourceKind}`,
+        principalId: ApiKeyId(key.id),
         roleId: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         tenantId: OrganizationId(orgId),
         effect: p.effect,

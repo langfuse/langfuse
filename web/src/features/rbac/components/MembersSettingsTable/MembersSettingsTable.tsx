@@ -7,9 +7,9 @@ import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -67,7 +67,7 @@ export type MembersSettingsTableRow = {
 export type MemberGroupRole = {
   groupId: string;
   groupName: string;
-  groupSource: "SCIM" | "MANUAL" | "SYSTEM";
+  groupSource: "SCIM" | "MANUAL";
   memberCount: number;
   /** The group's first few members; `memberCount` is the full size. */
   memberPreview: StackMember[];
@@ -82,8 +82,11 @@ type MembersSettingsTableProps = Pick<
   orgId: string;
   project?: { id: string; name: string };
   currentUserId?: string;
-  hasOrgViewAccess: boolean;
   hasOrgCudAccess: boolean;
+  /** May open a group from a role's details. */
+  canSeeOrgGroups: boolean;
+  /** May edit a group from a role's details. */
+  canManageOrgGroups: boolean;
   hasProjectCudAccess: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
@@ -104,7 +107,7 @@ type MembersSettingsTableProps = Pick<
     value: Role[];
     onChange: (roles: Role[]) => void;
   };
-  toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
+  toolbarActions: TableCardProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
 
@@ -203,8 +206,9 @@ export function MembersSettingsTable({
   orgId,
   project,
   currentUserId,
-  hasOrgViewAccess,
   hasOrgCudAccess,
+  canSeeOrgGroups,
+  canManageOrgGroups,
   hasProjectCudAccess,
   canManageOrgOwnership,
   canManageProjectOwnership,
@@ -282,8 +286,8 @@ export function MembersSettingsTable({
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
                     projectName={onProject ? project?.name : undefined}
-                    canSeeOrgGroups={hasOrgViewAccess}
-                    canManageOrgGroups={hasOrgCudAccess}
+                    canSeeOrgGroups={canSeeOrgGroups}
+                    canManageOrgGroups={canManageOrgGroups}
                     member={{ name: member.user.name, email: member.email }}
                     editor={editor}
                   >
@@ -364,7 +368,8 @@ export function MembersSettingsTable({
       canManageOrgOwnership,
       canManageProjectOwnership,
       hasOrgCudAccess,
-      hasOrgViewAccess,
+      canSeeOrgGroups,
+      canManageOrgGroups,
       hasProjectCudAccess,
       isAiGatewayEnabled,
       isGroupsEnabled,
@@ -402,7 +407,7 @@ export function MembersSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={project ? "project members" : "organization members"}
       columns={columns}
       actions={actions}

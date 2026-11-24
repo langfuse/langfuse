@@ -48,11 +48,11 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
-  const canReadMembers = useHasOrganizationAccess({
+  const canReadGroups = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "organizationMembers:read",
+    scope: "groups:read",
   });
-  const showGroups = hasAdminApiEntitlement && canReadMembers;
+  const showGroups = hasAdminApiEntitlement && canReadGroups;
   const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,

@@ -95,8 +95,9 @@ const members: MembersSettingsTableRow[] = [
 export const Default = meta.story({
   args: {
     orgId: "org-1",
-    hasOrgViewAccess: true,
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -177,8 +178,9 @@ export const AdminViewingOwner = meta.story({
 export const FilteredByRole = meta.story({
   args: {
     orgId: "org-1",
-    hasOrgViewAccess: true,
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -212,8 +214,9 @@ export const FilteredByRole = meta.story({
 export const Loading = meta.story({
   args: {
     orgId: "org-1",
-    hasOrgViewAccess: true,
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,

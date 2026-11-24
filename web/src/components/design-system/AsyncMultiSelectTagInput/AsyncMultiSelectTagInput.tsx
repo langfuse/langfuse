@@ -9,9 +9,9 @@ import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
-import { cn } from "@/src/utils/tailwind";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 
 export type MultiSelectTagOption<V> = {
   value: V;
@@ -62,12 +62,6 @@ export function AsyncMultiSelectTagInput<V extends string>({
 }: AsyncMultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
-  const [fullyVisibleValues, setFullyVisibleValues] = React.useState<Set<V>>(
-    new Set(),
-  );
-  const [trailingHiddenWidth, setTrailingHiddenWidth] = React.useState(0);
-  const tagsContainerRef = React.useRef<HTMLDivElement>(null);
-  const tagRefs = React.useRef(new Map<V, HTMLSpanElement>());
   const listId = React.useId();
   const value = selected.map((option) => option.value);
   const selectedOptions = React.useMemo(
@@ -92,63 +86,6 @@ export function AsyncMultiSelectTagInput<V extends string>({
   const allSelected =
     enabledOptions.length > 0 &&
     enabledOptions.every((option) => value.includes(option.value));
-  const hiddenOptionCount = selectedOptions.filter(
-    (option) => !fullyVisibleValues.has(option.value),
-  ).length;
-  React.useLayoutEffect(() => {
-    const tagsContainer = tagsContainerRef.current;
-    if (!tagsContainer) return;
-
-    const recomputeTagVisibility = () => {
-      const containerBounds = tagsContainer.getBoundingClientRect();
-      const nextValues = new Set<V>();
-
-      tagRefs.current.forEach((tag, optionValue) => {
-        const tagBounds = tag.getBoundingClientRect();
-        const isFullyVisible =
-          tagBounds.left >= containerBounds.left - 1 &&
-          tagBounds.right <= containerBounds.right + 1;
-
-        if (isFullyVisible) nextValues.add(optionValue);
-      });
-
-      const rightmostVisibleTag = [...tagRefs.current.entries()]
-        .filter(([optionValue]) => nextValues.has(optionValue))
-        .map(([, tag]) => tag.getBoundingClientRect().right)
-        .reduce((rightmost, tagRight) => Math.max(rightmost, tagRight), 0);
-
-      setTrailingHiddenWidth(
-        rightmostVisibleTag > 0
-          ? Math.max(0, containerBounds.right - rightmostVisibleTag)
-          : 0,
-      );
-
-      setFullyVisibleValues((currentValues) => {
-        if (
-          currentValues.size === nextValues.size &&
-          [...currentValues].every((optionValue) => nextValues.has(optionValue))
-        ) {
-          return currentValues;
-        }
-
-        return nextValues;
-      });
-    };
-
-    recomputeTagVisibility();
-    const resizeObserver = new ResizeObserver(recomputeTagVisibility);
-    resizeObserver.observe(tagsContainer);
-    tagRefs.current.forEach((tag) => resizeObserver.observe(tag));
-    tagsContainer.addEventListener("scroll", recomputeTagVisibility, {
-      passive: true,
-    });
-
-    return () => {
-      resizeObserver.disconnect();
-      tagsContainer.removeEventListener("scroll", recomputeTagVisibility);
-    };
-  }, [selectedOptions]);
-
   const changeValue = (newValue: V[]) => {
     if (disabled) return;
     const nextValues = [
@@ -230,54 +167,46 @@ export function AsyncMultiSelectTagInput<V extends string>({
               data-tag-input-layout
               className="flex h-full min-w-0 items-center gap-1 px-1.5"
             >
-              <div
-                ref={tagsContainerRef}
-                data-tags-container
-                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
+              <div data-tags-container className="min-w-0 flex-1">
                 {selectedOptions.length === 0 ? (
                   <span className="text-muted-foreground">{placeholder}</span>
                 ) : (
-                  selectedOptions.map((option) => (
-                    <span
-                      key={option.value}
-                      ref={(tag) => {
-                        if (tag) {
-                          tagRefs.current.set(option.value, tag);
-                          return;
-                        }
-
-                        tagRefs.current.delete(option.value);
-                      }}
-                      data-value={option.value}
-                      className={cn(
-                        "flex max-w-48 min-w-10 shrink-0",
-                        !fullyVisibleValues.has(option.value) && "invisible",
-                      )}
-                    >
-                      <Tag
-                        text={option.label}
-                        secondaryText={option.secondaryLabel}
-                        remove={{
-                          onRemove: () => removeValue(option.value),
-                          disabled: disabled || option.disabled,
-                        }}
-                      />
-                    </span>
-                  ))
+                  <OverflowList
+                    additionalOverflowCount={0}
+                    spacing="tight"
+                    minVisible={1}
+                    items={selectedOptions}
+                    getKey={(option) => option.value}
+                    renderItem={(option, { getItemProps }) => (
+                      <span
+                        {...getItemProps({
+                          className: "max-w-48 min-w-10 shrink",
+                        })}
+                        data-value={option.value}
+                      >
+                        <Tag
+                          text={option.label}
+                          secondaryText={option.secondaryLabel}
+                          remove={{
+                            onRemove: () => removeValue(option.value),
+                            disabled: disabled || option.disabled,
+                          }}
+                        />
+                      </span>
+                    )}
+                    renderOverflow={({ overflowItemCount }) => (
+                      <span
+                        data-overflow-count={overflowItemCount}
+                        aria-label={`${overflowItemCount} more selected`}
+                        title={`${overflowItemCount} more selected`}
+                        className="flex shrink-0"
+                      >
+                        <TagShell>+{overflowItemCount}</TagShell>
+                      </span>
+                    )}
+                  />
                 )}
               </div>
-              {hiddenOptionCount > 0 && (
-                <span
-                  data-overflow-count={hiddenOptionCount}
-                  aria-label={`${hiddenOptionCount} more selected`}
-                  title={`${hiddenOptionCount} more selected`}
-                  className="flex shrink-0"
-                  style={{ transform: `translateX(-${trailingHiddenWidth}px)` }}
-                >
-                  <TagShell>+{hiddenOptionCount}</TagShell>
-                </span>
-              )}
               {value.length === 0 && (
                 <DropdownIndicator color={error ? "destructive" : "tertiary"} />
               )}

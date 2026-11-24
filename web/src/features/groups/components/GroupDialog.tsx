@@ -12,9 +12,12 @@ import {
   isScimManaged,
   NO_GROUP_EDIT_REASON,
 } from "@/src/features/groups/groupSource";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useAddGroupMembers } from "@/src/features/groups/hooks/useAddGroupMembers";
+import { useGroupOrgMembers } from "@/src/features/groups/hooks/useGroupOrgMembers";
+import { useOrgGroups } from "@/src/features/groups/hooks/useOrgGroups";
+import { useRemoveGroupMember } from "@/src/features/groups/hooks/useRemoveGroupMember";
+import { useSetGroupOrgRole } from "@/src/features/groups/hooks/useSetGroupOrgRole";
+import { type RouterOutputs } from "@/src/utils/api";
 
 type Group = RouterOutputs["groups"]["list"][number];
 
@@ -43,30 +46,13 @@ export function GroupDialog({
   onDone: () => void;
 }) {
   // Read from the list query so the dialog reflects adds, removals and role changes.
-  const groups = api.groups.list.useQuery({ orgId });
+  const groups = useOrgGroups(orgId);
   const group = groups.data?.find((g) => g.id === groupId);
-  const utils = api.useUtils();
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
     organizationId: orgId,
   });
-  const removeMember = api.groups.removeMember.useMutation({
-    onSuccess: () => utils.groups.invalidate(),
-  });
-  const setOrgRole = api.groups.setOrgRole.useMutation({
-    onSuccess: ({ role }) => {
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      const name = group?.displayName ?? "Group";
-      showSuccessToast({
-        operation: "group_roles.update",
-        title: "Group role saved",
-        description: role
-          ? `${name} is now ${roleName(role)} in this organization`
-          : `${name} no longer has an organization role`,
-        duration: 2000,
-      });
-    },
-  });
+  const removeMember = useRemoveGroupMember();
+  const setOrgRole = useSetGroupOrgRole(group?.displayName ?? "Group");
 
   if (!group) {
     if (groups.error)
@@ -121,22 +107,9 @@ export function GroupDialog({
 
 /** Picks organization members and adds them to the group. */
 function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
-  const utils = api.useUtils();
   const [selected, setSelected] = useState<string[]>([]);
-  const orgMembers = api.groups.orgMembers.useQuery({ orgId });
-  const addMembers = api.groups.addMembers.useMutation({
-    onSuccess: () => {
-      setSelected([]);
-      utils.groups.invalidate().catch(() => undefined);
-      utils.members.invalidate().catch(() => undefined);
-      showSuccessToast({
-        operation: "group_members.update",
-        title: "Members added",
-        description: `Updated members of ${group.displayName}`,
-        duration: 2000,
-      });
-    },
-  });
+  const orgMembers = useGroupOrgMembers(orgId);
+  const addMembers = useAddGroupMembers(group.displayName);
 
   const memberIds = new Set(group.members.map((m) => m.userId));
   const options = (orgMembers.data ?? [])
@@ -169,7 +142,10 @@ function AddGroupMembers({ orgId, group }: { orgId: string; group: Group }) {
           disabled={selected.length === 0}
           loading={addMembers.isPending}
           onClick={() =>
-            addMembers.mutate({ orgId, groupId: group.id, userIds: selected })
+            addMembers.mutate(
+              { orgId, groupId: group.id, userIds: selected },
+              { onSuccess: () => setSelected([]) },
+            )
           }
         />
       </div>

@@ -265,6 +265,7 @@ describe("organization feature preview defaults", () => {
       // a second preview; add that half back with the next one.
       sessionViewV2: false,
       sessionViewV2Timeline: false,
+      unifiedTraceSessionView: false,
     });
   });
 
@@ -504,6 +505,7 @@ describe("organization member feature preview overrides", () => {
     expect(row?.featurePreviews).toEqual({
       sessionViewV2: true,
       sessionViewV2Timeline: false,
+      unifiedTraceSessionView: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");

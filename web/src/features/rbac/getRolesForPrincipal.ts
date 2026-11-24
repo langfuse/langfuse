@@ -25,11 +25,26 @@ export async function getRolesForPrincipal(
   return assignments.map(toRole);
 }
 
+/** getGroupRolesForUser loads the unexpired roles of every group the user belongs to, in one query. */
+export async function getGroupRolesForUser(
+  prisma: Prisma.TransactionClient,
+  userId: string,
+): Promise<Role[]> {
+  const assignments = await prisma.roleAssignment.findMany({
+    where: {
+      group: { members: { some: { organizationMembership: { userId } } } },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    },
+  });
+  return assignments.map(toRole);
+}
+
 /** toRole binds a stored assignment's system role to its tenant and owner. */
 function toRole(assignment: RoleAssignment): Role {
   const definition = systemRoleAccessRights[assignment.systemRole];
   const roleId = SystemRoleId(assignment.systemRole);
   const tenantId = OrganizationId(assignment.orgId);
+  const principalId = assignment.principalId as PrincipalId;
   const ownerId = toOwnerId(assignment);
   const resources = hasProjectKind(ownerId)
     ? [ownerId]
@@ -40,7 +55,9 @@ function toRole(assignment: RoleAssignment): Role {
     name: definition.name,
     description: definition.description,
     policies: definition.policies
-      .map((policy) => toPolicy(policy, roleId, tenantId, resources))
+      .map((policy) =>
+        toPolicy(policy, principalId, roleId, tenantId, resources),
+      )
       .filter((policy): policy is Policy => policy !== null),
     tags: definition.tags,
   };
@@ -55,6 +72,7 @@ function toOwnerId(assignment: RoleAssignment): OwnerId {
 /** toPolicy binds a catalog policy to resources of its kind. */
 function toPolicy(
   definition: SystemRolePolicy,
+  principalId: PrincipalId,
   roleId: RoleId,
   tenantId: TenantId,
   resources: ResourceId[],
@@ -67,6 +85,7 @@ function toPolicy(
   if (ofKind.length === 0) return null;
   return {
     id: `${roleId}:${definition.resourceKind}`,
+    principalId,
     roleId,
     tenantId,
     effect: definition.effect,

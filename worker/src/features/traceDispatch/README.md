@@ -1,12 +1,12 @@
-# Internal cloud trace readiness and dispatch
+# Trace readiness and dispatch
 
-Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_EVENTS_DISPATCH_ENABLED` (cloud only, default off) turns on the whole pipeline; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
+Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_EVENTS_DISPATCH_ENABLED` (default off) turns on the whole pipeline; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
 
 - **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling, using a deterministic trace-ID value.
 
 ## Recording trace-rule selections
 
-Requires cloud, `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
+Requires `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
 writes. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
 | Map              | Contents                                                                                                                                                   | Retention                                                                                            |
@@ -80,7 +80,7 @@ The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDi
 - `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120, at most 1,000) caps traces per events-dispatch job.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
 
-Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
+`LANGFUSE_EVENTS_DISPATCH_ENABLED` guards intake, dispatcher execution and worker registration; Topics processing has its own switch. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
 
 Lua atomicity prevents command interleaving, but is not an ACID transaction
 across Redis, BullMQ and ClickHouse and does not roll back writes on a runtime
@@ -193,7 +193,7 @@ Redis applied an update without acknowledgement, so the stage difference include
 uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
 the ClickHouse flush. No additional serialization is performed.
 
-`TraceDispatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled in a cloud worker, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
+`TraceDispatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
 
 Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.

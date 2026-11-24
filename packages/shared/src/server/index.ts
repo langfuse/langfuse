@@ -14,6 +14,7 @@ export { type TransformMediaPayloadResult } from "./media/MediaPayloadProcessor"
 export { transformMediaPayload } from "./media/MediaPayloadProcessor";
 export { getMediaId } from "./media/mediaService";
 export { getMediaBucketPath } from "./media/mediaService";
+export { getMediaDownloadUrl } from "./media/getMediaDownloadUrl";
 export { upsertMediaRecord } from "./media/mediaService";
 export { linkMediaToTraceOrObservation } from "./media/mediaService";
 export { type UploadMediaForTraceResult } from "./media/mediaService";
@@ -65,6 +66,8 @@ export * from "./evals/extractObservationVariables";
 export * from "./evals/classifyEvaluatorLlmError";
 export * from "./evals/llmEvaluatorExecution";
 export * from "./evals/decisionModelEvaluatorExecution";
+export * from "./evals/traceEvalsConfig";
+export * from "./evals/traceEvalsProcessingGate";
 export * from "./llm/createDecisionModelClient";
 export * from "./llm/typesafe/typeSafeDecisionModelClient";
 export * from "./utils/traceId";
@@ -573,6 +576,7 @@ export { getTracesIdentifierForSessionFromEvents } from "./repositories/events";
 export { getEventsStreamForEval } from "./repositories/events-stream";
 export {
   getEventsDispatchEventStream,
+  getTopicCostEstimateEventStream,
   type EventsDispatchEventRow,
 } from "./repositories/events-dispatch";
 export { type TableCount } from "./repositories/types";
@@ -761,7 +765,9 @@ export {
   TOPIC_SETUP_WINDOW_DAYS,
 } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceNames } from "./repositories/topic-setup-events";
+export { getTopicCostEstimateSample } from "./repositories/topic-setup-events";
 export {
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTopicResultCounts,
   type TopicResultCounts,
   listCurrentTopicAssignments,
@@ -949,7 +955,6 @@ export const getTracesIdentifierForSession =
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
   getTracesIdentifierForSessionRoutingWrapper;
 
-export * from "./billing/billingLedgerShadow";
 export * from "./entitlements/getPlan";
 
 export { isDnsCompatibleBucketName } from "./outbound-url/validation";

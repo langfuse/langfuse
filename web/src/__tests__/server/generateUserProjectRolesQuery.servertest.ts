@@ -5,7 +5,17 @@ import {
 } from "@langfuse/shared/memberships";
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";
-import { getUserProjectRoles } from "@langfuse/shared/src/server";
+import {
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+} from "@langfuse/shared/src/server";
+import { assignRole } from "@langfuse/shared/rbac/server";
+import {
+  GroupId,
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "@langfuse/shared/rbac";
 
 export const createOrgAndProject = async () => {
   const org = await prisma.organization.create({
@@ -544,5 +554,227 @@ describe("find user project roles", () => {
 
     // Verify total count
     expect(users).toHaveLength(inheritanceUsers.length + overrideUsers.length);
+  });
+});
+
+describe("find user project roles through groups", () => {
+  type GroupRole = {
+    ownerId: OrganizationId | ProjectId;
+    role: Role;
+    expiresAt?: Date;
+  };
+
+  /** createMember creates a user in the org with `orgRole`, a `projectRole` on the project if given, and one group per entry of `groups`. */
+  const createMember = async (
+    orgId: string,
+    projectId: string,
+    {
+      orgRole,
+      projectRole,
+      groups = [],
+    }: { orgRole: Role; projectRole?: Role; groups?: GroupRole[][] },
+  ) => {
+    const user = await prisma.user.create({
+      data: { id: v4(), email: v4(), name: v4() },
+    });
+    const orgMembership = await createOrgMembership(prisma, {
+      userId: user.id,
+      orgId,
+      role: orgRole,
+    });
+    if (projectRole)
+      await createProjectMembership(prisma, {
+        orgId,
+        userId: user.id,
+        projectId,
+        role: projectRole,
+        orgMembershipId: orgMembership.id,
+      });
+    for (const roles of groups) {
+      const group = await prisma.group.create({
+        data: { orgId, displayName: v4() },
+      });
+      await prisma.groupMembership.create({
+        data: { groupId: group.id, orgMembershipId: orgMembership.id },
+      });
+      for (const { ownerId, role, expiresAt } of roles)
+        await assignRole(prisma, {
+          tenantId: OrganizationId(orgId),
+          ownerId,
+          principalId: GroupId(group.id),
+          roleId: SystemRoleId(role),
+          tags: [],
+          expiresAt,
+        });
+    }
+    return user.id;
+  };
+
+  /** roleOf returns the role the query gives the user on the project, or undefined when it leaves them out. */
+  const roleOf = async (orgId: string, projectId: string, userId: string) => {
+    const users = await getUserProjectRoles({
+      projectId,
+      orgId,
+      filterCondition: [
+        {
+          column: "userId",
+          operator: "any of",
+          value: [userId],
+          type: "stringOptions",
+        },
+      ],
+      searchFilter: Prisma.empty,
+      orderBy: Prisma.empty,
+    });
+    expect(users.length).toBeLessThanOrEqual(1);
+    return users[0]?.role;
+  };
+
+  it("includes a user who reaches the project only through a group's project role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [[{ ownerId: ProjectId(project.id), role: "VIEWER" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("VIEWER");
+  });
+
+  it("includes a user who reaches the project through a group's org role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [[{ ownerId: OrganizationId(org.id), role: "MEMBER" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("MEMBER");
+  });
+
+  it("leaves out a user whose group has a role only on another project", async () => {
+    const { org, project } = await createOrgAndProject();
+    const other = await prisma.project.create({
+      data: { id: v4(), name: v4(), orgId: org.id },
+    });
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [[{ ownerId: ProjectId(other.id), role: "ADMIN" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBeUndefined();
+  });
+
+  it("leaves out a user whose group role has expired", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [
+        [
+          {
+            ownerId: OrganizationId(org.id),
+            role: "ADMIN",
+            expiresAt: new Date(Date.now() - 60_000),
+          },
+        ],
+      ],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBeUndefined();
+  });
+
+  it("adds a group's org role on top of a direct project downgrade", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "MEMBER",
+      projectRole: "VIEWER",
+      groups: [[{ ownerId: OrganizationId(org.id), role: "ADMIN" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("ADMIN");
+  });
+
+  it("adds a group's project role on top of a direct project NONE", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "MEMBER",
+      projectRole: "NONE",
+      groups: [[{ ownerId: ProjectId(project.id), role: "VIEWER" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("VIEWER");
+  });
+
+  it("never lowers the direct role with a lower group role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "MEMBER",
+      groups: [[{ ownerId: ProjectId(project.id), role: "VIEWER" }]],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("MEMBER");
+  });
+
+  it("keeps a group's org role where the same group has a lower project role", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [
+        [
+          { ownerId: OrganizationId(org.id), role: "ADMIN" },
+          { ownerId: ProjectId(project.id), role: "VIEWER" },
+        ],
+      ],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("ADMIN");
+  });
+
+  it("lists a user in several groups once, with the highest role, and counts them once", async () => {
+    const { org, project } = await createOrgAndProject();
+    const userId = await createMember(org.id, project.id, {
+      orgRole: "VIEWER",
+      groups: [
+        [{ ownerId: ProjectId(project.id), role: "MEMBER" }],
+        [{ ownerId: OrganizationId(org.id), role: "ADMIN" }],
+      ],
+    });
+    expect(await roleOf(org.id, project.id, userId)).toBe("ADMIN");
+    expect(
+      await getUserProjectRolesCount({
+        projectId: project.id,
+        orgId: org.id,
+        filterCondition: [],
+        searchFilter: Prisma.empty,
+      }),
+    ).toBe(1);
+  });
+
+  it("applies the search and user filters to group-only users", async () => {
+    const { org, project } = await createOrgAndProject();
+    const groupOnly = await createMember(org.id, project.id, {
+      orgRole: "NONE",
+      groups: [[{ ownerId: ProjectId(project.id), role: "VIEWER" }]],
+    });
+    const { name } = await prisma.user.findUniqueOrThrow({
+      where: { id: groupOnly },
+    });
+    const list = (searchFilter: Prisma.Sql, excluded: string[] = []) =>
+      getUserProjectRoles({
+        projectId: project.id,
+        orgId: org.id,
+        filterCondition: excluded.length
+          ? [
+              {
+                column: "userId",
+                operator: "none of",
+                value: excluded,
+                type: "stringOptions",
+              },
+            ]
+          : [],
+        searchFilter,
+        orderBy: Prisma.empty,
+      });
+
+    expect(
+      (await list(Prisma.sql` AND u.name ILIKE ${`%${name}%`}`)).map(
+        (u) => u.id,
+      ),
+    ).toEqual([groupOnly]);
+    expect(
+      await list(Prisma.sql` AND u.name ILIKE ${"%no-such-user%"}`),
+    ).toEqual([]);
+    expect(await list(Prisma.empty, [groupOnly])).toEqual([]);
   });
 });

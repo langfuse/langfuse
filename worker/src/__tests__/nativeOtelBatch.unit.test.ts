@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { prepareOtelJson, validateOtelJson } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+import { serializeOtelLookups } from "../features/otel-ingestion/serializeOtelLookups";
 
 const nativeContext = {
   projectId: "native-boundary",
@@ -37,7 +38,7 @@ describe("Native OTEL batch NAPI boundary", () => {
         expect(mediaRequests).toEqual([]);
         const { finalized } = await processing.complete(
           [],
-          [],
+          serializeOtelLookups([]),
           undefined,
           true,
         );
@@ -88,7 +89,12 @@ describe("Native OTEL batch NAPI boundary", () => {
     const batch = await validated.extract(true);
     const { batch: processing } = await batch.process(nativeContext);
     try {
-      const { finalized } = await processing.complete([], [], undefined, true);
+      const { finalized } = await processing.complete(
+        [],
+        serializeOtelLookups([]),
+        undefined,
+        true,
+      );
       const rows = finalized!.evaluationRows as Record<string, unknown>[];
 
       for (const [, column] of experimentFields) {
@@ -130,7 +136,12 @@ describe("Native OTEL batch NAPI boundary", () => {
       const batch = await validated.extract(true);
       const { batch: processing } = await batch.process(nativeContext);
       try {
-        const completion = await processing.complete([], [], limit, true);
+        const completion = await processing.complete(
+          [],
+          serializeOtelLookups([]),
+          limit,
+          true,
+        );
         const finalized =
           completion.finalized ??
           (await processing.finalize(
@@ -272,12 +283,17 @@ describe("Native OTEL batch NAPI boundary", () => {
             });
             if (results.length > 0) {
               await expect(
-                processing.complete([], results.slice(0, -1), undefined, true),
+                processing.complete(
+                  [],
+                  serializeOtelLookups(results.slice(0, -1)),
+                  undefined,
+                  true,
+                ),
               ).rejects.toThrow("incomplete OTEL lookup results");
             }
             const { finalized } = await processing.complete(
               [],
-              results,
+              serializeOtelLookups(results),
               undefined,
               true,
               ["a".repeat(32)],
@@ -332,7 +348,12 @@ describe("Native OTEL batch NAPI boundary", () => {
               else expect(event.serializedEventBytes).toBeUndefined();
             }
             await expect(
-              processing.complete([], results, undefined, true),
+              processing.complete(
+                [],
+                serializeOtelLookups(results),
+                undefined,
+                true,
+              ),
             ).rejects.toThrow();
           } finally {
             await processing.dispose();
@@ -404,7 +425,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       try {
         const { overflowRequests } = await processing.complete(
           [],
-          [],
+          serializeOtelLookups([]),
           256,
           false,
           [traceId],
@@ -494,7 +515,7 @@ describe("Native OTEL batch NAPI boundary", () => {
       };
       const { finalized } = await processing.complete(
         [],
-        lookupRequests.map(() => lookup),
+        serializeOtelLookups(lookupRequests.map(() => lookup)),
         undefined,
         true,
       );

@@ -1,15 +1,28 @@
 import * as z from "zod";
-import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
-import { GroupSource, Role, type prisma } from "@langfuse/shared/src/db";
+import {
+  GroupSource,
+  Role,
+  type Prisma,
+  type prisma,
+} from "@langfuse/shared/src/db";
 import { type OrganizationScope, groupRoleGrants } from "@langfuse/shared/rbac";
-import { projectRoleAccessRights, type ProjectScope } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  LangfuseNotFoundError,
+  hasProjectAccessByRole,
+  projectRoleAccessRights,
+  type ProjectScope,
+} from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -21,6 +34,8 @@ import {
 import {
   addGroupMembers,
   deleteGroup,
+  evictAuthCaches,
+  groupMemberUserIds,
   removeGroupMembers,
   replaceGroupRoles,
   roleOf,
@@ -46,7 +61,7 @@ type AuthedSession = Session & { user: NonNullable<Session["user"]> };
 function throwIfNoOrgGroupAccess(
   session: AuthedSession,
   orgId: string,
-  scope: OrganizationScope = "organizationMembers:CUD",
+  scope: OrganizationScope = "groups:CUD",
 ) {
   throwIfNoOrganizationAccess({ session, organizationId: orgId, scope });
   throwIfNoEntitlement({
@@ -71,7 +86,7 @@ function throwIfNoProjectGroupAccess(
 
 function throwIfGroupNotFound<T>(group: T | null): asserts group is T {
   if (!group) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Group not found" });
+    throw new LangfuseNotFoundError("Group not found");
   }
 }
 
@@ -94,11 +109,9 @@ async function findEditableGroupOrThrow(
   });
   throwIfGroupNotFound(group);
   if (group.source === GroupSource.SCIM) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "This group is synced from your identity provider. Change its name and members, or delete it, there.",
-    });
+    throw new ForbiddenError(
+      "This group is synced from your identity provider. Change its name and members, or delete it, there.",
+    );
   }
   return group;
 }
@@ -113,11 +126,83 @@ function throwIfRoleNotCovered(
     hasProjectAccess({ session, projectId, scope }),
   );
   if (!covered) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You cannot grant/edit a role higher than your own",
+    throw new ForbiddenError(
+      "You cannot grant/edit a role higher than your own",
+    );
+  }
+}
+
+/** getProjectGroups lists a project's groups with their members and roles there: every group of the org, or only those with access to the project. */
+async function getProjectGroups(
+  db: typeof prisma,
+  query: { orgId: string; projectId: string },
+  showAllOrgGroups = true,
+) {
+  const conditions: Prisma.GroupWhereInput[] = [];
+
+  // restrict to only groups with a role in the project if showAllOrgGroups is false
+  if (!showAllOrgGroups) {
+    const rolesWithoutProjectRead = Object.values(Role).filter(
+      (role) => !hasProjectAccessByRole({ role, scope: "project:read" }),
+    );
+    conditions.push({
+      // either org level role or project level role
+      roleAssignments: {
+        some: {
+          OR: [{ projectId: null }, { projectId: query.projectId }],
+          systemRole: { notIn: rolesWithoutProjectRead },
+        },
+      },
     });
   }
+
+  const groups = await db.group.findMany({
+    where: { orgId: query.orgId, AND: conditions },
+    orderBy: [{ displayName: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      displayName: true,
+      externalId: true,
+      source: true,
+      _count: { select: { members: true } },
+      members: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          organizationMembership: {
+            select: {
+              user: {
+                select: { id: true, name: true, email: true, image: true },
+              },
+            },
+          },
+        },
+      },
+      roleAssignments: {
+        where: {
+          OR: [{ projectId: null }, { projectId: query.projectId }],
+        },
+        select: { projectId: true, systemRole: true },
+      },
+    },
+  });
+
+  return groups.map((group) => ({
+    id: group.id,
+    displayName: group.displayName,
+    externalId: group.externalId,
+    source: group.source,
+    memberCount: group._count.members,
+    members: group.members.map(({ organizationMembership: { user } }) => ({
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    })),
+    orgRole: roleOf(group.roleAssignments.find((a) => a.projectId === null)),
+    projectRole: roleOf(
+      group.roleAssignments.find((a) => a.projectId === query.projectId),
+    ),
+  }));
 }
 
 export const groupsRouter = createTRPCRouter({
@@ -205,7 +290,8 @@ export const groupsRouter = createTRPCRouter({
         input.orgId,
         input.groupId,
       );
-      await ctx.prisma.$transaction(async (tx) => {
+      const userIds = await ctx.prisma.$transaction(async (tx) => {
+        const userIds = await groupMemberUserIds(tx, group.id);
         const roles = await deleteGroup(tx, { id: group.id });
         await auditLog(
           {
@@ -217,10 +303,12 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+        return userIds;
       });
+      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
     }),
 
-  /** Group roles are capped at ADMIN and this needs organizationMembers:CUD, so it grants no more than the caller could directly. */
+  /** Group roles are capped at ADMIN and this needs groups:CUD, so it grants no more than the caller could directly. */
   addMembers: protectedOrganizationProcedure
     .input(
       z.object({
@@ -254,6 +342,7 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
+      await evictAuthCaches(ctx.prisma, { orgId: input.orgId, userIds });
     }),
 
   removeMember: protectedOrganizationProcedure
@@ -283,16 +372,16 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: [input.userId],
+      });
     }),
 
   list: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoOrgGroupAccess(
-        ctx.session,
-        input.orgId,
-        "organizationMembers:read",
-      );
+      throwIfNoOrgGroupAccess(ctx.session, input.orgId, "groups:read");
 
       const groups = await ctx.prisma.group.findMany({
         where: { orgId: input.orgId },
@@ -383,11 +472,9 @@ export const groupsRouter = createTRPCRouter({
           orgId: input.orgId,
         })
       ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Organization does not have the required entitlement to set project roles",
-        });
+        throw new ForbiddenError(
+          "Organization does not have the required entitlement to set project roles",
+        );
       }
 
       const group = await ctx.prisma.group.findFirst({
@@ -417,6 +504,10 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+      });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });
       return after;
     }),
@@ -463,67 +554,43 @@ export const groupsRouter = createTRPCRouter({
           tx,
         );
       });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: input.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
+      });
       return { role: input.role };
     }),
 
   projectList: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectGroupAccess(
-        ctx.session,
-        input.projectId,
-        "projectMembers:read",
-      );
-
-      const groups = await ctx.prisma.group.findMany({
-        where: { orgId: ctx.session.orgId },
-        orderBy: [{ displayName: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          displayName: true,
-          externalId: true,
-          source: true,
-          _count: { select: { members: true } },
-          members: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              organizationMembership: {
-                select: {
-                  user: {
-                    select: { id: true, name: true, email: true, image: true },
-                  },
-                },
-              },
-            },
-          },
-          roleAssignments: {
-            where: {
-              OR: [{ projectId: null }, { projectId: input.projectId }],
-            },
-            select: { projectId: true, systemRole: true },
-          },
-        },
+      const orgId = ctx.session.orgId;
+      const orgAccess = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: orgId,
+        scope: "groups:read",
       });
 
-      return groups.map((group) => ({
-        id: group.id,
-        displayName: group.displayName,
-        externalId: group.externalId,
-        source: group.source,
-        memberCount: group._count.members,
-        members: group.members.map(({ organizationMembership: { user } }) => ({
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-        })),
-        orgRole: roleOf(
-          group.roleAssignments.find((a) => a.projectId === null),
-        ),
-        projectRole: roleOf(
-          group.roleAssignments.find((a) => a.projectId === input.projectId),
-        ),
-      }));
+      const projectAccess = hasProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectGroups:read",
+      });
+
+      if (!orgAccess && !projectAccess) {
+        throw new ForbiddenError("You do not have the required access rights");
+      }
+      throwIfNoEntitlement({
+        entitlement: "admin-api",
+        sessionUser: ctx.session.user,
+        orgId,
+      });
+
+      return getProjectGroups(
+        ctx.prisma,
+        { orgId, projectId: input.projectId },
+        orgAccess,
+      );
     }),
 
   setProjectRole: protectedProjectProcedure
@@ -538,7 +605,7 @@ export const groupsRouter = createTRPCRouter({
       throwIfNoProjectGroupAccess(
         ctx.session,
         input.projectId,
-        "projectMembers:CUD",
+        "projectGroups:CUD",
       );
       throwIfNoEntitlement({
         entitlement: "rbac-project-roles",
@@ -582,6 +649,10 @@ export const groupsRouter = createTRPCRouter({
           },
           tx,
         );
+      });
+      await evictAuthCaches(ctx.prisma, {
+        orgId: ctx.session.orgId,
+        userIds: await groupMemberUserIds(ctx.prisma, group.id),
       });
       return { projectId: input.projectId, role: input.role };
     }),

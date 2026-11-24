@@ -8,7 +8,7 @@ export function GroupDialogHost({ orgId }: { orgId: string }) {
   const [groupId, setGroupId] = useGroupDialogParam();
   const canEdit = useHasOrganizationAccess({
     organizationId: orgId,
-    scope: "organizationMembers:CUD",
+    scope: "groups:CUD",
   });
   const close = () => setGroupId(undefined);
   return (

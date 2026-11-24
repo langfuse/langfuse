@@ -34,7 +34,7 @@ const monoToken = parsed.fontTokens.find((t) => t.name === "--font-mono");
 const weightTokens = parsed.fontTokens.filter((t) =>
   t.name.startsWith("--font-weight-"),
 );
-const regularWeight = resolveStatic("var(--font-weight-regular)");
+const regularWeight = resolveStatic("var(--font-weight-normal)");
 const boldWeight = resolveStatic("var(--font-weight-bold)");
 
 /** `--text-xs`, `--text-sm`, … (their `--font-weight` companions excluded). */

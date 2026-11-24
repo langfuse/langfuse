@@ -25,7 +25,10 @@ export function GroupMemberList({
     sortKey(a).localeCompare(sortKey(b)),
   );
   return (
-    <ul aria-label="Members" className="flex flex-col rounded-lg border p-1">
+    <ul
+      aria-label="Members"
+      className="ph-no-capture flex flex-col rounded-lg border p-1"
+    >
       {sorted.map((member) => (
         <li
           key={member.userId}

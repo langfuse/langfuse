@@ -19,6 +19,7 @@ export function groupTableColumns<T extends GroupTableRow>() {
       accessorKey: "displayName",
       header: "Name",
       size: 240,
+      sensitive: true,
       cell: ({ row }) => (
         <GroupNameLabel name={row.original.group.displayName} />
       ),

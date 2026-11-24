@@ -3757,6 +3757,75 @@ describe("AI gateway control plane", () => {
     expect(keyOwnerEmails()).toEqual(["Laptop", "CI"]);
   });
 
+  it("does not alert on another organization's limits reported with a key", async () => {
+    Object.assign(env, {
+      SMTP_CONNECTION_URL: "smtp://localhost:1025",
+      EMAIL_FROM_ADDRESS: "gateway@example.test",
+    });
+    const owner = await prepare();
+    const other = await prepare();
+    for (const { caller, org, project } of [owner, other]) {
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "USAGE",
+      });
+    }
+    const ownerKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+    // The key's owner also belongs to the other organization, so its user limit names them.
+    await createOrgMembership(prisma, {
+      orgId: other.org.id,
+      userId: owner.user.id,
+      role: Role.MEMBER,
+    });
+    await other.caller.aiGateway.setSpendLimits({
+      orgId: other.org.id,
+      scope: "USER",
+      subjects: { type: "ids", subjectIds: [owner.user.id] },
+      spendLimit: { interval: "MONTHLY", limitUsd: 20 },
+    });
+    await other.caller.aiGateway.setDefaultSpendLimit({
+      orgId: other.org.id,
+      scope: "API_KEY",
+      spendLimit: { interval: "MONTHLY", limitUsd: 10 },
+    });
+    await other.caller.aiGateway.setOrganizationSpendLimit({
+      orgId: other.org.id,
+      spendLimit: { interval: "MONTHLY", limitUsd: 5000 },
+    });
+    const otherLimits = await prisma.gatewaySpendLimit.findMany({
+      where: { organizationId: other.org.id },
+    });
+    expect(otherLimits.map(({ scope }) => scope).toSorted()).toEqual([
+      "API_KEY_DEFAULT",
+      "ORGANIZATION",
+      "USER",
+    ]);
+
+    await new GatewaySpendLimitAlertService(prisma).reportReached({
+      fastHashedSecretKey: createShaHash(ownerKey.secretKey, env.SALT),
+      limits: otherLimits.map((limit) => ({
+        limitId:
+          limit.scope === "API_KEY_DEFAULT"
+            ? `${limit.id}:${ownerKey.id}`
+            : limit.id,
+        countingStartedAt: limit.countingStartedAt,
+        windowStart: new Date("2026-11-01T00:00:00Z"),
+      })),
+    });
+
+    expect(addNotificationJobs).not.toHaveBeenCalled();
+    expect(
+      await prisma.gatewaySpendLimitAlert.count({
+        where: { spendLimitId: { in: otherLimits.map(({ id }) => id) } },
+      }),
+    ).toBe(0);
+  });
+
   it("persists alert thresholds, emails per enabled threshold once per window, and supports organization budget alerts", async () => {
     Object.assign(env, {
       SMTP_CONNECTION_URL: "smtp://localhost:1025",
