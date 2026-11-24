@@ -4,14 +4,14 @@ import { KeyRound, User } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
 import {
   GatewayBulkGuardrailTargetsDialog,
   type GatewayBulkGuardrailTargetsDialogProps,
 } from "./GatewayBulkGuardrailTargetsDialog";
 
-const TARGET_OPTIONS: TagAutocompleteOption[] = [
+const TARGET_OPTIONS: AsyncAutocompleteOption[] = [
   {
     value: "user:1",
     label: "Priya Raman",

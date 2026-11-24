@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { KeyRound, User } from "@langfuse/icons";
 
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import type { GatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
   API_KEY_TARGET_PREFIX,
@@ -27,9 +27,9 @@ export function useGatewayGuardrailTargetPicker(
     },
   );
 
-  const options = useMemo<TagAutocompleteOption[]>(() => {
+  const options = useMemo<AsyncAutocompleteOption[]>(() => {
     if (!targetsQuery.data) return [];
-    const users: TagAutocompleteOption[] = targetsQuery.data.users.map(
+    const users: AsyncAutocompleteOption[] = targetsQuery.data.users.map(
       (user) => ({
         value: `${USER_TARGET_PREFIX}${user.id}`,
         label: user.name || user.email || user.id,
@@ -37,7 +37,7 @@ export function useGatewayGuardrailTargetPicker(
         icon: User,
       }),
     );
-    const apiKeys: TagAutocompleteOption[] = targetsQuery.data.apiKeys.map(
+    const apiKeys: AsyncAutocompleteOption[] = targetsQuery.data.apiKeys.map(
       (apiKey) => ({
         value: `${API_KEY_TARGET_PREFIX}${apiKey.id}`,
         label: apiKey.name,

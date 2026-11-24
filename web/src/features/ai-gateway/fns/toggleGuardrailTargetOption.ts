@@ -1,4 +1,4 @@
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import {
   EVERYONE_TARGET_OPTION,
   EVERYONE_TARGET_VALUE,
@@ -9,9 +9,9 @@ import {
  * users or API keys.
  */
 export function toggleGuardrailTargetOption(
-  current: readonly TagAutocompleteOption[],
-  option: TagAutocompleteOption,
-): TagAutocompleteOption[] {
+  current: readonly AsyncAutocompleteOption[],
+  option: AsyncAutocompleteOption,
+): AsyncAutocompleteOption[] {
   const isSelected = current.some((item) => item.value === option.value);
   if (option.value === EVERYONE_TARGET_VALUE) {
     return isSelected ? [] : [EVERYONE_TARGET_OPTION];

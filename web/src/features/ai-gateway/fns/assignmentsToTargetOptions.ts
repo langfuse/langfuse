@@ -1,6 +1,6 @@
 import { KeyRound, User } from "@langfuse/icons";
 
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import {
   API_KEY_TARGET_PREFIX,
   EVERYONE_TARGET_OPTION,
@@ -11,7 +11,7 @@ import { assertUnreachable } from "@/src/utils/types";
 
 export function assignmentsToTargetOptions(
   assignments: GatewayGuardrailRow["assignments"],
-): TagAutocompleteOption[] {
+): AsyncAutocompleteOption[] {
   return assignments.flatMap((assignment) => {
     switch (assignment.scope) {
       case "ORGANIZATION":

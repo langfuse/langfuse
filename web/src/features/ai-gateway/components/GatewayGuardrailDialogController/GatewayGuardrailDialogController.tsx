@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
 import {
   GatewayGuardrailFormDialog,
@@ -43,7 +43,7 @@ export type GuardrailDialogState =
       mode: "bulkTargets";
       target: BulkTargetsInput;
       selectedCount: number;
-      initialTargets: TagAutocompleteOption[];
+      initialTargets: AsyncAutocompleteOption[];
       onAfterSave: () => void;
     };
 
@@ -138,7 +138,7 @@ export function GatewayGuardrailDialogController({
         };
 
         const handleSubmitBulkTargets = async (
-          targets: TagAutocompleteOption[],
+          targets: AsyncAutocompleteOption[],
         ) => {
           if (state.mode !== "bulkTargets") return;
           try {
@@ -184,7 +184,7 @@ type GuardrailDialogContentProps = {
   onClearError: () => void;
   onContactSupport: () => void;
   onSubmitForm: (values: GatewayGuardrailFormValues) => void;
-  onSubmitBulkTargets: (targets: TagAutocompleteOption[]) => void;
+  onSubmitBulkTargets: (targets: AsyncAutocompleteOption[]) => void;
 };
 
 function GuardrailDialogContent({

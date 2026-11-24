@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useId,
   useMemo,
   useRef,
   useState,
@@ -12,43 +13,47 @@ import {
 import { Command as CommandPrimitive } from "cmdk";
 import { LoaderCircle, X, type IconComponent } from "@langfuse/icons";
 
+import { AsyncAutocompleteChip } from "@/src/components/AsyncAutocompleteInput/components/AsyncAutocompleteChip/AsyncAutocompleteChip";
+import { AsyncAutocompleteOptionItem } from "@/src/components/AsyncAutocompleteInput/components/AsyncAutocompleteOptionItem/AsyncAutocompleteOptionItem";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/types/asyncAutocompleteOption";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
-import { TagAutocompleteChip } from "@/src/components/TagAutocompleteInput/components/TagAutocompleteChip/TagAutocompleteChip";
-import { TagAutocompleteOptionItem } from "@/src/components/TagAutocompleteInput/components/TagAutocompleteOptionItem/TagAutocompleteOptionItem";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/types/tagAutocompleteOption";
 import { Command, CommandList } from "@/src/components/ui/command";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { cn } from "@/src/utils/tailwind";
 
-export type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/types/tagAutocompleteOption";
+export type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/types/asyncAutocompleteOption";
 
-export type TagAutocompleteInputProps<V extends string = string> = {
-  /** Accessible label for cmdk. */
-  label: string;
-  id?: string;
-  name?: string;
-  describedById?: string;
-  value: TagAutocompleteOption<V>[];
-  options: TagAutocompleteOption<V>[];
-  onValueChange: (nextValue: TagAutocompleteOption<V>[]) => void;
+export type AsyncAutocompleteInputProps<V extends string = string> = {
+  /** The selected options, kept with their labels while the list shows others. */
+  value: AsyncAutocompleteOption<V>[];
+  options: AsyncAutocompleteOption<V>[];
+  onValueChange: (newValue: AsyncAutocompleteOption<V>[]) => void;
   /**
    * Optional custom selection handler when toggling an option has special
    * semantics (e.g. mutually exclusive options or sentinel rows). Defaults to
    * toggling the option in `value`.
    */
-  onOptionSelect?: (option: TagAutocompleteOption<V>) => void;
-  /** Caller-owned search query; options are rendered as supplied (static or async). */
+  onOptionSelect?: (option: AsyncAutocompleteOption<V>) => void;
+  placeholder: string;
+  /** Caller-owned search query; options are rendered without filtering. */
   search: {
     value: string;
     onValueChange: (value: string) => void;
   };
+  emptyMessage: string;
+  disabled?: boolean;
+  error?: boolean;
+  id?: string;
+  name?: string;
+  "aria-label"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
   loading?: { message: string };
-  placeholder?: string;
-  emptyMessage?: string;
   /** Fallback chip rendered when `value` is empty (e.g. "All enabled models"). */
   emptyTag?: {
     label: string;
@@ -56,54 +61,53 @@ export type TagAutocompleteInputProps<V extends string = string> = {
     onRemove?: () => void;
   };
   /** Enables clicking or pressing Enter on a chip to edit it inline. */
-  onEditItem?: (item: TagAutocompleteOption<V>) => void;
+  onEditItem?: (item: AsyncAutocompleteOption<V>) => void;
   clearLabel?: string;
-  disabled?: boolean;
-  error?: boolean;
   onBlur?: (query: string) => void;
   inputRef?: Ref<HTMLInputElement>;
 };
 
 /**
- * Controlled inline multi-select tag input with an auto-suggest popover.
- * Callers own `search` and supply either filtered static options or async
- * results, with optional icons on chips and dropdown rows.
+ * Search and selection are caller-owned; options are rendered without filtering.
+ * Mirrors `AsyncMultiSelectTagInput` with an inline text input for autocomplete.
  */
-export function TagAutocompleteInput<V extends string = string>({
-  label,
-  id,
-  name,
-  describedById,
-  value,
+export function AsyncAutocompleteInput<V extends string = string>({
+  value: selected,
   options,
   onValueChange,
   onOptionSelect,
+  placeholder,
   search,
+  emptyMessage,
+  disabled = false,
+  error = false,
+  id,
+  name,
+  "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   loading,
-  placeholder = "Search…",
-  emptyMessage = "No matches.",
   emptyTag,
   onEditItem,
   clearLabel = "Clear selection",
-  disabled = false,
-  error = false,
   onBlur,
   inputRef,
-}: TagAutocompleteInputProps<V>) {
+}: AsyncAutocompleteInputProps<V>) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
 
   const selectedValues = useMemo(
-    () => new Set(value.map((item) => item.value)),
-    [value],
+    () => new Set(selected.map((item) => item.value)),
+    [selected],
   );
 
   const focusInput = () => {
     anchorRef.current?.querySelector("input")?.focus();
   };
 
-  const handleSelectOption = (option: TagAutocompleteOption<V>) => {
+  const handleSelectOption = (option: AsyncAutocompleteOption<V>) => {
     if (disabled || option.disabled) return;
     if (onOptionSelect) {
       onOptionSelect(option);
@@ -111,10 +115,10 @@ export function TagAutocompleteInput<V extends string = string>({
     }
     search.onValueChange("");
     if (selectedValues.has(option.value)) {
-      onValueChange(value.filter((item) => item.value !== option.value));
+      onValueChange(selected.filter((item) => item.value !== option.value));
       return;
     }
-    onValueChange([...value, option]);
+    onValueChange([...selected, option]);
   };
 
   const handleQueryChange = (nextValue: string) => {
@@ -124,8 +128,8 @@ export function TagAutocompleteInput<V extends string = string>({
     search.onValueChange(nextValue);
   };
 
-  const handleEdit = (item: TagAutocompleteOption<V>) => {
-    if (disabled || !onEditItem) return;
+  const handleEdit = (item: AsyncAutocompleteOption<V>) => {
+    if (disabled || item.disabled || !onEditItem) return;
     onEditItem(item);
     setActiveIndex(null);
     setOpen(true);
@@ -134,11 +138,17 @@ export function TagAutocompleteInput<V extends string = string>({
 
   const handleRemove = (removedValue: V) => {
     if (disabled) return;
-    onValueChange(value.filter((item) => item.value !== removedValue));
+    onValueChange(
+      selected.filter(
+        (item) => item.value !== removedValue || Boolean(item.disabled),
+      ),
+    );
   };
 
   const removeActiveItem = (index: number, nextIndex: number) => {
-    const remaining = value.filter((_, itemIndex) => itemIndex !== index);
+    const target = selected[index];
+    if (!target || target.disabled) return;
+    const remaining = selected.filter((_, itemIndex) => itemIndex !== index);
     onValueChange(remaining);
     setActiveIndex(
       nextIndex >= 0 && nextIndex < remaining.length ? nextIndex : null,
@@ -154,7 +164,7 @@ export function TagAutocompleteInput<V extends string = string>({
         setActiveIndex(Math.max(0, index - 1));
         break;
       case "ArrowRight":
-        setActiveIndex(index + 1 < value.length ? index + 1 : null);
+        setActiveIndex(index + 1 < selected.length ? index + 1 : null);
         break;
       case "Backspace":
         removeActiveItem(index, Math.max(0, index - 1));
@@ -163,7 +173,7 @@ export function TagAutocompleteInput<V extends string = string>({
         removeActiveItem(index, index);
         break;
       case "Enter": {
-        const activeItem = value[index];
+        const activeItem = selected[index];
         if (activeItem && onEditItem) {
           handleEdit(activeItem);
           break;
@@ -193,17 +203,24 @@ export function TagAutocompleteInput<V extends string = string>({
     const { selectionStart, selectionEnd } = event.currentTarget;
     const isCaretAtStart = selectionStart === 0 && selectionEnd === 0;
     if (
-      value.length > 0 &&
+      selected.length > 0 &&
       isCaretAtStart &&
       (event.key === "Backspace" || event.key === "ArrowLeft")
     ) {
       event.preventDefault();
       if (onEditItem) {
-        setActiveIndex(value.length - 1);
+        setActiveIndex(selected.length - 1);
       } else if (event.key === "Backspace") {
-        removeActiveItem(value.length - 1, -1);
+        let lastRemovableIndex = -1;
+        for (let i = selected.length - 1; i >= 0; i -= 1) {
+          if (!selected[i]?.disabled) {
+            lastRemovableIndex = i;
+            break;
+          }
+        }
+        if (lastRemovableIndex >= 0) removeActiveItem(lastRemovableIndex, -1);
       } else {
-        setActiveIndex(value.length - 1);
+        setActiveIndex(selected.length - 1);
       }
     }
   };
@@ -213,7 +230,7 @@ export function TagAutocompleteInput<V extends string = string>({
   };
 
   const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
-    if (event.relatedTarget?.closest("[data-tag-autocomplete-input]")) return;
+    if (event.relatedTarget?.closest("[data-async-autocomplete-input]")) return;
     const currentQuery = search.value;
     setOpen(false);
     setActiveIndex(null);
@@ -222,7 +239,7 @@ export function TagAutocompleteInput<V extends string = string>({
 
   const handleClear = () => {
     if (disabled) return;
-    onValueChange([]);
+    onValueChange(selected.filter((item) => Boolean(item.disabled)));
     search.onValueChange("");
   };
 
@@ -245,7 +262,7 @@ export function TagAutocompleteInput<V extends string = string>({
   }) => {
     if (
       event.target instanceof Element &&
-      event.target.closest("[data-tag-autocomplete-input]")
+      event.target.closest("[data-async-autocomplete-input]")
     ) {
       event.preventDefault();
     }
@@ -256,13 +273,15 @@ export function TagAutocompleteInput<V extends string = string>({
     setOpen(nextOpen);
   };
 
+  const allSelectedDisabled =
+    selected.length > 0 && selected.every((item) => Boolean(item.disabled));
   const showClearButton =
-    !disabled && (value.length > 0 || emptyTag !== undefined);
+    !disabled && (selected.length > 0 || emptyTag !== undefined);
   const showEmpty = !loading && options.length === 0;
 
   return (
     <Command
-      label={label}
+      label={ariaLabel}
       shouldFilter={false}
       loop
       className="h-auto overflow-visible rounded-none bg-transparent"
@@ -271,7 +290,7 @@ export function TagAutocompleteInput<V extends string = string>({
         <PopoverAnchor asChild>
           <div
             ref={anchorRef}
-            data-tag-autocomplete-input
+            data-async-autocomplete-input
             onMouseDown={handleContainerMouseDown}
             className={cn(
               "ph-no-capture bg-background ring-offset-background border-input focus-within:ring-ring flex min-h-8 w-full items-center gap-1 rounded-md border py-1 pr-1 pl-1.5 text-sm focus-within:ring-2 focus-within:ring-offset-2",
@@ -281,7 +300,7 @@ export function TagAutocompleteInput<V extends string = string>({
             )}
           >
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-              {value.length === 0 && emptyTag ? (
+              {selected.length === 0 && emptyTag ? (
                 <Tag
                   text={emptyTag.label}
                   icon={emptyTag.icon}
@@ -292,8 +311,8 @@ export function TagAutocompleteInput<V extends string = string>({
                   }
                 />
               ) : (
-                value.map((item, index) => (
-                  <TagAutocompleteChip
+                selected.map((item, index) => (
+                  <AsyncAutocompleteChip
                     key={item.value}
                     item={item}
                     isActive={index === activeIndex}
@@ -308,8 +327,11 @@ export function TagAutocompleteInput<V extends string = string>({
                 id={id}
                 name={name}
                 disabled={disabled}
-                aria-describedby={describedById}
-                aria-invalid={error || undefined}
+                aria-label={ariaLabel}
+                aria-controls={listId}
+                aria-expanded={!disabled && open}
+                aria-describedby={ariaDescribedBy}
+                aria-invalid={ariaInvalid ?? (error || undefined)}
                 className="placeholder:text-muted-foreground h-6 min-w-28 flex-1 border-0 bg-transparent p-0 px-1 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
                 placeholder={placeholder}
                 value={search.value}
@@ -322,9 +344,11 @@ export function TagAutocompleteInput<V extends string = string>({
             {showClearButton ? (
               <button
                 type="button"
+                disabled={allSelectedDisabled}
+                data-clear-selection
                 aria-label={clearLabel}
                 tabIndex={-1}
-                className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center self-start rounded-sm"
+                className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center self-start rounded-sm disabled:cursor-not-allowed disabled:opacity-50"
                 onMouseDown={handleKeepInputFocused}
                 onClick={handleClear}
               >
@@ -339,11 +363,17 @@ export function TagAutocompleteInput<V extends string = string>({
           onCloseAutoFocus={handleKeepInputFocused}
           onMouseDown={handleKeepInputFocused}
           onInteractOutside={handleInteractOutside}
+          onWheel={stopScrollPropagation()}
+          onTouchMove={stopScrollPropagation()}
           className="w-(--radix-popover-trigger-width) min-w-0 overflow-hidden p-0"
         >
-          <CommandList className="ph-no-capture max-h-96 p-1.5">
+          <CommandList
+            id={listId}
+            aria-busy={Boolean(loading)}
+            className="ph-no-capture max-h-96 p-1.5"
+          >
             {options.map((option) => (
-              <TagAutocompleteOptionItem
+              <AsyncAutocompleteOptionItem
                 key={option.value}
                 option={option}
                 checked={option.checked ?? selectedValues.has(option.value)}

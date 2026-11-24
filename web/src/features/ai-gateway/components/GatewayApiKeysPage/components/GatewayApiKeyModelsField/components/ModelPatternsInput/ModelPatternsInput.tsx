@@ -2,9 +2,9 @@ import { useMemo, useState, type Ref } from "react";
 import { Box, Hash, LayoutGrid, type IconComponent } from "@langfuse/icons";
 
 import {
-  TagAutocompleteInput,
-  type TagAutocompleteOption,
-} from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+  AsyncAutocompleteInput,
+  type AsyncAutocompleteOption,
+} from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { getGatewayModelPatternSuggestions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/fns/getGatewayModelPatternSuggestions";
 import type { GatewayModelPatternSuggestion } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyModelsField/types/gatewayModelPatternSuggestion";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
@@ -49,7 +49,7 @@ export function ModelPatternsInput({
 }: ModelPatternsInputProps) {
   const [query, setQuery] = useState("");
 
-  const selectedItems = useMemo<TagAutocompleteOption[]>(
+  const selectedItems = useMemo<AsyncAutocompleteOption[]>(
     () =>
       patterns.map((pattern) => {
         const isExclude = isGatewayModelExcludePattern(pattern);
@@ -63,7 +63,7 @@ export function ModelPatternsInput({
     [patterns],
   );
 
-  const options = useMemo<TagAutocompleteOption[]>(() => {
+  const options = useMemo<AsyncAutocompleteOption[]>(() => {
     const suggestions = getGatewayModelPatternSuggestions(
       query,
       enabledModels,
@@ -81,7 +81,7 @@ export function ModelPatternsInput({
     }));
   }, [query, enabledModels, patterns]);
 
-  const handleOptionSelect = (option: TagAutocompleteOption) => {
+  const handleOptionSelect = (option: AsyncAutocompleteOption) => {
     setQuery("");
     if (option.value === ALL_MODELS_VALUE) {
       onPatternsChange([]);
@@ -95,7 +95,7 @@ export function ModelPatternsInput({
     );
   };
 
-  const handleValueChange = (nextItems: TagAutocompleteOption[]) => {
+  const handleValueChange = (nextItems: AsyncAutocompleteOption[]) => {
     onPatternsChange(nextItems.map((item) => item.value));
   };
 
@@ -108,7 +108,7 @@ export function ModelPatternsInput({
     setQuery("");
   };
 
-  const handleEditItem = (item: TagAutocompleteOption) => {
+  const handleEditItem = (item: AsyncAutocompleteOption) => {
     const remaining = patterns.filter((candidate) => candidate !== item.value);
     onPatternsChange(
       query.trim() ? addGatewayModelPatterns(remaining, query) : remaining,
@@ -130,9 +130,9 @@ export function ModelPatternsInput({
   };
 
   return (
-    <TagAutocompleteInput
-      label={label}
-      describedById={describedById}
+    <AsyncAutocompleteInput
+      aria-label={label}
+      aria-describedby={describedById}
       name={name}
       value={selectedItems}
       options={options}
@@ -140,6 +140,7 @@ export function ModelPatternsInput({
       onOptionSelect={handleOptionSelect}
       search={{ value: query, onValueChange: handleQueryChange }}
       placeholder="Add models, connections or patterns"
+      emptyMessage="No matching models."
       emptyTag={{ label: ALL_MODELS_LABEL, onRemove: handleClear }}
       onEditItem={handleEditItem}
       clearLabel="Clear models"

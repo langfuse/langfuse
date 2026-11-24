@@ -1,27 +1,30 @@
 import { createElement, type MouseEvent } from "react";
 import { X } from "@langfuse/icons";
 
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/types/asyncAutocompleteOption";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/types/tagAutocompleteOption";
 import { cn } from "@/src/utils/tailwind";
 
-export type TagAutocompleteChipProps<V extends string> = {
-  item: TagAutocompleteOption<V>;
+export type AsyncAutocompleteChipProps<V extends string> = {
+  item: AsyncAutocompleteOption<V>;
   /** Highlighted via keyboard navigation from the inline input. */
   isActive: boolean;
   disabled?: boolean;
-  onEdit?: (item: TagAutocompleteOption<V>) => void;
+  onEdit?: (item: AsyncAutocompleteOption<V>) => void;
   onRemove: (value: V) => void;
 };
 
-export function TagAutocompleteChip<V extends string>({
+export function AsyncAutocompleteChip<V extends string>({
   item,
   isActive,
   disabled,
   onEdit,
   onRemove,
-}: TagAutocompleteChipProps<V>) {
+}: AsyncAutocompleteChipProps<V>) {
   const isRemoveDisabled = Boolean(disabled || item.disabled);
+  const secondaryText = item.showSecondaryLabelInTag
+    ? item.secondaryLabel
+    : undefined;
 
   const handleRemove = () => {
     if (!isRemoveDisabled) onRemove(item.value);
@@ -96,6 +99,7 @@ export function TagAutocompleteChip<V extends string>({
       ) : (
         <Tag
           text={item.label}
+          secondaryText={secondaryText}
           icon={item.icon}
           remove={{ onRemove: handleRemove, disabled: isRemoveDisabled }}
         />

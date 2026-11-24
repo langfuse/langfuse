@@ -1,4 +1,4 @@
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import {
   API_KEY_TARGET_PREFIX,
   EVERYONE_TARGET_VALUE,
@@ -7,7 +7,7 @@ import {
 import type { GatewayGuardrailAssignmentInput } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export function targetOptionsToAssignments(
-  options: readonly TagAutocompleteOption[],
+  options: readonly AsyncAutocompleteOption[],
 ): GatewayGuardrailAssignmentInput[] {
   return options.flatMap<GatewayGuardrailAssignmentInput>((option) => {
     if (option.value === EVERYONE_TARGET_VALUE) {

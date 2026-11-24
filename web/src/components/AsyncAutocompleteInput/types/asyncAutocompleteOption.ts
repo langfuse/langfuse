@@ -1,9 +1,11 @@
 import type { IconComponent } from "@langfuse/icons";
 
-export type TagAutocompleteOption<V extends string = string> = {
+export type AsyncAutocompleteOption<V extends string = string> = {
   value: V;
   label: string;
+  disabled?: boolean;
   secondaryLabel?: string;
+  showSecondaryLabelInTag?: boolean;
   icon?: IconComponent;
   /** Tooltip / accessible description. */
   title?: string;
@@ -13,5 +15,4 @@ export type TagAutocompleteOption<V extends string = string> = {
   strikethrough?: boolean;
   /** Overrides whether the dropdown row shows a checkmark. */
   checked?: boolean;
-  disabled?: boolean;
 };

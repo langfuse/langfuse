@@ -1,21 +1,21 @@
 import { createElement } from "react";
 import { Check } from "@langfuse/icons";
 
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/types/tagAutocompleteOption";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/types/asyncAutocompleteOption";
 import { CommandItem } from "@/src/components/ui/command";
 import { cn } from "@/src/utils/tailwind";
 
-export type TagAutocompleteOptionItemProps<V extends string> = {
-  option: TagAutocompleteOption<V>;
+export type AsyncAutocompleteOptionItemProps<V extends string> = {
+  option: AsyncAutocompleteOption<V>;
   checked: boolean;
-  onSelect: (option: TagAutocompleteOption<V>) => void;
+  onSelect: (option: AsyncAutocompleteOption<V>) => void;
 };
 
-export function TagAutocompleteOptionItem<V extends string>({
+export function AsyncAutocompleteOptionItem<V extends string>({
   option,
   checked,
   onSelect,
-}: TagAutocompleteOptionItemProps<V>) {
+}: AsyncAutocompleteOptionItemProps<V>) {
   const visibleTitle =
     option.title ??
     [option.label, option.secondaryLabel].filter(Boolean).join(" ");

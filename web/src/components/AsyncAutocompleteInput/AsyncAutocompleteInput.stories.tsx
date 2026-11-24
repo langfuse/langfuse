@@ -3,11 +3,11 @@ import { Globe, KeyRound, User } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
 import {
-  TagAutocompleteInput,
-  type TagAutocompleteOption,
-} from "./TagAutocompleteInput";
+  AsyncAutocompleteInput,
+  type AsyncAutocompleteOption,
+} from "./AsyncAutocompleteInput";
 
-const SAMPLE_OPTIONS: TagAutocompleteOption[] = [
+const SAMPLE_OPTIONS: AsyncAutocompleteOption[] = [
   { value: "everyone", label: "Everyone", icon: Globe },
   {
     value: "user:1",
@@ -29,16 +29,16 @@ const SAMPLE_OPTIONS: TagAutocompleteOption[] = [
   },
 ];
 
-function InteractiveTagAutocomplete({
+function InteractiveAsyncAutocomplete({
   initialValue = [],
   loading,
   error,
 }: {
-  initialValue?: TagAutocompleteOption[];
+  initialValue?: AsyncAutocompleteOption[];
   loading?: { message: string };
   error?: boolean;
 }) {
-  const [value, setValue] = useState<TagAutocompleteOption[]>(initialValue);
+  const [value, setValue] = useState<AsyncAutocompleteOption[]>(initialValue);
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const options = needle
@@ -51,13 +51,14 @@ function InteractiveTagAutocomplete({
 
   return (
     <div className="w-96">
-      <TagAutocompleteInput
-        label="Applies to"
+      <AsyncAutocompleteInput
+        aria-label="Applies to"
         value={value}
         options={options}
         onValueChange={setValue}
         search={{ value: query, onValueChange: setQuery }}
         placeholder="Add users or API keys"
+        emptyMessage="No matches."
         loading={loading}
         error={error}
       />
@@ -66,7 +67,7 @@ function InteractiveTagAutocomplete({
 }
 
 const meta = preview.meta({
-  component: InteractiveTagAutocomplete,
+  component: InteractiveAsyncAutocomplete,
 });
 
 export const Default = meta.story({
@@ -84,7 +85,7 @@ export const MultipleSelected = meta.story({
 export const Loading = meta.story({
   args: {
     initialValue: [],
-    loading: { message: "Searching…" },
+    loading: { message: "Loading…" },
   },
 });
 

@@ -7,7 +7,7 @@ import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
@@ -16,7 +16,7 @@ import { GATEWAY_GUARDRAIL_MAX_TARGETS } from "@/src/features/ai-gateway/constan
 
 const bulkTargetsFormSchema = z.object({
   targets: z
-    .array(z.custom<TagAutocompleteOption>())
+    .array(z.custom<AsyncAutocompleteOption>())
     .min(1, "Select who these guardrails apply to")
     .max(
       GATEWAY_GUARDRAIL_MAX_TARGETS,
@@ -28,11 +28,11 @@ type BulkTargetsFormValues = z.infer<typeof bulkTargetsFormSchema>;
 
 export type GatewayBulkGuardrailTargetsDialogProps = {
   selectedCount: number;
-  initialTargets: TagAutocompleteOption[];
+  initialTargets: AsyncAutocompleteOption[];
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
-  onSubmit: (targets: TagAutocompleteOption[]) => void;
+  onSubmit: (targets: AsyncAutocompleteOption[]) => void;
 };
 
 export function GatewayBulkGuardrailTargetsDialog({

@@ -22,7 +22,7 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
@@ -88,7 +88,7 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
       containsText: z.string(),
       action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
       targets: z
-        .array(z.custom<TagAutocompleteOption>())
+        .array(z.custom<AsyncAutocompleteOption>())
         .min(1, "Select who this guardrail applies to")
         .max(
           GATEWAY_GUARDRAIL_MAX_TARGETS,
@@ -144,7 +144,7 @@ export type GatewayGuardrailFormValues = {
   secretPrefixes: string[];
   containsWords: string[];
   action: GatewayGuardrailUiAction;
-  targets: TagAutocompleteOption[];
+  targets: AsyncAutocompleteOption[];
 };
 
 export type GatewayGuardrailFormDialogProps = {

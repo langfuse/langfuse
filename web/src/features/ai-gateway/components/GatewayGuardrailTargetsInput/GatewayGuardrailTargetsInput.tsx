@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 
 import {
-  TagAutocompleteInput,
-  type TagAutocompleteOption,
-} from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+  AsyncAutocompleteInput,
+  type AsyncAutocompleteOption,
+} from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
 import { toggleGuardrailTargetOption } from "@/src/features/ai-gateway/fns/toggleGuardrailTargetOption";
 
 export type GatewayGuardrailTargetPicker = {
-  options: TagAutocompleteOption[];
+  options: AsyncAutocompleteOption[];
   search: string;
   onSearchChange: (value: string) => void;
   isLoading: boolean;
@@ -17,8 +17,8 @@ export type GatewayGuardrailTargetPicker = {
 export type GatewayGuardrailTargetsInputProps = {
   id?: string;
   describedById?: string;
-  value: TagAutocompleteOption[];
-  onChange: (value: TagAutocompleteOption[]) => void;
+  value: AsyncAutocompleteOption[];
+  onChange: (value: AsyncAutocompleteOption[]) => void;
   picker: GatewayGuardrailTargetPicker;
   error?: boolean;
   disabled?: boolean;
@@ -47,16 +47,16 @@ export function GatewayGuardrailTargetsInput({
       : picker.options;
   }, [picker.options, picker.search]);
 
-  const handleOptionSelect = (option: TagAutocompleteOption) => {
+  const handleOptionSelect = (option: AsyncAutocompleteOption) => {
     picker.onSearchChange("");
     onChange(toggleGuardrailTargetOption(value, option));
   };
 
   return (
-    <TagAutocompleteInput
+    <AsyncAutocompleteInput
       id={id}
-      label="Applies to"
-      describedById={describedById}
+      aria-label="Applies to"
+      aria-describedby={describedById}
       value={value}
       options={options}
       onValueChange={onChange}
