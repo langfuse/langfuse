@@ -1,5 +1,3 @@
-import { BookOpen } from "@langfuse/icons";
-
 import { Button } from "@/src/components/design-system/Button/Button";
 import { TileCard } from "@/src/components/TileCard/TileCard";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
@@ -18,7 +16,6 @@ export function GatewayNoProvidersReadOnlyEmptyState() {
         <Button
           variant="outline"
           text="About gateway models"
-          icon={BookOpen}
           href={GATEWAY_MODELS_DOCS_URL}
         />
       }
