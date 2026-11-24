@@ -1,8 +1,13 @@
+import { ChevronRight } from "@langfuse/icons";
+
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import { cn } from "@/src/utils/tailwind";
+
+import styles from "./GatewayGuardrailTemplateGallery.module.css";
 
 export type GatewayGuardrailTemplateGalleryProps = {
   onSelectTemplate: (template: GatewayGuardrailTemplate) => void;
@@ -13,25 +18,20 @@ export function GatewayGuardrailTemplateGallery({
   onSelectTemplate,
 }: GatewayGuardrailTemplateGalleryProps) {
   return (
-    <Dialog title="Add guardrail" size="md" closeOnInteractionOutside>
+    <Dialog title="Add a guardrail" size="lg" closeOnInteractionOutside>
+      <p className="bg-modal text-muted-foreground relative -mt-3 shrink-0 border-b px-4 pb-3 text-xs">
+        Pick a template to configure.
+      </p>
       <Dialog.Body>
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-col gap-0.5">
-            <h4 className="text-foreground text-sm font-bold">Built-in</h4>
-            <p className="text-muted-foreground text-xs">
-              Run inside the gateway. No extra setup.
-            </p>
-          </div>
-          <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
-            {GATEWAY_GUARDRAIL_TEMPLATES.map((template) => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                onSelect={onSelectTemplate}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3">
+          {GATEWAY_GUARDRAIL_TEMPLATES.map((template) => (
+            <TemplateCard
+              key={template.id}
+              template={template}
+              onSelect={onSelectTemplate}
+            />
+          ))}
+        </div>
       </Dialog.Body>
     </Dialog>
   );
@@ -49,25 +49,56 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
     <button
       type="button"
       onClick={handleSelect}
-      className="bg-popover hover:border-foreground/30 hover:bg-accent/40 focus-visible:ring-ring flex h-full w-full cursor-pointer items-center gap-3 rounded-lg border p-3.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+      className="focus-visible:ring-ring h-full w-full cursor-pointer rounded-lg bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
     >
-      <span className="bg-muted text-foreground flex size-9 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-bold">
-        {template.badge}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span
-          title={template.name}
-          className="text-foreground truncate text-sm font-bold"
-        >
-          {template.name}
-        </span>
-        <span
-          title={template.description}
-          className="text-muted-foreground truncate text-xs leading-snug"
-        >
-          {template.description}
-        </span>
-      </span>
+      <div
+        className={cn(
+          styles.card,
+          "group/card bg-popover relative flex h-full flex-col overflow-hidden rounded-lg border text-left transition-shadow",
+        )}
+      >
+        <div className="px-3 pt-3">
+          <div
+            aria-hidden="true"
+            className={cn(
+              styles.preview,
+              "flex h-24 items-center justify-center overflow-hidden rounded-md px-3",
+            )}
+          >
+            <span className="bg-popover/95 border-border/60 flex max-w-full min-w-0 items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-xs shadow-2xs">
+              <span className="text-muted-foreground shrink-0">
+                {template.preview.label}:
+              </span>
+              <span
+                className="text-foreground truncate font-medium"
+                title={template.preview.value}
+              >
+                {template.preview.value}
+              </span>
+            </span>
+            <div className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white backdrop-blur-xs group-hover/card:flex">
+              <span className="flex items-center gap-1 text-sm font-bold">
+                Use template
+                <ChevronRight size="base" __rawClassName="translate-y-px" />
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-1 flex-col gap-1 px-3 pt-3 pb-3.5">
+          <span
+            className="text-foreground text-sm font-bold"
+            title={template.name}
+          >
+            {template.name}
+          </span>
+          <p
+            className="text-muted-foreground text-xs leading-relaxed"
+            title={template.description}
+          >
+            {template.description}
+          </p>
+        </div>
+      </div>
     </button>
   );
 }

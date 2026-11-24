@@ -9,9 +9,12 @@ export type GatewayGuardrailTemplateKind = "pii" | "secrets" | "contains";
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
-  badge: string;
   name: string;
   description: string;
+  preview: {
+    label: string;
+    value: string;
+  };
   presets: readonly GatewayGuardrailPreset[];
   defaultPresets: readonly GatewayGuardrailPreset[];
   sampleTestText: string;
@@ -42,9 +45,13 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
   [
     {
       id: "pii",
-      badge: "PII",
-      name: "PII detection",
-      description: "SSNs, credit cards, emails, IBANs, IPs",
+      name: "PII",
+      description:
+        "Detects emails, SSNs, credit cards, IBANs and IP addresses.",
+      preview: {
+        label: "email",
+        value: "dana@example.com",
+      },
       presets: GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.pii,
       defaultPresets: ["us_ssn", "credit_card", "email"],
       sampleTestText:
@@ -52,9 +59,12 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     },
     {
       id: "secrets",
-      badge: "***",
-      name: "Secret detection",
-      description: "API keys, tokens, private keys, JWTs",
+      name: "Secrets and API keys",
+      description: "Detects API keys, access tokens, JWTs and private keys.",
+      preview: {
+        label: "openai_key",
+        value: "sk-proj-4f9a...",
+      },
       presets: GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.secrets,
       defaultPresets: [...GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.secrets],
       sampleTestText:
@@ -62,12 +72,16 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     },
     {
       id: "contains",
-      badge: "Aa",
-      name: "Keyword blocklist",
-      description: "Exact words or phrases",
+      name: "Keyword list",
+      description: "Detects words and phrases you define, like codenames.",
+      preview: {
+        label: "keyword",
+        value: "Falcon",
+      },
       presets: [],
       defaultPresets: [],
-      sampleTestText: "This document is confidential and internal only.",
+      sampleTestText:
+        "This document mentions Project Falcon and is internal only.",
     },
   ];
 
