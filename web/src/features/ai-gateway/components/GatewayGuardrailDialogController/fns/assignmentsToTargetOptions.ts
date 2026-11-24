@@ -1,0 +1,36 @@
+import { KeyRound, User } from "@langfuse/icons";
+
+import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import {
+  API_KEY_TARGET_PREFIX,
+  EVERYONE_TARGET_OPTION,
+  USER_TARGET_PREFIX,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
+import { assertUnreachable } from "@/src/utils/types";
+
+export function assignmentsToTargetOptions(
+  assignments: GatewayGuardrailRow["assignments"],
+): TagAutocompleteOption[] {
+  return assignments.map((assignment) => {
+    switch (assignment.scope) {
+      case "ORGANIZATION":
+        return EVERYONE_TARGET_OPTION;
+      case "USER":
+        return {
+          value: `${USER_TARGET_PREFIX}${assignment.userId}`,
+          label: assignment.label,
+          secondaryLabel: assignment.secondaryLabel,
+          icon: User,
+        };
+      case "API_KEY":
+        return {
+          value: `${API_KEY_TARGET_PREFIX}${assignment.apiKeyId}`,
+          label: assignment.label,
+          icon: KeyRound,
+        };
+      default:
+        return assertUnreachable(assignment);
+    }
+  });
+}

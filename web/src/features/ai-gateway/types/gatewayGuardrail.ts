@@ -26,6 +26,45 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
 
 export type GatewayGuardrailPreset = keyof typeof GATEWAY_GUARDRAIL_PRESETS;
 
+export const GATEWAY_GUARDRAIL_PRESET_KEYS = Object.keys(
+  GATEWAY_GUARDRAIL_PRESETS,
+) as [GatewayGuardrailPreset, ...GatewayGuardrailPreset[]];
+
+export const GatewayGuardrailPresetSchema = z.enum(
+  GATEWAY_GUARDRAIL_PRESET_KEYS,
+);
+
+/** Actions the gateway enforces and the management UI offers. */
+export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG"] as const;
+
+export const GatewayGuardrailUiActionSchema = z.enum(
+  GATEWAY_GUARDRAIL_UI_ACTIONS,
+);
+
+export type GatewayGuardrailUiAction = z.infer<
+  typeof GatewayGuardrailUiActionSchema
+>;
+
+const GatewayGuardrailAssignmentInputSchema = z.discriminatedUnion("scope", [
+  z.object({ scope: z.literal("ORGANIZATION") }),
+  z.object({ scope: z.literal("API_KEY"), apiKeyId: z.string().min(1) }),
+  z.object({ scope: z.literal("USER"), userId: z.string().min(1) }),
+]);
+
+export type GatewayGuardrailAssignmentInput = z.infer<
+  typeof GatewayGuardrailAssignmentInputSchema
+>;
+
+export const GatewayGuardrailAssignmentsInputSchema = z
+  .array(GatewayGuardrailAssignmentInputSchema)
+  .min(1, "Select who this guardrail applies to")
+  .refine(
+    (assignments) =>
+      assignments.length === 1 ||
+      assignments.every((assignment) => assignment.scope !== "ORGANIZATION"),
+    "Everyone cannot be combined with specific users or API keys",
+  );
+
 /**
  * The stored `config` of a regex guardrail. Preset ids stay strings, so an id
  * this build does not know (a typo, or one added by a newer build) drops only
@@ -39,4 +78,10 @@ export function presetPatterns(preset: string): readonly string[] {
   return Object.hasOwn(GATEWAY_GUARDRAIL_PRESETS, preset)
     ? GATEWAY_GUARDRAIL_PRESETS[preset as GatewayGuardrailPreset]
     : [];
+}
+
+export function isKnownGuardrailPreset(
+  preset: string,
+): preset is GatewayGuardrailPreset {
+  return Object.hasOwn(GATEWAY_GUARDRAIL_PRESETS, preset);
 }

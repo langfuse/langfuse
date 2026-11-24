@@ -17,3 +17,9 @@ export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
  */
 export const AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY =
   "langfuse.gateway.api_key.owner.user_id";
+
+/**
+ * Metadata key holding the JSON array of `{ id, action }` guardrails a gateway
+ * request matched. Always set by the gateway, never by callers.
+ */
+export const AI_GATEWAY_GUARDRAILS_METADATA_KEY = "langfuse.gateway.guardrails";

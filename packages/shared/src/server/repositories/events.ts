@@ -31,6 +31,7 @@ import {
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
+  AI_GATEWAY_GUARDRAILS_METADATA_KEY,
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../../features/ai-gateway/constants";
@@ -4371,6 +4372,183 @@ export const getGatewaySpendSinceFromEvents = async (params: {
   return rows.map((row) => ({
     id: row.subject_id,
     spendUsd: Number(row.spend),
+  }));
+};
+
+const GATEWAY_GUARDRAIL_IDS_EXPRESSION = `arrayDistinct(
+  arrayMap(
+    x -> JSONExtractString(x, 'id'),
+    JSONExtractArrayRaw(
+      e.metadata_values[indexOf(e.metadata_names, {guardrailsKey: String})]
+    )
+  )
+)`;
+
+const GATEWAY_GUARDRAIL_TIME_BUCKETS = {
+  day: (expr: string) =>
+    `toDateTime(toStartOfInterval(${expr}, INTERVAL 1 DAY), 'UTC')`,
+  week: (expr: string) =>
+    `toDateTime(toStartOfInterval(${expr}, INTERVAL 7 DAY), 'UTC')`,
+  month: (expr: string) => `toDateTime(toStartOfMonth(${expr}), 'UTC')`,
+} as const;
+
+export type GatewayGuardrailTimeBucket =
+  keyof typeof GATEWAY_GUARDRAIL_TIME_BUCKETS;
+
+/**
+ * Number of gateway requests that matched each guardrail since `since`.
+ * Reads `events_full` because `events_core` truncates `metadata_values` at 200 chars,
+ * which clips multi-match guardrail arrays.
+ */
+export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
+  projectId: string;
+  guardrailIds: string[];
+  since: Date;
+}): Promise<{ guardrailId: string; count: number }[]> => {
+  if (params.guardrailIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      guardrail_id,
+      toString(count()) AS count
+    FROM (
+      SELECT
+        ${GATEWAY_GUARDRAIL_IDS_EXPRESSION} AS guardrail_ids
+      FROM events_full e
+      WHERE e.project_id = {projectId: String}
+        AND e.start_time >= {since: DateTime64(3)}
+        AND e.service_name = {gatewayServiceName: String}
+        AND e.is_deleted = 0
+        AND has(e.metadata_names, {guardrailsKey: String})
+    )
+    ARRAY JOIN guardrail_ids AS guardrail_id
+    WHERE guardrail_id IN {guardrailIds: Array(String)}
+    GROUP BY guardrail_id
+  `;
+
+  const rows = await queryClickhouse<{ guardrail_id: string; count: string }>({
+    query,
+    params: {
+      projectId: params.projectId,
+      since: convertDateToClickhouseDateTime(params.since),
+      gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+      guardrailsKey: AI_GATEWAY_GUARDRAILS_METADATA_KEY,
+      guardrailIds: params.guardrailIds,
+    },
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    guardrailId: row.guardrail_id,
+    count: Number(row.count),
+  }));
+};
+
+/**
+ * Bucketed count of flagged gateway requests over `[fromTimestamp, toTimestamp]`.
+ * Without `groupByGuardrail`, each flagged request counts once even when several
+ * guardrails match; with `groupByGuardrail`, each selected guardrail gets its own series.
+ */
+export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
+  projectId: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  granularity: GatewayGuardrailTimeBucket;
+  guardrailIds?: string[];
+  groupByGuardrail?: boolean;
+}): Promise<
+  { timeDimension: string; guardrailId?: string; count: number }[]
+> => {
+  if (params.guardrailIds !== undefined && params.guardrailIds.length === 0) {
+    return [];
+  }
+
+  const bucketExpr =
+    GATEWAY_GUARDRAIL_TIME_BUCKETS[params.granularity]("e.start_time");
+  const queryParams: Record<string, unknown> = {
+    projectId: params.projectId,
+    fromTimestamp: convertDateToClickhouseDateTime(params.fromTimestamp),
+    toTimestamp: convertDateToClickhouseDateTime(params.toTimestamp),
+    gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+    guardrailsKey: AI_GATEWAY_GUARDRAILS_METADATA_KEY,
+    ...(params.guardrailIds !== undefined
+      ? { guardrailIds: params.guardrailIds }
+      : {}),
+  };
+
+  const innerSubquery = `
+    SELECT
+      ${bucketExpr} AS time_bucket,
+      ${GATEWAY_GUARDRAIL_IDS_EXPRESSION} AS guardrail_ids
+    FROM events_full e
+    WHERE e.project_id = {projectId: String}
+      AND e.start_time >= {fromTimestamp: DateTime64(3)}
+      AND e.start_time <= {toTimestamp: DateTime64(3)}
+      AND e.service_name = {gatewayServiceName: String}
+      AND e.is_deleted = 0
+      AND has(e.metadata_names, {guardrailsKey: String})
+  `;
+
+  if (params.groupByGuardrail && params.guardrailIds !== undefined) {
+    const query = `
+      SELECT
+        formatDateTime(time_bucket, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time_dimension,
+        guardrail_id,
+        toString(count()) AS count
+      FROM (${innerSubquery})
+      ARRAY JOIN guardrail_ids AS guardrail_id
+      WHERE guardrail_id IN {guardrailIds: Array(String)}
+      GROUP BY time_bucket, guardrail_id
+      ORDER BY time_bucket ASC
+    `;
+
+    const rows = await queryClickhouse<{
+      time_dimension: string;
+      guardrail_id: string;
+      count: string;
+    }>({
+      query,
+      params: queryParams,
+      tags: { projectId: params.projectId },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => ({
+      timeDimension: row.time_dimension,
+      guardrailId: row.guardrail_id,
+      count: Number(row.count),
+    }));
+  }
+
+  const filterClause =
+    params.guardrailIds !== undefined
+      ? "WHERE hasAny(guardrail_ids, {guardrailIds: Array(String)})"
+      : "WHERE notEmpty(guardrail_ids)";
+
+  const query = `
+    SELECT
+      formatDateTime(time_bucket, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time_dimension,
+      toString(count()) AS count
+    FROM (${innerSubquery})
+    ${filterClause}
+    GROUP BY time_bucket
+    ORDER BY time_bucket ASC
+  `;
+
+  const rows = await queryClickhouse<{
+    time_dimension: string;
+    count: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    timeDimension: row.time_dimension,
+    count: Number(row.count),
   }));
 };
 

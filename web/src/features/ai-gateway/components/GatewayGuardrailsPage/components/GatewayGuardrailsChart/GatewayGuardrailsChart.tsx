@@ -1,0 +1,134 @@
+import { useMemo } from "react";
+import { MAX_TIME_SERIES_BREAKDOWN_VALUES } from "@langfuse/shared/query";
+
+import {
+  GATEWAY_GUARDRAIL_INTERVALS,
+  type GatewayGuardrailInterval,
+} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import { buildGuardrailChartData } from "@/src/features/ai-gateway/fns/buildGuardrailChartData";
+import type { GatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
+import { api } from "@/src/utils/api";
+
+export type GatewayGuardrailsChartProps = {
+  organizationId: string;
+  timeRange: { from: Date; to: Date };
+  interval: GatewayGuardrailInterval;
+  onIntervalChange: (interval: GatewayGuardrailInterval) => void;
+  selection: GatewayGuardrailSelection;
+  tags: { value: string; label: string }[];
+  onRemoveTag: (value: string) => void;
+};
+
+export function GatewayGuardrailsChart({
+  organizationId,
+  timeRange,
+  interval,
+  onIntervalChange,
+  selection,
+  tags,
+  onRemoveTag,
+}: GatewayGuardrailsChartProps) {
+  const selectedGuardrails =
+    selection.status === "selected" ? selection.guardrails : undefined;
+  const selectedIds = useMemo(
+    () => selectedGuardrails?.map(({ value }) => value),
+    [selectedGuardrails],
+  );
+  const labels = useMemo(() => {
+    if (
+      !selectedGuardrails ||
+      selectedGuardrails.length === 0 ||
+      selectedGuardrails.length > MAX_TIME_SERIES_BREAKDOWN_VALUES
+    ) {
+      return undefined;
+    }
+    return new Map(
+      selectedGuardrails.map(({ value, label }) => [value, label]),
+    );
+  }, [selectedGuardrails]);
+
+  const query = api.aiGateway.getGuardrailFlaggedTimeSeries.useQuery(
+    {
+      orgId: organizationId,
+      fromTimestamp: timeRange.from,
+      toTimestamp: timeRange.to,
+      granularity: interval,
+      guardrailIds: selectedIds,
+    },
+    {
+      enabled: selection.status === "none" || selection.status === "selected",
+    },
+  );
+
+  const prepared = useMemo(() => {
+    if (!query.data) return { data: [], config: {} };
+    return buildGuardrailChartData({
+      groupByGuardrail: query.data.groupByGuardrail,
+      points: query.data.points,
+      timeRange,
+      interval,
+      labels,
+    });
+  }, [query.data, timeRange, interval, labels]);
+
+  const handleIntervalChange = (value: string) => {
+    const option = GATEWAY_GUARDRAIL_INTERVALS.find(
+      (candidate) => candidate.value === value,
+    );
+    if (option) onIntervalChange(option.value);
+  };
+
+  const handleRetryQuery = () => {
+    query.refetch().catch(() => undefined);
+  };
+
+  const statusContent = (() => {
+    if (selection.status === "error") {
+      return {
+        type: "error" as const,
+        message: "The selected guardrails could not be loaded.",
+        onRetry: selection.onRetry,
+      };
+    }
+    if (query.isError) {
+      return {
+        type: "error" as const,
+        message: query.error.message || "Flagged requests could not be loaded.",
+        onRetry: handleRetryQuery,
+      };
+    }
+    if (selection.status === "loading" || query.isPending) {
+      return {
+        type: "loading" as const,
+        progress: { type: "spinner" as const },
+      };
+    }
+    return undefined;
+  })();
+
+  return (
+    <div className="ph-no-capture min-w-0">
+      <WidgetChartCard
+        title="Flagged requests"
+        description="Select rows below to see their flagged requests."
+        chartType="BAR_TIME_SERIES"
+        data={prepared.data}
+        config={prepared.config}
+        content={statusContent}
+        zeroBaseline
+        filter={{
+          label: "Selected guardrails",
+          items: tags,
+          onRemove: onRemoveTag,
+        }}
+        tabs={{
+          value: interval,
+          options: [...GATEWAY_GUARDRAIL_INTERVALS],
+          onValueChange: handleIntervalChange,
+          variant: "toggle",
+        }}
+      />
+    </div>
+  );
+}
