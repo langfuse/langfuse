@@ -307,7 +307,20 @@ export type TopicFacetOutcome =
 export type TopicSummaryState =
   | "complete"
   | "not_applicable"
-  | "insufficient_input";
+  | "insufficient_input"
+  /** Written without a model call: the transcript has nothing for the model. */
+  | "empty_input"
+  /** Written without a model call: the rendered text exceeds the Topics input limit (`LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS`). */
+  | "input_too_large";
+
+/** Results and counts report summaries written without a model call as `insufficient_input`. */
+export function reportedTopicSummaryState(
+  state: TopicSummaryState,
+): "complete" | "not_applicable" | "insufficient_input" {
+  return state === "empty_input" || state === "input_too_large"
+    ? "insufficient_input"
+    : state;
+}
 
 export interface TopicFacetVersion {
   projectId: string;
