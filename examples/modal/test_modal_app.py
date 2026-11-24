@@ -275,6 +275,10 @@ class ModalAppTests(unittest.TestCase):
             with mock.patch.object(Path, "is_file", return_value=False):
                 self.assertFalse(modal_app.has_modal_credentials())
 
+    def test_http_get_rejects_non_http_schemes(self) -> None:
+        with self.assertRaises(ValueError):
+            modal_app._http_get("file:///etc/passwd")
+
 
 if __name__ == "__main__":
     unittest.main()

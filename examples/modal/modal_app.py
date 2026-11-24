@@ -24,14 +24,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import http.client
 import os
 import secrets
 import shutil
+import ssl
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -725,13 +726,33 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def _http_get(url: str, timeout_s: float = 15.0) -> tuple[int, str]:
-    req = urllib.request.Request(url, method="GET")
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ("https", "http") or not parsed.hostname:
+        raise ValueError(f"Unsupported URL for HTTP check: {url!r}")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    conn: http.client.HTTPConnection
+    if parsed.scheme == "https":
+        conn = http.client.HTTPSConnection(
+            parsed.hostname,
+            parsed.port,
+            timeout=timeout_s,
+            context=ssl.create_default_context(),
+        )
+    else:
+        conn = http.client.HTTPConnection(
+            parsed.hostname,
+            parsed.port,
+            timeout=timeout_s,
+        )
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            return resp.status, resp.read().decode("utf-8", errors="replace").strip()
-    except urllib.error.HTTPError as err:
-        body = err.read().decode("utf-8", errors="replace").strip()
-        return err.code, body
+        conn.request("GET", path)
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8", errors="replace").strip()
+        return resp.status, body
+    finally:
+        conn.close()
 
 
 def cmd_smoke(args: argparse.Namespace) -> int:
