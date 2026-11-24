@@ -24,8 +24,11 @@ import { z } from "zod";
 import {
   getDashboardBlocks,
   hasDashboardBlocks,
+  newDashboardDefinition,
   updateClassicLayout,
   patchDashboardBlock,
+  patchPublicDashboard,
+  toPublicDashboard,
 } from "./dashboard-definition-storage";
 
 import {
@@ -107,21 +110,21 @@ function nextCloneName(sourceName: string, existingNames: string[]): string {
   return `${sourceName} (Clone ${n})`;
 }
 
+type DashboardPageOptions = {
+  projectId: string;
+  limit?: number;
+  page?: number;
+  orderBy?: OrderByState;
+  /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
+  includeLangfuseOwned?: boolean;
+};
+
 export class DashboardService {
   public static getDashboardBlocks = getDashboardBlocks;
   public static patchDashboardBlock = patchDashboardBlock;
+  public static patchPublicDashboard = patchPublicDashboard;
 
-  /**
-   * Retrieves a list of dashboards for a given project.
-   */
-  public static async listDashboards(props: {
-    projectId: string;
-    limit?: number;
-    page?: number;
-    orderBy?: OrderByState;
-    /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
-    includeLangfuseOwned?: boolean;
-  }): Promise<DashboardListResponse> {
+  private static async findDashboardPage(props: DashboardPageOptions) {
     const {
       projectId,
       limit,
@@ -151,17 +154,47 @@ export class DashboardService {
       }),
     ]);
 
-    const domainDashboards = dashboards.map((dashboard) =>
-      DashboardDomainSchema.parse({
-        ...dashboard,
-        owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
-      }),
-    );
+    return { dashboards, totalCount };
+  }
 
+  public static async listDashboards(
+    props: DashboardPageOptions,
+  ): Promise<DashboardListResponse> {
+    const { dashboards, totalCount } = await this.findDashboardPage(props);
     return {
-      dashboards: domainDashboards,
+      dashboards: dashboards.map((dashboard) =>
+        DashboardDomainSchema.parse({
+          ...dashboard,
+          owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
+        }),
+      ),
       totalCount,
     };
+  }
+
+  public static async listPublicDashboards(props: {
+    projectId: string;
+    page: number;
+    limit: number;
+  }) {
+    const { dashboards, totalCount } = await this.findDashboardPage({
+      ...props,
+      includeLangfuseOwned: false,
+    });
+    return {
+      dashboards: dashboards.map(toPublicDashboard),
+      totalItems: totalCount,
+    };
+  }
+
+  public static async getPublicDashboard(
+    projectId: string,
+    dashboardId: string,
+  ) {
+    const dashboard = await prisma.dashboard.findFirst({
+      where: { id: dashboardId, projectId },
+    });
+    return dashboard ? toPublicDashboard(dashboard) : null;
   }
 
   /**
@@ -184,7 +217,7 @@ export class DashboardService {
         projectId,
         createdBy: userId,
         updatedBy: userId,
-        definition: DashboardDefinitionSchema.parse(initialDefinition),
+        definition: newDashboardDefinition(initialDefinition),
         ...(filters !== undefined && { filters }),
       },
     });

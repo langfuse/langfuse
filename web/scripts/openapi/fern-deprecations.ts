@@ -11,7 +11,10 @@ type FernAvailability =
 
 type FernDefinition = {
   "base-path"?: string;
-  types?: Record<string, string | { properties?: FernProperties }>;
+  types?: Record<
+    string,
+    string | { properties?: FernProperties; "extra-properties"?: boolean }
+  >;
   service?: {
     "base-path"?: string;
     endpoints?: Record<
@@ -128,11 +131,15 @@ export function getFernDeprecatedProperties(
     const definition = parse(
       fs.readFileSync(definitionPath, "utf8"),
     ) as FernDefinition;
+    const namespace = path
+      .relative(definitionDirectory, path.dirname(definitionPath))
+      .split(path.sep)
+      .join("");
     const typeProperties = Object.entries(definition.types ?? {}).flatMap(
       ([name, type]) =>
         deprecatedPropertyPaths(
           typeof type === "string" ? undefined : type.properties,
-          ["components", "schemas", name, "properties"],
+          ["components", "schemas", `${namespace}${name}`, "properties"],
         ),
     );
     const service = definition.service;
@@ -159,6 +166,24 @@ export function getFernDeprecatedProperties(
       },
     );
     return [...typeProperties, ...requestProperties];
+  });
+}
+
+/** Explicitly closed Fern objects must stay closed in the exported OpenAPI schema. */
+export function getFernClosedObjects(definitionDirectory: string): string[][] {
+  return listYamlFiles(definitionDirectory).flatMap((definitionPath) => {
+    const definition = parse(
+      fs.readFileSync(definitionPath, "utf8"),
+    ) as FernDefinition;
+    const namespace = path
+      .relative(definitionDirectory, path.dirname(definitionPath))
+      .split(path.sep)
+      .join("");
+    return Object.entries(definition.types ?? {}).flatMap(([name, type]) =>
+      typeof type === "object" && type["extra-properties"] === false
+        ? [["components", "schemas", `${namespace}${name}`]]
+        : [],
+    );
   });
 }
 

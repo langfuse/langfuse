@@ -4,6 +4,7 @@ import path from "node:path";
 import { parse } from "yaml";
 
 import {
+  getFernClosedObjects,
   getFernDeprecatedOperations,
   getFernDeprecatedProperties,
   type DeprecatedOperation,
@@ -11,6 +12,7 @@ import {
 import {
   deprecationNotice,
   stampDeprecations,
+  stampClosedObjects,
 } from "../../../../scripts/openapi/stamp-deprecations";
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
@@ -100,7 +102,9 @@ function withDefinition(
 
   try {
     for (const [name, contents] of Object.entries(files)) {
-      fs.writeFileSync(path.join(directory, name), contents);
+      const filePath = path.join(directory, name);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, contents);
     }
     assertions(directory);
   } finally {
@@ -136,6 +140,14 @@ service:
                 status: deprecated
             label: optional<string>
 `,
+        "unstable/dashboards.yml": `types:
+  Definition:
+    extra-properties: false
+    properties:
+      widgets:
+        type: list<string>
+        availability: deprecated
+`,
       },
       (directory) => {
         expect(getFernDeprecatedProperties(directory)).toEqual([
@@ -151,7 +163,31 @@ service:
             "properties",
             "oldLabel",
           ],
+          [
+            "components",
+            "schemas",
+            "unstableDefinition",
+            "properties",
+            "widgets",
+          ],
         ]);
+        const source = `${SPEC}components:\n  schemas:\n    unstableDefinition:\n      properties:\n        widgets:\n          type: array\n`;
+        const nested = getFernDeprecatedProperties(directory).filter(
+          (property) => property[2] === "unstableDefinition",
+        );
+        const closed = stampClosedObjects(
+          source,
+          getFernClosedObjects(directory),
+        );
+        const stamped = stampDeprecations(closed, [], nested);
+        expect(
+          parse(stamped).components.schemas.unstableDefinition
+            .additionalProperties,
+        ).toBe(false);
+        expect(
+          parse(stamped).components.schemas.unstableDefinition.properties
+            .widgets.deprecated,
+        ).toBe(true);
       },
     );
   });

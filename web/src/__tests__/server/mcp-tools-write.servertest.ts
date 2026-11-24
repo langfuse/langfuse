@@ -162,6 +162,8 @@ import {
   handleCreateDashboardWidget,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
+  createDashboardTool,
+  updateDashboardTool,
   handleAddDashboardPlacement,
   handleCreateDashboard,
   handleDeleteDashboard,
@@ -1794,18 +1796,34 @@ describe("MCP Write Tools", () => {
       ).resolves.toMatchObject({ id: created.id, name: newName });
 
       const dashboard = (await handleCreateDashboard(
-        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        {
+          name: `mcp-dashboard-${nanoid()}`,
+          description: "",
+          definition: { version: "1", blocks: [] },
+        },
         setup.context,
       )) as { id: string };
 
+      const edit = {
+        dashboardId: dashboard.id,
+        name: "MCP dashboard updated",
+        definition: { version: "1" as const, blocks: [] },
+      };
+      for (const [tool, input] of [
+        [createDashboardTool, { name: edit.name, definition: edit.definition }],
+        [updateDashboardTool, edit],
+      ] as const) {
+        const schema: ReturnType<typeof z.toJSONSchema> = JSON.parse(
+          JSON.stringify(tool.inputSchema),
+        );
+        expect(z.fromJSONSchema(schema).safeParse(input).success).toBe(true);
+      }
       await expect(
-        handleUpdateDashboard(
-          { dashboardId: dashboard.id, name: "MCP dashboard updated" },
-          setup.context,
-        ),
+        handleUpdateDashboard(edit, setup.context),
       ).resolves.toMatchObject({
         id: dashboard.id,
         name: "MCP dashboard updated",
+        definition: { version: "1", widgets: [], blocks: [] },
       });
 
       const added = (await handleAddDashboardPlacement(

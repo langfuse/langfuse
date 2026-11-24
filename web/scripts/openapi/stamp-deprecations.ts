@@ -14,6 +14,24 @@ const LINE_WIDTH = 80;
  */
 const RESOLVE_OPTIONS = { maxAliasCount: -1 };
 
+/** Carry explicit Fern object constraints through exports that omit them. */
+export function stampClosedObjects(source: string, objectPaths: string[][]) {
+  const document = parseDocument(source);
+  if (document.errors.length > 0) {
+    throw new Error(document.errors.map((error) => error.message).join("\n"));
+  }
+  for (const objectPath of objectPaths) {
+    const object = document.getIn(objectPath, true);
+    if (!isMap(object)) {
+      throw new Error(
+        `OpenAPI schema does not contain object ${objectPath.join("/")}`,
+      );
+    }
+    object.set("additionalProperties", false);
+  }
+  return document.toString({ lineWidth: LINE_WIDTH });
+}
+
 const NOTICE_LABEL = "**Deprecated:**";
 /** Matches a notice this script wrote, so re-runs replace instead of stacking. */
 const NOTICE_PATTERN = /^\*\*Deprecated:\*\*[^\n]*(?:\n\n|$)/;

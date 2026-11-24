@@ -82,18 +82,62 @@ const dashboardWidgetPatchBaseSchema = z.object({
   chartType: z.enum(DashboardWidgetChartType).optional(),
   chartConfig: DashboardWidgetChartConfigBaseSchema.optional(),
 });
+const classicPlacementBaseSchema = placementCreateBaseSchema.required({
+  id: true,
+  x: true,
+  y: true,
+  width: true,
+  height: true,
+});
+const publicBlockBaseSchema = classicPlacementBaseSchema
+  .partial({
+    type: true,
+    x: true,
+    y: true,
+    width: true,
+    height: true,
+  })
+  .extend({
+    kind: z.enum(["markdown", "multiQuery"]).optional(),
+    revision: z.number().int().positive().optional(),
+    beforePlacementId: z
+      .unknown()
+      .optional()
+      .describe("Placement id or null on a saved inline block."),
+    config: z
+      .looseObject({})
+      .optional()
+      .describe("Copy the saved versioned configuration from getDashboard."),
+  });
+const dashboardDefinitionBaseSchema = z
+  .object({
+    version: z.literal("1").optional(),
+    blocks: z
+      .array(publicBlockBaseSchema)
+      .optional()
+      .describe(
+        "Version 1 placements and saved inline blocks. Copy inline blocks unchanged from getDashboard when editing classic placements.",
+      ),
+    widgets: z
+      .array(classicPlacementBaseSchema)
+      .optional()
+      .describe(
+        "Deprecated classic placement list. When provided with blocks it must match the classic entries in order.",
+      ),
+  })
+  .describe("Supply version 1 with blocks, or supply the legacy widgets list.");
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  definition: dashboardDefinitionBaseSchema.optional(),
 });
 const dashboardCreateBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   filters: z.array(z.object({}).loose()).optional(),
-  definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
+  definition: dashboardDefinitionBaseSchema.optional(),
 });
 // NOTE: object-level refinements do not survive `.shape` spreads, so every
 // schema built via `.extend(x.shape)` below must re-apply them explicitly.
@@ -284,9 +328,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
   action: "dashboards:read",
   description:
-    "Get an editable dashboard by ID, including its current layout: " +
-    "definition.widgets lists every placement with 12-column-grid " +
-    "coordinates (x/y top-left cell, width/height in cells).",
+    "Get an editable dashboard by ID. Version 1 definition.blocks lists classic placements and saved Markdown or multi-query blocks. Classic placements use x, y, width and height in a 12-column grid. The deprecated widgets list mirrors classic placements.",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   readOnlyHint: true,
@@ -308,7 +350,8 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 });
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
-  description: "Create an editable dashboard.",
+  description:
+    "Create an editable dashboard with classic widget or preset placements. Project API keys can read saved Markdown and multi-query blocks.",
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
   inputSchema: PostUnstableDashboardBody,
@@ -328,7 +371,7 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Partially update dashboard metadata, filters, or its complete definition.",
+    "Update dashboard metadata, filters, or classic placements. Supply version 1 blocks with all previously returned Markdown and multi-query blocks unchanged, or use a legacy widgets-only layout.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(

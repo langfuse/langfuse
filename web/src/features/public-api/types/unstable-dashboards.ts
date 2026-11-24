@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { singleFilterList } from "@langfuse/shared";
+import isEqual from "lodash/isEqual";
+import { savedDashboardBlockSchema, singleFilterList } from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -35,16 +36,59 @@ export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
 ]);
-const PublicDashboardDefinitionSchema = z
-  .object({
-    widgets: z.array(DashboardPlacementSchema),
-  })
+const classicWidgets = z.array(DashboardPlacementSchema).meta({
+  deprecated: true,
+  description:
+    "Use blocks in a version 1 dashboard definition. The widgets list mirrors its classic placements.",
+});
+const legacyDefinition = z
+  .strictObject({ widgets: classicWidgets })
   .refine(
     (definition) =>
       new Set(definition.widgets.map((placement) => placement.id)).size ===
       definition.widgets.length,
     "Placement ids must be unique",
   );
+
+const versionedDefinition = z.strictObject({
+  version: z.literal("1"),
+  blocks: z.array(
+    z.union([DashboardPlacementSchema, savedDashboardBlockSchema]),
+  ),
+  widgets: classicWidgets,
+});
+const writableVersionedDefinition = versionedDefinition.partial({
+  widgets: true,
+});
+function validateVersionedLayout(
+  { blocks, widgets }: z.infer<typeof writableVersionedDefinition>,
+  ctx: z.RefinementCtx,
+) {
+  if (new Set(blocks.map((block) => block.id)).size !== blocks.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["blocks"],
+      message: "Block and placement ids must be unique",
+    });
+  }
+  if (
+    widgets &&
+    !isEqual(
+      widgets,
+      blocks.filter((block) => "type" in block),
+    )
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["widgets"],
+      message: "Widgets must match the classic placements in blocks, in order",
+    });
+  }
+}
+const dashboardDefinitionInput = z.union([
+  writableVersionedDefinition.superRefine(validateVersionedLayout),
+  legacyDefinition,
+]);
 
 export const DashboardSchema = z
   .object({
@@ -53,7 +97,10 @@ export const DashboardSchema = z
     updatedAt: z.coerce.date(),
     name: z.string(),
     description: z.string(),
-    definition: PublicDashboardDefinitionSchema,
+    definition: z.union([
+      versionedDefinition.superRefine(validateVersionedLayout),
+      legacyDefinition,
+    ]),
     filters: singleFilterList,
   })
   .strict();
@@ -72,7 +119,7 @@ export const GetUnstableDashboardsResponse = z.object({
 export const PostUnstableDashboardBody = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
-  definition: PublicDashboardDefinitionSchema.optional(),
+  definition: dashboardDefinitionInput.optional(),
   filters: singleFilterList.optional(),
 });
 /** @alias */
@@ -85,7 +132,7 @@ export const PatchUnstableDashboardBody = z
   .object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    definition: PublicDashboardDefinitionSchema.optional(),
+    definition: dashboardDefinitionInput.optional(),
     filters: singleFilterList.optional(),
   })
   .refine(

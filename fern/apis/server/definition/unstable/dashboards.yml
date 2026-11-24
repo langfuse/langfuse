@@ -32,7 +32,12 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     create:
-      docs: Create a dashboard.
+      docs: |
+        Create a dashboard from a legacy `widgets` definition or a version 1
+        `blocks` definition. Project API credentials can create classic widget
+        and preset placements. Creating inline Markdown or multi-query blocks
+        requires the employee feature preview in the application; public API
+        credentials cannot create them.
       method: POST
       path: /dashboards
       request: CreateDashboardRequest
@@ -46,7 +51,12 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     get:
-      docs: Get a dashboard by id.
+      docs: |
+        Get a dashboard by id, including supported inline Markdown and
+        multi-query blocks. Classic and version 1 definitions return version 1
+        with a deprecated `widgets` mirror. If the stored root format is newer
+        than this server supports, only its legacy `widgets` projection is
+        returned; the server does not label that projection version 1.
       method: GET
       path: /dashboards/{dashboardId}
       path-parameters:
@@ -61,7 +71,20 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     update:
-      docs: Update a dashboard's name, description, definition, or filters.
+      docs: |
+        Update a dashboard's name, description, definition, or filters.
+
+        A legacy `widgets` definition updates classic placements while
+        preserving inline blocks. A version 1 definition uses `blocks` as the
+        complete supported layout; `widgets` may be omitted or must match the
+        classic placements in `blocks`.
+
+        Project API credentials may round-trip existing inline blocks unchanged
+        while editing classic placements. Creating, editing, removing,
+        reordering, or submitting a stale revision of an inline block returns
+        `403`. Use the application's employee feature preview to change inline
+        content. Unsupported future entries are preserved in storage, and
+        definitions with an unsupported root version cannot be edited.
       method: PATCH
       path: /dashboards/{dashboardId}
       path-parameters:
@@ -73,6 +96,7 @@ service:
         - errors.UnauthorizedError
         - errors.AccessDeniedError
         - errors.NotFoundError
+        - errors.ConflictError
         - errors.MethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
@@ -103,6 +127,9 @@ service:
         The referenced widget must exist in the same project or be a
         Langfuse-managed widget. The API returns `409` if a placement with
         the same `id` already exists on the dashboard.
+
+        This endpoint manages classic placements only and preserves inline
+        Markdown and multi-query blocks.
       method: POST
       path: /dashboards/{dashboardId}/placements
       path-parameters:
@@ -124,6 +151,9 @@ service:
         required. Omitted fields keep their current value. The placement's
         content (widget/preset reference) and id cannot change — delete and
         re-add the placement to swap content. Returns the updated placement.
+
+        This endpoint manages classic placements only and preserves inline
+        Markdown and multi-query blocks.
       method: PATCH
       path: /dashboards/{dashboardId}/placements/{placementId}
       path-parameters:
@@ -140,7 +170,9 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
     deletePlacement:
-      docs: Remove a placement from a dashboard grid without deleting the referenced widget.
+      docs: |
+        Remove a classic placement from a dashboard grid without deleting the
+        referenced widget. Inline Markdown and multi-query blocks are preserved.
       method: DELETE
       path: /dashboards/{dashboardId}/placements/{placementId}
       path-parameters:
@@ -247,8 +279,167 @@ types:
     properties:
       message: string
   DashboardDefinition:
+    docs: |
+      Version 1 is returned for classic and supported version 1 dashboards.
+      The legacy shape is returned only when the stored root format is newer
+      than this server supports. Unsupported entries within a version 1
+      document are omitted from the response and preserved in storage.
+    discriminated: false
+    union:
+      - DashboardDefinitionV1
+      - LegacyDashboardDefinition
+  LegacyDashboardDefinition:
+    extra-properties: false
     properties:
-      widgets: list<DashboardPlacement>
+      widgets:
+        type: list<DashboardPlacement>
+        availability:
+          status: deprecated
+          message: Use version 1 with blocks instead. Legacy writes remain supported and preserve inline blocks.
+        docs: Classic widget and preset placements. Kept for existing clients.
+  DashboardDefinitionV1:
+    properties:
+      version: literal<"1">
+      blocks: list<DashboardBlock>
+      widgets:
+        type: list<DashboardPlacement>
+        availability:
+          status: deprecated
+          message: Read blocks instead. This field is a compatibility mirror of classic placements in blocks.
+        docs: Compatibility mirror of the classic placements in blocks.
+  DashboardDefinitionInput:
+    discriminated: false
+    union:
+      - DashboardDefinitionV1Input
+      - LegacyDashboardDefinition
+  DashboardDefinitionV1Input:
+    docs: |
+      `blocks` is authoritative. When `widgets` is supplied, it must match the
+      classic placements in `blocks`. Placement and block ids must be unique.
+      Existing inline blocks must be echoed without changing their content,
+      revision, order, or anchor; public credentials cannot mutate them.
+    properties:
+      version: literal<"1">
+      blocks: list<DashboardBlock>
+      widgets:
+        type: optional<list<DashboardPlacement>>
+        availability:
+          status: deprecated
+          message: Write blocks instead. Omit this compatibility mirror or keep it consistent with blocks.
+  DashboardBlock:
+    discriminated: false
+    union:
+      - DashboardPlacement
+      - InlineDashboardBlock
+  InlineDashboardBlock:
+    discriminant: kind
+    base-properties:
+      id:
+        type: uuid
+        docs: Stable block identifier.
+      revision:
+        type: integer
+        docs: Positive revision. Echo the current value unchanged when round-tripping.
+      beforePlacementId:
+        type: nullable<string>
+        docs: Classic placement id before which this block appears, or null to append.
+    union:
+      markdown: MarkdownDashboardBlock
+      multiQuery: MultiQueryDashboardBlock
+  MarkdownDashboardBlock:
+    properties:
+      config: DashboardMarkdownConfig
+  MultiQueryDashboardBlock:
+    properties:
+      config: DashboardMultiQueryConfig
+  DashboardMarkdownConfig:
+    properties:
+      version:
+        type: integer
+        docs: Configuration version. Currently 1.
+      title:
+        type: string
+        docs: At most 255 characters.
+      content:
+        type: string
+        docs: Markdown content, at most 100000 characters.
+  DashboardMultiQueryConfig:
+    properties:
+      version:
+        type: integer
+        docs: Configuration version. Currently 1.
+      title:
+        type: string
+        docs: Between 1 and 200 characters.
+      description:
+        type: string
+        docs: At most 10000 characters.
+      queries:
+        type: list<DashboardMultiQuerySource>
+        docs: Between 1 and 5 independent source queries with unique ids.
+      display: DashboardMultiQueryDisplay
+      views:
+        type: optional<list<DashboardMultiQueryView>>
+        docs: At most 8 named query subsets with unique ids.
+      defaultViewId:
+        type: optional<string>
+        docs: Id of an existing named view.
+  DashboardMultiQuerySource:
+    properties:
+      id:
+        type: string
+        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
+      label:
+        type: string
+        docs: Between 1 and 200 characters.
+      view: dashboardWidgets.DashboardWidgetViewWithLegacy
+      metrics:
+        type: list<DashboardMultiQueryMetric>
+        docs: Between 1 and 5 metrics with unique ids and distinct measure/aggregation pairs.
+      dimensions:
+        type: list<dashboardWidgets.DashboardWidgetDimension>
+        docs: At most 3 grouping dimensions.
+      filters: list<dashboardWidgets.DashboardWidgetFilter>
+      orderBy:
+        type: optional<nullable<list<DashboardMultiQueryOrder>>>
+        docs: At most 4 sort fields.
+  DashboardMultiQueryMetric:
+    properties:
+      id:
+        type: string
+        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
+      label: optional<string>
+      measure: string
+      aggregation: dashboardWidgets.DashboardWidgetMetricAggregation
+  DashboardMultiQueryOrder:
+    properties:
+      field: string
+      direction: DashboardMultiQuerySortDirection
+  DashboardMultiQuerySortDirection:
+    enum:
+      - asc
+      - desc
+  DashboardMultiQueryDisplay:
+    properties:
+      chartType: dashboardWidgets.DashboardWidgetChartType
+      rowLimit:
+        type: optional<integer>
+        docs: Between 1 and 1000.
+      bins:
+        type: optional<integer>
+        docs: Between 1 and 100.
+      legend: optional<boolean>
+  DashboardMultiQueryView:
+    properties:
+      id:
+        type: string
+        docs: At most 64 characters, starting with a letter and containing only letters, digits and underscores.
+      label:
+        type: string
+        docs: Between 1 and 100 characters.
+      queryIds:
+        type: list<string>
+        docs: Between 1 and 5 distinct ids of existing source queries.
   Dashboard:
     properties:
       id: string
@@ -268,13 +459,13 @@ types:
     properties:
       name: string
       description: optional<string>
-      definition: optional<DashboardDefinition>
+      definition: optional<DashboardDefinitionInput>
       filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
   UpdateDashboardRequest:
     properties:
       name: optional<string>
       description: optional<string>
-      definition: optional<DashboardDefinition>
+      definition: optional<DashboardDefinitionInput>
       filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
   DeleteDashboardResponse:
     properties:

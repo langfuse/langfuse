@@ -1,5 +1,8 @@
-import { prisma, Prisma } from "../../../db";
+import { isDeepStrictEqual } from "node:util";
+import { Prisma, type Dashboard } from "@prisma/client";
+import { prisma } from "../../../db";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
+import { ForbiddenError } from "../../../errors/ForbiddenError";
 import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import {
   savedDashboardBlockSchema,
@@ -11,6 +14,7 @@ import {
   DashboardDefinitionV1Schema,
   DashboardDomainSchema,
   type DashboardDefinition,
+  type DashboardDomain,
 } from "./types";
 import { z } from "zod";
 
@@ -33,6 +37,15 @@ const storedVersionOneEnvelope = DashboardDefinitionV1Schema.pick({
   blocks: z.array(z.unknown()),
 });
 
+function mirrorClassicPlacements({ widgets }: DashboardDefinition) {
+  return { version: "1" as const, widgets, blocks: widgets };
+}
+
+export function newDashboardDefinition(initial: DashboardDefinition) {
+  const classic = DashboardDefinitionSchema.parse(initial);
+  return mirrorClassicPlacements(classic);
+}
+
 function interpretDashboardDefinition(
   raw: Prisma.JsonValue,
   classic: DashboardDefinition,
@@ -41,11 +54,7 @@ function interpretDashboardDefinition(
   if (!("version" in raw) && !("blocks" in raw)) {
     return {
       needsUpgrade: true,
-      definition: {
-        version: "1" as const,
-        widgets: classic.widgets,
-        blocks: classic.widgets,
-      },
+      definition: mirrorClassicPlacements(classic),
     };
   }
   const envelope = storedVersionOneEnvelope.safeParse(raw);
@@ -83,11 +92,25 @@ export async function getDashboardBlocks(
     dashboard.definition,
     DashboardDefinitionSchema.parse(dashboard.definition),
   );
+  return knownInlineBlocks(layout);
+}
+
+function readSavedBlock(entry: unknown) {
+  return savedDashboardBlockSchema.safeParse(
+    isObject(entry) && !("beforePlacementId" in entry)
+      ? { ...entry, beforePlacementId: null }
+      : entry,
+  );
+}
+
+function knownInlineBlocks(
+  layout: ReturnType<typeof interpretDashboardDefinition>,
+): SavedDashboardBlock[] {
   if (!layout || layout.needsUpgrade) return [];
   const placements = new Set(layout.definition.widgets.map(({ id }) => id));
   return layout.definition.blocks.flatMap((entry) => {
     if (isClassicPlacement(entry)) return [];
-    const block = savedDashboardBlockSchema.safeParse(entry);
+    const block = readSavedBlock(entry);
     if (!block.success) return [];
     const anchor = block.data.beforePlacementId;
     return [
@@ -100,19 +123,50 @@ export async function getDashboardBlocks(
   });
 }
 
-async function lockDefinition(
+export type PublicDashboard = Omit<DashboardDomain, "definition"> & {
+  definition: DashboardDefinition | z.infer<typeof DashboardDefinitionV1Schema>;
+};
+
+export function toPublicDashboard(row: Dashboard): PublicDashboard {
+  const classic = DashboardDomainSchema.parse({ ...row, owner: "PROJECT" });
+  const layout = interpretDashboardDefinition(
+    row.definition,
+    classic.definition,
+  );
+  if (!layout) return { ...classic, definition: classic.definition };
+  return {
+    ...classic,
+    definition: {
+      version: "1" as const,
+      widgets: classic.definition.widgets,
+      blocks: layout.needsUpgrade
+        ? classic.definition.widgets
+        : [...classic.definition.widgets, ...knownInlineBlocks(layout)],
+    },
+  };
+}
+
+const dashboardColumns = Prisma.sql`id, project_id AS "projectId", name, description,
+  filters, definition, created_at AS "createdAt", updated_at AS "updatedAt",
+  created_by AS "createdBy", updated_by AS "updatedBy"`;
+
+async function lockDashboard(
   tx: Prisma.TransactionClient,
   projectId: string,
   dashboardId: string,
 ) {
   // Both a classic layout save and a block patch decide against the latest contents of this row.
-  const [dashboard] = await tx.$queryRaw<{ definition: Prisma.JsonValue }[]>`
-    SELECT definition FROM dashboards WHERE id = ${dashboardId} AND project_id = ${projectId} FOR UPDATE
+  const [dashboard] = await tx.$queryRaw<Dashboard[]>`
+    SELECT ${dashboardColumns} FROM dashboards WHERE id = ${dashboardId} AND project_id = ${projectId} FOR UPDATE
   `;
   if (!dashboard) throw new LangfuseNotFoundError("Dashboard not found");
+  return dashboard;
+}
+
+function editableLayout(raw: Prisma.JsonValue) {
   const layout = interpretDashboardDefinition(
-    dashboard.definition,
-    DashboardDefinitionSchema.parse(dashboard.definition),
+    raw,
+    DashboardDefinitionSchema.parse(raw),
   );
   if (!layout)
     throw new LangfuseConflictError(
@@ -128,15 +182,13 @@ async function writeDefinition(
   updated: Prisma.Sql,
   userId?: string,
 ) {
-  await tx.$executeRaw`
+  const [result] = await tx.$queryRaw<Dashboard[]>`
     UPDATE dashboards SET definition = ${updated}, updated_at = CURRENT_TIMESTAMP,
       updated_by = COALESCE(${userId ?? null}, updated_by)
     WHERE id = ${dashboardId} AND project_id = ${projectId}
+    RETURNING ${dashboardColumns}
   `;
-  const result = await tx.dashboard.findFirstOrThrow({
-    where: { id: dashboardId, projectId },
-  });
-  return DashboardDomainSchema.parse({ ...result, owner: "PROJECT" });
+  return result;
 }
 
 export async function updateClassicLayout(
@@ -146,10 +198,44 @@ export async function updateClassicLayout(
   edit: (current: DashboardDefinition) => DashboardDefinition,
   userId?: string,
 ) {
-  const current = await lockDefinition(tx, projectId, dashboardId);
-  const layout = DashboardDefinitionSchema.parse(
+  const row = await lockDashboard(tx, projectId, dashboardId);
+  const current = editableLayout(row.definition);
+  const result = await replaceClassicLayout(
+    tx,
+    projectId,
+    dashboardId,
+    current,
     edit({ widgets: current.definition.widgets }),
+    userId,
   );
+  return DashboardDomainSchema.parse({ ...result, owner: "PROJECT" });
+}
+
+function rawInlineIds(layout: ReturnType<typeof editableLayout>) {
+  if (layout.needsUpgrade) return [];
+  return layout.definition.blocks.flatMap((entry) =>
+    !isClassicPlacement(entry) &&
+    isObject(entry) &&
+    typeof entry.id === "string"
+      ? [entry.id]
+      : [],
+  );
+}
+
+async function replaceClassicLayout(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+  dashboardId: string,
+  current: ReturnType<typeof editableLayout>,
+  definition: DashboardDefinition,
+  userId?: string,
+) {
+  const layout = DashboardDefinitionSchema.parse(definition);
+  const inlineIds = new Set(rawInlineIds(current));
+  if (layout.widgets.some(({ id }) => inlineIds.has(id)))
+    throw new LangfuseConflictError(
+      "A dashboard placement and block cannot have the same ID.",
+    );
   const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
 
   // Rebuild only the classic part, without decoding other entries through JavaScript.
@@ -161,6 +247,56 @@ export async function updateClassicLayout(
   return writeDefinition(tx, projectId, dashboardId, updated, userId);
 }
 
+export async function patchPublicDashboard(
+  projectId: string,
+  dashboardId: string,
+  patch: {
+    name?: string;
+    description?: string;
+    filters?: DashboardDomain["filters"];
+    definition?: DashboardDefinition & {
+      expectedInlineBlocks?: SavedDashboardBlock[];
+    };
+  },
+) {
+  return prisma.$transaction(async (tx) => {
+    const current = await lockDashboard(tx, projectId, dashboardId);
+    const before = toPublicDashboard(current);
+    let result = current;
+    if (patch.definition) {
+      const layout = editableLayout(current.definition);
+      const expected = patch.definition.expectedInlineBlocks;
+      if (
+        expected !== undefined &&
+        !isDeepStrictEqual(expected, knownInlineBlocks(layout))
+      ) {
+        throw new ForbiddenError(
+          "Dashboard blocks are read-only through the public API.",
+        );
+      }
+      result = await replaceClassicLayout(
+        tx,
+        projectId,
+        dashboardId,
+        layout,
+        patch.definition,
+      );
+    }
+    const { name, description, filters } = patch;
+    if (
+      name !== undefined ||
+      description !== undefined ||
+      filters !== undefined
+    ) {
+      result = await tx.dashboard.update({
+        where: { id: dashboardId, projectId },
+        data: { name, description, filters },
+      });
+    }
+    return { before, after: toPublicDashboard(result) };
+  });
+}
+
 export async function patchDashboardBlock(
   projectId: string,
   dashboardId: string,
@@ -168,7 +304,13 @@ export async function patchDashboardBlock(
   userId?: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const layout = await lockDefinition(tx, projectId, dashboardId);
+    const row = await lockDashboard(tx, projectId, dashboardId);
+    const layout = editableLayout(row.definition);
+    if (layout.definition.widgets.some(({ id }) => id === patch.id)) {
+      throw new LangfuseConflictError(
+        "Dashboard placement and block IDs must be unique.",
+      );
+    }
     const entries = layout.definition.blocks;
     const matching = entries.flatMap((entry, index) =>
       !isClassicPlacement(entry) && isObject(entry) && entry.id === patch.id
@@ -181,9 +323,7 @@ export async function patchDashboardBlock(
       );
     const index = matching[0];
     const current =
-      index === undefined
-        ? undefined
-        : savedDashboardBlockSchema.safeParse(entries[index]);
+      index === undefined ? undefined : readSavedBlock(entries[index]);
     if (current === undefined && patch.expectedRevision !== 0)
       throw new LangfuseNotFoundError("Dashboard block not found");
     if (
@@ -217,6 +357,13 @@ export async function patchDashboardBlock(
       };
       updated = Prisma.sql`jsonb_set(${base}, ${path}, ${JSON.stringify(next)}::jsonb)`;
     }
-    return writeDefinition(tx, projectId, dashboardId, updated, userId);
+    const result = await writeDefinition(
+      tx,
+      projectId,
+      dashboardId,
+      updated,
+      userId,
+    );
+    return DashboardDomainSchema.parse({ ...result, owner: "PROJECT" });
   });
 }

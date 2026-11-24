@@ -4,6 +4,7 @@ import {
   type DashboardDomain,
 } from "@langfuse/shared/src/server";
 import {
+  ForbiddenError,
   HOME_DASHBOARD_PRESET_IDS,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -27,6 +28,9 @@ type PublicPlacement = z.infer<typeof DashboardPlacementSchema>;
 type PlacementCreate = z.infer<typeof PostDashboardPlacementBody>;
 type PlacementPatch = z.infer<typeof PatchDashboardPlacementBody>;
 type InternalPlacement = DashboardDomain["definition"]["widgets"][number];
+type ProjectDashboard = NonNullable<
+  Awaited<ReturnType<typeof DashboardService.getPublicDashboard>>
+>;
 
 // Matches the UI's add-widget default: a half-width (12-column grid) 6x6
 // tile appended below all existing tiles.
@@ -76,25 +80,55 @@ const toInternalPlacement = (placement: PublicPlacement): InternalPlacement =>
         y_size: placement.height,
       };
 
-const toApiDashboard = (dashboard: DashboardDomain) =>
-  DashboardSchema.parse({
-    id: dashboard.id,
-    createdAt: dashboard.createdAt,
-    updatedAt: dashboard.updatedAt,
-    name: dashboard.name,
-    description: dashboard.description,
+const toAuditDashboard = (dashboard: DashboardDomain) => ({
+  id: dashboard.id,
+  createdAt: dashboard.createdAt,
+  updatedAt: dashboard.updatedAt,
+  name: dashboard.name,
+  description: dashboard.description,
+  definition: {
+    widgets: dashboard.definition.widgets.map(toPublicPlacement),
+  },
+  filters: dashboard.filters,
+});
+
+function toApiDashboard(dashboard: ProjectDashboard) {
+  const classic = toAuditDashboard(dashboard);
+  const definition = dashboard.definition;
+  if (!("version" in definition)) return DashboardSchema.parse(classic);
+  return DashboardSchema.parse({
+    ...classic,
     definition: {
-      widgets: dashboard.definition.widgets.map(toPublicPlacement),
+      version: definition.version,
+      widgets: classic.definition.widgets,
+      blocks: definition.blocks.map((block) =>
+        "type" in block ? toPublicPlacement(block) : block,
+      ),
     },
-    filters: dashboard.filters,
   });
+}
+
+function toLayoutEdit(definition: NonNullable<DashboardInput["definition"]>) {
+  if (!("version" in definition)) {
+    return { widgets: definition.widgets.map(toInternalPlacement) };
+  }
+  return {
+    widgets: definition.blocks
+      .filter((block) => "type" in block)
+      .map(toInternalPlacement),
+    expectedInlineBlocks: definition.blocks.filter((block) => "kind" in block),
+  };
+}
 
 async function getProjectDashboardOrThrow(
   projectId: string,
   dashboardId: string,
-): Promise<DashboardDomain> {
-  const dashboard = await DashboardService.getDashboard(dashboardId, projectId);
-  if (!dashboard || dashboard.projectId !== projectId) {
+) {
+  const dashboard = await DashboardService.getPublicDashboard(
+    projectId,
+    dashboardId,
+  );
+  if (!dashboard) {
     throw new LangfuseNotFoundError(`Dashboard ${dashboardId} not found`);
   }
   return dashboard;
@@ -138,17 +172,14 @@ export async function listPublicDashboards(params: {
   page: number;
   limit: number;
 }) {
-  const result = await DashboardService.listDashboards({
-    ...params,
-    includeLangfuseOwned: false,
-  });
+  const result = await DashboardService.listPublicDashboards(params);
   return {
     data: result.dashboards.map(toApiDashboard),
     meta: {
       page: params.page,
       limit: params.limit,
-      totalItems: result.totalCount,
-      totalPages: Math.ceil(result.totalCount / params.limit),
+      totalItems: result.totalItems,
+      totalPages: Math.ceil(result.totalItems / params.limit),
     },
   };
 }
@@ -168,8 +199,13 @@ export async function createPublicDashboard(params: {
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const definition = params.input.definition
-    ? { widgets: params.input.definition.widgets.map(toInternalPlacement) }
+    ? toLayoutEdit(params.input.definition)
     : undefined;
+  if (definition?.expectedInlineBlocks?.length) {
+    throw new ForbiddenError(
+      "Project API keys cannot create dashboard Markdown or multi-query blocks.",
+    );
+  }
   if (definition) {
     await assertPlacementReferences({
       projectId: params.projectId,
@@ -184,7 +220,14 @@ export async function createPublicDashboard(params: {
     definition,
     params.input.filters,
   );
-  const result = toApiDashboard(dashboard);
+  const result = toApiDashboard({
+    ...dashboard,
+    definition: {
+      version: "1",
+      widgets: dashboard.definition.widgets,
+      blocks: dashboard.definition.widgets,
+    },
+  });
   await auditLog({
     action: "create",
     resourceType: "dashboard",
@@ -192,7 +235,7 @@ export async function createPublicDashboard(params: {
     projectId: params.projectId,
     orgId: params.auditScope.orgId,
     apiKeyId: params.auditScope.apiKeyId,
-    after: result,
+    after: toAuditDashboard(dashboard),
   });
   return result;
 }
@@ -203,12 +246,8 @@ export async function updatePublicDashboard(params: {
   input: DashboardPatch;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const current = await getProjectDashboardOrThrow(
-    params.projectId,
-    params.dashboardId,
-  );
   const definition = params.input.definition
-    ? { widgets: params.input.definition.widgets.map(toInternalPlacement) }
+    ? toLayoutEdit(params.input.definition)
     : undefined;
   if (definition) {
     await assertPlacementReferences({
@@ -216,42 +255,22 @@ export async function updatePublicDashboard(params: {
       placements: definition.widgets,
     });
   }
-  let dashboard = current;
-  if (
-    params.input.name !== undefined ||
-    params.input.description !== undefined
-  ) {
-    dashboard = await DashboardService.updateDashboard(
-      dashboard.id,
-      params.projectId,
-      params.input.name ?? dashboard.name,
-      params.input.description ?? dashboard.description,
-    );
-  }
-  if (definition !== undefined)
-    dashboard = await DashboardService.updateDashboardDefinition(
-      dashboard.id,
-      params.projectId,
-      definition,
-    );
-  if (params.input.filters !== undefined)
-    dashboard = await DashboardService.updateDashboardFilters(
-      dashboard.id,
-      params.projectId,
-      params.input.filters,
-    );
-  const result = toApiDashboard(dashboard);
+  const { before, after } = await DashboardService.patchPublicDashboard(
+    params.projectId,
+    params.dashboardId,
+    { ...params.input, definition },
+  );
   await auditLog({
     action: "update",
     resourceType: "dashboard",
-    resourceId: dashboard.id,
+    resourceId: after.id,
     projectId: params.projectId,
     orgId: params.auditScope.orgId,
     apiKeyId: params.auditScope.apiKeyId,
-    before: toApiDashboard(current),
-    after: result,
+    before: toAuditDashboard(before),
+    after: toAuditDashboard(after),
   });
-  return result;
+  return toApiDashboard(after);
 }
 
 export async function deletePublicDashboard(params: {
@@ -271,7 +290,7 @@ export async function deletePublicDashboard(params: {
     projectId: params.projectId,
     orgId: params.auditScope.orgId,
     apiKeyId: params.auditScope.apiKeyId,
-    before: toApiDashboard(current),
+    before: toAuditDashboard(current),
   });
 }
 
@@ -283,22 +302,21 @@ async function writeDashboardDefinition(params: {
   widgets: InternalPlacement[];
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const dashboard = await DashboardService.updateDashboardDefinition(
-    params.current.id,
+  const { before, after } = await DashboardService.patchPublicDashboard(
     params.projectId,
-    { widgets: params.widgets },
+    params.current.id,
+    { definition: { widgets: params.widgets } },
   );
   await auditLog({
     action: "update",
     resourceType: "dashboard",
-    resourceId: dashboard.id,
+    resourceId: after.id,
     projectId: params.projectId,
     orgId: params.auditScope.orgId,
     apiKeyId: params.auditScope.apiKeyId,
-    before: toApiDashboard(params.current),
-    after: toApiDashboard(dashboard),
+    before: toAuditDashboard(before),
+    after: toAuditDashboard(after),
   });
-  return dashboard;
 }
 
 export async function addPublicDashboardPlacement(params: {

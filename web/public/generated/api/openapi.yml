@@ -7185,7 +7185,12 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
     post:
-      description: Create a dashboard.
+      description: |-
+        Create a dashboard from a legacy `widgets` definition or a version 1
+        `blocks` definition. Project API credentials can create classic widget
+        and preset placements. Creating inline Markdown or multi-query blocks
+        requires the employee feature preview in the application; public API
+        credentials cannot create them.
       operationId: unstable_dashboards_create
       tags:
         - UnstableDashboards
@@ -7243,7 +7248,12 @@ paths:
               $ref: '#/components/schemas/unstableCreateDashboardRequest'
   /api/public/unstable/dashboards/{dashboardId}:
     get:
-      description: Get a dashboard by id.
+      description: |-
+        Get a dashboard by id, including supported inline Markdown and
+        multi-query blocks. Classic and version 1 definitions return version 1
+        with a deprecated `widgets` mirror. If the stored root format is newer
+        than this server supports, only its legacy `widgets` projection is
+        returned; the server does not label that projection version 1.
       operationId: unstable_dashboards_get
       tags:
         - UnstableDashboards
@@ -7299,7 +7309,20 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
     patch:
-      description: Update a dashboard's name, description, definition, or filters.
+      description: |-
+        Update a dashboard's name, description, definition, or filters.
+
+        A legacy `widgets` definition updates classic placements while
+        preserving inline blocks. A version 1 definition uses `blocks` as the
+        complete supported layout; `widgets` may be omitted or must match the
+        classic placements in `blocks`.
+
+        Project API credentials may round-trip existing inline blocks unchanged
+        while editing classic placements. Creating, editing, removing,
+        reordering, or submitting a stale revision of an inline block returns
+        `403`. Use the application's employee feature preview to change inline
+        content. Unsupported future entries are preserved in storage, and
+        definitions with an unsupported root version cannot be edited.
       operationId: unstable_dashboards_update
       tags:
         - UnstableDashboards
@@ -7341,6 +7364,12 @@ paths:
           content:
             application/json:
               schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -7429,6 +7458,9 @@ paths:
         The referenced widget must exist in the same project or be a
         Langfuse-managed widget. The API returns `409` if a placement with
         the same `id` already exists on the dashboard.
+
+        This endpoint manages classic placements only and preserves inline
+        Markdown and multi-query blocks.
       operationId: unstable_dashboards_addPlacement
       tags:
         - UnstableDashboards
@@ -7502,6 +7534,9 @@ paths:
         required. Omitted fields keep their current value. The placement's
         content (widget/preset reference) and id cannot change — delete and
         re-add the placement to swap content. Returns the updated placement.
+
+        This endpoint manages classic placements only and preserves inline
+        Markdown and multi-query blocks.
       operationId: unstable_dashboards_updatePlacement
       tags:
         - UnstableDashboards
@@ -7568,9 +7603,9 @@ paths:
             schema:
               $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
     delete:
-      description: >-
-        Remove a placement from a dashboard grid without deleting the referenced
-        widget.
+      description: |-
+        Remove a classic placement from a dashboard grid without deleting the
+        referenced widget. Inline Markdown and multi-query blocks are preserved.
       operationId: unstable_dashboards_deletePlacement
       tags:
         - UnstableDashboards
@@ -15684,14 +15719,319 @@ components:
         - message
     unstableDashboardDefinition:
       title: unstableDashboardDefinition
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardDefinitionV1'
+        - $ref: '#/components/schemas/unstableLegacyDashboardDefinition'
+      description: |-
+        Version 1 is returned for classic and supported version 1 dashboards.
+        The legacy shape is returned only when the stored root format is newer
+        than this server supports. Unsupported entries within a version 1
+        document are omitted from the response and preserved in storage.
+    unstableLegacyDashboardDefinition:
+      title: unstableLegacyDashboardDefinition
       type: object
       properties:
         widgets:
           type: array
           items:
             $ref: '#/components/schemas/unstableDashboardPlacement'
+          description: Classic widget and preset placements. Kept for existing clients.
+          deprecated: true
       required:
         - widgets
+      additionalProperties: false
+    unstableDashboardDefinitionV1:
+      title: unstableDashboardDefinitionV1
+      type: object
+      properties:
+        version:
+          type: string
+          const: '1'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardBlock'
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardPlacement'
+          description: Compatibility mirror of the classic placements in blocks.
+          deprecated: true
+      required:
+        - version
+        - blocks
+        - widgets
+    unstableDashboardDefinitionInput:
+      title: unstableDashboardDefinitionInput
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardDefinitionV1Input'
+        - $ref: '#/components/schemas/unstableLegacyDashboardDefinition'
+    unstableDashboardDefinitionV1Input:
+      title: unstableDashboardDefinitionV1Input
+      type: object
+      description: |-
+        `blocks` is authoritative. When `widgets` is supplied, it must match the
+        classic placements in `blocks`. Placement and block ids must be unique.
+        Existing inline blocks must be echoed without changing their content,
+        revision, order, or anchor; public credentials cannot mutate them.
+      properties:
+        version:
+          type: string
+          const: '1'
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardBlock'
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardPlacement'
+          nullable: true
+          deprecated: true
+      required:
+        - version
+        - blocks
+    unstableDashboardBlock:
+      title: unstableDashboardBlock
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardPlacement'
+        - $ref: '#/components/schemas/unstableInlineDashboardBlock'
+    unstableInlineDashboardBlock:
+      title: unstableInlineDashboardBlock
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - markdown
+            - $ref: '#/components/schemas/unstableMarkdownDashboardBlock'
+          required:
+            - kind
+          title: UnstableMarkdownDashboardBlock
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - multiQuery
+            - $ref: '#/components/schemas/unstableMultiQueryDashboardBlock'
+          required:
+            - kind
+          title: UnstableMultiQueryDashboardBlock
+      required:
+        - id
+        - revision
+        - beforePlacementId
+      properties:
+        id:
+          description: Stable block identifier.
+          type: string
+          format: uuid
+        revision:
+          description: >-
+            Positive revision. Echo the current value unchanged when
+            round-tripping.
+          type: integer
+        beforePlacementId:
+          description: >-
+            Classic placement id before which this block appears, or null to
+            append.
+          type: string
+          nullable: true
+    unstableMarkdownDashboardBlock:
+      title: unstableMarkdownDashboardBlock
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMarkdownConfig'
+      required:
+        - config
+    unstableMultiQueryDashboardBlock:
+      title: unstableMultiQueryDashboardBlock
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryConfig'
+      required:
+        - config
+    unstableDashboardMarkdownConfig:
+      title: unstableDashboardMarkdownConfig
+      type: object
+      properties:
+        version:
+          type: integer
+          description: Configuration version. Currently 1.
+        title:
+          type: string
+          description: At most 255 characters.
+        content:
+          type: string
+          description: Markdown content, at most 100000 characters.
+      required:
+        - version
+        - title
+        - content
+    unstableDashboardMultiQueryConfig:
+      title: unstableDashboardMultiQueryConfig
+      type: object
+      properties:
+        version:
+          type: integer
+          description: Configuration version. Currently 1.
+        title:
+          type: string
+          description: Between 1 and 200 characters.
+        description:
+          type: string
+          description: At most 10000 characters.
+        queries:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQuerySource'
+          description: Between 1 and 5 independent source queries with unique ids.
+        display:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
+        views:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryView'
+          nullable: true
+          description: At most 8 named query subsets with unique ids.
+        defaultViewId:
+          type: string
+          nullable: true
+          description: Id of an existing named view.
+      required:
+        - version
+        - title
+        - description
+        - queries
+        - display
+    unstableDashboardMultiQuerySource:
+      title: unstableDashboardMultiQuerySource
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            At most 64 characters, starting with a letter and containing only
+            letters, digits and underscores.
+        label:
+          type: string
+          description: Between 1 and 200 characters.
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
+          description: >-
+            Between 1 and 5 metrics with unique ids and distinct
+            measure/aggregation pairs.
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+          description: At most 3 grouping dimensions.
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        orderBy:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
+          nullable: true
+          description: At most 4 sort fields.
+      required:
+        - id
+        - label
+        - view
+        - metrics
+        - dimensions
+        - filters
+    unstableDashboardMultiQueryMetric:
+      title: unstableDashboardMultiQueryMetric
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            At most 64 characters, starting with a letter and containing only
+            letters, digits and underscores.
+        label:
+          type: string
+          nullable: true
+        measure:
+          type: string
+        aggregation:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - id
+        - measure
+        - aggregation
+    unstableDashboardMultiQueryOrder:
+      title: unstableDashboardMultiQueryOrder
+      type: object
+      properties:
+        field:
+          type: string
+        direction:
+          $ref: '#/components/schemas/unstableDashboardMultiQuerySortDirection'
+      required:
+        - field
+        - direction
+    unstableDashboardMultiQuerySortDirection:
+      title: unstableDashboardMultiQuerySortDirection
+      type: string
+      enum:
+        - asc
+        - desc
+    unstableDashboardMultiQueryDisplay:
+      title: unstableDashboardMultiQueryDisplay
+      type: object
+      properties:
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        rowLimit:
+          type: integer
+          nullable: true
+          description: Between 1 and 1000.
+        bins:
+          type: integer
+          nullable: true
+          description: Between 1 and 100.
+        legend:
+          type: boolean
+          nullable: true
+      required:
+        - chartType
+    unstableDashboardMultiQueryView:
+      title: unstableDashboardMultiQueryView
+      type: object
+      properties:
+        id:
+          type: string
+          description: >-
+            At most 64 characters, starting with a letter and containing only
+            letters, digits and underscores.
+        label:
+          type: string
+          description: Between 1 and 100 characters.
+        queryIds:
+          type: array
+          items:
+            type: string
+          description: Between 1 and 5 distinct ids of existing source queries.
+      required:
+        - id
+        - label
+        - queryIds
     unstableDashboard:
       title: unstableDashboard
       type: object
@@ -15746,7 +16086,7 @@ components:
           type: string
           nullable: true
         definition:
-          $ref: '#/components/schemas/unstableDashboardDefinition'
+          $ref: '#/components/schemas/unstableDashboardDefinitionInput'
           nullable: true
         filters:
           type: array
@@ -15766,7 +16106,7 @@ components:
           type: string
           nullable: true
         definition:
-          $ref: '#/components/schemas/unstableDashboardDefinition'
+          $ref: '#/components/schemas/unstableDashboardDefinitionInput'
           nullable: true
         filters:
           type: array

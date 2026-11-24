@@ -20,9 +20,13 @@ import {
   PostUnstableDashboardResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
+import { randomUUID } from "node:crypto";
 
 const widget = {
   name: "API widget",
@@ -35,6 +39,333 @@ const widget = {
 };
 
 describe("unstable dashboard API", () => {
+  it("round-trips classic placements and protected inline blocks through the versioned public definition", async () => {
+    const { projectId, orgId, auth } = await createOrgProjectAndApiKey();
+    const route = "/api/public/unstable/dashboards";
+    const placement = {
+      type: "preset" as const,
+      id: "usage",
+      presetId: "home-model-usage",
+      x: 0,
+      y: 0,
+      width: 6,
+      height: 4,
+    };
+    const { width, height, ...position } = placement;
+    const storedPlacement = { ...position, x_size: width, y_size: height };
+    const note = {
+      id: randomUUID(),
+      kind: "markdown" as const,
+      revision: 2,
+      beforePlacementId: placement.id,
+      config: {
+        version: 1 as const,
+        title: "Guide",
+        content: "Weekly metrics",
+      },
+    };
+    const chart = {
+      id: randomUUID(),
+      kind: "multiQuery",
+      revision: 1,
+      beforePlacementId: null,
+      config: {
+        version: 1,
+        title: "Requests",
+        description: "",
+        display: { chartType: "NUMBER" },
+        queries: [
+          {
+            id: "a",
+            label: "Total",
+            view: "observations",
+            filters: [],
+            dimensions: [],
+            metrics: [{ id: "count", measure: "count", aggregation: "count" }],
+          },
+        ],
+      },
+    };
+    const opaque = {
+      ...note,
+      id: randomUUID(),
+      config: { ...note.config, version: 2, sections: ["future"] },
+    };
+    try {
+      const dashboard = await prisma.dashboard.create({
+        data: {
+          projectId,
+          name: "Operational dashboard",
+          description: "",
+          definition: {
+            version: "1",
+            widgets: [storedPlacement],
+            blocks: [storedPlacement, note, chart, opaque],
+          },
+        },
+      });
+      const path = `${route}/${dashboard.id}`;
+      const read = await makeZodVerifiedAPICall(
+        GetUnstableDashboardResponse,
+        "GET",
+        path,
+        undefined,
+        auth,
+      );
+      const expected = {
+        version: "1",
+        widgets: [placement],
+        blocks: [placement, note, chart],
+      };
+      expect(read.body.definition).toEqual(expected);
+      const listed = await makeZodVerifiedAPICall(
+        GetUnstableDashboardsResponse,
+        "GET",
+        route,
+        undefined,
+        auth,
+      );
+      expect(listed.body.data.map((row) => row.definition)).toEqual([expected]);
+      await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { definition: read.body.definition },
+        auth,
+      );
+      const moved = { ...placement, width: 8 };
+      const accepted = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        {
+          name: "Expanded chart",
+          definition: { version: "1", blocks: [moved, note, chart] },
+        },
+        auth,
+      );
+      expect(accepted.body.definition).toEqual({
+        version: "1",
+        widgets: [moved],
+        blocks: [moved, note, chart],
+      });
+
+      for (const blocks of [
+        [moved, chart],
+        [moved, note, chart, { ...note, id: randomUUID() }],
+        [
+          moved,
+          { ...note, config: { ...note.config, content: "Replacement" } },
+          chart,
+        ],
+        [moved, chart, note],
+      ]) {
+        const rejected = await makeAPICall(
+          "PATCH",
+          path,
+          {
+            name: "Rejected edit",
+            description: "Must roll back",
+            filters: [
+              {
+                column: "environment",
+                type: "string",
+                operator: "=",
+                value: "staging",
+              },
+            ],
+            definition: { version: "1", blocks },
+          },
+          auth,
+        );
+        expect(rejected.status).toBe(403);
+      }
+      const deniedCreate = await makeAPICall(
+        "POST",
+        route,
+        {
+          name: "Denied copy",
+          definition: read.body.definition,
+        },
+        auth,
+      );
+      expect(deniedCreate.status).toBe(403);
+      await expect(
+        prisma.dashboard.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+
+      await DashboardService.patchDashboardBlock(projectId, dashboard.id, {
+        op: "upsert",
+        id: note.id,
+        kind: "markdown",
+        expectedRevision: note.revision,
+        config: { ...note.config, title: "Revised" },
+      });
+      const stale = await makeAPICall(
+        "PATCH",
+        path,
+        { name: "Stale edit", definition: accepted.body.definition },
+        auth,
+      );
+      expect(stale.status).toBe(403);
+      const updated = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        {
+          definition: { widgets: [placement] },
+        },
+        auth,
+      );
+      expect(updated.body).toMatchObject({
+        name: "Expanded chart",
+        description: "",
+        filters: [],
+        definition: {
+          widgets: [placement],
+          blocks: [
+            placement,
+            {
+              ...note,
+              revision: 3,
+              config: { ...note.config, title: "Revised" },
+            },
+            chart,
+          ],
+        },
+      });
+      const row = await prisma.dashboard.findUniqueOrThrow({
+        where: { id: dashboard.id, projectId },
+      });
+      expect(row.definition).toMatchObject({
+        blocks: expect.arrayContaining([opaque]),
+      });
+      const logs = await prisma.auditLog.findMany({
+        where: { projectId, resourceId: dashboard.id, action: "update" },
+        select: { before: true, after: true },
+      });
+      expect(logs).toHaveLength(3);
+      for (const log of logs) {
+        for (const snapshot of [log.before, log.after]) {
+          const entry: unknown = JSON.parse(snapshot ?? "null");
+          expect(entry).toHaveProperty("definition.widgets");
+          expect(entry).not.toHaveProperty("definition.blocks");
+        }
+      }
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
+  it("accepts classic and versioned creates, rejects inconsistent mirrors and keeps future roots opaque", async () => {
+    const { projectId, orgId, auth } = await createOrgProjectAndApiKey();
+    const route = "/api/public/unstable/dashboards";
+    const placement = {
+      type: "preset",
+      id: "score",
+      presetId: "home-score-analytics",
+      x: 0,
+      y: 0,
+      width: 6,
+      height: 4,
+    };
+    try {
+      const canonical = {
+        version: "1",
+        widgets: [placement],
+        blocks: [placement],
+      };
+      for (const definition of [
+        { widgets: [placement] },
+        { version: "1", blocks: [placement] },
+      ]) {
+        const created = await makeZodVerifiedAPICall(
+          PostUnstableDashboardResponse,
+          "POST",
+          route,
+          { name: "Classic", definition },
+          auth,
+        );
+        expect(created.body.definition).toEqual(canonical);
+      }
+      for (const definition of [
+        { ...canonical, widgets: [{ ...placement, width: 3 }] },
+        { version: "1", blocks: [placement, placement] },
+        { widgets: [placement], version: "2" },
+        { widgets: [placement], blocks: [] },
+        { version: "1", widgets: [placement] },
+      ]) {
+        expect(
+          (
+            await makeAPICall(
+              "POST",
+              route,
+              { name: "Invalid", definition },
+              auth,
+            )
+          ).status,
+        ).toBe(400);
+      }
+      const { width, height, ...rest } = placement;
+      const raw = {
+        version: "future",
+        widgets: [{ ...rest, x_size: width, y_size: height }],
+        blocks: [{ tree: [1] }],
+      };
+      const future = await prisma.dashboard.create({
+        data: { projectId, name: "Future", description: "", definition: raw },
+      });
+      const path = `${route}/${future.id}`;
+      const read = await makeZodVerifiedAPICall(
+        GetUnstableDashboardResponse,
+        "GET",
+        path,
+        undefined,
+        auth,
+      );
+      expect(read.body.definition).toEqual({ widgets: [placement] });
+      const listed = await makeZodVerifiedAPICall(
+        GetUnstableDashboardsResponse,
+        "GET",
+        route,
+        undefined,
+        auth,
+      );
+      expect(
+        listed.body.data.find((item) => item.id === future.id)?.definition,
+      ).toEqual(read.body.definition);
+      expect(
+        (
+          await makeAPICall(
+            "PATCH",
+            path,
+            { name: "Rejected", definition: { widgets: [] } },
+            auth,
+          )
+        ).status,
+      ).toBe(409);
+      const meta = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { description: "Metadata only" },
+        auth,
+      );
+      expect(meta.body).toMatchObject({
+        name: "Future",
+        description: "Metadata only",
+      });
+      await expect(
+        prisma.dashboard.findUniqueOrThrow({
+          where: { id: future.id, projectId },
+          select: { definition: true },
+        }),
+      ).resolves.toEqual({ definition: raw });
+    } finally {
+      await prisma.organization.delete({ where: { id: orgId } });
+    }
+  });
+
   it("manages dashboards, widgets, and placements without leaving broken references", async () => {
     const { auth, projectId, publicKey } = await createOrgProjectAndApiKey();
     const createdWidget = await makeZodVerifiedAPICall(
