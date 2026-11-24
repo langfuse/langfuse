@@ -416,11 +416,13 @@ const memberColumns: LangfuseColumnDef<GroupMemberRow>[] = [
     accessorKey: "name",
     header: "Name",
     nullValue: "-",
+    sensitive: true,
   }),
   createTextTableColumn<GroupMemberRow>({
     accessorKey: "email",
     header: "Email",
     nullValue: "-",
+    sensitive: true,
   }),
   createTextTableColumn<GroupMemberRow>({
     accessorKey: "directOrgRole",

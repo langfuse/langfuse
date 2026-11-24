@@ -17,6 +17,7 @@ export function groupTableColumns<T extends GroupTableRow>() {
     name: {
       accessorKey: "displayName",
       header: "Name",
+      sensitive: true,
       cell: ({ row }) => (
         <span className="truncate" title={row.original.group.displayName}>
           {row.original.group.displayName}
