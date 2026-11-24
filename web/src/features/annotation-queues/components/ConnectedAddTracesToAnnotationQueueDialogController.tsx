@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -120,6 +120,16 @@ export function ConnectedAddTracesToAnnotationQueueDialogController({
   const initialTargetId =
     newQueueId ?? (queueOptions.length === 1 ? queueOptions[0].id : "");
 
+  const batchActionState = (() => {
+    if (isInProgress.isLoading || isAlternateInProgress.isLoading) {
+      return { status: "checking" } as const;
+    }
+    if (isInProgress.data || isAlternateInProgress.data) {
+      return { status: "inProgress" } as const;
+    }
+    return { status: "ready" } as const;
+  })();
+
   return (
     <ConnectedAnnotationQueueFormDialogController
       mode="create"
@@ -151,13 +161,7 @@ export function ConnectedAddTracesToAnnotationQueueDialogController({
                 onCreateNewQueue={openCreateDialog}
                 createQueueState={createQueueState}
                 hasAccess={hasQueueAccess}
-                batchActionState={
-                  isInProgress.isLoading || isAlternateInProgress.isLoading
-                    ? { status: "checking" }
-                    : isInProgress.data || isAlternateInProgress.data
-                      ? { status: "inProgress" }
-                      : { status: "ready" }
-                }
+                batchActionState={batchActionState}
               />
             ) : null}
           </DialogContent>
