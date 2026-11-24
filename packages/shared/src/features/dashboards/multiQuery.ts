@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { singleFilterList } from "../interfaces/filters";
-import { dimension, metric, views } from "../features/query/types";
+import { singleFilterList } from "../../interfaces/filters";
+import { dimension, metric, views } from "../query/types";
 
 const id = z
   .string()

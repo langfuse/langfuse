@@ -157,6 +157,7 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/dashboards` via `src/features/dashboards/index.ts` exposes client-safe dashboard definitions, block schemas and multi-query configuration.
 - `@langfuse/shared/rbac` via `src/features/rbac/index.ts`: client-safe tagged IDs,
   role assignments, role catalog, and permission vocabulary.
 - `@langfuse/shared/rbac/server` via `src/features/rbac/server.ts`: server-only

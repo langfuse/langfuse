@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { type z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { dashboardMarkdownConfigSchema } from "@langfuse/shared";
+import { dashboardMarkdownConfigSchema } from "@langfuse/shared/dashboards";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Form } from "@/src/components/design-system/Form/Form";

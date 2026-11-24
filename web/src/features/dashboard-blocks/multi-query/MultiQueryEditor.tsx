@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   multiQueryConfigSchema,
   type MultiQueryConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/dashboards";
 import {
   PlusIcon,
   TrashIcon,

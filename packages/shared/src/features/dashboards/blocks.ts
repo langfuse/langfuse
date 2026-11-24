@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { multiQueryConfigSchema } from "./dashboard-multi-query";
+import { multiQueryConfigSchema } from "./multiQuery";
 
 export const dashboardMarkdownConfigVersion = 1;
 

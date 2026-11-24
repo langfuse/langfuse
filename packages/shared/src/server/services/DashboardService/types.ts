@@ -1,11 +1,19 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
-import { singleFilterList } from "../../../";
-import { savedDashboardBlockSchema } from "../../../domain/dashboard-block";
+import { singleFilterList } from "../../../interfaces/filters";
+import { DashboardDefinitionSchema } from "../../../features/dashboards";
 import {
   persistedWidgetViewToQueryView,
   type views,
 } from "../../../features/query";
+
+export {
+  DashboardDefinitionWidgetWidgetSchema,
+  DashboardDefinitionPresetWidgetSchema,
+  DashboardDefinitionWidgetSchema,
+  DashboardDefinitionSchema,
+  type DashboardDefinition,
+} from "../../../features/dashboards";
 
 /**
  * Maps the persisted Prisma enum to the query model's public view id. The map
@@ -96,46 +104,6 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   PivotTableChartConfig,
 ]);
 
-export const DashboardDefinitionWidgetWidgetSchema = z.object({
-  type: z.literal("widget"),
-  id: z.string(),
-  widgetId: z.string(),
-  x: z.number().int().gte(0),
-  y: z.number().int().gte(0),
-  x_size: z.number().int().positive(),
-  y_size: z.number().int().positive(),
-});
-
-// A "preset" placement renders a registered curated component (looked up by
-// presetId in the web preset registry) instead of a DashboardWidget row —
-// presets carry no query configuration.
-export const DashboardDefinitionPresetWidgetSchema = z.object({
-  type: z.literal("preset"),
-  id: z.string(),
-  presetId: z.string(),
-  x: z.number().int().gte(0),
-  y: z.number().int().gte(0),
-  x_size: z.number().int().positive(),
-  y_size: z.number().int().positive(),
-});
-
-export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
-  DashboardDefinitionWidgetWidgetSchema,
-  DashboardDefinitionPresetWidgetSchema,
-]);
-
-export const DashboardDefinitionSchema = z.object({
-  widgets: z.array(DashboardDefinitionWidgetSchema),
-});
-
-/** Version 1 mirrors classic placements in widgets; blocks carries the complete layout. */
-export const DashboardDefinitionV1Schema = DashboardDefinitionSchema.extend({
-  version: z.literal("1"),
-  blocks: z.array(
-    z.union([DashboardDefinitionWidgetSchema, savedDashboardBlockSchema]),
-  ),
-});
-
 export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);
 
 // Define the dashboard domain object
@@ -201,7 +169,6 @@ export const WidgetListResponseSchema = z.object({
 });
 
 // Export types derived from schemas
-export type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
 export type DashboardDomain = z.infer<typeof DashboardDomainSchema>;
 export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;

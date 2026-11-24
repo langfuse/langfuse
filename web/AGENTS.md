@@ -39,6 +39,7 @@
   `src/server/**`, `src/pages/api/**`, and server tests.
 - Use `@langfuse/shared/src/db` only in backend or test code that needs direct
   Prisma access; never route it into client bundles.
+- Dashboard editors use `@langfuse/shared/dashboards` for saved layouts, blocks and multi-query configuration.
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.

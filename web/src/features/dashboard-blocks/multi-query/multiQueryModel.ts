@@ -1,8 +1,8 @@
+import { type FilterState } from "@langfuse/shared";
 import {
   multiQueryConfigSchema,
-  type FilterState,
   type MultiQueryConfig,
-} from "@langfuse/shared";
+} from "@langfuse/shared/dashboards";
 import {
   getResultUnit,
   getViewDeclaration,

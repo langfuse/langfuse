@@ -5,17 +5,14 @@ import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { ForbiddenError } from "../../../errors/ForbiddenError";
 import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import {
-  savedDashboardBlockSchema,
-  type DashboardBlockPatch,
-  type SavedDashboardBlock,
-} from "../../../domain/dashboard-block";
-import {
   DashboardDefinitionSchema,
   DashboardDefinitionV1Schema,
-  DashboardDomainSchema,
+  savedDashboardBlockSchema,
+  type DashboardBlockPatch,
   type DashboardDefinition,
-  type DashboardDomain,
-} from "./types";
+  type SavedDashboardBlock,
+} from "../../../features/dashboards";
+import { DashboardDomainSchema, type DashboardDomain } from "./types";
 import { z } from "zod";
 
 function isObject(value: unknown): value is Record<string, unknown> {
