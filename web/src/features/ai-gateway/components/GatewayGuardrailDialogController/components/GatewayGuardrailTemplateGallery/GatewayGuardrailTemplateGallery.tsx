@@ -4,7 +4,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
-} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { cn } from "@/src/utils/tailwind";
 
 import styles from "./GatewayGuardrailTemplateGallery.module.css";

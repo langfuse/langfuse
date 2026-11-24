@@ -12,11 +12,11 @@ import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
   type GatewayGuardrailTemplateKind,
-} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
-import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
-import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/fns/assignmentsToTargetOptions";
-import { targetOptionsToAssignments } from "@/src/features/ai-gateway/fns/targetOptionsToAssignments";
-import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailTargetPicker";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
+import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
+import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
@@ -43,7 +43,7 @@ export type GuardrailDialogState =
       mode: "bulkTargets";
       target: BulkTargetsInput;
       selectedCount: number;
-      initialTargets: AsyncAutocompleteOption[];
+      initialAssignments?: GatewayGuardrailRow["assignments"];
       onAfterSave: () => void;
     };
 
@@ -207,10 +207,13 @@ function GuardrailDialogContent({
   );
 
   if (state.mode === "bulkTargets") {
+    const initialTargets = state.initialAssignments
+      ? assignmentsToTargetOptions(state.initialAssignments)
+      : [EVERYONE_TARGET_OPTION];
     return (
       <GatewayBulkGuardrailTargetsDialog
         selectedCount={state.selectedCount}
-        initialTargets={state.initialTargets}
+        initialTargets={initialTargets}
         targetPicker={targetPicker}
         isSubmitting={isSubmitting}
         errorMessage={errorMessage}

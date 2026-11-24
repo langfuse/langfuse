@@ -8,8 +8,6 @@ import {
   useDeleteGatewayGuardrails,
   type GatewayGuardrailDeleteTargetInput,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useDeleteGatewayGuardrails";
-import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
-import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/fns/assignmentsToTargetOptions";
 import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
@@ -96,15 +94,14 @@ export function ConnectedGatewayGuardrailsTable({
             };
 
             const handleSetAppliesToSelected = () => {
-              const initialTargets =
-                !selectAll && selectedRows.length === 1
-                  ? assignmentsToTargetOptions(selectedRows[0]!.assignments)
-                  : [EVERYONE_TARGET_OPTION];
               openDialog({
                 mode: "bulkTargets",
                 target: bulkTarget,
                 selectedCount,
-                initialTargets,
+                initialAssignments:
+                  !selectAll && selectedRows.length === 1
+                    ? selectedRows[0]!.assignments
+                    : undefined,
                 onAfterSave: clearSelection,
               });
             };

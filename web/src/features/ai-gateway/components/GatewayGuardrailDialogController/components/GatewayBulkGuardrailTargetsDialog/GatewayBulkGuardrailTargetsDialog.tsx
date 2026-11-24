@@ -11,7 +11,7 @@ import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocomplete
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import { GATEWAY_GUARDRAIL_MAX_TARGETS } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 
 const bulkTargetsFormSchema = z.object({

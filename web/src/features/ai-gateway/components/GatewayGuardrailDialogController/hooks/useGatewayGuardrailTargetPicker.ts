@@ -3,11 +3,11 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { KeyRound, User } from "@langfuse/icons";
 
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
-import type { GatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
+import type { GatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
   API_KEY_TARGET_PREFIX,
   USER_TARGET_PREFIX,
-} from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { api } from "@/src/utils/api";
 
 /** Searches org members and gateway API keys for the guardrail Applies to picker. */

@@ -5,7 +5,7 @@ import {
   GATEWAY_TIME_SERIES_INTERVALS,
   type GatewayTimeSeriesInterval,
 } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
-import { buildGuardrailChartData } from "@/src/features/ai-gateway/fns/buildGuardrailChartData";
+import { buildGuardrailChartData } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsChart/fns/buildGuardrailChartData";
 import type { GatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
 import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
 import { api } from "@/src/utils/api";

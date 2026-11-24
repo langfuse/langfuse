@@ -29,7 +29,11 @@ import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
+import {
+  GATEWAY_GUARDRAIL_PRESET_LABELS,
+  type GatewayGuardrailTemplateKind,
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import {
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
@@ -39,10 +43,6 @@ import {
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import {
-  GATEWAY_GUARDRAIL_PRESET_LABELS,
-  type GatewayGuardrailTemplateKind,
-} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,

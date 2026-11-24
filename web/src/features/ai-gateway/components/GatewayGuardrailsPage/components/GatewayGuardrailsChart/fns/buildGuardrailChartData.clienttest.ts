@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGuardrailChartData } from "@/src/features/ai-gateway/fns/buildGuardrailChartData";
+import { buildGuardrailChartData } from "./buildGuardrailChartData";
 
 describe("buildGuardrailChartData", () => {
   const timeRange = {

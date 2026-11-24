@@ -5,7 +5,7 @@ import {
   API_KEY_TARGET_PREFIX,
   EVERYONE_TARGET_OPTION,
   USER_TARGET_PREFIX,
-} from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { assertUnreachable } from "@/src/utils/types";
 

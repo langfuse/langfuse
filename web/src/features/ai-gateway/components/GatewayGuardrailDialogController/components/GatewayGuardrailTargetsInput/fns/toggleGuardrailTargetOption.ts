@@ -2,7 +2,7 @@ import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocomplete
 import {
   EVERYONE_TARGET_OPTION,
   EVERYONE_TARGET_VALUE,
-} from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 
 /**
  * Enforces mutual exclusivity between Everyone (`ORGANIZATION`) and specific

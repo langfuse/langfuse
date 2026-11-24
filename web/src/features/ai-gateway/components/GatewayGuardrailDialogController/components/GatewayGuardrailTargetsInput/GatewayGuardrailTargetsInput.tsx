@@ -4,8 +4,8 @@ import {
   AsyncAutocompleteInput,
   type AsyncAutocompleteOption,
 } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
-import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
-import { toggleGuardrailTargetOption } from "@/src/features/ai-gateway/fns/toggleGuardrailTargetOption";
+import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+import { toggleGuardrailTargetOption } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/fns/toggleGuardrailTargetOption";
 
 export type GatewayGuardrailTargetPicker = {
   options: AsyncAutocompleteOption[];

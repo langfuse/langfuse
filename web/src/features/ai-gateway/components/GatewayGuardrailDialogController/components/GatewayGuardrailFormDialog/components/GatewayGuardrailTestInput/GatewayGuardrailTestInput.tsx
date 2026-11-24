@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, type ChangeEvent, type UIEvent } from "react";
 import { FlaskConical } from "@langfuse/icons";
 
-import { findGuardrailMatches } from "@/src/features/ai-gateway/fns/findGuardrailMatches";
+import { findGuardrailMatches } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/fns/findGuardrailMatches";
 import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export type GatewayGuardrailTestInputProps = {

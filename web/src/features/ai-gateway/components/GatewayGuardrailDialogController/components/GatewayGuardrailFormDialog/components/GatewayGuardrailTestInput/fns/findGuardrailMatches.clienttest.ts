@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findGuardrailMatches } from "@/src/features/ai-gateway/fns/findGuardrailMatches";
+import { findGuardrailMatches } from "./findGuardrailMatches";
 
 describe("findGuardrailMatches", () => {
   it("highlights matches from multiple selected PII presets including IP addresses", () => {
