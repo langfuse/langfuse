@@ -10,6 +10,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ChevronLeft,
+  Info,
   LifeBuoy,
   SquareArrowOutUpRight,
   X,
@@ -23,6 +24,7 @@ import {
 } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -80,21 +82,6 @@ const ACTION_OPTIONS: Array<{
 }));
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
-
-const BEDROCK_API_KEY_DESCRIPTION = [
-  { type: "text", text: "Use " },
-  {
-    type: "link",
-    text: "Amazon Bedrock API keys",
-    href: "https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html",
-  },
-  {
-    type: "text",
-    text: ". The key needs ",
-  },
-  { type: "code", text: "bedrock:ApplyGuardrail" },
-  { type: "text", text: " permission in the selected region." },
-] as const;
 
 const BEDROCK_FIELD_PATHS = {
   guardrailId: "bedrockGuardrailId",
@@ -749,42 +736,58 @@ function BedrockGuardrailFields({
 }: BedrockGuardrailFieldsProps) {
   return (
     <>
-      <FormField
-        control={control}
-        name="bedrockGuardrailId"
-        label="Guardrail ID"
-        description="ID or ARN of your guardrail in Amazon Bedrock."
+      <CustomTooltip
+        content={<span>ID or ARN of your guardrail in Amazon Bedrock.</span>}
       >
-        {({ id, inputDescribedById, error, ...field }) => (
-          <Input
-            {...field}
-            id={id}
-            aria-describedby={inputDescribedById}
-            aria-invalid={Boolean(error)}
-            error={Boolean(error)}
-            placeholder="e.g. abc123def456 or arn:aws:bedrock:..."
-          />
+        {({ getTriggerProps }) => (
+          <FormField
+            control={control}
+            name="bedrockGuardrailId"
+            label="Guardrail ID"
+            registerLabelTooltip={getTriggerProps}
+          >
+            {({ id, inputDescribedById, error, ...field }) => (
+              <Input
+                {...field}
+                id={id}
+                aria-describedby={inputDescribedById}
+                aria-invalid={Boolean(error)}
+                error={Boolean(error)}
+                placeholder="e.g. abc123def456 or arn:aws:bedrock:..."
+              />
+            )}
+          </FormField>
         )}
-      </FormField>
+      </CustomTooltip>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField
-          control={control}
-          name="bedrockGuardrailVersion"
-          label="Version"
-          description="Published version (e.g. 1) or DRAFT for the working draft."
+        <CustomTooltip
+          content={
+            <span>
+              Published version (e.g. 1) or DRAFT for the working draft.
+            </span>
+          }
         >
-          {({ id, inputDescribedById, error, ...field }) => (
-            <Input
-              {...field}
-              id={id}
-              aria-describedby={inputDescribedById}
-              aria-invalid={Boolean(error)}
-              error={Boolean(error)}
-              placeholder="e.g. 1 or DRAFT"
-            />
+          {({ getTriggerProps }) => (
+            <FormField
+              control={control}
+              name="bedrockGuardrailVersion"
+              label="Version"
+              registerLabelTooltip={getTriggerProps}
+            >
+              {({ id, inputDescribedById, error, ...field }) => (
+                <Input
+                  {...field}
+                  id={id}
+                  aria-describedby={inputDescribedById}
+                  aria-invalid={Boolean(error)}
+                  error={Boolean(error)}
+                  placeholder="e.g. 1 or DRAFT"
+                />
+              )}
+            </FormField>
           )}
-        </FormField>
+        </CustomTooltip>
 
         <FormField control={control} name="bedrockRegion" label="AWS region">
           {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
@@ -802,29 +805,53 @@ function BedrockGuardrailFields({
         </FormField>
       </div>
 
-      <FormField
-        control={control}
-        name="bedrockApiKey"
-        label="API key"
-        description={BEDROCK_API_KEY_DESCRIPTION}
+      <CustomTooltip
+        content={
+          <span>
+            Use{" "}
+            <a
+              href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-link hover:text-link-hover inline-flex items-center gap-0.5 underline"
+            >
+              Amazon Bedrock API keys
+              <SquareArrowOutUpRight size="sm" aria-hidden />
+            </a>
+            . Needs{" "}
+            <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
+              bedrock:ApplyGuardrail
+            </code>{" "}
+            permission in the selected region.
+          </span>
+        }
       >
-        {({ id, inputDescribedById, error, ...field }) => (
-          <Input
-            {...field}
-            id={id}
-            type="password"
-            autoComplete="new-password"
-            aria-describedby={inputDescribedById}
-            aria-invalid={Boolean(error)}
-            error={Boolean(error)}
-            placeholder={
-              hasSavedApiKey
-                ? "Leave blank to keep current key"
-                : "Enter API key"
-            }
-          />
+        {({ getTriggerProps }) => (
+          <FormField
+            control={control}
+            name="bedrockApiKey"
+            label="API key"
+            registerLabelTooltip={getTriggerProps}
+          >
+            {({ id, inputDescribedById, error, ...field }) => (
+              <Input
+                {...field}
+                id={id}
+                type="password"
+                autoComplete="new-password"
+                aria-describedby={inputDescribedById}
+                aria-invalid={Boolean(error)}
+                error={Boolean(error)}
+                placeholder={
+                  hasSavedApiKey
+                    ? "Leave blank to keep current key"
+                    : "Enter API key"
+                }
+              />
+            )}
+          </FormField>
         )}
-      </FormField>
+      </CustomTooltip>
     </>
   );
 }
@@ -971,9 +998,31 @@ function PresetMultiSelectField({
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm leading-none font-bold">
-        Detect
-      </label>
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={inputId} className="text-sm leading-none font-bold">
+          Detect
+        </label>
+        {allowCustomPrefixes ? (
+          <CustomTooltip
+            content={
+              <span>
+                Search known secrets or type to add up to{" "}
+                {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes.
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                aria-label="About Detect"
+              >
+                <Info aria-hidden size="base" color="muted" />
+              </button>
+            )}
+          </CustomTooltip>
+        ) : null}
+      </div>
       <div className="flex flex-col gap-1">
         <AsyncMultiSelectTagInput
           id={inputId}
@@ -1008,12 +1057,6 @@ function PresetMultiSelectField({
             {errorMessage}
           </p>
         ) : null}
-        {!errorMessage && allowCustomPrefixes ? (
-          <p className="text-muted-foreground text-xs">
-            Search known secrets or type to add up to{" "}
-            {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes.
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -1041,10 +1084,31 @@ function ContainsWordListField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={inputId} className="text-sm leading-none font-bold">
-          Words or phrases
-        </label>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <label htmlFor={inputId} className="text-sm leading-none font-bold">
+            Words or phrases
+          </label>
+          <CustomTooltip
+            content={
+              <span>
+                One word or phrase per line (ASCII only, up to{" "}
+                {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} chars each).
+                Matches whole words, case-insensitively.
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                aria-label="About Words or phrases"
+              >
+                <Info aria-hidden size="base" color="muted" />
+              </button>
+            )}
+          </CustomTooltip>
+        </div>
         <span className="text-muted-foreground text-xs">
           {entryCount} / {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS}
         </span>
@@ -1066,13 +1130,7 @@ function ContainsWordListField({
       />
       {errorMessage ? (
         <p className="text-destructive text-sm">{errorMessage}</p>
-      ) : (
-        <p className="text-muted-foreground text-xs">
-          One word or phrase per line (ASCII only, up to{" "}
-          {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} chars each). Matches
-          whole words, case-insensitively.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
