@@ -2628,6 +2628,12 @@ async function toolSweepDifferences(cases: ToolSweepCase[]): Promise<string[]> {
     fileKey: FILE_KEY,
     mediaUploadEnabled: true,
   });
+  // The label lookup below would hide a duplicated or an extra row.
+  expect(
+    [comparison.originalTs, comparison.earlyTs, comparison.earlyRust].map(
+      ({ storedRows }) => storedRows.length,
+    ),
+  ).toEqual([cases.length, cases.length, cases.length]);
   const rowsByLabel = (result: OtelReplayResult) =>
     new Map(
       comparableOtelReplayRows(result.storedRows).map((row) => [
