@@ -896,6 +896,35 @@ mod tests {
     }
 
     #[test]
+    fn reads_tool_calls_from_openai_responses_output_items() {
+        let function_call = json!({
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Berlin\"}"
+        });
+        let normalized = normalize(
+            None,
+            Some(json!({
+                "output": [
+                    {"type": "message", "role": "assistant", "content": []},
+                    function_call.clone()
+                ],
+                "tool_calls": [{
+                    "id": "call_2",
+                    "type": "function",
+                    "function": {"name": "later", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        // Output items come before the object's own `tool_calls`.
+        assert_eq!(normalized.tools.tool_call_names, ["get_weather", "later"]);
+        // Only a top-level object is read this way, not an item of an output array.
+        assert!(names(json!([{"output": [function_call]}])).is_empty());
+    }
+
+    #[test]
     fn reads_response_tools_when_input_has_no_definitions() {
         let normalized = normalize(
             None,
