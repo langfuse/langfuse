@@ -107,9 +107,6 @@ export function SelectionProvider({
     StringParam,
   );
   const previousObservationId = useRef(currentObservationId ?? null);
-  // The sample writes the preselected observation into the URL after mount.
-  // That write is not a click, so it must not open a pane that starts collapsed.
-  const ignoreInitialUrlDetailOpen = useRef(collapseDetailInitially);
   const pendingObservationId = useRef<string | null | undefined>(undefined);
   const [tabParam, setTabParam] = useQueryParam("traceTab", StringParam);
   const [prefParam, setPrefParam] = useQueryParam("pref", StringParam);
@@ -192,13 +189,12 @@ export function SelectionProvider({
     pendingObservationId.current = undefined;
     if (pendingId === observationId || isMobile) return;
     if (observationId === null) return;
-    if (ignoreInitialUrlDetailOpen.current) {
-      ignoreInitialUrlDetailOpen.current = false;
-      return;
-    }
+    // Samples write each preselected observation into the URL; those writes are
+    // not clicks, so they must not reopen a detail pane that starts collapsed.
+    if (collapseDetailInitially) return;
 
     openDetails();
-  }, [currentObservationId, isMobile, openDetails]);
+  }, [currentObservationId, isMobile, openDetails, collapseDetailInitially]);
 
   // Get localStorage default for view preference
   const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
