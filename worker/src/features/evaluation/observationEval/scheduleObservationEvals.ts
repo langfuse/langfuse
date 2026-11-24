@@ -4,6 +4,7 @@ import {
   JobExecutionStatus,
   type FilterState,
   type EvalExecutionMode,
+  type ObservationEvalFilterFields,
   canRunEvalRule,
   coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
@@ -12,6 +13,7 @@ import {
 } from "@langfuse/shared";
 import {
   type ObservationForEval,
+  type ObservationForScheduling,
   type ObservationEvalAssignment,
   type ObservationEvalRule,
   type ObservationEvalSchedulerDeps,
@@ -29,8 +31,7 @@ import {
 import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
-interface ScheduleObservationEvalsParams {
-  observation: ObservationForEval;
+interface ScheduleObservationEvalsParams extends ObservationForScheduling {
   configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
@@ -92,7 +93,8 @@ export function isObservationAllowedForQueuedObservationEvals(
  *
  * The observation is uploaded to S3 once (not per config) for efficiency.
  *
- * @param params.observation - The ObservationForEval (converted from processToEvent() or ClickHouse)
+ * @param params.observation - The fields of the observation that rule matching reads
+ * @param params.loadSnapshot - Returns the full observation for the S3 upload
  * @param params.configs - Pre-fetched observation eval configs for this project
  * @param params.schedulerDeps - Dependencies for scheduling (S3, job execution, queue)
  */
@@ -101,6 +103,7 @@ export async function scheduleObservationEvals(
 ): Promise<void> {
   const {
     observation,
+    loadSnapshot,
     configs,
     schedulerDeps,
     executionMode,
@@ -175,7 +178,7 @@ export async function scheduleObservationEvals(
     projectId: observation.project_id,
     traceId: observation.trace_id,
     observationId: observation.span_id,
-    data: observation,
+    data: loadSnapshot(),
   });
 
   const assignmentAttempts = matchingConfigs.flatMap(
@@ -229,7 +232,7 @@ export async function scheduleObservationEvals(
 }
 
 interface ProcessConfigParams {
-  observation: ObservationForEval;
+  observation: Pick<ObservationForEval, "project_id" | "trace_id" | "span_id">;
   matchingConfig: ObservationEvalRule;
   assignment: ScheduledObservationEvalAssignment;
   observationS3Path: string;
@@ -391,7 +394,7 @@ function getExecutableAssignments(
  * Returns true if observation matches all filter conditions (or filter is empty).
  */
 function evaluateFilter(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   config: ObservationEvalRule,
 ): boolean {
   const filterConditions = coerceLegacyEmptyMetadataFilters(
@@ -405,7 +408,7 @@ function evaluateFilter(
     filterConditions.length === 0;
 
   // Map filter column IDs to observation field values for in-memory filtering
-  const fieldMapper = (obs: ObservationForEval, column: string) =>
+  const fieldMapper = (obs: ObservationEvalFilterFields, column: string) =>
     mapEventEvalFilterColumnIdToField(obs, column);
 
   // Use InMemoryFilterService to evaluate filter if there are conditions

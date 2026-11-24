@@ -1,16 +1,6 @@
 import { env } from "../../env";
 
-/** Deployment switch: Langfuse Cloud only for now, so self-hosted instances never enable Topics. */
+/** Deployment switch, shared by web and worker; Topics is then on for every project. */
 export function isTopicsEnabled(): boolean {
-  return (
-    env.LANGFUSE_TOPICS_ENABLED === "true" &&
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-  );
-}
-
-export function isTopicsProjectEnabled(projectId: string): boolean {
-  return (
-    isTopicsEnabled() &&
-    (env.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS?.includes(projectId) ?? false)
-  );
+  return env.LANGFUSE_TOPICS_ENABLED === "true";
 }

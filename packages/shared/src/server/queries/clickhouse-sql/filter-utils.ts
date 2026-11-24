@@ -6,7 +6,7 @@ import {
 } from "./clickhouse-filter";
 
 /** Match a datetime field across table variants and optional SQL aliases. */
-export function isTimeFilter(
+function isTimeFilter(
   filter: Filter,
   tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",

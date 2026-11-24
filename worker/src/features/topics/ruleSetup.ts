@@ -17,7 +17,7 @@ import {
   getTopicRun,
   getTopicSetupSummaryCounts,
   isTopicRuleSetupActive,
-  isTopicsProjectEnabled,
+  isTopicsEnabled,
   listTopicFacets,
   readTopicRuleSetup,
   readTopicRuleSetupTraces,
@@ -144,8 +144,8 @@ function recordOutcome(setup: TopicRuleSetup, now: Date) {
 }
 
 async function setupContext(setup: TopicRuleSetup): Promise<SetupContext> {
-  if (!isTopicsProjectEnabled(setup.projectId))
-    throw new SetupStopped("Topics is not enabled for this project.");
+  if (!isTopicsEnabled())
+    throw new SetupStopped("Topics is not enabled on this deployment.");
   const [rule, models] = await Promise.all([
     getTopicRule(setup.projectId, setup.ruleId),
     getEnabledTopicsModels([setup.projectId]),
@@ -229,7 +229,6 @@ async function selectAndSeed(
       idleMs: await resolveTraceIdleMs(projectId),
       now,
       days,
-      sampling: rule.sampling,
       limit: shortfall,
       seed: rule.id,
       matching,

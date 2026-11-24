@@ -14,6 +14,7 @@ import {
 import { TopicTreemap } from "./TopicTreemap";
 import { TopicTraceList } from "./TopicTraceList";
 import { TopicsSplit } from "./TopicsSplit";
+import { useTopicsCapture } from "./useTopicsCapture";
 
 type TopicTreemapViewProps = {
   projectId: string;
@@ -37,6 +38,7 @@ export function TopicTreemapView({
   useTraces,
   showUnassigned = true,
 }: TopicTreemapViewProps) {
+  const capture = useTopicsCapture();
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const { topics, total } = prepareTopicDisplay(facet, "treemap");
   // No tile picked lists every trace; picking a tile again clears it.
@@ -58,9 +60,15 @@ export function TopicTreemapView({
           total={total}
           topics={topics}
           selectedTopicId={selected?.id ?? null}
-          onSelectTopic={(topicId) =>
-            setSelectedTopicId(topicId === selectedTopicId ? null : topicId)
-          }
+          onSelectTopic={(topicId) => {
+            if (topicId !== selectedTopicId)
+              capture("topics:topic_selected", {
+                view: "treemap",
+                surface: "tile",
+                isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+              });
+            setSelectedTopicId(topicId === selectedTopicId ? null : topicId);
+          }}
         />
       }
       traces={

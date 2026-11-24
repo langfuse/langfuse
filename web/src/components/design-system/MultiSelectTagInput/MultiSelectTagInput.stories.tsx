@@ -233,7 +233,7 @@ export const TestOverflowBadgePlacement = meta.story({
       );
       const visibleTags = [
         ...canvasElement.querySelectorAll<HTMLElement>("[data-value]"),
-      ].filter((tag) => getComputedStyle(tag).visibility !== "hidden");
+      ].filter((tag) => !tag.closest("[aria-hidden]"));
       const lastVisibleTag = visibleTags.at(-1);
       const layout = canvasElement.querySelector<HTMLElement>(
         "[data-tag-input-layout]",
@@ -249,6 +249,9 @@ export const TestOverflowBadgePlacement = meta.story({
 
       if (!overflowBadge || !lastVisibleTag || !layout || !clearButton) return;
 
+      expect(Number(overflowBadge.dataset.overflowCount)).toBe(
+        manyOptions.length - visibleTags.length,
+      );
       const gap =
         overflowBadge.getBoundingClientRect().left -
         lastVisibleTag.getBoundingClientRect().right;

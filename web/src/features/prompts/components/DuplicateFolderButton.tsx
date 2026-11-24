@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -229,10 +230,9 @@ export function DuplicateFolderButton({ folderPath }: { folderPath: string }) {
                   </p>
                 )}
               {error && (
-                <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-bold">Error:</p>
+                <Banner variant="error" title="Error">
                   <p className="whitespace-pre-wrap">{error}</p>
-                </div>
+                </Banner>
               )}
             </DialogBody>
             <DialogFooter>

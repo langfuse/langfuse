@@ -18,6 +18,7 @@ import type {
 } from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
+import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
 
 /**
  * Tool handler function type
@@ -70,6 +71,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 
   /** Hint: This tool is expensive to run (slow, rate-limited) */
   expensiveHint?: boolean;
+
+  /** Renders results with an MCP App UI resource in hosts that support it. */
+  ui?: McpAppToolUi;
 }
 
 /** Options of a tool whose reads are recorded as audit access events. */
@@ -105,6 +109,7 @@ export interface ToolDefinition<TName extends string = string> {
     destructiveHint?: boolean;
     expensiveHint?: boolean;
   };
+  _meta?: ReturnType<typeof toMcpAppToolMeta>;
 }
 
 type JsonSchemaObject = Record<string, unknown>;
@@ -178,6 +183,7 @@ export function defineTool<TInput, const TName extends string>(
     readOnlyHint,
     destructiveHint,
     expensiveHint,
+    ui,
   } = options;
 
   // Convert base Zod schema to JSON Schema using Zod v4's native method
@@ -213,6 +219,7 @@ export function defineTool<TInput, const TName extends string>(
     description,
     action,
     inputSchema: jsonSchemaObject,
+    ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
 
   // Add annotations if provided

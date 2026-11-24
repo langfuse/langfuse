@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 
 export default function AutomationsPage() {
   const router = useRouter();

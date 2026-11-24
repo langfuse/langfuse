@@ -4,6 +4,8 @@
 //! Stages share the source's parse cache and metadata diagnostics. The returned event
 //! owns its data after that per-span parsing state is dropped.
 
+use std::rc::Rc;
+
 use super::super::attributes::{
     attributes_to_map, is_js_truthy, parse_id, resolve_timestamps, retain_evaluation_value,
     value_as_string, AttributeSource, EventAttributes, JsonParseCache,
@@ -18,8 +20,8 @@ use super::super::providers::{
     claude_managed_agent_session_id, extract_completion_start_time, extract_cost_details,
     extract_input_output, extract_is_app_root, extract_model_name, extract_model_parameters,
     extract_name, extract_prompt_version, extract_prompt_version_lookup, extract_public,
-    extract_tags, extract_usage_details, observation_type, should_skip_model_usage_and_cost,
-    ProviderIO,
+    extract_tags, extract_usage_details, filter_attributes, observation_type,
+    should_skip_model_usage_and_cost, ProviderIO,
 };
 use super::super::tools::normalize_tools_for_observation;
 use super::super::types::{JsonObject, OwnedEvent};
@@ -113,9 +115,7 @@ impl<'a> EventAssembly<'a> {
         let payloads = self.source.payloads(&self.event.row);
         self.event.input = payloads.input;
         self.event.output = payloads.output;
-        self.event.metadata = self
-            .source
-            .metadata(payloads.filtered_attributes, resource, scope);
+        self.event.metadata = self.source.metadata(resource, scope);
         self
     }
 
@@ -247,7 +247,8 @@ impl<'a> EventAssembly<'a> {
 /// Source data and per-span parsing state shared by the assembly stages.
 struct EventSource<'a> {
     span: Span,
-    attributes: JsonObject,
+    /// Shared with `cache`, which remembers parses by attribute position.
+    attributes: Rc<JsonObject>,
     scope_name: &'a str,
     cache: JsonParseCache,
     diagnostics: MetadataDiagnostics<'a>,
@@ -262,12 +263,14 @@ impl<'a> EventSource<'a> {
         scope_version: Option<&str>,
         config: &'a EventBuildConfig,
     ) -> Self {
-        let attributes = object_attributes(span.attributes.take().map(|value| value.into_value()));
+        let attributes = Rc::new(object_attributes(
+            span.attributes.take().map(|value| value.into_value()),
+        ));
         Self {
             span,
+            cache: JsonParseCache::for_attributes(Rc::clone(&attributes)),
             attributes,
             scope_name,
-            cache: JsonParseCache::default(),
             diagnostics: MetadataDiagnostics::new(
                 &config.project_id,
                 &config.ingestion_sdk_name,
@@ -396,16 +399,12 @@ impl<'a> EventSource<'a> {
         )
     }
 
-    fn metadata(
-        &mut self,
-        filtered_attributes: JsonObject,
-        resource: &JsonObject,
-        scope: &Object,
-    ) -> JsonObject {
+    fn metadata(&mut self, resource: &JsonObject, scope: &Object) -> JsonObject {
         let mut metadata = JsonObject::new();
         // SDK scopes use root-level metadata; other spans retain the diagnostic attribute map.
         if !self.scope_name.starts_with("langfuse-sdk") {
-            metadata.insert("attributes".into(), Value::Object(filtered_attributes));
+            let attributes = filter_attributes(&self.attributes, self.scope_name);
+            metadata.insert("attributes".into(), Value::Object(attributes));
         }
         metadata.insert("resourceAttributes".into(), Value::Object(resource.clone()));
         metadata.insert("scope".into(), Value::Object(scope.clone()));

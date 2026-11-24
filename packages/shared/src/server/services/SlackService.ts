@@ -219,7 +219,7 @@ export function parseSlackInstallationMetadata(
   metadata: unknown,
 ): SlackInstallationMetadata {
   if (typeof metadata !== "string") {
-    throw new Error("Installation metadata must be a string");
+    throw new TypeError("Installation metadata must be a string");
   }
 
   let parsedMetadata: unknown;

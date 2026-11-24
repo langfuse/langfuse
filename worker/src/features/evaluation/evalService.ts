@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {

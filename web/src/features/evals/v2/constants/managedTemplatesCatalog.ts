@@ -500,7 +500,7 @@ Expected output: {{expected_output}}`,
           { name: "assistant_output", defaultMapping: { field: "output" } },
           {
             name: "expected_output",
-            defaultMapping: { field: "expected_output" },
+            defaultMapping: { field: "experimentItemExpectedOutput" },
           },
         ],
         outputDefinition: {

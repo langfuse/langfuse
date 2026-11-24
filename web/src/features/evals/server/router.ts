@@ -22,6 +22,7 @@ import {
   orderBy,
   EvalTargetObject,
   EvalTargetObjectSchema,
+  evalVariableMappingListSchema,
   validateEvaluatorFiltersForTarget,
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -242,7 +243,7 @@ const validateVariableMappingForTarget = ({
       targetObject === EvalTargetObject.EVENT ||
       targetObject === EvalTargetObject.EXPERIMENT
     ) {
-      return z.array(observationVariableMapping).safeParse(mapping);
+      return evalVariableMappingListSchema(targetObject).safeParse(mapping);
     }
     if (
       targetObject === EvalTargetObject.TRACE ||
@@ -254,9 +255,14 @@ const validateVariableMappingForTarget = ({
   })();
 
   if (!result?.success) {
+    const unknownColumnIssue = result?.error.issues.find(
+      ({ code }) => code === "custom",
+    );
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Variable mapping does not match evaluator target.",
+      message:
+        unknownColumnIssue?.message ??
+        "Variable mapping does not match evaluator target.",
     });
   }
 

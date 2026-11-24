@@ -38,6 +38,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 import { getWidgetChartQueryState } from "../fns/getWidgetChartQueryState";
 import { toWidgetChartDataPoint } from "../fns/toWidgetChartDataPoint";
+import { getWidgetRowLimit } from "../fns/widgetChartProps";
 
 // ============================================================================
 // Types
@@ -368,17 +369,10 @@ export function useWidgetChart({
     usesBackendProgress,
   });
 
-  // Determine row limit
-  const effectiveRowLimit = useMemo(() => {
-    if (
-      chartType === "LINE_TIME_SERIES" ||
-      chartType === "BAR_TIME_SERIES" ||
-      chartType === "AREA_TIME_SERIES"
-    ) {
-      return 100;
-    }
-    return chartConfig.row_limit ?? 100;
-  }, [chartType, chartConfig.row_limit]);
+  const effectiveRowLimit = getWidgetRowLimit({
+    type: chartType,
+    row_limit: chartConfig.row_limit,
+  });
 
   // Build chart config with units
   const fullChartConfig = useMemo<

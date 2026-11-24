@@ -7,7 +7,11 @@ import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
 import type { PricingTierWithPrices } from "../pricing-tiers/types";
-import { modelScopeRankSql, visibleModelsSql } from "./modelVisibility";
+import {
+  modelScopeRankSql,
+  organizationModelsSql,
+  visibleModelsSql,
+} from "./modelVisibility";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -279,7 +283,30 @@ export async function findPricingTiersForModel(
 export async function findModelInPostgres(
   p: ModelMatchProps,
 ): Promise<Model | null> {
-  const { projectId, model } = p;
+  return matchVisibleModel(visibleModelsSql(p.projectId), p.model);
+}
+
+/**
+ * Resolves a model name against an organization's own and Langfuse's
+ * definitions, as a project without project definitions would. Uncached: it
+ * serves previews, and the match cache is keyed per project.
+ */
+export async function findModelForOrganization(p: {
+  organizationId: string;
+  model: string;
+}): Promise<ModelWithPrices> {
+  const model = await matchVisibleModel(
+    organizationModelsSql(p.organizationId),
+    p.model,
+  );
+  if (!model) return { model: null, pricingTiers: [] };
+  return { model, pricingTiers: await findPricingTiersForModel(model.id) };
+}
+
+async function matchVisibleModel(
+  visibility: Prisma.Sql,
+  model: string,
+): Promise<Model | null> {
   // either get the model from the existing observation
   // or match pattern on the user provided model name
   const modelCondition = model
@@ -306,7 +333,7 @@ export async function findModelInPostgres(
       tokenizer_config AS "tokenizerConfig"
     FROM
       models
-    WHERE ${visibleModelsSql(projectId)}
+    WHERE ${visibility}
     ${modelCondition}
     -- Scope wins over pattern specificity: any matching project model beats
     -- any matching organization model, which beats any Langfuse model.

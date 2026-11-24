@@ -1,6 +1,6 @@
 //! `OpenAI` Decisions request and JSON response capture.
 use super::{
-    RawRequest, bounded_string, error_detail, facts::ProviderFacts, parse_request,
+    InputOmission, RawRequest, bounded_string, error_detail, facts::ProviderFacts,
     response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
@@ -15,14 +15,14 @@ pub(super) struct OpenAiDecisionsCapture {
 }
 
 impl OpenAiDecisionsCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
             body: ResponseBody::Unknown,
             request_complete: false,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;

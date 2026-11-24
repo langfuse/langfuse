@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props -- Legacy UI usage retained during migration to design-system components. */
 /**
  * JsonValue - Renders a JSON value with type-based styling
  *
@@ -29,7 +28,6 @@ export function JsonValue({
   highlightEnd,
   commentRanges,
   valueOffset = 0,
-  className,
 }: JsonValueProps) {
   // Adjust comment ranges from row-relative to value-relative
   const adjustedCommentRanges = commentRanges
@@ -44,7 +42,6 @@ export function JsonValue({
     const preview = formatValuePreview(value);
     return (
       <span
-        className={className}
         style={{
           color: theme.punctuationColor,
           opacity: 0.4,
@@ -117,7 +114,6 @@ export function JsonValue({
 
     return (
       <span
-        className={className}
         style={{
           color,
           fontFamily: "var(--font-mono)",
@@ -195,7 +191,6 @@ export function JsonValue({
 
   return (
     <span
-      className={className}
       style={{
         color,
         fontFamily: "var(--font-mono)",

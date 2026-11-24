@@ -69,7 +69,10 @@ function allowedFilteredSkips(event, ref, needs, fork) {
       allowedSkips.add(job);
     }
   }
-  if (event === "pull_request" && fork) allowedSkips.add("test-ai-gateway-e2e");
+  if (event === "pull_request" && fork) {
+    allowedSkips.add("test-worker-llm-connections");
+    allowedSkips.add("test-ai-gateway-e2e");
+  }
   return allowedSkips;
 }
 

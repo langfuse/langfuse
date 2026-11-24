@@ -33,11 +33,12 @@
 
   /* Weight ROLES — three weights exist in this app: regular, medium and bold.
      All are font-relative, so components never hardcode numbers.
-     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
-     (700): the `font-bold` utility IS the bold role. Medium is for names that
+     Each role uses Tailwind's built-in name, so the `font-normal`,
+     `font-medium` and `font-bold` utilities ARE the roles; `--font-weight-bold`
+     deliberately overrides the built-in 700. Medium is for names that
      identify an entity, e.g. the org and project switchers. font-semibold /
      raw numbers are drift. */
-  --font-weight-regular: 400;
+  --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
 }
@@ -242,28 +243,28 @@
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: calc(16 / 11);
-  --text-2xs--font-weight: var(--font-weight-regular);
+  --text-2xs--font-weight: var(--font-weight-normal);
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(18 / 12);
-  --text-xs--font-weight: var(--font-weight-regular);
+  --text-xs--font-weight: var(--font-weight-normal);
   --text-sm: 0.8125rem;
   --text-sm--line-height: calc(20 / 13);
-  --text-sm--font-weight: var(--font-weight-regular);
+  --text-sm--font-weight: var(--font-weight-normal);
   --text-base: 0.875rem;
   --text-base--line-height: 1.5;
-  --text-base--font-weight: var(--font-weight-regular);
+  --text-base--font-weight: var(--font-weight-normal);
   --text-lg: 1rem;
   --text-lg--line-height: 1.35;
-  --text-lg--font-weight: var(--font-weight-regular);
+  --text-lg--font-weight: var(--font-weight-normal);
   --text-xl: 1.25rem;
   --text-xl--line-height: 1.3;
-  --text-xl--font-weight: var(--font-weight-regular);
+  --text-xl--font-weight: var(--font-weight-normal);
   --text-2xl: 1.375rem;
   --text-2xl--line-height: 1.25;
-  --text-2xl--font-weight: var(--font-weight-regular);
+  --text-2xl--font-weight: var(--font-weight-normal);
   --text-3xl: 1.5rem;
   --text-3xl--line-height: 1.25;
-  --text-3xl--font-weight: var(--font-weight-regular);
+  --text-3xl--font-weight: var(--font-weight-normal);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;

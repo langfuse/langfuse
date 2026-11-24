@@ -3,10 +3,13 @@ import { vi } from "vitest";
 
 import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
 
-const { mockUseInternalFeaturesEnabled, copy } = vi.hoisted(() => ({
-  mockUseInternalFeaturesEnabled: vi.fn(),
-  copy: vi.fn(),
-}));
+const { mockUseInternalFeaturesEnabled, copy, getShareUrl } = vi.hoisted(
+  () => ({
+    mockUseInternalFeaturesEnabled: vi.fn(),
+    copy: vi.fn(),
+    getShareUrl: vi.fn(() => "https://example.com"),
+  }),
+);
 
 vi.mock(
   "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
@@ -20,7 +23,7 @@ vi.mock("next/router", () => ({
 }));
 
 vi.mock("@/src/components/usePublishObject", () => ({
-  getShareUrl: () => "https://example.com",
+  getShareUrl,
   usePublishObject: () => ({
     hasAccess: true,
     isPending: false,
@@ -36,10 +39,30 @@ vi.mock("@/src/hooks/useCopyToClipboard", () => ({
   useCopyToClipboard: () => ({ copy }),
 }));
 
+vi.mock("@/src/utils/clipboard", () => ({
+  copyTextToClipboard: vi.fn(),
+}));
+
 describe("useSessionHeaderMenuItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseInternalFeaturesEnabled.mockReturnValue(false);
+  });
+
+  it("copies the session URL override rather than the surrounding trace URL", () => {
+    const shareUrl = "/project/project-id/sessions/session-id";
+    const { result } = renderHook(() =>
+      useSessionHeaderMenuItems({
+        projectId: "project-id",
+        sessionId: "session-id",
+        isPublic: true,
+        shareUrl,
+      }),
+    );
+    const item = result.current.find((item) => item.id === "copy-share-link");
+    if (item?.type !== "item") throw new Error("Expected share link action");
+    item.onClick?.();
+    expect(getShareUrl).toHaveBeenCalledWith(shareUrl);
   });
 
   it.each(["events_full", "events_core"])(

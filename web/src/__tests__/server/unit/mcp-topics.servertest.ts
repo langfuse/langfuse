@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  isTopicsProjectEnabled: vi.fn(),
+  isTopicsEnabled: vi.fn(),
   listPublicTopicFacets: vi.fn(),
   listPublicTopics: vi.fn(),
   listPublicTopicSummaries: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
-  isTopicsProjectEnabled: mocks.isTopicsProjectEnabled,
+  isTopicsEnabled: mocks.isTopicsEnabled,
 }));
 vi.mock("@/src/features/topics/server/publicApi", () => ({
   listPublicTopicFacets: mocks.listPublicTopicFacets,
@@ -43,12 +43,11 @@ describe("Topics MCP tools", () => {
     });
   });
 
-  it("is enabled only for Topics projects and auto-approved read-only for the in-app agent when the user can view Topics", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    expect(await topicsFeature.isEnabled(context)).toBe(false);
-    mocks.isTopicsProjectEnabled.mockReturnValue(true);
-    expect(await topicsFeature.isEnabled(context)).toBe(true);
-    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith("project-1");
+  it("is enabled only when the deployment enables Topics and auto-approved read-only for the in-app agent when the user can view Topics", async () => {
+    mocks.isTopicsEnabled.mockReturnValue(false);
+    expect(await topicsFeature.isEnabled()).toBe(false);
+    mocks.isTopicsEnabled.mockReturnValue(true);
+    expect(await topicsFeature.isEnabled()).toBe(true);
 
     const viewer = { projectRole: "VIEWER" } as const;
     const withTopics = createInAppAgentToolPolicy({
