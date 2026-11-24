@@ -14,7 +14,6 @@ import { z } from "zod";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -64,6 +63,10 @@ const ACTION_OPTIONS: Array<{
 ];
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
+
+const PRESET_VALUE_PREFIX = "preset:";
+const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
+const ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
 
 function parseContainsText(text: string): string[] {
   return deduplicateContainsWords(text.split(/\r?\n/));
@@ -259,6 +262,21 @@ export function GatewayGuardrailFormDialog({
     });
   };
 
+  const handlePresetsChange = (nextPresets: GatewayGuardrailPreset[]) => {
+    form.setValue("presets", nextPresets, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  const handleSecretPrefixesChange = (nextPrefixes: string[]) => {
+    form.setValue("secretPrefixes", nextPrefixes, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.trigger("presets").catch(() => undefined);
+  };
+
   const handleStopClickPropagation = (event: MouseEvent) => {
     event.stopPropagation();
   };
@@ -285,7 +303,7 @@ export function GatewayGuardrailFormDialog({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className="ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg"
+        className="ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg"
         onClick={handleStopClickPropagation}
         onKeyDown={handleKeyDown}
         onPointerDownOutside={handlePreventOutsideClose}
@@ -321,125 +339,169 @@ export function GatewayGuardrailFormDialog({
           </header>
 
           <PopoverLayerProvider container={popoverContainer}>
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 text-sm leading-relaxed">
-              <Form
-                id={formId}
-                density="compact"
-                actions={[]}
-                onSubmit={form.handleSubmit(handleValidSubmit)}
-              >
-                <FormField control={form.control} name="name" label="Name">
-                  {({ id, inputDescribedById, error, ...field }) => (
-                    <Input
-                      {...field}
-                      id={id}
-                      aria-describedby={inputDescribedById}
-                      aria-invalid={Boolean(error)}
-                      error={Boolean(error)}
-                      placeholder="e.g. Block SSNs"
-                    />
-                  )}
-                </FormField>
-
-                {templateKind === "contains" ? (
-                  <Controller
-                    control={form.control}
-                    name="containsText"
-                    render={({ field, fieldState }) => (
-                      <ContainsWordListField
-                        value={field.value}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        entryCount={parsedContains.length}
-                        errorMessage={fieldState.error?.message}
-                      />
-                    )}
-                  />
-                ) : null}
-
-                {templateKind === "pii" ? (
-                  <Controller
-                    control={form.control}
-                    name="presets"
-                    render={({ field, fieldState }) => (
-                      <PresetChecklistField
-                        availablePresets={availablePresets}
-                        selectedPresets={field.value}
-                        onChange={field.onChange}
-                        errorMessage={fieldState.error?.message}
-                      />
-                    )}
-                  />
-                ) : null}
-
-                {templateKind === "secrets" ? (
-                  <SecretDetectionMultiSelectField
-                    availablePresets={availablePresets}
-                    selectedPresets={selectedPresets}
-                    secretPrefixes={secretPrefixes}
-                    onPresetsChange={(nextPresets) => {
-                      form.setValue("presets", nextPresets, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                      });
-                    }}
-                    onSecretPrefixesChange={(nextPrefixes) => {
-                      form.setValue("secretPrefixes", nextPrefixes, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                      });
-                      form.trigger("presets").catch(() => undefined);
-                    }}
-                    errorMessage={
-                      form.formState.errors.presets?.message ??
-                      form.formState.errors.secretPrefixes?.message
-                    }
-                  />
-                ) : null}
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="action"
-                    label="On match"
-                  >
-                    {({
-                      id,
-                      inputDescribedById,
-                      error,
-                      value,
-                      onChange,
-                      onBlur,
-                    }) => (
-                      <SelectInput
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
+              <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
+                <Form
+                  id={formId}
+                  density="compact"
+                  actions={[]}
+                  onSubmit={form.handleSubmit(handleValidSubmit)}
+                >
+                  <FormField control={form.control} name="name" label="Name">
+                    {({ id, inputDescribedById, error, ...field }) => (
+                      <Input
+                        {...field}
                         id={id}
                         aria-describedby={inputDescribedById}
                         aria-invalid={Boolean(error)}
                         error={Boolean(error)}
-                        placeholder="Select action"
-                        value={value}
-                        onValueChange={onChange}
-                        onBlur={onBlur}
-                        options={ACTION_OPTIONS}
+                        placeholder="e.g. Block SSNs"
                       />
                     )}
                   </FormField>
 
-                  <FormField label="Runs on">
-                    {({ id, inputDescribedById }) => (
-                      <SelectInput
-                        id={id}
-                        aria-describedby={inputDescribedById}
-                        placeholder="Input"
-                        value="input"
-                        onValueChange={noop}
-                        options={[...RUNS_ON_OPTIONS]}
-                        disabled
-                      />
-                    )}
-                  </FormField>
-                </div>
+                  {templateKind === "contains" ? (
+                    <Controller
+                      control={form.control}
+                      name="containsText"
+                      render={({ field, fieldState }) => (
+                        <ContainsWordListField
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          entryCount={parsedContains.length}
+                          errorMessage={fieldState.error?.message}
+                        />
+                      )}
+                    />
+                  ) : (
+                    <PresetMultiSelectField
+                      availablePresets={availablePresets}
+                      selectedPresets={selectedPresets}
+                      secretPrefixes={
+                        templateKind === "secrets" ? secretPrefixes : []
+                      }
+                      allowCustomPrefixes={templateKind === "secrets"}
+                      onPresetsChange={handlePresetsChange}
+                      onSecretPrefixesChange={handleSecretPrefixesChange}
+                      errorMessage={
+                        form.formState.errors.presets?.message ??
+                        form.formState.errors.secretPrefixes?.message
+                      }
+                    />
+                  )}
 
+                  <div className="flex items-center gap-3 pt-1">
+                    <h4 className="text-foreground shrink-0 text-sm font-bold">
+                      Where it runs
+                    </h4>
+                    <div className="border-border flex-1 border-t border-dashed" />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="action"
+                      label="On match"
+                    >
+                      {({
+                        id,
+                        inputDescribedById,
+                        error,
+                        value,
+                        onChange,
+                        onBlur,
+                      }) => (
+                        <SelectInput
+                          id={id}
+                          aria-describedby={inputDescribedById}
+                          aria-invalid={Boolean(error)}
+                          error={Boolean(error)}
+                          placeholder="Select action"
+                          value={value}
+                          onValueChange={onChange}
+                          onBlur={onBlur}
+                          options={ACTION_OPTIONS}
+                        />
+                      )}
+                    </FormField>
+
+                    <FormField label="Runs on">
+                      {({ id, inputDescribedById }) => (
+                        <SelectInput
+                          id={id}
+                          aria-describedby={inputDescribedById}
+                          placeholder="Input"
+                          value="input"
+                          onValueChange={noop}
+                          options={[...RUNS_ON_OPTIONS]}
+                          disabled
+                        />
+                      )}
+                    </FormField>
+                  </div>
+
+                  <Controller
+                    control={form.control}
+                    name="targets"
+                    render={({ field, fieldState }) => {
+                      const targetError = fieldState.error?.message;
+                      return (
+                        <div className="flex flex-col gap-2">
+                          <label
+                            htmlFor={targetsId}
+                            className="text-sm leading-none font-bold"
+                          >
+                            Applies to
+                          </label>
+                          <div className="flex flex-col gap-1">
+                            <GatewayGuardrailTargetsInput
+                              id={targetsId}
+                              describedById={
+                                targetError ? targetsErrorId : undefined
+                              }
+                              value={field.value}
+                              onChange={field.onChange}
+                              picker={targetPicker}
+                              error={Boolean(targetError)}
+                            />
+                            {targetError ? (
+                              <p
+                                id={targetsErrorId}
+                                className="text-destructive text-sm"
+                              >
+                                {targetError}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+
+                  {errorMessage !== null ? (
+                    <Banner
+                      variant="error"
+                      title="Guardrail could not be saved"
+                      actions={
+                        showLimitSupportAction && onContactSupport
+                          ? [
+                              {
+                                text: "Share feedback with support",
+                                icon: LifeBuoy,
+                                onClick: onContactSupport,
+                              },
+                            ]
+                          : undefined
+                      }
+                    >
+                      {errorMessage}
+                    </Banner>
+                  ) : null}
+                </Form>
+              </div>
+
+              <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
                 <GatewayGuardrailTestInput
                   value={testText}
                   onChange={setTestText}
@@ -451,65 +513,7 @@ export function GatewayGuardrailFormDialog({
                     templateKind === "contains" ? parsedContains : undefined
                   }
                 />
-
-                <Controller
-                  control={form.control}
-                  name="targets"
-                  render={({ field, fieldState }) => {
-                    const targetError = fieldState.error?.message;
-                    return (
-                      <div className="flex flex-col gap-2">
-                        <label
-                          htmlFor={targetsId}
-                          className="text-sm leading-none font-bold"
-                        >
-                          Applies to
-                        </label>
-                        <div className="flex flex-col gap-1">
-                          <GatewayGuardrailTargetsInput
-                            id={targetsId}
-                            describedById={
-                              targetError ? targetsErrorId : undefined
-                            }
-                            value={field.value}
-                            onChange={field.onChange}
-                            picker={targetPicker}
-                            error={Boolean(targetError)}
-                          />
-                          {targetError ? (
-                            <p
-                              id={targetsErrorId}
-                              className="text-destructive text-sm"
-                            >
-                              {targetError}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-
-                {errorMessage !== null ? (
-                  <Banner
-                    variant="error"
-                    title="Guardrail could not be saved"
-                    actions={
-                      showLimitSupportAction && onContactSupport
-                        ? [
-                            {
-                              text: "Share feedback with support",
-                              icon: LifeBuoy,
-                              onClick: onContactSupport,
-                            },
-                          ]
-                        : undefined
-                    }
-                  >
-                    {errorMessage}
-                  </Banner>
-                ) : null}
-              </Form>
+              </aside>
             </div>
           </PopoverLayerProvider>
 
@@ -537,117 +541,25 @@ export function GatewayGuardrailFormDialog({
   );
 }
 
-type PresetChecklistFieldProps = {
-  availablePresets: readonly GatewayGuardrailPreset[];
-  selectedPresets: readonly GatewayGuardrailPreset[];
-  onChange: (presets: GatewayGuardrailPreset[]) => void;
-  errorMessage?: string;
-};
-
-function PresetChecklistField({
-  availablePresets,
-  selectedPresets,
-  onChange,
-  errorMessage,
-}: PresetChecklistFieldProps) {
-  const allSelected =
-    availablePresets.length > 0 &&
-    availablePresets.every((preset) => selectedPresets.includes(preset));
-
-  const handleToggleAll = () => {
-    onChange(allSelected ? [] : [...availablePresets]);
-  };
-
-  const handleToggle = (preset: GatewayGuardrailPreset) => {
-    const isChecked = selectedPresets.includes(preset);
-    if (isChecked) {
-      onChange(selectedPresets.filter((item) => item !== preset));
-      return;
-    }
-    onChange([...selectedPresets, preset]);
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm leading-none font-bold">Detect</span>
-        <Button
-          variant="text"
-          size="sm"
-          text={allSelected ? "Deselect all" : "Select all"}
-          onClick={handleToggleAll}
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {availablePresets.map((preset) => (
-          <PresetTogglePill
-            key={preset}
-            preset={preset}
-            checked={selectedPresets.includes(preset)}
-            onToggle={handleToggle}
-          />
-        ))}
-      </div>
-      {errorMessage ? (
-        <p className="text-destructive text-sm">{errorMessage}</p>
-      ) : null}
-    </div>
-  );
-}
-
-type PresetTogglePillProps = {
-  preset: GatewayGuardrailPreset;
-  checked: boolean;
-  onToggle: (preset: GatewayGuardrailPreset) => void;
-};
-
-function PresetTogglePill({
-  preset,
-  checked,
-  onToggle,
-}: PresetTogglePillProps) {
-  const handleCheckedChange = () => onToggle(preset);
-
-  return (
-    <label
-      className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors select-none",
-        checked
-          ? "border-foreground bg-background text-foreground font-medium"
-          : "border-input text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-      )}
-    >
-      <Checkbox
-        size="sm"
-        checked={checked}
-        onCheckedChange={handleCheckedChange}
-      />
-      <span>{GATEWAY_GUARDRAIL_PRESET_LABELS[preset]}</span>
-    </label>
-  );
-}
-
-const SECRET_PRESET_VALUE_PREFIX = "preset:";
-const SECRET_CUSTOM_VALUE_PREFIX = "prefix:";
-const SECRET_ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
-
-type SecretDetectionMultiSelectFieldProps = {
+type PresetMultiSelectFieldProps = {
   availablePresets: readonly GatewayGuardrailPreset[];
   selectedPresets: readonly GatewayGuardrailPreset[];
   secretPrefixes: readonly string[];
+  allowCustomPrefixes: boolean;
   onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
   onSecretPrefixesChange: (prefixes: string[]) => void;
   errorMessage?: string;
 };
 
-function SecretDetectionMultiSelectField({
+function PresetMultiSelectField({
   availablePresets,
   selectedPresets,
   secretPrefixes,
+  allowCustomPrefixes,
   onPresetsChange,
   onSecretPrefixesChange,
   errorMessage,
-}: SecretDetectionMultiSelectFieldProps) {
+}: PresetMultiSelectFieldProps) {
   const inputId = useId();
   const errorId = useId();
   const [query, setQuery] = useState("");
@@ -659,16 +571,18 @@ function SecretDetectionMultiSelectField({
   const selectedItems = useMemo<TagAutocompleteOption[]>(
     () => [
       ...selectedPresets.map((preset) => ({
-        value: `${SECRET_PRESET_VALUE_PREFIX}${preset}`,
+        value: `${PRESET_VALUE_PREFIX}${preset}`,
         label: GATEWAY_GUARDRAIL_PRESET_LABELS[preset],
       })),
-      ...secretPrefixes.map((prefix) => ({
-        value: `${SECRET_CUSTOM_VALUE_PREFIX}${prefix}`,
-        label: prefix,
-        title: `Custom prefix "${prefix}" (matches prefix + 16+ token characters)`,
-      })),
+      ...(allowCustomPrefixes
+        ? secretPrefixes.map((prefix) => ({
+            value: `${CUSTOM_PREFIX_VALUE_PREFIX}${prefix}`,
+            label: prefix,
+            title: `Custom prefix "${prefix}" (matches prefix + 16+ token characters)`,
+          }))
+        : []),
     ],
-    [selectedPresets, secretPrefixes],
+    [allowCustomPrefixes, secretPrefixes, selectedPresets],
   );
 
   const options = useMemo<TagAutocompleteOption[]>(() => {
@@ -682,12 +596,12 @@ function SecretDetectionMultiSelectField({
         return label.includes(needle) || preset.toLowerCase().includes(needle);
       })
       .map((preset) => ({
-        value: `${SECRET_PRESET_VALUE_PREFIX}${preset}`,
+        value: `${PRESET_VALUE_PREFIX}${preset}`,
         label: GATEWAY_GUARDRAIL_PRESET_LABELS[preset],
         checked: selectedPresets.includes(preset),
       }));
 
-    if (!trimmed || secretPrefixes.includes(trimmed)) {
+    if (!allowCustomPrefixes || !trimmed || secretPrefixes.includes(trimmed)) {
       return presetOptions;
     }
 
@@ -695,7 +609,7 @@ function SecretDetectionMultiSelectField({
       return [
         ...presetOptions,
         {
-          value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}limit`,
+          value: `${ADD_PREFIX_VALUE_PREFIX}limit`,
           label: "Add custom prefix",
           secondaryLabel: `Max ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} reached`,
           icon: Plus,
@@ -709,7 +623,7 @@ function SecretDetectionMultiSelectField({
       return [
         ...presetOptions,
         {
-          value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}invalid`,
+          value: `${ADD_PREFIX_VALUE_PREFIX}invalid`,
           label: "Add custom prefix",
           secondaryLabel: prefixError,
           icon: Plus,
@@ -721,19 +635,25 @@ function SecretDetectionMultiSelectField({
     return [
       ...presetOptions,
       {
-        value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}${trimmed}`,
+        value: `${ADD_PREFIX_VALUE_PREFIX}${trimmed}`,
         label: "Add custom prefix",
         secondaryLabel: trimmed,
         icon: Plus,
         checked: false,
       },
     ];
-  }, [availablePresets, query, secretPrefixes, selectedPresets]);
+  }, [
+    allowCustomPrefixes,
+    availablePresets,
+    query,
+    secretPrefixes,
+    selectedPresets,
+  ]);
 
   const handleToggleAll = () => {
     if (allPresetsSelected) {
       onPresetsChange([]);
-      onSecretPrefixesChange([]);
+      if (allowCustomPrefixes) onSecretPrefixesChange([]);
       return;
     }
     onPresetsChange([...availablePresets]);
@@ -743,23 +663,23 @@ function SecretDetectionMultiSelectField({
     const nextPresets: GatewayGuardrailPreset[] = [];
     const nextPrefixes: string[] = [];
     for (const item of nextItems) {
-      if (item.value.startsWith(SECRET_PRESET_VALUE_PREFIX)) {
+      if (item.value.startsWith(PRESET_VALUE_PREFIX)) {
         const preset = item.value.slice(
-          SECRET_PRESET_VALUE_PREFIX.length,
+          PRESET_VALUE_PREFIX.length,
         ) as GatewayGuardrailPreset;
         nextPresets.push(preset);
-      } else if (item.value.startsWith(SECRET_CUSTOM_VALUE_PREFIX)) {
-        nextPrefixes.push(item.value.slice(SECRET_CUSTOM_VALUE_PREFIX.length));
+      } else if (item.value.startsWith(CUSTOM_PREFIX_VALUE_PREFIX)) {
+        nextPrefixes.push(item.value.slice(CUSTOM_PREFIX_VALUE_PREFIX.length));
       }
     }
     onPresetsChange(nextPresets);
-    onSecretPrefixesChange(nextPrefixes);
+    if (allowCustomPrefixes) onSecretPrefixesChange(nextPrefixes);
   };
 
   const handleOptionSelect = (option: TagAutocompleteOption) => {
     setQuery("");
-    if (option.value.startsWith(SECRET_ADD_PREFIX_VALUE_PREFIX)) {
-      const prefix = option.value.slice(SECRET_ADD_PREFIX_VALUE_PREFIX.length);
+    if (option.value.startsWith(ADD_PREFIX_VALUE_PREFIX)) {
+      const prefix = option.value.slice(ADD_PREFIX_VALUE_PREFIX.length);
       if (
         !secretPrefixes.includes(prefix) &&
         secretPrefixes.length < GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES
@@ -768,9 +688,9 @@ function SecretDetectionMultiSelectField({
       }
       return;
     }
-    if (option.value.startsWith(SECRET_PRESET_VALUE_PREFIX)) {
+    if (option.value.startsWith(PRESET_VALUE_PREFIX)) {
       const preset = option.value.slice(
-        SECRET_PRESET_VALUE_PREFIX.length,
+        PRESET_VALUE_PREFIX.length,
       ) as GatewayGuardrailPreset;
       const isSelected = selectedPresets.includes(preset);
       onPresetsChange(
@@ -797,29 +717,38 @@ function SecretDetectionMultiSelectField({
       <div className="flex flex-col gap-1">
         <TagAutocompleteInput
           id={inputId}
-          label="Detect secrets"
+          label="Detect"
           describedById={errorMessage ? errorId : undefined}
           value={selectedItems}
           options={options}
           onValueChange={handleValueChange}
           onOptionSelect={handleOptionSelect}
           search={{ value: query, onValueChange: setQuery }}
-          placeholder="Search secrets or type a custom prefix…"
-          emptyMessage="Type 3-32 ASCII characters to add a custom prefix."
-          clearLabel="Clear secrets"
+          placeholder={
+            allowCustomPrefixes
+              ? "Search secrets or type a custom prefix…"
+              : "Search"
+          }
+          emptyMessage={
+            allowCustomPrefixes
+              ? "Type 3-32 ASCII characters to add a custom prefix."
+              : "No matching patterns."
+          }
+          clearLabel="Clear patterns"
           error={Boolean(errorMessage)}
         />
         {errorMessage ? (
           <p id={errorId} className="text-destructive text-sm">
             {errorMessage}
           </p>
-        ) : (
+        ) : null}
+        {!errorMessage && allowCustomPrefixes ? (
           <p className="text-muted-foreground text-xs">
             Type to filter known secrets or add up to{" "}
             {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes (3-32
             printable ASCII chars, no spaces; matches prefix + 16+ token chars).
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );

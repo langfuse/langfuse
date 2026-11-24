@@ -1,4 +1,5 @@
 import { useId, useMemo, useRef, type ChangeEvent, type UIEvent } from "react";
+import { FlaskConical } from "@langfuse/icons";
 
 import { findGuardrailMatches } from "@/src/features/ai-gateway/fns/findGuardrailMatches";
 import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -39,6 +40,13 @@ export function GatewayGuardrailTestInput({
     [value, presets, secretPrefixes, containsWords],
   );
 
+  const matchCount = useMemo(
+    () => segments.filter((segment) => segment.matched).length,
+    [segments],
+  );
+
+  const matchCountLabel = formatMatchCount(value, matchCount);
+
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.target.value);
   };
@@ -50,16 +58,26 @@ export function GatewayGuardrailTestInput({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <label htmlFor={inputId} className="text-sm leading-none font-bold">
-          Test
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <label
+          htmlFor={inputId}
+          className="text-foreground inline-flex items-center gap-1.5 text-sm leading-none font-bold"
+        >
+          <FlaskConical size="base" color="muted" aria-hidden />
+          <span>Test</span>
         </label>
-        <span className="text-muted-foreground text-xs">
-          Matches highlight as you type. Nothing is sent.
-        </span>
+        {matchCountLabel ? (
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {matchCountLabel}
+          </span>
+        ) : null}
       </div>
-      <div className="bg-background border-input focus-within:ring-ring relative min-h-24 overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-2">
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        Paste sample text to see what this guardrail catches. Matches highlight
+        as you type. Nothing is sent or saved.
+      </p>
+      <div className="bg-background border-input focus-within:ring-ring relative flex min-h-36 flex-1 overflow-hidden rounded-md border focus-within:ring-2 focus-within:ring-offset-2 md:min-h-60">
         <div
           ref={backdropRef}
           aria-hidden
@@ -82,15 +100,22 @@ export function GatewayGuardrailTestInput({
         </div>
         <textarea
           id={inputId}
-          rows={3}
+          rows={5}
           value={value}
           onChange={handleChange}
           onScroll={handleScroll}
           spellCheck={false}
           placeholder="Paste or type sample text to test…"
-          className={`ph-no-capture placeholder:text-muted-foreground text-foreground caret-foreground relative block min-h-24 w-full resize-y border-0 bg-transparent outline-hidden ${TEXT_LAYER_CLASS}`}
+          className={`ph-no-capture placeholder:text-muted-foreground text-foreground caret-foreground relative block h-full min-h-36 w-full flex-1 resize-none border-0 bg-transparent outline-hidden md:min-h-60 ${TEXT_LAYER_CLASS}`}
         />
       </div>
     </div>
   );
+}
+
+function formatMatchCount(value: string, matchCount: number): string | null {
+  if (value.trim().length === 0) return null;
+  if (matchCount === 0) return "No matches";
+  if (matchCount === 1) return "1 match";
+  return `${matchCount} matches`;
 }
