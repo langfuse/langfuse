@@ -14,8 +14,8 @@ const HUB = { x: 480, y: 160, size: 42 };
 const FAN_IN_X = HUB.x - 24;
 const FAN_OUT_X = HUB.x + 24;
 
-const SOURCE_CHIP = { x: 120, width: 136, height: 36, spacing: 64 };
-const PROVIDER_PILL = { x: 704, width: 156, height: 40, spacing: 48 };
+const SOURCE_CHIP = { x: 120, width: 136, height: 32, spacing: 64 };
+const PROVIDER_PILL = { x: 704, width: 156, height: 36, spacing: 48 };
 const MORE_ROW = { x: 698, avatar: 32, step: 24 };
 const FONT_SIZE = 13;
 /** Icon scale sizes used inside the SVG, in px. */

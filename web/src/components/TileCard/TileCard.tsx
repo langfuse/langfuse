@@ -20,11 +20,11 @@ type TileCardProps = TileCardContentProps & {
   actionLabel?: string;
 };
 
-const CHROME = "flex w-full items-center rounded-lg border text-left";
+const CHROME = "flex w-full items-center border text-left";
 
 const SIZES = {
   sm: {
-    chrome: "bg-popover p-3",
+    chrome: "rounded-lg bg-popover p-3",
     button: styles.sm,
     content: "gap-3",
     text: "",
@@ -32,7 +32,8 @@ const SIZES = {
     description: "text-xs",
   },
   md: {
-    chrome: "bg-card p-4",
+    // One step above `rounded-lg`, so the card reads rounder than its 8px tile.
+    chrome: "rounded-[calc(var(--radius)+2px)] bg-card p-4",
     button: cn(
       styles.md,
       "focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2",
