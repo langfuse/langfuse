@@ -529,6 +529,7 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage: "Code eval execution failed: runner exploded",
             input: JSON.stringify({
+              targetType: "observation",
               observation: {
                 input: "prompt",
                 output: null,
