@@ -79,12 +79,12 @@ function getResetTitle(target: GatewayResetBudgetTarget) {
 function getResetDescription(target: GatewayResetBudgetTarget) {
   if (target.scope === "USER") {
     if (target.isDefault) {
-      return `This resets current-period spend for ${target.name} to $0 across all of their gateway keys and creates an explicit budget for them with the current default limit, so future changes to the default budget will no longer apply to them. Takes effect immediately.`;
+      return `Resets ${target.name}'s spend to $0 for this period. This creates a custom budget at the current default limit, so future default changes won't apply to them.`;
     }
-    return `This resets current-period spend for ${target.name} to $0 across all of their gateway keys. The budget limit stays unchanged and takes effect immediately.`;
+    return `Resets ${target.name}'s spend to $0 for this period. Their budget limit stays unchanged.`;
   }
   if (target.isDefault) {
-    return `This resets current-period spend for ${target.name} to $0 and creates an explicit budget for this key with the current default limit, so future changes to the default budget will no longer apply to it. Takes effect immediately.`;
+    return `Resets ${target.name}'s spend to $0 for this period. This creates a custom budget at the current default limit, so future default changes won't apply to it.`;
   }
-  return `This resets current-period spend for ${target.name} to $0. The budget limit stays unchanged and takes effect immediately.`;
+  return `Resets ${target.name}'s spend to $0 for this period. Its budget limit stays unchanged.`;
 }
