@@ -191,20 +191,6 @@ export class GatewayGuardrailRepository {
     });
   }
 
-  /** Serializes concurrent writes in deterministic ID order to avoid deadlocks. */
-  async lockByIds(params: { organizationId: string; ids: string[] }) {
-    if (params.ids.length === 0) return [];
-    const locked = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id
-      FROM "gateway_guardrails"
-      WHERE organization_id = ${params.organizationId}
-        AND id = ANY(${params.ids}::text[])
-      ORDER BY id ASC
-      FOR UPDATE
-    `;
-    return locked.map(({ id }) => id);
-  }
-
   async replaceAssignmentsForIds(params: {
     organizationId: string;
     ids: string[];

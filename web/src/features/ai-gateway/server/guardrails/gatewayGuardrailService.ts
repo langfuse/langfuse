@@ -225,8 +225,6 @@ export class GatewayGuardrailService {
     );
 
     const created = await this.writeGuardrail(async (tx) => {
-      // Serialize concurrent creates per organization so the cap and org byte budget cannot be exceeded.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`gateway_guardrail:${params.organizationId}`}))`;
       const repo = new GatewayGuardrailRepository(tx);
       const existingCount = await repo.countByOrganization(
         params.organizationId,
@@ -271,14 +269,6 @@ export class GatewayGuardrailService {
   }) {
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
-      // Lock the guardrail row before reading/replacing assignments so concurrent saves cannot interleave.
-      const lockedIds = await repo.lockByIds({
-        organizationId: params.organizationId,
-        ids: [params.id],
-      });
-      if (lockedIds.length === 0) {
-        throw new LangfuseNotFoundError("Guardrail not found");
-      }
       const existing = await repo.findById({
         organizationId: params.organizationId,
         id: params.id,
@@ -403,20 +393,17 @@ export class GatewayGuardrailService {
 
     const updatedCount = await this.prisma.$transaction(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
-      const lockedIds = await repo.lockByIds({
+      const beforeRows = await repo.findByIds({
         organizationId: params.organizationId,
         ids,
       });
-      if (lockedIds.length === 0) return 0;
+      if (beforeRows.length === 0) return 0;
 
-      const beforeRows = await repo.findByIds({
-        organizationId: params.organizationId,
-        ids: lockedIds,
-      });
+      const existingIds = beforeRows.map(({ id }) => id);
       const beforeById = new Map(beforeRows.map((row) => [row.id, row]));
       const afterRows = await repo.replaceAssignmentsForIds({
         organizationId: params.organizationId,
-        ids: lockedIds,
+        ids: existingIds,
         assignments,
       });
 
