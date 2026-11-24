@@ -417,6 +417,11 @@ describe("Topics transcript renderer", () => {
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
     ).toContain("last action: assistant tool call\nvisible reply: none");
+    // Measured, not rendered: a "none" that ends on a pending tool call (an approval, a client-side tool).
+    expect(
+      renderTranscript(pending, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
 
     // A blank text part next to the tool call is not a reply the user can read.
     const [request, call] = messages;

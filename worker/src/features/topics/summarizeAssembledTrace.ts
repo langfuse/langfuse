@@ -14,6 +14,7 @@ import {
   instrumentAsync,
   isInternalEvalEnvironment,
   prepareAssembledTopicTranscript,
+  recordIncrement,
   renderStoredTopicText,
   TOPICS_TEXT_VERSION,
   type ExecutionIssue,
@@ -325,7 +326,21 @@ async function summarizeTraceFacets(params: {
     for (const facet of facets) outcome(facet, "empty_input", "rule");
     return undefined;
   }
-  const text = renderStoredTopicText(params.transcript, params.executionIssues);
+  const { text, visibleReply } = renderStoredTopicText(
+    params.transcript,
+    params.executionIssues,
+  );
+  // How often the `visible reply` line says "none", and what those runs ended on: per project via the span,
+  // overall via the counter.
+  const ending = visibleReply.noneEnding ?? "has_reply";
+  getCurrentSpan()?.setAttributes({
+    "langfuse.topics.visible_reply": visibleReply.value,
+    "langfuse.topics.visible_reply_none_ending": ending,
+  });
+  recordIncrement("langfuse.topics.visible_reply", 1, {
+    visible_reply: visibleReply.value,
+    none_ending: ending,
+  });
   metrics.summaryInputCharacters(
     "text",
     text.length,

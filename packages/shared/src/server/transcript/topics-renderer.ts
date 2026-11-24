@@ -111,6 +111,14 @@ const OPAQUE_PAYLOAD_KEYS = new Set([
  * Render an assembled trace for Topics without assembling it a second time.
  * Observations provide root I/O and operation context omitted by assembly.
  */
+/** What a run with `visible reply: none` ended on; reported to Datadog to size that line's false positives. */
+export type TopicNoneReplyEnding =
+  | "pending_tool_call"
+  | "tool_result"
+  | "reasoning_only"
+  | "no_text"
+  | "unknown";
+
 export function renderTranscript(
   transcript: Transcript | null,
   observations: Observation[],
@@ -118,6 +126,7 @@ export function renderTranscript(
   countTokens?: (text: string) => number,
 ): {
   text: string;
+  visibleReply: { value: string; noneEnding: TopicNoneReplyEnding | null };
   tokens: number | null;
   stats: {
     blocksCut: number;
@@ -705,6 +714,27 @@ export function renderTranscript(
     visibleReply = "assistant audio";
   // The root output reached the user even when it repeats the final message.
   else if (rootOutput) visibleReply = "application output";
+  // Measurement only, the text is unchanged: what a run whose reply is "none" actually ended on.
+  let noneEnding: TopicNoneReplyEnding | null = null;
+  if (visibleReply === "none") {
+    noneEnding = "unknown";
+    if (lastPart?.kind === "part" && lastPart.part.type === "tool-call")
+      noneEnding =
+        config.toolCalls.include && !matchedCalls.has(lastPart)
+          ? "pending_tool_call"
+          : "tool_result";
+    else if (lastAction === "tool result") noneEnding = "tool_result";
+    else if (
+      lastPart?.kind === "part" &&
+      lastPart.message.role === "assistant" &&
+      !assistantParts.some(
+        (part) => part.type === "data" || part.type === "custom",
+      )
+    ) {
+      if (lastPart.part.type === "reasoning") noneEnding = "reasoning_only";
+      else if (lastPart.part.type === "text") noneEnding = "no_text";
+    }
+  }
   header("<end_of_run>");
   header(`last action: ${lastAction}`);
   header(`visible reply: ${visibleReply}`);
@@ -771,6 +801,7 @@ export function renderTranscript(
     .reduce((sum, line) => sum + line.text.length, 0);
   return {
     text,
+    visibleReply: { value: visibleReply, noneEnding },
     tokens: countTokens ? countTokens(text) : null,
     stats: {
       blocksCut,
