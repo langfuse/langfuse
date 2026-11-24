@@ -26,7 +26,7 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
       aria-labelledby={titleId}
       className={cn("overflow-hidden", diagramStyles.panel)}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-12 px-6 py-16">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-12 px-6 py-8">
         <div className="flex max-w-lg min-w-0 flex-1 basis-96 flex-col gap-4">
           <h2 id={titleId} className="text-3xl font-bold tracking-tight">
             Set up Langfuse AI Gateway
@@ -51,7 +51,7 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
               : "No provider connected yet."}
           </p>
         </div>
-        <div className="w-full max-w-xl basis-xl">
+        <div className="w-full max-w-lg basis-lg">
           <GatewayFanOutDiagram sources={[]} />
         </div>
       </div>
