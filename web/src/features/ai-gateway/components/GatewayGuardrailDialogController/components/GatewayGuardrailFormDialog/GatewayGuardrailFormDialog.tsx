@@ -8,7 +8,7 @@ import {
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
+import { ChevronLeft, LifeBuoy, Plus, X } from "@langfuse/icons";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -19,8 +19,10 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Tag } from "@/src/components/design-system/Tag/Tag";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import {
+  TagAutocompleteInput,
+  type TagAutocompleteOption,
+} from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
@@ -353,43 +355,47 @@ export function GatewayGuardrailFormDialog({
                       />
                     )}
                   />
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <Controller
-                      control={form.control}
-                      name="presets"
-                      render={({ field, fieldState }) => (
-                        <PresetChecklistField
-                          availablePresets={availablePresets}
-                          selectedPresets={field.value}
-                          onChange={(nextPresets) => {
-                            field.onChange(nextPresets);
-                            if (templateKind === "secrets") {
-                              form.trigger("presets").catch(() => undefined);
-                            }
-                          }}
-                          errorMessage={fieldState.error?.message}
-                        />
-                      )}
-                    />
-                    {templateKind === "secrets" ? (
-                      <Controller
-                        control={form.control}
-                        name="secretPrefixes"
-                        render={({ field, fieldState }) => (
-                          <CustomSecretPrefixesField
-                            value={field.value}
-                            onChange={(nextPrefixes) => {
-                              field.onChange(nextPrefixes);
-                              form.trigger("presets").catch(() => undefined);
-                            }}
-                            errorMessage={fieldState.error?.message}
-                          />
-                        )}
+                ) : null}
+
+                {templateKind === "pii" ? (
+                  <Controller
+                    control={form.control}
+                    name="presets"
+                    render={({ field, fieldState }) => (
+                      <PresetChecklistField
+                        availablePresets={availablePresets}
+                        selectedPresets={field.value}
+                        onChange={field.onChange}
+                        errorMessage={fieldState.error?.message}
                       />
-                    ) : null}
-                  </div>
-                )}
+                    )}
+                  />
+                ) : null}
+
+                {templateKind === "secrets" ? (
+                  <SecretDetectionMultiSelectField
+                    availablePresets={availablePresets}
+                    selectedPresets={selectedPresets}
+                    secretPrefixes={secretPrefixes}
+                    onPresetsChange={(nextPresets) => {
+                      form.setValue("presets", nextPresets, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                    }}
+                    onSecretPrefixesChange={(nextPrefixes) => {
+                      form.setValue("secretPrefixes", nextPrefixes, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                      form.trigger("presets").catch(() => undefined);
+                    }}
+                    errorMessage={
+                      form.formState.errors.presets?.message ??
+                      form.formState.errors.secretPrefixes?.message
+                    }
+                  />
+                ) : null}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
@@ -621,134 +627,200 @@ function PresetTogglePill({
   );
 }
 
-type CustomSecretPrefixesFieldProps = {
-  value: readonly string[];
-  onChange: (prefixes: string[]) => void;
+const SECRET_PRESET_VALUE_PREFIX = "preset:";
+const SECRET_CUSTOM_VALUE_PREFIX = "prefix:";
+const SECRET_ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
+
+type SecretDetectionMultiSelectFieldProps = {
+  availablePresets: readonly GatewayGuardrailPreset[];
+  selectedPresets: readonly GatewayGuardrailPreset[];
+  secretPrefixes: readonly string[];
+  onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
+  onSecretPrefixesChange: (prefixes: string[]) => void;
   errorMessage?: string;
 };
 
-function CustomSecretPrefixesField({
-  value,
-  onChange,
+function SecretDetectionMultiSelectField({
+  availablePresets,
+  selectedPresets,
+  secretPrefixes,
+  onPresetsChange,
+  onSecretPrefixesChange,
   errorMessage,
-}: CustomSecretPrefixesFieldProps) {
+}: SecretDetectionMultiSelectFieldProps) {
   const inputId = useId();
-  const [draft, setDraft] = useState("");
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const errorId = useId();
+  const [query, setQuery] = useState("");
 
-  const commitTokens = (raw: string) => {
-    const tokens = raw
-      .split(/[,\n]+/)
-      .map((token) => token.trim())
-      .filter((token) => token.length > 0);
-    if (tokens.length === 0) {
-      setDraft("");
-      setDraftError(null);
-      return;
+  const allPresetsSelected =
+    availablePresets.length > 0 &&
+    availablePresets.every((preset) => selectedPresets.includes(preset));
+
+  const selectedItems = useMemo<TagAutocompleteOption[]>(
+    () => [
+      ...selectedPresets.map((preset) => ({
+        value: `${SECRET_PRESET_VALUE_PREFIX}${preset}`,
+        label: GATEWAY_GUARDRAIL_PRESET_LABELS[preset],
+      })),
+      ...secretPrefixes.map((prefix) => ({
+        value: `${SECRET_CUSTOM_VALUE_PREFIX}${prefix}`,
+        label: prefix,
+        title: `Custom prefix "${prefix}" (matches prefix + 16+ token characters)`,
+      })),
+    ],
+    [selectedPresets, secretPrefixes],
+  );
+
+  const options = useMemo<TagAutocompleteOption[]>(() => {
+    const trimmed = query.trim();
+    const needle = trimmed.toLowerCase();
+
+    const presetOptions: TagAutocompleteOption[] = availablePresets
+      .filter((preset) => {
+        if (!needle) return true;
+        const label = GATEWAY_GUARDRAIL_PRESET_LABELS[preset].toLowerCase();
+        return label.includes(needle) || preset.toLowerCase().includes(needle);
+      })
+      .map((preset) => ({
+        value: `${SECRET_PRESET_VALUE_PREFIX}${preset}`,
+        label: GATEWAY_GUARDRAIL_PRESET_LABELS[preset],
+        checked: selectedPresets.includes(preset),
+      }));
+
+    if (!trimmed || secretPrefixes.includes(trimmed)) {
+      return presetOptions;
     }
 
-    const next = [...value];
-    for (const token of tokens) {
-      const validationError = validateSecretPrefix(token);
-      if (validationError) {
-        setDraftError(validationError);
-        return;
+    if (secretPrefixes.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES) {
+      return [
+        ...presetOptions,
+        {
+          value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}limit`,
+          label: "Add custom prefix",
+          secondaryLabel: `Max ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} reached`,
+          icon: Plus,
+          disabled: true,
+        },
+      ];
+    }
+
+    const prefixError = validateSecretPrefix(trimmed);
+    if (prefixError) {
+      return [
+        ...presetOptions,
+        {
+          value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}invalid`,
+          label: "Add custom prefix",
+          secondaryLabel: prefixError,
+          icon: Plus,
+          disabled: true,
+        },
+      ];
+    }
+
+    return [
+      ...presetOptions,
+      {
+        value: `${SECRET_ADD_PREFIX_VALUE_PREFIX}${trimmed}`,
+        label: "Add custom prefix",
+        secondaryLabel: trimmed,
+        icon: Plus,
+        checked: false,
+      },
+    ];
+  }, [availablePresets, query, secretPrefixes, selectedPresets]);
+
+  const handleToggleAll = () => {
+    if (allPresetsSelected) {
+      onPresetsChange([]);
+      onSecretPrefixesChange([]);
+      return;
+    }
+    onPresetsChange([...availablePresets]);
+  };
+
+  const handleValueChange = (nextItems: TagAutocompleteOption[]) => {
+    const nextPresets: GatewayGuardrailPreset[] = [];
+    const nextPrefixes: string[] = [];
+    for (const item of nextItems) {
+      if (item.value.startsWith(SECRET_PRESET_VALUE_PREFIX)) {
+        const preset = item.value.slice(
+          SECRET_PRESET_VALUE_PREFIX.length,
+        ) as GatewayGuardrailPreset;
+        nextPresets.push(preset);
+      } else if (item.value.startsWith(SECRET_CUSTOM_VALUE_PREFIX)) {
+        nextPrefixes.push(item.value.slice(SECRET_CUSTOM_VALUE_PREFIX.length));
       }
-      if (next.includes(token)) continue;
-      if (next.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES) {
-        setDraftError(
-          `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
-        );
-        return;
+    }
+    onPresetsChange(nextPresets);
+    onSecretPrefixesChange(nextPrefixes);
+  };
+
+  const handleOptionSelect = (option: TagAutocompleteOption) => {
+    setQuery("");
+    if (option.value.startsWith(SECRET_ADD_PREFIX_VALUE_PREFIX)) {
+      const prefix = option.value.slice(SECRET_ADD_PREFIX_VALUE_PREFIX.length);
+      if (
+        !secretPrefixes.includes(prefix) &&
+        secretPrefixes.length < GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES
+      ) {
+        onSecretPrefixesChange([...secretPrefixes, prefix]);
       }
-      next.push(token);
-    }
-
-    onChange(next);
-    setDraft("");
-    setDraftError(null);
-  };
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.target.value;
-    setDraftError(null);
-    if (nextValue.includes(",")) {
-      commitTokens(nextValue);
       return;
     }
-    setDraft(nextValue);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitTokens(draft);
-      return;
+    if (option.value.startsWith(SECRET_PRESET_VALUE_PREFIX)) {
+      const preset = option.value.slice(
+        SECRET_PRESET_VALUE_PREFIX.length,
+      ) as GatewayGuardrailPreset;
+      const isSelected = selectedPresets.includes(preset);
+      onPresetsChange(
+        isSelected
+          ? selectedPresets.filter((item) => item !== preset)
+          : [...selectedPresets, preset],
+      );
     }
-    if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
-      onChange(value.slice(0, -1));
-    }
   };
-
-  const handleBlur = () => {
-    if (draft.trim().length > 0) commitTokens(draft);
-  };
-
-  const handleRemove = (prefix: string) => {
-    onChange(value.filter((item) => item !== prefix));
-    setDraftError(null);
-  };
-
-  const displayedError = draftError ?? errorMessage;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={inputId} className="text-xs leading-none font-medium">
-          Custom prefixes
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={inputId} className="text-sm leading-none font-bold">
+          Detect
         </label>
-        <span className="text-muted-foreground text-xs">
-          {value.length} / {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES}
-        </span>
-      </div>
-      <div
-        className={cn(
-          "ph-no-capture bg-background border-input focus-within:ring-ring flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border px-2 py-1 text-sm focus-within:ring-2 focus-within:ring-offset-2",
-          displayedError &&
-            "border-destructive focus-within:ring-destructive/40 focus-within:ring-offset-0",
-        )}
-      >
-        {value.map((prefix) => (
-          <Tag
-            key={prefix}
-            text={prefix}
-            remove={{ onRemove: () => handleRemove(prefix) }}
-          />
-        ))}
-        <input
-          id={inputId}
-          type="text"
-          value={draft}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          disabled={value.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES}
-          placeholder={
-            value.length === 0
-              ? "Add prefix and press Enter, e.g. acme_sk_"
-              : "Add another prefix"
-          }
-          className="placeholder:text-muted-foreground h-6 min-w-44 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
+        <Button
+          variant="text"
+          size="sm"
+          text={allPresetsSelected ? "Deselect all" : "Select all"}
+          onClick={handleToggleAll}
         />
       </div>
-      {displayedError ? (
-        <p className="text-destructive text-xs">{displayedError}</p>
-      ) : (
-        <p className="text-muted-foreground text-xs">
-          3-32 printable ASCII characters (no spaces). Matches the prefix
-          followed by 16+ token characters.
-        </p>
-      )}
+      <div className="flex flex-col gap-1">
+        <TagAutocompleteInput
+          id={inputId}
+          label="Detect secrets"
+          describedById={errorMessage ? errorId : undefined}
+          value={selectedItems}
+          options={options}
+          onValueChange={handleValueChange}
+          onOptionSelect={handleOptionSelect}
+          search={{ value: query, onValueChange: setQuery }}
+          placeholder="Search secrets or type a custom prefix…"
+          emptyMessage="Type 3-32 ASCII characters to add a custom prefix."
+          clearLabel="Clear secrets"
+          error={Boolean(errorMessage)}
+        />
+        {errorMessage ? (
+          <p id={errorId} className="text-destructive text-sm">
+            {errorMessage}
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            Type to filter known secrets or add up to{" "}
+            {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes (3-32
+            printable ASCII chars, no spaces; matches prefix + 16+ token chars).
+          </p>
+        )}
+      </div>
     </div>
   );
 }
