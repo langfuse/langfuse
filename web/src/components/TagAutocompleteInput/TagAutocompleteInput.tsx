@@ -324,7 +324,7 @@ export function TagAutocompleteInput<V extends string = string>({
                 type="button"
                 aria-label={clearLabel}
                 tabIndex={-1}
-                className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-sm"
+                className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center self-start rounded-sm"
                 onMouseDown={handleKeepInputFocused}
                 onClick={handleClear}
               >
