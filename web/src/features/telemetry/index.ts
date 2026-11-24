@@ -288,7 +288,7 @@ async function posthogTelemetry({
       },
     });
 
-    // Count Topics facet summaries as billing does, without insufficient_input.
+    // Count Topics facet summaries as billing does: complete and not_applicable.
     // Counted unconditionally, like Assistant runs: zero means no Topics usage.
     const countTopicFacetSummariesClickhouse =
       await getTopicFacetSummaryCountsByProjectInCreationInterval({

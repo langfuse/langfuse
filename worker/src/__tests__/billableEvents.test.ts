@@ -387,14 +387,17 @@ describe("billable_events materialized views", () => {
         summary: "",
         embedding: [],
       },
-      // Insufficient input is not usage
-      {
+      // Insufficient input and skipped model calls are not usage
+      ...(
+        ["insufficient_input", "empty_input", "input_too_large"] as const
+      ).map((state) => ({
         ...summary,
-        facetId: "insufficient",
-        state: "insufficient_input",
+        facetId: state,
+        state,
         summary: "",
         embedding: [],
-      },
+        transcriptBytes: 0,
+      })),
     ]);
 
     expect(await billedUnitsAroundNow(projectId)).toEqual({

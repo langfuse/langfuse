@@ -19,6 +19,7 @@ export type TopicResult =
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
+  | "empty_input"
   | "invalid_output"
   | "input_too_large"
   | "topics_found"

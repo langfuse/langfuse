@@ -193,18 +193,29 @@ async function summarizeEnabledTrace(
       ? { execution_id: input.executionId }
       : { rule_ids: [...new Set(rows.flatMap((row) => row.ruleIds))] }),
   });
-  const summarized = await summarizeTraceFacets({
-    models,
-    facets: pending,
-    metadata: callMetadata(bases),
-    transcript: input.transcript,
-    executionIssues: input.executionIssues,
-    config,
-    metrics,
-  });
-  let rows = bases;
   let failure: unknown;
   let failedStage: TopicsFailedStage | undefined;
+  let summarized: Awaited<ReturnType<typeof summarizeTraceFacets>>;
+  try {
+    summarized = await summarizeTraceFacets({
+      models,
+      facets: pending,
+      metadata: callMetadata(bases),
+      transcript: input.transcript,
+      executionIssues: input.executionIssues,
+      config,
+      metrics,
+    });
+  } catch (error) {
+    if (!(error instanceof TopicInputTooLarge)) throw error;
+    return {
+      outcome: "summarized",
+      rows: bases.map((base) => ({ ...base, state: "input_too_large" })),
+      failure: error,
+      failedStage: "summary",
+    };
+  }
+  let rows = bases;
   if (summarized) {
     const accepted = summarized.results.flatMap((result, index) => {
       if ("error" in result) {
@@ -307,7 +318,7 @@ async function summarizeTraceFacets(params: {
   // The projection's content check gates the text, whose run-facts header is never empty.
   const projection = prepareAssembledTopicTranscript(params.transcript);
   if (!projection.hasContent || !params.transcript) {
-    for (const facet of facets) outcome(facet, "insufficient_input", "rule");
+    for (const facet of facets) outcome(facet, "empty_input", "rule");
     return undefined;
   }
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
@@ -390,7 +401,7 @@ function facetTag(facet: TraceFacet): string {
     : "custom";
 }
 
-/** The summary row processing starts from, before any model call. */
+/** The summary row processing starts from: written as is when the transcript has nothing for the model. */
 function baseTopicSummary(params: {
   projectId: string;
   traceId: string;
@@ -418,7 +429,7 @@ function baseTopicSummary(params: {
     unitStartTime: params.unitStartTime,
     environment: params.environment,
     traceName: params.traceName,
-    state: "insufficient_input",
+    state: "empty_input",
     summary: "",
     embedding: [],
     transcriptId: params.transcriptId,
