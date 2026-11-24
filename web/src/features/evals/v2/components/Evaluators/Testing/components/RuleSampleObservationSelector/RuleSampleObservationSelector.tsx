@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
@@ -60,7 +60,7 @@ export function RuleSampleObservationSelector({
   showMatches?: boolean;
   filterTitle: string;
   filterDescription: string;
-  filterTooltip: ReactNode;
+  filterTooltip: string;
 }) {
   const previewFilters = useMemo(
     () => toEventsPreviewFilters(filterState),

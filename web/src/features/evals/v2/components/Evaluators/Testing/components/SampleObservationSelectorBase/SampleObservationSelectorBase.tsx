@@ -1,12 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import {
-  useCallback,
-  useMemo,
-  useState,
-  type ReactNode,
-  type UIEvent,
-} from "react";
+import { useCallback, useMemo, useState, type UIEvent } from "react";
 import {
   CircleAlert,
   Database,
@@ -175,7 +169,7 @@ export type SampleObservationSelectorBaseProps = {
   getRowClassName: ((observation: SampleObservation) => string) | undefined;
   filterTitle?: string;
   filterDescription: string;
-  filterTooltip: ReactNode;
+  filterTooltip: string;
   matchingDescription: string;
   matchingTooltip: string;
   formatCount: (count: number) => string;

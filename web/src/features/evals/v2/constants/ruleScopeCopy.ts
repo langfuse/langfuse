@@ -1,18 +1,7 @@
 import type { RuleScope } from "@/src/features/evals/v2/types/rules";
 
-export const TRACE_FILTER_TOOLTIP = (
-  <span className="flex flex-col gap-1.5">
-    <span>
-      A trace matches if at least one of its observations matches all filters.
-      All filters must match that same observation.
-    </span>
-    <span>
-      Example: name = llm-call and level = ERROR matches traces with a failed
-      llm-call observation. A trace whose llm-call succeeded while a different
-      observation failed does not match.
-    </span>
-  </span>
-);
+export const TRACE_FILTER_TOOLTIP =
+  "A trace matches if at least one of its observations matches all filters. All filters must match that same observation. Example: name = llm-call and level = ERROR matches traces with a failed llm-call observation. A trace whose llm-call succeeded while a different observation failed does not match.";
 
 const OBSERVATION_FILTER_TOOLTIP =
   "Only new observations matching these filters are evaluated by this rule.";
