@@ -3,7 +3,7 @@ import {
   prepareOutlierSeries,
   type OutlierStripBin,
   type OutlierStripMetricKey,
-} from "./binning";
+} from "@/src/features/events/components/outlier-strip/lib/binning";
 
 /**
  * Deterministic fake data for the outlier-strip design stories. Seeded PRNG so
