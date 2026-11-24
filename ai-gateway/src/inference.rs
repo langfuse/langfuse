@@ -26,7 +26,7 @@ use crate::{
 pub struct InferenceService {
     control_plane: Arc<ControlPlaneClient>,
     provider: ProviderTransport,
-    bedrock_guardrails: crate::guardrails::bedrock::BedrockGuardrailClient,
+    external_guardrails: crate::guardrails::external::ExternalGuardrailClient,
     request_limits: RequestLimits,
     memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -176,7 +176,7 @@ impl InferenceService {
             )
             .map_err(|_| ResolutionError::Configuration)?
             .with_telemetry(telemetry.clone()),
-            bedrock_guardrails: crate::guardrails::bedrock::BedrockGuardrailClient::new(
+            external_guardrails: crate::guardrails::external::ExternalGuardrailClient::new(
                 config.outbound_policy.clone(),
             )?,
             request_limits: config.request_limits,
@@ -460,9 +460,8 @@ impl InferenceService {
 
     /// Scans the request's last turn with the guardrails resolved for its key. Finding
     /// the last turn reads the whole conversation; the scan reads only the last turn,
-    /// so each step leaves the async worker based on what it reads. External Bedrock
-    /// guardrails run concurrently after local regexes unless a local `block` rule
-    /// already matched.
+    /// so each step leaves the async worker based on what it reads. External guardrails
+    /// run concurrently after local regexes unless a local `block` rule already matched.
     async fn check_guardrails(
         &self,
         api_format: ApiFormat,
@@ -495,10 +494,10 @@ impl InferenceService {
             let bytes = turn
                 .as_ref()
                 .map_or(0, crate::guardrails::text::LastTurn::bytes);
-            let has_bedrock = guardrails
+            let has_external = guardrails
                 .iter()
-                .any(crate::guardrails::Guardrail::is_bedrock);
-            let turn_text_reservation = (has_bedrock && bytes > 0)
+                .any(crate::guardrails::Guardrail::is_external);
+            let turn_text_reservation = (has_external && bytes > 0)
                 .then(|| self.try_reserve_extra(bytes, "guardrails"))
                 .transpose()?;
             let (mut local, scanning) = self
@@ -514,13 +513,13 @@ impl InferenceService {
                 .await?;
             let turn_text = local.take_turn_text();
             let mut total_duration = finding + scanning;
-            let bedrock_matches = if !local.is_unreadable()
+            let external_matches = if !local.is_unreadable()
                 && !local.has_local_block(&guardrails)
                 && !turn_text.is_empty()
             {
                 let (matches, elapsed) = self
-                    .evaluate_bedrock_guardrails(
-                        &local.bedrock_targets(&guardrails),
+                    .evaluate_external_guardrails(
+                        &local.external_targets(&guardrails),
                         turn_text,
                         turn_text_reservation,
                         bytes,
@@ -535,7 +534,7 @@ impl InferenceService {
                 Vec::new()
             };
             crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
-            Ok(local.into_outcome(&guardrails, &bedrock_matches))
+            Ok(local.into_outcome(&guardrails, &external_matches))
         }
         .instrument(tracing::info_span!(
             "request.guardrails",
@@ -544,9 +543,9 @@ impl InferenceService {
         .await
     }
 
-    async fn evaluate_bedrock_guardrails(
+    async fn evaluate_external_guardrails(
         &self,
-        targets: &[(usize, &str, &crate::guardrails::bedrock::BedrockGuardrail)],
+        targets: &[(usize, &crate::guardrails::Guardrail)],
         turn_text: String,
         turn_text_reservation: Option<MemoryReservation>,
         turn_bytes: usize,
@@ -557,38 +556,27 @@ impl InferenceService {
             drop(turn_text_reservation);
             return Ok((Vec::new(), Duration::ZERO));
         }
-        // Reserve for the serialized ApplyGuardrail payload while `turn_text` is
+        // Reserve for the serialized provider payload while `turn_text` is
         // still live, then release `turn_text` and its budget before awaiting I/O.
         let payload_reservation =
             self.try_reserve_extra(turn_bytes.saturating_add(64), "guardrails")?;
-        let payload =
-            crate::guardrails::bedrock::BedrockGuardrailClient::serialize_request(&turn_text);
+        let guardrails: Vec<&crate::guardrails::Guardrail> =
+            targets.iter().map(|(_, guardrail)| *guardrail).collect();
+        let payloads =
+            crate::guardrails::external::ExternalPayloads::serialize(&guardrails, &turn_text);
         drop(turn_text);
         drop(turn_text_reservation);
-        let Some(payload) = payload else {
-            tracing::warn!(
-                organization_id,
-                reason = "serialization",
-                "bedrock guardrail request failed to serialize; failing open"
-            );
-            drop(payload_reservation);
-            return Ok((Vec::new(), Duration::ZERO));
-        };
         let started = std::time::Instant::now();
-        let inputs: Vec<(&str, &crate::guardrails::bedrock::BedrockGuardrail)> = targets
-            .iter()
-            .map(|(_, id, config)| (*id, *config))
-            .collect();
         let results = self
-            .bedrock_guardrails
-            .evaluate_many(&inputs, payload, organization_id)
+            .external_guardrails
+            .evaluate_many(&guardrails, &payloads, organization_id)
             .await;
         let elapsed = started.elapsed();
         drop(payload_reservation);
         let matches = targets
             .iter()
             .zip(results)
-            .map(|((slot, _, _), matched)| (*slot, matched))
+            .map(|((slot, _), matched)| (*slot, matched))
             .collect();
         Ok((matches, elapsed))
     }
@@ -636,7 +624,7 @@ impl InferenceService {
         Self {
             control_plane: Arc::new(control_plane),
             provider,
-            bedrock_guardrails: crate::guardrails::bedrock::BedrockGuardrailClient::new(
+            external_guardrails: crate::guardrails::external::ExternalGuardrailClient::new(
                 crate::providers::OutboundPolicy::default(),
             )
             .unwrap(),
@@ -649,11 +637,11 @@ impl InferenceService {
     }
 
     #[cfg(test)]
-    pub(crate) fn with_bedrock_guardrails(
+    pub(crate) fn with_external_guardrails(
         mut self,
-        bedrock_guardrails: crate::guardrails::bedrock::BedrockGuardrailClient,
+        external_guardrails: crate::guardrails::external::ExternalGuardrailClient,
     ) -> Self {
-        self.bedrock_guardrails = bedrock_guardrails;
+        self.external_guardrails = external_guardrails;
         self
     }
 

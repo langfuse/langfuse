@@ -94,8 +94,8 @@ const GatewayRegexResolveGuardrailSchema = z
   .strict();
 
 /**
- * Cached shape in Redis: Bedrock API keys stay encrypted until `/resolve`
- * builds the response, matching provider connections.
+ * Cached shape in Redis: external guardrail credentials stay encrypted until
+ * `/resolve` builds the response, matching provider connections.
  */
 export const GatewayCachedGuardrailsSchema = z.array(
   z.discriminatedUnion("type", [

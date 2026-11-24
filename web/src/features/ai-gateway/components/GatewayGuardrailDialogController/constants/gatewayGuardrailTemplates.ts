@@ -1,3 +1,4 @@
+import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
@@ -16,6 +17,13 @@ export type GatewayGuardrailTemplate = {
   preview: {
     label: string;
     value: string;
+    icon?: (typeof providerIcons)[keyof typeof providerIcons];
+  };
+  /** Present for external guardrail providers evaluated over HTTP by the gateway. */
+  external?: {
+    description: string;
+    docsLabel: string;
+    docsHref: string;
   };
   presets: readonly GatewayGuardrailPreset[];
   defaultPresets: readonly GatewayGuardrailPreset[];
@@ -88,11 +96,18 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "bedrock",
       name: "Amazon Bedrock",
-      description:
-        "Evaluates prompts with an Amazon Bedrock guardrail via ApplyGuardrail.",
+      description: "Evaluates prompts using your Amazon Bedrock guardrail.",
       preview: {
-        label: "bedrock",
-        value: "ApplyGuardrail",
+        label: "provider",
+        value: "Bedrock Guardrails",
+        icon: providerIcons.BEDROCK,
+      },
+      external: {
+        description:
+          "Runs each request's latest turn through your existing Amazon Bedrock guardrail.",
+        docsLabel: "AWS documentation",
+        docsHref:
+          "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html",
       },
       presets: [],
       defaultPresets: [],

@@ -3,6 +3,7 @@
 //! refuses the request; a `log` guardrail that matches marks its generation. Each
 //! API format's capture module finds the last turn (`capture::guardrail_turn`).
 pub(crate) mod bedrock;
+pub(crate) mod external;
 pub(crate) mod text;
 
 use std::{
@@ -77,15 +78,8 @@ impl Guardrail {
         }
     }
 
-    pub(crate) fn is_bedrock(&self) -> bool {
-        self.is_active() && self.bedrock().is_some()
-    }
-
-    fn bedrock(&self) -> Option<&BedrockGuardrail> {
-        match &self.kind {
-            GuardrailKind::Bedrock(config) => Some(config),
-            GuardrailKind::Regex { .. } | GuardrailKind::Unknown => None,
-        }
+    pub(crate) fn is_external(&self) -> bool {
+        self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
     }
 }
 
@@ -292,17 +286,16 @@ impl LocalScan {
             })
     }
 
-    pub(crate) fn bedrock_targets<'a>(
+    pub(crate) fn external_targets<'a>(
         &self,
         guardrails: &'a [Guardrail],
-    ) -> Vec<(usize, &'a str, &'a BedrockGuardrail)> {
+    ) -> Vec<(usize, &'a Guardrail)> {
         self.active_indices
             .iter()
             .enumerate()
             .filter_map(|(slot, &index)| {
                 let guardrail = guardrails.get(index)?;
-                let config = guardrail.bedrock()?;
-                Some((slot, guardrail.id.as_str(), config))
+                guardrail.is_external().then_some((slot, guardrail))
             })
             .collect()
     }
@@ -314,9 +307,9 @@ impl LocalScan {
     pub(crate) fn into_outcome(
         mut self,
         guardrails: &[Guardrail],
-        bedrock_matches: &[(usize, bool)],
+        external_matches: &[(usize, bool)],
     ) -> Outcome {
-        for &(slot, matched) in bedrock_matches {
+        for &(slot, matched) in external_matches {
             if matched && let Some(entry) = self.matched.get_mut(slot) {
                 *entry = true;
             }
@@ -374,7 +367,7 @@ pub(crate) fn scan_local(
         .collect();
     let collect_text = active_indices
         .iter()
-        .any(|&index| guardrails.get(index).and_then(Guardrail::bedrock).is_some());
+        .any(|&index| guardrails.get(index).is_some_and(Guardrail::is_external));
 
     let compiled = (!regex_slots.is_empty()).then(|| compiled(&regex_slots));
     let mut regex_matched = vec![false; regex_slots.len()];

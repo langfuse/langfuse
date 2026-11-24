@@ -1,13 +1,11 @@
-//! AWS Bedrock `ApplyGuardrail` evaluation authenticated with a Bedrock API key
+//! AWS Bedrock `ApplyGuardrail` adapter authenticated with a Bedrock API key
 //! (`Authorization: Bearer`). Failures and timeouts fail open, matching the
-//! gateway's guardrail failure policy, so a Bedrock outage or expired key does
-//! not take down inference traffic.
-use std::{fmt, fmt::Write as _, sync::Arc, time::Duration};
+//! gateway's guardrail failure policy.
+use std::{fmt, fmt::Write as _, time::Duration};
 
 use axum::body::Bytes;
-use futures_util::future::join_all;
 use reqwest::{
-    Client, StatusCode, Url,
+    StatusCode, Url,
     header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
 use reqwest_middleware::ClientWithMiddleware;
@@ -15,12 +13,8 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::{providers::OutboundPolicy, resolution::ResolutionError};
+use crate::providers::OutboundPolicy;
 
-const BEDROCK_GUARDRAIL_TIMEOUT: Duration = Duration::from_secs(5);
-const BEDROCK_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
-const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
 const BEDROCK_NONE_ACTION: &str = "NONE";
@@ -45,162 +39,100 @@ impl fmt::Debug for BedrockGuardrail {
     }
 }
 
-/// Pooled HTTPS client for AWS Bedrock `ApplyGuardrail` calls.
-#[derive(Clone)]
-pub(crate) struct BedrockGuardrailClient {
-    client: ClientWithMiddleware,
-    policy: Arc<OutboundPolicy>,
-    timeout: Duration,
-    #[cfg(test)]
-    origin_override: Option<String>,
+/// Serializes `text` into the AWS Bedrock `ApplyGuardrail` JSON request body.
+pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
+    serde_json::to_vec(&ApplyGuardrailRequest {
+        source: "INPUT",
+        content: [GuardrailContentBlock {
+            text: GuardrailTextBlock { text },
+        }],
+    })
+    .ok()
+    .map(Bytes::from)
 }
 
-impl BedrockGuardrailClient {
-    pub(crate) fn new(policy: OutboundPolicy) -> Result<Self, ResolutionError> {
-        let client = Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .no_proxy()
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .connect_timeout(BEDROCK_CONNECT_TIMEOUT)
-            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
-            .tcp_keepalive(TCP_KEEPALIVE)
-            .pool_max_idle_per_host(16)
-            .build()
-            .map_err(|_| ResolutionError::Configuration)?;
-        Ok(Self {
-            client: crate::observability::instrument_client(client, "guardrail.bedrock"),
-            policy: Arc::new(policy),
-            timeout: BEDROCK_GUARDRAIL_TIMEOUT,
-            #[cfg(test)]
-            origin_override: None,
-        })
+#[expect(
+    clippy::too_many_arguments,
+    reason = "internal provider adapter called solely by ExternalGuardrailClient"
+)]
+pub(crate) async fn evaluate_one(
+    client: &ClientWithMiddleware,
+    policy: &OutboundPolicy,
+    timeout: Duration,
+    origin_override: Option<&str>,
+    langfuse_guardrail_id: &str,
+    config: &BedrockGuardrail,
+    payload: Bytes,
+    organization_id: &str,
+) -> bool {
+    let origin =
+        origin_override.map_or_else(|| bedrock_runtime_origin(&config.region), str::to_owned);
+    let Ok(url) = apply_url(&origin, config) else {
+        tracing::warn!(
+            guardrail_id = langfuse_guardrail_id,
+            organization_id,
+            region = %config.region,
+            reason = "invalid_url",
+            "bedrock guardrail check failed; failing open"
+        );
+        return false;
+    };
+    if policy.check_allowed_host(&url).is_err() {
+        tracing::warn!(
+            guardrail_id = langfuse_guardrail_id,
+            organization_id,
+            region = %config.region,
+            reason = "blocked_destination",
+            "bedrock guardrail destination blocked by outbound policy; failing open"
+        );
+        return false;
     }
+    let Ok(mut authorization) =
+        HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
+    else {
+        tracing::warn!(
+            guardrail_id = langfuse_guardrail_id,
+            organization_id,
+            region = %config.region,
+            reason = "invalid_credential",
+            "bedrock guardrail check failed; failing open"
+        );
+        return false;
+    };
+    authorization.set_sensitive(true);
 
-    /// Serializes `text` into the AWS Bedrock `ApplyGuardrail` JSON request body.
-    pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
-        serde_json::to_vec(&ApplyGuardrailRequest {
-            source: "INPUT",
-            content: [GuardrailContentBlock {
-                text: GuardrailTextBlock { text },
-            }],
-        })
-        .ok()
-        .map(Bytes::from)
-    }
+    let request = client
+        .post(url)
+        .with_extension(DisableOtelPropagation)
+        .header(AUTHORIZATION, authorization)
+        .header(CONTENT_TYPE, "application/json")
+        .header(ACCEPT, "application/json")
+        .header(ACCEPT_ENCODING, "identity")
+        .body(payload);
 
-    /// Evaluates every `(langfuse_guardrail_id, config)` concurrently using a
-    /// pre-serialized `ApplyGuardrail` payload. Returns one boolean per guardrail
-    /// indicating whether Bedrock returned `GUARDRAIL_INTERVENED`. Timeouts and
-    /// errors fail open (`false`).
-    pub(crate) async fn evaluate_many(
-        &self,
-        guardrails: &[(&str, &BedrockGuardrail)],
-        payload: Bytes,
-        organization_id: &str,
-    ) -> Vec<bool> {
-        if guardrails.is_empty() || payload.is_empty() {
-            return vec![false; guardrails.len()];
-        }
-        join_all(guardrails.iter().map(|(guardrail_id, config)| {
-            self.evaluate_one(guardrail_id, config, payload.clone(), organization_id)
-        }))
-        .await
-    }
-
-    async fn evaluate_one(
-        &self,
-        langfuse_guardrail_id: &str,
-        config: &BedrockGuardrail,
-        payload: Bytes,
-        organization_id: &str,
-    ) -> bool {
-        #[cfg(test)]
-        let origin = self
-            .origin_override
-            .clone()
-            .unwrap_or_else(|| bedrock_runtime_origin(&config.region));
-        #[cfg(not(test))]
-        let origin = bedrock_runtime_origin(&config.region);
-        let Ok(url) = apply_url(&origin, config) else {
+    match tokio::time::timeout(timeout, send_and_parse(request)).await {
+        Ok(Ok(intervened)) => intervened,
+        Ok(Err(failure)) => {
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
                 organization_id,
                 region = %config.region,
-                reason = "invalid_url",
+                reason = failure.reason(),
+                status = failure.status(),
                 "bedrock guardrail check failed; failing open"
             );
-            return false;
-        };
-        if self.policy.check_allowed_host(&url).is_err() {
+            false
+        }
+        Err(_) => {
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
                 organization_id,
                 region = %config.region,
-                reason = "blocked_destination",
-                "bedrock guardrail destination blocked by outbound policy; failing open"
+                reason = "timeout",
+                "bedrock guardrail check timed out; failing open"
             );
-            return false;
+            false
         }
-        let Ok(mut authorization) =
-            HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
-        else {
-            tracing::warn!(
-                guardrail_id = langfuse_guardrail_id,
-                organization_id,
-                region = %config.region,
-                reason = "invalid_credential",
-                "bedrock guardrail check failed; failing open"
-            );
-            return false;
-        };
-        authorization.set_sensitive(true);
-
-        let request = self
-            .client
-            .post(url)
-            .with_extension(DisableOtelPropagation)
-            .header(AUTHORIZATION, authorization)
-            .header(CONTENT_TYPE, "application/json")
-            .header(ACCEPT, "application/json")
-            .header(ACCEPT_ENCODING, "identity")
-            .body(payload);
-
-        match tokio::time::timeout(self.timeout, send_and_parse(request)).await {
-            Ok(Ok(intervened)) => intervened,
-            Ok(Err(failure)) => {
-                tracing::warn!(
-                    guardrail_id = langfuse_guardrail_id,
-                    organization_id,
-                    region = %config.region,
-                    reason = failure.reason(),
-                    status = failure.status(),
-                    "bedrock guardrail check failed; failing open"
-                );
-                false
-            }
-            Err(_) => {
-                tracing::warn!(
-                    guardrail_id = langfuse_guardrail_id,
-                    organization_id,
-                    region = %config.region,
-                    reason = "timeout",
-                    "bedrock guardrail check timed out; failing open"
-                );
-                false
-            }
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn for_test(origin: String, timeout: Duration) -> Self {
-        let mut client = Self::new(OutboundPolicy::default()).unwrap();
-        client.timeout = timeout;
-        client.origin_override = Some(origin);
-        client
     }
 }
 
@@ -327,6 +259,10 @@ fn percent_encode_path_segment(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::guardrails::{
+        Guardrail, GuardrailAction, GuardrailKind,
+        external::{ExternalGuardrailClient, ExternalPayloads},
+    };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
 
@@ -336,6 +272,15 @@ mod tests {
             guardrail_version: version.into(),
             region: "us-east-1".into(),
             api_key: SecretString::from("bedrock-api-key-secret"),
+        }
+    }
+
+    fn sample_guardrail(id: &str, guardrail_id: &str) -> Guardrail {
+        Guardrail {
+            id: id.into(),
+            name: id.into(),
+            action: GuardrailAction::Block,
+            kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
         }
     }
 
@@ -403,24 +348,16 @@ mod tests {
         .await;
 
         let client =
-            BedrockGuardrailClient::for_test(server.url.clone(), Duration::from_millis(80));
-        let intervene = sample_config("intervene", "1");
-        let pass = sample_config("pass", "1");
-        let slow = sample_config("slow", "1");
-        let err = sample_config("error", "1");
-        let payload = BedrockGuardrailClient::serialize_request("hello world").unwrap();
-        let results = client
-            .evaluate_many(
-                &[
-                    ("g1", &intervene),
-                    ("g2", &pass),
-                    ("g3", &slow),
-                    ("g4", &err),
-                ],
-                payload,
-                "org-1",
-            )
-            .await;
+            ExternalGuardrailClient::for_test(server.url.clone(), Duration::from_millis(80));
+        let guardrails = [
+            sample_guardrail("g1", "intervene"),
+            sample_guardrail("g2", "pass"),
+            sample_guardrail("g3", "slow"),
+            sample_guardrail("g4", "error"),
+        ];
+        let refs: Vec<&Guardrail> = guardrails.iter().collect();
+        let payloads = ExternalPayloads::serialize(&refs, "hello world");
+        let results = client.evaluate_many(&refs, &payloads, "org-1").await;
         assert_eq!(results, vec![true, false, false, false]);
     }
 }

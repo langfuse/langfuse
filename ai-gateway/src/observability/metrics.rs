@@ -87,7 +87,7 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
             .f64_counter("gateway.spend.usd")
             .with_unit("USD")
             .build(),
-        // Regex scans take microseconds to milliseconds; external Bedrock calls wait up to 5 s.
+        // Regex scans take microseconds to milliseconds; external guardrail calls wait up to 5 s.
         guardrails: meter
             .f64_histogram("gateway.guardrails.duration")
             .with_unit("s")

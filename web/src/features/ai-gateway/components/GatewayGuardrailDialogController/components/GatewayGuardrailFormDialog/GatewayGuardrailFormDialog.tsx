@@ -37,6 +37,7 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
+  GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
@@ -312,10 +313,13 @@ export function GatewayGuardrailFormDialog({
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
-  const isBedrock = templateKind === "bedrock";
+  const externalTemplate =
+    GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
+      ?.external ?? null;
+  const isExternal = externalTemplate !== null;
 
   const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
-    if (isBedrock) {
+    if (templateKind === "bedrock") {
       const apiKey = values.bedrockApiKey.trim();
       onSubmit({
         name: values.name.trim(),
@@ -393,7 +397,7 @@ export function GatewayGuardrailFormDialog({
         aria-describedby={undefined}
         className={cn(
           "ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg",
-          isBedrock ? "sm:max-w-xl" : "sm:max-w-4xl",
+          isExternal ? "sm:max-w-xl" : "sm:max-w-4xl",
         )}
         onClick={handleStopClickPropagation}
         onKeyDown={handleKeyDown}
@@ -432,21 +436,16 @@ export function GatewayGuardrailFormDialog({
           <PopoverLayerProvider container={popoverContainer}>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
-                {isBedrock ? (
+                {externalTemplate ? (
                   <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
-                    Evaluates each request&apos;s latest turn against an
-                    existing guardrail in your AWS account using{" "}
-                    <code className="text-foreground font-mono">
-                      ApplyGuardrail
-                    </code>
-                    .{" "}
+                    {externalTemplate.description}{" "}
                     <a
-                      href="https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html"
+                      href={externalTemplate.docsHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-link hover:text-link-hover inline-flex items-center gap-0.5 underline"
                     >
-                      Amazon Bedrock Guardrails docs
+                      {externalTemplate.docsLabel}
                       <SquareArrowOutUpRight size="sm" aria-hidden />
                     </a>
                   </p>
@@ -466,9 +465,7 @@ export function GatewayGuardrailFormDialog({
                         aria-invalid={Boolean(error)}
                         error={Boolean(error)}
                         placeholder={
-                          isBedrock
-                            ? "e.g. Bedrock content filter"
-                            : "e.g. Block SSNs"
+                          isExternal ? "e.g. Content safety" : "e.g. Block SSNs"
                         }
                       />
                     )}
@@ -572,7 +569,7 @@ export function GatewayGuardrailFormDialog({
                 </Form>
               </div>
 
-              {!isBedrock ? (
+              {!isExternal ? (
                 <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
                   <GatewayGuardrailTestInput
                     value={testText}
@@ -744,7 +741,7 @@ function BedrockGuardrailFields({
       <FormField
         control={control}
         name="bedrockApiKey"
-        label="Bedrock API key"
+        label="API key"
         description={BEDROCK_API_KEY_DESCRIPTION}
       >
         {({ id, inputDescribedById, error, ...field }) => (
@@ -759,7 +756,7 @@ function BedrockGuardrailFields({
             placeholder={
               hasSavedApiKey
                 ? "Leave blank to keep current key"
-                : "Enter Bedrock API key"
+                : "Enter API key"
             }
           />
         )}

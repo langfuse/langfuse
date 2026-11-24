@@ -1953,8 +1953,8 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
             ProviderTransport::for_test(format!("{}/v1", provider.url), ProviderLimits::default())
                 .with_telemetry(telemetry.clone()),
         )
-        .with_bedrock_guardrails(
-            crate::guardrails::bedrock::BedrockGuardrailClient::for_test(
+        .with_external_guardrails(
+            crate::guardrails::external::ExternalGuardrailClient::for_test(
                 bedrock.url.clone(),
                 Duration::from_secs(2),
             ),

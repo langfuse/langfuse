@@ -5,7 +5,6 @@ import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
-import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { cn } from "@/src/utils/tailwind";
 
 import styles from "./GatewayGuardrailTemplateGallery.module.css";
@@ -45,6 +44,7 @@ type TemplateCardProps = {
 
 function TemplateCard({ template, onSelect }: TemplateCardProps) {
   const handleSelect = () => onSelect(template);
+  const PreviewIcon = template.preview.icon;
 
   return (
     <button
@@ -67,8 +67,8 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
             )}
           >
             <span className="bg-popover/95 border-border/60 flex max-w-full min-w-0 items-center gap-1 rounded-md border px-2.5 py-1 font-mono text-xs shadow-2xs">
-              {template.id === "bedrock" ? (
-                <providerIcons.BEDROCK size="sm" aria-hidden />
+              {PreviewIcon ? (
+                <PreviewIcon size="sm" aria-hidden />
               ) : (
                 <span className="text-muted-foreground shrink-0">
                   {template.preview.label}:
