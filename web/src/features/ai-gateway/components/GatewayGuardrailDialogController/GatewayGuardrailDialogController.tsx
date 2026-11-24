@@ -34,7 +34,7 @@ import {
 } from "@/src/utils/api";
 
 type BulkTargetsInput =
-  RouterInputs["aiGateway"]["setGuardrailsAssignments"]["target"];
+  RouterInputs["aiGateway"]["guardrails"]["setAssignments"]["target"];
 
 export type GuardrailDialogState =
   | { mode: "create" }
@@ -61,16 +61,16 @@ export function GatewayGuardrailDialogController({
 }: GatewayGuardrailDialogControllerProps) {
   const invalidateGuardrails = useInvalidateGatewayGuardrails(organizationId);
   const openLimitFeedback = useOpenGuardrailsLimitFeedback();
-  const createMutation = api.aiGateway.createGuardrail.useMutation({
+  const createMutation = api.aiGateway.guardrails.create.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
   });
-  const updateMutation = api.aiGateway.updateGuardrail.useMutation({
+  const updateMutation = api.aiGateway.guardrails.update.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
   });
   const bulkTargetsMutation =
-    api.aiGateway.setGuardrailsAssignments.useMutation({
+    api.aiGateway.guardrails.setAssignments.useMutation({
       onError: (error) =>
         reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
     });

@@ -16,7 +16,7 @@ export function useGatewayGuardrailTargetPicker(
   enabled: boolean,
 ): GatewayGuardrailTargetPicker {
   const [search, setSearch] = useState("");
-  const targetsQuery = api.aiGateway.searchGuardrailTargets.useQuery(
+  const targetsQuery = api.aiGateway.guardrails.searchTargets.useQuery(
     {
       orgId: organizationId,
       searchQuery: search || undefined,

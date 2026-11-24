@@ -7,11 +7,11 @@ import {
 } from "@/src/utils/api";
 
 export type GatewayGuardrailDeleteTargetInput =
-  RouterInputs["aiGateway"]["deleteGuardrails"]["target"];
+  RouterInputs["aiGateway"]["guardrails"]["delete"]["target"];
 
 export function useDeleteGatewayGuardrails(organizationId: string) {
   const invalidateGuardrails = useInvalidateGatewayGuardrails(organizationId);
-  const mutation = api.aiGateway.deleteGuardrails.useMutation({
+  const mutation = api.aiGateway.guardrails.delete.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
   });

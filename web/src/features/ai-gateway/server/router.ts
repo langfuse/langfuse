@@ -43,24 +43,9 @@ import { getKeyOwnerFilter } from "./gatewayUsageScope";
 import {
   getGatewayUsageScope,
   requireGatewayAdmin,
-  requireGatewayGuardrailsAdmin,
-  requireGatewayGuardrailsRead,
   requireGatewayInvoke,
 } from "./gatewayAccess";
-import { GatewayGuardrailService } from "./guardrails/gatewayGuardrailService";
-import {
-  GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
-  GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
-  GATEWAY_GUARDRAIL_MAX_TARGETS,
-  GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
-} from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import {
-  GatewayGuardrailAssignmentsInputSchema,
-  GatewayGuardrailContainsListSchema,
-  GatewayGuardrailPresetSchema,
-  GatewayGuardrailSecretPrefixesSchema,
-  GatewayGuardrailUiActionSchema,
-} from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import { gatewayGuardrailRouter } from "./guardrails/gatewayGuardrailRouter";
 import {
   GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
@@ -158,51 +143,6 @@ const gatewayKeyAllowedModelsSchema = z
     patterns && patterns.length > 0 ? [...new Set(patterns)] : null,
   );
 
-const gatewayGuardrailAssignmentsInput =
-  GatewayGuardrailAssignmentsInputSchema.refine(
-    (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
-    `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
-  );
-
-const gatewayGuardrailWriteFields = {
-  name: z
-    .string()
-    .trim()
-    .min(1, "Guardrails need a name")
-    .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-  action: GatewayGuardrailUiActionSchema,
-  presets: z.array(GatewayGuardrailPresetSchema).default([]),
-  secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
-  containsWords: GatewayGuardrailContainsListSchema.default([]),
-  assignments: gatewayGuardrailAssignmentsInput,
-};
-
-const hasGuardrailRule = (value: {
-  presets: unknown[];
-  secretPrefixes: unknown[];
-  containsWords: unknown[];
-}) =>
-  value.presets.length > 0 ||
-  value.secretPrefixes.length > 0 ||
-  value.containsWords.length > 0;
-
-const GUARDRAIL_RULE_REQUIRED_MESSAGE =
-  "Configure at least one pattern, prefix, or keyword to detect";
-
-const gatewayGuardrailBulkTargetInput = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("ids"),
-    ids: z
-      .array(z.string().min(1))
-      .min(1)
-      .max(GATEWAY_GUARDRAIL_MAX_BULK_DELETE),
-  }),
-  z.object({
-    type: z.literal("matching"),
-    searchQuery: z.string().trim().optional(),
-  }),
-]);
-
 /** User budgets are for gateway managers only; members work with their own keys' budgets. */
 function requireBudgetScopeAccess(
   session: Session,
@@ -250,6 +190,7 @@ function requireGatewayRead(params: { session: Session; orgId: string }) {
 }
 
 export const aiGatewayRouter = createTRPCRouter({
+  guardrails: gatewayGuardrailRouter,
   getConfig: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
@@ -1072,184 +1013,5 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
       });
       return { success: true };
-    }),
-
-  listGuardrails: protectedOrganizationProcedure
-    .input(
-      offsetPaginatedOrganizationInput.extend({
-        searchQuery: z.string().trim().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayGuardrailsRead({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      const canManageGateway = hasOrganizationAccess({
-        session: ctx.session,
-        organizationId: input.orgId,
-        scope: "gateway:manage",
-      });
-      return new GatewayGuardrailService(ctx.prisma).list({
-        organizationId: input.orgId,
-        searchQuery: input.searchQuery || undefined,
-        page: input.page,
-        limit: input.limit,
-        viewer: { canManageGateway, userId: ctx.session.user.id },
-      });
-    }),
-
-  listMatchingGuardrails: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        searchQuery: z.string().trim().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayGuardrailsRead({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).listMatching({
-        organizationId: input.orgId,
-        searchQuery: input.searchQuery || undefined,
-      });
-    }),
-
-  getGuardrailFlaggedTimeSeries: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        fromTimestamp: z.date(),
-        toTimestamp: z.date(),
-        granularity: z.enum(["day", "week", "month"]),
-        selection: z
-          .discriminatedUnion("type", [
-            z.object({
-              type: z.literal("ids"),
-              ids: z.array(z.string().min(1)).max(100),
-            }),
-            z.object({
-              type: z.literal("matching"),
-              searchQuery: z.string().trim().optional(),
-            }),
-          ])
-          .optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayGuardrailsRead({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).getFlaggedTimeSeries({
-        organizationId: input.orgId,
-        fromTimestamp: input.fromTimestamp,
-        toTimestamp: input.toTimestamp,
-        granularity: input.granularity,
-        selection: input.selection,
-      });
-    }),
-
-  searchGuardrailTargets: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        searchQuery: z.string().trim().max(200).optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).searchTargets({
-        organizationId: input.orgId,
-        searchQuery: input.searchQuery || undefined,
-        limit: GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
-      });
-    }),
-
-  createGuardrail: protectedOrganizationProcedure
-    .input(
-      organizationInput
-        .extend(gatewayGuardrailWriteFields)
-        .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).create({
-        organizationId: input.orgId,
-        name: input.name,
-        action: input.action,
-        presets: input.presets,
-        secretPrefixes: input.secretPrefixes,
-        containsWords: input.containsWords,
-        assignments: input.assignments,
-        session: ctx.session,
-      });
-    }),
-
-  updateGuardrail: protectedOrganizationProcedure
-    .input(
-      connectionInput
-        .extend(gatewayGuardrailWriteFields)
-        .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).update({
-        organizationId: input.orgId,
-        id: input.id,
-        name: input.name,
-        action: input.action,
-        presets: input.presets,
-        secretPrefixes: input.secretPrefixes,
-        containsWords: input.containsWords,
-        assignments: input.assignments,
-        session: ctx.session,
-      });
-    }),
-
-  setGuardrailsAssignments: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        target: gatewayGuardrailBulkTargetInput,
-        assignments: gatewayGuardrailAssignmentsInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).setAssignmentsForMany({
-        organizationId: input.orgId,
-        target: input.target,
-        assignments: input.assignments,
-        session: ctx.session,
-      });
-    }),
-
-  deleteGuardrails: protectedOrganizationProcedure
-    .input(
-      organizationInput.extend({
-        target: gatewayGuardrailBulkTargetInput,
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      requireGatewayGuardrailsAdmin({
-        session: ctx.session,
-        orgId: input.orgId,
-      });
-      return new GatewayGuardrailService(ctx.prisma).deleteMany({
-        organizationId: input.orgId,
-        target: input.target,
-        session: ctx.session,
-      });
     }),
 });

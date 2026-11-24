@@ -46,7 +46,7 @@ export function GatewayGuardrailsChart({
     );
   }, [selectedGuardrails]);
 
-  const query = api.aiGateway.getGuardrailFlaggedTimeSeries.useQuery(
+  const query = api.aiGateway.guardrails.getFlaggedTimeSeries.useQuery(
     {
       orgId: organizationId,
       fromTimestamp: timeRange.from,

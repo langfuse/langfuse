@@ -14,7 +14,7 @@ export function useGatewayGuardrailSelection(
   organizationId: string,
   table: ReturnType<typeof useGatewayGuardrailsTableState>,
 ) {
-  const matching = api.aiGateway.listMatchingGuardrails.useQuery(
+  const matching = api.aiGateway.guardrails.listMatching.useQuery(
     {
       orgId: organizationId,
       searchQuery: table.matching.searchQuery,

@@ -15,7 +15,7 @@ export function useGatewayGuardrailsTableState(organizationId: string) {
   const { searchQuery, pagination, selectionStore } = state;
   const trimmedSearch = searchQuery.trim() || undefined;
 
-  const guardrails = api.aiGateway.listGuardrails.useQuery({
+  const guardrails = api.aiGateway.guardrails.list.useQuery({
     orgId: organizationId,
     searchQuery: trimmedSearch,
     page: pagination.pageIndex,

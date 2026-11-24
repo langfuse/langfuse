@@ -5,11 +5,11 @@ export function useInvalidateGatewayGuardrails(organizationId: string) {
   const utils = api.useUtils();
   return () =>
     Promise.all([
-      utils.aiGateway.listGuardrails.invalidate({ orgId: organizationId }),
-      utils.aiGateway.listMatchingGuardrails.invalidate({
+      utils.aiGateway.guardrails.list.invalidate({ orgId: organizationId }),
+      utils.aiGateway.guardrails.listMatching.invalidate({
         orgId: organizationId,
       }),
-      utils.aiGateway.getGuardrailFlaggedTimeSeries.invalidate({
+      utils.aiGateway.guardrails.getFlaggedTimeSeries.invalidate({
         orgId: organizationId,
       }),
     ]);
