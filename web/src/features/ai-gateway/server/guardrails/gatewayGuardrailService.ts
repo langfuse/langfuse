@@ -17,7 +17,9 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS,
+  GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
+  GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
@@ -99,7 +101,8 @@ export class GatewayGuardrailService {
     page: number;
     limit: number;
   }) {
-    const { rows, totalCount } = await this.repository.listPage(params);
+    const { rows, totalCount, organizationCount } =
+      await this.repository.listPage(params);
     const recordingProjectId =
       rows.length > 0
         ? await this.configService.getRecordingProjectId(params.organizationId)
@@ -114,6 +117,7 @@ export class GatewayGuardrailService {
 
     return {
       totalCount,
+      organizationCount,
       rows: rows.map((row) => toGuardrailDto(row, flaggedCounts)),
     };
   }
@@ -192,7 +196,16 @@ export class GatewayGuardrailService {
     );
 
     const created = await this.writeGuardrail(async (tx) => {
-      const record = await new GatewayGuardrailRepository(tx).create({
+      // Serialize concurrent creates per organization so the cap cannot be exceeded.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`gateway_guardrail:${params.organizationId}`}))`;
+      const repo = new GatewayGuardrailRepository(tx);
+      const existingCount = await repo.countByOrganization(
+        params.organizationId,
+      );
+      if (existingCount >= GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION) {
+        throw new InvalidRequestError(GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE);
+      }
+      const record = await repo.create({
         organizationId: params.organizationId,
         name: params.name,
         action: params.action,

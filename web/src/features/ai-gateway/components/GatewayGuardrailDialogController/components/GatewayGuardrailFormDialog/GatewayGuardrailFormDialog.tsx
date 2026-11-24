@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft } from "@langfuse/icons";
+import { ChevronLeft, LifeBuoy } from "@langfuse/icons";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -19,6 +19,7 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
+  GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
@@ -82,6 +83,7 @@ export type GatewayGuardrailFormDialogProps = {
   isSubmitting: boolean;
   errorMessage: string | null;
   onBack?: () => void;
+  onContactSupport?: () => void;
   onSubmit: (values: GatewayGuardrailFormValues) => void;
 };
 
@@ -95,6 +97,7 @@ export function GatewayGuardrailFormDialog({
   isSubmitting,
   errorMessage,
   onBack,
+  onContactSupport,
   onSubmit,
 }: GatewayGuardrailFormDialogProps) {
   const formId = useId();
@@ -255,7 +258,22 @@ export function GatewayGuardrailFormDialog({
           </div>
 
           {errorMessage !== null ? (
-            <Banner variant="error" title="Guardrail could not be saved">
+            <Banner
+              variant="error"
+              title="Guardrail could not be saved"
+              actions={
+                onContactSupport &&
+                errorMessage === GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE
+                  ? [
+                      {
+                        text: "Share feedback with support",
+                        icon: LifeBuoy,
+                        onClick: onContactSupport,
+                      },
+                    ]
+                  : undefined
+              }
+            >
               {errorMessage}
             </Banner>
           ) : null}

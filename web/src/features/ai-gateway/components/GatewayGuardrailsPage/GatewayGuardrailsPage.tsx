@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { LifeBuoy } from "@langfuse/icons";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -10,8 +11,10 @@ import { ConnectedGatewayGuardrailsTable } from "@/src/features/ai-gateway/compo
 import { useGatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
 import { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailsTableState";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
+import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailInterval } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -31,6 +34,7 @@ export function GatewayGuardrailsPage({
 }: GatewayGuardrailsPageProps) {
   const { canManageGateway, isIngestionConfigured, isRecording } =
     useGatewaySettingsAccess(organizationId);
+  const openLimitFeedback = useOpenGuardrailsLimitFeedback();
   const table = useGatewayGuardrailsTableState(organizationId);
   const guardrailSelection = useGatewayGuardrailSelection(
     organizationId,
@@ -50,6 +54,10 @@ export function GatewayGuardrailsPage({
   }
 
   const canQueryAnalytics = isRecording === true && absoluteTimeRange !== null;
+  const isAtGuardrailLimit =
+    canManageGateway &&
+    (table.guardrails.data?.organizationCount ?? 0) >=
+      GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION;
 
   return (
     <>
@@ -63,6 +71,24 @@ export function GatewayGuardrailsPage({
         />
       </PageHeaderControlsPortal>
       <div className="flex flex-col gap-2">
+        {isAtGuardrailLimit ? (
+          <Banner
+            variant="info"
+            title={`You’ve reached the limit of ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} guardrails`}
+            actions={[
+              {
+                text: "Share feedback with support",
+                icon: LifeBuoy,
+                onClick: openLimitFeedback,
+              },
+            ]}
+          >
+            Organizations can have up to{" "}
+            {GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} guardrails in place. Need
+            more for your setup? Tell us what you’re building so we can learn
+            from your use case and help.
+          </Banner>
+        ) : null}
         {isRecording === false ? (
           <Banner title="Gateway requests aren’t recorded">
             {canManageGateway

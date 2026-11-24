@@ -6,6 +6,7 @@ import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
   GatewayGuardrailFormDialog,
@@ -123,5 +124,22 @@ export const EditGuardrail = meta.story({
     },
     isSubmitting: false,
     errorMessage: null,
+  },
+});
+
+export const LimitReachedError = meta.story({
+  args: {
+    title: piiTemplate.name,
+    submitLabel: "Add guardrail",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Extra PII rule",
+      presets: [...piiTemplate.defaultPresets],
+      action: "BLOCK",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
+    onContactSupport: fn(),
   },
 });

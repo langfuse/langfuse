@@ -97,7 +97,8 @@ export class GatewayGuardrailRepository {
     limit: number;
   }) {
     const where = toGuardrailWhere(params);
-    const [rows, totalCount] = await Promise.all([
+    const hasSearch = Boolean(params.searchQuery);
+    const [rows, totalCount, organizationCount] = await Promise.all([
       this.prisma.gatewayGuardrail.findMany({
         where,
         select: GUARDRAIL_SELECT,
@@ -106,8 +107,21 @@ export class GatewayGuardrailRepository {
         take: params.limit,
       }),
       this.prisma.gatewayGuardrail.count({ where }),
+      hasSearch
+        ? this.countByOrganization(params.organizationId)
+        : Promise.resolve(null),
     ]);
-    return { rows, totalCount };
+    return {
+      rows,
+      totalCount,
+      organizationCount: organizationCount ?? totalCount,
+    };
+  }
+
+  countByOrganization(organizationId: string) {
+    return this.prisma.gatewayGuardrail.count({
+      where: { organizationId },
+    });
   }
 
   listMatching(params: { organizationId: string; searchQuery?: string }) {

@@ -21,6 +21,7 @@ import {
   type GatewayGuardrailTemplate,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
+import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   type GatewayGuardrailPreset,
@@ -49,6 +50,7 @@ export function GatewayGuardrailDialogController({
   children,
 }: GatewayGuardrailDialogControllerProps) {
   const invalidateGuardrails = useInvalidateGatewayGuardrails(organizationId);
+  const openLimitFeedback = useOpenGuardrailsLimitFeedback();
   const createMutation = api.aiGateway.createGuardrail.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
@@ -76,6 +78,12 @@ export function GatewayGuardrailDialogController({
           ? (activeMutation.error?.message ?? "Try again.")
           : null;
 
+        const handleContactSupport = () => {
+          closeDialog();
+          resetMutations();
+          openLimitFeedback();
+        };
+
         return (
           <ConnectedGuardrailDialog
             organizationId={organizationId}
@@ -83,6 +91,7 @@ export function GatewayGuardrailDialogController({
             isSubmitting={isPending}
             errorMessage={errorMessage}
             onClearError={resetMutations}
+            onContactSupport={handleContactSupport}
             onSubmit={async (values) => {
               const assignments = targetOptionsToAssignments(values.targets);
               try {
@@ -127,6 +136,7 @@ type ConnectedGuardrailDialogProps = {
   isSubmitting: boolean;
   errorMessage: string | null;
   onClearError: () => void;
+  onContactSupport: () => void;
   onSubmit: (values: GatewayGuardrailFormValues) => void;
 };
 
@@ -136,6 +146,7 @@ function ConnectedGuardrailDialog({
   isSubmitting,
   errorMessage,
   onClearError,
+  onContactSupport,
   onSubmit,
 }: ConnectedGuardrailDialogProps) {
   const [selectedTemplate, setSelectedTemplate] =
@@ -208,6 +219,7 @@ function ConnectedGuardrailDialog({
         isSubmitting={isSubmitting}
         errorMessage={errorMessage}
         onBack={handleBack}
+        onContactSupport={onContactSupport}
         onSubmit={onSubmit}
       />
     );

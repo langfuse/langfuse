@@ -7,6 +7,10 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { env } from "@/src/env.mjs";
+import {
+  GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+} from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { appRouter } from "@/src/server/api/root";
@@ -412,5 +416,87 @@ describe("aiGateway guardrails tRPC", () => {
 
     const afterDelete = await ownerCaller.aiGateway.listGuardrails({ orgId });
     expect(afterDelete.totalCount).toBe(0);
+    expect(afterDelete.organizationCount).toBe(0);
+  });
+
+  it("enforces a maximum of 20 guardrails per organization", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const otherOrgId = await createOrganization();
+    const owner = await createUser("Limit Owner");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const otherOrgCaller = createCaller({
+      orgId: otherOrgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+
+    const createdIds: string[] = [];
+    for (
+      let index = 0;
+      index < GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION;
+      index++
+    ) {
+      const guardrail = await createGuardrail({
+        organizationId: orgId,
+        name: `Guardrail ${index + 1}`,
+        assignments: [{ scope: "ORGANIZATION" }],
+      });
+      createdIds.push(guardrail.id);
+    }
+
+    // Even when search filters down totalCount, organizationCount still reflects all 20.
+    const filteredList = await ownerCaller.aiGateway.listGuardrails({
+      orgId,
+      searchQuery: "Guardrail 1",
+    });
+    expect(filteredList.organizationCount).toBe(
+      GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+    );
+
+    // 21st guardrail in the same org is rejected with the support guidance message.
+    await expect(
+      ownerCaller.aiGateway.createGuardrail({
+        orgId,
+        name: "Guardrail 21",
+        action: "BLOCK",
+        presets: ["email"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toThrow(GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE);
+
+    // Another organization is unaffected.
+    const otherCreated = await otherOrgCaller.aiGateway.createGuardrail({
+      orgId: otherOrgId,
+      name: "Other org guardrail",
+      action: "LOG",
+      presets: ["email"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(otherCreated.name).toBe("Other org guardrail");
+
+    // Deleting one frees a slot.
+    await ownerCaller.aiGateway.deleteGuardrails({
+      orgId,
+      target: { type: "ids", ids: [createdIds[0]!] },
+    });
+    const createdAfterDelete = await ownerCaller.aiGateway.createGuardrail({
+      orgId,
+      name: "Guardrail 21",
+      action: "BLOCK",
+      presets: ["email"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(createdAfterDelete.name).toBe("Guardrail 21");
   });
 });
