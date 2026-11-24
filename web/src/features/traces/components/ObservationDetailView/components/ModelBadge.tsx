@@ -32,7 +32,7 @@ export function ModelBadge({
   return (
     <UpsertModelFormDialogController
       action="create"
-      projectId={projectId}
+      owner={{ scope: "project", projectId }}
       prefilledModelData={{
         modelName: model,
         prices:

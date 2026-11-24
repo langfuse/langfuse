@@ -10,7 +10,11 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { useTestModelMatch } from "@/src/features/models/hooks/useModelDefinitionApi";
+import {
+  modelDetailHref,
+  type ModelOwner,
+} from "@/src/features/models/modelOwner";
 import { UsageDetailsEditor } from "./UsageDetailsEditor";
 import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
@@ -23,11 +27,11 @@ const validStringMap = (entries: Array<[string, string]>) =>
   Object.fromEntries(entries.filter(([key]) => key.trim().length > 0));
 
 export function TestModelMatchDialogContent({
-  projectId,
+  owner,
   open,
   onClose,
 }: {
-  projectId: string;
+  owner: ModelOwner;
   open: boolean;
   onClose: () => void;
 }) {
@@ -44,18 +48,12 @@ export function TestModelMatchDialogContent({
   const metadata = validStringMap(metadataEntries);
 
   // Query for match result - only enabled after submit
-  const { data, isLoading, error, refetch } = api.models.testMatch.useQuery(
-    {
-      projectId,
-      modelName,
-      usageDetails,
-      modelParameters,
-      metadata,
-    },
-    {
-      enabled: false, // Manual trigger only
-    },
-  );
+  const { data, isLoading, error, refetch } = useTestModelMatch(owner, {
+    modelName,
+    usageDetails,
+    modelParameters,
+    metadata,
+  });
 
   // Handle form submission
   const handleSubmit = (e: React.SyntheticEvent) => {
@@ -198,7 +196,7 @@ export function TestModelMatchDialogContent({
               <div className="border-t pt-4">
                 <Button variant="outline" asChild className="w-full">
                   <Link
-                    href={`/project/${projectId}/settings/models/${data.model.id}?pricingTier=${data.matchedTier.id}`}
+                    href={`${modelDetailHref(owner, data.model.id)}?pricingTier=${data.matchedTier.id}`}
                     target="_blank"
                   >
                     View Model Details
