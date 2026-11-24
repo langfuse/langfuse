@@ -1,6 +1,5 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getBillableEventsLedgerStart,
   getBillableUnitCountsForAllProjectsInRange,
   getBillingCycleStart,
   startOfDayUTC,
@@ -156,21 +155,6 @@ export async function processUsageAggregationForAllOrgs(
   // Normalize referenceDate to UTC end of day
   const normalizedReferenceDate = endOfDayUTC(referenceDate);
 
-  // Calculate how many days to look back (based on previous month's length)
-  const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
-
-  // The ledger is not backfilled, so days before its first row would count
-  // as no usage and lift the blocks of orgs that are over their limit.
-  const firstDayRead = new Date(normalizedReferenceDate);
-  firstDayRead.setUTCDate(firstDayRead.getUTCDate() - daysToLookBack);
-  const firstDayStart = startOfDayUTC(firstDayRead);
-  const ledgerStart = await getBillableEventsLedgerStart();
-  if (!ledgerStart || ledgerStart > firstDayStart) {
-    throw new Error(
-      `Free-tier usage thresholds need billable units from ${firstDayStart.toISOString()}, but the ledger starts at ${ledgerStart?.toISOString() ?? "no rows"}`,
-    );
-  }
-
   // Setup
   const projectToOrgMap = await buildProjectToOrgMap();
   const allOrgs = await fetchAllOrgsWithBillingInfo();
@@ -207,6 +191,9 @@ export async function processUsageAggregationForAllOrgs(
     totalOrgsFailed: 0,
     failedOrgIds: [],
   };
+
+  // Calculate how many days to look back (based on previous month's length)
+  const daysToLookBack = getDaysToLookBack(normalizedReferenceDate);
 
   // Process day-by-day (backwards from referenceDate)
   const totalDays = daysToLookBack + 1; // Total days to process (0 to daysToLookBack inclusive)
