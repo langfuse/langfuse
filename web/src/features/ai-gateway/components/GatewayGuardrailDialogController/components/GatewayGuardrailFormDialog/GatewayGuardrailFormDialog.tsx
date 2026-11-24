@@ -8,7 +8,12 @@ import {
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
+import {
+  ChevronLeft,
+  LifeBuoy,
+  SquareArrowOutUpRight,
+  X,
+} from "@langfuse/icons";
 import { Controller, useForm, type Control } from "react-hook-form";
 import { z } from "zod";
 
@@ -427,6 +432,25 @@ export function GatewayGuardrailFormDialog({
           <PopoverLayerProvider container={popoverContainer}>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
+                {isBedrock ? (
+                  <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
+                    Evaluates each request&apos;s latest turn against an
+                    existing guardrail in your AWS account using{" "}
+                    <code className="text-foreground font-mono">
+                      ApplyGuardrail
+                    </code>
+                    .{" "}
+                    <a
+                      href="https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-link hover:text-link-hover inline-flex items-center gap-0.5 underline"
+                    >
+                      Amazon Bedrock Guardrails docs
+                      <SquareArrowOutUpRight size="sm" aria-hidden />
+                    </a>
+                  </p>
+                ) : null}
                 <Form
                   id={formId}
                   density="compact"
@@ -687,6 +711,7 @@ function BedrockGuardrailFields({
           control={control}
           name="bedrockGuardrailVersion"
           label="Version"
+          description="Published version (e.g. 1) or DRAFT for the working draft."
         >
           {({ id, inputDescribedById, error, ...field }) => (
             <Input
