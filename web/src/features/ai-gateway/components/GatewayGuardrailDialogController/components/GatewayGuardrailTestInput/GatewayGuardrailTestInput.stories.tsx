@@ -7,9 +7,13 @@ import { GatewayGuardrailTestInput } from "./GatewayGuardrailTestInput";
 function InteractiveTestInput({
   initialValue,
   presets,
+  secretPrefixes,
+  containsWords,
 }: {
   initialValue: string;
   presets: readonly GatewayGuardrailPreset[];
+  secretPrefixes?: readonly string[];
+  containsWords?: readonly string[];
 }) {
   const [value, setValue] = useState(initialValue);
   return (
@@ -18,6 +22,8 @@ function InteractiveTestInput({
         value={value}
         onChange={setValue}
         presets={presets}
+        secretPrefixes={secretPrefixes}
+        containsWords={containsWords}
       />
     </div>
   );
@@ -30,14 +36,24 @@ const meta = preview.meta({
 export const PiiMatches = meta.story({
   args: {
     initialValue:
-      "My SSN is 123-45-6789, reach me at dana@example.com or +1 415 555 0132.",
-    presets: ["us_ssn", "credit_card", "email"],
+      "My SSN is 123-45-6789, reach me at dana@example.com from 192.168.1.42.",
+    presets: ["us_ssn", "credit_card", "email", "ip_address"],
   },
 });
 
-export const SecretMatch = meta.story({
+export const SecretAndCustomPrefixMatch = meta.story({
   args: {
-    initialValue: "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+    initialValue:
+      "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE ACME_KEY=acme_sk_1234567890abcdef",
     presets: ["aws_access_key_id"],
+    secretPrefixes: ["acme_sk_"],
+  },
+});
+
+export const KeywordBlocklistMatch = meta.story({
+  args: {
+    initialValue: "This report is CONFIDENTIAL and Internal Only.",
+    presets: [],
+    containsWords: ["confidential", "internal only"],
   },
 });

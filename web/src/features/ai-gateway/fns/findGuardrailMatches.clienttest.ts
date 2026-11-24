@@ -3,38 +3,64 @@ import { describe, expect, it } from "vitest";
 import { findGuardrailMatches } from "@/src/features/ai-gateway/fns/findGuardrailMatches";
 
 describe("findGuardrailMatches", () => {
-  it("highlights matches from multiple selected presets in order", () => {
+  it("highlights matches from multiple selected PII presets including IP addresses", () => {
     const segments = findGuardrailMatches(
-      "My SSN is 123-45-6789, reach me at dana@example.com today.",
-      ["us_ssn", "email"],
+      "My SSN is 123-45-6789, reach me at dana@example.com from 192.168.1.42 or 2001:db8::1.",
+      { presets: ["us_ssn", "email", "ip_address"] },
     );
     expect(segments).toEqual([
       { text: "My SSN is ", matched: false },
       { text: "123-45-6789", matched: true },
       { text: ", reach me at ", matched: false },
       { text: "dana@example.com", matched: true },
-      { text: " today.", matched: false },
+      { text: " from ", matched: false },
+      { text: "192.168.1.42", matched: true },
+      { text: " or ", matched: false },
+      { text: "2001:db8::1", matched: true },
+      { text: ".", matched: false },
     ]);
   });
 
-  it("ignores patterns for unselected presets", () => {
+  it("matches secret presets and custom secret prefixes with non-token boundaries", () => {
     const segments = findGuardrailMatches(
-      "Contact dana@example.com with AKIAIOSFODNN7EXAMPLE",
-      ["aws_access_key_id"],
+      "Keys: sk-lf-1234567890abcdef and acme_sk_1234567890abcdef and notacme_sk_1234567890abcdef",
+      {
+        presets: ["langfuse_api_key"],
+        secretPrefixes: ["acme_sk_"],
+      },
     );
     expect(segments).toEqual([
-      { text: "Contact dana@example.com with ", matched: false },
-      { text: "AKIAIOSFODNN7EXAMPLE", matched: true },
+      { text: "Keys: ", matched: false },
+      { text: "sk-lf-1234567890abcdef", matched: true },
+      { text: " and ", matched: false },
+      { text: "acme_sk_1234567890abcdef", matched: true },
+      { text: " and notacme_sk_1234567890abcdef", matched: false },
     ]);
   });
 
-  it("returns plain text when no preset matches or none are selected", () => {
-    expect(findGuardrailMatches("hello world", ["us_ssn"])).toEqual([
-      { text: "hello world", matched: false },
+  it("matches ASCII case-insensitive whole words/phrases in contains list", () => {
+    const segments = findGuardrailMatches(
+      "Confidential project: DO NOT SHARE unconfidentially.",
+      {
+        presets: [],
+        containsWords: ["confidential", "do not share"],
+      },
+    );
+    expect(segments).toEqual([
+      { text: "Confidential", matched: true },
+      { text: " project: ", matched: false },
+      { text: "DO NOT SHARE", matched: true },
+      { text: " unconfidentially.", matched: false },
     ]);
-    expect(findGuardrailMatches("123-45-6789", [])).toEqual([
+  });
+
+  it("returns plain text when nothing matches or empty", () => {
+    expect(
+      findGuardrailMatches("hello world", { presets: ["us_ssn"] }),
+    ).toEqual([{ text: "hello world", matched: false }]);
+    expect(findGuardrailMatches("123-45-6789", { presets: [] })).toEqual([
       { text: "123-45-6789", matched: false },
     ]);
-    expect(findGuardrailMatches("", ["us_ssn"])).toEqual([]);
+    expect(findGuardrailMatches("", { presets: ["us_ssn"] })).toEqual([]);
   });
 });

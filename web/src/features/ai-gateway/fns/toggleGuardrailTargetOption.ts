@@ -2,7 +2,7 @@ import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInpu
 import {
   EVERYONE_TARGET_OPTION,
   EVERYONE_TARGET_VALUE,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+} from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
 
 /**
  * Enforces mutual exclusivity between Everyone (`ORGANIZATION`) and specific

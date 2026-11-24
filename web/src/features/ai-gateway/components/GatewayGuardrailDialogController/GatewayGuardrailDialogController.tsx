@@ -1,28 +1,24 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { keepPreviousData } from "@tanstack/react-query";
-import { KeyRound, User } from "@langfuse/icons";
+import { useState, type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import {
   GatewayGuardrailFormDialog,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
 import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
 import {
-  API_KEY_TARGET_PREFIX,
-  EVERYONE_TARGET_OPTION,
-  USER_TARGET_PREFIX,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
-import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
-import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
-import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
+  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
+import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/fns/assignmentsToTargetOptions";
+import { targetOptionsToAssignments } from "@/src/features/ai-gateway/fns/targetOptionsToAssignments";
+import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailTargetPicker";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
+  GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
@@ -101,6 +97,8 @@ export function GatewayGuardrailDialogController({
                     name: values.name,
                     action: values.action,
                     presets: values.presets,
+                    secretPrefixes: values.secretPrefixes,
+                    containsWords: values.containsWords,
                     assignments,
                   });
                 } else {
@@ -110,6 +108,8 @@ export function GatewayGuardrailDialogController({
                     name: values.name,
                     action: values.action,
                     presets: values.presets,
+                    secretPrefixes: values.secretPrefixes,
+                    containsWords: values.containsWords,
                     assignments,
                   });
                 }
@@ -151,40 +151,12 @@ function ConnectedGuardrailDialog({
 }: ConnectedGuardrailDialogProps) {
   const [selectedTemplate, setSelectedTemplate] =
     useState<GatewayGuardrailTemplate | null>(null);
-  const [search, setSearch] = useState("");
 
   const isFormOpen = state.mode === "edit" || selectedTemplate !== null;
-  const targetsQuery = api.aiGateway.searchGuardrailTargets.useQuery(
-    {
-      orgId: organizationId,
-      searchQuery: search || undefined,
-    },
-    {
-      enabled: isFormOpen,
-      placeholderData: keepPreviousData,
-    },
+  const targetPicker = useGatewayGuardrailTargetPicker(
+    organizationId,
+    isFormOpen,
   );
-
-  const targetOptions = useMemo<TagAutocompleteOption[]>(() => {
-    if (!targetsQuery.data) return [];
-    const users: TagAutocompleteOption[] = targetsQuery.data.users.map(
-      (user) => ({
-        value: `${USER_TARGET_PREFIX}${user.id}`,
-        label: user.name || user.email || user.id,
-        secondaryLabel: user.name && user.email ? user.email : undefined,
-        icon: User,
-      }),
-    );
-    const apiKeys: TagAutocompleteOption[] = targetsQuery.data.apiKeys.map(
-      (apiKey) => ({
-        value: `${API_KEY_TARGET_PREFIX}${apiKey.id}`,
-        label: apiKey.name,
-        secondaryLabel: apiKey.ownerLabel ?? "API key",
-        icon: KeyRound,
-      }),
-    );
-    return [...users, ...apiKeys];
-  }, [targetsQuery.data]);
 
   if (state.mode === "create" && selectedTemplate === null) {
     return (
@@ -202,20 +174,18 @@ function ConnectedGuardrailDialog({
         key={selectedTemplate.id}
         title={selectedTemplate.name}
         submitLabel="Add guardrail"
+        templateKind={selectedTemplate.id}
         availablePresets={selectedTemplate.presets}
         initialValues={{
           name: selectedTemplate.name,
           presets: [...selectedTemplate.defaultPresets],
+          secretPrefixes: [],
+          containsWords: [],
           action: "BLOCK",
           targets: [EVERYONE_TARGET_OPTION],
         }}
         initialTestText={selectedTemplate.sampleTestText}
-        targetPicker={{
-          options: targetOptions,
-          search,
-          onSearchChange: setSearch,
-          isLoading: targetsQuery.isLoading,
-        }}
+        targetPicker={targetPicker}
         isSubmitting={isSubmitting}
         errorMessage={errorMessage}
         onBack={handleBack}
@@ -229,7 +199,7 @@ function ConnectedGuardrailDialog({
     GuardrailDialogState,
     { mode: "edit" }
   >;
-  const availablePresets = resolveEditablePresets(guardrail.presets);
+  const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
   const initialAction: GatewayGuardrailUiAction =
     guardrail.action === "LOG" ? "LOG" : "BLOCK";
 
@@ -238,19 +208,17 @@ function ConnectedGuardrailDialog({
       key={guardrail.id}
       title="Edit guardrail"
       submitLabel="Save changes"
+      templateKind={templateKind}
       availablePresets={availablePresets}
       initialValues={{
         name: guardrail.name,
         presets: guardrail.presets,
+        secretPrefixes: guardrail.secretPrefixes,
+        containsWords: guardrail.containsWords,
         action: initialAction,
         targets: assignmentsToTargetOptions(guardrail.assignments),
       }}
-      targetPicker={{
-        options: targetOptions,
-        search,
-        onSearchChange: setSearch,
-        isLoading: targetsQuery.isLoading,
-      }}
+      targetPicker={targetPicker}
       isSubmitting={isSubmitting}
       errorMessage={errorMessage}
       onSubmit={onSubmit}
@@ -258,19 +226,45 @@ function ConnectedGuardrailDialog({
   );
 }
 
-/**
- * Shows the owning template's presets when a guardrail belongs cleanly to one
- * template, or every built-in preset if it combines presets across templates.
- */
-function resolveEditablePresets(
-  presets: readonly GatewayGuardrailPreset[],
-): readonly GatewayGuardrailPreset[] {
-  const matchingTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
-    (template) =>
-      presets.length > 0 &&
-      presets.every((preset) => template.presets.includes(preset)),
+function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
+  templateKind: GatewayGuardrailTemplateKind;
+  availablePresets: readonly GatewayGuardrailPreset[];
+} {
+  if (
+    guardrail.presets.length === 0 &&
+    guardrail.secretPrefixes.length === 0 &&
+    guardrail.containsWords.length > 0
+  ) {
+    return { templateKind: "contains", availablePresets: [] };
+  }
+  const hasSecrets =
+    guardrail.secretPrefixes.length > 0 ||
+    (guardrail.presets.length > 0 &&
+      guardrail.presets.every(
+        (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
+      ));
+  if (hasSecrets) {
+    const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+      (template) => template.id === "secrets",
+    );
+    return {
+      templateKind: "secrets",
+      availablePresets:
+        secretsTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS,
+    };
+  }
+  const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+    (template) => template.id === "pii",
   );
-  return matchingTemplate
-    ? matchingTemplate.presets
-    : GATEWAY_GUARDRAIL_PRESET_KEYS;
+  const allPii =
+    guardrail.presets.length > 0 &&
+    guardrail.presets.every(
+      (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "pii",
+    );
+  return {
+    templateKind: "pii",
+    availablePresets: allPii
+      ? (piiTemplate?.presets ?? GATEWAY_GUARDRAIL_PRESET_KEYS)
+      : GATEWAY_GUARDRAIL_PRESET_KEYS,
+  };
 }

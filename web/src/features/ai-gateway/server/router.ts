@@ -56,7 +56,9 @@ import {
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
   GatewayGuardrailAssignmentsInputSchema,
+  GatewayGuardrailContainsListSchema,
   GatewayGuardrailPresetSchema,
+  GatewayGuardrailSecretPrefixesSchema,
   GatewayGuardrailUiActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import {
@@ -1123,21 +1125,29 @@ export const aiGatewayRouter = createTRPCRouter({
 
   createGuardrail: protectedOrganizationProcedure
     .input(
-      organizationInput.extend({
-        name: z
-          .string()
-          .trim()
-          .min(1, "Guardrails need a name")
-          .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-        action: GatewayGuardrailUiActionSchema,
-        presets: z
-          .array(GatewayGuardrailPresetSchema)
-          .min(1, "Select at least one pattern to detect"),
-        assignments: GatewayGuardrailAssignmentsInputSchema.refine(
-          (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
-          `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+      organizationInput
+        .extend({
+          name: z
+            .string()
+            .trim()
+            .min(1, "Guardrails need a name")
+            .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
+          action: GatewayGuardrailUiActionSchema,
+          presets: z.array(GatewayGuardrailPresetSchema).default([]),
+          secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
+          containsWords: GatewayGuardrailContainsListSchema.default([]),
+          assignments: GatewayGuardrailAssignmentsInputSchema.refine(
+            (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
+            `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+          ),
+        })
+        .refine(
+          (value) =>
+            value.presets.length > 0 ||
+            value.secretPrefixes.length > 0 ||
+            value.containsWords.length > 0,
+          "Configure at least one pattern, prefix, or keyword to detect",
         ),
-      }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({
@@ -1149,6 +1159,8 @@ export const aiGatewayRouter = createTRPCRouter({
         name: input.name,
         action: input.action,
         presets: input.presets,
+        secretPrefixes: input.secretPrefixes,
+        containsWords: input.containsWords,
         assignments: input.assignments,
         session: ctx.session,
       });
@@ -1156,21 +1168,29 @@ export const aiGatewayRouter = createTRPCRouter({
 
   updateGuardrail: protectedOrganizationProcedure
     .input(
-      connectionInput.extend({
-        name: z
-          .string()
-          .trim()
-          .min(1, "Guardrails need a name")
-          .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-        action: GatewayGuardrailUiActionSchema,
-        presets: z
-          .array(GatewayGuardrailPresetSchema)
-          .min(1, "Select at least one pattern to detect"),
-        assignments: GatewayGuardrailAssignmentsInputSchema.refine(
-          (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
-          `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+      connectionInput
+        .extend({
+          name: z
+            .string()
+            .trim()
+            .min(1, "Guardrails need a name")
+            .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
+          action: GatewayGuardrailUiActionSchema,
+          presets: z.array(GatewayGuardrailPresetSchema).default([]),
+          secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
+          containsWords: GatewayGuardrailContainsListSchema.default([]),
+          assignments: GatewayGuardrailAssignmentsInputSchema.refine(
+            (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
+            `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+          ),
+        })
+        .refine(
+          (value) =>
+            value.presets.length > 0 ||
+            value.secretPrefixes.length > 0 ||
+            value.containsWords.length > 0,
+          "Configure at least one pattern, prefix, or keyword to detect",
         ),
-      }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayGuardrailsAdmin({
@@ -1183,6 +1203,43 @@ export const aiGatewayRouter = createTRPCRouter({
         name: input.name,
         action: input.action,
         presets: input.presets,
+        secretPrefixes: input.secretPrefixes,
+        containsWords: input.containsWords,
+        assignments: input.assignments,
+        session: ctx.session,
+      });
+    }),
+
+  setGuardrailsAssignments: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        target: z.discriminatedUnion("type", [
+          z.object({
+            type: z.literal("ids"),
+            ids: z
+              .array(z.string().min(1))
+              .min(1)
+              .max(GATEWAY_GUARDRAIL_MAX_BULK_DELETE),
+          }),
+          z.object({
+            type: z.literal("matching"),
+            searchQuery: z.string().trim().optional(),
+          }),
+        ]),
+        assignments: GatewayGuardrailAssignmentsInputSchema.refine(
+          (items) => items.length <= GATEWAY_GUARDRAIL_MAX_TARGETS,
+          `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+        ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayGuardrailService(ctx.prisma).setAssignmentsForMany({
+        organizationId: input.orgId,
+        target: input.target,
         assignments: input.assignments,
         session: ctx.session,
       });

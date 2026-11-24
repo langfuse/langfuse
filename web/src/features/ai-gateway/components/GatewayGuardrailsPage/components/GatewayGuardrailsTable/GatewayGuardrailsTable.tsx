@@ -13,6 +13,7 @@ import { GATEWAY_GUARDRAIL_ACTION_LABELS } from "@/src/features/ai-gateway/const
 import { formatGuardrailAssignments } from "@/src/features/ai-gateway/fns/formatGuardrailAssignments";
 import { formatGuardrailPresetsSummary } from "@/src/features/ai-gateway/fns/formatGuardrailPresetsSummary";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
+import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 export type GatewayGuardrailsTableProps = Pick<
@@ -51,7 +52,11 @@ const guardrailColumn = createTableColumn<
   enableResizing: false,
   loadingCell: guardrailCellSkeleton,
   renderCell: (_name, { row }) => {
-    const summary = formatGuardrailPresetsSummary(row.original.presets);
+    const summary = formatGuardrailPresetsSummary({
+      presets: row.original.presets,
+      secretPrefixes: row.original.secretPrefixes,
+      containsWords: row.original.containsWords,
+    });
     return (
       <div className="ph-no-capture flex min-w-0 items-center gap-2.5 py-0.5">
         <span className="bg-muted text-foreground flex size-7 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold">
@@ -135,6 +140,7 @@ const flaggedColumn = createNumberTableColumn<GatewayGuardrailRow>({
   header: "Flagged, 7d",
   size: 120,
   enableResizing: false,
+  formatter: (value) => numberFormatter(value, 0),
 });
 
 const DATA_COLUMNS: LangfuseColumnDef<GatewayGuardrailRow>[] = [

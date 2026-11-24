@@ -3,7 +3,7 @@ import {
   API_KEY_TARGET_PREFIX,
   EVERYONE_TARGET_VALUE,
   USER_TARGET_PREFIX,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
+} from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
 import type { GatewayGuardrailAssignmentInput } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 export function targetOptionsToAssignments(

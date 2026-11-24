@@ -1,4 +1,11 @@
-import { useId, useState, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useId,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
@@ -12,23 +19,35 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
+import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
-import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
+} from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
+  GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
+  GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
+  GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import { GATEWAY_GUARDRAIL_PRESET_LABELS } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import {
+  GATEWAY_GUARDRAIL_PRESET_LABELS,
+  type GatewayGuardrailTemplateKind,
+} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import {
+  deduplicateContainsWords,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
+  PRINTABLE_ASCII_NO_WHITESPACE_REGEX,
+  PRINTABLE_ASCII_TEXT_REGEX,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -44,33 +63,120 @@ const ACTION_OPTIONS: Array<{
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 
-const guardrailFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter a name for this guardrail")
-    .max(
-      GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
-      `Name must be at most ${GATEWAY_GUARDRAIL_MAX_NAME_LENGTH} characters`,
-    ),
-  presets: z
-    .array(z.enum(GATEWAY_GUARDRAIL_PRESET_KEYS))
-    .min(1, "Select at least one pattern to detect"),
-  action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
-  targets: z
-    .array(z.custom<TagAutocompleteOption>())
-    .min(1, "Select who this guardrail applies to")
-    .max(
-      GATEWAY_GUARDRAIL_MAX_TARGETS,
-      `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
-    ),
-});
+function parseContainsText(text: string): string[] {
+  return deduplicateContainsWords(text.split(/\r?\n/));
+}
 
-type GuardrailFormValues = z.infer<typeof guardrailFormSchema>;
+function validateContainsText(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return "Enter at least one word or phrase to match";
+  const deduped = deduplicateContainsWords(lines);
+  if (deduped.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS) {
+    return `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`;
+  }
+  for (const word of deduped) {
+    if (word.length > GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH) {
+      return `Each entry must be at most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} characters`;
+    }
+    if (!PRINTABLE_ASCII_TEXT_REGEX.test(word)) {
+      return "Only ASCII characters are supported in word lists";
+    }
+  }
+  return null;
+}
+
+function validateSecretPrefix(prefix: string): string | null {
+  if (
+    prefix.length < GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH ||
+    prefix.length > GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH
+  ) {
+    return `Prefixes must be ${GATEWAY_GUARDRAIL_SECRET_PREFIX_MIN_LENGTH}-${GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH} characters`;
+  }
+  if (!PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(prefix)) {
+    return "Prefixes must be printable ASCII with no whitespace";
+  }
+  return null;
+}
+
+function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
+  return z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1, "Enter a name for this guardrail")
+        .max(
+          GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
+          `Name must be at most ${GATEWAY_GUARDRAIL_MAX_NAME_LENGTH} characters`,
+        ),
+      presets: z.array(z.enum(GATEWAY_GUARDRAIL_PRESET_KEYS)),
+      secretPrefixes: z
+        .array(z.string())
+        .max(
+          GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
+          `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
+        ),
+      containsText: z.string(),
+      action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
+      targets: z
+        .array(z.custom<TagAutocompleteOption>())
+        .min(1, "Select who this guardrail applies to")
+        .max(
+          GATEWAY_GUARDRAIL_MAX_TARGETS,
+          `Select at most ${GATEWAY_GUARDRAIL_MAX_TARGETS} targets`,
+        ),
+    })
+    .superRefine((values, ctx) => {
+      if (templateKind === "contains") {
+        const error = validateContainsText(values.containsText);
+        if (error) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["containsText"],
+            message: error,
+          });
+        }
+        return;
+      }
+      if (
+        values.presets.length === 0 &&
+        (templateKind !== "secrets" || values.secretPrefixes.length === 0)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["presets"],
+          message:
+            templateKind === "secrets"
+              ? "Select at least one secret type or add a custom prefix"
+              : "Select at least one pattern to detect",
+        });
+      }
+      for (const prefix of values.secretPrefixes) {
+        const error = validateSecretPrefix(prefix);
+        if (error) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["secretPrefixes"],
+            message: error,
+          });
+          break;
+        }
+      }
+    });
+}
+
+type GuardrailFormSchemaValues = z.infer<
+  ReturnType<typeof createGuardrailFormSchema>
+>;
 
 export type GatewayGuardrailFormValues = {
   name: string;
   presets: GatewayGuardrailPreset[];
+  secretPrefixes: string[];
+  containsWords: string[];
   action: GatewayGuardrailUiAction;
   targets: TagAutocompleteOption[];
 };
@@ -78,6 +184,7 @@ export type GatewayGuardrailFormValues = {
 export type GatewayGuardrailFormDialogProps = {
   title: string;
   submitLabel: string;
+  templateKind: GatewayGuardrailTemplateKind;
   availablePresets: readonly GatewayGuardrailPreset[];
   initialValues: GatewayGuardrailFormValues;
   initialTestText?: string;
@@ -92,6 +199,7 @@ export type GatewayGuardrailFormDialogProps = {
 export function GatewayGuardrailFormDialog({
   title,
   submitLabel,
+  templateKind,
   availablePresets,
   initialValues,
   initialTestText = "",
@@ -110,18 +218,40 @@ export function GatewayGuardrailFormDialog({
     useState<HTMLDivElement | null>(null);
   const [testText, setTestText] = useState(initialTestText);
 
-  const form = useForm<GuardrailFormValues>({
-    resolver: zodResolver(guardrailFormSchema),
-    defaultValues: initialValues,
+  const schema = useMemo(
+    () => createGuardrailFormSchema(templateKind),
+    [templateKind],
+  );
+  const form = useForm<GuardrailFormSchemaValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: initialValues.name,
+      presets: initialValues.presets,
+      secretPrefixes: initialValues.secretPrefixes,
+      containsText: initialValues.containsWords.join("\n"),
+      action: initialValues.action,
+      targets: initialValues.targets,
+    },
     mode: "onChange",
   });
 
   const selectedPresets = form.watch("presets");
+  const secretPrefixes = form.watch("secretPrefixes");
+  const containsText = form.watch("containsText");
+  const parsedContains = useMemo(
+    () => (templateKind === "contains" ? parseContainsText(containsText) : []),
+    [templateKind, containsText],
+  );
 
-  const handleValidSubmit = (values: GuardrailFormValues) => {
+  const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
     onSubmit({
       name: values.name.trim(),
-      presets: values.presets,
+      presets: templateKind === "contains" ? [] : values.presets,
+      secretPrefixes: templateKind === "secrets" ? values.secretPrefixes : [],
+      containsWords:
+        templateKind === "contains"
+          ? parseContainsText(values.containsText)
+          : [],
       action: values.action,
       targets: values.targets,
     });
@@ -209,18 +339,57 @@ export function GatewayGuardrailFormDialog({
                   )}
                 </FormField>
 
-                <Controller
-                  control={form.control}
-                  name="presets"
-                  render={({ field, fieldState }) => (
-                    <PresetChecklistField
-                      availablePresets={availablePresets}
-                      selectedPresets={field.value}
-                      onChange={field.onChange}
-                      errorMessage={fieldState.error?.message}
+                {templateKind === "contains" ? (
+                  <Controller
+                    control={form.control}
+                    name="containsText"
+                    render={({ field, fieldState }) => (
+                      <ContainsWordListField
+                        value={field.value}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        entryCount={parsedContains.length}
+                        errorMessage={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <Controller
+                      control={form.control}
+                      name="presets"
+                      render={({ field, fieldState }) => (
+                        <PresetChecklistField
+                          availablePresets={availablePresets}
+                          selectedPresets={field.value}
+                          onChange={(nextPresets) => {
+                            field.onChange(nextPresets);
+                            if (templateKind === "secrets") {
+                              form.trigger("presets").catch(() => undefined);
+                            }
+                          }}
+                          errorMessage={fieldState.error?.message}
+                        />
+                      )}
                     />
-                  )}
-                />
+                    {templateKind === "secrets" ? (
+                      <Controller
+                        control={form.control}
+                        name="secretPrefixes"
+                        render={({ field, fieldState }) => (
+                          <CustomSecretPrefixesField
+                            value={field.value}
+                            onChange={(nextPrefixes) => {
+                              field.onChange(nextPrefixes);
+                              form.trigger("presets").catch(() => undefined);
+                            }}
+                            errorMessage={fieldState.error?.message}
+                          />
+                        )}
+                      />
+                    ) : null}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
@@ -268,7 +437,13 @@ export function GatewayGuardrailFormDialog({
                 <GatewayGuardrailTestInput
                   value={testText}
                   onChange={setTestText}
-                  presets={selectedPresets}
+                  presets={templateKind === "contains" ? [] : selectedPresets}
+                  secretPrefixes={
+                    templateKind === "secrets" ? secretPrefixes : undefined
+                  }
+                  containsWords={
+                    templateKind === "contains" ? parsedContains : undefined
+                  }
                 />
 
                 <Controller
@@ -369,6 +544,14 @@ function PresetChecklistField({
   onChange,
   errorMessage,
 }: PresetChecklistFieldProps) {
+  const allSelected =
+    availablePresets.length > 0 &&
+    availablePresets.every((preset) => selectedPresets.includes(preset));
+
+  const handleToggleAll = () => {
+    onChange(allSelected ? [] : [...availablePresets]);
+  };
+
   const handleToggle = (preset: GatewayGuardrailPreset) => {
     const isChecked = selectedPresets.includes(preset);
     if (isChecked) {
@@ -380,7 +563,15 @@ function PresetChecklistField({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm leading-none font-bold">Detect</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm leading-none font-bold">Detect</span>
+        <Button
+          variant="text"
+          size="sm"
+          text={allSelected ? "Deselect all" : "Select all"}
+          onClick={handleToggleAll}
+        />
+      </div>
       <div className="flex flex-wrap gap-2">
         {availablePresets.map((preset) => (
           <PresetTogglePill
@@ -427,6 +618,196 @@ function PresetTogglePill({
       />
       <span>{GATEWAY_GUARDRAIL_PRESET_LABELS[preset]}</span>
     </label>
+  );
+}
+
+type CustomSecretPrefixesFieldProps = {
+  value: readonly string[];
+  onChange: (prefixes: string[]) => void;
+  errorMessage?: string;
+};
+
+function CustomSecretPrefixesField({
+  value,
+  onChange,
+  errorMessage,
+}: CustomSecretPrefixesFieldProps) {
+  const inputId = useId();
+  const [draft, setDraft] = useState("");
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  const commitTokens = (raw: string) => {
+    const tokens = raw
+      .split(/[,\n]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+    if (tokens.length === 0) {
+      setDraft("");
+      setDraftError(null);
+      return;
+    }
+
+    const next = [...value];
+    for (const token of tokens) {
+      const validationError = validateSecretPrefix(token);
+      if (validationError) {
+        setDraftError(validationError);
+        return;
+      }
+      if (next.includes(token)) continue;
+      if (next.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES) {
+        setDraftError(
+          `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
+        );
+        return;
+      }
+      next.push(token);
+    }
+
+    onChange(next);
+    setDraft("");
+    setDraftError(null);
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setDraftError(null);
+    if (nextValue.includes(",")) {
+      commitTokens(nextValue);
+      return;
+    }
+    setDraft(nextValue);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitTokens(draft);
+      return;
+    }
+    if (event.key === "Backspace" && draft.length === 0 && value.length > 0) {
+      onChange(value.slice(0, -1));
+    }
+  };
+
+  const handleBlur = () => {
+    if (draft.trim().length > 0) commitTokens(draft);
+  };
+
+  const handleRemove = (prefix: string) => {
+    onChange(value.filter((item) => item !== prefix));
+    setDraftError(null);
+  };
+
+  const displayedError = draftError ?? errorMessage;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={inputId} className="text-xs leading-none font-medium">
+          Custom prefixes
+        </label>
+        <span className="text-muted-foreground text-xs">
+          {value.length} / {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES}
+        </span>
+      </div>
+      <div
+        className={cn(
+          "ph-no-capture bg-background border-input focus-within:ring-ring flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border px-2 py-1 text-sm focus-within:ring-2 focus-within:ring-offset-2",
+          displayedError &&
+            "border-destructive focus-within:ring-destructive/40 focus-within:ring-offset-0",
+        )}
+      >
+        {value.map((prefix) => (
+          <Tag
+            key={prefix}
+            text={prefix}
+            remove={{ onRemove: () => handleRemove(prefix) }}
+          />
+        ))}
+        <input
+          id={inputId}
+          type="text"
+          value={draft}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          disabled={value.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES}
+          placeholder={
+            value.length === 0
+              ? "Add prefix and press Enter, e.g. acme_sk_"
+              : "Add another prefix"
+          }
+          className="placeholder:text-muted-foreground h-6 min-w-44 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
+        />
+      </div>
+      {displayedError ? (
+        <p className="text-destructive text-xs">{displayedError}</p>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          3-32 printable ASCII characters (no spaces). Matches the prefix
+          followed by 16+ token characters.
+        </p>
+      )}
+    </div>
+  );
+}
+
+type ContainsWordListFieldProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  entryCount: number;
+  errorMessage?: string;
+};
+
+function ContainsWordListField({
+  value,
+  onChange,
+  onBlur,
+  entryCount,
+  errorMessage,
+}: ContainsWordListFieldProps) {
+  const inputId = useId();
+  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    onChange(event.target.value);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={inputId} className="text-sm leading-none font-bold">
+          Words or phrases
+        </label>
+        <span className="text-muted-foreground text-xs">
+          {entryCount} / {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS}
+        </span>
+      </div>
+      <textarea
+        id={inputId}
+        rows={4}
+        value={value}
+        onChange={handleChange}
+        onBlur={onBlur}
+        spellCheck={false}
+        placeholder={"confidential\ninternal only\ndo not share"}
+        aria-invalid={Boolean(errorMessage)}
+        className={cn(
+          "ph-no-capture bg-background border-input placeholder:text-muted-foreground focus-visible:ring-ring min-h-24 w-full resize-y rounded-md border p-3 font-mono text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2",
+          errorMessage &&
+            "border-destructive focus-visible:ring-destructive/40 focus-visible:ring-offset-0",
+        )}
+      />
+      {errorMessage ? (
+        <p className="text-destructive text-sm">{errorMessage}</p>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          One word or phrase per line (ASCII only, up to{" "}
+          {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} chars each). Matches
+          whole words, case-insensitively.
+        </p>
+      )}
+    </div>
   );
 }
 

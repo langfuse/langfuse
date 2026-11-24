@@ -18,7 +18,9 @@ import {
   GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
+  GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+  GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
@@ -29,9 +31,11 @@ import type { GatewayResolveGuardrails } from "@/src/features/ai-gateway/server/
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
+  compileGuardrailConfigPatterns,
+  deduplicateContainsWords,
+  estimateCompiledPatternsBytes,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
-  presetPatterns,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
@@ -77,11 +81,11 @@ export class GatewayGuardrailService {
         guardrail.config,
       );
       const patterns = config.success
-        ? config.data.presets.flatMap((preset) => [...presetPatterns(preset)])
+        ? compileGuardrailConfigPatterns(config.data)
         : [];
       // A guardrail with nothing to match is skipped rather than failing every request of the key.
       if (patterns.length === 0) {
-        logger.error("Skipping gateway guardrail without known presets", {
+        logger.error("Skipping gateway guardrail without known rules", {
           guardrailId: guardrail.id,
           organizationId: params.organizationId,
         });
@@ -204,17 +208,24 @@ export class GatewayGuardrailService {
     name: string;
     action: GatewayGuardrailUiAction;
     presets: GatewayGuardrailPreset[];
+    secretPrefixes?: string[];
+    containsWords?: string[];
     assignments: GatewayGuardrailAssignmentInput[];
     session: OrgAuthedContext["session"];
   }) {
-    const presets = [...new Set(params.presets)];
+    const config = normalizeGuardrailConfig({
+      presets: params.presets,
+      secretPrefixes: params.secretPrefixes ?? [],
+      containsWords: params.containsWords ?? [],
+    });
+    const ruleBytes = assertRuleSizeLimit(config);
     const assignments = await this.normalizeAndValidateAssignments(
       params.organizationId,
       params.assignments,
     );
 
     const created = await this.writeGuardrail(async (tx) => {
-      // Serialize concurrent creates per organization so the cap cannot be exceeded.
+      // Serialize concurrent creates per organization so the cap and org byte budget cannot be exceeded.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`gateway_guardrail:${params.organizationId}`}))`;
       const repo = new GatewayGuardrailRepository(tx);
       const existingCount = await repo.countByOrganization(
@@ -223,11 +234,12 @@ export class GatewayGuardrailService {
       if (existingCount >= GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION) {
         throw new InvalidRequestError(GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE);
       }
+      await assertOrgSizeLimit(repo, params.organizationId, ruleBytes);
       const record = await repo.create({
         organizationId: params.organizationId,
         name: params.name,
         action: params.action,
-        presets,
+        config,
         assignments,
         createdBy: params.session.user.id,
       });
@@ -252,11 +264,11 @@ export class GatewayGuardrailService {
     name: string;
     action: GatewayGuardrailUiAction;
     presets: GatewayGuardrailPreset[];
+    secretPrefixes?: string[];
+    containsWords?: string[];
     assignments: GatewayGuardrailAssignmentInput[];
     session: OrgAuthedContext["session"];
   }) {
-    const presets = [...new Set(params.presets)];
-
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
       // Lock the guardrail row before reading/replacing assignments so concurrent saves cannot interleave.
@@ -296,16 +308,25 @@ export class GatewayGuardrailService {
             (preset) => !isKnownGuardrailPreset(preset),
           )
         : [];
-      const mergedPresets = [
-        ...new Set([...presets, ...preservedUnknownPresets]),
-      ];
+      const config = normalizeGuardrailConfig({
+        presets: [...params.presets, ...preservedUnknownPresets],
+        secretPrefixes: params.secretPrefixes ?? [],
+        containsWords: params.containsWords ?? [],
+      });
+      const ruleBytes = assertRuleSizeLimit(config);
+      await assertOrgSizeLimit(
+        repo,
+        params.organizationId,
+        ruleBytes,
+        existing.id,
+      );
 
       const record = await repo.update({
         organizationId: params.organizationId,
         id: existing.id,
         name: params.name,
         action: params.action,
-        presets: mergedPresets,
+        config,
         assignments,
       });
       await audit(tx, {
@@ -368,6 +389,70 @@ export class GatewayGuardrailService {
 
     await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     return { deletedCount: existing.length };
+  }
+
+  async setAssignmentsForMany(params: {
+    organizationId: string;
+    target: GatewayGuardrailDeleteTarget;
+    assignments: GatewayGuardrailAssignmentInput[];
+    session: OrgAuthedContext["session"];
+  }) {
+    const ids =
+      params.target.type === "ids"
+        ? [...new Set(params.target.ids)]
+        : (
+            await this.repository.listMatching({
+              organizationId: params.organizationId,
+              searchQuery: params.target.searchQuery,
+            })
+          ).map(({ id }) => id);
+
+    if (ids.length > GATEWAY_GUARDRAIL_MAX_BULK_DELETE) {
+      throw new InvalidRequestError(
+        `At most ${GATEWAY_GUARDRAIL_MAX_BULK_DELETE} guardrails can be updated at once. Narrow the search filter.`,
+      );
+    }
+    if (ids.length === 0) return { updatedCount: 0 };
+
+    const assignments = await this.normalizeAndValidateAssignments(
+      params.organizationId,
+      params.assignments,
+    );
+
+    const updatedCount = await this.prisma.$transaction(async (tx) => {
+      const repo = new GatewayGuardrailRepository(tx);
+      const lockedIds = await repo.lockByIds({
+        organizationId: params.organizationId,
+        ids,
+      });
+      if (lockedIds.length === 0) return 0;
+
+      const beforeRows = await repo.findByIds({
+        organizationId: params.organizationId,
+        ids: lockedIds,
+      });
+      const beforeById = new Map(beforeRows.map((row) => [row.id, row]));
+      const afterRows = await repo.replaceAssignmentsForIds({
+        organizationId: params.organizationId,
+        ids: lockedIds,
+        assignments,
+      });
+
+      for (const after of afterRows) {
+        await audit(tx, {
+          session: params.session,
+          action: "update",
+          before: beforeById.get(after.id),
+          after,
+        });
+      }
+      return afterRows.length;
+    });
+
+    if (updatedCount > 0) {
+      await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+    }
+    return { updatedCount };
   }
 
   private async normalizeAndValidateAssignments(
@@ -492,6 +577,70 @@ function assignmentKey(assignment: GatewayGuardrailAssignmentInput): string {
   }
 }
 
+function normalizeGuardrailConfig(input: {
+  presets: string[];
+  secretPrefixes: string[];
+  containsWords: string[];
+}) {
+  const presets = [...new Set(input.presets)];
+  const secretPrefixes = [...new Set(input.secretPrefixes)];
+  const containsWords = deduplicateContainsWords(input.containsWords);
+  if (
+    presets.length === 0 &&
+    secretPrefixes.length === 0 &&
+    containsWords.length === 0
+  ) {
+    throw new InvalidRequestError(
+      "Configure at least one pattern, prefix, or keyword to detect",
+    );
+  }
+  return {
+    presets,
+    ...(secretPrefixes.length > 0 ? { secretPrefixes } : {}),
+    ...(containsWords.length > 0 ? { containsWords } : {}),
+  };
+}
+
+function assertRuleSizeLimit(config: {
+  presets: string[];
+  secretPrefixes?: string[];
+  containsWords?: string[];
+}) {
+  const patterns = compileGuardrailConfigPatterns(config);
+  const bytes = estimateCompiledPatternsBytes(patterns);
+  if (bytes > GATEWAY_GUARDRAIL_MAX_RULE_BYTES) {
+    throw new InvalidRequestError(
+      "This guardrail exceeds the 128 KiB compiled size limit. Remove some entries or patterns and try again.",
+    );
+  }
+  return bytes;
+}
+
+async function assertOrgSizeLimit(
+  repo: GatewayGuardrailRepository,
+  organizationId: string,
+  newRuleBytes: number,
+  excludeId?: string,
+) {
+  const existing = await repo.listConfigsByOrganization({
+    organizationId,
+    excludeId,
+  });
+  let totalBytes = newRuleBytes;
+  for (const row of existing) {
+    const parsed = GatewayRegexGuardrailConfigSchema.safeParse(row.config);
+    if (!parsed.success) continue;
+    totalBytes += estimateCompiledPatternsBytes(
+      compileGuardrailConfigPatterns(parsed.data),
+    );
+  }
+  if (totalBytes > GATEWAY_GUARDRAIL_MAX_ORG_BYTES) {
+    throw new InvalidRequestError(
+      "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail and try again.",
+    );
+  }
+}
+
 function toGuardrailDto(
   record: GatewayGuardrailRecord,
   flaggedCounts: Map<string, number> | null,
@@ -501,6 +650,8 @@ function toGuardrailDto(
   const presets = parsed.success
     ? parsed.data.presets.filter(isKnownGuardrailPreset)
     : [];
+  const secretPrefixes = parsed.success ? parsed.data.secretPrefixes : [];
+  const containsWords = parsed.success ? parsed.data.containsWords : [];
 
   return {
     id: record.id,
@@ -508,6 +659,8 @@ function toGuardrailDto(
     type: record.type,
     action: record.action,
     presets,
+    secretPrefixes,
+    containsWords,
     assignments: record.assignments.map((assignment) => {
       switch (assignment.scope) {
         case "ORGANIZATION":

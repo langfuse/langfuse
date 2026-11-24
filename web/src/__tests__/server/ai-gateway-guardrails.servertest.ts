@@ -199,7 +199,7 @@ describe("GatewayGuardrailService", () => {
       id: expect.any(String),
       name: "Key rule",
       action: "block",
-      patterns: [...GATEWAY_GUARDRAIL_PRESETS.email],
+      patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
     });
 
     const forServiceKey = await service.resolveForKey({
@@ -583,5 +583,125 @@ describe("aiGateway guardrails tRPC", () => {
       assignments: [{ scope: "ORGANIZATION" }],
     });
     expect(createdAfterDelete.name).toBe("Guardrail 21");
+  });
+
+  it("compiles custom secret prefixes, contains word lists, rejects non-ASCII words, and supports bulk applies-to", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Rules Owner");
+    const member = await createUser("Rules Member");
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    await createOrgMembership(prisma, {
+      orgId,
+      userId: member.id,
+      role: Role.MEMBER,
+    });
+    const keyId = await createKey(orgId, member.id, {
+      gateway: true,
+      name: "rules-key",
+    });
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const memberCaller = createCaller({
+      orgId,
+      userId: member.id,
+      role: Role.MEMBER,
+    });
+
+    // Rejects invalid custom secret prefix (too short / whitespace) and non-ASCII contains word
+    await expect(
+      ownerCaller.aiGateway.createGuardrail({
+        orgId,
+        name: "Bad prefix",
+        action: "BLOCK",
+        presets: [],
+        secretPrefixes: ["ab"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await expect(
+      ownerCaller.aiGateway.createGuardrail({
+        orgId,
+        name: "Bad contains",
+        action: "BLOCK",
+        presets: [],
+        containsWords: ["Zürich"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringMatching(/ASCII/i),
+    });
+
+    // Create secret guardrail with built-in preset + custom prefix, and a contains guardrail
+    const secretRule = await ownerCaller.aiGateway.createGuardrail({
+      orgId,
+      name: "Secrets",
+      action: "BLOCK",
+      presets: ["langfuse_api_key", "jwt"],
+      secretPrefixes: ["acme_sk_"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const containsRule = await ownerCaller.aiGateway.createGuardrail({
+      orgId,
+      name: "Blocked terms",
+      action: "LOG",
+      presets: [],
+      containsWords: ["Confidential", "internal only", "confidential"],
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+
+    // Resolve expands built-in presets, custom secret prefix, and whole-word ASCII case-insensitive alternation
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: member.id,
+    });
+    const resolvedSecret = resolved.find((item) => item.id === secretRule.id);
+    const resolvedContains = resolved.find(
+      (item) => item.id === containsRule.id,
+    );
+    expect(resolvedSecret?.patterns).toHaveLength(3);
+    expect(resolvedSecret?.patterns[2]).toContain("acme_sk_");
+    expect(resolvedContains?.patterns).toHaveLength(1);
+    expect(resolvedContains?.patterns[0]).toContain("[Cc][Oo][Nn]");
+
+    // Bulk set applies-to denied for non-admin
+    await expect(
+      memberCaller.aiGateway.setGuardrailsAssignments({
+        orgId,
+        target: { type: "ids", ids: [secretRule.id, containsRule.id] },
+        assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    // Admin updates Applies to on both guardrails at once
+    const bulkUpdated = await ownerCaller.aiGateway.setGuardrailsAssignments({
+      orgId,
+      target: { type: "ids", ids: [secretRule.id, containsRule.id] },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(bulkUpdated.updatedCount).toBe(2);
+
+    const listed = await ownerCaller.aiGateway.listGuardrails({ orgId });
+    for (const row of listed.rows) {
+      expect(row.assignments).toEqual([
+        expect.objectContaining({ scope: "API_KEY", apiKeyId: keyId }),
+      ]);
+    }
   });
 });

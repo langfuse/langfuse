@@ -7,6 +7,8 @@ export type GatewayGuardrailTestInputProps = {
   value: string;
   onChange: (value: string) => void;
   presets: readonly GatewayGuardrailPreset[];
+  secretPrefixes?: readonly string[];
+  containsWords?: readonly string[];
 };
 
 const TEXT_LAYER_CLASS =
@@ -14,19 +16,27 @@ const TEXT_LAYER_CLASS =
 
 /**
  * Client-side scratchpad that highlights spans matched by the selected built-in
- * presets' regexes as the user types. Nothing leaves the browser.
+ * presets, custom secret prefixes, and contains words as the user types.
+ * Nothing leaves the browser.
  */
 export function GatewayGuardrailTestInput({
   value,
   onChange,
   presets,
+  secretPrefixes,
+  containsWords,
 }: GatewayGuardrailTestInputProps) {
   const inputId = useId();
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const segments = useMemo(
-    () => findGuardrailMatches(value, presets),
-    [value, presets],
+    () =>
+      findGuardrailMatches(value, {
+        presets,
+        secretPrefixes,
+        containsWords,
+      }),
+    [value, presets, secretPrefixes, containsWords],
   );
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {

@@ -4,8 +4,8 @@ import {
   TagAutocompleteInput,
   type TagAutocompleteOption,
 } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
-import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
-import { toggleGuardrailTargetOption } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/toggleGuardrailTargetOption";
+import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
+import { toggleGuardrailTargetOption } from "@/src/features/ai-gateway/fns/toggleGuardrailTargetOption";
 
 export type GatewayGuardrailTargetPicker = {
   options: TagAutocompleteOption[];

@@ -1,19 +1,21 @@
-import { Trash2 } from "@langfuse/icons";
+import { Trash2, Users } from "@langfuse/icons";
 
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { Button } from "@/src/components/design-system/Button/Button";
 
 export type GatewayGuardrailsSelectionBarProps = {
   selectedCount: number;
-  isDeleting: boolean;
+  isBusy: boolean;
   onClear: () => void;
+  onSetAppliesTo: () => void;
   onDelete: () => void;
 };
 
 export function GatewayGuardrailsSelectionBar({
   selectedCount,
-  isDeleting,
+  isBusy,
   onClear,
+  onSetAppliesTo,
   onDelete,
 }: GatewayGuardrailsSelectionBarProps) {
   return (
@@ -21,9 +23,17 @@ export function GatewayGuardrailsSelectionBar({
       <Button
         variant="outline"
         size="sm"
+        icon={Users}
+        text="Set applies to"
+        disabled={isBusy}
+        onClick={onSetAppliesTo}
+      />
+      <Button
+        variant="outline"
+        size="sm"
         icon={Trash2}
         text="Delete"
-        disabled={isDeleting}
+        disabled={isBusy}
         onClick={onDelete}
       />
     </OverviewSelectionBar>

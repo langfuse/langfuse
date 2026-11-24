@@ -10,10 +10,7 @@ import {
   gatewayApiKeySearch,
   gatewayApiKeyWhere,
 } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
-import type {
-  GatewayGuardrailAssignmentInput,
-  GatewayGuardrailPreset,
-} from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import type { GatewayGuardrailAssignmentInput } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 const GUARDRAIL_SELECT = {
   id: true,
@@ -125,6 +122,19 @@ export class GatewayGuardrailRepository {
     });
   }
 
+  listConfigsByOrganization(params: {
+    organizationId: string;
+    excludeId?: string;
+  }) {
+    return this.prisma.gatewayGuardrail.findMany({
+      where: {
+        organizationId: params.organizationId,
+        ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      },
+      select: { id: true, config: true },
+    });
+  }
+
   listMatching(params: { organizationId: string; searchQuery?: string }) {
     return this.prisma.gatewayGuardrail.findMany({
       where: toGuardrailWhere(params),
@@ -155,7 +165,11 @@ export class GatewayGuardrailRepository {
     organizationId: string;
     name: string;
     action: GatewayGuardrailAction;
-    presets: GatewayGuardrailPreset[];
+    config: {
+      presets: string[];
+      secretPrefixes?: string[];
+      containsWords?: string[];
+    };
     assignments: GatewayGuardrailAssignmentInput[];
     createdBy: string;
   }) {
@@ -165,7 +179,7 @@ export class GatewayGuardrailRepository {
         name: params.name,
         type: "REGEX",
         action: params.action,
-        config: { presets: params.presets },
+        config: params.config,
         createdBy: params.createdBy,
         assignments: {
           create: params.assignments.map((assignment) =>
@@ -189,12 +203,56 @@ export class GatewayGuardrailRepository {
     return locked.length > 0;
   }
 
+  /** Serializes concurrent bulk writes in deterministic ID order to avoid deadlocks. */
+  async lockByIds(params: { organizationId: string; ids: string[] }) {
+    if (params.ids.length === 0) return [];
+    const locked = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id
+      FROM "gateway_guardrails"
+      WHERE organization_id = ${params.organizationId}
+        AND id = ANY(${params.ids}::text[])
+      ORDER BY id ASC
+      FOR UPDATE
+    `;
+    return locked.map(({ id }) => id);
+  }
+
+  async replaceAssignmentsForIds(params: {
+    organizationId: string;
+    ids: string[];
+    assignments: GatewayGuardrailAssignmentInput[];
+  }) {
+    if (params.ids.length === 0) return [];
+    await this.prisma.gatewayGuardrailAssignment.deleteMany({
+      where: {
+        organizationId: params.organizationId,
+        guardrailId: { in: params.ids },
+      },
+    });
+    await this.prisma.gatewayGuardrailAssignment.createMany({
+      data: params.ids.flatMap((guardrailId) =>
+        params.assignments.map((assignment) => ({
+          guardrailId,
+          ...toAssignmentCreateData(params.organizationId, assignment),
+        })),
+      ),
+    });
+    return this.findByIds({
+      organizationId: params.organizationId,
+      ids: params.ids,
+    });
+  }
+
   async update(params: {
     organizationId: string;
     id: string;
     name: string;
     action: GatewayGuardrailAction;
-    presets: string[];
+    config: {
+      presets: string[];
+      secretPrefixes?: string[];
+      containsWords?: string[];
+    };
     assignments: GatewayGuardrailAssignmentInput[];
   }) {
     await this.prisma.gatewayGuardrailAssignment.deleteMany({
@@ -205,7 +263,7 @@ export class GatewayGuardrailRepository {
       data: {
         name: params.name,
         action: params.action,
-        config: { presets: params.presets },
+        config: params.config,
         assignments: {
           create: params.assignments.map((assignment) =>
             toAssignmentCreateData(params.organizationId, assignment),

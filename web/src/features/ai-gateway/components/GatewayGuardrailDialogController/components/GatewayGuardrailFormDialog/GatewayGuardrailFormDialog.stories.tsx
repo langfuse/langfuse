@@ -5,9 +5,9 @@ import { KeyRound, User } from "@langfuse/icons";
 import preview from "@/.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
-import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/constants/guardrailTargetConstants";
 import {
   GatewayGuardrailFormDialog,
   type GatewayGuardrailFormDialogProps,
@@ -70,6 +70,7 @@ function StoryGuardrailFormDialog(
 
 const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES[0]!;
 const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[1]!;
+const containsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[2]!;
 
 const meta = preview.meta({
   component: StoryGuardrailFormDialog,
@@ -79,10 +80,13 @@ export const CreatePii = meta.story({
   args: {
     title: piiTemplate.name,
     submitLabel: "Add guardrail",
+    templateKind: "pii",
     availablePresets: piiTemplate.presets,
     initialValues: {
       name: piiTemplate.name,
       presets: [...piiTemplate.defaultPresets],
+      secretPrefixes: [],
+      containsWords: [],
       action: "BLOCK",
       targets: [EVERYONE_TARGET_OPTION],
     },
@@ -97,10 +101,13 @@ export const CreateSecretDetection = meta.story({
   args: {
     title: secretsTemplate.name,
     submitLabel: "Add guardrail",
+    templateKind: "secrets",
     availablePresets: secretsTemplate.presets,
     initialValues: {
       name: secretsTemplate.name,
       presets: [...secretsTemplate.defaultPresets],
+      secretPrefixes: ["acme_sk_"],
+      containsWords: [],
       action: "BLOCK",
       targets: [EVERYONE_TARGET_OPTION],
     },
@@ -111,14 +118,38 @@ export const CreateSecretDetection = meta.story({
   },
 });
 
+export const CreateKeywordBlocklist = meta.story({
+  args: {
+    title: containsTemplate.name,
+    submitLabel: "Add guardrail",
+    templateKind: "contains",
+    availablePresets: [],
+    initialValues: {
+      name: containsTemplate.name,
+      presets: [],
+      secretPrefixes: [],
+      containsWords: ["confidential", "internal only"],
+      action: "BLOCK",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: containsTemplate.sampleTestText,
+    isSubmitting: false,
+    errorMessage: null,
+    onBack: fn(),
+  },
+});
+
 export const EditGuardrail = meta.story({
   args: {
     title: "Edit guardrail",
     submitLabel: "Save changes",
+    templateKind: "pii",
     availablePresets: piiTemplate.presets,
     initialValues: {
       name: "Block SSNs",
       presets: ["us_ssn"],
+      secretPrefixes: [],
+      containsWords: [],
       action: "BLOCK",
       targets: [TARGET_OPTIONS[1]!, TARGET_OPTIONS[2]!],
     },
@@ -131,10 +162,13 @@ export const LimitReachedError = meta.story({
   args: {
     title: piiTemplate.name,
     submitLabel: "Add guardrail",
+    templateKind: "pii",
     availablePresets: piiTemplate.presets,
     initialValues: {
       name: "Extra PII rule",
       presets: [...piiTemplate.defaultPresets],
+      secretPrefixes: [],
+      containsWords: [],
       action: "BLOCK",
       targets: [EVERYONE_TARGET_OPTION],
     },
