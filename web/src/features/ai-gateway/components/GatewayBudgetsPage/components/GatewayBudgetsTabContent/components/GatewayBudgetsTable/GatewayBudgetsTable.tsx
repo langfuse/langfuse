@@ -22,7 +22,7 @@ import {
   GATEWAY_SPEND_TABS,
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
-import { buildGatewayBudgetTracesHref } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/buildGatewayBudgetTracesHref";
+import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import {
@@ -207,9 +207,9 @@ export function GatewayBudgetsTable({
             type: "item" as const,
             title: "Show traces",
             icon: ListTree,
-            href: buildGatewayBudgetTracesHref({
+            href: buildGatewayTracesHref({
               projectId: ingestionProjectId,
-              tab,
+              subject: GATEWAY_SPEND_TABS[tab].subject,
               subjectId: row.subjectId,
             }),
           },

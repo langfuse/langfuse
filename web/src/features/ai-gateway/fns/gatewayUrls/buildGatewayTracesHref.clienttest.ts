@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { decodeFiltersGeneric } from "@langfuse/shared";
 
-import { buildGatewayBudgetTracesHref } from "./buildGatewayBudgetTracesHref";
+import { buildGatewayTracesHref } from "./buildGatewayTracesHref";
 
-describe("buildGatewayBudgetTracesHref", () => {
-  it("builds a traces URL filtered by gateway key owner user id for the users tab", () => {
-    const href = buildGatewayBudgetTracesHref({
+describe("buildGatewayTracesHref", () => {
+  it("builds a traces URL filtered by gateway key owner user id for a user subject", () => {
+    const href = buildGatewayTracesHref({
       projectId: "proj-1",
-      tab: "users",
+      subject: "user",
       subjectId: "user-123",
     });
     const url = new URL(href, "http://localhost");
@@ -24,10 +24,10 @@ describe("buildGatewayBudgetTracesHref", () => {
     ]);
   });
 
-  it("builds a traces URL filtered by gateway API key id for the apiKeys tab", () => {
-    const href = buildGatewayBudgetTracesHref({
+  it("builds a traces URL filtered by gateway API key id for a key subject", () => {
+    const href = buildGatewayTracesHref({
       projectId: "proj/1",
-      tab: "apiKeys",
+      subject: "key",
       subjectId: "key;456,789",
     });
     const url = new URL(href, "http://localhost");

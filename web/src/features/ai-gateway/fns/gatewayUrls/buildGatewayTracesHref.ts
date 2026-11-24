@@ -5,28 +5,28 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 
-import type { GatewaySpendTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
+const metadataKeysBySubject = {
+  user: AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  key: AI_GATEWAY_KEY_ID_METADATA_KEY,
+} as const;
 
-const metadataKeysByTab = {
-  users: AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
-  apiKeys: AI_GATEWAY_KEY_ID_METADATA_KEY,
-} as const satisfies Record<GatewaySpendTab, string>;
+type GatewayTracesSubject = keyof typeof metadataKeysBySubject;
 
 /** Link to the ingestion project's traces view filtered to one gateway user or API key. */
-export function buildGatewayBudgetTracesHref({
+export function buildGatewayTracesHref({
   projectId,
-  tab,
+  subject,
   subjectId,
 }: {
   projectId: string;
-  tab: GatewaySpendTab;
+  subject: GatewayTracesSubject;
   subjectId: string;
 }) {
   const filter: FilterState = [
     {
       column: "metadata",
       type: "stringObject",
-      key: metadataKeysByTab[tab],
+      key: metadataKeysBySubject[subject],
       operator: "=",
       value: subjectId,
     },
