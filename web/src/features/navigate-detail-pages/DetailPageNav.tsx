@@ -31,7 +31,7 @@ function dialogOutsideNav(root: HTMLElement | null): boolean {
 
 type NavOrientation = "vertical" | "horizontal";
 
-function useNavOrientation(orientation: NavOrientation | undefined) {
+function useNavOrientation(orientation: NavOrientation) {
   if (orientation === "horizontal") {
     return {
       PreviousIcon: ChevronLeft,
@@ -63,8 +63,15 @@ export const DetailPageNav = (props: {
    */
   compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact, orientation } =
-    props;
+  const {
+    currentId,
+    path,
+    listKey,
+    onNavigate,
+    size,
+    compact,
+    orientation = "vertical",
+  } = props;
   const { PreviousIcon, NextIcon, previousLabel, nextLabel } =
     useNavOrientation(orientation);
   const { detailPagelists } = useDetailPageLists();
