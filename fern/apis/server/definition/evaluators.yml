@@ -291,8 +291,8 @@ types:
         type: DecisionModelEntry
         docs: Description of this level.
 
-  DecisionModelBooleanCriteria:
-    docs: Optional criteria for the `true` and `false` answers of a `boolean` question.
+  DecisionModelPredicateCriteria:
+    docs: Optional criteria for the `true` and `false` answers of a `predicate` question.
     properties:
       "true":
         type: optional<nullable<DecisionModelEntry>>
@@ -333,8 +333,9 @@ types:
         type: list<DecisionModelScoreLevel>
         docs: Between 2 and 10 levels, ordered from lowest to highest.
 
-  DecisionModelBooleanQuestion:
-    docs: Answer true or false. Produces a boolean score.
+  DecisionModelPredicateQuestion:
+    docs: |
+      Decide whether a statement is true. Produces a numeric score: the probability (0–1) that the statement is true.
     properties:
       id:
         type: string
@@ -346,7 +347,7 @@ types:
         type: DecisionModelEntry
         docs: Question instructions. Refer to state keys from `variableMapping` by name.
       criteria:
-        type: optional<nullable<DecisionModelBooleanCriteria>>
+        type: optional<nullable<DecisionModelPredicateCriteria>>
         docs: Optional criteria for the true and false answers.
 
   DecisionModelQuestion:
@@ -357,8 +358,8 @@ types:
         type: DecisionModelChoiceQuestion
       score:
         type: DecisionModelScoreQuestion
-      boolean:
-        type: DecisionModelBooleanQuestion
+      predicate:
+        type: DecisionModelPredicateQuestion
 
   DecisionModelEvaluatorVersion:
     extends: EvaluatorVersionBase

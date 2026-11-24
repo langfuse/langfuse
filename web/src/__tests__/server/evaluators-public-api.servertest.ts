@@ -258,7 +258,7 @@ describe("stable evaluators public API", () => {
       },
       {
         id: "helpful",
-        type: "boolean",
+        type: "predicate",
         scoreName: "helpful",
         instructions: { goal: "Does the answer resolve the question?" },
       },

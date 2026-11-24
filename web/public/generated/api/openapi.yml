@@ -12063,11 +12063,11 @@ components:
           description: Description of this level.
       required:
         - description
-    DecisionModelBooleanCriteria:
-      title: DecisionModelBooleanCriteria
+    DecisionModelPredicateCriteria:
+      title: DecisionModelPredicateCriteria
       type: object
       description: >-
-        Optional criteria for the `true` and `false` answers of a `boolean`
+        Optional criteria for the `true` and `false` answers of a `predicate`
         question.
       properties:
         'true':
@@ -12134,10 +12134,12 @@ components:
         - scoreName
         - instructions
         - levels
-    DecisionModelBooleanQuestion:
-      title: DecisionModelBooleanQuestion
+    DecisionModelPredicateQuestion:
+      title: DecisionModelPredicateQuestion
       type: object
-      description: Answer true or false. Produces a boolean score.
+      description: >-
+        Decide whether a statement is true. Produces a numeric score: the
+        probability (0–1) that the statement is true.
       properties:
         id:
           type: string
@@ -12153,7 +12155,7 @@ components:
             Question instructions. Refer to state keys from `variableMapping` by
             name.
         criteria:
-          $ref: '#/components/schemas/DecisionModelBooleanCriteria'
+          $ref: '#/components/schemas/DecisionModelPredicateCriteria'
           nullable: true
           description: Optional criteria for the true and false answers.
       required:
@@ -12194,11 +12196,11 @@ components:
                 type:
                   type: string
                   enum:
-                    - boolean
-            - $ref: '#/components/schemas/DecisionModelBooleanQuestion'
+                    - predicate
+            - $ref: '#/components/schemas/DecisionModelPredicateQuestion'
           required:
             - type
-          title: DecisionModelBooleanQuestion
+          title: DecisionModelPredicateQuestion
       description: >-
         One typed question answered by a decision-model evaluator. Each question
         produces one score.
