@@ -33,6 +33,7 @@ export type OtelReplayResult = {
   storedRows: OtelReplayStoredRow[];
   legacyRows?: Partial<Record<LegacyReplayTable, OtelReplayStoredRow[]>>;
   evaluatedSpans: [string, string][];
+  shadowTableProvisioned: boolean;
   shadow?: OtelShadowReplayResult;
   sideEffects?: unknown;
 };
@@ -572,6 +573,7 @@ export async function runOneOtelReplay(
           observation.span_id,
         ])
         .sort(),
+      shadowTableProvisioned: createdTables.includes(shadowTableName),
       shadow: shadowEnabled
         ? {
             storedRows: shadowRows ?? [],

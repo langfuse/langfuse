@@ -53,6 +53,7 @@ import {
   prepareOtelBatch,
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
+import { shadowJobId } from "../features/otel-ingestion/otelShadowRowKey";
 import {
   reserveShadowInput,
   sampleOtelShadow,
@@ -595,6 +596,7 @@ export const otelIngestionQueueProcessorBuilder = (
         input: admittedInput,
         primary: shadowCapture,
         context: shadowContext,
+        jobId: shadowJobId(job.data.id),
         primaryMediaPath: mediaPath ?? "reference",
         primaryDurationMs: performance.now() - primaryTimingStartedAt,
         primaryOutcome: params?.primaryOutcome,

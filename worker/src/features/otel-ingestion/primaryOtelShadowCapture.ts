@@ -1,4 +1,4 @@
-import type { OtelShadowRowLocator } from "./otelShadowRowVerifier";
+import type { OtelShadowRowLocator } from "./otelShadowRowKey";
 import type {
   OtelEffect,
   OtelMediaUploadEffect,
@@ -81,11 +81,17 @@ function intentKey(
   }
 }
 
+type IntentKind = OtelEffect["kind"] | "event";
+export type OtelShadowFailure = Extract<
+  OtelEffect,
+  { kind: "operation-failure" | "capture-failure" }
+>;
+
 export function createIntentCounts() {
   let complete = true;
-  const counts = new Map<string, Map<string, number>>();
-  const failures: OtelEffect[] = [];
-  const add = (kind: string, key: string) => {
+  const counts = new Map<IntentKind, Map<string, number>>();
+  const failures: OtelShadowFailure[] = [];
+  const add = (kind: IntentKind, key: string) => {
     let entries = counts.get(kind);
     if (!entries) {
       entries = new Map();
@@ -93,7 +99,7 @@ export function createIntentCounts() {
     }
     entries.set(key, (entries.get(key) ?? 0) + 1);
   };
-  const markIncomplete = (failure?: OtelEffect) => {
+  const markIncomplete = (failure?: OtelShadowFailure) => {
     complete = false;
     if (failure) failures.push(failure);
   };

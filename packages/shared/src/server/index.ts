@@ -264,6 +264,7 @@ export * from "./filterToPrisma";
 export * from "./prismaFilter";
 export * from "./instrumentation";
 export * from "./logger";
+export * from "./loggingContext";
 export * from "./processErrorHandlers";
 export * from "./headerPropagation";
 export { type FullObservations } from "./queries/createGenerationsQuery";

@@ -10,6 +10,7 @@ import {
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
+import { isCustomerDataLoggingSuppressed } from "../loggingContext";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
@@ -650,10 +651,12 @@ function recordSummaryOnSpan(
 }
 
 function setSpanQueryAttributes(span: Span, query: string): void {
-  span.setAttribute("ch.query.text", query);
   span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
-  span.setAttribute("db.query.text", query);
+  if (!isCustomerDataLoggingSuppressed()) {
+    span.setAttribute("ch.query.text", query);
+    span.setAttribute("db.query.text", query);
+  }
   span.setAttribute("db.operation.name", "SELECT");
 }
 
@@ -771,6 +774,7 @@ export async function queryClickhouse<T>(
           numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {
             const shouldRetry = isRetryableError(error);
+            const suppressed = isCustomerDataLoggingSuppressed();
             if (shouldRetry) {
               logger.warn(
                 `ClickHouse query failed with retryable error (attempt ${attemptNumber}/${env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS}): ${error.message}`,
@@ -782,7 +786,7 @@ export async function queryClickhouse<T>(
               );
               span.addEvent("clickhouse-query-retry", {
                 "retry.attempt": attemptNumber,
-                "retry.error": error.message,
+                ...(suppressed ? {} : { "retry.error": error.message }),
               });
             } else {
               logger.error(

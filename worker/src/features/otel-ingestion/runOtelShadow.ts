@@ -4,6 +4,8 @@ import {
   logger,
   recordDistribution,
   recordIncrement,
+  withCustomerDataLoggingSuppressed,
+  withoutBaggage,
 } from "@langfuse/shared/src/server";
 import { processRustOtelEvents } from "./processRustOtelEvents";
 import {
@@ -16,14 +18,12 @@ import {
   createIntentCounts,
   compareIntentCounts,
   createOtelShadowCapture,
+  type OtelShadowFailure,
 } from "./primaryOtelShadowCapture";
 import { createNativeOtelShadowEffects } from "./nativeOtelShadowEffects";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import {
-  enqueueOtelShadowRows,
-  type OtelShadowRowLocator,
-} from "./otelShadowRowVerifier";
-import type { OtelEffect } from "./otelEffectsCapture";
+import { enqueueOtelShadowRows } from "./otelShadowRowVerifier";
+import { shadowRowKey, type OtelShadowRowLocator } from "./otelShadowRowKey";
 
 export { createOtelShadowCapture };
 
@@ -31,6 +31,7 @@ type ShadowBatch = {
   input: NonNullable<ReturnType<typeof reserveShadowInput>>;
   primary: ReturnType<typeof createOtelShadowCapture>;
   context: OtelProcessingContext;
+  jobId?: string;
   primaryMediaPath: "early" | "reference";
   extractMedia: boolean;
   writeMode: "events_only" | "dual";
@@ -55,24 +56,24 @@ const pending = new Set<Promise<void>>();
 export function submitOtelShadow(job: ShadowBatch): void {
   // Leave the queue job free to finish. The buffered writer can flush several
   // ingestion jobs together; each shadow waits for its own rows.
-  const comparison = instrumentAsync(
-    { name: "otel-native-shadow", startNewTrace: true },
-    () => runAfterPrimaryInsert(job),
-  )
-    .catch((error: unknown) => {
-      logger.warn("Native OTEL shadow comparison failed", {
-        projectId: job.context.projectId,
-        fileKey: job.context.fileKey,
-        errorType: error instanceof Error ? error.name : "unknown",
-      });
-      recordIncrement("langfuse.ingestion.otel.shadow.batch", 1, {
-        outcome: "error",
-      });
-    })
-    .finally(() => {
-      job.input.release();
-      pending.delete(comparison);
-    });
+  // Worker log enrichment copies tracing baggage. A comparison needs its own
+  // context so the primary request's baggage cannot enter its diagnostics.
+  const comparison = withoutBaggage(() =>
+    instrumentAsync({ name: "otel-native-shadow", startNewTrace: true }, () =>
+      runAfterPrimaryInsert(job).catch(() => {
+        logger.warn("Native OTEL shadow comparison failed", {
+          projectId: job.context.projectId,
+          jobId: job.jobId,
+        });
+        recordIncrement("langfuse.ingestion.otel.shadow.batch", 1, {
+          outcome: "error",
+        });
+      }),
+    ),
+  ).finally(() => {
+    job.input.release();
+    pending.delete(comparison);
+  });
   pending.add(comparison);
 }
 
@@ -81,6 +82,7 @@ async function runAfterPrimaryInsert({
   primary,
   context,
   primaryMediaPath,
+  jobId,
   extractMedia,
   writeMode,
   primaryDurationMs,
@@ -106,13 +108,14 @@ async function runAfterPrimaryInsert({
   const shadowRowLocators: OtelShadowRowLocator[] = [];
   try {
     try {
-      batch = await prepareOtelJson(input.bytes, extractMedia);
-    } catch (error) {
+      batch = await withCustomerDataLoggingSuppressed(() =>
+        prepareOtelJson(input.bytes, extractMedia),
+      );
+    } catch {
       shadowErrorStage = "shadow_prepare";
       logger.warn("Native OTEL shadow preparation failed", {
         projectId: context.projectId,
-        fileKey: context.fileKey,
-        errorType: getSafeErrorType(error),
+        jobId,
       });
       return;
     }
@@ -169,9 +172,12 @@ async function runAfterPrimaryInsert({
       }
     };
     try {
-      await processRustOtelEvents({ batch, context, effects });
+      const nativeBatch = batch;
+      await withCustomerDataLoggingSuppressed(() =>
+        processRustOtelEvents({ batch: nativeBatch, context, effects }),
+      );
       shadowProcessingDurationMs = performance.now() - started;
-    } catch (error) {
+    } catch {
       shadowProcessingDurationMs = performance.now() - started;
       shadowErrorStage = "shadow_process";
       // A later processing failure can follow successful writer enqueues.
@@ -179,9 +185,8 @@ async function runAfterPrimaryInsert({
       const acknowledged = (await settleShadowWrites()).filter(Boolean).length;
       logger.warn("Native OTEL shadow stopped after inserting rows", {
         projectId: context.projectId,
-        fileKey: context.fileKey,
+        jobId,
         acknowledged,
-        errorType: error instanceof Error ? error.name : "unknown",
       });
       recordIncrement("langfuse.ingestion.otel.shadow.batch", 1, {
         outcome: acknowledged === 0 ? "error" : "partial",
@@ -212,6 +217,10 @@ async function runAfterPrimaryInsert({
       return;
     }
   } finally {
+    const batchRowKeys = () =>
+      (primary.rowLocators.length ? primary.rowLocators : shadowRowLocators)
+        .slice(0, 3)
+        .map((row) => shadowRowKey(context.projectId, row));
     if (native) {
       const bothInserted =
         primaryOutcome === "inserted" && shadowOutcome === "inserted";
@@ -236,13 +245,19 @@ async function runAfterPrimaryInsert({
             { ...tags, direction: "extra" },
           );
       }
-      if (differences.length) {
-        logger.info("Native OTEL shadow effects differ", {
-          projectId: context.projectId,
-          fileKey: context.fileKey,
-          complete,
-          differences,
-        });
+      if (differences.length || !primary.intents.complete || !native.complete) {
+        logger.info(
+          "Native OTEL shadow effects differ or capture is incomplete",
+          {
+            projectId: context.projectId,
+            jobId,
+            batchRowKeys: batchRowKeys(),
+            complete,
+            differences,
+            primaryFailures: failureCounts(primary.intents.failures),
+            shadowFailures: failureCounts(native.failures),
+          },
+        );
       }
       if (bothInserted) {
         const outcome = differences.length ? "intents_differ" : "intents_match";
@@ -257,12 +272,13 @@ async function runAfterPrimaryInsert({
       enqueueOtelShadowRows({
         projectId: context.projectId,
         fileKey: context.fileKey,
+        jobId,
         inputBytes: input.bytes.byteLength,
         primary: primary.rowLocators,
         shadow: shadowRowLocators,
       });
     }
-    await batch?.dispose();
+    await withCustomerDataLoggingSuppressed(() => batch?.dispose());
     const shadowDurationMs = performance.now() - started;
     if (shadowProcessingDurationMs === undefined) {
       shadowProcessingDurationMs = performance.now() - started;
@@ -283,10 +299,16 @@ async function runAfterPrimaryInsert({
       primary_media_path: primaryMediaPath,
     };
     recordIncrement("langfuse.ingestion.otel.shadow.pair", 1, pairTags);
-    if (primaryOutcome !== shadowOutcome) {
-      logger.info("OTEL shadow batch outcomes differ", {
+    if (
+      primaryOutcome !== shadowOutcome ||
+      pairTags.comparison === "both_failed"
+    ) {
+      logger.info("OTEL shadow batch outcomes", {
         projectId: context.projectId,
-        fileKey: context.fileKey,
+        jobId,
+        batchRowKeys: batchRowKeys(),
+        primaryInserted: primary.rowLocators.length,
+        shadowInserted: shadowRowLocators.length,
         ...pairTags,
       });
     }
@@ -322,9 +344,21 @@ async function runAfterPrimaryInsert({
   }
 }
 
+// Only operation and capture-stage names enter the report. The underlying
+// failure also carries row identifiers and an error supplied by the operation.
+function failureCounts(failures: readonly OtelShadowFailure[]) {
+  const counts: Record<string, number> = {};
+  for (const failure of failures) {
+    const stage =
+      failure.kind === "operation-failure" ? failure.operation : failure.stage;
+    counts[stage] = (counts[stage] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function recordOtelShadowIntentFailures(
   side: "primary" | "native",
-  failures: readonly OtelEffect[],
+  failures: readonly OtelShadowFailure[],
 ): void {
   const metric = `langfuse.ingestion.otel.shadow.${side}.intents.failures`;
   for (const failure of failures.slice(0, MAX_FAILURE_METRICS_PER_SIDE)) {
@@ -347,12 +381,6 @@ function recordOtelShadowIntentFailures(
       operation: "overflow",
     });
   }
-}
-
-function getSafeErrorType(error: unknown): string {
-  if (error instanceof Error) return error.name;
-  if (typeof error === "object" && error !== null) return "object";
-  return typeof error;
 }
 
 export async function drainOtelShadows(): Promise<void> {

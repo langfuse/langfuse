@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { Writable } from "node:stream";
+import winston from "winston";
 
 vi.mock("../env", () => ({
   env: {
@@ -12,6 +14,7 @@ const getCurrentSpan = vi.hoisted(() => vi.fn());
 vi.mock("./instrumentation", () => ({ getCurrentSpan }));
 
 import { logger } from "./logger";
+import { withCustomerDataLoggingSuppressed } from "./loggingContext";
 
 const jsonLine = (meta: Record<string, unknown>) => {
   const info = logger.format.transform({
@@ -66,6 +69,68 @@ describe("logger JSON format", () => {
         errors: [{ message: "part failed" }],
       },
     });
+  });
+
+  it("suppresses customer data at the real child logger sink only in scope", async () => {
+    const output: string[] = [];
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        output.push(String(chunk));
+        callback();
+      },
+    });
+    const transport = new winston.transports.Stream({ stream });
+    const existingTransports = [...logger.transports];
+
+    logger.clear();
+    logger.add(transport);
+
+    try {
+      const childLogger = logger.child({ format: "native-test" });
+      childLogger.error("synthetic-customer-value", {
+        error: new Error("synthetic-customer-error"),
+      });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(output.join("")).toContain("synthetic-customer-value");
+      expect(output.join("")).toContain("synthetic-customer-error");
+
+      output.length = 0;
+      await withCustomerDataLoggingSuppressed(async () => {
+        await Promise.resolve();
+        childLogger.error("suppressed-customer-value", {
+          error: new Error("suppressed-customer-error"),
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      });
+      expect(output).toHaveLength(0);
+
+      logger.cork();
+      let writeCallbackCalled = false;
+      await withCustomerDataLoggingSuppressed(() => {
+        const accepted = logger.write(
+          { level: "warn", message: "corked-suppressed-customer-value" },
+          () => {
+            writeCallbackCalled = true;
+          },
+        );
+        expect(accepted).toBe(true);
+        childLogger.warn("corked-suppressed-customer-value");
+      });
+      logger.uncork();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(output).toHaveLength(0);
+      expect(writeCallbackCalled).toBe(true);
+
+      childLogger.error("post-scope-customer-value");
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(output.join("")).toContain("post-scope-customer-value");
+    } finally {
+      logger.clear();
+      for (const existingTransport of existingTransports) {
+        logger.add(existingTransport);
+      }
+      stream.destroy();
+    }
   });
 });
 

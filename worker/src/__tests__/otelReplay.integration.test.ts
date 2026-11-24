@@ -3367,6 +3367,28 @@ describe(
       },
     );
 
+    it("keeps the default zero-rate path on the normal TypeScript writer", async () => {
+      const shadowWriter = vi.spyOn(ClickhouseWriter, "getNativeTestInstance");
+      const verifierQuery = vi.spyOn(sharedServer, "queryClickhouse");
+      onTestFinished(() => {
+        shadowWriter.mockRestore();
+        verifierQuery.mockRestore();
+      });
+
+      const result = await runOneOtelReplay({
+        mode: "original-ts",
+        bytes: Buffer.from(JSON.stringify(buildResourceSpans())),
+        projectId: `${PROJECT_ID}-default-rate`,
+        fileKey: `${FILE_KEY}.default-rate`,
+      });
+
+      expect(result.storedRows).toHaveLength(2);
+      expect(result.shadowTableProvisioned).toBe(false);
+      expect(result.shadow).toBeUndefined();
+      expect(shadowWriter).not.toHaveBeenCalled();
+      expect(verifierQuery).not.toHaveBeenCalled();
+    });
+
     it("skips shadowing a sampled batch routed through legacy forwarding", async () => {
       await runOneOtelReplay({
         mode: "original-ts",
@@ -3453,6 +3475,13 @@ describe(
 
     it("does not retry or duplicate the primary after a native shadow failure", async () => {
       const projectId = `${PROJECT_ID}-shadow-failure`;
+      const emitted: Record<string, unknown>[] = [];
+      const captureLog = (entry: Record<string, unknown>) =>
+        emitted.push(entry);
+      sharedServer.logger.on("data", captureLog);
+      onTestFinished(() => {
+        sharedServer.logger.off("data", captureLog);
+      });
       enableOtelReplayEffectBoundarySpies();
       otelReplayMocks.fetchEvalRules.mockResolvedValue(
         buildShadowEvaluationRules(projectId),
@@ -3482,6 +3511,23 @@ describe(
       expect(shadow.primaryJsonInsertSuccesses).toBe(1);
       expect(shadow.shadowNativeInsertAttempts).toBe(1);
       expect(shadow.shadowNativeInsertSuccesses).toBe(0);
+      const report = emitted.find(
+        ({ message }) =>
+          typeof message === "string" &&
+          message.trim() === "OTEL shadow batch outcomes",
+      );
+      expect(report).toMatchObject({
+        primaryInserted: 2,
+        shadowInserted: 0,
+        shadow_error_stage: "shadow_writer",
+        batchRowKeys: expect.arrayContaining([
+          expect.objectContaining({ projectId, traceHash: expect.any(Number) }),
+        ]),
+      });
+      expect(JSON.stringify(report)).not.toContain(FILE_KEY);
+      expect(JSON.stringify(emitted)).not.toContain(
+        "simulated shadow native insert failure",
+      );
       expect(shadow.operationLog).toEqual([
         "primary-json-attempt",
         "primary-json-success",

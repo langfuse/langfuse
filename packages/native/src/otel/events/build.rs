@@ -203,7 +203,6 @@ impl<'a> EventAssembly<'a> {
             // A missing caller key drops only this gateway span, preserving its siblings.
             tracing::warn!(
                 project_id = %self.event.project_id,
-                observation_id = %self.event.span_id,
                 "Skipping AI gateway span without a caller API key"
             );
             return None;

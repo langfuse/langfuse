@@ -7,6 +7,8 @@ import {
   recordHistogram,
   recordIncrement,
   buildClickHouseLogComment,
+  isCustomerDataLoggingSuppressed,
+  withCustomerDataLoggingSuppressed,
 } from "@langfuse/shared/src/server";
 
 import type { PreparedEvent } from "@langfuse/native";
@@ -116,7 +118,7 @@ export class ClickhouseWriter<
       [TableName.TopicAssignments]: [],
     };
 
-    this.start();
+    this.runWithShadowLoggingSuppressed(() => this.start());
   }
 
   /** Get the singleton JSON writer. A supplied client replaces the current client. */
@@ -218,6 +220,10 @@ export class ClickhouseWriter<
   }
 
   public async shutdown(): Promise<void> {
+    return this.runWithShadowLoggingSuppressed(() => this.shutdownUnsafe());
+  }
+
+  private async shutdownUnsafe(): Promise<void> {
     this.logger.info(`${this.logPrefix}Shutting down ClickhouseWriter...`);
 
     if (this.intervalId) {
@@ -246,25 +252,27 @@ export class ClickhouseWriter<
     const tables = this.allowedTable
       ? [this.allowedTable]
       : Object.values(TableName);
-    return this.trackActiveFlush(
-      instrumentAsync(
-        {
-          name: "write-to-clickhouse",
-        },
-        async (span) => {
-          span.setAttribute("format", this.telemetryFormat);
-          recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
-            format: this.telemetryFormat,
-          });
-          await Promise.all(
-            tables.map((table) => this.flush(table, fullQueue)),
-          ).catch((err) => {
-            this.logger.error(
-              `${this.logPrefix}ClickhouseWriter.flushAll`,
-              err,
-            );
-          });
-        },
+    return this.runWithShadowLoggingSuppressed(() =>
+      this.trackActiveFlush(
+        instrumentAsync(
+          {
+            name: "write-to-clickhouse",
+          },
+          async (span) => {
+            span.setAttribute("format", this.telemetryFormat);
+            recordIncrement("langfuse.queue.clickhouse_writer.request", 1, {
+              format: this.telemetryFormat,
+            });
+            await Promise.all(
+              tables.map((table) => this.flush(table, fullQueue)),
+            ).catch((err) => {
+              this.logger.error(
+                `${this.logPrefix}ClickhouseWriter.flushAll`,
+                err,
+              );
+            });
+          },
+        ),
       ),
     );
   }
@@ -276,6 +284,12 @@ export class ClickhouseWriter<
       () => this.activeFlushes.delete(flush),
     );
     return flush;
+  }
+
+  private runWithShadowLoggingSuppressed<T>(callback: () => T): T {
+    return this.destinationTable
+      ? withCustomerDataLoggingSuppressed(callback)
+      : callback();
   }
 
   private isSizeError(error: unknown): boolean {
@@ -476,6 +490,9 @@ export class ClickhouseWriter<
             const isRetryable = isRetryableClickhouseInsertError(error);
             const isSizeError = this.isSizeError(error);
             const isStringLengthError = this.isStringLengthError(error);
+            const suppressCustomerData =
+              this.destinationTable !== undefined ||
+              isCustomerDataLoggingSuppressed();
 
             if (isRetryable) {
               this.logger.warn(
@@ -487,7 +504,9 @@ export class ClickhouseWriter<
               );
               currentSpan?.addEvent("clickhouse-query-retry", {
                 "retry.attempt": attemptNumber,
-                "retry.error": error.message,
+                ...(suppressCustomerData
+                  ? {}
+                  : { "retry.error": error.message }),
               });
               return true;
             } else if (isStringLengthError && truncate) {
@@ -525,7 +544,9 @@ export class ClickhouseWriter<
 
               currentSpan?.addEvent("clickhouse-query-split-retry", {
                 "retry.attempt": attemptNumber,
-                "retry.error": error.message,
+                ...(suppressCustomerData
+                  ? {}
+                  : { "retry.error": error.message }),
                 "split.retry_count": retryItems.length,
                 "split.requeue_count": requeueItems.length,
               });
@@ -547,7 +568,9 @@ export class ClickhouseWriter<
 
               currentSpan?.addEvent("clickhouse-query-truncate-retry", {
                 "retry.attempt": attemptNumber,
-                "retry.error": error.message,
+                ...(suppressCustomerData
+                  ? {}
+                  : { "retry.error": error.message }),
                 truncated: true,
               });
               return true;
@@ -706,15 +729,17 @@ export class ClickhouseWriter<
     });
 
     if (entityQueue.length >= this.batchSize) {
-      this.logger.debug(
-        `${this.logPrefix}Queue is full. Flushing ${tableName}...`,
-      );
-
-      this.trackActiveFlush(this.flush(tableName)).catch((err) => {
-        this.logger.error(
-          `${this.logPrefix}ClickhouseWriter.addToQueue flush`,
-          err,
+      this.runWithShadowLoggingSuppressed(() => {
+        this.logger.debug(
+          `${this.logPrefix}Queue is full. Flushing ${tableName}...`,
         );
+
+        this.trackActiveFlush(this.flush(tableName)).catch((err) => {
+          this.logger.error(
+            `${this.logPrefix}ClickhouseWriter.addToQueue flush`,
+            err,
+          );
+        });
       });
     }
   }
@@ -730,6 +755,9 @@ export class ClickhouseWriter<
         table: this.destinationTable ?? params.table,
         records: params.records,
         clickhouse_settings: {
+          ...(this.destinationTable || isCustomerDataLoggingSuppressed()
+            ? { log_queries: 0 }
+            : {}),
           log_comment: buildClickHouseLogComment({
             surface: "worker",
             route: "clickhouse-writer",

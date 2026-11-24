@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "@langfuse/shared/src/server";
 
 const mocks = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
@@ -50,6 +51,7 @@ describe("otel shadow row verifier contract", () => {
   afterEach(async () => {
     vi.useRealTimers();
     await drainOtelShadowRowVerifier();
+    vi.restoreAllMocks();
   });
 
   it("verifies 513 distinct span keys from overlapping batches in two reads", async () => {
@@ -79,12 +81,13 @@ describe("otel shadow row verifier contract", () => {
     expect(mocks.queryClickhouse).toHaveBeenCalledTimes(1);
   });
 
-  it("makes one read after a staggered 4 MiB group has settled", async () => {
+  it("makes one read after a staggered 64 MiB group has settled", async () => {
     vi.useFakeTimers();
-    enqueueOtelShadowRows(sample({ inputBytes: 2 * 1024 * 1024 }));
-    await vi.advanceTimersByTimeAsync(4_000);
+    enqueueOtelShadowRows(sample({ inputBytes: 32 * 1024 * 1024 }));
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     enqueueOtelShadowRows(
-      sample({ fileKey: "next-file", inputBytes: 2 * 1024 * 1024 }),
+      sample({ fileKey: "next-file", inputBytes: 32 * 1024 * 1024 }),
     );
     await vi.advanceTimersByTimeAsync(4_999);
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
@@ -108,5 +111,19 @@ describe("otel shadow row verifier contract", () => {
 
     await drainOtelShadowRowVerifier();
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed read without copying the query or database error into the warning", async () => {
+    const canary = "private-source-file";
+    const warn = vi.spyOn(logger, "warn");
+    mocks.queryClickhouse.mockRejectedValueOnce(
+      Object.assign(new Error(canary), { name: canary, code: canary }),
+    );
+    enqueueOtelShadowRows(sample({ fileKey: canary }));
+    await drainOtelShadowRowVerifier();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "OTEL shadow persisted-row verification query failed",
+      { batches: 1 },
+    );
   });
 });

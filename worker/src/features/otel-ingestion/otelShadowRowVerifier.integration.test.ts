@@ -4,6 +4,7 @@ import { clickhouseClient, queryClickhouse } from "@langfuse/shared/src/server";
 import {
   verifyOtelShadowRows,
   type OtelShadowRowSample,
+  type OtelShadowRowDifference,
 } from "./otelShadowRowVerifier";
 
 /**
@@ -100,9 +101,10 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
       "same-payload",
       clockAt("02"),
     );
-    const differentPrimary = row("span-different", fileKey, "primary-payload");
+    const changedSpan = "000000000000001f";
+    const differentPrimary = row(changedSpan, fileKey, "primary-payload");
     const differentShadow = row(
-      "span-different",
+      changedSpan,
       fileKey,
       "shadow-payload",
       clockAt("02"),
@@ -175,7 +177,7 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
         primary: [
           locator("span-equal"),
           locator("map-order"),
-          locator("span-different"),
+          locator(changedSpan),
           locator("span-missing-shadow"),
           locator("span-missing-both"),
           locator("span-duplicate"),
@@ -183,15 +185,18 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
         shadow: [
           locator("span-equal"),
           locator("map-order"),
-          locator("span-different"),
+          locator(changedSpan),
           locator("span-missing-primary"),
           locator("span-duplicate"),
         ],
       },
     ];
 
+    const examples: OtelShadowRowDifference[] = [];
     await expect(
-      verifyOtelShadowRows(samples, redirectedQuery),
+      verifyOtelShadowRows(samples, redirectedQuery, (example) =>
+        examples.push(example),
+      ),
     ).resolves.toEqual({
       matched: 1,
       map_order_only: 1,
@@ -201,6 +206,49 @@ ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, 
       missing_both: 1,
       ambiguous: 1,
     });
-    expect(queryCount).toBe(1);
+    expect(examples).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          outcome: "different",
+          changedColumns: ["event_bytes", "input"],
+        }),
+        expect.objectContaining({
+          outcome: "map_order_only",
+          orderOnlyColumns: ["usage_details"],
+        }),
+        expect.objectContaining({
+          outcome: "missing_shadow",
+          primaryCopies: 1,
+          shadowCopies: 0,
+        }),
+      ]),
+    );
+    for (const value of [
+      fileKey,
+      traceId,
+      "span-missing-shadow",
+      "primary-payload",
+      "shadow-payload",
+    ]) {
+      expect(JSON.stringify(examples)).not.toContain(value);
+    }
+    expect(queryCount).toBe(2);
+    expect(examples).toHaveLength(6);
+    const rowKey = examples.find(
+      ({ outcome }) => outcome === "different",
+    )?.rowKey;
+    expect(rowKey).toMatchObject({ projectId, startTime, spanId: changedSpan });
+    const files = await client.query({
+      query: `SELECT DISTINCT blob_storage_file_path FROM ${primaryTable}
+        WHERE project_id = {projectId:String}
+          AND toStartOfMinute(start_time) = toStartOfMinute({startTime:DateTime64(6, 'UTC')})
+          AND xxHash32(trace_id) = {traceHash:UInt32}
+          AND span_id = {spanId:String} AND start_time = {startTime:DateTime64(6, 'UTC')}`,
+      query_params: rowKey,
+      format: "JSONEachRow",
+    });
+    await expect(files.json()).resolves.toEqual([
+      { blob_storage_file_path: fileKey },
+    ]);
   });
 });

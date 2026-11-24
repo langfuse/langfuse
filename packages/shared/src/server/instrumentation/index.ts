@@ -7,6 +7,7 @@ import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
 import { logger } from "../logger";
+import { isCustomerDataLoggingSuppressed } from "../loggingContext";
 import { getProjectSize } from "../projectSize";
 import { CLICKHOUSE_ROUTE_CONTEXT_KEY } from "../clickhouse/queryTags";
 
@@ -166,8 +167,39 @@ export const traceException = (
     return;
   }
 
+  const recordException = (exception: {
+    code?: string;
+    message: string;
+    name: string;
+    stack?: string;
+  }) => {
+    // adds an otel event
+    activeSpan.recordException(exception);
+
+    // adds tags for datadog error tracking
+    activeSpan.setAttributes({
+      "error.stack": exception.stack,
+      "error.message": exception.message,
+      "error.type": exception.name,
+    });
+
+    activeSpan.setStatus({
+      code: opentelemetry.SpanStatusCode.ERROR,
+      message: exception.message,
+    });
+  };
+
+  if (isCustomerDataLoggingSuppressed()) {
+    recordException({
+      code: "customer_data_suppressed",
+      message: "customer data suppressed",
+      name: "CustomerDataSuppressedError",
+    });
+    return;
+  }
+
   const exception = {
-    code: code,
+    code,
     message:
       ex instanceof Error
         ? ex.message
@@ -188,20 +220,7 @@ export const traceException = (
           : undefined,
   };
 
-  // adds an otel event
-  activeSpan.recordException(exception);
-
-  //adds tags for datadog error tracking
-  activeSpan.setAttributes({
-    "error.stack": exception.stack,
-    "error.message": exception.message,
-    "error.type": exception.name,
-  });
-
-  activeSpan.setStatus({
-    code: opentelemetry.SpanStatusCode.ERROR,
-    message: exception.message,
-  });
+  recordException(exception);
 };
 
 export const addUserToSpan = (

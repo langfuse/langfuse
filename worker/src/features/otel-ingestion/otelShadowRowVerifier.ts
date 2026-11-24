@@ -1,25 +1,28 @@
 import {
+  eventRecordReadSchema,
   logger,
   queryClickhouse,
   recordIncrement,
   TupleParam,
+  withCustomerDataLoggingSuppressed,
 } from "@langfuse/shared/src/server";
 
-export type OtelShadowRowLocator = {
-  traceId: string;
-  spanId: string;
-  startTime: string;
-};
+import {
+  shadowRowKey,
+  shadowStoredTime,
+  type OtelShadowRowLocator,
+} from "./otelShadowRowKey";
 
 export type OtelShadowRowSample = {
   projectId: string;
   fileKey: string;
+  jobId?: string;
   inputBytes: number;
   primary: OtelShadowRowLocator[];
   shadow: OtelShadowRowLocator[];
 };
 
-const BATCH_BYTES = 4 * 1024 * 1024;
+const BATCH_BYTES = 64 * 1024 * 1024;
 const SETTLE_MS = 5_000;
 const MAX_AGE_MS = 30_000;
 const KEYS_PER_QUERY = 512;
@@ -36,24 +39,11 @@ type Expected = {
 };
 type Stored = {
   side: "primary" | "shadow";
-  project: string;
-  trace: string;
-  span: string;
-  time: string;
-  file: string;
+  position: number;
   digest: string;
   mapDigest: string;
   copies: string | number;
 };
-
-// The JSON writer uses a ClickHouse datetime and the Native writer exposes its
-// UTC ISO value. Preserve fractional digits up to the table's microsecond scale.
-function storedTime(value: string) {
-  const match =
-    /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z?$/.exec(value);
-  if (!match) throw new Error("Invalid shadow start time");
-  return `${match[1]} ${match[2]}.${(match[3] ?? "").padEnd(6, "0").slice(0, 6)}`;
-}
 
 // ClickHouse preserves insertion order for these maps. Keep a separate digest
 // so equivalent buckets in a different order do not hide changed values.
@@ -64,44 +54,157 @@ const eventMaps = [
   "cost_details",
   "tool_definitions",
 ];
+const excludedClocks = "created_at, updated_at, event_ts";
+const columns = `e.* EXCEPT (${excludedClocks})`;
+export type OtelShadowRowDifference = {
+  outcome: string;
+  rowKey: ReturnType<typeof shadowRowKey>;
+  jobId?: string;
+  primaryAcks: number;
+  shadowAcks: number;
+  primaryCopies: number;
+  shadowCopies: number;
+  changedColumns?: string[];
+  orderOnlyColumns?: string[];
+  fieldDetails?: "unavailable" | "changed_since_read";
+};
+type Fields = Pick<Stored, "side" | "position" | "copies"> & {
+  columnDigests: Record<string, string>;
+  sortedMaps: string[];
+};
 function readSide(
   table: "events_full" | "events_native_test",
   side: Stored["side"],
+  details: boolean,
 ) {
   // Use both the actual primary-key prefix and the exact identity. The source
-  // file distinguishes deliveries that share a span, and the digest stays in CH.
+  // file distinguishes deliveries that share a span. Only counts and hashes
+  // need to travel back to the worker.
+  const identity =
+    "(e.project_id, e.trace_id, e.span_id, e.start_time, e.blob_storage_file_path)";
+  const hashes = details
+    ? `any(mapFromArrays(tupleNames(tuple(${columns})), [${columns} APPLY(x -> hex(sipHash128(tuple(x))))])) AS columnDigests,
+       any([${eventMaps.map((name) => `hex(sipHash128(mapSort(e.${name})))`).join(", ")}]) AS sortedMaps`
+    : `any(hex(sipHash128(tuple(e.* EXCEPT (${excludedClocks}, ${eventMaps.join(", ")})),
+       ${eventMaps.map((name) => `mapSort(e.${name})`).join(", ")}))) AS digest,
+       any(hex(sipHash128(${eventMaps.map((name) => `e.${name}`).join(", ")}))) AS mapDigest`;
   return `
-    SELECT '${side}' AS side, e.project_id AS project, e.trace_id AS trace,
-      e.span_id AS span, toString(e.start_time, 'UTC') AS time,
-      e.blob_storage_file_path AS file, count() AS copies,
-      any(hex(sipHash128(tuple(e.* EXCEPT (created_at, updated_at, event_ts, ${eventMaps.join(", ")})),
-        ${eventMaps.map((name) => `mapSort(e.${name})`).join(", ")}))) AS digest,
-      any(hex(sipHash128(${eventMaps.map((name) => `e.${name}`).join(", ")}))) AS mapDigest
+    SELECT '${side}' AS side, indexOf(keys, ${identity}) AS position, count() AS copies, ${hashes}
     FROM ${table} AS e
     WHERE (e.project_id, toStartOfMinute(e.start_time), xxHash32(e.trace_id)) IN
       (SELECT k.1, toStartOfMinute(k.4), xxHash32(k.2) FROM (SELECT arrayJoin(keys) AS k))
-    AND (e.project_id, e.trace_id, e.span_id, e.start_time, e.blob_storage_file_path) IN keys
-    GROUP BY e.project_id, e.trace_id, e.span_id, e.start_time, e.blob_storage_file_path`;
+    AND ${identity} IN keys
+    GROUP BY position`;
 }
 
-const query = `WITH {locators:Array(Tuple(String,String,String,DateTime64(6,'UTC'),String))} AS keys
-  ${readSide("events_full", "primary")} UNION ALL
-  ${readSide("events_native_test", "shadow")}`;
+async function readPairs<T extends Pick<Stored, "side" | "position">>(
+  keys: Identity[],
+  read: typeof queryClickhouse,
+  details: boolean,
+) {
+  const pairs = keys.map((): Partial<Record<Stored["side"], T>> => ({}));
+  const rows = await withCustomerDataLoggingSuppressed(() =>
+    read<T>({
+      query: `WITH {locators:Array(Tuple(String,String,String,DateTime64(6,'UTC'),String))} AS keys
+      ${readSide("events_full", "primary", details)} UNION ALL ${readSide("events_native_test", "shadow", details)}`,
+      params: { locators: keys.map((key) => new TupleParam(key)) },
+      useMultipartParamsAuto: true,
+      preferredClickhouseService: "ReadWrite",
+      tags: { surface: "worker", route: "otel-shadow-verify-rows" },
+      clickhouseSettings: {
+        max_threads: 2,
+        max_execution_time: 8,
+        max_bytes_to_read: "536870912",
+        max_result_rows: String(keys.length * 2),
+        result_overflow_mode: "throw",
+        asterisk_include_materialized_columns: 1,
+        asterisk_include_alias_columns: 1,
+        enable_named_columns_in_function_tuple: 1,
+        log_queries: 0,
+      },
+    }),
+  );
+  for (const row of rows) pairs[row.position - 1][row.side] = row;
+  return pairs;
+}
+
+async function describeChangedFields(
+  examples: { key: Identity; example: OtelShadowRowDifference }[],
+  read: typeof queryClickhouse,
+) {
+  const changed = examples.filter(
+    ({ example }) =>
+      example.outcome === "different" || example.outcome === "map_order_only",
+  );
+  if (!changed.length) return;
+  try {
+    const pairs = await readPairs<Fields>(
+      changed.map((item) => item.key),
+      read,
+      true,
+    );
+    pairs.forEach(({ primary, shadow }, i) => {
+      const { example } = changed[i];
+      if (
+        !primary ||
+        !shadow ||
+        Number(primary.copies) !== 1 ||
+        Number(shadow.copies) !== 1
+      ) {
+        example.fieldDetails = "changed_since_read";
+        return;
+      }
+      const values = new Set<string>();
+      const ordering: string[] = [];
+      const names = new Set([
+        ...Object.keys(primary.columnDigests),
+        ...Object.keys(shadow.columnDigests),
+      ]);
+      for (const name of names) {
+        if (primary.columnDigests[name] === shadow.columnDigests[name])
+          continue;
+        const index = eventMaps.indexOf(name);
+        if (
+          index >= 0 &&
+          primary.sortedMaps[index] === shadow.sortedMaps[index]
+        )
+          ordering.push(name);
+        else
+          values.add(
+            Object.hasOwn(eventRecordReadSchema.shape, name)
+              ? name
+              : "unmapped_column",
+          );
+      }
+      example.changedColumns = [...values].sort();
+      example.orderOnlyColumns = ordering.sort();
+      if (
+        (example.outcome === "different") !== values.size > 0 ||
+        (!values.size && !ordering.length)
+      )
+        example.fieldDetails = "changed_since_read";
+    });
+  } catch {
+    for (const { example } of changed) example.fieldDetails = "unavailable";
+  }
+}
 
 export async function verifyOtelShadowRows(
   samples: readonly OtelShadowRowSample[],
   read: typeof queryClickhouse = queryClickhouse,
-  onDifference?: (outcome: string, key: Identity) => void,
+  onDifference?: (example: OtelShadowRowDifference) => void,
 ): Promise<Record<string, number>> {
   const expected = new Map<string, Expected>();
   for (const [sampleIndex, sample] of samples.entries()) {
     for (const side of ["primary", "shadow"] as const) {
       for (const row of sample[side]) {
+        const startTime = shadowStoredTime(row.startTime);
+        if (!startTime) throw new Error("Invalid shadow start time");
         const key: Identity = [
           sample.projectId,
           row.traceId,
           row.spanId,
-          storedTime(row.startTime),
+          startTime,
           sample.fileKey,
         ];
         const id = JSON.stringify(key);
@@ -120,45 +223,23 @@ export async function verifyOtelShadowRows(
   }
 
   const counts: Record<string, number> = {};
+  const examples = new Map<
+    string,
+    { key: Identity; example: OtelShadowRowDifference }
+  >();
   const keys = Array.from(expected.values());
   for (let i = 0; i < keys.length; i += KEYS_PER_QUERY) {
     const chunk = keys.slice(i, i + KEYS_PER_QUERY);
-    const rows = await read<Stored>({
-      query,
-      params: { locators: chunk.map(({ key }) => new TupleParam(key)) },
-      useMultipartParamsAuto: true,
-      preferredClickhouseService: "ReadWrite",
-      tags: { surface: "worker", route: "otel-shadow-verify-rows" },
-      clickhouseSettings: {
-        max_threads: 2,
-        max_execution_time: 8,
-        max_bytes_to_read: "536870912",
-        max_result_rows: String(KEYS_PER_QUERY * 2),
-        result_overflow_mode: "throw",
-        asterisk_include_materialized_columns: 1,
-        asterisk_include_alias_columns: 1,
-      },
-    });
-    const stored = new Map<string, Partial<Record<Stored["side"], Stored>>>();
-    for (const row of rows) {
-      const id = JSON.stringify([
-        row.project,
-        row.trace,
-        row.span,
-        row.time,
-        row.file,
-      ]);
-      const pair = stored.get(id) ?? {};
-      pair[row.side] = row;
-      stored.set(id, pair);
-    }
-    for (const {
-      key,
-      repeated,
-      primary: primaryAcks,
-      shadow: shadowAcks,
-    } of chunk) {
-      const { primary, shadow } = stored.get(JSON.stringify(key)) ?? {};
+    const pairs = await readPairs<Stored>(
+      chunk.map((item) => item.key),
+      read,
+      false,
+    );
+    for (const [
+      index,
+      { key, repeated, sampleIndex, primary: primaryAcks, shadow: shadowAcks },
+    ] of chunk.entries()) {
+      const { primary, shadow } = pairs[index];
       let outcome: string;
       if (
         repeated ||
@@ -178,8 +259,26 @@ export async function verifyOtelShadowRows(
         outcome =
           primary.mapDigest === shadow.mapDigest ? "matched" : "map_order_only";
       counts[outcome] = (counts[outcome] ?? 0) + 1;
-      if (outcome !== "matched") onDifference?.(outcome, key);
+      if (onDifference && outcome !== "matched" && !examples.has(outcome)) {
+        const [projectId, traceId, spanId, startTime] = key;
+        examples.set(outcome, {
+          key,
+          example: {
+            outcome,
+            rowKey: shadowRowKey(projectId, { traceId, spanId, startTime }),
+            jobId: samples[sampleIndex].jobId,
+            primaryAcks,
+            shadowAcks,
+            primaryCopies: Number(primary?.copies ?? 0),
+            shadowCopies: Number(shadow?.copies ?? 0),
+          },
+        });
+      }
     }
+  }
+  if (onDifference) {
+    await describeChangedFields([...examples.values()], read);
+    for (const { example } of examples.values()) onDifference(example);
   }
   return counts;
 }
@@ -277,28 +376,11 @@ function startRead(force: boolean) {
       }
     }
   }
-  const examples: Array<{
-    outcome: string;
-    projectId: string;
-    traceId: string;
-    spanId: string;
-    startTime: string;
-    fileKey: string;
-  }> = [];
+  const examples: OtelShadowRowDifference[] = [];
   active = verifyOtelShadowRows(
     group.map(({ sample }) => sample),
     queryClickhouse,
-    (outcome, [projectId, traceId, spanId, startTime, fileKey]) => {
-      if (examples.length < 5)
-        examples.push({
-          outcome,
-          projectId,
-          traceId,
-          spanId,
-          startTime,
-          fileKey,
-        });
-    },
+    (example) => examples.push(example),
   )
     .then((counts) => {
       for (const [outcome, rows] of Object.entries(counts)) {
@@ -318,19 +400,13 @@ function startRead(force: boolean) {
         );
       }
     })
-    .catch((error: unknown) => {
-      // A timeout, unavailable table or incompatible schema says nothing about row equality.
+    .catch(() => {
       recordIncrement(
         "langfuse.ingestion.otel.shadow.verification_read_error",
         1,
       );
       logger.warn("OTEL shadow persisted-row verification query failed", {
         batches: group.length,
-        errorType: error instanceof Error ? error.name : "unknown",
-        code:
-          error && typeof error === "object" && "code" in error
-            ? String(error.code).slice(0, 32)
-            : undefined,
       });
     })
     .finally(() => {

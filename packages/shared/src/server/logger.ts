@@ -2,6 +2,7 @@ import { env } from "../env";
 import winston from "winston";
 import { getCurrentSpan } from "./instrumentation";
 import { propagation, context } from "@opentelemetry/api";
+import { isCustomerDataLoggingSuppressed } from "./loggingContext";
 
 const tracingFormat = function () {
   return winston.format((info) => {
@@ -120,11 +121,25 @@ const getWinstonLogger = (
 
   const format =
     env.LANGFUSE_LOG_FORMAT === "text" ? textLoggerFormat : jsonLoggerFormat;
-  return winston.createLogger({
+  const winstonLogger = winston.createLogger({
     level: minLevel,
     format: format,
     transports: [new winston.transports.Console()],
   });
+
+  // Children delegate to the root writer. Filtering here also covers entries
+  // that Winston would buffer and format later in a different async context.
+  const write = winstonLogger.write.bind(winstonLogger);
+  winstonLogger.write = ((...args: Parameters<typeof winstonLogger.write>) => {
+    if (isCustomerDataLoggingSuppressed()) {
+      const callback = typeof args[1] === "function" ? args[1] : args[2];
+      if (callback) queueMicrotask(() => callback(null));
+      return true;
+    }
+    return write(...args);
+  }) as typeof winstonLogger.write;
+
+  return winstonLogger;
 };
 
 export const logger = getWinstonLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
