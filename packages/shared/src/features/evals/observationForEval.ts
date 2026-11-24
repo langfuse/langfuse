@@ -4,6 +4,7 @@ import { type EventRecordBaseType } from "../../server/repositories/definitions"
 import { ObservationLevel } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { parseJsonIfString } from "../../utils/json";
+import type { ObservationEvalFilterColumnInternal } from "./filterFields";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -72,6 +73,15 @@ export const observationForEvalSchema = z.object({
 });
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
+
+/**
+ * The observation fields that evaluation rule matching reads: every field a
+ * filter column names, plus the identifiers.
+ */
+export type ObservationEvalFilterFields = Pick<
+  ObservationForEval,
+  ObservationEvalFilterColumnInternal | "span_id" | "trace_id" | "project_id"
+>;
 
 /**
  * Self-contained tool call shape handed to evaluators. Rebuilt from the
