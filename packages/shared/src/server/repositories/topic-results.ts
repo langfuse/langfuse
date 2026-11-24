@@ -23,6 +23,9 @@ export const TOPIC_SUMMARY_STATES = [
 ] as const;
 export type TopicSummaryState = (typeof TOPIC_SUMMARY_STATES)[number];
 
+/** `processing_state` as results report it; mirrors `reportedTopicSummaryState`. */
+const reportedStateSql = `if(processing_state IN ('empty_input', 'input_too_large'), 'insufficient_input', toString(processing_state))`;
+
 export const TOPIC_ASSIGNMENT_STATUSES = [
   "assigned",
   "outlier",
@@ -130,7 +133,7 @@ function summaryConditionSql(
     case "processedAt":
       return dateSql("created_at", condition.match, params);
     case "state":
-      return inSql("toString(processing_state)", condition.match, params);
+      return inSql(reportedStateSql, condition.match, params);
     case "topicId":
     case "assignmentStatus":
     case "assigned":
@@ -226,7 +229,7 @@ function currentResultsSql(
       if(matched, a_run_id, '') AS clustering_run_id,
       a_created_at AS assignment_created_at,
       multiIf(
-        processing_state != 'complete', toString(processing_state),
+        processing_state != 'complete', ${reportedStateSql},
         NOT matched, 'awaiting_map',
         topic_stable_id != '', 'assigned',
         'outlier'
@@ -620,7 +623,7 @@ export async function listCurrentTopicSummaries(
     ...input,
     kind: "summaries",
     select: `trace_id, facet_id, facet_version, unit_start_time, trace_name, environment,
-      toString(processing_state) AS state,
+      ${reportedStateSql} AS state,
       {truncate:Bool} AND lengthUTF8(summary) > {previewLength:UInt32} AS summary_truncated,
       if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary_text,
       summary_created_at${assignmentSelect}`,
@@ -753,7 +756,7 @@ export async function getTopicResultCounts(input: {
           uniqCombinedIf(trace_id, processing_state = 'complete'
             AND facet_version = {versions:Array(UInt32)}[indexOf({facetIds:Array(String)}, facet_id)]) AS usable,
           uniqCombinedIf(trace_id, processing_state = 'not_applicable') AS not_applicable,
-          uniqCombinedIf(trace_id, processing_state = 'insufficient_input') AS insufficient_input
+          uniqCombinedIf(trace_id, processing_state IN ('insufficient_input', 'empty_input', 'input_too_large')) AS insufficient_input
         FROM topic_facet_summaries WHERE ${scope("unit_type = 'trace'")}
         GROUP BY facet_id`,
       params,
@@ -808,8 +811,8 @@ export async function getTopicResultCounts(input: {
 }
 
 /**
- * Facet summaries written in `[start, end)`, by `created_at`, without
- * `insufficient_input` rows, as billing counts them. Rows
+ * Facet summaries written in `[start, end)`, by `created_at`, except those
+ * written without a model call, as billing counts them. Rows
  * are not deduplicated (no `FINAL`), so a source re-summarized before a merge
  * counts once per write. `created_at` is outside the sort key, so this scans
  * the table; it runs only from the self-hosted telemetry job.
@@ -827,7 +830,7 @@ export async function getTopicFacetSummaryCountsByProjectInCreationInterval({
       FROM topic_facet_summaries
       WHERE created_at >= {start: DateTime64(3)}
         AND created_at < {end: DateTime64(3)}
-        AND processing_state != 'insufficient_input'
+        AND processing_state NOT IN ('empty_input', 'input_too_large')
       GROUP BY project_id
     `,
     params: {

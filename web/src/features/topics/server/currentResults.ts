@@ -1,6 +1,7 @@
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
+  reportedTopicSummaryState,
   topicTimeRangeSchema,
   type TopicAssignment,
   type TopicFacet,
@@ -58,7 +59,7 @@ function resolveTopicResult(
     stored.summaryProcessedAt === summary.processedAt
       ? stored
       : undefined;
-  let outcome: string = summary.state;
+  let outcome: string = reportedTopicSummaryState(summary.state);
   if (summary.state === "complete") outcome = "awaiting_map";
   if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
   return { assignment, outcome };

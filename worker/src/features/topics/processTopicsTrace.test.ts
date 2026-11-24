@@ -57,7 +57,9 @@ vi.mock("./assignments", () => ({
     { topicId: "billing", runId: run.id },
   ],
 }));
-vi.mock("./models", () => ({ TopicInputTooLarge: class extends Error {} }));
+vi.mock("./llm/models", () => ({
+  TopicInputTooLarge: class extends Error {},
+}));
 vi.mock("./provider-error", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./provider-error")>()),
   pauseForRejectedConnection: vi.fn(),

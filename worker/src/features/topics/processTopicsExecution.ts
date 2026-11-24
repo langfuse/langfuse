@@ -38,6 +38,7 @@ import {
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicTimeRange,
+  reportedTopicSummaryState,
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
@@ -46,7 +47,7 @@ import {
   nameTopicGroup,
   prepareTopicNamingGroup,
   type NamingConflict,
-} from "./models";
+} from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -125,7 +126,7 @@ function countSummaries(
     (row) => row.state === "not_applicable",
   ).length;
   progress.counts.insufficientInput = summaries.filter(
-    (row) => row.state === "insufficient_input",
+    (row) => reportedTopicSummaryState(row.state) === "insufficient_input",
   ).length;
 }
 
