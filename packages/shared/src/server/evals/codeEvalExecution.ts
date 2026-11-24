@@ -27,6 +27,7 @@ import {
 import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
+import { projectTranscriptThreadsForCodeEval } from "../../features/evals/traceTranscriptEval";
 import type { Thread } from "../transcript/types";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
@@ -111,22 +112,6 @@ type CodeBasedEvaluationDispatchResult =
       executionTraceFromTimestamp: Date;
     };
 
-// ISO strings, not Dates: the local dispatcher hands the payload over in
-// memory, and evaluators must see what Lambda and external runners get as JSON.
-function serializeThreadDates(threads: Thread[]) {
-  return threads.map((thread) => ({
-    ...thread,
-    currentTurn: {
-      ...thread.currentTurn,
-      messages: thread.currentTurn.messages.map((message) => ({
-        ...message,
-        startTime: message.startTime.toISOString(),
-        endTime: message.endTime?.toISOString() ?? null,
-      })),
-    },
-  }));
-}
-
 function buildCodeEvalPayload(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
@@ -135,7 +120,7 @@ function buildCodeEvalPayload(params: {
   if (params.threads) {
     return {
       targetType: "trace",
-      trace: { threads: serializeThreadDates(params.threads) },
+      trace: { threads: projectTranscriptThreadsForCodeEval(params.threads) },
     };
   }
   const byName = new Map(

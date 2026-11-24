@@ -131,7 +131,7 @@ export type PythonCodeEvalCompletionName =
 export const CODE_EVAL_TRACE_COMPLETION_PATHS = {
   TYPESCRIPT: {
     ctx: [{ label: "trace", detail: 'TraceEvaluationContext["trace"]' }],
-    "ctx.trace": [{ label: "threads", detail: "Thread[]" }],
+    "ctx.trace": [{ label: "threads", detail: "TraceThread[]" }],
   },
   PYTHON: {
     ctx: [{ label: "trace", detail: "TraceContext | None" }],
@@ -221,13 +221,99 @@ ${TYPESCRIPT_RESULT_CONTRACT}`;
 /** The contract when trace evals are available: EvaluationContext also covers trace targets. */
 export const TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT = `${TYPESCRIPT_TOOL_CALL_CONTRACT}
 
-type Thread = {
-  conversationHistory: any[];
-  currentTurn: {
-    nestingLevel: number;
-    messages: any[];
-  };
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type TextPart = { type: "text"; text: string; refusal?: true };
+
+type ReasoningPart = {
+  type: "reasoning";
+  content:
+    | { kind: "text"; text: string; signature?: string }
+    | { kind: "redacted"; data: string }
+    | { kind: "encrypted"; data: string }
+    | { kind: "data"; value: JsonValue };
 };
+
+type FilePart = {
+  type: "file";
+  mediaType?: string;
+  filename?: string;
+  reasoning?: true;
+  content:
+    | { kind: "url"; url: string }
+    | { kind: "base64"; data: string }
+    | { kind: "reference"; id: string };
+};
+
+type DataPart = { type: "data"; name?: string; value: JsonValue };
+
+type CustomPart = { type: "custom"; kind: string; value: JsonValue };
+
+type ToolCallPart = {
+  type: "tool-call";
+  toolCallId: string | null;
+  toolName: string;
+  input: JsonValue;
+  toolType?: string;
+  providerExecuted?: boolean;
+  invalid?: true;
+};
+
+type ToolResultPart = {
+  type: "tool-result";
+  toolCallId: string | null;
+  toolName?: string;
+  isError?: boolean;
+  output:
+    | { type: "text"; value: string }
+    | { type: "json"; value: JsonValue }
+    | {
+        type: "content";
+        value: (TextPart | ReasoningPart | FilePart | DataPart | CustomPart)[];
+      };
+};
+
+type MessagePart =
+  | TextPart
+  | ReasoningPart
+  | ToolCallPart
+  | ToolResultPart
+  | FilePart
+  | DataPart
+  | CustomPart;
+
+type TraceMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  parts: MessagePart[];
+  source: "input" | "output";
+  id?: string;
+  senderName?: string;
+  finishReason?: {
+    type:
+      | "stop"
+      | "length"
+      | "tool-calls"
+      | "content-filter"
+      | "error"
+      | "other"
+      | "unknown";
+    raw: string;
+  };
+  /** Only on messages this trace produced; replayed history has none. */
+  observationId?: string;
+  traceId?: string;
+  /** ISO 8601. */
+  startTime?: string;
+  endTime?: string | null;
+};
+
+type TraceThread = { messages: TraceMessage[] };
 
 type ObservationEvaluationContext = {
   targetType: "observation";
@@ -248,7 +334,7 @@ type ObservationEvaluationContext = {
 type TraceEvaluationContext = {
   targetType: "trace";
   trace: {
-    threads: Thread[];
+    threads: TraceThread[];
   };
 };
 
@@ -371,10 +457,7 @@ class EvaluationContext:
 
 const TRACE_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext<"trace">): EvaluationResult {
   const messageCount = ctx.trace.threads.reduce(
-    (count, thread) =>
-      count +
-      thread.conversationHistory.length +
-      thread.currentTurn.messages.length,
+    (count, thread) => count + thread.messages.length,
     0,
   );
 
@@ -392,10 +475,7 @@ const TRACE_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationCont
 
 const TRACE_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> EvaluationResult:
   """Evaluates one trace transcript and returns one or more Langfuse scores."""
-  message_count = sum(
-    len(thread["conversationHistory"]) + len(thread["currentTurn"]["messages"])
-    for thread in ctx.trace.threads
-  )
+  message_count = sum(len(thread["messages"]) for thread in ctx.trace.threads)
 
   return EvaluationResult(
     scores=[

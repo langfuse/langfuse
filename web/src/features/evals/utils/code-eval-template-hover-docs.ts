@@ -261,12 +261,12 @@ The reasoning or explanation stored with the score.`,
 The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
-const THREAD_SHAPE_DOC = `conversationHistory holds the messages
-replayed from earlier turns. currentTurn.messages holds the messages this
-trace added, and currentTurn.nestingLevel is the tree depth of the turn's first
-generation. Messages are normalized (role, parts, source). Current-turn
-messages also carry observationId, traceId, and the source observation's
-startTime and endTime as ISO strings.`;
+const THREAD_SHAPE_DOC = `Each thread has one messages list, replayed
+history first, matching the threads LLM-as-a-judge evaluators read. Messages
+are normalized: role, parts (text, reasoning, tool-call, tool-result, file,
+data, custom) and source. Messages this trace produced also carry
+observationId, traceId, and the source observation's startTime and endTime as
+ISO strings; replayed history has none.`;
 
 const TYPESCRIPT_TRACE_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext<"observation" | "trace">): EvaluationResult
@@ -301,29 +301,38 @@ The data Langfuse passes for an observation target.`,
   TraceEvaluationContext: `type TraceEvaluationContext = {
   targetType: "trace";
   trace: {
-    threads: Thread[];
+    threads: TraceThread[];
   };
 }
 
 The data Langfuse passes for a trace target.`,
-  Thread: `type Thread = {
-  conversationHistory: any[];
-  currentTurn: {
-    nestingLevel: number;
-    messages: any[];
-  };
-}
+  TraceThread: `type TraceThread = { messages: TraceMessage[] }
 
 ${THREAD_SHAPE_DOC}`,
+  TraceMessage: `type TraceMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  parts: MessagePart[];
+  source: "input" | "output";
+  id?: string;
+  senderName?: string;
+  finishReason?: { type: "stop" | "length" | ...; raw: string };
+  observationId?: string;
+  traceId?: string;
+  startTime?: string;
+  endTime?: string | null;
+}
+
+One normalized message of a trace thread. observationId, traceId, startTime
+and endTime (ISO 8601) are set only on messages this trace produced.`,
   targetType: `property EvaluationContext.targetType: "observation" | "trace"
 
 Whether the evaluator runs on an observation or on a trace transcript.`,
   trace: `property TraceEvaluationContext.trace: {
-  threads: Thread[];
+  threads: TraceThread[];
 }
 
 The trace selected by the evaluator target.`,
-  threads: `property trace.threads: Thread[]
+  threads: `property trace.threads: TraceThread[]
 
 The conversation threads of the trace transcript. ${THREAD_SHAPE_DOC}`,
 } satisfies CodeEvalHoverDocs &
