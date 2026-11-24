@@ -4,7 +4,7 @@ Web owns configuration, map and snapshot controls, and result exploration. Proce
 
 ## Access
 
-Topics is available on every deployment. The page, sidebar, in-app agent, and tRPC routes use [topicsAccess.ts](topicsAccess.ts) to check `topics:read`. On Langfuse Cloud, users also need Internal view or the `langfuseTopics` personal preview. Mutations additionally require `topics:CUD`. See the [feature flags docs](../feature-flags/README.md) for personal preview settings.
+Topics is a beta feature available on every deployment. The page, sidebar, in-app agent, and tRPC routes use [topicsAccess.ts](topicsAccess.ts) to check `topics:read`. Mutations additionally require `topics:CUD`.
 
 The [public API](server/publicApi.ts) and MCP tools accept project-scoped API keys with `topics:read`. The public API resource contract is defined in [Fern](../../../../fern/apis/server/definition/unstable/topics.yml).
 

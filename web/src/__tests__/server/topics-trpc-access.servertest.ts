@@ -37,7 +37,7 @@ function caller(userId: string, memberships: [string, string, Role][]) {
   const session = createSession({
     user: {
       id: userId,
-      featureFlags: testFeatureFlags({ langfuseTopics: true }),
+      featureFlags: testFeatureFlags(),
     },
     organizations: memberships.map(([orgId, projectId, role]) => ({
       id: orgId,

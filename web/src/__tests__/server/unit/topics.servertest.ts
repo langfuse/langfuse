@@ -111,9 +111,9 @@ const input: TopicManualRunInput = {
   }),
 };
 
-function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
+function caller(role: Role = "ADMIN") {
   const session = createSession({
-    user: { id: "user-a", featureFlags: testFeatureFlags({ langfuseTopics }) },
+    user: { id: "user-a", featureFlags: testFeatureFlags() },
     organizations: [{ id: "org-a", role, projects: [{ id: projectId }] }],
   });
   return topicsRouter.createCaller(
@@ -226,8 +226,10 @@ beforeEach(() => {
   mocks.getTopicRuns.mockResolvedValue([]);
 });
 
-describe("Topics access without the Cloud preview", () => {
-  const outside = () => caller("ADMIN", false);
+describe("Topics access without topics:read", () => {
+  // Every Topics API is behind the visibility gate: without topics:read it
+  // answers NOT_FOUND before reading or writing anything.
+  const outside = () => caller("NONE");
   const reads = [
     ["current results", () => outside().currentResults({ projectId })],
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
@@ -300,56 +302,21 @@ describe("Topics access without the Cloud preview", () => {
 describe("Topics visibility gate", () => {
   // Page, sidebar and API all call this one gate.
   it.each([
-    ["a Cloud member with the preview", {}, "EU", true],
-    ["the preview off on Cloud", { langfuseTopics: false }, "EU", false],
-    [
-      "a self-hosted member without the preview",
-      { langfuseTopics: false },
-      undefined,
-      true,
-    ],
-    [
-      "ClickHouse staff in internal view",
-      { email: "member@clickhouse.com", langfuseTopics: false },
-      "EU",
-      true,
-    ],
-    [
-      "staff opting out of internal view",
-      {
-        email: "member@clickhouse.com",
-        internalFeatures: false,
-        langfuseTopics: false,
-      },
-      "EU",
-      false,
-    ],
-    ["a role without topics:read", { role: "NONE" }, undefined, false],
+    ["a Cloud member without any preview", {}, "EU", true],
+    ["a self-hosted member", {}, undefined, true],
+    ["a role without topics:read", { role: "NONE" }, "EU", false],
     [
       "internal view without project membership",
-      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
+      { email: "member@clickhouse.com", role: null },
       "EU",
       false,
     ],
   ] as const)("%s", (_case, user, region, expected) => {
-    const {
-      langfuseTopics = true,
-      email,
-      internalFeatures = true,
-      role = "VIEWER",
-    }: {
-      langfuseTopics?: boolean;
-      email?: string;
-      internalFeatures?: boolean;
-      role?: Role | null;
-    } = user;
+    const { email, role = "VIEWER" }: { email?: string; role?: Role | null } =
+      user;
     setCloudRegion(region);
     const session = createSession({
-      user: {
-        id: "user-a",
-        email,
-        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
-      },
+      user: { id: "user-a", email, featureFlags: testFeatureFlags() },
       organizations: role
         ? [{ id: "org-a", role, projects: [{ id: projectId }] }]
         : [],
@@ -486,11 +453,11 @@ describe("Topics filtered trace preview", () => {
       },
     ])
       await expect(caller().previewTraces(invalid)).rejects.toBeDefined();
-    await expect(
-      caller("ADMIN", false).previewTraces(selection),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
+    await expect(caller("NONE").previewTraces(selection)).rejects.toMatchObject(
+      {
+        code: "NOT_FOUND",
+      },
+    );
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 });
@@ -870,12 +837,12 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("rejects a different project and a disabled feature flag before storage access", async () => {
+  it("rejects a different project and the switch off before storage access", async () => {
     await expect(
       caller().executions({ projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      caller("ADMIN", false).executions({ projectId }),
+      caller("NONE").executions({ projectId }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });

@@ -692,7 +692,7 @@ function TopicsWorkspaceContent({
               help: {
                 description:
                   "Topics clusters your traces into named topics, so you can spot recurring patterns without reading every trace.",
-                href: "https://langfuse.com/docs/observability/features/topics",
+                href: "https://langfuse.com/topics",
               },
               className: "@container/topics-header",
               mobileActionButtons: mapStatus ? (

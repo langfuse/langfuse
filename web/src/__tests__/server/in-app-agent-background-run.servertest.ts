@@ -756,11 +756,8 @@ describe("in-app agent background runs", () => {
     });
   });
 
-  it("stores Topics availability from the user's preview and keeps it across approvals", async () => {
-    const withoutPreview = await createCaller();
-    const withPreview = await createCaller(undefined, "cloud:hobby", {
-      langfuseTopics: true,
-    });
+  it("stores Topics availability and keeps it across approvals", async () => {
+    const setup = await createCaller();
     const start = async ({
       caller,
       projectId,
@@ -780,12 +777,8 @@ describe("in-app agent background runs", () => {
       };
     };
 
-    const denied = await start(withoutPreview);
-    expect(denied.run.request).not.toHaveProperty("topicsAvailable");
-
-    // Positive control: the same flow with the preview stores the flag.
-    const { projectId, caller } = withPreview;
-    const { conversationId, run } = await start(withPreview);
+    const { projectId, caller } = setup;
+    const { conversationId, run } = await start(setup);
     expect(run.request).toMatchObject({ topicsAvailable: true });
 
     // Park the router-created run like the worker does, then approve.
