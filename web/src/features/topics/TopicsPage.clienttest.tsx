@@ -291,7 +291,21 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
-      analysisResults: { useQuery: () => ({}) },
+      analysisResults: {
+        useQuery: (
+          input: { executionId: string },
+          options: { enabled: boolean },
+        ) =>
+          options.enabled
+            ? {
+                data: {
+                  hasStoredSummaries: true,
+                  facets: [],
+                  execution: { id: input.executionId, status: "completed" },
+                },
+              }
+            : {},
+      },
       // The map picker's preview pane.
       currentResults: { useQuery: () => ({ isLoading: false }) },
       retry: {
