@@ -348,25 +348,19 @@ impl GuardrailItem<'_> {
     }
 }
 
-pub(super) fn guardrail_last_turn<'a>(
+pub(super) fn guardrail_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_item = match member("input") {
-        Some(items) if items.starts_with('[') => crate::guardrails::text::for_each_in_last_turn(
+        Some(items) if items.starts_with('[') => turn.items(
+            "input",
             items,
             GuardrailItem::is_from_model,
-            |item: GuardrailItem<'_>| {
-                for value in [item.content, item.output].into_iter().flatten() {
-                    crate::guardrails::text::collect(value, sink)?;
-                }
-                Ok(())
-            },
+            read_guardrail_item,
         )?,
         Some(input) => {
-            let input: &serde_json::value::RawValue =
-                serde_json::from_str(input).map_err(|_| crate::guardrails::text::Unreadable)?;
-            crate::guardrails::text::collect(input, sink)?;
+            turn.member("input", input);
             false
         }
         None => false,
@@ -380,9 +374,19 @@ pub(super) fn guardrail_last_turn<'a>(
         && !continues
         && let Some(instructions) = member("instructions")
     {
-        let instructions: &serde_json::value::RawValue =
-            serde_json::from_str(instructions).map_err(|_| crate::guardrails::text::Unreadable)?;
-        crate::guardrails::text::collect(instructions, sink)?;
+        turn.member("instructions", instructions);
+    }
+    Ok(turn)
+}
+
+fn read_guardrail_item(
+    item: &serde_json::value::RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let item: GuardrailItem<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    for value in [item.content, item.output].into_iter().flatten() {
+        crate::guardrails::text::collect(value, sink)?;
     }
     Ok(())
 }

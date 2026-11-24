@@ -29,6 +29,7 @@ struct Metrics {
     spend_uncharged: Counter<u64>,
     spend: Counter<f64>,
     guardrails: Histogram<f64>,
+    guardrails_size: Histogram<u64>,
 }
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
@@ -64,6 +65,11 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
             .build(),
         response_size: meter
             .u64_histogram("http.server.response.body.size")
+            .with_unit("By")
+            .with_boundaries(bytes.clone())
+            .build(),
+        guardrails_size: meter
+            .u64_histogram("gateway.guardrails.scanned.size")
             .with_unit("By")
             .with_boundaries(bytes)
             .build(),
@@ -286,15 +292,17 @@ pub(crate) fn spend_charged(
 }
 
 /// How long a request's guardrail check ran, excluding any wait for the blocking
-/// pool. Tagged by organization, like spend, to find the tenants that cost the most.
-pub(crate) fn guardrails_checked(organization_id: &str, duration: Duration) {
-    METRICS.guardrails.record(
-        duration.as_secs_f64(),
-        &[KeyValue::new(
-            "langfuse.organization.id",
-            organization_id.to_owned(),
-        )],
-    );
+/// pool, and how many bytes of its last turn it scanned. Tagged by organization,
+/// like spend, to find the tenants that cost the most.
+pub(crate) fn guardrails_checked(organization_id: &str, duration: Duration, scanned: usize) {
+    let attributes = [KeyValue::new(
+        "langfuse.organization.id",
+        organization_id.to_owned(),
+    )];
+    METRICS
+        .guardrails
+        .record(duration.as_secs_f64(), &attributes);
+    METRICS.guardrails_size.record(bytes(scanned), &attributes);
 }
 
 pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {

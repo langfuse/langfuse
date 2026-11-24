@@ -393,11 +393,11 @@ async fn oversized_requests_explain_the_missing_input() {
 
 fn guardrail_scan(messages: &str) -> Vec<String> {
     let mut texts = Vec::new();
-    guardrail_last_turn(
-        |name| (name == "messages").then_some(messages),
-        &mut |text: &str| texts.push(text.to_owned()),
-    )
-    .unwrap();
+    let member = |name: &str| (name == "messages").then_some(messages);
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
     texts
 }
 

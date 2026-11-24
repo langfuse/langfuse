@@ -10,16 +10,17 @@ use tokio::sync::Semaphore;
 pub(crate) enum CpuJob {
     /// Parsing the request body, at roughly 3 GB/s for ASCII and 1 GB/s otherwise.
     ParseRequest,
-    /// Scanning text with guardrails, at roughly 0.5 GB/s. Sized by the conversation
-    /// members, of which only the last turn is scanned, so most inline scans of a
-    /// conversation this size take well under the ~150 µs a full one does.
+    /// Finding a conversation's last turn, which reads its structure at about the
+    /// speed of parsing it.
+    FindLastTurn,
+    /// Scanning the last turn with guardrails, at roughly 0.5 GB/s.
     ScanGuardrails,
 }
 
 impl CpuJob {
     pub(crate) const fn inline_bytes(self) -> usize {
         match self {
-            Self::ParseRequest => 256 * 1024,
+            Self::ParseRequest | Self::FindLastTurn => 256 * 1024,
             Self::ScanGuardrails => 64 * 1024,
         }
     }

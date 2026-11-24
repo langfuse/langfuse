@@ -740,15 +740,15 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
 
 fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
     let mut texts = Vec::new();
-    guardrail_last_turn(
-        |name| match name {
-            "system" => Some(system),
-            "messages" => Some(messages),
-            _ => None,
-        },
-        &mut |text: &str| texts.push(text.to_owned()),
-    )
-    .unwrap();
+    let member = |name: &str| match name {
+        "system" => Some(system),
+        "messages" => Some(messages),
+        _ => None,
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
     texts
 }
 

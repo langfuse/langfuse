@@ -484,28 +484,34 @@ impl GuardrailMessage<'_> {
     }
 }
 
-pub(super) fn guardrail_last_turn<'a>(
+pub(super) fn guardrail_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_turn = match member("messages") {
-        Some(messages) => crate::guardrails::text::for_each_in_last_turn(
+        Some(messages) => turn.items(
+            "messages",
             messages,
             GuardrailMessage::is_assistant,
-            |message: GuardrailMessage<'_>| {
-                message.content.map_or(Ok(()), |content| {
-                    crate::guardrails::text::collect(content, sink)
-                })
-            },
+            read_guardrail_message,
         )?,
         None => false,
     };
     if !had_model_turn && let Some(system) = member("system") {
-        let system: &serde_json::value::RawValue =
-            serde_json::from_str(system).map_err(|_| crate::guardrails::text::Unreadable)?;
-        crate::guardrails::text::collect(system, sink)?;
+        turn.member("system", system);
     }
-    Ok(())
+    Ok(turn)
+}
+
+fn read_guardrail_message(
+    item: &serde_json::value::RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let message: GuardrailMessage<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    message.content.map_or(Ok(()), |content| {
+        crate::guardrails::text::collect(content, sink)
+    })
 }
 
 #[cfg(test)]

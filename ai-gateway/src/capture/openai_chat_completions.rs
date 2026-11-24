@@ -516,23 +516,30 @@ impl GuardrailMessage<'_> {
     }
 }
 
-pub(super) fn guardrail_last_turn<'a>(
+pub(super) fn guardrail_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(messages) = member("messages") {
+        turn.items(
+            "messages",
+            messages,
+            GuardrailMessage::is_assistant,
+            read_guardrail_message,
+        )?;
+    }
+    Ok(turn)
+}
+
+fn read_guardrail_message(
+    item: &serde_json::value::RawValue,
     sink: &mut dyn FnMut(&str),
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    let Some(messages) = member("messages") else {
-        return Ok(());
-    };
-    crate::guardrails::text::for_each_in_last_turn(
-        messages,
-        GuardrailMessage::is_assistant,
-        |message: GuardrailMessage<'_>| {
-            message.content.map_or(Ok(()), |content| {
-                crate::guardrails::text::collect(content, sink)
-            })
-        },
-    )?;
-    Ok(())
+    let message: GuardrailMessage<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    message.content.map_or(Ok(()), |content| {
+        crate::guardrails::text::collect(content, sink)
+    })
 }
 
 #[cfg(test)]

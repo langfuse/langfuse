@@ -183,21 +183,18 @@ pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str
     }
 }
 
-/// Sends the text of the request's last turn to `sink`, read from the members of
-/// [`guardrail_members`] that `member` returns.
-pub(crate) fn guardrail_last_turn<'a>(
+/// Finds the request's last turn in the members of [`guardrail_members`] that
+/// `member` returns.
+pub(crate) fn guardrail_turn<'a>(
     api_format: ApiFormat,
     member: impl Fn(&str) -> Option<&'a str>,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     match api_format {
-        ApiFormat::OpenAiChatCompletions => {
-            openai_chat_completions::guardrail_last_turn(member, sink)
-        }
-        ApiFormat::OpenAiResponses => openai_responses::guardrail_last_turn(member, sink),
-        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_last_turn(member, sink),
-        ApiFormat::OpenAiEmbeddings => openai_embeddings::guardrail_last_turn(member, sink),
-        ApiFormat::OpenAiDecisions => openai_decisions::guardrail_last_turn(member, sink),
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
+        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
+        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
+        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
+        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
     }
 }
 

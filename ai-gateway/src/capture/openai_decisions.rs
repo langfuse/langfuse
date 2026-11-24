@@ -130,16 +130,14 @@ impl OpenAiDecisionsCapture {
 /// items, is scanned.
 pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input"];
 
-pub(super) fn guardrail_last_turn<'a>(
+pub(super) fn guardrail_turn<'a>(
     member: impl Fn(&str) -> Option<&'a str>,
-    sink: &mut dyn FnMut(&str),
-) -> Result<(), crate::guardrails::text::Unreadable> {
-    let Some(input) = member("input") else {
-        return Ok(());
-    };
-    let input: &serde_json::value::RawValue =
-        serde_json::from_str(input).map_err(|_| crate::guardrails::text::Unreadable)?;
-    crate::guardrails::text::collect(input, sink)
+) -> crate::guardrails::text::LastTurn {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(input) = member("input") {
+        turn.member("input", input);
+    }
+    turn
 }
 
 #[cfg(test)]

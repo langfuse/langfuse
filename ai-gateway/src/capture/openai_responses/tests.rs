@@ -1147,16 +1147,16 @@ fn guardrail_scan(instructions: &str, input: &str) -> Vec<String> {
 
 fn guardrail_scan_members(members: &[(&str, &str)]) -> Vec<String> {
     let mut texts = Vec::new();
-    guardrail_last_turn(
-        |name| {
-            members
-                .iter()
-                .find(|(member, _)| *member == name)
-                .map(|(_, value)| *value)
-        },
-        &mut |text: &str| texts.push(text.to_owned()),
-    )
-    .unwrap();
+    let member = |name: &str| {
+        members
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, value)| *value)
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
     texts
 }
 

@@ -426,8 +426,9 @@ impl InferenceService {
         }
     }
 
-    /// Scans the request's last turn with the guardrails resolved for its key, off
-    /// the async worker when the conversation is large.
+    /// Scans the request's last turn with the guardrails resolved for its key. Finding
+    /// the last turn reads the whole conversation; the scan reads only the last turn,
+    /// so each step leaves the async worker based on what it reads.
     async fn check_guardrails(
         &self,
         api_format: ApiFormat,
@@ -441,12 +442,33 @@ impl InferenceService {
         let organization_id = context.attribution().organization_id().as_str().to_owned();
         let body = request.body().clone();
         let scanned = request.scanned.clone();
-        self.run_cpu(CpuJob::ScanGuardrails, scanned.len(), move || {
-            let started = std::time::Instant::now();
-            let outcome = crate::guardrails::check(&guardrails, api_format, &body, &scanned);
-            crate::observability::guardrails_checked(&organization_id, started.elapsed());
-            outcome
-        })
+        async move {
+            let (turn, finding) = self
+                .run_cpu(CpuJob::FindLastTurn, scanned.len(), {
+                    let body = body.clone();
+                    let scanned = scanned.clone();
+                    move || {
+                        let started = std::time::Instant::now();
+                        let turn = crate::guardrails::last_turn(api_format, &body, &scanned);
+                        (turn, started.elapsed())
+                    }
+                })
+                .await?;
+            let bytes = turn
+                .as_ref()
+                .map_or(0, crate::guardrails::text::LastTurn::bytes);
+            self.run_cpu(CpuJob::ScanGuardrails, bytes, move || {
+                let started = std::time::Instant::now();
+                let outcome = crate::guardrails::check(&guardrails, &body, &scanned, &turn);
+                crate::observability::guardrails_checked(
+                    &organization_id,
+                    finding + started.elapsed(),
+                    bytes,
+                );
+                outcome
+            })
+            .await
+        }
         .instrument(tracing::info_span!(
             "request.guardrails",
             otel.kind = "internal"

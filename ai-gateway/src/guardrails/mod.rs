@@ -1,7 +1,7 @@
 //! Guardrails: patterns from the control plane checked against the last turn of a
 //! request before it reaches the provider. A `block` guardrail that matches
 //! refuses the request; a `log` guardrail that matches marks its generation. Each
-//! API format's capture module finds the last turn (`capture::guardrail_last_turn`).
+//! API format's capture module finds the last turn (`capture::guardrail_turn`).
 pub(crate) mod text;
 
 use std::{
@@ -14,6 +14,7 @@ use regex::bytes::{RegexSet, RegexSetBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::resolution::ApiFormat;
+use text::{LastTurn, Unreadable};
 
 /// A guardrail assigned to the request's key, its user or its organization.
 #[derive(Clone, Debug, Deserialize)]
@@ -104,16 +105,35 @@ static COMPILED: LazyLock<Mutex<HashMap<GuardrailPatterns, Arc<[Matcher]>>>> =
 type GuardrailPatterns = Vec<Vec<String>>;
 const MAX_COMPILED: usize = 1024;
 
-/// Checks `body`'s last turn against `guardrails`. Guardrails fail open: one whose
-/// patterns do not compile matches nothing. A conversation the gateway cannot read
-/// the way a provider might, such as a member or field that appears twice, is not
-/// a failure but a way to show the provider other text than the gateway scans, so
-/// it matches every guardrail.
-pub(crate) fn check(
-    guardrails: &[Guardrail],
+/// Finds `body`'s last turn. A conversation the gateway cannot read the way a
+/// provider might, such as a member or field that appears twice, is unreadable.
+pub(crate) fn last_turn(
     api_format: ApiFormat,
     body: &[u8],
     scanned: &ScannedMembers,
+) -> Result<LastTurn, Unreadable> {
+    if scanned.duplicated {
+        return Err(Unreadable);
+    }
+    crate::capture::guardrail_turn(api_format, member(body, scanned))
+}
+
+fn member<'a>(body: &'a [u8], scanned: &ScannedMembers) -> impl Fn(&str) -> Option<&'a str> {
+    move |name| {
+        let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
+        std::str::from_utf8(body.get(range.clone())?).ok()
+    }
+}
+
+/// Checks `turn`, found by [`last_turn`], against `guardrails`. Guardrails fail
+/// open: one whose patterns do not compile matches nothing. An unreadable turn is
+/// not a failure but a way to show the provider other text than the gateway scans,
+/// so it matches every guardrail.
+pub(crate) fn check(
+    guardrails: &[Guardrail],
+    body: &[u8],
+    scanned: &ScannedMembers,
+    turn: &Result<LastTurn, Unreadable>,
 ) -> Outcome {
     let active: Vec<&Guardrail> = guardrails
         .iter()
@@ -121,17 +141,13 @@ pub(crate) fn check(
             guardrail.action != GuardrailAction::Unknown && !guardrail.patterns.is_empty()
         })
         .collect();
-    if active.is_empty() || crate::capture::guardrail_members(api_format).is_empty() {
+    if active.is_empty() {
         return Outcome::default();
     }
     let matchers = compiled(&active);
     let mut matched = vec![false; active.len()];
-    let member = |name: &str| {
-        let (_, range) = scanned.members.iter().find(|(member, _)| *member == name)?;
-        std::str::from_utf8(body.get(range.clone())?).ok()
-    };
-    let unreadable = scanned.duplicated
-        || crate::capture::guardrail_last_turn(api_format, member, &mut |text| {
+    let unreadable = turn.as_ref().map_or(true, |turn| {
+        turn.read(member(body, scanned), &mut |text| {
             for matcher in matchers.iter() {
                 for pattern in matcher.set.matches(text.as_bytes()) {
                     if let Some(owner) = matcher
@@ -144,7 +160,8 @@ pub(crate) fn check(
                 }
             }
         })
-        .is_err();
+        .is_err()
+    });
     let findings = active
         .into_iter()
         .zip(matched)
@@ -211,6 +228,20 @@ fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
 mod tests {
     use super::*;
 
+    fn check_request(
+        guardrails: &[Guardrail],
+        api_format: ApiFormat,
+        body: &[u8],
+        scanned: &ScannedMembers,
+    ) -> Outcome {
+        check(
+            guardrails,
+            body,
+            scanned,
+            &last_turn(api_format, body, scanned),
+        )
+    }
+
     const SSN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
     const EMAIL: &str = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b";
 
@@ -241,7 +272,7 @@ mod tests {
     #[test]
     fn only_guardrails_whose_patterns_match_the_last_turn_fire() {
         let body = r#"{"messages":[{"role":"user","content":"ssn 123-45-6789"},{"role":"assistant","content":"ok"},{"role":"user","content":"mail me at a@example.com"}]}"#;
-        let outcome = check(
+        let outcome = check_request(
             &[
                 guardrail("ssn", GuardrailAction::Block, &[SSN]),
                 guardrail("email", GuardrailAction::Log, &[EMAIL]),
@@ -265,7 +296,7 @@ mod tests {
     #[test]
     fn one_combined_scan_reports_each_matching_guardrail() {
         let body = r#"{"messages":[{"role":"user","content":"ssn 123-45-6789"}]}"#;
-        let outcome = check(
+        let outcome = check_request(
             &[
                 guardrail("email", GuardrailAction::Log, &[EMAIL]),
                 guardrail("ssn", GuardrailAction::Block, &[EMAIL, SSN]),
@@ -285,7 +316,7 @@ mod tests {
     #[test]
     fn a_message_with_a_duplicated_field_matches_every_guardrail() {
         let body = r#"{"messages":[{"role":"user","role":"user","content":"123-45-6789"}]}"#;
-        let outcome = check(
+        let outcome = check_request(
             &[guardrail("email", GuardrailAction::Block, &[EMAIL])],
             ApiFormat::OpenAiChatCompletions,
             body.as_bytes(),
@@ -300,7 +331,7 @@ mod tests {
     #[test]
     fn decisions_input_is_scanned() {
         let body = r#"{"input":[{"role":"user","content":[{"type":"input_text","text":"ssn 123-45-6789"}]}]}"#;
-        let outcome = check(
+        let outcome = check_request(
             &[guardrail("ssn", GuardrailAction::Block, &[SSN])],
             ApiFormat::OpenAiDecisions,
             body.as_bytes(),
@@ -317,7 +348,7 @@ mod tests {
         let body = r#"{"messages":[{"role":"user","content":"hello"}]}"#;
         let mut members = scanned(body, &["messages"]);
         members.mark_duplicated();
-        let outcome = check(
+        let outcome = check_request(
             &[guardrail("ssn", GuardrailAction::Block, &[SSN])],
             ApiFormat::OpenAiChatCompletions,
             body.as_bytes(),
