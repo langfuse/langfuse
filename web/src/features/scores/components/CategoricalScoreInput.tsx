@@ -7,7 +7,6 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -60,6 +59,7 @@ export function CategoricalScoreInput({
   });
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const query = search.trim();
   const canAddCategory =
     hasConfigCudAccess &&
     isCategoricalDataType(config.dataType) &&
@@ -82,47 +82,42 @@ export function CategoricalScoreInput({
     placeholder: "Select category",
     emptyMessage: "No category found.",
   };
+  const useCombobox = shouldUseCombobox(categories);
 
   return (
     <>
-      {shouldUseCombobox(categories) ? (
-        canAddCategory ? (
-          <AsyncSelectInput
-            {...pickerProps}
-            value={options.find((option) => option.value === value) ?? null}
-            onValueChange={(option) => onValueChange(option.value)}
-            options={
-              search.trim()
-                ? options
-                    .map((option) => ({
-                      option,
-                      rank: defaultFilter!(option.value.trim(), search.trim()),
-                    }))
-                    .filter(({ rank }) => rank > 0)
-                    .sort((a, b) => b.rank - a.rank)
-                    .map(({ option }) => option)
-                : options
-            }
-            search={{
-              placeholder: "Search categories...",
-              value: search,
-              onValueChange: setSearch,
-            }}
-            callToActionOption={{
-              label: getAddCategoryActionLabel(search, existingLabels),
-              position: "last",
-              onSelect: () => setPendingLabel(search.trim()),
-            }}
-          />
-        ) : (
-          <SelectInput
-            {...pickerProps}
-            value={value}
-            onValueChange={onValueChange}
-            options={options}
-            search={{ placeholder: "Search categories..." }}
-          />
-        )
+      {useCombobox ? (
+        <AsyncSelectInput
+          {...pickerProps}
+          value={options.find((option) => option.value === value) ?? null}
+          onValueChange={(option) => onValueChange(option.value)}
+          options={
+            query
+              ? options
+                  .map((option) => ({
+                    option,
+                    rank: defaultFilter!(option.value.trim(), query),
+                  }))
+                  .filter(({ rank }) => rank > 0)
+                  .sort((a, b) => b.rank - a.rank)
+                  .map(({ option }) => option)
+              : options
+          }
+          search={{
+            placeholder: "Search categories...",
+            value: search,
+            onValueChange: setSearch,
+          }}
+          callToActionOption={
+            canAddCategory
+              ? {
+                  label: getAddCategoryActionLabel(query, existingLabels),
+                  position: "last",
+                  onSelect: () => setPendingLabel(query),
+                }
+              : undefined
+          }
+        />
       ) : (
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">

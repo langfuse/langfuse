@@ -96,7 +96,7 @@ function SelectInputInner<V extends string>(
         emptyMessage={emptyMessage}
         align={align}
         search={{
-          ...search,
+          placeholder: search.placeholder,
           value: searchValue,
           onValueChange: setSearchValue,
         }}

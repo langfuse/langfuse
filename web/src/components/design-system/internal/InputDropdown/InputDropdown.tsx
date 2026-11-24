@@ -146,7 +146,9 @@ function Group({
             direction={expanded ? "down" : "right"}
           />
         )}
-        <span className="truncate font-semibold">{label}</span>
+        <span className="truncate font-medium" title={label}>
+          {label}
+        </span>
         <span>{count}</span>
         {caption && (
           <span

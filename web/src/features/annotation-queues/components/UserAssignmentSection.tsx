@@ -30,6 +30,7 @@ export const UserAssignmentSection = ({
   onSearchChange,
   searchResults,
   isLoading,
+  hasMoreResults,
   canWrite,
   isRemoving,
   onRemove,
@@ -77,6 +78,11 @@ export const UserAssignmentSection = ({
           }
         }}
       />
+      {hasMoreResults && !isLoading && (
+        <p className="text-muted-foreground text-xs">
+          More results available, refine your search.
+        </p>
+      )}
 
       {/* Assigned Users Section */}
       {totalAssignedUsers > 0 && (

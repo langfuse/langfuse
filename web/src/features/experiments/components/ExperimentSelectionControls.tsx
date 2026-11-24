@@ -127,8 +127,8 @@ export function ExperimentSelectionControls({
 
   return (
     <div className="flex w-[56dvw] min-w-0 flex-row gap-3">
-      <div className="flex min-w-0 items-center">
-        <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center gap-1.5 rounded-l-md border px-3 text-xs">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs">
           {baselineMarkerClass && (
             <span
               className={cn(

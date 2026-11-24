@@ -42,7 +42,7 @@ export function TagShell({ asChild = false, status, ...props }: TagShellProps) {
   return <Component className={tagVariants({ status })} {...props} />;
 }
 
-const markerColors = {
+export const markerColors = {
   foreground: "bg-foreground",
   pink: "bg-pink-500/80 dark:bg-pink-400/80",
   amber: "bg-amber-500/80 dark:bg-amber-400/80",
@@ -54,14 +54,18 @@ const markerColors = {
   purple: "bg-purple-500/80 dark:bg-purple-400/80",
   violet: "bg-violet-500/80 dark:bg-violet-400/80",
   teal: "bg-teal-500/80 dark:bg-teal-400/80",
-};
+} as const;
+
+const markerVariants = cva("size-2 shrink-0 rounded-full", {
+  variants: { color: markerColors },
+});
 
 type TagProps = {
   text: string;
   /** Muted text after the value, e.g. `(current)`. */
   secondaryText?: string;
   /** Color of the leading dot. */
-  color?: keyof typeof markerColors;
+  color?: NonNullable<VariantProps<typeof markerVariants>["color"]>;
   /** Shown before the text. */
   icon?: IconComponent;
   /** Warning and error tint the chip; default keeps the filled look. */
@@ -86,12 +90,7 @@ export function Tag({
 
   return (
     <TagShell status={status}>
-      {color && (
-        <span
-          aria-hidden
-          className={`size-2 shrink-0 rounded-full ${markerColors[color]}`}
-        />
-      )}
+      {color && <span aria-hidden className={markerVariants({ color })} />}
       {Icon && <Icon size="sm" color="tertiary" aria-hidden />}
       <span
         className="min-w-0 truncate py-0.5"

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { type MultiSelectTagOption } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { ExperimentComparisonSelect } from "./ExperimentComparisonSelect";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
@@ -69,20 +69,9 @@ export function ConnectedExperimentComparisonSelect({
   >({});
   const capture = usePostHogClientCapture();
 
-  // How long is the list people choose from, and how many datasets are mixed
-  // into it? Counted over the whole available list, not the filtered rows, so
-  // it describes the picker rather than the current search.
-  const isPickerOpenRef = useRef(false);
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
-      // The combobox re-announces "open" on every input focus, including the
-      // refocus after picking a row; only the closed-to-open edge is an open.
-      if (!isOpen) {
-        isPickerOpenRef.current = false;
-        return;
-      }
-      if (isPickerOpenRef.current) return;
-      isPickerOpenRef.current = true;
+      if (!isOpen) return;
 
       // Counted over the whole available list rather than the filtered rows, so
       // it describes the pool the user chooses from; the baseline is not one of

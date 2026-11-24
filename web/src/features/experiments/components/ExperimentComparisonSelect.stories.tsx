@@ -96,6 +96,7 @@ const meta = preview.meta({
 export const Default = meta.story({});
 
 export const KeyboardAutoSelect = meta.story({
+  name: "(Test) Keyboard auto-select",
   args: { value: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -111,6 +112,8 @@ export const KeyboardAutoSelect = meta.story({
 });
 
 export const CompareRuns = meta.story({
+  name: "(Test) Compare runs",
+  args: { value: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
