@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use rust_decimal::{Decimal, RoundingStrategy};
 
 use crate::native_columns::NativeColumnError;
@@ -116,6 +116,13 @@ fn encode_with_bisection<T>(
 /// string without an offset is a UTC calendar value; an RFC3339 offset is normalized to that same
 /// UTC instant. The project never interprets these values in the host's local timezone.
 pub(crate) fn parse_datetime_text(value: &str, key: &str) -> Result<i64, String> {
+    match clickhouse_datetime_micros(value) {
+        Some(micros) => Ok(micros),
+        None => parse_any_datetime_text(value, key),
+    }
+}
+
+fn parse_any_datetime_text(value: &str, key: &str) -> Result<i64, String> {
     let normalized = if value.contains(' ') && !value.contains('T') {
         value.replacen(' ', "T", 1)
     } else {
@@ -127,6 +134,52 @@ pub(crate) fn parse_datetime_text(value: &str, key: &str) -> Result<i64, String>
     let naive = NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%dT%H:%M:%S%.f")
         .map_err(|error| format!("{key} has invalid DateTime64 value {value:?}: {error}"))?;
     Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).timestamp_micros())
+}
+
+/// Calendar fields of `YYYY-MM-DD?HH:MM:SS` at the start of `bytes`, where `?` is `separator`.
+/// Returns `None` unless every field is zero-padded digits naming a real date and time, so the
+/// caller can fall back to the general parser for anything else, including a leap second.
+pub(crate) fn fixed_width_datetime(bytes: &[u8], separator: u8) -> Option<NaiveDateTime> {
+    if bytes.len() < 19
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != separator
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+    {
+        return None;
+    }
+    let number = |start: usize, end: usize| {
+        bytes[start..end].iter().try_fold(0_u32, |value, byte| {
+            byte.is_ascii_digit()
+                .then(|| value * 10 + u32::from(byte - b'0'))
+        })
+    };
+    NaiveDate::from_ymd_opt(number(0, 4)? as i32, number(5, 7)?, number(8, 10)?)?.and_hms_opt(
+        number(11, 13)?,
+        number(14, 16)?,
+        number(17, 19)?,
+    )
+}
+
+/// Microseconds of `YYYY-MM-DD HH:MM:SS[.fraction]`, the shape the pipeline writes for every
+/// timestamp, read without building an intermediate string. Other shapes return `None`.
+fn clickhouse_datetime_micros(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    let seconds = fixed_width_datetime(bytes, b' ')?;
+    let nanoseconds = match &bytes[19..] {
+        [] => 0,
+        [b'.', digits @ ..]
+            if (1..=9).contains(&digits.len()) && digits.iter().all(u8::is_ascii_digit) =>
+        {
+            digits
+                .iter()
+                .fold(0_u32, |value, digit| value * 10 + u32::from(digit - b'0'))
+                * 10_u32.pow(9 - digits.len() as u32)
+        }
+        _ => return None,
+    };
+    Some(seconds.and_utc().timestamp_micros() + i64::from(nanoseconds / 1_000))
 }
 
 pub(crate) fn parse_decimal(value: &str, key: &str) -> Result<i64, String> {

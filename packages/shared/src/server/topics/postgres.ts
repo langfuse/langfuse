@@ -15,6 +15,7 @@ import {
 import { isEqual } from "lodash";
 import {
   getTopicDefinitions,
+  normalizeTopicDefinitionCosts,
   getTopicNames,
   writeTopicDefinitions,
 } from "./clickhouse";
@@ -653,17 +654,6 @@ export async function getTopicRuleMap(
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
-function sameTopicDefinition(
-  stored: TopicDefinition | undefined,
-  candidate: TopicDefinition,
-): boolean {
-  if (!stored || !sameTopicGeometry(stored, candidate)) return false;
-  return isEqual(
-    { ...stored, centroid: candidate.centroid, radius: candidate.radius },
-    candidate,
-  );
-}
-
 export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   const stored = await prisma.topicClusteringRun.findFirst({
     where: { projectId: run.projectId, id: run.id },
@@ -714,7 +704,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       throw new Error("Invalid topic definition.");
     const existing = saved.get(topic.topicVersionId);
     if (existing) {
-      if (!sameTopicDefinition(existing, topic))
+      if (definitionDifferences(existing, topic).length > 0)
         throw new Error("Topic definitions cannot change.");
     } else {
       if (topic.createdByRunId !== run.id)
@@ -770,15 +760,13 @@ function assertDefinitionsReadBack(
   missing: TopicDefinition[],
   saved: Map<string, TopicDefinition>,
 ): void {
-  const mismatched = missing.filter(
-    (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
-  );
-  if (mismatched.length === 0) return;
-  const differences = new Set(
-    mismatched.flatMap((topic) =>
+  const mismatched = missing
+    .map((topic) =>
       definitionDifferences(saved.get(topic.topicVersionId), topic),
-    ),
-  );
+    )
+    .filter((fields) => fields.length > 0);
+  if (mismatched.length === 0) return;
+  const differences = new Set(mismatched.flat());
   throw new TopicDefinitionReadbackError(
     `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
   );
@@ -803,6 +791,14 @@ function definitionDifferences(
     );
   const differences = sameTopicGeometry(stored, candidate) ? [] : ["geometry"];
   const fields = new Set([...Object.keys(stored), ...Object.keys(candidate)]);
+  if (
+    fields.delete("costDetails") &&
+    !isEqual(
+      stored.costDetails ?? {},
+      normalizeTopicDefinitionCosts(candidate.costDetails),
+    )
+  )
+    differences.push("costDetails");
   for (const field of fields) {
     if (field === "centroid" || field === "radius" || field === "metadata")
       continue;

@@ -15,21 +15,21 @@ import { type TreeNode } from "../types/treeNode";
  * Skips prefetch for TRACE type (root node).
  */
 export function useHandlePrefetchObservation() {
-  const { trace } = useTraceData();
-  const { prefetch } = usePrefetchObservation({ projectId: trace.projectId });
+  const { trace, projectId } = useTraceData();
+  const { prefetch } = usePrefetchObservation({ projectId });
 
   const handleHover = useCallback(
     (node: TreeNode) => {
       // Don't prefetch for TRACE type (only observations)
-      if (node.type !== "TRACE") {
+      if (node.type !== "TRACE" && (node.traceId || trace)) {
         prefetch(
           node.observationId ?? node.id,
-          node.traceId ?? trace.id,
+          node.traceId ?? trace?.id ?? "",
           node.startTime,
         );
       }
     },
-    [prefetch, trace.id],
+    [prefetch, trace],
   );
 
   return { handleHover };

@@ -68,6 +68,7 @@ allow_attributes_without_reason = "deny"
 # Request paths must not panic; tests are exempted in clippy.toml.
 unwrap_used = "deny"
 expect_used = "deny"
+indexing_slicing = "deny"
 panic = "deny"
 todo = "deny"
 unimplemented = "deny"
@@ -76,6 +77,8 @@ print_stdout = "deny"
 print_stderr = "deny"
 
 await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+disallowed_methods = "deny"
 rc_buffer = "deny"
 rc_mutex = "deny"
 

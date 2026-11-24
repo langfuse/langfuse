@@ -4,7 +4,11 @@ import type { StorageService } from "../services/StorageService";
 import type { ExecutionIssue, Transcript } from "../transcript/types";
 import storedV1 from "./fixtures/inputs-v1.json";
 import { createEventUploadStorageService } from "../s3";
-import { createTraceTranscriptStorage } from "./storage";
+import {
+  createTraceTranscriptStorage,
+  serializeTraceTranscriptInputs,
+  TRACE_TRANSCRIPT_MAX_CHARACTERS,
+} from "./storage";
 
 const storage = vi.hoisted(() => ({
   uploadFile: vi.fn<StorageService["uploadFile"]>(),
@@ -176,6 +180,34 @@ describe("trace transcript storage", () => {
       );
     },
   );
+
+  it("reports the stored envelope length and flags the limit for reuse off the storage path", () => {
+    const value = transcript("");
+    const overhead = serializeTraceTranscriptInputs({
+      transcript: value,
+      executionIssues: [],
+      traceContext,
+    }).jsonLength;
+    const fill = (length: number) => {
+      value.threads[0].currentTurn.messages[0].parts = [
+        { type: "text", text: "x".repeat(length - overhead) },
+      ];
+      return serializeTraceTranscriptInputs({
+        transcript: value,
+        executionIssues: [],
+        traceContext,
+      });
+    };
+
+    expect(fill(TRACE_TRANSCRIPT_MAX_CHARACTERS)).toMatchObject({
+      jsonLength: TRACE_TRANSCRIPT_MAX_CHARACTERS,
+      tooLarge: false,
+    });
+    expect(fill(TRACE_TRANSCRIPT_MAX_CHARACTERS + 1)).toMatchObject({
+      jsonLength: TRACE_TRANSCRIPT_MAX_CHARACTERS + 1,
+      tooLarge: true,
+    });
+  });
 
   it("propagates upload and download failures", async () => {
     storage.download.mockRejectedValueOnce(new Error("NoSuchKey"));

@@ -1,4 +1,9 @@
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  getTraceEvalsProcessingSampling,
+  isTraceEvalsProjectEnabled,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import {
   getTopicsProcessingSampling,
   isTopicsProjectEnabled,
@@ -10,14 +15,23 @@ import {
 import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 
 /**
- * A trace is admitted when it passes its project's Topics rule sampling, using
- * the deterministic trace-ID value.
+ * A trace is admitted when it passes its project's Topics rule sampling or its
+ * trace evals rule sampling. Both use the deterministic trace-ID value, so the
+ * admitted share is the larger rate.
  */
 export async function resolveTraceDispatchSamplingRate(
   projectId: string,
 ): Promise<number> {
   if (!isEventsDispatchEnabled()) return 0;
 
+  const [topicsRate, traceEvalsRate] = await Promise.all([
+    resolveTopicsRate(projectId),
+    resolveTraceEvalsRate(projectId),
+  ]);
+  return Math.max(topicsRate, traceEvalsRate);
+}
+
+async function resolveTopicsRate(projectId: string): Promise<number> {
   try {
     return await getTopicsProcessingSampling(projectId);
   } catch (error) {
@@ -28,6 +42,23 @@ export async function resolveTraceDispatchSamplingRate(
       error,
     });
     return isTopicsProjectEnabled(projectId) ? 1 : 0;
+  }
+}
+
+async function resolveTraceEvalsRate(projectId: string): Promise<number> {
+  try {
+    return await getTraceEvalsProcessingSampling(projectId);
+  } catch (error) {
+    // Preserve trace evals intake during an outage; rules are still matched per trace.
+    recordIncrement("langfuse.trace_dispatch.trace_evals_gate_failures", 1);
+    logger.warn(
+      "Failed to read trace evals processing state, using allowlist",
+      {
+        projectId,
+        error,
+      },
+    );
+    return isTraceEvalsProjectEnabled(projectId) ? 1 : 0;
   }
 }
 

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@langfuse/shared/src/env";
+import { env as workerEnv } from "../../env";
 import {
   calculateModelUsageCosts,
   findModel,
@@ -17,6 +18,7 @@ import {
   getTopicTextResponseMetadata,
   topicMessages,
   type TopicPromptPart,
+  type TopicTextUsageDetails,
   type TopicsModel,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -28,7 +30,11 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { createEventLoopYielder } from "./event-loop";
-import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
+import {
+  recordTopicModelCall,
+  recordTopicRequestBytes,
+  recordTopicTokenUsage,
+} from "./metrics";
 import {
   llmRequestEgressBytes,
   recordExportVolume,
@@ -90,28 +96,26 @@ async function priceTopicUsage(
   };
 }
 
-function countTopicRequestTokens(
-  system: TopicPromptPart[],
-  input: string,
-  schema: z.ZodType,
-): number {
-  const encoding = get_encoding("o200k_base");
-  try {
-    return encoding.encode(
-      system.map((part) => part.text).join("") +
-        input +
-        JSON.stringify(z.toJSONSchema(schema)),
-      "all",
-      [],
-    ).length;
-  } finally {
-    encoding.free();
-  }
-}
-
-/** The input exceeds the run's token limit; no model call was made. */
+/** The rendered transcript exceeds the character limit; no model call was made. */
 export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
+}
+
+type TopicCallMetadata = Record<string, unknown> & {
+  source_trace_id?: string;
+  execution_id?: string | null;
+  rule_ids?: string[];
+  rule_id?: string | null;
+  run_id?: string;
+};
+
+// Characters per token by tokenizer family, measured on rendered Topics requests.
+export function charsPerToken(model: string) {
+  const name = model.toLowerCase();
+  if (/(^|[/.:])(gpt|o\d|chatgpt|text-embedding)/.test(name)) return 4.0;
+  if (name.includes("gemini")) return 4.0;
+  if (name.includes("claude")) return 3.2;
+  return 3.5;
 }
 
 /** One span, call counter and failure log per provider request. */
@@ -120,21 +124,29 @@ async function topicModelCall<T>(
   model: TopicsModel,
   projectId: string,
   requestBytes: number,
-  context: Record<string, unknown>,
+  metadata: TopicCallMetadata | undefined,
   call: () => Promise<T>,
 ): Promise<T> {
   return instrumentAsync(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
-      const fields: Record<string, string | number> = {
+      const fields: Record<string, string | number | string[]> = {
         "langfuse.topics.stage": stage,
         "langfuse.topics.model": model.model,
         "langfuse.topics.adapter": model.adapter,
         "langfuse.topics.request_bytes": requestBytes,
       };
-      for (const [key, value] of Object.entries(context))
-        if (typeof value === "string") fields[`langfuse.topics.${key}`] = value;
+      const identifiers = {
+        trace_id: metadata?.source_trace_id,
+        execution_id: metadata?.execution_id,
+        rule_ids: metadata?.rule_ids,
+        rule_id: metadata?.rule_id,
+        run_id: metadata?.run_id,
+      };
+      for (const [key, value] of Object.entries(identifiers))
+        if (value != null) fields[`langfuse.topics.${key}`] = value;
       span.setAttributes(fields);
+      recordTopicRequestBytes(stage, model.adapter, requestBytes);
       try {
         const result = await call();
         recordTopicModelCall(stage, model.adapter, {});
@@ -182,19 +194,29 @@ async function structuredCall<T>(
   stage: "summary" | "naming",
   model: TopicsModel,
   projectId: string,
-  metadata?: Record<string, unknown>,
+  metadata?: TopicCallMetadata,
   traceName = `topics-${stage}`,
+  onCost?: (costDetails: Record<string, number>) => void,
 ): Promise<ModelResult<T>> {
+  async function priceResponse(response: TopicTextUsageDetails) {
+    const priced = await priceTopicUsage(
+      stage,
+      model,
+      projectId,
+      response.usageDetails,
+      response.providedCostDetails,
+    );
+    if (onCost && Object.keys(priced.costDetails).length > 0)
+      onCost(priced.costDetails);
+    return priced;
+  }
   const trace = await topicTraceSink(traceName, projectId, metadata);
   const result = await topicModelCall(
     stage,
     model,
     projectId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
-    {
-      trace_id: metadata?.source_trace_id,
-      execution_id: metadata?.execution_id,
-    },
+    metadata,
     () =>
       generateTopicText({
         model,
@@ -203,22 +225,20 @@ async function structuredCall<T>(
         schema,
         maxOutputTokens: outputLimit,
         trace,
+        onFailedResponseUsage: onCost
+          ? async (usage) => {
+              await priceResponse(usage);
+            }
+          : undefined,
       }),
   );
   recordTopicTokenUsage(stage, {
     input: result.usage.inputTokens,
     output: result.usage.outputTokens,
   });
-  return {
-    output: schema.parse(result.output),
-    ...(await priceTopicUsage(
-      stage,
-      model,
-      projectId,
-      result.usageDetails,
-      result.providedCostDetails,
-    )),
-  };
+  // A paid response can fail local validation during a naming retry.
+  const priced = await priceResponse(result);
+  return { output: schema.parse(result.output), ...priced };
 }
 
 async function topicTraceSink(
@@ -287,19 +307,23 @@ Recordings come from many frameworks and can be messy. Repeated, partial, or pas
 Status says whether the facet applies, not whether the run succeeded.
 </status>`;
 
+type KeyedTopicFacet = {
+  key: string;
+  facet: TopicFacetVersion;
+  builtIn: boolean;
+};
+
 /**
- * Summarizes all given facets of one trace in a single call. The system prompt
+ * The summary request for all given facets of one trace. The system prompt
  * is identical across traces; each facet is listed under its key and answered
  * independently, with short evidence notes before each summary. Built-in
  * facets end the first cached prefix and custom facets the second, so callers
  * must pass facets in a stable order with built-ins first.
  */
-export async function summarizeTopicTraceFacets(
-  models: TopicsModels,
-  facets: { key: string; facet: TopicFacetVersion; builtIn: boolean }[],
+export function buildTopicSummaryRequest(
+  facets: KeyedTopicFacet[],
   text: string,
   config: TopicProcessingConfig,
-  metadata?: Record<string, unknown>,
 ) {
   const entry = z.object({
     notes: z
@@ -337,17 +361,36 @@ ${facetBlock(true)}`,
     ...(customFacets ? [{ text: customFacets, cache: true }] : []),
   ];
   const input = `<transcript>\n${text}\n</transcript>\n\nWrite the summaries now, one per facet key, each in its facet's format.`;
-  const countedInputTokens =
-    countTopicRequestTokens(system, input, schema) + 256;
-  if (countedInputTokens > config.maxInputTokens)
+  return {
+    system,
+    input,
+    schema,
+    maxOutputTokens: config.maxOutputTokens * facets.length,
+  };
+}
+
+/** Summarizes all given facets of one trace in a single call. */
+export async function summarizeTopicTraceFacets(
+  models: TopicsModels,
+  facets: KeyedTopicFacet[],
+  text: string,
+  config: TopicProcessingConfig,
+  metadata?: TopicCallMetadata,
+) {
+  const { system, input, schema, maxOutputTokens } = buildTopicSummaryRequest(
+    facets,
+    text,
+    config,
+  );
+  if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
-      `The shared trace transcript and instructions are ${countedInputTokens} tokens, above this run's ${config.maxInputTokens}-token input limit. No model call was made; the transcript is never shortened per facet.`,
+      `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
     );
   return structuredCall(
     system,
     input,
     schema,
-    config.maxOutputTokens * facets.length,
+    maxOutputTokens,
     "summary",
     models.summary,
     models.projectId,
@@ -387,7 +430,7 @@ const namingSchema = z.object({
   evidenceSummaryIds: z.array(z.string()).min(1).max(3),
 });
 type NamingSummary = { id: string; summary: string };
-type NamingConflict = {
+export type NamingConflict = {
   name: string;
   description: string;
   summaries: string[];
@@ -646,8 +689,9 @@ export async function nameTopicGroup(
     facetName?: string;
     previousTopic?: { name: string; description: string };
   },
-  metadata?: Record<string, unknown>,
+  metadata: TopicCallMetadata & { run_id: string },
   conflict?: NamingConflict,
+  onCost?: (costDetails: Record<string, number>) => void,
 ) {
   const memberIds = new Set(group.members.map((member) => member.id));
   const schema = namingSchema.extend({
@@ -706,6 +750,7 @@ export async function nameTopicGroup(
       naming_input_tokens_estimated: inputLimit,
     },
     conflict ? "topics-naming-conflict" : undefined,
+    onCost,
   );
 }
 
@@ -715,6 +760,7 @@ export async function embedTopicSummaries(
   summaries: string[],
   dimensions: number,
   projectId: string,
+  metadata?: TopicCallMetadata,
 ): Promise<TopicModelUsage & { embeddings: number[][] }> {
   if (
     summaries.length === 0 ||
@@ -731,7 +777,7 @@ export async function embedTopicSummaries(
     model,
     projectId,
     llmRequestEgressBytes(summaries),
-    {},
+    metadata,
     () => generateTopicEmbeddings({ model, summaries, dimensions }),
   );
   recordTopicTokenUsage("embedding", { input: result.tokens });

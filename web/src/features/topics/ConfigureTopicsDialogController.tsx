@@ -87,6 +87,10 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  // Fetched on every open: the first summary can be embedded while the page
+  // stays open. The server still rejects a change, so a failed read only hides
+  // the warning.
+  const hasEmbeddings = api.topics.hasCurrentEmbeddings.useQuery({ projectId });
   const utils = api.useUtils();
   const turnOn = api.topics.setAutomaticProcessing.useMutation({
     onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
@@ -111,7 +115,7 @@ function ConfigureTopicsSettings({
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
-    embeddingLocked: false,
+    hasEmbeddings: hasEmbeddings.data ?? false,
     automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage

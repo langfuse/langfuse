@@ -1,6 +1,7 @@
 import {
-  EvalTemplateType,
+  EvalTemplateTypeEnum,
   getCodeEvalVariableMapping,
+  type EvalTemplateType,
   observationVariableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -24,7 +25,7 @@ export function prepareModernRuleVariableMapping(
   value: unknown,
   evaluatorType: EvalTemplateType,
 ): ModernRuleVariableMapping {
-  if (evaluatorType === EvalTemplateType.CODE) {
+  if (evaluatorType === EvalTemplateTypeEnum.CODE) {
     const mapping = getCodeEvalVariableMapping();
     return {
       defaultVariableMapping: mapping,

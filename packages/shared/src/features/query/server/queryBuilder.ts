@@ -550,9 +550,17 @@ export class QueryBuilder {
     return dimensions;
   }
 
+  /**
+   * Throws `InvalidRequestError` for a filter whose type the view's column
+   * does not take. Metadata takes `stringObject`, and also `numberObject`
+   * with `numericMetadata`: only views whose filters are lowered by the
+   * events predicate lowering (the v2 observations view) compare metadata
+   * as numbers.
+   */
   private validateFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
+    { numericMetadata = false }: { numericMetadata?: boolean } = {},
   ) {
     for (const filter of filters) {
       // Validate filters on dimension fields
@@ -609,31 +617,16 @@ export class QueryBuilder {
         }
       }
 
-      // Special validation for metadata filters
+      // Metadata filters: the `singleFilter` schema already requires `key`
+      // and a value of the filter type's kind, so only the type is checked.
       else if (filter.column === "metadata") {
-        if (filter.type !== "stringObject") {
+        const acceptedTypes: CompatibleFilterType[] = numericMetadata
+          ? ["stringObject", "numberObject"]
+          : ["stringObject"];
+        if (!acceptedTypes.includes(filter.type)) {
           throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' with a 'key' property, not '${filter.type}'. ` +
+            `Invalid filter for field 'metadata': Metadata filters require type ${formatExpectedFilterTypes(acceptedTypes)} with a 'key' property, not '${filter.type}'. ` +
               `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
-          );
-        }
-
-        // Validate stringObject has required key
-        if (filter.type === "stringObject" && !("key" in filter)) {
-          throw new InvalidRequestError(
-            `Invalid filter for field 'metadata': stringObject type requires a 'key' property to specify which metadata field to filter on. ` +
-              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
-          );
-        }
-
-        // Validate stringObject value type
-        if (
-          filter.type === "stringObject" &&
-          typeof filter.value !== "string"
-        ) {
-          throw new InvalidRequestError(
-            // @ts-ignore
-            `Invalid filter for field 'metadata': stringObject type requires a string value, not '${typeof filter.value}'.`,
           );
         }
       }
@@ -1921,7 +1914,7 @@ export class QueryBuilder {
       appliedMetrics,
       view,
     );
-    this.validateFilters(query.filters, view);
+    this.validateFilters(query.filters, view, { numericMetadata: true });
     const filters = query.filters.map((filter): DashboardFilter => ({
       lowering: eventsObservationsFilterLowering(filter.column),
       condition: conditionFromFilter(filter),

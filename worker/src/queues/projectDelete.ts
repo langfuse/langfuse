@@ -15,6 +15,7 @@ import {
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import { deleteTopicDataByProjectId } from "@langfuse/shared/topics/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
 import { env, v4WritesToEventsTable } from "../env";
@@ -89,6 +90,7 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
+    deleteTopicDataByProjectId(projectId),
     v4WritesToEventsTable(env)
       ? deleteEventsByProjectId(projectId)
       : Promise.resolve(),

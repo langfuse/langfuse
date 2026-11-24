@@ -8,18 +8,20 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import {
   ROUTE_GROUP_BADGES,
+  type Route,
   type RouteGroup,
 } from "@/src/components/layouts/routes";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: Route["menuNode"];
   url: string;
   icon?: IconComponent;
   isActive?: boolean;
@@ -45,14 +47,16 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
   return (
-    <>
+    <div className="contents [--sidebar-nav-leading-width:32px] [--sidebar-nav-row-height:32px]">
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
             {items.ungrouped.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <NavMainEntry item={item} />
+                <NavMainEntry item={item} isCollapsed={isCollapsed} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -69,19 +73,25 @@ export function NavMain({
               <SidebarMenu>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <NavMainEntry item={item} />
+                    <NavMainEntry item={item} isCollapsed={isCollapsed} />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-    </>
+    </div>
   );
 }
 
-function NavMainEntry({ item }: { item: NavMainItem }) {
-  if (item.menuNode) return item.menuNode;
+function NavMainEntry({
+  item,
+  isCollapsed,
+}: {
+  item: NavMainItem;
+  isCollapsed: boolean;
+}) {
+  if (item.menuNode) return item.menuNode({ isCollapsed });
   if (item.disabledReason) {
     // The disabled button takes no pointer or focus events, so a focusable
     // wrapper carries the reason in every sidebar state.

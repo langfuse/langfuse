@@ -11,6 +11,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
+import { costEstimateFixture } from "./topicCostEstimateFixture";
+import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   TOPIC_SETUP_QUESTIONS,
   type TopicSetupQuestion,
@@ -47,6 +49,8 @@ function SetupStory({
 }) {
   const [selected, setSelected] = useState(questions);
   const [filter, setFilter] = useState<FilterState>([]);
+  const [samplePercent, setSamplePercent] = useState(100);
+  const [name, setName] = useState("Default");
   // The query editor's Ask AI needs tRPC, which stories don't provide.
   const [mode, setMode] = useState<EvaluatorFilterExperience>("builder");
   const traceFilterState = useTopicTraceFilterState({
@@ -62,6 +66,19 @@ function SetupStory({
       advancedOpen={false}
       busy={false}
       canWrite
+      costEstimate={
+        <TopicCostEstimateView
+          estimate={costEstimateFixture()}
+          samplingPercent={samplePercent}
+          dailyTraces={180}
+          backfillTraces={412}
+          onAddModelPrice={fn()}
+          starting={false}
+          facetCount={selected.filter((question) => question.enabled).length}
+          error={null}
+          onStart={fn()}
+        />
+      }
       clustering={{
         provider: "Amazon Bedrock",
         model: "us.anthropic.claude-sonnet-5-5",
@@ -82,6 +99,8 @@ function SetupStory({
       connectionSettingsUrl="https://cloud.langfuse.com/project/demo-project/settings/llm-connections"
       onEdit={fn()}
       onEmbeddingChange={fn()}
+      name={name}
+      onNameChange={setName}
       onNext={fn()}
       onQuestionEnabled={(name, enabled) =>
         setSelected((current) =>
@@ -90,13 +109,13 @@ function SetupStory({
           ),
         )
       }
-      onSamplePercentChange={fn()}
+      onSamplePercentChange={setSamplePercent}
       onSummaryChange={fn()}
       onWaitMinutesChange={fn()}
       pastCount={{ status: "ready", matched: 412, dailyTraces: 180 }}
       providerGroups={providerGroups}
       questions={selected}
-      samplePercent={100}
+      samplePercent={samplePercent}
       projectId="demo-project"
       filter={filter}
       onFilterChange={setFilter}
@@ -171,6 +190,23 @@ export const Traces = meta.story({
 
 export const Review = meta.story({
   args: { step: "review" },
+});
+
+export const RequiresAName = meta.story({
+  name: "(Test) Start stays disabled without a map name",
+  args: { step: "review" },
+  play: async () => {
+    const body = within(document.body);
+    const start = body.getByRole("button", { name: "Start analyzing" });
+    expect(start).toBeEnabled();
+    await userEvent.clear(body.getByRole("textbox", { name: "Map name" }));
+    expect(start).toBeDisabled();
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Map name" }),
+      "Support agent",
+    );
+    expect(start).toBeEnabled();
+  },
 });
 
 export const RequiresAQuestion = meta.story({
