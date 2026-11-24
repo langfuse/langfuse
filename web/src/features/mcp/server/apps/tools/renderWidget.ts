@@ -212,11 +212,32 @@ type TimeWindow = {
   requested: WidgetTimeRange;
   fromTimestamp: Date;
   toTimestamp: Date;
+  /** The earliest time the plan's data access allows, if it limits it. */
+  accessFloor?: Date;
   label: string;
 };
 
 const toMinute = (date: Date) =>
   `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+/** The range actually queried, naming the plan's limit when it shortened it. */
+const windowLabel = (params: {
+  custom: boolean;
+  relativeLabel: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  clamped: boolean;
+}) => {
+  const limitNote = " (plan data access limit)";
+  if (params.custom) {
+    const span = `${toMinute(params.fromTimestamp)} – ${toMinute(params.toTimestamp)}`;
+    return params.clamped ? span + limitNote : span;
+  }
+  // A relative range ends now, so its shortened form is "since" its start.
+  return params.clamped
+    ? `Since ${toDay(params.fromTimestamp)}${limitNote}`
+    : params.relativeLabel;
+};
 
 /**
  * The requested window: a custom from/to, or a relative range ending now.
@@ -246,17 +267,18 @@ const resolveTimeWindow = (
       `The time window ends before ${toDay(fromTimestamp)}, the earliest date the plan's data access allows`,
     );
   }
-  const requestedLabel = custom
-    ? `${toMinute(requestedFrom)} – ${toMinute(toTimestamp)}`
-    : range.label;
   return {
     requested: custom ?? { range: rangeKey },
     fromTimestamp,
     toTimestamp,
-    // Name the range actually queried when the plan shortened it.
-    label: access.wasClamped
-      ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
-      : requestedLabel,
+    accessFloor: access.accessFloor,
+    label: windowLabel({
+      custom: Boolean(custom),
+      relativeLabel: range.label,
+      fromTimestamp,
+      toTimestamp,
+      clamped: access.wasClamped,
+    }),
   };
 };
 
@@ -371,6 +393,7 @@ const toRenderResult = (params: {
     rows,
     timeRange: window.requested,
     timeRangeLabel: window.label,
+    earliestTimestamp: window.accessFloor?.toISOString(),
   };
   return appToolResult({
     text: JSON.stringify({

@@ -29,4 +29,6 @@ export type WidgetPayload = WidgetDefinition & {
   timeRange: WidgetTimeRange;
   /** The range actually queried, e.g. shortened to the plan's data access. */
   timeRangeLabel: string;
+  /** The earliest time the plan's data access allows, when it limits it. */
+  earliestTimestamp?: string;
 };

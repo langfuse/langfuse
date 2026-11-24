@@ -136,8 +136,8 @@ export type TimeRangePickerProps = {
   compact?: boolean;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
-  /** Called when the presets/calendar popover opens or closes. */
-  onOpenChange?: (open: boolean) => void;
+  /** Called after the presets/calendar popover opened or closed. */
+  onAfterOpenChange?: (open: boolean) => void;
 };
 
 export function TimeRangePicker({
@@ -149,7 +149,7 @@ export function TimeRangePicker({
   onTimeRangeChange,
   disabled,
   maxRangeMs,
-  onOpenChange,
+  onAfterOpenChange,
 }: TimeRangePickerProps) {
   // Determine the range type
   const rangeType: "named" | "custom" | null = timeRange
@@ -308,7 +308,7 @@ export function TimeRangePicker({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setIsOpen(open);
-      onOpenChange?.(open);
+      onAfterOpenChange?.(open);
       if (open) {
         setTab("presets");
       } else {
@@ -318,7 +318,7 @@ export function TimeRangePicker({
         setInternalDateRange(committedDateRange);
       }
     },
-    [committedDateRange, onOpenChange],
+    [committedDateRange, onAfterOpenChange],
   );
 
   const getDisplayContent = () => {
