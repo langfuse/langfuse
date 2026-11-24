@@ -20,7 +20,7 @@ export function GatewayGuardrailTemplateGallery({
   return (
     <Dialog title="Add a guardrail" size="lg" closeOnInteractionOutside>
       <p className="bg-modal text-muted-foreground relative -mt-3 shrink-0 border-b px-4 pb-3 text-xs">
-        Pick a template to configure.
+        Choose what to detect.
       </p>
       <Dialog.Body>
         <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3">
@@ -78,7 +78,7 @@ function TemplateCard({ template, onSelect }: TemplateCardProps) {
             </span>
             <div className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white backdrop-blur-xs group-hover/card:flex">
               <span className="flex items-center gap-1 text-sm font-bold">
-                Use template
+                Configure
                 <ChevronRight size="base" __rawClassName="translate-y-px" />
               </span>
             </div>

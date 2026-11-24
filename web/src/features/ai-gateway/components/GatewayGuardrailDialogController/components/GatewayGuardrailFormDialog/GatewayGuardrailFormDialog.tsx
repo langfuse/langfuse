@@ -276,7 +276,7 @@ export function GatewayGuardrailFormDialog({
               {onBack ? (
                 <button
                   type="button"
-                  aria-label="Back to templates"
+                  aria-label="Back to guardrail types"
                   onClick={onBack}
                   className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
                 >
