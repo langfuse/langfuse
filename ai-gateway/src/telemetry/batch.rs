@@ -10,7 +10,7 @@ use tokio::{sync::OwnedSemaphorePermit, time::Instant};
 use super::Grant;
 use crate::resolution::ProjectId;
 
-pub(super) const DEFAULT_BATCH_LINGER_MS: u64 = 5_000;
+pub(crate) const DEFAULT_BATCH_LINGER_MS: u64 = 5_000;
 
 #[derive(Clone, Copy)]
 pub(super) struct BatchPolicy {

@@ -1825,6 +1825,9 @@ jobs:
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
           LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      - name: Langfuse server log
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
