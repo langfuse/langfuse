@@ -307,6 +307,8 @@ export function WidgetApp() {
       })
       .catch((callError: unknown) => {
         if (call.signal.aborted) return;
+        // The picker and Retry keep the window that failed.
+        setToolArguments(nextArguments);
         setResult(
           errorResult(
             callError instanceof Error
