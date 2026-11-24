@@ -4,138 +4,111 @@ import {
   DashboardWidgetChartType,
   InvalidRequestError,
   LangfuseNotFoundError,
-  singleFilterList,
-  type FilterState,
+  TIME_RANGES,
 } from "@langfuse/shared";
-import {
-  buildWidgetOrderBy,
-  dimension,
-  getResultUnit,
-  isV2BreakdownChart,
-  metric,
-  toQueryChartConfig,
-  validateQuery,
-  type views,
-  viewsV2,
-  type QueryType,
-} from "@langfuse/shared/query";
+import { getResultUnit, validateQuery } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   buildDashboardWidgetUrl,
   buildDashboardsUrl,
   DashboardService,
-  dashboardWidgetViewToQueryView,
 } from "@langfuse/shared/src/server";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { buildWidgetQuery } from "@/src/features/widgets/fns/buildWidgetQuery";
+import {
+  normalizePublicDashboardWidgetInput,
+  toPublicWidgetInput,
+  validatePublicDashboardWidgetInput,
+} from "@/src/features/widgets/server/public-dashboard-widget-service";
 import { sanitizePivotTableDefaultSort } from "@/src/features/widgets/utils";
+import {
+  PostUnstableDashboardWidgetBody,
+  type PostUnstableDashboardWidgetBodyType,
+} from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { defineTool } from "../../../core/define-tool";
-import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { appToolResult } from "../../../core/mcp-app";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import type { ServerContext } from "../../../types";
-import { type WidgetPayload } from "../../../core/widget-payload";
+import {
+  type WidgetDefinition,
+  type WidgetPayload,
+} from "../../../core/widget-payload";
+import {
+  CreateDashboardWidgetBaseSchema,
+  throwActionableDashboardWidgetError,
+} from "../../dashboardWidgets/tools/createDashboardWidget";
 import { WIDGET_APP_RESOURCE_URI } from "../resources";
-import { summarizeWidget, toNumber } from "./widgetSummary";
+import { summarizeWidget } from "./widgetSummary";
 
-const TIME_RANGES = {
-  "1h": { ms: 60 * 60 * 1000, label: "Last hour" },
-  "24h": { ms: 24 * 60 * 60 * 1000, label: "Last 24 hours" },
-  "7d": { ms: 7 * 24 * 60 * 60 * 1000, label: "Last 7 days" },
-  "30d": { ms: 30 * 24 * 60 * 60 * 1000, label: "Last 30 days" },
-  "90d": { ms: 90 * 24 * 60 * 60 * 1000, label: "Last 90 days" },
-} as const;
-const timeRanges = z.enum(
-  Object.keys(TIME_RANGES) as [keyof typeof TIME_RANGES],
+/** The dashboard's relative time ranges, by abbreviation ("7d"). */
+const TIME_RANGE_PRESETS = new Map(
+  DASHBOARD_AGGREGATION_OPTIONS.map((key) => [
+    TIME_RANGES[key].abbreviation,
+    TIME_RANGES[key],
+  ]),
 );
-type TimeRange = z.infer<typeof timeRanges>;
+const timeRanges = z.enum([...TIME_RANGE_PRESETS.keys()] as [
+  string,
+  ...string[],
+]);
 
-const RenderWidgetBaseSchema = z.object({
+const renderOptions = {
   widgetId: z
     .string()
     .optional()
     .describe(
-      "Id of a saved dashboard widget to render (see listDashboardWidgets). When set, the widget's own view, metrics, dimensions, filters and chart type are used and the ad-hoc fields are ignored.",
-    ),
-  title: z
-    .string()
-    .optional()
-    .describe("Title shown above the chart. Defaults to the metric name."),
-  // The views queryMetrics offers; trace charts exist only as saved widgets.
-  view: viewsV2
-    .optional()
-    .describe(
-      "Ad-hoc chart: data view to query. Field names follow getMetricsSchema.",
-    ),
-  metrics: z
-    .array(metric)
-    .optional()
-    .describe(
-      "Ad-hoc chart: measures and aggregations, e.g. [{ measure: 'totalCost', aggregation: 'avg' }]. The first metric is plotted.",
-    ),
-  dimensions: z
-    .array(dimension)
-    .optional()
-    .describe(
-      "Ad-hoc chart: at most one breakdown dimension, e.g. [{ field: 'providedModelName' }].",
-    ),
-  filters: z
-    .array(McpAdvancedFilterBaseSchema)
-    .optional()
-    .describe("Ad-hoc chart: filters in the same shape as queryMetrics."),
-  chartType: z
-    .enum(DashboardWidgetChartType)
-    .optional()
-    .describe(
-      "Ad-hoc chart: NUMBER for a single value with trend, LINE_TIME_SERIES / AREA_TIME_SERIES / BAR_TIME_SERIES over time, HORIZONTAL_BAR / VERTICAL_BAR / PIE for a breakdown, PIVOT_TABLE for a table. Defaults to NUMBER, or HORIZONTAL_BAR with a dimension.",
+      "Id of a saved dashboard widget to render (see listDashboardWidgets). When set, the widget's own definition is used and the ad-hoc fields are ignored.",
     ),
   timeRange: timeRanges
     .optional()
     .describe("Time window ending now. Defaults to 7d."),
-});
-
-const RenderWidgetInputSchema = RenderWidgetBaseSchema.extend({
-  filters: singleFilterList.optional(),
-}).superRefine((input, ctx) => {
-  if (input.widgetId) return;
-  if (!input.view) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["view"],
-      message: "view is required unless widgetId is set",
-    });
-  }
-  if (!input.metrics || input.metrics.length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["metrics"],
-      message: "at least one metric is required unless widgetId is set",
-    });
-  }
-});
-type RenderWidgetInput = z.infer<typeof RenderWidgetInputSchema>;
-
-type WidgetSpec = {
-  title: string;
-  description?: string;
-  view: z.infer<typeof views>;
-  metrics: {
-    measure: string;
-    aggregation: z.infer<typeof metric>["aggregation"];
-  }[];
-  dimensions: { field: string }[];
-  filters: FilterState;
-  chartType: DashboardWidgetChartType;
-  chartConfig: {
-    type: string;
-    bins?: number;
-    row_limit?: number;
-    defaultSort?: { column: string; order: "ASC" | "DESC" };
-  };
-  url: string;
 };
+
+/**
+ * An ad-hoc chart is a widget definition in createDashboardWidget's shape, so
+ * the same arguments render a chart here and save it there. Everything is
+ * optional because a saved widget (widgetId) needs none of it.
+ */
+const RenderWidgetBaseSchema = CreateDashboardWidgetBaseSchema.partial().extend(
+  {
+    ...renderOptions,
+    name: z
+      .string()
+      .optional()
+      .describe("Title shown above the chart. Defaults to the metric name."),
+    chartType: z
+      .enum(DashboardWidgetChartType)
+      .optional()
+      .describe(
+        "NUMBER for a single value, LINE_TIME_SERIES / AREA_TIME_SERIES / BAR_TIME_SERIES over time, HORIZONTAL_BAR / VERTICAL_BAR / PIE for a breakdown, PIVOT_TABLE for a table, HISTOGRAM for a distribution. Defaults to NUMBER, or HORIZONTAL_BAR with a dimension.",
+      ),
+  },
+);
+
+const RenderWidgetInputSchema = PostUnstableDashboardWidgetBody.partial()
+  .extend(renderOptions)
+  .superRefine((input, ctx) => {
+    if (input.widgetId) return;
+    if (!input.view) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["view"],
+        message: "view is required unless widgetId is set",
+      });
+    }
+    if (!input.metrics || input.metrics.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["metrics"],
+        message: "at least one metric is required unless widgetId is set",
+      });
+    }
+  });
+type RenderWidgetInput = z.infer<typeof RenderWidgetInputSchema>;
 
 /**
  * Charts read the events-backed v2 views, like queryMetrics. The apps
@@ -146,71 +119,59 @@ const VERSION = "v2";
 
 const toDay = (date: Date) => date.toISOString().slice(0, 10);
 
-const metricAlias = (m: { measure: string; aggregation: string }) =>
-  `${m.aggregation}_${m.measure}`;
+const metricAlias = (m: WidgetDefinition["metrics"][number]) =>
+  `${m.agg}_${m.measure}`;
 
 const aggregationLabel = (aggregation: string) =>
   /^p\d+$/.test(aggregation) ? aggregation : startCase(aggregation);
 
-const metricLabel = (m: { measure: string; aggregation: string }) =>
-  m.aggregation === "count" && m.measure === "count"
+const metricLabel = (m: WidgetDefinition["metrics"][number]) =>
+  m.agg === "count" && m.measure === "count"
     ? "Count"
-    : `${aggregationLabel(m.aggregation)} ${startCase(m.measure).toLowerCase()}`;
+    : `${aggregationLabel(m.agg)} ${startCase(m.measure).toLowerCase()}`;
 
-const loadSavedWidgetSpec = async (
-  widgetId: string,
-  context: ServerContext,
-): Promise<WidgetSpec> => {
+const loadSavedWidget = async (widgetId: string, context: ServerContext) => {
   const widget = await DashboardService.getWidget(widgetId, context.projectId);
   if (!widget) {
     throw new LangfuseNotFoundError(`Dashboard widget ${widgetId} not found`);
   }
-  const view = dashboardWidgetViewToQueryView[widget.view];
-  const metrics = widget.metrics.map((m) => ({
-    measure: m.measure,
-    aggregation: m.agg as WidgetSpec["metrics"][number]["aggregation"],
-  }));
-  return {
-    title: widget.name,
-    description: widget.description || undefined,
-    view,
-    metrics,
-    dimensions: widget.dimensions,
-    filters: mapLegacyUiTableFilterToView(view, widget.filters),
-    chartType: widget.chartType,
-    chartConfig: widget.chartConfig,
-    url: buildDashboardWidgetUrl({ projectId: context.projectId, widgetId }),
-  };
+  return toPublicWidgetInput(widget);
 };
 
-const adHocSpec = (
-  input: RenderWidgetInput,
-  context: ServerContext,
-): WidgetSpec => {
-  const view = input.view!;
+/**
+ * An ad-hoc widget, checked and normalized the way createDashboardWidget
+ * does it, so a definition renders exactly when it could be saved.
+ */
+const adHocWidget = (input: RenderWidgetInput) => {
   const metrics = input.metrics!;
-  const dimensions = (input.dimensions ?? []).slice(0, 1);
-  const chartType =
-    input.chartType ?? (dimensions.length > 0 ? "HORIZONTAL_BAR" : "NUMBER");
-  return {
-    title: input.title ?? metricLabel(metrics[0]!),
-    view,
-    metrics,
+  const dimensions = input.dimensions ?? [];
+  const widget = {
+    name: input.name ?? metricLabel(metrics[0]!),
+    description: input.description ?? "",
+    view: input.view!,
     dimensions,
+    metrics,
     filters: input.filters ?? [],
-    chartType,
-    chartConfig: { type: chartType },
-    url: buildDashboardsUrl({ projectId: context.projectId }),
-  };
+    chartType:
+      input.chartType ?? (dimensions.length > 0 ? "HORIZONTAL_BAR" : "NUMBER"),
+    chartConfig: input.chartConfig,
+  } satisfies PostUnstableDashboardWidgetBodyType;
+  try {
+    const normalized = normalizePublicDashboardWidgetInput(widget);
+    validatePublicDashboardWidgetInput(normalized);
+    return normalized;
+  } catch (error) {
+    return throwActionableDashboardWidgetError(error, widget);
+  }
 };
 
 export const [renderWidgetTool, handleRenderWidget] = defineTool({
   name: "renderWidget",
   action: "metrics:read",
   description: [
-    "Render a Langfuse chart inline in the chat: a big number with trend, a time series, a breakdown, or a table.",
+    "Render a Langfuse chart inline in the chat: a big number, a time series, a breakdown, a table or a histogram.",
     "Use it whenever a metrics question is better answered visually, e.g. 'what is our average cost?', 'latency by model this week', or to show a saved dashboard widget (pass widgetId).",
-    "For ad-hoc charts pass view + metrics (+ optional dimension and filters) with the same field names as queryMetrics/getMetricsSchema.",
+    "For an ad-hoc chart pass a widget definition in the same shape as createDashboardWidget (view, metrics with agg, dimensions, filters, chartType, chartConfig); it is rendered, not saved. To save the chart, pass the same arguments to createDashboardWidget.",
     "Pick the time range with timeRange and call the tool again for another range. The text result is a complete summary of the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
   ].join(" "),
   baseSchema: RenderWidgetBaseSchema,
@@ -227,13 +188,20 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         "mcp.widget_time_range": input.timeRange,
       },
       fn: async () => {
-        const spec = input.widgetId
-          ? await loadSavedWidgetSpec(input.widgetId, context)
-          : adHocSpec(input, context);
-        const timeRange: TimeRange = input.timeRange ?? "7d";
+        const widget = input.widgetId
+          ? await loadSavedWidget(input.widgetId, context)
+          : adHocWidget(input);
+        const url = input.widgetId
+          ? buildDashboardWidgetUrl({
+              projectId: context.projectId,
+              widgetId: input.widgetId,
+            })
+          : buildDashboardsUrl({ projectId: context.projectId });
+
+        const range = TIME_RANGE_PRESETS.get(input.timeRange ?? "7d")!;
         const toTimestamp = new Date();
         const requestedFrom = new Date(
-          toTimestamp.getTime() - TIME_RANGES[timeRange].ms,
+          toTimestamp.getTime() - (range.minutes ?? 0) * 60_000,
         );
         const access = clampToDataAccessDays({
           plan: context.plan,
@@ -243,147 +211,83 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         // Name the range actually queried when the plan shortened it.
         const timeRangeLabel = access.wasClamped
           ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
-          : TIME_RANGES[timeRange].label;
+          : range.label;
 
-        const firstMetric = spec.metrics[0];
+        const firstMetric = widget.metrics[0];
         if (!firstMetric) {
           throw new InvalidRequestError("The widget has no metrics");
         }
-        const isTimeSeries = isTimeSeriesChart(spec.chartType);
-        const hasDimension = spec.dimensions.length > 0;
-        // Every row goes into one MCP response. validateQuery rejects
-        // unbounded high-cardinality series, and breakdowns keep their top
-        // rows by the first metric, as on the dashboard.
-        const needsTopN = isV2BreakdownChart({
+        const query = buildWidgetQuery({
+          widget,
+          // Stored in the dashboard's table-column form, saved or ad hoc.
+          filters: mapLegacyUiTableFilterToView(widget.view, widget.filters),
+          fromTimestamp,
+          toTimestamp,
+          // The view has no sortable header, so a saved pivot's sort applies
+          // here; it decides which rows survive the row limit.
+          sortState:
+            widget.chartConfig.type === "PIVOT_TABLE"
+              ? (sanitizePivotTableDefaultSort(
+                  widget.chartConfig.defaultSort,
+                  widget,
+                ) ?? null)
+              : null,
           version: VERSION,
-          hasDimension,
-          isTimeSeries,
-          chartType: spec.chartType,
         });
+        // Every row goes into one MCP response, so pivot tables get the same
+        // row limit as other breakdowns. validateQuery rejects unbounded
+        // high-cardinality time series.
+        if (
+          query.chartConfig &&
+          widget.dimensions.length > 0 &&
+          !isTimeSeriesChart(widget.chartType)
+        ) {
+          query.chartConfig.row_limit = query.chartConfig.row_limit ?? 100;
+        }
 
-        const buildQuery = (overrides: Partial<QueryType>): QueryType => ({
-          view: spec.view,
-          dimensions: spec.dimensions,
-          metrics: spec.metrics,
-          filters: spec.filters,
-          timeDimension: isTimeSeries ? { granularity: "auto" } : null,
-          fromTimestamp: fromTimestamp.toISOString(),
-          toTimestamp: toTimestamp.toISOString(),
-          orderBy: buildWidgetOrderBy({
-            chartType: spec.chartType,
-            // A saved pivot's sort decides which rows survive the row limit.
-            sortState:
-              spec.chartType === "PIVOT_TABLE"
-                ? (sanitizePivotTableDefaultSort(spec.chartConfig.defaultSort, {
-                    dimensions: spec.dimensions,
-                    metrics: spec.metrics.map((m) => ({
-                      measure: m.measure,
-                      agg: m.aggregation,
-                    })),
-                  }) ?? null)
-                : null,
-            needsTopN,
-            firstMetric,
-          }),
-          chartConfig: toQueryChartConfig(spec.chartConfig, {
-            defaultRowLimit: hasDimension && !isTimeSeries ? 100 : undefined,
-          }),
-          ...overrides,
-        });
-
-        const run = async (query: QueryType) => {
-          const validation = validateQuery(query, VERSION);
-          if (!validation.valid) {
-            throw new InvalidRequestError(validation.reason);
-          }
-          return executeQuery(context.projectId, query, VERSION, true, {
-            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
-          });
-        };
-
-        const alias = metricAlias(firstMetric);
-        const dimensionField = spec.dimensions[0]?.field;
-        const unit = getResultUnit(
-          spec.view,
-          firstMetric.measure,
-          firstMetric.aggregation,
+        const validation = validateQuery(query, VERSION);
+        if (!validation.valid) {
+          throw new InvalidRequestError(validation.reason);
+        }
+        const rows = await executeQuery(
+          context.projectId,
+          query,
           VERSION,
+          true,
+          { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
         );
 
-        // A single number also gets a trend and the previous period's value,
-        // so it reads like a KPI tile rather than a bare figure. The previous
-        // period is compared only when the plan can read all of it.
-        const isNumber = spec.chartType === "NUMBER" && !dimensionField;
-        const periodMs = toTimestamp.getTime() - fromTimestamp.getTime();
-        const previousFrom = new Date(fromTimestamp.getTime() - periodMs);
-        const comparePrevious =
-          isNumber &&
-          (!access.accessFloor || previousFrom >= access.accessFloor);
-        const [rows, trendRows, previousRows] = await Promise.all([
-          run(buildQuery({})),
-          isNumber
-            ? run(
-                buildQuery({
-                  timeDimension: { granularity: "auto" },
-                  chartConfig: { type: "LINE_TIME_SERIES" },
-                }),
-              )
-            : Promise.resolve([]),
-          comparePrevious
-            ? run(
-                buildQuery({
-                  fromTimestamp: previousFrom.toISOString(),
-                  toTimestamp: fromTimestamp.toISOString(),
-                }),
-              )
-            : Promise.resolve([]),
-        ]);
-
-        const value = isNumber ? toNumber(rows[0]?.[alias]) : null;
-        const previousValue = comparePrevious
-          ? toNumber(previousRows[0]?.[alias])
-          : null;
-
         const payload: WidgetPayload = {
-          title: spec.title,
-          description: spec.description,
-          chartType: spec.chartType,
-          chartConfig: { ...spec.chartConfig, type: spec.chartType },
-          view: spec.view,
+          name: widget.name,
+          description: widget.description,
+          chartType: widget.chartType,
+          chartConfig: widget.chartConfig,
+          view: widget.view,
           version: VERSION,
-          metrics: spec.metrics.map((m) => ({
-            measure: m.measure,
-            agg: m.aggregation,
-          })),
-          dimensions: spec.dimensions,
+          metrics: widget.metrics,
+          dimensions: widget.dimensions,
           rows,
-          ...(isNumber ? { kpi: { value, previousValue, trendRows } } : {}),
           timeRangeLabel,
         };
 
         return appToolResult({
           text: JSON.stringify({
             note: "Complete summary of the chart's data. Hosts that support MCP Apps also show the chart to the user.",
-            title: spec.title,
-            chartType: spec.chartType,
-            metric: alias,
-            unit,
-            dimension: dimensionField ?? null,
+            title: widget.name,
+            chartType: widget.chartType,
+            metric: metricAlias(firstMetric),
+            unit: getResultUnit(
+              widget.view,
+              firstMetric.measure,
+              firstMetric.agg,
+              VERSION,
+            ),
+            dimension: widget.dimensions[0]?.field ?? null,
             timeRange: timeRangeLabel,
             from: fromTimestamp.toISOString(),
             to: toTimestamp.toISOString(),
-            ...summarizeWidget({
-              rows,
-              chartType: spec.chartType,
-              metricField: alias,
-              metricFields: spec.metrics.map(metricAlias),
-              aggregation: firstMetric.aggregation,
-              dimensionField,
-              dimensionFields: spec.dimensions.map((d) => d.field),
-              isTimeSeries,
-              kpi: isNumber ? { value, previousValue } : undefined,
-            }),
-            url: spec.url,
+            ...summarizeWidget({ ...widget, rows }),
+            url,
           }),
           // Rows for the MCP App view; hosts keep result _meta from the model.
           meta: { widget: payload },

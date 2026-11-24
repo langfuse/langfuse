@@ -132,6 +132,8 @@ The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), b
 - The iframe's origin is the host's, so the page's root-relative `/_next/` URLs (in tags and in the inline RSC payload) are rewritten to absolute Langfuse URLs, and an inline script sets Turbopack's chunk base path. Plain `<script>` and stylesheet tags load across origins without CORS; with `NEXT_PUBLIC_ASSET_PREFIX`, Next adds `crossorigin`, so that asset host must send `Access-Control-Allow-Origin: *`.
 - Hosts only allow public HTTPS origins in the iframe CSP (Claude drops `http://localhost`), so a local dev server renders an empty widget there. To try it locally, serve the dev server on a public HTTPS hostname (for example a tunnel) and set `NEXTAUTH_URL` to it. `allowedDevOrigins` lets the hosts' sandbox origins load dev assets.
 
+The server declares the `io.modelcontextprotocol/ui` extension. App tools (and their `ui://` resources) are left out of discovery for clients that declare capabilities without it, which only 2026-07-28 clients do on every request. 2025-era clients declare capabilities only in `initialize`, which the stateless endpoint does not keep, so they still see app tools, which answer in text everywhere. The in-app agent never gets them (`apps/index.ts`).
+
 Hosts may cache the resource per conversation, so check view changes in a new one.
 
 ---

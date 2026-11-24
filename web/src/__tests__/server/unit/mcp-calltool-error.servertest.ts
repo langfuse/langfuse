@@ -124,7 +124,7 @@ describe("MCP Apps", () => {
       inputSchema: schema,
       ui: { resourceUri: WIDGET_APP_RESOURCE_URI },
       handler: async () =>
-        appToolResult({ text: "summary", meta: { widget: { title: "Cost" } } }),
+        appToolResult({ text: "summary", meta: { widget: { name: "Cost" } } }),
     });
     vi.mocked(toolRegistry.getEnabledTool).mockImplementation(async (name) =>
       name === definition.name ? { definition, handler } : undefined,
@@ -142,7 +142,7 @@ describe("MCP Apps", () => {
         arguments: {},
       });
       expect(result.content).toEqual([{ type: "text", text: "summary" }]);
-      expect(result._meta).toEqual({ widget: { title: "Cost" } });
+      expect(result._meta).toEqual({ widget: { name: "Cost" } });
       // The resource is the widget page's HTML, fetched from the app itself.
       vi.stubGlobal(
         "fetch",

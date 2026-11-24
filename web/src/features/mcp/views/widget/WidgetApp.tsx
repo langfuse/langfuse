@@ -71,8 +71,8 @@ export function WidgetApp() {
     return (
       <WidgetChartCard
         {...toChartProps(payload)}
-        title={payload.title}
-        description={payload.description ?? payload.timeRangeLabel}
+        title={payload.name}
+        description={payload.description || payload.timeRangeLabel}
       />
     );
   })();

@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
 import type { createMcpServer } from "../mcpServer";
+import {
+  resourceNotFound,
+  resourceResultCache,
+} from "../../core/resource-results";
 
 const skills = LANGFUSE_SKILLS.map(({ uri, frontmatter, resources }) => ({
   uri,
@@ -22,18 +26,6 @@ const resources = LANGFUSE_SKILLS.flatMap((skill) =>
 
 const listParams = z.object({ cursor: z.string().optional() }).optional();
 const getParams = z.object({ uri: z.string() });
-
-export const resourceResultCache = {
-  resultType: "complete",
-  ttlMs: 0,
-  cacheScope: "private",
-} as const;
-
-export const resourceNotFound = () =>
-  new ProtocolError(
-    ProtocolErrorCode.InvalidParams,
-    "Unknown skill or resource",
-  );
 
 export function registerSkillResources(
   server: ReturnType<typeof createMcpServer>,

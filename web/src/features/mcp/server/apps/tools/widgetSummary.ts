@@ -1,3 +1,6 @@
+import { type DashboardWidgetChartType } from "@langfuse/shared";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+
 /**
  * The text a `renderWidget` result gives the model: a complete summary of
  * what the chart shows, so the model can talk about it without re-querying.
@@ -12,14 +15,15 @@ type Row = Record<string, unknown>;
 type Point = { time: string; value: number };
 
 /** A query cell as a finite number, or null for empty and non-numeric values. */
-export const toNumber = (value: unknown): number | null => {
+const toNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === "") return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 };
 
+// Empty dimensions read "n/a", as in the chart's legend.
 const toLabel = (value: unknown): string => {
-  if (value === null || value === undefined || value === "") return "(none)";
+  if (value === null || value === undefined || value === "") return "n/a";
   return Array.isArray(value) ? value.join(", ") : String(value);
 };
 
@@ -42,18 +46,21 @@ const summarizeSeries = (
   dimensionField: string | undefined,
 ) => {
   const bySeries = new Map<string, Point[]>();
-  const buckets = new Set<string>();
+  // Every bucket's summed value, also for buckets without data.
+  const bucketSums = new Map<string, number>();
   for (const row of rows) {
     const time =
       typeof row.time_dimension === "string" ? row.time_dimension : undefined;
     const value = toNumber(row[metricField]);
     if (!time) continue;
-    buckets.add(time);
+    bucketSums.set(time, (bucketSums.get(time) ?? 0) + (value ?? 0));
     if (value === null) continue;
     const name = dimensionField ? toLabel(row[dimensionField]) : "total";
-    bySeries.set(name, [...(bySeries.get(name) ?? []), { time, value }]);
+    const points = bySeries.get(name);
+    if (points) points.push({ time, value });
+    else bySeries.set(name, [{ time, value }]);
   }
-  const sortedBuckets = [...buckets].sort();
+  const sortedBuckets = [...bucketSums.keys()].sort();
   const additive = isAdditive(aggregation);
 
   const series = [...bySeries.entries()].map(([name, points]) => {
@@ -75,12 +82,7 @@ const summarizeSeries = (
   );
 
   const bucketTotals = additive
-    ? sortedBuckets.map((time) => ({
-        time,
-        value: rows
-          .filter((row) => row.time_dimension === time)
-          .reduce((sum, row) => sum + (toNumber(row[metricField]) ?? 0), 0),
-      }))
+    ? sortedBuckets.map((time) => ({ time, value: bucketSums.get(time) ?? 0 }))
     : [];
   const peakBucket = peakOf(bucketTotals);
 
@@ -169,40 +171,33 @@ const summarizeHistogram = (rows: Row[], metricField: string) => {
 };
 
 /**
- * Summarizes widget rows by chart shape: a value, a time series, a
- * histogram, a table or a breakdown.
+ * Summarizes a widget's rows by chart shape: a value, a time series, a
+ * histogram, a table or a breakdown. The first metric and dimension are
+ * charted; a table summarizes all of them.
  */
 export function summarizeWidget(params: {
   rows: Row[];
-  chartType: string;
-  metricField: string;
-  metricFields: string[];
-  aggregation: string;
-  dimensionField: string | undefined;
-  dimensionFields: string[];
-  isTimeSeries: boolean;
-  kpi?: { value: number | null; previousValue: number | null };
+  chartType: DashboardWidgetChartType;
+  metrics: { measure: string; agg: string }[];
+  dimensions: { field: string }[];
 }) {
-  const { rows, metricField, aggregation, dimensionField, kpi } = params;
-  if (kpi) {
-    const change =
-      kpi.value !== null && kpi.previousValue
-        ? (kpi.value - kpi.previousValue) / Math.abs(kpi.previousValue)
-        : null;
-    return {
-      value: kpi.value === null ? null : round(kpi.value),
-      previousPeriodValue:
-        kpi.previousValue === null ? null : round(kpi.previousValue),
-      changeVsPreviousPeriod: change === null ? null : round(change),
-    };
+  const { rows, chartType } = params;
+  const metricFields = params.metrics.map((m) => `${m.agg}_${m.measure}`);
+  const dimensionFields = params.dimensions.map((d) => d.field);
+  const metricField = metricFields[0] ?? "";
+  const aggregation = params.metrics[0]?.agg ?? "";
+  const dimensionField = dimensionFields[0];
+  if (chartType === "NUMBER" && !dimensionField) {
+    const value = toNumber(rows[0]?.[metricField]);
+    return { value: value === null ? null : round(value) };
   }
-  if (params.chartType === "HISTOGRAM") {
+  if (chartType === "HISTOGRAM") {
     return summarizeHistogram(rows, metricField);
   }
-  if (params.chartType === "PIVOT_TABLE") {
-    return summarizeTable(rows, params.dimensionFields, params.metricFields);
+  if (chartType === "PIVOT_TABLE") {
+    return summarizeTable(rows, dimensionFields, metricFields);
   }
-  return params.isTimeSeries
+  return isTimeSeriesChart(chartType)
     ? summarizeSeries(rows, metricField, aggregation, dimensionField)
     : summarizeBreakdown(rows, metricField, aggregation, dimensionField);
 }

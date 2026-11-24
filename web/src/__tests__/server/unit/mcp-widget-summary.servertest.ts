@@ -16,12 +16,8 @@ describe("summarizeWidget", () => {
     const summary = summarizeWidget({
       rows,
       chartType: "LINE_TIME_SERIES",
-      metricField: "sum_cost",
-      metricFields: ["sum_cost"],
-      aggregation: "sum",
-      dimensionField: "model",
-      dimensionFields: ["model"],
-      isTimeSeries: true,
+      metrics: [{ measure: "cost", agg: "sum" }],
+      dimensions: [{ field: "model" }],
     });
 
     expect(summary).toMatchObject({
@@ -31,21 +27,14 @@ describe("summarizeWidget", () => {
       series: [
         { name: "b", total: 29 * 2 + 50 },
         { name: "a", total: 30 },
-        { name: "(none)", total: 0 },
+        { name: "n/a", total: 0 },
       ],
     });
   });
 
   it("keeps histogram bins and every pivot column", () => {
-    const base = {
-      metricField: "count_count",
-      aggregation: "count",
-      dimensionField: "model",
-      isTimeSeries: false,
-    };
     expect(
       summarizeWidget({
-        ...base,
         rows: [
           {
             count_count: [
@@ -55,8 +44,8 @@ describe("summarizeWidget", () => {
           },
         ],
         chartType: "HISTOGRAM",
-        metricFields: ["count_count"],
-        dimensionFields: [],
+        metrics: [{ measure: "count", agg: "count" }],
+        dimensions: [],
       }),
     ).toEqual({
       bins: [
@@ -66,13 +55,15 @@ describe("summarizeWidget", () => {
     });
     expect(
       summarizeWidget({
-        ...base,
         rows: [
           { model: "a", environment: "prod", count_count: 2, sum_cost: 1.5 },
         ],
         chartType: "PIVOT_TABLE",
-        metricFields: ["count_count", "sum_cost"],
-        dimensionFields: ["model", "environment"],
+        metrics: [
+          { measure: "count", agg: "count" },
+          { measure: "cost", agg: "sum" },
+        ],
+        dimensions: [{ field: "model" }, { field: "environment" }],
       }),
     ).toEqual({
       rows: [

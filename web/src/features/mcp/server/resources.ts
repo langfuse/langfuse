@@ -1,11 +1,11 @@
 import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import type { createMcpServer } from "./mcpServer";
 import {
-  listSkillResources,
-  readSkillResource,
   resourceNotFound,
   resourceResultCache,
-} from "./skills/resources";
+} from "../core/resource-results";
+import { listSkillResources, readSkillResource } from "./skills/resources";
+import { clientMayRenderApps } from "../core/mcp-app";
 import { listAppResources, readAppResource } from "./apps/resources";
 
 /**
@@ -13,7 +13,7 @@ import { listAppResources, readAppResource } from "./apps/resources";
  * documents of MCP App tools.
  */
 export function registerResources(server: ReturnType<typeof createMcpServer>) {
-  server.setRequestHandler("resources/list", async (request) => {
+  server.setRequestHandler("resources/list", async (request, ctx) => {
     if (request.params?.cursor !== undefined) {
       throw new ProtocolError(
         ProtocolErrorCode.InvalidParams,
@@ -22,7 +22,10 @@ export function registerResources(server: ReturnType<typeof createMcpServer>) {
     }
     return {
       ...resourceResultCache,
-      resources: [...listSkillResources(), ...listAppResources()],
+      resources: [
+        ...listSkillResources(),
+        ...(clientMayRenderApps(ctx) ? listAppResources() : []),
+      ],
     };
   });
   server.setRequestHandler("resources/templates/list", async () => ({
