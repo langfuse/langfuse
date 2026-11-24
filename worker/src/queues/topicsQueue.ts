@@ -1,10 +1,9 @@
-import { UnrecoverableError, type Processor } from "bullmq";
+import type { Processor } from "bullmq";
 import {
   QueueJobs,
   QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import {
   processTopicRuleRefit,
   processTopicUpdateExecution,
@@ -15,8 +14,6 @@ export const topicsUpdateQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TopicsUpdate]
 > = async (job) => {
   const { data } = job;
-  if (!isTopicsEnabled())
-    throw new UnrecoverableError("Topics is not enabled on this deployment.");
   switch (data.name) {
     case QueueJobs.Topics:
       return processTopicUpdateExecution(data.payload);

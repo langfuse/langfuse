@@ -11,7 +11,6 @@ import {
 import {
   countTopicTraceSummaries,
   enqueueTopicExecution,
-  isTopicsEnabled,
   readTopicExecutionSummary,
   readTopicSnapshotSummarizing,
   topicMatchingTraceIdsQuery,
@@ -73,8 +72,6 @@ export async function tickTopicSnapshotSetup(
   // The latest saved state, so a failure after seeding never re-seeds and pays twice.
   let state = await readTopicSnapshotSummarizing(projectId, executionId);
   try {
-    if (!isTopicsEnabled())
-      throw new Error("Topics is not enabled on this deployment.");
     if (!state?.traceIds) state = await seed(execution, now);
     return await settle(execution, state, now);
   } catch (error) {

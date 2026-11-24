@@ -111,11 +111,10 @@ const input: TopicManualRunInput = {
   }),
 };
 
-function caller(role: "ADMIN" | "VIEWER" = "ADMIN", topicsEnabled = true) {
+function caller(role: Role = "ADMIN") {
   const session = createSession({
     user: { id: "user-a", featureFlags: testFeatureFlags() },
     organizations: [{ id: "org-a", role, projects: [{ id: projectId }] }],
-    environment: { topicsEnabled },
   });
   return topicsRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
@@ -227,10 +226,10 @@ beforeEach(() => {
   mocks.getTopicRuns.mockResolvedValue([]);
 });
 
-describe("Topics deployment switch", () => {
-  // Every Topics API is behind the visibility gate: with the switch off it
+describe("Topics access without topics:read", () => {
+  // Every Topics API is behind the visibility gate: without topics:read it
   // answers NOT_FOUND before reading or writing anything.
-  const outside = () => caller("ADMIN", false);
+  const outside = () => caller("NONE");
   const reads = [
     ["current results", () => outside().currentResults({ projectId })],
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
@@ -303,18 +302,16 @@ describe("Topics deployment switch", () => {
 describe("Topics visibility gate", () => {
   // Page, sidebar and API all call this one gate.
   it.each([
-    ["a Cloud member without any preview", {}, "EU", true, true],
-    ["a self-hosted member", {}, undefined, true, true],
-    ["the deployment switch off", {}, "EU", false, false],
-    ["a role without topics:read", { role: "NONE" }, "EU", true, false],
+    ["a Cloud member without any preview", {}, "EU", true],
+    ["a self-hosted member", {}, undefined, true],
+    ["a role without topics:read", { role: "NONE" }, "EU", false],
     [
       "internal view without project membership",
       { email: "member@clickhouse.com", role: null },
       "EU",
-      true,
       false,
     ],
-  ] as const)("%s", (_case, user, region, topicsEnabled, expected) => {
+  ] as const)("%s", (_case, user, region, expected) => {
     const { email, role = "VIEWER" }: { email?: string; role?: Role | null } =
       user;
     setCloudRegion(region);
@@ -323,7 +320,6 @@ describe("Topics visibility gate", () => {
       organizations: role
         ? [{ id: "org-a", role, projects: [{ id: projectId }] }]
         : [],
-      environment: { topicsEnabled },
     });
     expect(canViewTopics(session, projectId)).toBe(expected);
   });
@@ -457,11 +453,11 @@ describe("Topics filtered trace preview", () => {
       },
     ])
       await expect(caller().previewTraces(invalid)).rejects.toBeDefined();
-    await expect(
-      caller("ADMIN", false).previewTraces(selection),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
+    await expect(caller("NONE").previewTraces(selection)).rejects.toMatchObject(
+      {
+        code: "NOT_FOUND",
+      },
+    );
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 });
@@ -846,7 +842,7 @@ describe("Topics local execution access and publication", () => {
       caller().executions({ projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      caller("ADMIN", false).executions({ projectId }),
+      caller("NONE").executions({ projectId }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });

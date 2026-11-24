@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
@@ -82,28 +81,19 @@ describe("Topics MCP tools access", () => {
   let other: Awaited<ReturnType<typeof topicsProject>>;
   let ownerClient: Client;
   let otherClient: Client;
-  const original = {
-    enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
 
   beforeAll(async () => {
     owner = await topicsProject();
     other = await topicsProject();
-    // The Topics gate reads shared env in this process.
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     ownerClient = await connect(await contextFor(owner));
     otherClient = await connect(await contextFor(other));
   });
 
   afterAll(async () => {
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
     await Promise.all([ownerClient.close(), otherClient.close()]);
   });
 
-  it("lists the Topics tools for every project only while the deployment enables Topics", async () => {
+  it("lists the Topics tools for projects with and without Topics data", async () => {
     const names = async (client: Client) =>
       (await client.listTools()).tools.map(({ name }) => name);
     expect(await names(ownerClient)).toEqual(
@@ -118,23 +108,6 @@ describe("Topics MCP tools access", () => {
       );
     } finally {
       await plainClient.close();
-    }
-
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "false";
-    const disabledClient = await connect(await contextFor(plain));
-    try {
-      const disabledTools = await names(disabledClient);
-      expect(disabledTools.length).toBeGreaterThan(0);
-      for (const tool of TOPICS_TOOLS)
-        expect(disabledTools).not.toContain(tool);
-      // A direct call fails like an unknown tool, not just a hidden listing.
-      for (const tool of TOPICS_TOOLS)
-        await expect(
-          disabledClient.callTool({ name: tool, arguments: {} }),
-        ).rejects.toThrow(`Unknown tool: ${tool}`);
-    } finally {
-      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-      await disabledClient.close();
     }
   });
 

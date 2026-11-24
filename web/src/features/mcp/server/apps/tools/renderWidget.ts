@@ -3,8 +3,8 @@ import startCase from "lodash/startCase";
 import {
   DashboardWidgetChartType,
   InvalidRequestError,
+  isoDateTime,
   LangfuseNotFoundError,
-  TIME_RANGES,
 } from "@langfuse/shared";
 import {
   getResultUnit,
@@ -37,13 +37,13 @@ import { defineTool } from "../../../core/define-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { appToolResult } from "../../../core/mcp-app";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import {
   convertSelectedEnvironmentsToFilter,
   isEnvironmentVisibleByDefault,
 } from "@/src/utils/environmentFilter";
 import type { ServerContext } from "../../../types";
 import {
+  RENDER_WIDGET_TOOL_NAME,
   type WidgetDefinition,
   type WidgetPayload,
 } from "../../../core/widget-payload";
@@ -53,15 +53,13 @@ import {
 } from "../../dashboardWidgets/tools/createDashboardWidget";
 import { WIDGET_APP_RESOURCE_URI } from "../resources";
 import { summarizeWidget } from "./widgetSummary";
+import {
+  DEFAULT_WIDGET_TIME_RANGE,
+  WIDGET_TIME_RANGES,
+  type WidgetTimeRange,
+} from "../../../core/widget-time-ranges";
 
-/** The dashboard's relative time ranges, by abbreviation ("7d"). */
-const TIME_RANGE_PRESETS = new Map(
-  DASHBOARD_AGGREGATION_OPTIONS.map((key) => [
-    TIME_RANGES[key].abbreviation,
-    TIME_RANGES[key],
-  ]),
-);
-const timeRanges = z.enum([...TIME_RANGE_PRESETS.keys()] as [
+const timeRanges = z.enum([...WIDGET_TIME_RANGES.keys()] as [
   string,
   ...string[],
 ]);
@@ -75,7 +73,19 @@ const renderOptions = {
     ),
   timeRange: timeRanges
     .optional()
-    .describe("Time window ending now. Defaults to 7d."),
+    .describe(
+      `Time window ending now. Defaults to ${DEFAULT_WIDGET_TIME_RANGE}. Ignored when fromTimestamp and toTimestamp are set.`,
+    ),
+  fromTimestamp: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "Start of a custom time window, as an ISO 8601 timestamp with timezone. Set together with toTimestamp; together they replace timeRange.",
+    ),
+  toTimestamp: isoDateTime({ offset: true })
+    .optional()
+    .describe(
+      "End of a custom time window, as an ISO 8601 timestamp with timezone. Must be after fromTimestamp.",
+    ),
 };
 
 /**
@@ -102,6 +112,26 @@ const RenderWidgetBaseSchema = CreateDashboardWidgetBaseSchema.partial().extend(
 const RenderWidgetInputSchema = PostUnstableDashboardWidgetBody.partial()
   .extend(renderOptions)
   .superRefine((input, ctx) => {
+    if (
+      (input.fromTimestamp === undefined) !==
+      (input.toTimestamp === undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: [input.fromTimestamp ? "toTimestamp" : "fromTimestamp"],
+        message: "fromTimestamp and toTimestamp must be set together",
+      });
+    } else if (
+      input.fromTimestamp &&
+      input.toTimestamp &&
+      new Date(input.fromTimestamp) >= new Date(input.toTimestamp)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["toTimestamp"],
+        message: "toTimestamp must be after fromTimestamp",
+      });
+    }
     if (input.widgetId) return;
     if (!input.view) {
       ctx.addIssue({
@@ -177,30 +207,78 @@ const adHocWidget = (input: RenderWidgetInput) => {
 
 type ChartedWidget = Awaited<ReturnType<typeof loadSavedWidget>>;
 
-type TimeWindow = { fromTimestamp: Date; toTimestamp: Date; label: string };
+type TimeWindow = {
+  /** The range as requested: a relative preset or a custom window. */
+  requested: WidgetTimeRange;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  /** The earliest time the plan's data access allows, if it limits it. */
+  accessFloor?: Date;
+  label: string;
+};
 
-/** The requested range ending now, shortened to the plan's data access limit. */
+const toMinute = (date: Date) =>
+  `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+/** The range actually queried, naming the plan's limit when it shortened it. */
+const windowLabel = (params: {
+  custom: boolean;
+  relativeLabel: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  clamped: boolean;
+}) => {
+  const limitNote = " (plan data access limit)";
+  if (params.custom) {
+    const span = `${toMinute(params.fromTimestamp)} – ${toMinute(params.toTimestamp)}`;
+    return params.clamped ? span + limitNote : span;
+  }
+  // A relative range ends now, so its shortened form is "since" its start.
+  return params.clamped
+    ? `Since ${toDay(params.fromTimestamp)}${limitNote}`
+    : params.relativeLabel;
+};
+
+/**
+ * The requested window: a custom from/to, or a relative range ending now.
+ * Its start is shortened to the plan's data access limit.
+ */
 const resolveTimeWindow = (
-  timeRange: string | undefined,
+  input: Pick<RenderWidgetInput, "timeRange" | "fromTimestamp" | "toTimestamp">,
   context: ServerContext,
 ): TimeWindow => {
-  const range = TIME_RANGE_PRESETS.get(timeRange ?? "7d")!;
-  const toTimestamp = new Date();
-  const requestedFrom = new Date(
-    toTimestamp.getTime() - (range.minutes ?? 0) * 60_000,
-  );
+  const custom =
+    input.fromTimestamp && input.toTimestamp
+      ? { from: input.fromTimestamp, to: input.toTimestamp }
+      : undefined;
+  const rangeKey = input.timeRange ?? DEFAULT_WIDGET_TIME_RANGE;
+  const range = WIDGET_TIME_RANGES.get(rangeKey)!;
+  const toTimestamp = custom ? new Date(custom.to) : new Date();
+  const requestedFrom = custom
+    ? new Date(custom.from)
+    : new Date(toTimestamp.getTime() - (range.minutes ?? 0) * 60_000);
   const access = clampToDataAccessDays({
     plan: context.plan,
     fromTimestamp: requestedFrom.toISOString(),
   });
   const fromTimestamp = access.effectiveFromTimestamp ?? requestedFrom;
+  if (fromTimestamp >= toTimestamp) {
+    throw new InvalidRequestError(
+      `The time window ends before ${toDay(fromTimestamp)}, the earliest date the plan's data access allows`,
+    );
+  }
   return {
+    requested: custom ?? { range: rangeKey },
     fromTimestamp,
     toTimestamp,
-    // Name the range actually queried when the plan shortened it.
-    label: access.wasClamped
-      ? `Since ${toDay(fromTimestamp)} (plan data access limit)`
-      : range.label,
+    accessFloor: access.accessFloor,
+    label: windowLabel({
+      custom: Boolean(custom),
+      relativeLabel: range.label,
+      fromTimestamp,
+      toTimestamp,
+      clamped: access.wasClamped,
+    }),
   };
 };
 
@@ -313,7 +391,9 @@ const toRenderResult = (params: {
     metrics: widget.metrics,
     dimensions: widget.dimensions,
     rows,
+    timeRange: window.requested,
     timeRangeLabel: window.label,
+    earliestTimestamp: window.accessFloor?.toISOString(),
   };
   return appToolResult({
     text: JSON.stringify({
@@ -345,13 +425,13 @@ const toRenderResult = (params: {
 };
 
 export const [renderWidgetTool, handleRenderWidget] = defineTool({
-  name: "renderWidget",
+  name: RENDER_WIDGET_TOOL_NAME,
   action: "metrics:read",
   description: [
     "Render a Langfuse chart inline in the chat: a big number, a time series, a breakdown, a table or a histogram.",
     "Use it whenever a metrics question is better answered visually, e.g. 'what is our average cost?', 'latency by model this week', or to show a saved dashboard widget (pass widgetId).",
     "For an ad-hoc chart pass a widget definition in the same shape as createDashboardWidget (view, metrics with agg, dimensions, filters, chartType, chartConfig); it is rendered, not saved. To save the chart, pass the same arguments to createDashboardWidget.",
-    "Pick the time range with timeRange and call the tool again for another range. The text result summarizes the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
+    "Pick the time range with timeRange, or a custom window with fromTimestamp and toTimestamp, and call the tool again for another range. The text result summarizes the chart (totals, peaks, latest values per series) and links to Langfuse; no follow-up query is needed to describe it.",
   ].join(" "),
   baseSchema: RenderWidgetBaseSchema,
   inputSchema: RenderWidgetInputSchema,
@@ -373,7 +453,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         if (widget.metrics.length === 0) {
           throw new InvalidRequestError("The widget has no metrics");
         }
-        const window = resolveTimeWindow(input.timeRange, context);
+        const window = resolveTimeWindow(input, context);
         const filters = await resolveFilters(widget, context.projectId, window);
         const query = buildRenderQuery(widget, filters, window);
         const rows = await runQuery(query, context.projectId);

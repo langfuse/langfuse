@@ -15,7 +15,7 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Topics visibility from canViewTopics: deployment switch and `topics:read`.
+  // Topics visibility from canViewTopics (`topics:read`).
   topicsAvailable?: boolean;
 };
 

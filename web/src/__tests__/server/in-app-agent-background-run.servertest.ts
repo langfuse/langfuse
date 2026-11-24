@@ -188,7 +188,6 @@ describe("in-app agent background runs", () => {
           ],
         },
       ],
-      environment: { topicsEnabled: true },
     });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });

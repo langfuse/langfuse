@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { optionDomId } from "./presentation";
+import { optionDomId } from "./optionDomId";
 
 describe("optionDomId", () => {
   it("produces a whitespace-free id for values that contain spaces", () => {

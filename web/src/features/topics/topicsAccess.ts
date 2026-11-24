@@ -2,14 +2,13 @@ import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-/** Visibility gate for every Topics surface: deployment switch and topics:read. */
+/** Visibility gate for every Topics surface: topics:read on the project. */
 export function canViewTopics(
   session: Session | null,
   projectId: string | null | undefined,
 ) {
   return (
     !!projectId &&
-    session?.environment?.topicsEnabled === true &&
     hasProjectAccess({ session, projectId, scope: "topics:read" })
   );
 }

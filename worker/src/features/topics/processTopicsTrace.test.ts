@@ -33,7 +33,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getEnabledTopicsModels: vi.fn(
     async () => new Map([["project", { embedding: { model: "embed" } }]]),
   ),
-  isTopicsEnabled: () => true,
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),

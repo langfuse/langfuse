@@ -2,7 +2,6 @@ import { JobConfigState, prisma, type Prisma } from "../../db";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
-import { isTopicsEnabled } from "./config";
 
 // Saves and pauses delete the key; the TTL bounds a missed delete or a fill
 // that read Postgres before a concurrent save committed.
@@ -33,15 +32,14 @@ export function topicRuleWhere(
 
 /**
  * The share of the project's new traces that enter trace dispatch for
- * Topics: the largest sampling rate of the active rules when the deployment
- * enables Topics, the project has it on with all three models configured,
- * and an active rule runs at least one facet that is not blocked; otherwise 0. The answer is cached in
- * Redis. A failed or timed-out lookup briefly caches 0 and propagates.
+ * Topics. A project with automatic processing on and all three models configured
+ * uses the largest sampling rate among active rules with an unblocked facet.
+ * Other projects return 0. Redis caches the result. A failed or timed-out
+ * lookup briefly caches 0 and propagates.
  */
 export async function getTopicsProcessingSampling(
   projectId: string,
 ): Promise<number> {
-  if (!isTopicsEnabled()) return 0;
   const cached = await readCache(projectId);
   if (cached !== null) return cached;
   let sampling: number;
