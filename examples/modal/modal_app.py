@@ -24,11 +24,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import http.client
 import os
 import secrets
 import shutil
-import ssl
 import subprocess
 import sys
 import time
@@ -729,30 +727,10 @@ def _http_get(url: str, timeout_s: float = 15.0) -> tuple[int, str]:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ("https", "http") or not parsed.hostname:
         raise ValueError(f"Unsupported URL for HTTP check: {url!r}")
-    path = parsed.path or "/"
-    if parsed.query:
-        path = f"{path}?{parsed.query}"
-    conn: http.client.HTTPConnection
-    if parsed.scheme == "https":
-        conn = http.client.HTTPSConnection(
-            parsed.hostname,
-            parsed.port,
-            timeout=timeout_s,
-            context=ssl.create_default_context(),
-        )
-    else:
-        conn = http.client.HTTPConnection(
-            parsed.hostname,
-            parsed.port,
-            timeout=timeout_s,
-        )
-    try:
-        conn.request("GET", path)
-        resp = conn.getresponse()
-        body = resp.read().decode("utf-8", errors="replace").strip()
-        return resp.status, body
-    finally:
-        conn.close()
+    import requests  # type: ignore[import-untyped]
+
+    resp = requests.get(url, timeout=timeout_s)
+    return resp.status_code, resp.text.strip()
 
 
 def cmd_smoke(args: argparse.Namespace) -> int:
