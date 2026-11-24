@@ -85,7 +85,10 @@ export function ConnectedGatewayBudgetsTable({
       subject={subject}
     >
       {({ openDialog: openDefaultDialog, defaultBudget }) => (
-        <GatewayResetBudgetDialogController organizationId={organizationId}>
+        <GatewayResetBudgetDialogController
+          organizationId={organizationId}
+          surface="budgets_page"
+        >
           {({ openDialog: openResetDialog }) => (
             <GatewayEditBudgetDialogController
               organizationId={organizationId}

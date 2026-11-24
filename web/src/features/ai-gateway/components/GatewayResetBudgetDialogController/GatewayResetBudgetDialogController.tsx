@@ -2,9 +2,13 @@ import type { ReactNode } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useResetGatewayBudget } from "@/src/features/ai-gateway/hooks/useResetGatewayBudget";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import type { RouterInputs } from "@/src/utils/api";
 
 type ResetBudgetScope = RouterInputs["aiGateway"]["resetSpendLimit"]["scope"];
+type ResetBudgetSurface =
+  AiGatewayEventMap["ai_gateway:budget_reset"]["surface"];
 
 export type GatewayResetBudgetTarget = {
   scope: ResetBudgetScope;
@@ -14,6 +18,7 @@ export type GatewayResetBudgetTarget = {
 
 type GatewayResetBudgetDialogControllerProps = {
   organizationId: string;
+  surface: ResetBudgetSurface;
   children: (control: {
     openDialog: (target: GatewayResetBudgetTarget) => void;
   }) => ReactNode;
@@ -27,9 +32,11 @@ const titles: Record<ResetBudgetScope, string> = {
 /** Confirms and resets the current period's spend for one gateway key or user budget. */
 export function GatewayResetBudgetDialogController({
   organizationId,
+  surface,
   children,
 }: GatewayResetBudgetDialogControllerProps) {
   const { resetBudget, mutation } = useResetGatewayBudget(organizationId);
+  const capture = usePostHogClientCapture();
 
   const handleAfterDismiss = () => {
     mutation.reset();
@@ -39,6 +46,11 @@ export function GatewayResetBudgetDialogController({
     await resetBudget({
       scope: target.scope,
       subjectId: target.subjectId,
+    });
+    capture("ai_gateway:budget_reset", {
+      orgId: organizationId,
+      scope: target.scope,
+      surface,
     });
   };
 

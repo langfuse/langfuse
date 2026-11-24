@@ -99,7 +99,10 @@ export function ConnectedGatewayApiKeysTable({
       }}
     >
       {({ openDialog: openRevokeDialog }) => (
-        <GatewayResetBudgetDialogController organizationId={organizationId}>
+        <GatewayResetBudgetDialogController
+          organizationId={organizationId}
+          surface="api_keys_page"
+        >
           {({ openDialog: openResetDialog }) => (
             <EditGatewayApiKeyDialogController organizationId={organizationId}>
               {({ openDialog: openEditDialog }) => (
