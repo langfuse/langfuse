@@ -7,14 +7,13 @@ import {
 } from "@/src/features/feature-flags/utils";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-/** Visibility gate for every Topics surface: deployment switch, the Topics preview on Cloud only, and topics:read. */
+/** Session-based Topics access requires topics:read and, on Cloud, preview access. */
 export function canViewTopics(
   session: Session | null,
   projectId: string | null | undefined,
 ) {
   return (
     !!projectId &&
-    session?.environment?.topicsEnabled === true &&
     (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
       isInternalViewEnabled(session) ||
       getContextualFeatureFlags(session?.user, { projectId })

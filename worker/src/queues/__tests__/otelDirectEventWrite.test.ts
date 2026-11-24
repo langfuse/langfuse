@@ -53,8 +53,10 @@ import {
   type SdkInfo,
 } from "../otelIngestionQueue";
 
-// The shared upload pool reads this setting when the module is first imported.
-vi.hoisted(() => vi.stubEnv("LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY", "5"));
+vi.hoisted(() => {
+  vi.stubEnv("LANGFUSE_OTEL_MEDIA_UPLOAD_CONCURRENCY", "5");
+  vi.stubEnv("LANGFUSE_EVENTS_DISPATCH_ENABLED", undefined);
+});
 afterAll(() => vi.unstubAllEnvs());
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -200,20 +202,18 @@ describe("Rust OTEL events-only queue path", () => {
 });
 
 describe("native Rust trace activity", () => {
-  it("records accepted sampled rows without projecting eval observations", async () => {
+  it("records accepted sampled rows by default without projecting eval observations", async () => {
     const { processRustOtelEvents: processNative } = await vi.importActual<
       typeof import("../../features/otel-ingestion/processRustOtelEvents")
     >("../../features/otel-ingestion/processRustOtelEvents");
     const original = {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      LANGFUSE_EVENTS_DISPATCH_ENABLED: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED:
         env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     };
     Object.assign(env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV",
-      LANGFUSE_EVENTS_DISPATCH_ENABLED: "true",
       LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: "false",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     });
@@ -439,7 +439,6 @@ vi.mock("../../features/traceDispatch/traceRuleRecording", () => ({
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsEnabled: vi.fn().mockReturnValue(false),
   isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
   getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
