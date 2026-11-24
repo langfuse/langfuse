@@ -35,12 +35,9 @@ import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/comp
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TraceSampleSelectorContainer/TraceSampleSelectorContainer";
 import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
-import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { buildTraceVariableMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -85,6 +82,7 @@ import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFil
 import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
 import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 type InitialEvaluator = {
   id: string;
@@ -305,8 +303,14 @@ export function EvaluatorSetupPage(
     projectId,
     modelDraft.type === "DECISION_MODEL",
   );
+  // The default decision model arrives with the connection list. It is applied
+  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
-    evaluatorSetupSnapshot(state);
+    JSON.stringify({
+      name: state.name.trim(),
+      description: state.description.trim() || null,
+      definition: prepareEvaluatorDraft(state).definition,
+    });
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
     evaluatorSetupStore,
@@ -640,9 +644,11 @@ export function EvaluatorSetupPage(
           id: evaluator.id,
           name,
           filter: state.traceSampleFilter,
-          variableMapping: buildTraceVariableMapping(
-            mappings.map(({ variable }) => variable),
-            state.traceVariableFields,
+          variableMapping: observationVariableMappingList.catch([]).parse(
+            mappings.map(({ variable, fieldState }) => ({
+              templateVariable: variable,
+              ...fieldState,
+            })),
           ),
         });
         return true;
@@ -779,7 +785,7 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition, mappings } = prepareEvaluatorDraft(
+    const { definition } = prepareEvaluatorDraft(
       applyFallbackDecisionModel(state, fallbackDecisionModel),
     );
     const selectedObservation = state.selectedObservation;
@@ -792,16 +798,7 @@ export function EvaluatorSetupPage(
     testEvaluator.mutate({
       projectId,
       evaluatorId,
-      definition:
-        isTraceTest && definition.type !== "CODE"
-          ? {
-              ...definition,
-              variableMapping: buildTraceVariableMapping(
-                mappings.map(({ variable }) => variable),
-                state.traceVariableFields,
-              ),
-            }
-          : definition,
+      definition,
       ...(isTraceTest ? {} : { observationId: selectedObservation.id }),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,

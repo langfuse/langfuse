@@ -5,25 +5,11 @@ import {
 
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 
-/** The first thread's messages, the default binding for a trace variable. */
-export const TRACE_TRANSCRIPT_DEFAULT_JSON_SELECTOR = "$[0].messages";
-
-/** Every variable reads threads at its trace JSON path, or the first thread's messages if unset. */
-export function buildTraceVariableMapping(
-  variables: string[],
-  traceVariableFields: Record<string, VariableFieldState>,
-) {
-  return variables.map((variable) => {
-    const field = traceVariableFields[variable];
-    return {
-      templateVariable: variable,
-      selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
-      jsonSelector: field
-        ? field.jsonSelector
-        : TRACE_TRANSCRIPT_DEFAULT_JSON_SELECTOR,
-    };
-  });
-}
+/** A trace variable's default binding: the first thread's messages. */
+export const TRACE_TRANSCRIPT_DEFAULT_FIELD: VariableFieldState = {
+  selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+  jsonSelector: "$[0].messages",
+};
 
 /**
  * Every variable of a trace rule reads threads: a threads mapping keeps its
@@ -36,7 +22,7 @@ export function traceTranscriptMapping(mapping: ObservationVariableMapping[]) {
     jsonSelector:
       entry.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
         ? (entry.jsonSelector ?? null)
-        : TRACE_TRANSCRIPT_DEFAULT_JSON_SELECTOR,
+        : TRACE_TRANSCRIPT_DEFAULT_FIELD.jsonSelector,
   }));
 }
 

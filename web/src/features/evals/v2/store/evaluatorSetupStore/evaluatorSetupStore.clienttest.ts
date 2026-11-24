@@ -1,7 +1,12 @@
-import type { FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+  type FilterState,
+} from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { TRACE_TRANSCRIPT_DEFAULT_FIELD } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   createEvaluatorSetupStore,
   selectHasValidModel,
@@ -65,6 +70,27 @@ describe("createEvaluatorSetupStore", () => {
       promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       sourceCode: "return { score: 1 };",
     });
+  });
+
+  it("resets variable mappings to the defaults of a new test target", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setVariableField("output", {
+      selectedColumnId: "metadata",
+      jsonSelector: "$.answer",
+    });
+
+    actions.setTargetObject(TopicsTargetObject);
+    expect(store.getState().variableFields).toEqual({
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      output: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setTargetObject(EvalTargetObject.EVENT);
+    expect(store.getState().variableFields).toEqual({});
   });
 
   it("initializes an existing code evaluator", () => {

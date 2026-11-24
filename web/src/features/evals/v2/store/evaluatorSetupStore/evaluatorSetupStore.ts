@@ -15,6 +15,8 @@ import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-u
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { TRACE_TRANSCRIPT_DEFAULT_FIELD } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type {
   ActiveVariableMapping,
@@ -134,10 +136,6 @@ type EvaluatorSetupStoreActions = {
   setSampleFilter: (sampleFilter: FilterState) => void;
   setTargetObject: (targetObject: EvaluatorTargetObject) => void;
   setTraceSampleFilter: (traceSampleFilter: FilterState) => void;
-  setTraceVariableField: (
-    variable: string,
-    fieldState: VariableFieldState,
-  ) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
   applyDefinition: (definition: NormalizedEvaluatorDefinition) => void;
@@ -171,8 +169,6 @@ export type EvaluatorSetupStoreState = {
   sampleFilter: FilterState;
   targetObject: EvaluatorTargetObject;
   traceSampleFilter: FilterState;
-  /** Trace bindings; a variable without an entry reads the first thread's messages. */
-  traceVariableFields: Record<string, VariableFieldState>;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
   actions: EvaluatorSetupStoreActions;
@@ -192,11 +188,23 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   return true;
 };
 
-/** A new target drops the sample and the open mapping, which belong to the old one. */
-const targetChange = (targetObject: EvaluatorTargetObject) => ({
+/** A new target drops the sample and resets every mapping to the target's default. */
+const targetChange = (
+  state: EvaluatorSetupStoreState,
+  targetObject: EvaluatorTargetObject,
+) => ({
   targetObject,
   selectedObservation: null,
   activeMapping: null,
+  variableFields:
+    targetObject === TopicsTargetObject
+      ? Object.fromEntries(
+          prepareEvaluatorDraft(state).mappings.map(({ variable }) => [
+            variable,
+            TRACE_TRANSCRIPT_DEFAULT_FIELD,
+          ]),
+        )
+      : {},
 });
 
 export function createEvaluatorSetupStore({
@@ -280,7 +288,6 @@ export function createEvaluatorSetupStore({
     ],
     targetObject: EvalTargetObject.EVENT,
     traceSampleFilter: [],
-    traceVariableFields: {},
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
@@ -291,7 +298,7 @@ export function createEvaluatorSetupStore({
           const target =
             state.targetObject === TopicsTargetObject &&
             !isTraceTranscriptEvalType(type)
-              ? targetChange(EvalTargetObject.EVENT)
+              ? targetChange(state, EvalTargetObject.EVENT)
               : {};
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
@@ -386,14 +393,6 @@ export function createEvaluatorSetupStore({
                 variable === key ? [next, fieldState] : [variable, value],
               ),
             ),
-            traceVariableFields: Object.fromEntries(
-              Object.entries(state.traceVariableFields).map(
-                ([variable, value]) => [
-                  variable === key ? next : variable,
-                  value,
-                ],
-              ),
-            ),
             questions: state.questions.map((question) => ({
               ...question,
               instructions: question.instructions.replaceAll(
@@ -413,11 +412,6 @@ export function createEvaluatorSetupStore({
             stateKeys: state.stateKeys.filter((current) => current !== key),
             variableFields: Object.fromEntries(
               Object.entries(state.variableFields).filter(
-                ([variable]) => variable !== key,
-              ),
-            ),
-            traceVariableFields: Object.fromEntries(
-              Object.entries(state.traceVariableFields).filter(
                 ([variable]) => variable !== key,
               ),
             ),
@@ -540,16 +534,9 @@ export function createEvaluatorSetupStore({
         set((state) =>
           state.targetObject === targetObject
             ? state
-            : targetChange(targetObject),
+            : targetChange(state, targetObject),
         ),
       setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
-      setTraceVariableField: (variable, fieldState) =>
-        set((state) => ({
-          traceVariableFields: {
-            ...state.traceVariableFields,
-            [variable]: fieldState,
-          },
-        })),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),

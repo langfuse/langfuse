@@ -1,9 +1,7 @@
-import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
@@ -38,7 +36,6 @@ export function EvaluatorSetupFooter({
   const {
     currentSnapshot,
     canSubmit,
-    observationMappingMissing,
     promptMessagesReason,
     scoreOutputReason,
     nameMissing,
@@ -48,18 +45,19 @@ export function EvaluatorSetupFooter({
     useShallow((state) => {
       const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
       const { definition, mappings } = prepareEvaluatorDraft(draft);
-      const mappingsComplete = mappings.every(({ fieldState }) =>
-        Boolean(fieldState.selectedColumnId),
-      );
       const hasCompleteMappings =
-        state.type !== "LLM_AS_JUDGE" || mappingsComplete;
+        state.type !== "LLM_AS_JUDGE" ||
+        mappings.every(({ fieldState }) =>
+          Boolean(fieldState.selectedColumnId),
+        );
 
       return {
-        currentSnapshot: evaluatorSetupSnapshot(state),
+        currentSnapshot: JSON.stringify({
+          name: state.name.trim(),
+          description: state.description.trim() || null,
+          definition: prepareEvaluatorDraft(state).definition,
+        }),
         canSubmit: Boolean(definition) && hasCompleteMappings,
-        // The saved evaluator keeps observation mappings, also for a trace target.
-        observationMappingMissing:
-          !mappingsComplete && state.targetObject === TopicsTargetObject,
         promptMessagesReason:
           state.type === "LLM_AS_JUDGE"
             ? getPromptMessagesValidationError(state.promptMessages)
@@ -86,9 +84,6 @@ export function EvaluatorSetupFooter({
     }
     if (scoreOutputReason) {
       return scoreOutputReason;
-    }
-    if (observationMappingMissing) {
-      return 'Switch "Test with" to Observation and map every variable before saving.';
     }
     if (
       codeValidation &&

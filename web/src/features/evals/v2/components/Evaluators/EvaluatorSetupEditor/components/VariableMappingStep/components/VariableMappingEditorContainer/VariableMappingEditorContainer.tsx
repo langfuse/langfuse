@@ -14,8 +14,8 @@ import {
   useEvalVariableSourceColumns,
 } from "@/src/features/evals/v2/contexts/EvalVariableSourceColumnsProvider";
 import { previewOpenAIDecisionQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { buildTraceVariableMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
+import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
@@ -44,47 +44,29 @@ export function VariableMappingEditorContainer({
     store,
     useShallow((state) => ({
       type: state.type,
+      promptMessages: state.promptMessages,
+      stateKeys: state.stateKeys,
       questions: state.questions,
+      variableFields: state.variableFields,
       selectedModel: state.selectedModel,
       activeMapping: state.activeMapping,
       selectedObservationId: state.selectedObservation?.id ?? null,
       targetObject: state.targetObject,
-      traceVariableFields: state.traceVariableFields,
       actions: state.actions,
     })),
   );
-  const draftState = useStore(
-    store,
-    useShallow((state) => ({
-      initialDefinition: state.initialDefinition,
-      type: state.type,
-      name: state.name,
-      promptMessages: state.promptMessages,
-      questions: state.questions,
-      stateKeys: state.stateKeys,
-      sourceCode: state.sourceCode,
-      sourceCodeLanguage: state.sourceCodeLanguage,
-      scoreOutput: state.scoreOutput,
-      variableFields: state.variableFields,
-      modelMode: state.modelMode,
-      selectedModel: state.selectedModel,
-      modelParams: state.modelParams,
-    })),
-  );
-  const { mappings } = useMemo(
-    () => prepareEvaluatorDraft(draftState),
-    [draftState],
-  );
-  const traceMappings = useMemo(
+  const mappings = useMemo(
     () =>
-      buildTraceVariableMapping(
-        mappings.map(({ variable }) => variable),
-        state.traceVariableFields,
-      ).map(({ templateVariable, ...fieldState }) => ({
-        variable: templateVariable,
-        fieldState,
-      })),
-    [mappings, state.traceVariableFields],
+      state.type === "DECISION_MODEL"
+        ? buildDecisionModelStateFields({
+            stateKeys: state.stateKeys,
+            variableFields: state.variableFields,
+          })
+        : buildEvaluatorVariableMappings({
+            promptMessages: state.promptMessages,
+            variableFields: state.variableFields,
+          }),
+    [state.type, state.stateKeys, state.promptMessages, state.variableFields],
   );
   const fallbackDecisionModel = useFallbackDecisionModel(
     projectId,
@@ -99,8 +81,6 @@ export function VariableMappingEditorContainer({
   const target =
     state.targetObject === TopicsTargetObject
       ? {
-          mappings: traceMappings,
-          setField: state.actions.setTraceVariableField,
           displayedSample: traceSample.sourceObject,
           sourceUnavailableMessage: traceSample.hasNoMessages
             ? TRACE_NO_MESSAGES_MESSAGE
@@ -108,8 +88,6 @@ export function VariableMappingEditorContainer({
           sourceColumns: TRACE_TRANSCRIPT_SOURCE_COLUMNS,
         }
       : {
-          mappings,
-          setField: state.actions.setVariableField,
           displayedSample: resolvedSample ?? lastCompletedSample.current,
           sourceUnavailableMessage: SOURCE_UNAVAILABLE_MESSAGE,
           sourceColumns,
@@ -123,13 +101,13 @@ export function VariableMappingEditorContainer({
     return (
       <EvalVariableSourceColumnsProvider value={target.sourceColumns}>
         <DecisionModelStateEditor
-          fields={target.mappings.map(({ variable, fieldState }) => ({
+          fields={mappings.map(({ variable, fieldState }) => ({
             key: variable,
             fieldState,
           }))}
           activeMapping={state.activeMapping}
           onActiveMappingChange={state.actions.setActiveMapping}
-          onChangeField={target.setField}
+          onChangeField={state.actions.setVariableField}
           onAddField={state.actions.addStateKey}
           onRenameField={state.actions.renameStateKey}
           onRemoveField={state.actions.removeStateKey}
@@ -146,10 +124,10 @@ export function VariableMappingEditorContainer({
     <EvalVariableSourceColumnsProvider value={target.sourceColumns}>
       <StableVariableMapping
         mode="editable"
-        mappings={target.mappings}
+        mappings={mappings}
         activeMapping={state.activeMapping}
         onActiveMappingChange={state.actions.setActiveMapping}
-        onChangeField={target.setField}
+        onChangeField={state.actions.setVariableField}
         sourceObject={target.displayedSample}
         hasMatchingObservations={Boolean(target.displayedSample)}
         sourceUnavailableMessage={target.sourceUnavailableMessage}

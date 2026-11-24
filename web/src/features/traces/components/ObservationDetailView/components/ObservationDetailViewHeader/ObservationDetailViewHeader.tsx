@@ -84,7 +84,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
-    const { presentation } = useTracePresentation();
+    const { isEmbedded } = useTracePresentation();
     const { isAnnotationMode } = useViewPreferences();
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
@@ -283,7 +283,7 @@ export const ObservationDetailViewHeader = memo(
         ? `Comments (${commentCount})`
         : "Comment";
     const headerMetrics = (openModelDialog: () => void): HeaderMetric[] => {
-      if (presentation) return [];
+      if (isEmbedded) return [];
       if (
         !isAnnotationMode &&
         observation.model &&
