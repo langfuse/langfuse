@@ -109,10 +109,8 @@ import {
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 import { ExperimentListInputHeader } from "./ExperimentListInputHeader";
 import { ExperimentScoreHover, scoreValueOf } from "./ExperimentScoreHover";
-import {
-  ScoreColumnFilterMenu,
-  ScoreColumnFilterMenuTrigger,
-} from "./ScoreColumnFilterMenu";
+import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
+import { ScoreColumnFilterMenuTrigger } from "./ScoreColumnFilterMenuTrigger";
 import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
 import {
   ExperimentScoreMatrix,
