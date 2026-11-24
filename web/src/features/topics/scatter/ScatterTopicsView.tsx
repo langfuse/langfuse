@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { keepPreviousData } from "@tanstack/react-query";
 import { type FilterState } from "@langfuse/shared";
@@ -18,6 +18,7 @@ import {
   orderedFacetTopics,
   type TopicTraceQuery,
   type UseTopicTraces,
+  useTracesWithSelection,
 } from "../facet-topics";
 import {
   prepareTopicDisplay,
@@ -51,9 +52,9 @@ export function ScatterTopicsView({
   peekView,
   tracePanelRef,
   useTraces,
-  onOpenTrace,
 }: ScatterTopicsViewProps) {
-  // A dot click opens its trace in the peek; the map keeps that dot's card open while the peek shows it.
+  // A dot click highlights its trace in the list and pins its card; clicking a list row opens the peek.
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const router = useRouter();
   const capture = useTopicsCapture();
   const peekTraceId =
@@ -80,7 +81,11 @@ export function ScatterTopicsView({
     !selected &&
     (traceFilters.filters.length > 0 ||
       Boolean(traceFilters.searchQuery?.trim()));
-  const traces = useTraces(listQuery());
+  const traces = useTracesWithSelection(
+    useTraces,
+    listQuery(),
+    selectedTraceId,
+  );
   function listQuery(): TopicTraceQuery | null {
     if (isSearching)
       return topicTraceQuery(
@@ -105,6 +110,7 @@ export function ScatterTopicsView({
         surface,
         isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
       });
+    setSelectedTraceId(null);
     traceFilters.setSearchQuery(null);
     traceFilters.setFilters([
       ...(topicId === null || topicId === selectedTopicId
@@ -185,11 +191,24 @@ export function ScatterTopicsView({
     );
   }, [topicHighlightIds, traceFieldMatches, mapData?.status]);
   // The map shows a selection only while it still matches, like the list.
+  const activeTraceId = peekTraceId ?? selectedTraceId;
   const mapSelectedTraceId =
-    peekTraceId &&
-    (!highlightedTraceIds || highlightedTraceIds.has(peekTraceId))
-      ? peekTraceId
+    activeTraceId &&
+    (!highlightedTraceIds || highlightedTraceIds.has(activeTraceId))
+      ? activeTraceId
       : null;
+  const listPeekView = useMemo<DataTablePeekViewProps>(
+    () => ({
+      ...peekView,
+      openPeek: peekView.openPeek
+        ? (...args) => {
+            if (args[0] !== selectedTraceId) setSelectedTraceId(null);
+            peekView.openPeek?.(...args);
+          }
+        : undefined,
+    }),
+    [peekView, selectedTraceId],
+  );
   if (facet.topics.length === 0) {
     return <TopicsEmptyState />;
   }
@@ -243,10 +262,14 @@ export function ScatterTopicsView({
                         : selectTopic(topicId, "map")
                     }
                     onSelectTrace={(traceId) => {
-                      if (!traceId) return clearPickedTopic();
+                      if (!traceId) {
+                        setSelectedTraceId(null);
+                        if (!mapSelectedTraceId) clearPickedTopic();
+                        return;
+                      }
+                      setSelectedTraceId(traceId);
                       if (document.fullscreenElement)
                         document.exitFullscreen().catch(() => undefined);
-                      onOpenTrace(traceId);
                     }}
                     selectedTraceId={mapSelectedTraceId}
                     pinSelection
@@ -279,7 +302,8 @@ export function ScatterTopicsView({
               ? undefined
               : { facet, name: selected.name }
           }
-          peekView={peekView}
+          peekView={listPeekView}
+          selectedTraceId={selectedTraceId}
           tracePanelRef={tracePanelRef}
           divider="none"
           emptyMessage={
@@ -312,7 +336,6 @@ type ScatterTopicsViewProps = {
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   useTraces: UseTopicTraces;
-  onOpenTrace: (traceId: string) => void;
 };
 
 const MAP_AND_ROWS_PANEL_IDS = ["map", "rows"];
