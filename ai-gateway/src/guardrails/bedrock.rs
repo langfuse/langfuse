@@ -1,7 +1,6 @@
 //! AWS Bedrock `ApplyGuardrail` adapter authenticated with a Bedrock API key
-//! (`Authorization: Bearer`). Input-rejected 4xx responses (400/413/422) fail
-//! closed so a caller cannot bypass a `block` rule by crafting input Bedrock
-//! rejects; outages, auth/config errors, throttling, and timeouts fail open.
+//! (`Authorization: Bearer`). All errors and timeouts fail closed (treated as a
+//! guardrail match) so unscreened prompts never bypass a configured guardrail.
 use std::{fmt, fmt::Write as _, time::Duration};
 
 use axum::body::Bytes;
@@ -74,9 +73,9 @@ pub(crate) async fn evaluate_one(
             organization_id,
             region = %config.region,
             reason = "invalid_url",
-            "bedrock guardrail check failed; failing open"
+            "bedrock guardrail check failed; failing closed"
         );
-        return false;
+        return true;
     };
     if policy.check_allowed_host(&url).is_err() {
         tracing::warn!(
@@ -84,9 +83,9 @@ pub(crate) async fn evaluate_one(
             organization_id,
             region = %config.region,
             reason = "blocked_destination",
-            "bedrock guardrail destination blocked by outbound policy; failing open"
+            "bedrock guardrail destination blocked by outbound policy; failing closed"
         );
-        return false;
+        return true;
     }
     let Ok(mut authorization) =
         HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
@@ -96,9 +95,9 @@ pub(crate) async fn evaluate_one(
             organization_id,
             region = %config.region,
             reason = "invalid_credential",
-            "bedrock guardrail check failed; failing open"
+            "bedrock guardrail check failed; failing closed"
         );
-        return false;
+        return true;
     };
     authorization.set_sensitive(true);
 
@@ -114,17 +113,15 @@ pub(crate) async fn evaluate_one(
     match tokio::time::timeout(timeout, send_and_parse(request)).await {
         Ok(Ok(intervened)) => intervened,
         Ok(Err(failure)) => {
-            let matched = failure.fails_closed();
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
                 organization_id,
                 region = %config.region,
                 reason = failure.reason(),
                 status = failure.status(),
-                fail_closed = matched,
-                "bedrock guardrail check failed"
+                "bedrock guardrail check failed; failing closed"
             );
-            matched
+            true
         }
         Err(_) => {
             tracing::warn!(
@@ -132,10 +129,9 @@ pub(crate) async fn evaluate_one(
                 organization_id,
                 region = %config.region,
                 reason = "timeout",
-                fail_closed = false,
-                "bedrock guardrail check timed out; failing open"
+                "bedrock guardrail check timed out; failing closed"
             );
-            false
+            true
         }
     }
 }
@@ -198,21 +194,6 @@ impl BedrockFailure {
             Self::HttpStatus(status) => Some(status.as_u16()),
             _ => None,
         }
-    }
-
-    /// Input-rejected 4xx statuses (such as Bedrock `ValidationException` for
-    /// oversized or malformed content) fail closed so callers cannot bypass a
-    /// `block` guardrail by crafting rejected input. Outages, auth/config errors,
-    /// throttling, and timeouts fail open.
-    fn fails_closed(&self) -> bool {
-        matches!(
-            self,
-            Self::HttpStatus(
-                StatusCode::BAD_REQUEST
-                    | StatusCode::PAYLOAD_TOO_LARGE
-                    | StatusCode::UNPROCESSABLE_ENTITY
-            )
-        )
     }
 }
 
@@ -383,6 +364,6 @@ mod tests {
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::serialize(&refs, "hello world");
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
-        assert_eq!(results, vec![true, false, true, false, false]);
+        assert_eq!(results, vec![true, false, true, true, true]);
     }
 }

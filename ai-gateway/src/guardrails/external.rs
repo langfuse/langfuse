@@ -1,6 +1,6 @@
 //! Pooled HTTPS client and concurrent dispatcher for external guardrail
-//! providers. Timeouts and provider errors fail open so an external outage
-//! does not block inference traffic.
+//! providers. Timeouts and provider errors fail closed so unscreened prompts
+//! never bypass a configured guardrail.
 use std::{sync::Arc, time::Duration};
 
 use axum::body::Bytes;
@@ -73,7 +73,7 @@ impl ExternalGuardrailClient {
     }
 
     /// Evaluates every external guardrail concurrently using its pre-serialized
-    /// payload. Timeouts and errors fail open (`false`).
+    /// payload. Timeouts and errors fail closed (`true`).
     pub(crate) async fn evaluate_many(
         &self,
         guardrails: &[&Guardrail],
@@ -104,9 +104,9 @@ impl ExternalGuardrailClient {
                         guardrail_id = %guardrail.id,
                         organization_id,
                         reason = "serialization",
-                        "external guardrail request failed to serialize; failing open"
+                        "external guardrail request failed to serialize; failing closed"
                     );
-                    return false;
+                    return true;
                 };
                 #[cfg(test)]
                 let origin_override = self.origin_override.as_deref();

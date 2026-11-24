@@ -1996,7 +1996,7 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
 }
 
 #[tokio::test]
-async fn bedrock_guardrails_evaluate_last_turn_and_map_intervened_or_fail_open() {
+async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
     let conversation = serde_json::json!([
         {"role": "user", "content": "earlier turn"},
         {"role": "assistant", "content": "earlier reply"},
@@ -2032,9 +2032,17 @@ async fn bedrock_guardrails_evaluate_last_turn_and_map_intervened_or_fail_open()
             "block",
             StatusCode::SERVICE_UNAVAILABLE,
             "NONE",
+            StatusCode::BAD_REQUEST,
+            0,
+            true,
+        ),
+        (
+            "log",
+            StatusCode::NOT_FOUND,
+            "NONE",
             StatusCode::OK,
             1,
-            false,
+            true,
         ),
     ] {
         run_bedrock_guardrail_case(BedrockGuardrailCase {
