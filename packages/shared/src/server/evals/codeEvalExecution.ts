@@ -111,13 +111,32 @@ type CodeBasedEvaluationDispatchResult =
       executionTraceFromTimestamp: Date;
     };
 
+// ISO strings, not Dates: the local dispatcher hands the payload over in
+// memory, and evaluators must see what Lambda and external runners get as JSON.
+function serializeThreadDates(threads: Thread[]) {
+  return threads.map((thread) => ({
+    ...thread,
+    currentTurn: {
+      ...thread.currentTurn,
+      messages: thread.currentTurn.messages.map((message) => ({
+        ...message,
+        startTime: message.startTime.toISOString(),
+        endTime: message.endTime?.toISOString() ?? null,
+      })),
+    },
+  }));
+}
+
 function buildCodeEvalPayload(params: {
   extractedVariables: ExtractedVariable[];
   hasExperimentContext: boolean;
   threads?: Thread[];
 }): CodeEvalPayload {
   if (params.threads) {
-    return { targetType: "trace", threads: params.threads };
+    return {
+      targetType: "trace",
+      trace: { threads: serializeThreadDates(params.threads) },
+    };
   }
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
@@ -228,7 +247,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
   };
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
-  /** Set for trace targets: the evaluator then receives only these threads. */
+  /** Set for trace targets: the evaluator then receives only `trace.threads`. */
   threads?: Thread[];
   traceName: string;
   metadata: Record<string, unknown>;

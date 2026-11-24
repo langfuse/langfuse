@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { PYTHON_CODE_EVAL_CONTRACT } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { TRACE_PYTHON_CODE_EVAL_CONTRACT } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 // The Python Lambda runner reconstructs the payload into dataclasses (unlike
 // the Node runner, which passes it through verbatim), so the contract shown
@@ -20,13 +20,13 @@ describe("python code eval runner contract", () => {
       "utf8",
     );
 
-    const dataclassBlocks = PYTHON_CODE_EVAL_CONTRACT.split(/\n\n+/)
+    const dataclassBlocks = TRACE_PYTHON_CODE_EVAL_CONTRACT.split(/\n\n+/)
       .map((block) => block.trim())
       .filter((block) => block.startsWith("@dataclass"));
 
-    // ToolCall, ObservationContext, ExperimentContext, EvaluationContext,
-    // Score, EvaluationResult
-    expect(dataclassBlocks).toHaveLength(6);
+    // ToolCall, ObservationContext, ExperimentContext, TraceContext,
+    // EvaluationContext, Score, EvaluationResult
+    expect(dataclassBlocks).toHaveLength(7);
     for (const block of dataclassBlocks) {
       expect(runnerSource).toContain(block);
     }

@@ -2,7 +2,9 @@ import {
   CODE_EVAL_COMPLETION_CONTRACT,
   type CodeEvalSourceCodeLanguage,
   type PythonCodeEvalCompletionName,
+  type PythonTraceCodeEvalCompletionName,
   type TypeScriptCodeEvalCompletionName,
+  type TypeScriptTraceCodeEvalCompletionName,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 export type CodeEvalHoverDocs = Record<string, string>;
@@ -259,6 +261,13 @@ The reasoning or explanation stored with the score.`,
 The score config id to attach to the score.`,
 } satisfies CodeEvalHoverDocs & Record<PythonCodeEvalCompletionName, string>;
 
+const THREAD_SHAPE_DOC = `conversationHistory holds the messages
+replayed from earlier turns. currentTurn.messages holds the messages this
+trace added, and currentTurn.nestingLevel is the tree depth of the turn's first
+generation. Messages are normalized (role, parts, source). Current-turn
+messages also carry observationId, traceId, and the source observation's
+startTime and endTime as ISO strings.`;
+
 const TYPESCRIPT_TRACE_HOVER_DOCS = {
   evaluate: `function evaluate(ctx: EvaluationContext<"observation" | "trace">): EvaluationResult
 
@@ -291,7 +300,9 @@ EvaluationContext<"trace">.`,
 The data Langfuse passes for an observation target.`,
   TraceEvaluationContext: `type TraceEvaluationContext = {
   targetType: "trace";
-  threads: Thread[];
+  trace: {
+    threads: Thread[];
+  };
 }
 
 The data Langfuse passes for a trace target.`,
@@ -303,33 +314,52 @@ The data Langfuse passes for a trace target.`,
   };
 }
 
-One conversation thread of the trace transcript, shaped like the threads LLM-as-a-judge evaluators read.`,
+${THREAD_SHAPE_DOC}`,
   targetType: `property EvaluationContext.targetType: "observation" | "trace"
 
 Whether the evaluator runs on an observation or on a trace transcript.`,
-  threads: `property TraceEvaluationContext.threads: Thread[]
+  trace: `property TraceEvaluationContext.trace: {
+  threads: Thread[];
+}
 
-The conversation threads of the trace transcript.`,
-} satisfies CodeEvalHoverDocs;
+The trace selected by the evaluator target.`,
+  threads: `property trace.threads: Thread[]
+
+The conversation threads of the trace transcript. ${THREAD_SHAPE_DOC}`,
+} satisfies CodeEvalHoverDocs &
+  Record<TypeScriptTraceCodeEvalCompletionName, string>;
 
 const PYTHON_TRACE_HOVER_DOCS = {
   EvaluationContext: `@dataclass
 class EvaluationContext:
-    observation: ObservationContext
+    observation: ObservationContext | None = None
     experiment: ExperimentContext | None = None
+    trace: TraceContext | None = None
     target_type: str = "observation"
-    threads: list[dict[str, Any]] = field(default_factory=list)
 
 The data Langfuse passes to a Python evaluator. target_type is "observation"
-or "trace"; threads is set for trace targets.`,
+or "trace". Only the target's own context is set: observation for
+observation targets, trace for trace targets.`,
+  TraceContext: `@dataclass
+class TraceContext:
+    threads: list[dict[str, Any]] = field(default_factory=list)
+
+The trace selected by the evaluator target.`,
+  observation: `property ctx.observation: ObservationContext | None
+
+The observation selected by the evaluator target. None for trace targets.`,
+  trace: `property ctx.trace: TraceContext | None
+
+The trace selected by the evaluator target. None for observation targets.`,
   target_type: `property ctx.target_type: str
 
 "observation" or "trace": whether the evaluator runs on an observation or on a trace transcript.`,
-  threads: `property ctx.threads: list[dict[str, Any]]
+  threads: `property trace.threads: list[dict[str, Any]]
 
-The conversation threads of the trace transcript. Each thread has
-conversationHistory and currentTurn (nestingLevel, messages).`,
-} satisfies CodeEvalHoverDocs;
+The conversation threads of the trace transcript, as dicts with camelCase
+keys. ${THREAD_SHAPE_DOC}`,
+} satisfies CodeEvalHoverDocs &
+  Record<PythonTraceCodeEvalCompletionName, string>;
 
 export function getCodeEvalHoverDocs(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,

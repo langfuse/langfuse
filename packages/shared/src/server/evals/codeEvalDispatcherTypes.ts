@@ -4,7 +4,7 @@ import type {
   CodeEvalTemplateVariable,
   ToolCallForEval,
 } from "../../features/evals/observationForEval";
-import type { Thread } from "../transcript/types";
+import type { Thread, ThreadMessage } from "../transcript/types";
 export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
@@ -44,9 +44,22 @@ type ObservationCodeEvalPayload = {
   };
 };
 
+type CodeEvalThreadMessage = Omit<ThreadMessage, "startTime" | "endTime"> & {
+  startTime: string;
+  endTime: string | null;
+};
+
+type CodeEvalThread = Omit<Thread, "currentTurn"> & {
+  currentTurn: Omit<Thread["currentTurn"], "messages"> & {
+    messages: CodeEvalThreadMessage[];
+  };
+};
+
 type TraceCodeEvalPayload = {
   targetType: "trace";
-  threads: Thread[];
+  trace: {
+    threads: CodeEvalThread[];
+  };
 };
 
 export type CodeEvalPayload = ObservationCodeEvalPayload | TraceCodeEvalPayload;

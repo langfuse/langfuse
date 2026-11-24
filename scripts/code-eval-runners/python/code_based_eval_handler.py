@@ -41,19 +41,30 @@ class ExperimentContext:
 
 
 @dataclass
-class EvaluationContext:
-    observation: ObservationContext
-    experiment: ExperimentContext | None = None
-    target_type: str = "observation"
+class TraceContext:
     threads: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext | None = None
+    experiment: ExperimentContext | None = None
+    trace: TraceContext | None = None
+    target_type: str = "observation"
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]):
+        # Only the target's own context is set, so code written for the other
+        # scope fails on None instead of scoring empty data.
+        if payload.get("targetType") == "trace":
+            trace = payload.get("trace") or {}
+            return cls(
+                target_type="trace",
+                trace=TraceContext(threads=trace.get("threads") or []),
+            )
         observation = payload.get("observation") or {}
         experiment = payload.get("experiment")
         return cls(
-            target_type=payload.get("targetType") or "observation",
-            threads=payload.get("threads") or [],
             observation=ObservationContext(
                 input=observation.get("input"),
                 output=observation.get("output"),

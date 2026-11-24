@@ -127,6 +127,28 @@ export type PythonCodeEvalCompletionName =
   | Labels<PythonCompletionContract["resultConstructors"]>
   | Labels<PythonConstructorParameters>;
 
+// Merged into pathProperties above only when trace evals are available.
+export const CODE_EVAL_TRACE_COMPLETION_PATHS = {
+  TYPESCRIPT: {
+    ctx: [{ label: "trace", detail: 'TraceEvaluationContext["trace"]' }],
+    "ctx.trace": [{ label: "threads", detail: "Thread[]" }],
+  },
+  PYTHON: {
+    ctx: [{ label: "trace", detail: "TraceContext | None" }],
+    "ctx.trace": [{ label: "threads", detail: "list[dict[str, Any]]" }],
+  },
+} as const;
+
+type TraceCompletionPaths = typeof CODE_EVAL_TRACE_COMPLETION_PATHS;
+
+export type TypeScriptTraceCodeEvalCompletionName = Labels<
+  TraceCompletionPaths["TYPESCRIPT"][keyof TraceCompletionPaths["TYPESCRIPT"]]
+>;
+
+export type PythonTraceCodeEvalCompletionName = Labels<
+  TraceCompletionPaths["PYTHON"][keyof TraceCompletionPaths["PYTHON"]]
+>;
+
 type MutuallyExtends<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? true
@@ -225,7 +247,9 @@ type ObservationEvaluationContext = {
 
 type TraceEvaluationContext = {
   targetType: "trace";
-  threads: Thread[];
+  trace: {
+    threads: Thread[];
+  };
 };
 
 type EvaluationContext<T extends "observation" | "trace" = "observation"> =
@@ -326,15 +350,27 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationCont
 
 export const TRACE_PYTHON_CODE_EVAL_CONTRACT =
   PYTHON_CODE_EVAL_CONTRACT.replace(
-    "    experiment: ExperimentContext | None = None\n",
-    `    experiment: ExperimentContext | None = None
-    target_type: str = "observation"
+    `@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+`,
+    `@dataclass
+class TraceContext:
     threads: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext | None = None
+    experiment: ExperimentContext | None = None
+    trace: TraceContext | None = None
+    target_type: str = "observation"
 `,
   );
 
 const TRACE_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext<"trace">): EvaluationResult {
-  const messageCount = ctx.threads.reduce(
+  const messageCount = ctx.trace.threads.reduce(
     (count, thread) =>
       count +
       thread.conversationHistory.length +
@@ -358,7 +394,7 @@ const TRACE_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> E
   """Evaluates one trace transcript and returns one or more Langfuse scores."""
   message_count = sum(
     len(thread["conversationHistory"]) + len(thread["currentTurn"]["messages"])
-    for thread in ctx.threads
+    for thread in ctx.trace.threads
   )
 
   return EvaluationResult(

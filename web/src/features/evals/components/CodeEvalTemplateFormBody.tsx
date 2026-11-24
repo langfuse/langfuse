@@ -385,8 +385,9 @@ export function CodeEvalTemplateFormBody({
     ],
   );
   const codeEvalCompletionExtension = useMemo(
-    () => getCodeEvalCompletionExtension(sourceCodeLanguage),
-    [sourceCodeLanguage],
+    () =>
+      getCodeEvalCompletionExtension(sourceCodeLanguage, traceEvalsAvailable),
+    [sourceCodeLanguage, traceEvalsAvailable],
   );
   const extensions = useMemo(
     () => [
