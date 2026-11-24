@@ -23,6 +23,8 @@ interface BasePeekConfig {
   isV4: boolean;
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
+  /** View preferences retained between detail entries, but cleared on close. */
+  preserveOnDetailNavigation?: string[];
   /**
    * Creates semantic URL parameters alongside the universal "peek" parameter.
    *
@@ -116,6 +118,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
         params.delete("aggregation");
+        params.delete("sessionPeek");
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
         // Re-clicking the already-peeked row is a no-op open — don't count it.
@@ -128,6 +131,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
           });
         }
         // Clear all query params that are set in the config
+        params.delete("sessionPeek");
         config?.queryParams?.forEach((param) => params.delete(param));
 
         // Open peek view
@@ -179,6 +183,7 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
     params.delete(PEEK_PARAM);
     params.delete(PEEK_VIEW_PARAM);
     params.delete("aggregation");
+    params.delete("sessionPeek");
     config?.queryParams?.forEach((param) => params.delete(param));
 
     router.push(
@@ -202,22 +207,26 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       // Keep all existing query params
       const params = new URLSearchParams(url.search);
 
-      // Update any query params that exist in entry.params
-      if (entry.params) {
-        // Clear all query params that are set in the config
-        config?.queryParams?.forEach((param) => params.delete(param));
+      params.delete("sessionPeek");
+      config.queryParams?.forEach((param) => {
+        if (config.preserveOnDetailNavigation?.includes(param)) return;
+        params.delete(param);
+      });
 
+      if (entry.params) {
         Object.entries(entry.params).forEach(([key, value]) => {
           params.set(key, encodeURIComponent(value));
         });
       }
 
       // Update peek param to the new id
-      params.set(PEEK_PARAM, entry.id);
+      // DetailPageNav passes an encoded path segment; query values must be raw.
+      const id = decodeURIComponent(entry.id);
+      params.set(PEEK_PARAM, id);
 
       // Set URL params to the same value as peek ID
       config?.paramsToMirrorPeekValue?.forEach((param) => {
-        params.set(param, entry.id);
+        params.set(param, id);
       });
 
       // Set the search part of the URL
@@ -252,7 +261,8 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
       const pathId = resolved
         ? resolved.traceId
         : (params.get(pathParam) ?? params.get(PEEK_PARAM));
-      const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
+      if (!pathId) return;
+      const pathname = `${config?.expandConfig?.basePath}/${encodeURIComponent(pathId)}`;
       const forwardedParams = [
         ...new Set([...(config.queryParams ?? []), "aggregation"]),
       ];
@@ -264,7 +274,9 @@ export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
             resolved && param === "timestamp"
               ? (resolved.timestamp?.toISOString() ?? null)
               : params.get(param);
-          return value ? `${param}=${value}` : null;
+          return value
+            ? `${encodeURIComponent(param)}=${encodeURIComponent(value)}`
+            : null;
         })
         .filter(Boolean)
         .join("&");

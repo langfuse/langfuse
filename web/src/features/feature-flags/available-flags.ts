@@ -3,6 +3,7 @@ import { assertUnreachable } from "@langfuse/shared";
 export const userFeaturePreviewFlags = [
   "sessionViewV2",
   "sessionViewV2Timeline",
+  "unifiedTraceSessionView",
 ] as const;
 
 export type UserFeaturePreviewFlag = (typeof userFeaturePreviewFlags)[number];
@@ -16,7 +17,10 @@ export const featurePreviewFlags = [...userFeaturePreviewFlags] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-const internalFeaturePreviewFlags = ["unifiedTraceSessionView"] as const;
+const internalFeaturePreviewFlags = [
+  "langfuseTopics",
+  "traceTranscriptEvals",
+] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
@@ -64,6 +68,8 @@ export const filterFeaturePreviewFlags = (
 export const featurePreviewLabels = {
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
+  langfuseTopics: "Langfuse Topics",
+  traceTranscriptEvals: "Trace transcript evals",
   unifiedTraceSessionView: "Unified Trace and Session View",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 
@@ -75,7 +81,11 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
+  if (
+    flag === "sessionViewV2" ||
+    flag === "sessionViewV2Timeline" ||
+    flag === "unifiedTraceSessionView"
+  ) {
     return context.v4BetaEnabled;
   }
 

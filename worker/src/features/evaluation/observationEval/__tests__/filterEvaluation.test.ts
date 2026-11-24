@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { Prisma } from "@langfuse/shared/src/db";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import {
@@ -19,8 +19,10 @@ import {
   prepareTraceDispatchRules,
   getMatchingTraceDispatchRuleIds,
 } from "../../../traceDispatch/traceDispatchRules";
+import { isTraceEvalsProcessingActive } from "@langfuse/shared/src/server";
 
-// Mock logger to avoid noise in tests
+// Mock logger to avoid noise in tests. Judge transcript rules are admitted
+// only when trace-evals processing is active for the project.
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
@@ -31,6 +33,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    isTraceEvalsProcessingActive: vi.fn().mockResolvedValue(false),
   };
 });
 
@@ -55,6 +58,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     await scheduleObservationEvals({
       observation,
+      loadSnapshot: () => observation,
       configs: [config],
       schedulerDeps: deps,
     });
@@ -755,6 +759,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });
@@ -843,6 +848,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });
@@ -1279,6 +1285,11 @@ describe("tool_calls computation", () => {
 
 describe("trace transcript rule matching", () => {
   const projectId = "test-project-123";
+
+  beforeEach(() => {
+    vi.mocked(isTraceEvalsProcessingActive).mockResolvedValue(true);
+  });
+
   const makeRules = (sampling: number) =>
     ["first", "second"].map((id) => ({
       id,

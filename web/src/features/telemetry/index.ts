@@ -7,6 +7,7 @@ import {
   getDetectedClickHouseVersion,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
+  getTopicFacetSummaryCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
   getTracingCountsByProjectInCreationIntervalFromEventsTable,
   logger,
@@ -287,6 +288,18 @@ async function posthogTelemetry({
       },
     });
 
+    // Count Topics facet summaries as billing does: all but those written without a model call.
+    // Counted unconditionally, like Assistant runs: zero means no Topics usage.
+    const countTopicFacetSummariesClickhouse =
+      await getTopicFacetSummaryCountsByProjectInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+    const countTopicFacetSummaries = countTopicFacetSummariesClickhouse.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
+
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
       SELECT
@@ -315,6 +328,7 @@ async function posthogTelemetry({
         datasetRuns: countDatasetRuns,
         datasetRunItems: countDatasetRunItems,
         assistantRuns: countAssistantRuns,
+        topicFacetSummaries: countTopicFacetSummaries,
         gatewayRequests: countGatewayRequests,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),

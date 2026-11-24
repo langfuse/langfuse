@@ -1,0 +1,1 @@
+ALTER TABLE topics {CLICKHOUSE_CLUSTER_CLAUSE} ADD COLUMN IF NOT EXISTS cost_details Map(LowCardinality(String), Decimal(18,12)){CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2};

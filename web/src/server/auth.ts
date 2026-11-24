@@ -17,7 +17,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "@/src/features/feature-flags/server/parseFlags";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -94,6 +94,7 @@ import {
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
+  isTraceEvalsProjectEnabled,
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
@@ -1088,6 +1089,9 @@ export async function getAuthOptions(
                                 name: project.name,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
+                                traceEvalsEnabled: isTraceEvalsProjectEnabled(
+                                  project.id,
+                                ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(
                                   project.id,
                                 ),

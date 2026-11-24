@@ -13,6 +13,7 @@ const buildSession = (orgId: string, projectId: string): Session =>
         templateFlag: true,
         v4BetaToggleVisible: false,
         experimentsV4Enabled: false,
+        langfuseTopics: false,
       },
     },
     organizations: [

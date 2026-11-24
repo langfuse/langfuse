@@ -29,6 +29,7 @@ import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { containsNulByte } from "@/src/features/apiKey/apiKeyRepository";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -106,13 +107,15 @@ export class ApiAuthService {
             let finalApiKey = apiKey;
 
             if (!apiKey || !apiKey.fastHashedSecretKey) {
-              const slowKey = await this.prisma.apiKey.findUnique({
-                where: { publicKey },
-                include: {
-                  project: { include: { organization: true } },
-                  organization: true,
-                },
-              });
+              const slowKey = containsNulByte(publicKey)
+                ? null
+                : await this.prisma.apiKey.findUnique({
+                    where: { publicKey },
+                    include: {
+                      project: { include: { organization: true } },
+                      organization: true,
+                    },
+                  });
 
               if (!slowKey) {
                 logger.error(

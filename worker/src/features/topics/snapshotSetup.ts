@@ -150,7 +150,6 @@ async function seed(
           idleMs: 2 * (await resolveTraceIdleMs(projectId)),
           now: timeRange.to,
           days,
-          sampling: 1,
           limit: summarize.limit,
           seed: executionId,
           order: summarize.selection,

@@ -1,0 +1,8 @@
+/* The app shell fills the viewport; an MCP App view is sized by its content
+   (the host grows the iframe to the reported height), and the host draws the
+   chat around it, so only the card has a surface. */
+html,
+body {
+  height: auto;
+  background: transparent;
+}

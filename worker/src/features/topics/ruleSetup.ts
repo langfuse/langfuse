@@ -229,7 +229,6 @@ async function selectAndSeed(
       idleMs: await resolveTraceIdleMs(projectId),
       now,
       days,
-      sampling: rule.sampling,
       limit: shortfall,
       seed: rule.id,
       matching,

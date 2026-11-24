@@ -50,12 +50,13 @@ fn gateway_cost_details(provider_metadata: &Value) -> Option<UsageCostType> {
         .filter(|attempt| attempt.get("success").and_then(Value::as_bool) == Some(true))
         .map(|attempt| attempt.get("credentialType").and_then(Value::as_str))
         .collect::<Vec<_>>();
-    let field = match credentials.first()? {
+    let (first, rest) = credentials.split_first()?;
+    let field = match first {
         Some("system") => "cost",
         Some("byok") => "marketCost",
         _ => return None,
     };
-    if credentials.iter().any(|kind| *kind != credentials[0]) {
+    if rest.iter().any(|kind| kind != first) {
         return None;
     }
     let cost = gateway

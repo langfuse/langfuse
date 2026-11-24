@@ -440,6 +440,24 @@ export async function readTopicsModelSettings(projectId: string) {
   };
 }
 
+/**
+ * Whether summaries were embedded with the stored embedding model and
+ * dimensions, which locks both. Mirrors the check in `prepareTopicsModelSettings`.
+ */
+export async function hasCurrentTopicEmbeddings(
+  projectId: string,
+): Promise<boolean> {
+  const row = await prisma.topicConfig.findUnique({
+    where: { projectId },
+    select: { embeddingModel: true, embeddingDimensions: true },
+  });
+  if (!row?.embeddingModel) return false;
+  return hasTopicEmbeddings(projectId, {
+    embeddingModel: row.embeddingModel,
+    embeddingDimensions: row.embeddingDimensions,
+  });
+}
+
 /** Resolves each slot's provider to the project's effective connection, or throws. */
 async function resolveModelSettings(
   projectId: string,
@@ -505,13 +523,18 @@ export async function prepareTopicsModelSettings(
     );
 
   const slots = resolveSavedSlots(resolved, current);
-  const embeddingChanged =
+  // Vectors of different models or sizes cannot be clustered together.
+  if (
     current?.embeddingModel &&
     (slots.embedding.model !== current.embeddingModel ||
-      slots.embeddingDimensions !== current.embeddingDimensions);
-  if (embeddingChanged && (await hasTopicEmbeddings(projectId)))
+      slots.embeddingDimensions !== current.embeddingDimensions) &&
+    (await hasTopicEmbeddings(projectId, {
+      embeddingModel: current.embeddingModel,
+      embeddingDimensions: current.embeddingDimensions,
+    }))
+  )
     throw new InvalidRequestError(
-      "The embedding model and dimensions cannot change after summaries were embedded; existing vectors could no longer be clustered together.",
+      `The embedding model and dimensions can't change once summaries are embedded: vectors from another model or size can't be grouped with the existing ones. Keep ${current.embeddingModel} at ${current.embeddingDimensions} dimensions; it can still move to another connection.`,
     );
 
   // Only changed models are tested: the dialog tests each pick, turning

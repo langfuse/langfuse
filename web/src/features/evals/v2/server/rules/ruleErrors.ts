@@ -2,6 +2,8 @@ import {
   InvalidRequestError,
   LangfuseConflictError,
   EvalTargetObject,
+  EvalTemplateType,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import {
   type PrismaClient,
@@ -42,9 +44,8 @@ export class ActiveEvaluationRuleLimitError extends LangfuseConflictError {
 }
 
 /**
- * Counted over the writable targets only: legacy trace and dataset rules are
- * read-only through these surfaces and are being migrated away, so they must not
- * consume a slot callers cannot free.
+ * Counts only the writable targets; legacy read-only rules and FACET (Topics)
+ * rules cannot be freed by callers, so they are excluded.
  */
 export async function countActiveEvaluationRules(params: {
   prisma: PrismaClient | Prisma.TransactionClient;
@@ -53,10 +54,20 @@ export async function countActiveEvaluationRules(params: {
   return params.prisma.evaluationRule.count({
     where: {
       projectId: params.projectId,
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
       status: JobConfigState.ACTIVE,
+      OR: [
+        {
+          targetObject: {
+            in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+          },
+        },
+        {
+          targetObject: TopicsTargetObject,
+          assignments: {
+            none: { evaluator: { type: EvalTemplateType.FACET } },
+          },
+        },
+      ],
     },
   });
 }

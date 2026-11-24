@@ -256,6 +256,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "project:read" },
   },
+  renderWidget: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
   listModels: {
     approval: "auto",
     availability: { scope: "project:read" },

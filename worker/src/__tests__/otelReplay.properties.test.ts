@@ -1397,18 +1397,29 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       },
     ]),
   ],
-  ...[null, false, 0, 5e-324, true, "", [], [1], { name: "nested" }].map(
-    (name) =>
-      ["none", "object", "stringified"].map((attributes) => ({
-        scope: "other" as const,
-        sources: [],
-        toolMetadata: {
-          root: true,
-          attributes:
-            attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
-          name,
-        },
-      })),
+  ...[
+    null,
+    false,
+    0,
+    5e-324,
+    true,
+    "",
+    [],
+    [1],
+    { name: "nested" },
+    { toString: null },
+    [{ toString: null }],
+  ].map((name) =>
+    ["none", "object", "stringified"].map((attributes) => ({
+      scope: "other" as const,
+      sources: [],
+      toolMetadata: {
+        root: true,
+        attributes:
+          attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
+        name,
+      },
+    })),
   ),
   [aiProviderSeed([{ key: "tag.tags", value: "" }])],
   [
@@ -1489,6 +1500,59 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
           "\ud800": 1,
           "\ud801": 2,
           "\ufffd": 3,
+        }),
+      },
+    ]),
+  ],
+  // Tool columns clear when a call name or an output type cannot be stringified,
+  // and Responses output.tools fills definitions the input did not provide.
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "weather", arguments: {} },
+            },
+            { name: { toString: null }, arguments: {} },
+          ],
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({ type: { toString: null } }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          output: [
+            {
+              type: "function_call",
+              call_id: "call_1",
+              name: "get_weather",
+              arguments: '{"city":"Berlin"}',
+            },
+          ],
+          tools: [{ name: "get_weather", description: "forecast" }],
         }),
       },
     ]),
@@ -1825,6 +1889,8 @@ function buildWrongTypeReplay(seeds: WrongTypeSpanSeed[]): Buffer {
   return Buffer.from(JSON.stringify(resourceSpans));
 }
 
+const distinct = (values: string[]) => [...new Set(values)];
+
 /**
  * A row comparison cannot see what was asked of the model and prompt services,
  * so the requests are compared too, with their JavaScript type: `false` and
@@ -1878,8 +1944,10 @@ async function assertWrongTypeReplayParity(
     expect(comparison.earlyTs.sideEffects).toEqual(
       comparison.originalTs.sideEffects,
     );
-    expect(comparison.earlyRust.sideEffects).toEqual(
-      comparison.originalTs.sideEffects,
+    // The Rust path resolves each distinct lookup request once, so it may
+    // repeat fewer lookups than the other paths, but it makes the same ones.
+    expect(distinct(comparison.earlyRust.sideEffects as string[])).toEqual(
+      distinct(comparison.originalTs.sideEffects as string[]),
     );
     expectRawNativeParity(comparison);
   } finally {
@@ -2391,7 +2459,12 @@ async function assertLifecycleParity(testCase: LifecycleCase): Promise<void> {
         result.storedRows.map((row) => String(row.span_id)).sort(),
         result.mode,
       ).toEqual(expectedSpanIds);
-      expect(observed.lookups, result.mode).toEqual(reference.lookups);
+      // The Rust path resolves each distinct lookup request once.
+      const lookups = (values: string[]) =>
+        result.mode === "early-rust" ? distinct(values) : values;
+      expect(lookups(observed.lookups), result.mode).toEqual(
+        lookups(reference.lookups),
+      );
       expect(observed.overflowUploads, result.mode).toEqual(
         reference.overflowUploads,
       );

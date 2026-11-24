@@ -116,6 +116,26 @@ All write operations should audit-log entries with before/after snapshots.
 
 Tools that return trace, observation, score or experiment data declare `accessAudit` on `defineTool` and report the returned rows through the handler's `audit` argument (`audit.refs`, `audit.count`). Each successful call is then recorded as an access event (`surface = mcp`, the tool name as route) for orgs that record access events, before the result is returned.
 
+### MCP Apps
+
+`renderWidget` is an [MCP App](https://github.com/modelcontextprotocol/ext-apps): hosts that support the extension (Claude, ChatGPT, …) render its result as an interactive chart next to the tool call. Hosts without support only show the text result.
+
+How a call flows:
+
+1. The model calls `renderWidget` (`server/apps/tools/renderWidget.ts`). The server runs the same query a dashboard tile runs and returns a text summary for the model (`widgetSummary.ts`) plus the widget definition and rows in the result's `_meta.widget`, which hosts keep away from the model.
+2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
+3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
+
+The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), built and deployed with the app. The server fetches that page's HTML from itself and returns it as the resource. The host's sandboxed iframe then loads the page's scripts and styles from Langfuse:
+
+- `_meta.ui.csp` declares Langfuse (and `NEXT_PUBLIC_ASSET_PREFIX`, when set) as `resourceDomains` and `connectDomains` (devtools fetch source maps from there); hosts block every other origin.
+- The iframe's origin is the host's, so the page's root-relative `/_next/` URLs (in tags and in the inline RSC payload) are rewritten to absolute Langfuse URLs, and an inline script sets Turbopack's chunk base path. Plain `<script>` and stylesheet tags load across origins without CORS; with `NEXT_PUBLIC_ASSET_PREFIX`, Next adds `crossorigin`, so that asset host must send `Access-Control-Allow-Origin: *`.
+- Hosts only allow public HTTPS origins in the iframe CSP (Claude drops `http://localhost`), so a local dev server renders an empty widget there. To try it locally, serve the dev server on a public HTTPS hostname (for example a tunnel) and set `NEXTAUTH_URL` to it. `allowedDevOrigins` lets the hosts' sandbox origins load dev assets.
+
+The server declares the `io.modelcontextprotocol/ui` extension. App tools (and their `ui://` resources) are left out of discovery for clients that declare capabilities without it, which only 2026-07-28 clients do on every request. 2025-era clients declare capabilities only in `initialize`, which the stateless endpoint does not keep, so they still see app tools, which answer in text everywhere. The in-app agent never gets them (`apps/index.ts`).
+
+Hosts may cache the resource per conversation, so check view changes in a new one.
+
 ---
 
 # Connecting Clients

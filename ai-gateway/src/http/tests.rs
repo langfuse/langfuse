@@ -1949,7 +1949,7 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         (r#"{"model":"m","stream":null}"#, false),
         (r#"{"model":"m"}"#, false),
     ] {
-        let request = request_body_and_model(Bytes::from_static(body.as_bytes()))
+        let request = parse_request_body(Bytes::from_static(body.as_bytes()), false)
             .ok()
             .unwrap();
         assert_eq!(request.streaming, streaming, "{body}");
@@ -1959,11 +1959,36 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         r#"{"model":"m","model":"n"}"#,
         r#"{"model":"m","stream":true,"stream":true}"#,
         r#"{"stream":true}"#,
+        r#"["m"]"#,
     ] {
         assert!(
-            request_body_and_model(Bytes::from_static(body.as_bytes())).is_err(),
+            parse_request_body(Bytes::from_static(body.as_bytes()), false).is_err(),
             "{body}"
         );
+    }
+}
+
+#[test]
+fn the_parse_locates_stream_options_for_the_usage_rewrite() {
+    let body = br#"{"model":"m","stream":true,"stream_options": {"include_obfuscation":false} }"#;
+    let request = parse_request_body(Bytes::from_static(body), false)
+        .ok()
+        .unwrap();
+    let StreamOptions::At(range) = request.stream_options else {
+        panic!("stream_options not located");
+    };
+    assert_eq!(&body[range], br#"{"include_obfuscation":false}"#);
+    for (body, expected) in [
+        (r#"{"model":"m","stream":true}"#, StreamOptions::Absent),
+        (
+            r#"{"model":"m","stream_options":null,"stream_options":{}}"#,
+            StreamOptions::Duplicated,
+        ),
+    ] {
+        let request = parse_request_body(Bytes::from_static(body.as_bytes()), false)
+            .ok()
+            .unwrap();
+        assert_eq!(request.stream_options, expected, "{body}");
     }
 }
 

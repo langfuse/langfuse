@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import type { APIDatasetItemMediaReference } from "@/src/features/public-api/types/datasets";
-import { logger } from "@langfuse/shared/src/server";
+import { getMediaDownloadUrl, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 type DatasetItemVersionKey = {
@@ -75,9 +75,12 @@ export async function resolveDatasetItemMediaReferences(props: {
   const mediaById = new Map(
     await Promise.all(
       mediaRecords.map(async (media) => {
-        const url = await getMediaStorageServiceClient(
-          media.bucketName,
-        ).getSignedUrl(media.bucketPath, ttlSeconds, false);
+        const url = await getMediaDownloadUrl({
+          storageService: getMediaStorageServiceClient(media.bucketName),
+          bucketPath: media.bucketPath,
+          contentType: media.contentType,
+          ttlSeconds,
+        });
 
         return [
           media.id,

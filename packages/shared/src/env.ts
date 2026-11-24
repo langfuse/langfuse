@@ -61,9 +61,19 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Topics deployment switch for every project, read by web and worker.
-  // Processing also needs the worker's events dispatch (LANGFUSE_EVENTS_DISPATCH_ENABLED).
+  // Topics deployment switch, read by web and worker. Processing also needs the
+  // worker's events dispatch (LANGFUSE_EVENTS_DISPATCH_ENABLED).
   LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
     .string()
     .default("")

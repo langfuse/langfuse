@@ -95,11 +95,13 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         "attributes": attributes,
         "status": { "code": if level == "ERROR" { 2 } else { 0 } },
     });
-    if let Some(parent) = &context.parent_span_id {
-        span["parentSpanId"] = json!(parent);
-    }
-    if !context.trace_state.is_empty() {
-        span["traceState"] = json!(context.trace_state);
+    if let Some(span) = span.as_object_mut() {
+        if let Some(parent) = &context.parent_span_id {
+            span.insert("parentSpanId".into(), json!(parent));
+        }
+        if !context.trace_state.is_empty() {
+            span.insert("traceState".into(), json!(context.trace_state));
+        }
     }
     span
 }
@@ -201,7 +203,7 @@ fn omit_content(
     if let Some(value) = attributes
         .iter_mut()
         .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
-        .map(|attribute| &mut attribute["value"]["stringValue"])
+        .and_then(|attribute| attribute.pointer_mut("/value/stringValue"))
         && let Some(Value::Object(mut metadata)) = value
             .as_str()
             .and_then(|value| serde_json::from_str(value).ok())

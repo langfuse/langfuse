@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import {
   type ObservationType,
@@ -255,7 +254,7 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json-beta" ? (
+      {selectedView === "json-beta" && (
         <IOPreviewJSON
           hideMetadata
           input={input}
@@ -282,7 +281,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : selectedView === "json" ? (
+      )}
+      {selectedView === "json" && (
         <IOPreviewJSONSimple
           hideMetadata
           input={input}
@@ -310,7 +310,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : (
+      )}
+      {selectedView !== "json-beta" && selectedView !== "json" && (
         <IOPreviewPretty
           {...sharedProps}
           contentMode={contentMode}
