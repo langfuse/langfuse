@@ -1,10 +1,9 @@
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
-import { cn } from "@/src/utils/tailwind";
+import { TileCard } from "@/src/components/TileCard/TileCard";
 
 import { EvaluatorMethodTile } from "./components/EvaluatorMethodTile/EvaluatorMethodTile";
-import styles from "./EvaluatorGalleryStartRow.module.css";
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 const EVALUATOR_START_OPTIONS = [
@@ -62,28 +61,18 @@ function StartOptionCard({
   const handleCreate = () => onCreateFromScratch(option.type);
 
   return (
-    <button
-      type="button"
-      onClick={handleCreate}
-      className={cn(
-        styles.card,
-        "bg-popover flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left",
-      )}
-    >
-      <EvaluatorMethodTile type={option.type} />
-      <span className="flex min-w-0 flex-col">
-        <span className="flex items-center gap-1.5 text-xs font-bold">
+    <TileCard
+      size="sm"
+      tile={<EvaluatorMethodTile type={option.type} />}
+      title={
+        <>
           {option.title}
           {"isNew" in option ? <EvaluatorNewBadge /> : null}
-        </span>
-        <span
-          className="text-muted-foreground truncate text-xs"
-          title={option.description}
-        >
-          {option.description}
-        </span>
-      </span>
-    </button>
+        </>
+      }
+      description={option.description}
+      onClick={handleCreate}
+    />
   );
 }
 

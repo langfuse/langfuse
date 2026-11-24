@@ -1,26 +1,40 @@
 import { BookOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
+import { TileCard } from "@/src/components/TileCard/TileCard";
 import { GATEWAY_MODELS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
-import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
+import { GATEWAY_PROVIDER_OPTIONS } from "@/src/features/ai-gateway/constants/gatewayProviderOptions";
+import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { NoProvidersFrame } from "./components/NoProvidersFrame";
+import { NoProvidersProviderList } from "./components/NoProvidersProviderList";
+import { ProviderLogoTile } from "./components/ProviderLogoTile";
 
 /** Shown to members who cannot add provider credentials. */
 export function GatewayNoProvidersReadOnlyEmptyState() {
   return (
-    <GatewayPlaceholder.Frame
-      title="No connections yet"
+    <NoProvidersFrame
       description="Ask your organization admin to add a connection so the gateway can route requests."
-    >
-      <GatewayPlaceholder.Actions>
+      actions={
         <Button
           variant="outline"
           text="About gateway models"
           icon={BookOpen}
           href={GATEWAY_MODELS_DOCS_URL}
         />
-      </GatewayPlaceholder.Actions>
-      <NoProvidersDiagram />
-    </GatewayPlaceholder.Frame>
+      }
+    >
+      <NoProvidersProviderList>
+        {GATEWAY_PROVIDER_OPTIONS.map(({ provider, hint }) => (
+          <li key={provider}>
+            <TileCard.Static
+              size="md"
+              tile={<ProviderLogoTile provider={provider} />}
+              title={providerLabels[provider]}
+              description={hint}
+            />
+          </li>
+        ))}
+      </NoProvidersProviderList>
+    </NoProvidersFrame>
   );
 }

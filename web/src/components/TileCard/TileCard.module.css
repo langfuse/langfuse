@@ -1,0 +1,42 @@
+.sm:hover {
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.06),
+    0 6px 14px -2px rgb(0 0 0 / 0.12);
+}
+
+.md:hover,
+.md:focus-visible {
+  border-color: hsl(var(--border-contrast));
+  box-shadow:
+    0 2px 4px 0 rgb(0 0 0 / 0.04),
+    0 8px 20px 0 rgb(0 0 0 / 0.06);
+}
+
+/* Takes no room at rest, so the description keeps the full width. */
+.action {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-4px);
+}
+
+.card:hover .action,
+.card:focus-visible .action {
+  max-width: none;
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .md {
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .action {
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease;
+  }
+}
