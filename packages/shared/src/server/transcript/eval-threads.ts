@@ -32,7 +32,7 @@ function messageForMapping(message: MappingMessage) {
  * one `messages` list per thread, history first, no provenance. Reads stored
  * JSON, so anything that is not a thread list passes through unchanged.
  */
-export function toMappingThreads(threads: unknown) {
+export function toEvalVariables(threads: unknown) {
   if (!Array.isArray(threads)) return threads;
   return (threads as StoredThread[]).map((thread) => ({
     messages: [

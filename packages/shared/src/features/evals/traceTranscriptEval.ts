@@ -1,6 +1,6 @@
 import { type EvalTemplateType } from "@prisma/client";
 
-import { toMappingThreads } from "../../server/transcript/eval-threads";
+import { toEvalVariables } from "../../server/transcript/eval-threads";
 import { EvalTemplateTypeEnum } from "./types";
 import { extractValueFromObject } from "./utilities";
 
@@ -53,7 +53,7 @@ export function extractTranscriptEvalVariables(
       error: "Transcript evaluation only reads the threads column.",
     };
   }
-  const projected = toMappingThreads(threads);
+  const projected = toEvalVariables(threads);
   return {
     ok: true,
     variables: variableMapping.map((mapping) => ({

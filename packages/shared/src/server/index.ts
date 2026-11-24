@@ -165,7 +165,7 @@ export { normalizeIO } from "./normalized-io/parser";
 export { type NormalizedEvalRecord } from "./normalized-io/projections/eval-record";
 export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
-export { toMappingThreads } from "./transcript/eval-threads";
+export { toEvalVariables } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
 export {

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useStore, type StoreApi } from "zustand";
 import {
   TRACE_TRANSCRIPT_EVAL_COLUMN,
-  toMappingThreads,
+  toEvalVariables,
 } from "@langfuse/shared";
 
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
@@ -31,7 +31,7 @@ export function useTraceSampleTranscript({
     () =>
       query.data?.transcript
         ? {
-            [TRACE_TRANSCRIPT_EVAL_COLUMN]: toMappingThreads(
+            [TRACE_TRANSCRIPT_EVAL_COLUMN]: toEvalVariables(
               query.data.transcript.threads,
             ),
           }
