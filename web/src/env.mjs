@@ -373,6 +373,11 @@ export const env = createEnv({
     // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
     LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
+    // Comma-separated organization IDs that support access is never granted for.
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS: z
+      .string()
+      .default("")
+      .transform((s) => s.split(",").map((id) => id.trim())),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. Unset, it is deployed once
@@ -1303,6 +1308,8 @@ export const env = createEnv({
     LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
     LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
       process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
+    LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS:
+      process.env.LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:

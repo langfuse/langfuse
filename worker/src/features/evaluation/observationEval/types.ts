@@ -11,6 +11,8 @@ import { type EvalExecutionMode } from "@langfuse/shared";
 import type {
   EvalTargetObject,
   FilterState,
+  ObservationEvalFilterFields,
+  ObservationForEval,
   ObservationVariableMapping,
   TopicsTargetObject,
 } from "@langfuse/shared";
@@ -22,6 +24,17 @@ import type {
  * @see packages/shared/src/features/evals/observationForEval.ts for schema definition
  */
 export { type ObservationForEval } from "@langfuse/shared";
+
+/** One observation as the evaluation scheduler takes it. */
+export interface ObservationForScheduling {
+  /** The fields that rule matching and job creation read. */
+  observation: ObservationEvalFilterFields;
+  /**
+   * The full observation. Called once, for the snapshot upload, and only when
+   * a rule selects the observation.
+   */
+  loadSnapshot: () => ObservationForEval;
+}
 
 /**
  * Observation eval job configuration.
@@ -113,7 +126,7 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     traceId: string;
     observationId: string;
-    data: Record<string, unknown>;
+    data: ObservationForEval;
   }) => Promise<string>;
 
   /** Enqueue the eval job for execution */

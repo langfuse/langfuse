@@ -31,7 +31,7 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
-vi.mock("../../env", () => ({ env: state.workerEnv }));
+vi.mock("../../../env", () => ({ env: state.workerEnv }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
@@ -76,7 +76,7 @@ import {
 } from "@langfuse/shared/topics";
 import { LLMAdapter } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import { recordTopicModelCall } from "./metrics";
+import { recordTopicModelCall } from "../metrics";
 import type { TopicsModel, TopicsModels } from "@langfuse/shared/topics/server";
 
 async function nameTopicGroup(
@@ -1057,8 +1057,25 @@ describe("Topics naming boundary", () => {
     expect(state.onCost).not.toHaveBeenCalled();
   });
 
-  it.each([["contrast"], ["m1", "m2", "m1", "m2"]])(
-    "rejects contrast or excess evidence: %j",
+  it("keeps the first three citations when the model cites more", async () => {
+    state.call.mockResolvedValueOnce({
+      output: {
+        name: "Invoice assistance",
+        description: "Invoice requests.",
+        evidenceSummaryIds: ["m1", "m2", "m1", "contrast"],
+      },
+      usage: {},
+      usageDetails: {},
+      providedCostDetails: {},
+    });
+    expect(
+      (await nameTopicGroup(topicsModels(), evidence)).output
+        .evidenceSummaryIds,
+    ).toEqual(["m1", "m2", "m1"]);
+  });
+
+  it.each([["contrast"], ["m1", "contrast"]])(
+    "rejects contrast evidence: %j",
     async (...evidenceSummaryIds) => {
       state.call.mockResolvedValue({
         output: {

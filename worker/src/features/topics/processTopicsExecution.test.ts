@@ -253,7 +253,7 @@ vi.mock("@langfuse/shared/topics/server", () => {
     },
   };
 });
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   prepareTopicNamingGroup: async (group: {
     members: { summary: string }[];
     contrasts: { id: string; summary: string }[];

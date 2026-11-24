@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LangfuseNotFoundError, type FilterState } from "@langfuse/shared";
 
 const mocks = vi.hoisted(() => ({
-  isTopicsProjectEnabled: vi.fn(),
+  isTopicsEnabled: vi.fn(),
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
   getPublishedTopicRun: vi.fn(),
@@ -128,7 +128,7 @@ const assignment = (
 describe("unstable Topics public API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isTopicsProjectEnabled.mockReturnValue(true);
+    mocks.isTopicsEnabled.mockReturnValue(true);
     mocks.listTopicFacets.mockResolvedValue([
       facet("issues", "Issues"),
       facet("custom", "Custom Facet", false),
@@ -194,8 +194,8 @@ describe("unstable Topics public API", () => {
     );
   });
 
-  it("returns not found for projects without Topics before reading anything", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+  it("returns not found when Topics is off before reading anything", async () => {
+    mocks.isTopicsEnabled.mockReturnValue(false);
     const calls = [
       listPublicTopicFacets({ projectId, page: 1, limit: 50 }),
       getPublicTopicFacet({ projectId, facetId: "issues" }),
@@ -223,7 +223,7 @@ describe("unstable Topics public API", () => {
     ];
     for (const call of calls)
       await expect(call).rejects.toThrow(
-        new LangfuseNotFoundError("Topics is not available for this project."),
+        new LangfuseNotFoundError("Topics is not available."),
       );
     expect(mocks.listTopicFacets).not.toHaveBeenCalled();
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();

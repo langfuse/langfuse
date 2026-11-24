@@ -27,7 +27,7 @@ import {
   getTopicRule,
   getTopicRuns,
   getTopicTraceUnitTimeRange,
-  isTopicsProjectEnabled,
+  isTopicsEnabled,
   listTopicFacets,
   listTopicRules,
 } from "@langfuse/shared/topics/server";
@@ -44,15 +44,9 @@ type FilterColumns<T> = Record<
   { types: readonly FilterType[]; value: (row: T) => unknown }
 >;
 
-/**
- * Public read access uses the project gate only: API keys carry no user, so
- * the UI's per-user feature preview cannot apply.
- */
-function assertTopicsApiAvailable(projectId: string) {
-  if (!isTopicsProjectEnabled(projectId))
-    throw new LangfuseNotFoundError(
-      "Topics is not available for this project.",
-    );
+function assertTopicsApiAvailable() {
+  if (!isTopicsEnabled())
+    throw new LangfuseNotFoundError("Topics is not available.");
 }
 
 function invalidFilter(message: string, column: string, allowed: string[]) {
@@ -233,7 +227,7 @@ export async function listPublicTopicRules(params: {
   page: number;
   limit: number;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const rules = (await listTopicRules(params.projectId)).map(publicRule);
   return paginate(
     applyFilter(rules, params.filter, ruleColumns),
@@ -246,7 +240,7 @@ export async function getPublicTopicRule(params: {
   projectId: string;
   ruleId: string;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const rule = await getTopicRule(params.projectId, params.ruleId);
   if (!rule) throw new LangfuseNotFoundError("Topics rule not found.");
   return publicRule(rule);
@@ -259,7 +253,7 @@ export async function listPublicTopicFacets(params: {
   page: number;
   limit: number;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const facets = applyFilter(
     await loadPublicFacets(params.projectId),
     hasActiveCondition(params.filter)
@@ -277,7 +271,7 @@ export async function getPublicTopicFacet(params: {
   projectId: string;
   facetId: string;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const facet = (await loadPublicFacets(params.projectId)).find(
     ({ id }) => id === params.facetId,
   );
@@ -375,7 +369,7 @@ export async function listPublicTopics(params: {
   page: number;
   limit: number;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
   const facets = await loadPublicTopics(
     params.projectId,
@@ -706,7 +700,7 @@ async function prepareResultList(
   params: ResultListParams,
   columns: Record<string, FilterType[]>,
 ) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   // Before any read, so rejected filters never reach ClickHouse.
   checkFilterLimits(params.filter ?? []);
   const [facets, scope] = await Promise.all([
@@ -869,7 +863,7 @@ export async function getPublicTopic(params: {
   fromTimestamp?: Date;
   toTimestamp?: Date;
 }) {
-  assertTopicsApiAvailable(params.projectId);
+  assertTopicsApiAvailable();
   const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
   for (const facet of await loadPublicTopics(params.projectId, window)) {
     const current = facet.current.find(({ id }) => id === params.topicId);

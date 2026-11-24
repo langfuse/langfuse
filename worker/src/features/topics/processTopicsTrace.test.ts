@@ -33,7 +33,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   getEnabledTopicsModels: vi.fn(
     async () => new Map([["project", { embedding: { model: "embed" } }]]),
   ),
-  isTopicsProjectEnabled: () => true,
+  isTopicsEnabled: () => true,
   isValidTopicSummary: () => true,
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
@@ -57,7 +57,9 @@ vi.mock("./assignments", () => ({
     { topicId: "billing", runId: run.id },
   ],
 }));
-vi.mock("./models", () => ({ TopicInputTooLarge: class extends Error {} }));
+vi.mock("./llm/models", () => ({
+  TopicInputTooLarge: class extends Error {},
+}));
 vi.mock("./provider-error", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./provider-error")>()),
   pauseForRejectedConnection: vi.fn(),

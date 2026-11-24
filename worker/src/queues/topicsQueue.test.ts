@@ -10,7 +10,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   QueueJobs: { Topics: "topics", TopicsRuleRefit: "topics-rule-refit" },
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  isTopicsProjectEnabled: mocks.enabled,
+  isTopicsEnabled: mocks.enabled,
 }));
 vi.mock("../features/topics/processTopicsExecution", () => ({
   processTopicUpdateExecution: mocks.update,
@@ -39,13 +39,12 @@ beforeEach(() => {
 });
 
 describe("Topics update queue", () => {
-  it("rejects jobs of projects outside the allowlist before processing", async () => {
+  it("rejects jobs when the deployment turns Topics off", async () => {
     mocks.enabled.mockReturnValue(false);
     for (const job of [updateJob, refitJob])
       await expect(topicsUpdateQueueProcessor(job)).rejects.toBeInstanceOf(
         UnrecoverableError,
       );
-    expect(mocks.enabled).toHaveBeenCalledWith("project");
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.refit).not.toHaveBeenCalled();
   });

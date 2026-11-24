@@ -19,13 +19,21 @@ const upsertMutateAsync = vi.fn().mockResolvedValue({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    useUtils: () => ({ models: { invalidate: vi.fn() } }),
+    useUtils: () => ({
+      models: { invalidate: vi.fn() },
+      organizationModels: { invalidate: vi.fn() },
+    }),
     models: {
       upsert: {
         useMutation: () => ({
           mutateAsync: upsertMutateAsync,
           isPending: false,
         }),
+      },
+    },
+    organizationModels: {
+      upsert: {
+        useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
       },
     },
   },
@@ -125,7 +133,7 @@ const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   render(
     <UpsertModelFormDialogController
       action="edit"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={modelData(pricingTiers)}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
@@ -138,7 +146,7 @@ const openCloneDialog = (matchPattern: string) => {
   render(
     <UpsertModelFormDialogController
       action="clone"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={{ ...modelData([defaultTier]), matchPattern }}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}

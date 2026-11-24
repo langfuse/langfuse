@@ -11,7 +11,6 @@ import {
 import { type SlackTestMessageResult } from "@/src/features/slack/hooks/useSlackTestMessage";
 import { type SlackChannel } from "@/src/features/slack/components/ChannelSelector";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
-import { FieldGroup } from "./FieldGroup";
 
 /** SlackActionFields picks the channel of a connected workspace, or offers to connect one. */
 export function SlackActionFields({
@@ -34,29 +33,29 @@ function SlackConnectField({
   slack: Extract<SlackFieldsState, { status: "disconnected" }>;
 }) {
   return (
-    <FieldGroup label="Slack channel">
-      <p className="text-muted-foreground text-sm">
-        Connect your Slack workspace to enable real-time notifications for your
-        automations.
-        {!slack.canManageIntegration &&
-          " Ask a project admin to connect Slack."}
-      </p>
-      <div className="flex">
-        <Button
-          type="button"
-          variant="primary"
-          icon={SiSlack}
-          text={connectLabel(slack.isConnecting)}
-          disabled={!slack.canConnect || slack.isConnecting}
-          onClick={slack.onConnect}
-        />
+    <Form.CompositeField
+      label="Slack channel"
+      sublabel={[
+        "Connect your Slack workspace to enable real-time notifications for your automations.",
+        !slack.canManageIntegration && "Ask a project admin to connect Slack.",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex">
+          <Button
+            type="button"
+            variant="primary"
+            icon={SiSlack}
+            text={connectLabel(slack.isConnecting)}
+            disabled={!slack.canConnect || slack.isConnecting}
+            onClick={slack.onConnect}
+          />
+        </div>
+        <Form.Error announce message={slack.connectError} />
       </div>
-      {slack.connectError && (
-        <p role="alert" className="text-destructive text-sm">
-          {slack.connectError}
-        </p>
-      )}
-    </FieldGroup>
+    </Form.CompositeField>
   );
 }
 
@@ -147,6 +146,7 @@ function TestChannelStatus({
       </p>
     );
   }
+
   if (result?.status === "sent") {
     return (
       <p role="status" className="text-muted-foreground text-sm">
@@ -154,6 +154,7 @@ function TestChannelStatus({
       </p>
     );
   }
+
   return (
     <p className="text-muted-foreground text-sm">
       Test this channel to verify the bot can send messages.

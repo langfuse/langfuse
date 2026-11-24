@@ -123,32 +123,6 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
--- Kept around until go-live of topics.
--- MV: topic_facet_summaries -> billable_events, one row per summary write.
--- A summary is one facet version over a trace or a session. Facet ids only
--- allow [a-zA-Z0-9_-] and trace ids are client-chosen, so event_id is
--- '<facet_id>:<facet_version>:<length(trace_id)>:<trace_id>:<session_id>',
--- with session_id only for session summaries, as in the table's sorting key.
--- insufficient_input rows never reach the model, so they are not usage.
--- event_bytes stays 0 until summaries record their transcript size.
-CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_topic_facet_summaries_mv
-TO billable_events AS
-SELECT
-    now() AS ingested_at,
-    project_id,
-    'topic_facet_summary' AS event_type,
-    concat(
-        facet_id, ':', toString(facet_version), ':',
-        toString(length(trace_id)), ':', trace_id, ':',
-        if(trace_id = '', session_id, '')
-    ) AS event_id,
-    unit_start_time AS event_time,
-    toUInt64(0) AS event_bytes,
-    environment
-FROM topic_facet_summaries
-WHERE processing_state != 'insufficient_input'
-  AND created_at >= now() - INTERVAL 48 HOUR;
-
 -- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
 -- this view is NOT migration-managed because it is a Cloud-only diagnostic
 -- over events_core. Any change here must be applied manually as DROP VIEW IF

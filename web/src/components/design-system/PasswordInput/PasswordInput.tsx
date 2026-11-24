@@ -42,11 +42,12 @@ export function PasswordInput({
     <InputControl
       contentLayout="text"
       error={error}
+      disabled={disabled}
       trailingAction={{
         label: isPasswordVisible ? "Hide password" : "Show password",
         icon: VisibilityIcon,
-        disabled,
         pressed: isPasswordVisible,
+        tabIndex: -1,
         onClick: () => setIsPasswordVisible((visible) => !visible),
       }}
     >

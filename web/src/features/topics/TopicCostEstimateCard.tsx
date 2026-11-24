@@ -23,7 +23,7 @@ export function TopicCostEstimateCard({
   return (
     <UpsertModelFormDialogController
       action="create"
-      projectId={modelPrice.projectId}
+      owner={{ scope: "project", projectId: modelPrice.projectId }}
       prefilledModelData={{ modelName: modelName ?? undefined }}
       onCreated={modelPrice.onCreated}
     >

@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Dialog } from "@/src/components/ui/dialog";
+import { type ModelOwner } from "@/src/features/models/modelOwner";
 import { TestModelMatchDialogContent } from "./TestModelMatchDialogContent";
 
 type TestModelMatchDialogProps = {
-  projectId: string;
+  owner: ModelOwner;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -11,14 +12,14 @@ type TestModelMatchDialogProps = {
 export type { TestModelMatchDialogProps };
 
 export function TestModelMatchDialog({
-  projectId,
+  owner,
   open,
   onOpenChange,
 }: TestModelMatchDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <TestModelMatchDialogContent
-        projectId={projectId}
+        owner={owner}
         open={open}
         onClose={() => onOpenChange(false)}
       />

@@ -28,7 +28,7 @@ import {
 import { env } from "../../env";
 import { toTraceEventObservation } from "../eventsDispatch/traceEvents";
 import { recordTopicCostEstimate } from "./metrics";
-import { buildTopicSummaryRequest, charsPerToken } from "./models";
+import { buildTopicSummaryRequest, charsPerToken } from "./llm/models";
 import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
 
 const DAY_MS = 86_400_000;

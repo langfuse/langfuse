@@ -4,7 +4,7 @@ import {
   QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import {
   processTopicRuleRefit,
   processTopicUpdateExecution,
@@ -15,10 +15,8 @@ export const topicsUpdateQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TopicsUpdate]
 > = async (job) => {
   const { data } = job;
-  if (!isTopicsProjectEnabled(data.payload.projectId))
-    throw new UnrecoverableError(
-      "Topics processing is not enabled for this project.",
-    );
+  if (!isTopicsEnabled())
+    throw new UnrecoverableError("Topics is not enabled on this deployment.");
   switch (data.name) {
     case QueueJobs.Topics:
       return processTopicUpdateExecution(data.payload);

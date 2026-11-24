@@ -4,10 +4,7 @@ import {
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
-import {
-  getTopicsProcessingSampling,
-  isTopicsProjectEnabled,
-} from "@langfuse/shared/topics/server";
+import { getTopicsProcessingSampling } from "@langfuse/shared/topics/server";
 import {
   getDeterministicSamplingValue,
   shouldSampleEvaluation,
@@ -35,13 +32,13 @@ async function resolveTopicsRate(projectId: string): Promise<number> {
   try {
     return await getTopicsProcessingSampling(projectId);
   } catch (error) {
-    // Preserve Topics intake during an outage; consumers still check project models.
+    // Fail closed: admitting on error would dispatch every project's traces.
     recordIncrement("langfuse.trace_dispatch.topics_gate_failures", 1);
-    logger.warn("Failed to read Topics processing state, using allowlist", {
+    logger.warn("Failed to read Topics processing state, skipping dispatch", {
       projectId,
       error,
     });
-    return isTopicsProjectEnabled(projectId) ? 1 : 0;
+    return 0;
   }
 }
 
