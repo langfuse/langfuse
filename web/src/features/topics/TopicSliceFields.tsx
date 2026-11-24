@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Slider } from "@/src/components/ui/Slider";
@@ -200,8 +201,20 @@ function TopicLiveUpdatesField({
 }
 
 /** Fields shared by the rule and analysis dialogs. */
+/** A slice dialog's scrolling body; its fixed height keeps the centered dialog still when a section opens. */
+function TopicDialogBody({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col sm:h-[min(40rem,calc(85vh-8rem))] sm:flex-none">
+      <Dialog.Body separators="both">
+        <div className="ph-no-capture flex flex-col gap-6">{children}</div>
+      </Dialog.Body>
+    </div>
+  );
+}
+
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
+  Body: TopicDialogBody,
   Facets: TopicFacetChecklist,
   Sampling: TopicSamplingField,
   LiveUpdates: TopicLiveUpdatesField,

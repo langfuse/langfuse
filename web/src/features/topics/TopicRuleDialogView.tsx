@@ -42,44 +42,42 @@ export function TopicRuleDialogView({
         },
       ]}
     >
-      <Dialog.Body separators="both">
-        <div className="ph-no-capture flex flex-col gap-6">
-          <TopicSliceFields.Section label="Name">
-            <Input
-              aria-label="Map name"
-              value={ruleName}
-              maxLength={100}
-              onChange={(event) => onNameChange(event.target.value)}
-            />
-          </TopicSliceFields.Section>
-          <TopicSliceFields.Facets
-            facets={facets}
-            selectedIds={facetIds}
-            onChange={onFacetIdsChange}
+      <TopicSliceFields.Body>
+        <TopicSliceFields.Section label="Name">
+          <Input
+            aria-label="Map name"
+            value={ruleName}
+            maxLength={100}
+            onChange={(event) => onNameChange(event.target.value)}
           />
-          <TopicTraceFilterSection
-            projectId={projectId}
-            filters={filter}
-            onFiltersChange={onFilterChange}
-            model={traceFilter}
+        </TopicSliceFields.Section>
+        <TopicSliceFields.Facets
+          facets={facets}
+          selectedIds={facetIds}
+          onChange={onFacetIdsChange}
+        />
+        <TopicTraceFilterSection
+          projectId={projectId}
+          filters={filter}
+          onFiltersChange={onFilterChange}
+          model={traceFilter}
+        />
+        <TopicSliceFields.LiveUpdates
+          on={!paused}
+          onChange={(on) => onPausedChange(!on)}
+        >
+          <TopicSliceFields.Sampling
+            value={samplingPercent}
+            onChange={onSamplingPercentChange}
+            dailyTraces={dailyTraces}
+            tooltip="Share of new matching traces this map analyzes."
           />
-          <TopicSliceFields.LiveUpdates
-            on={!paused}
-            onChange={(on) => onPausedChange(!on)}
-          >
-            <TopicSliceFields.Sampling
-              value={samplingPercent}
-              onChange={onSamplingPercentChange}
-              dailyTraces={dailyTraces}
-              tooltip="Share of new matching traces this map analyzes."
-            />
-          </TopicSliceFields.LiveUpdates>
-          {filterError && filter.length ? (
-            <TopicsErrorMessage message={filterError} />
-          ) : null}
-          {saveError ? <TopicsErrorMessage message={saveError} /> : null}
-        </div>
-      </Dialog.Body>
+        </TopicSliceFields.LiveUpdates>
+        {filterError && filter.length ? (
+          <TopicsErrorMessage message={filterError} />
+        ) : null}
+        {saveError ? <TopicsErrorMessage message={saveError} /> : null}
+      </TopicSliceFields.Body>
     </Dialog>
   );
 }

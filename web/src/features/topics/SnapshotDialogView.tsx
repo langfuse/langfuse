@@ -116,52 +116,50 @@ export function SnapshotDialogView({
         },
       ]}
     >
-      <Dialog.Body separators="both">
-        <div className="ph-no-capture flex flex-col gap-6">
-          <TopicSliceFields.Section label="Name">
-            <Input
-              aria-label="Snapshot name"
-              placeholder="e.g. Billing questions"
-              value={name}
-              maxLength={100}
-              onChange={(event) => onNameChange(event.target.value)}
-            />
-          </TopicSliceFields.Section>
-          <TopicSliceFields.Facets
-            facets={facets}
-            selectedIds={facetIds}
-            onChange={onFacetIdsChange}
+      <TopicSliceFields.Body>
+        <TopicSliceFields.Section label="Name">
+          <Input
+            aria-label="Snapshot name"
+            placeholder="e.g. Billing questions"
+            value={name}
+            maxLength={100}
+            onChange={(event) => onNameChange(event.target.value)}
           />
-          {filterField}
-          <div className="-mt-3 flex flex-col gap-4">
-            <CoverageBar preview={preview} extra={extra} />
-            <SummarizeSentence
-              preview={preview}
-              on={summarizeOn(summarize, preview)}
-              value={extra}
-              summarize={summarize}
-              onChange={onSummarizeChange}
-            />
-            <SnapshotSummary
-              preview={preview}
-              extra={extra}
-              facetCount={facetIds.length}
-            />
-            {costEstimate &&
-              (extra > 0 ? (
-                <TopicCostEstimateCard {...costEstimate} newTraces={extra} />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  $0 for new summaries and embeddings. Topic naming may incur a
-                  charge.
-                </p>
-              ))}
-          </div>
-          {errors.map((message) => (
-            <TopicsErrorMessage key={message} message={message} />
-          ))}
+        </TopicSliceFields.Section>
+        <TopicSliceFields.Facets
+          facets={facets}
+          selectedIds={facetIds}
+          onChange={onFacetIdsChange}
+        />
+        {filterField}
+        <div className="-mt-3 flex flex-col gap-4">
+          <CoverageBar preview={preview} extra={extra} />
+          <SummarizeSentence
+            preview={preview}
+            on={summarizeOn(summarize, preview)}
+            value={extra}
+            summarize={summarize}
+            onChange={onSummarizeChange}
+          />
+          <SnapshotSummary
+            preview={preview}
+            extra={extra}
+            facetCount={facetIds.length}
+          />
+          {costEstimate &&
+            (extra > 0 ? (
+              <TopicCostEstimateCard {...costEstimate} newTraces={extra} />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                $0 for new summaries and embeddings. Topic naming may incur a
+                charge.
+              </p>
+            ))}
         </div>
-      </Dialog.Body>
+        {errors.map((message) => (
+          <TopicsErrorMessage key={message} message={message} />
+        ))}
+      </TopicSliceFields.Body>
     </Dialog>
   );
 }
