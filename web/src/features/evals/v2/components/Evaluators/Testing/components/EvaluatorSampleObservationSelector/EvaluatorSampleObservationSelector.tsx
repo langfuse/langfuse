@@ -1,12 +1,13 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useId, useMemo } from "react";
 import { Star } from "@langfuse/icons";
-import type { FilterState } from "@langfuse/shared";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 
 import { Radio } from "@/src/components/design-system/Radio/Radio";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   SampleObservationSelectorBase,
   type SampleObservation,
@@ -17,7 +18,8 @@ const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["mapObservedOptions"] = (observed) => observed;
 
-const resolveSelection: Parameters<
+/** Keeps the selection while it still matches, otherwise picks the first match. */
+export const resolveSelection: Parameters<
   typeof SampleObservationSelectorBase
 >[0]["resolveSelection"] = (observations, selectedObservationId) => {
   const selectedObservationMatches = observations.some(
@@ -46,6 +48,7 @@ export function EvaluatorSampleObservationSelector({
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -110,6 +113,8 @@ export function EvaluatorSampleObservationSelector({
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={preserveObservedOptions}
+      samplePresentation={traceEvalsAvailable ? "detail" : "table"}
+      targetObject={EvalTargetObject.EVENT}
     />
   );
 }

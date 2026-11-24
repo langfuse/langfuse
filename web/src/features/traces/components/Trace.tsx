@@ -16,6 +16,10 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
+  useTracePresentation,
+  type TracePresentation,
+} from "@/src/features/traces/contexts/TracePresentationProvider";
+import {
   TraceGraphDataProvider,
   useTraceGraphData,
 } from "@/src/features/traces/contexts/TraceGraphDataProvider";
@@ -31,7 +35,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
@@ -85,6 +89,11 @@ const DESKTOP_LAYOUTS = {
     defaultNavigationCollapsed: false,
     expandDetailOnMount: false,
   },
+  "peek-observation-sample": {
+    groupId: "trace-layout-observation-sample-v1",
+    defaultNavigationCollapsed: false,
+    expandDetailOnMount: true,
+  },
   "peek-observation-focused": {
     groupId: "trace-layout-peek-navigation-collapsed-v1",
     defaultNavigationCollapsed: true,
@@ -98,6 +107,23 @@ const DESKTOP_LAYOUTS = {
 } as const;
 
 type DesktopLayout = (typeof DESKTOP_LAYOUTS)[keyof typeof DESKTOP_LAYOUTS];
+type DesktopLayoutKey = keyof typeof DESKTOP_LAYOUTS;
+
+function desktopLayoutKeyFor({
+  presentation,
+  traceContext,
+  layout,
+}: {
+  presentation: TracePresentation | null;
+  traceContext: "fullscreen" | "peek" | "annotation";
+  layout: TraceProps["layout"];
+}): DesktopLayoutKey {
+  if (presentation === "observation") return "peek-observation-sample";
+  if (traceContext === "peek" && layout === "observation-focused") {
+    return "peek-observation-focused";
+  }
+  return traceContext;
+}
 
 Trace.Session = ConnectedSessionTrace;
 
@@ -206,22 +232,31 @@ function ConnectedSessionTrace({
  */
 export function Trace(props: TraceProps | TraceLoadingProps) {
   const traceContext = props.context ?? "fullscreen";
-  const desktopLayoutKey =
-    traceContext === "peek" && props.layout === "observation-focused"
-      ? "peek-observation-focused"
-      : traceContext;
+  const { presentation, preferredObservationId: embedderObservationId } =
+    useTracePresentation();
+  const desktopLayoutKey = desktopLayoutKeyFor({
+    presentation,
+    traceContext,
+    layout: props.layout,
+  });
   const desktopLayout = DESKTOP_LAYOUTS[desktopLayoutKey];
   const isMobile = useIsMobile();
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
+  const preferredObservationId =
+    props.isLoading === true ? null : embedderObservationId;
   const defaultObservationId = useMemo(
-    () => resolveDefaultObservationId(trace, observations),
-    [trace, observations],
+    () =>
+      preferredObservationId ??
+      resolveDefaultObservationId(trace, observations),
+    [preferredObservationId, trace, observations],
   );
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
+      {/* A new presentation starts a fresh view, including the embedded tab choice. */}
       <SelectionProvider
+        key={presentation ?? "page"}
         defaultObservationId={defaultObservationId}
         isMobile={isMobile}
         expandDetailOnMount={desktopLayout.expandDetailOnMount}
@@ -457,7 +492,11 @@ function TraceContent({
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, scope, projectId, trace } = useTraceData();
+  const { presentation, isEmbedded } = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
+    presentation === "messages" ? "messages" : "trace",
+  );
   const router = useRouter();
   const isSessionTracePeek = useIsSessionTracePeek();
   const tracePeek =
@@ -512,11 +551,17 @@ function TraceContent({
     { projectId },
   );
   const { isV4 } = useReadPath();
-  const showMessagesTab = isV4 && unifiedTraceSessionViewEnabled;
-  const activeView =
-    showMessagesTab && !isSessionTracePeek && traceView === "messages"
-      ? "messages"
-      : "trace";
+  // The embedded eval panel decides its own gate and asks for the transcript.
+  const showMessagesTab =
+    presentation === "messages" ||
+    (!isEmbedded && isV4 && unifiedTraceSessionViewEnabled);
+  const activeView = traceTab({
+    isEmbedded,
+    showMessagesTab,
+    embeddedView,
+    traceView,
+    isSessionTracePeek,
+  });
   const stale = staleProps(isPlaceholderData);
   const sessionErrorBanner = sessionError ? (
     <SessionErrorBanner onRetry={sessionError.onRetry} />
@@ -579,8 +624,15 @@ function TraceContent({
             <Tabs
               value={activeView}
               onValueChange={(value) => {
-                if (value === "messages") setTraceView("messages", "pushIn");
-                if (value === "trace") setTraceView(undefined, "pushIn");
+                const next = value === "messages" ? "messages" : "trace";
+                if (isEmbedded) {
+                  setEmbeddedView(next);
+                  return;
+                }
+                setTraceView(
+                  next === "messages" ? "messages" : undefined,
+                  "pushIn",
+                );
               }}
               layout="fill"
             >
@@ -648,6 +700,24 @@ function TraceContent({
 
 const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
+
+function traceTab({
+  isEmbedded,
+  showMessagesTab,
+  embeddedView,
+  traceView,
+  isSessionTracePeek,
+}: {
+  isEmbedded: boolean;
+  showMessagesTab: boolean;
+  embeddedView: "messages" | "trace";
+  traceView: string | null | undefined;
+  isSessionTracePeek: boolean;
+}) {
+  if (!showMessagesTab) return "trace";
+  if (isEmbedded) return embeddedView;
+  return !isSessionTracePeek && traceView === "messages" ? "messages" : "trace";
+}
 
 function TraceLoading({
   desktopLayout,

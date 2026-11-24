@@ -1,6 +1,9 @@
 import {
+  EvalTargetObject,
   EvalTemplateTypeEnum,
   experimentTargetEvalVariableColumns,
+  isTraceTranscriptEvalType,
+  TopicsTargetObject,
   type FilterState,
   type ModelConfig,
   type EvalTemplateSourceCodeLanguage,
@@ -12,6 +15,8 @@ import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-u
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { TRACE_TRANSCRIPT_DEFAULT_FIELD } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type {
   ActiveVariableMapping,
@@ -91,6 +96,11 @@ function buildInitialQuestions(
     : [];
 }
 
+/** What the test runs on: one observation or a whole trace transcript. */
+export type EvaluatorTargetObject =
+  | typeof EvalTargetObject.EVENT
+  | typeof TopicsTargetObject;
+
 type EvaluatorSetupStoreActions = {
   setType: (type: EditableEvaluatorType) => void;
   setQuestion: (question: DecisionModelQuestionDraft) => void;
@@ -124,6 +134,8 @@ type EvaluatorSetupStoreActions = {
     selectedObservation: SampleObservation | null,
   ) => void;
   setSampleFilter: (sampleFilter: FilterState) => void;
+  setTargetObject: (targetObject: EvaluatorTargetObject) => void;
+  setTraceSampleFilter: (traceSampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
   applyDefinition: (definition: NormalizedEvaluatorDefinition) => void;
@@ -155,6 +167,8 @@ export type EvaluatorSetupStoreState = {
   hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
   sampleFilter: FilterState;
+  targetObject: EvaluatorTargetObject;
+  traceSampleFilter: FilterState;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
   actions: EvaluatorSetupStoreActions;
@@ -173,6 +187,25 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
   }
   return true;
 };
+
+/** A new target drops the sample and resets every mapping to the target's default. */
+const targetChange = (
+  state: EvaluatorSetupStoreState,
+  targetObject: EvaluatorTargetObject,
+) => ({
+  targetObject,
+  selectedObservation: null,
+  activeMapping: null,
+  variableFields:
+    targetObject === TopicsTargetObject
+      ? Object.fromEntries(
+          prepareEvaluatorDraft(state).mappings.map(({ variable }) => [
+            variable,
+            TRACE_TRANSCRIPT_DEFAULT_FIELD,
+          ]),
+        )
+      : {},
+});
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
@@ -253,14 +286,23 @@ export function createEvaluatorSetupStore({
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
+    targetObject: EvalTargetObject.EVENT,
+    traceSampleFilter: [],
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
       setType: (type) =>
         set((state) => {
           if (type === state.type) return state;
+          // Types that cannot run on a trace transcript test on observations.
+          const target =
+            state.targetObject === TopicsTargetObject &&
+            !isTraceTranscriptEvalType(type)
+              ? targetChange(state, EvalTargetObject.EVENT)
+              : {};
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
+              ...target,
               type,
               modelMode: "custom",
               selectedModel: null,
@@ -269,13 +311,14 @@ export function createEvaluatorSetupStore({
           }
           if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
+              ...target,
               type,
               modelMode: "default",
               selectedModel: null,
               modelParams: null,
             };
           }
-          return { type };
+          return { ...target, type };
         }),
       setQuestion: (question) =>
         set((state) => ({
@@ -487,6 +530,13 @@ export function createEvaluatorSetupStore({
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
+      setTargetObject: (targetObject) =>
+        set((state) =>
+          state.targetObject === targetObject
+            ? state
+            : targetChange(state, targetObject),
+        ),
+      setTraceSampleFilter: (traceSampleFilter) => set({ traceSampleFilter }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),

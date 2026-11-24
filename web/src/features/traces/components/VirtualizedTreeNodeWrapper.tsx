@@ -47,7 +47,8 @@ interface TreeNodeWrapperProps {
 
   // Selection/interaction
   isSelected: boolean;
-  onSelect: () => void;
+  /** Absent for a read-only row: no pointer and no hover wash. */
+  onSelect?: () => void;
 
   // Content to render (fully decoupled from tree structure)
   children: ReactNode;
@@ -72,6 +73,7 @@ export function VirtualizedTreeNodeWrapper(
   const hasChildren = props.hasChildren ?? false;
   const isCollapsed = loaded?.isCollapsed ?? false;
   const isSelected = loaded?.isSelected ?? false;
+  const onSelect = loaded?.onSelect;
   const { depth, treeLines, isLastSibling } = metadata;
   const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
   // Visual depth: real depth, capped so indentation never exceeds the
@@ -85,13 +87,13 @@ export function VirtualizedTreeNodeWrapper(
     <div
       className={cn(
         "group relative flex w-full px-0",
-        loaded && "cursor-pointer",
+        onSelect && "cursor-pointer",
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
         loaded &&
           (isSelected
             ? "bg-muted text-foreground"
-            : "hover:bg-accent dark:text-muted-foreground"),
+            : cn(onSelect && "hover:bg-accent", "dark:text-muted-foreground")),
         loaded?.className,
       )}
       style={{
@@ -99,10 +101,10 @@ export function VirtualizedTreeNodeWrapper(
         paddingBottom: 0,
       }}
       onClick={
-        loaded
+        onSelect
           ? (e) => {
               if (!e.currentTarget?.closest("[data-expand-button]")) {
-                loaded.onSelect();
+                onSelect();
               }
             }
           : undefined
