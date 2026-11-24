@@ -21,7 +21,12 @@ import {
   type ClickhouseWriteStrategy,
   type ClickhouseWriteStrategyFactory,
 } from "./writeStrategies";
-import { TableName, type RecordInsertType } from "./types";
+import {
+  TableName,
+  type ClickhouseWriterRowCallbacks,
+  type ClickhouseWriterRowTerminalOutcome,
+  type RecordInsertType,
+} from "./types";
 import { classifyJobFailure } from "../../queues/jobFailureReason";
 export { TableName } from "./types";
 
@@ -170,6 +175,13 @@ export class ClickhouseWriter<
 
     await this.flushAll(true);
 
+    while (this.activeFlushes.size > 0) {
+      await Promise.all([...this.activeFlushes]);
+    }
+    this.settlePendingCallbacks(
+      new Error("ClickhouseWriter shutdown before queued rows were inserted"),
+    );
+
     this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
   }
 
@@ -277,6 +289,70 @@ export class ClickhouseWriter<
     );
 
     return { retryItems, requeueItems };
+  }
+
+  private settleRow<Row>(
+    item: ClickhouseWriterQueueItem<Row>,
+    status: "inserted" | "dropped",
+    row: Row,
+    error?: unknown,
+  ): void {
+    const onTerminal = item.onTerminal;
+    item.onTerminal = undefined;
+    if (!onTerminal) return;
+
+    const outcome: ClickhouseWriterRowTerminalOutcome<Row> =
+      status === "inserted" ? { status, row } : { status, row, error };
+    try {
+      onTerminal(outcome);
+    } catch (error) {
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter terminal row callback failed`,
+        { error },
+      );
+    }
+  }
+
+  private settleRows<Row>(
+    queueItems: ClickhouseWriterQueueItem<Row>[],
+    status: "inserted" | "dropped",
+    rows: Row[] | undefined,
+    error?: unknown,
+  ): void {
+    queueItems.forEach((item, index) => {
+      this.settleRow(item, status, rows?.[index] ?? item.data, error);
+    });
+  }
+
+  private settlePendingCallbacks(error: Error): void {
+    for (const tableName of Object.values(TableName)) {
+      const entityQueue = this.queue[tableName];
+      const pendingRows: ClickhouseWriterQueueItem<
+        PayloadMap[typeof tableName]
+      >[] = [];
+      let retained = 0;
+      for (const item of entityQueue) {
+        if (item.onTerminal) pendingRows.push(item);
+        else entityQueue[retained++] = item;
+      }
+      if (pendingRows.length === 0) continue;
+      entityQueue.length = retained;
+
+      recordIncrement(
+        "langfuse.queue.clickhouse_writer.rows_dropped",
+        pendingRows.length,
+        {
+          entity_type: tableName,
+          format: this.strategyFactory.format,
+          reason: "shutdown",
+        },
+      );
+      this.logger.error(
+        `${this.logPrefix}ClickhouseWriter settled ${pendingRows.length} queued ${tableName} callback(s) during shutdown`,
+        { error },
+      );
+      this.settleRows(pendingRows, "dropped", undefined, error);
+    }
   }
 
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
@@ -432,6 +508,8 @@ export class ClickhouseWriter<
         },
       );
 
+      this.settleRows(queueItems, "inserted", recordsToWrite);
+
       // Log processing time
       const processingTime = Date.now() - processingStartTime;
 
@@ -492,6 +570,7 @@ export class ClickhouseWriter<
             format: this.strategyFactory.format,
             reason,
           });
+          this.settleRow(item, "dropped", item.data, err);
           droppedCount++;
         }
       });
@@ -540,7 +619,11 @@ export class ClickhouseWriter<
     );
   }
 
-  public addToQueue<T extends TableName>(tableName: T, data: PayloadMap[T]) {
+  public addToQueue<T extends TableName>(
+    tableName: T,
+    data: PayloadMap[T],
+    callbacks?: ClickhouseWriterRowCallbacks<PayloadMap[T]>,
+  ) {
     if (this.allowedTable && tableName !== this.allowedTable) {
       throw new Error(
         `Native ClickHouse writer only accepts ${this.allowedTable}, got ${tableName}`,
@@ -553,6 +636,7 @@ export class ClickhouseWriter<
       requeued: false,
       attempts: 1,
       data,
+      onTerminal: callbacks?.onTerminal,
     });
 
     if (entityQueue.length >= this.batchSize) {
@@ -630,4 +714,5 @@ type ClickhouseWriterQueueItem<Payload> = {
   requeued: boolean;
   attempts: number;
   data: Payload;
+  onTerminal?: ClickhouseWriterRowCallbacks<Payload>["onTerminal"];
 };
