@@ -36,9 +36,9 @@ describe("EvaluatorTestPanelContainer", () => {
       <EvaluatorTestPanelContainer
         projectId="project-1"
         store={store}
-        timeRange={null}
-        onOpenTrace={vi.fn()}
-        onScopeChange={vi.fn()}
+        sampleSelector={null}
+        traceSampleSelector={null}
+        heading={null}
         testResult={null}
         testPending={false}
         rawResultOpen={false}

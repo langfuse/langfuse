@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { ScoreDataTypeEnum } from "@langfuse/shared";
+import { ScoreDataTypeEnum, TopicsTargetObject } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -34,7 +34,7 @@ describe("EvaluatorSetupFooter", () => {
     });
     const initialSnapshot = evaluatorSetupSnapshot(store.getState());
     const { actions } = store.getState();
-    actions.setSampleScope("trace");
+    actions.setTargetObject(TopicsTargetObject);
 
     render(
       <TooltipProvider>

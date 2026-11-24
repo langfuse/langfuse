@@ -21,16 +21,12 @@ export function TraceDetailBody({
   truncatedAtObservations,
   isPlaceholderData = false,
   layout,
-  preferredObservationId,
-  presentation,
   header,
 }: {
   trace: TraceDetailData | undefined;
   context: NonNullable<TraceProps["context"]>;
   keySuffix?: string;
   layout?: TraceProps["layout"];
-  preferredObservationId?: string | null;
-  presentation?: TraceProps["presentation"];
   header: TraceProps["header"];
   /** Observation cap this trace was loaded under, when it hit it. */
   truncatedAtObservations?: number;
@@ -45,13 +41,7 @@ export function TraceDetailBody({
   );
   if (!trace)
     return (
-      <Trace
-        isLoading
-        context={context}
-        layout={layout}
-        header={header}
-        presentation={presentation}
-      />
+      <Trace isLoading context={context} layout={layout} header={header} />
     );
   return (
     <Trace
@@ -63,8 +53,6 @@ export function TraceDetailBody({
       projectId={trace.projectId}
       context={context}
       layout={layout}
-      preferredObservationId={preferredObservationId}
-      presentation={presentation}
       header={header}
       truncatedAtObservations={truncatedAtObservations}
       isPlaceholderData={isPlaceholderData}

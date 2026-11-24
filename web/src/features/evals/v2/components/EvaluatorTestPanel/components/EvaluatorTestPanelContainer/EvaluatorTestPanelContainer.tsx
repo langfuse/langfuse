@@ -1,32 +1,23 @@
-import { isTraceTranscriptEvalType } from "@langfuse/shared";
+import type { ReactNode } from "react";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { EvaluatorTestPanel } from "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel";
-import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
-import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
-import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TraceSampleSelectorContainer/TraceSampleSelectorContainer";
 import { TestSectionContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestSectionContainer/TestSectionContainer";
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { EvaluatorTestStrip } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStrip";
 import {
   selectHasValidModel,
-  selectSampleScope,
-  type EvaluatorSampleScope,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 
-/**
- * The trace-evals gate for the test panel: off renders the observation panel,
- * on renders the scope-aware panel. Shared pieces stay flag-free.
- */
+/** Off the trace-evals gate the panel tests observations; on it, `heading` picks the target. */
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
-  timeRange,
-  onOpenTrace,
-  onScopeChange,
+  sampleSelector,
+  traceSampleSelector,
+  heading,
   testResult,
   testPending,
   rawResultOpen,
@@ -36,9 +27,9 @@ export function EvaluatorTestPanelContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
-  timeRange: AbsoluteTimeRange | null;
-  onOpenTrace: (observation: SampleObservation) => void;
-  onScopeChange: (scope: EvaluatorSampleScope) => void;
+  sampleSelector: ReactNode;
+  traceSampleSelector: ReactNode;
+  heading: ReactNode;
   testResult: unknown;
   testPending: boolean;
   rawResultOpen: boolean;
@@ -49,8 +40,10 @@ export function EvaluatorTestPanelContainer({
   const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const open = useStore(store, (state) => state.testPanelOpen);
   const hasValidModel = useStore(store, selectHasValidModel);
-  const sampleScope = useStore(store, selectSampleScope);
-  const evaluatorType = useStore(store, (state) => state.type);
+  const isTraceTarget = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const actions = store.getState().actions;
 
   if (!traceEvalsAvailable) {
@@ -58,14 +51,7 @@ export function EvaluatorTestPanelContainer({
       <EvaluatorTestPanel
         open={open}
         onOpenChange={actions.setTestPanelOpen}
-        sampleSelector={
-          <SampleObservationSelectorContainer
-            store={store}
-            projectId={projectId}
-            timeRange={timeRange}
-            onOpenTrace={onOpenTrace}
-          />
-        }
+        sampleSelector={sampleSelector}
         testSection={
           <TestSectionContainer
             projectId={projectId}
@@ -88,36 +74,12 @@ export function EvaluatorTestPanelContainer({
       open={open}
       onOpenChange={actions.setTestPanelOpen}
       pinTestSection
-      heading={
-        <SampleScopeSwitcher
-          scope={sampleScope}
-          onScopeChange={onScopeChange}
-          traceComingSoon={!isTraceTranscriptEvalType(evaluatorType)}
-        />
-      }
-      sampleSelector={
-        sampleScope === "trace" ? (
-          <TraceSampleSelectorContainer
-            store={store}
-            projectId={projectId}
-            timeRange={timeRange}
-            onOpenTrace={onOpenTrace}
-          />
-        ) : (
-          <SampleObservationSelectorContainer
-            store={store}
-            projectId={projectId}
-            timeRange={timeRange}
-            onOpenTrace={onOpenTrace}
-            samplePresentation="detail"
-          />
-        )
-      }
+      heading={heading}
+      sampleSelector={isTraceTarget ? traceSampleSelector : sampleSelector}
       testSection={
         <EvaluatorTestStrip
           projectId={projectId}
           store={store}
-          hasValidModel={hasValidModel}
           testResult={testResult}
           testPending={testPending}
           onRunTest={onRunTest}

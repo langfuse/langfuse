@@ -28,9 +28,6 @@ export type RuleDraft = {
 
 export type RuleTargetObject = EvalTargetObject | typeof TopicsTargetObject;
 
-/** Scope selector behavior: hidden (ungated create), editable (gated create), locked with a note (edit). */
-export type RuleScopeControl = "hidden" | "editable" | "locked";
-
 export type RuleEvaluatorOption = {
   id: string;
   name: string;
@@ -73,9 +70,6 @@ type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
   targetObject: RuleTargetObject;
-  /** What the observation option of the scope selector selects. */
-  observationTargetObject: EvalTargetObject;
-  scopeControl: RuleScopeControl;
   actions: RuleSetupStoreActions;
 };
 

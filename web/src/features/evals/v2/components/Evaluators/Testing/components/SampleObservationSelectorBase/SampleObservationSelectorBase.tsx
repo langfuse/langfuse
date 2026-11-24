@@ -10,6 +10,7 @@ import {
   Wrench,
 } from "@langfuse/icons";
 import {
+  TopicsTargetObject,
   type FilterState,
   type TimeFilter,
   type TracingSearchType,
@@ -54,6 +55,7 @@ import {
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type SampleObservation =
@@ -176,9 +178,8 @@ export type SampleObservationSelectorBaseProps = {
   mapObservedOptions: MapSampleObservedOptions;
   /** "detail" shows one sample in the trace view instead of the table. */
   samplePresentation?: "table" | "detail";
-  sampleScope?: "trace" | "observation";
-  /** Trace transcript rules keep the filter and do not list matching traces. */
-  showMatches?: boolean;
+  /** Trace targets keep the filter and list no matching observations. */
+  targetObject: RuleTargetObject;
 };
 
 /** First matching observation per trace, in match order. */
@@ -223,10 +224,10 @@ export function SampleObservationSelectorBase(
     formatCount,
     mapObservedOptions,
     samplePresentation = "table",
-    sampleScope = "observation",
-    showMatches = true,
+    targetObject,
   } = props;
   const showTraceDetail = samplePresentation === "detail";
+  const isTraceTarget = targetObject === TopicsTargetObject;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
     useLocalStorage<EvaluatorFilterExperience>(
@@ -244,7 +245,7 @@ export function SampleObservationSelectorBase(
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
   const examples = useMemo(() => {
-    if (sampleScope === "trace") return TRACE_EXAMPLES;
+    if (isTraceTarget) return TRACE_EXAMPLES;
     const firstDataset = datasetOptions[0];
     return firstDataset
       ? [
@@ -263,7 +264,7 @@ export function SampleObservationSelectorBase(
           },
         ]
       : EXAMPLES;
-  }, [datasetOptions, sampleScope]);
+  }, [datasetOptions, isTraceTarget]);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -344,7 +345,7 @@ export function SampleObservationSelectorBase(
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
   // order, so it takes no orderBy.
-  const listMatches = showMatches || showTraceDetail;
+  const listMatches = !isTraceTarget || showTraceDetail;
   const observationQuery = api.events.listCursor.useInfiniteQuery(
     {
       projectId,
@@ -455,10 +456,9 @@ export function SampleObservationSelectorBase(
       : undefined;
   const querySettled =
     observationQuery.isSuccess && !observationQuery.isFetching;
-  const detailObservations =
-    sampleScope === "trace"
-      ? matchingTraces(matchingObservations)
-      : matchingObservations;
+  const detailObservations = isTraceTarget
+    ? matchingTraces(matchingObservations)
+    : matchingObservations;
   const detailSelectionToReconcile = querySettled
     ? resolveSelection(detailObservations, selectedObservationId)
     : undefined;
@@ -679,7 +679,7 @@ export function SampleObservationSelectorBase(
           />
           <EvaluatorSampleDetail
             projectId={projectId}
-            sampleScope={sampleScope}
+            targetObject={targetObject}
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}
@@ -687,7 +687,7 @@ export function SampleObservationSelectorBase(
           />
         </div>
       )}
-      {!showTraceDetail && showMatches && (
+      {!showTraceDetail && !isTraceTarget && (
         <section className="flex min-h-0 flex-col gap-2">
           <SectionHeader
             title="Matching observations"

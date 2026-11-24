@@ -139,7 +139,7 @@ function TracePanelNavigationHeaderExpanded({
   const [headerContainerRef, headerContainerSize] =
     useElementSize<HTMLDivElement>();
   const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 299;
-  const { isEmbedded } = useTracePresentation();
+  const { presentation } = useTracePresentation();
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -307,7 +307,7 @@ function TracePanelNavigationHeaderExpanded({
               </DropdownMenu>
             </div>
 
-            {!isEmbedded && (
+            {!presentation && (
               <div className="ml-2 hidden @min-[330px]/navheader:block">
                 <ViewModeSwitch
                   activeView={activeView}
@@ -318,7 +318,7 @@ function TracePanelNavigationHeaderExpanded({
             )}
             <div
               className={
-                isEmbedded ? "ml-2" : "ml-2 @min-[330px]/navheader:hidden"
+                presentation ? "ml-2" : "ml-2 @min-[330px]/navheader:hidden"
               }
             >
               <DropdownMenuController

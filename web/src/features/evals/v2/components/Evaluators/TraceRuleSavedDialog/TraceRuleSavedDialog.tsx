@@ -45,25 +45,25 @@ function existingRuleCopy(rule: TraceRule, alreadyAttached: boolean) {
   };
 }
 
-/**
- * After a trace-scope save: run the evaluator on a new trace rule built from
- * the panel's filters, or add it to a trace rule the project already has.
- */
+/** After a trace-target save: run the evaluator on a new trace rule or add it to an existing one. */
 export function TraceRuleSavedDialog({
   projectId,
   evaluator,
-  filter,
-  variableMapping,
   onDismiss,
   onFinish,
 }: {
   projectId: string;
-  evaluator: { id: string; name: string };
-  filter: FilterState;
-  variableMapping: ObservationVariableMapping[];
+  /** `filter` and `variableMapping` come from the test panel's trace sample. */
+  evaluator: {
+    id: string;
+    name: string;
+    filter: FilterState;
+    variableMapping: ObservationVariableMapping[];
+  };
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
 }) {
+  const { filter, variableMapping } = evaluator;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const ruleSelectId = useId();

@@ -1,3 +1,4 @@
+import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -60,7 +61,7 @@ export function TraceSampleSelectorContainer({
       formatCount={(count) => compactNumberFormatter(count)}
       mapObservedOptions={preserveObservedOptions}
       samplePresentation="detail"
-      sampleScope="trace"
+      targetObject={TopicsTargetObject}
     />
   );
 }

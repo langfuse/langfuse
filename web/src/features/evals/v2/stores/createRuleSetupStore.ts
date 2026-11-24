@@ -8,7 +8,6 @@ import { createStore } from "zustand/vanilla";
 
 import type {
   RuleDraft,
-  RuleScopeControl,
   RuleSetupStore,
   RuleTargetObject,
 } from "@/src/features/evals/v2/types/rules";
@@ -17,14 +16,9 @@ export function createRuleSetupStore(
   initialDraft: RuleDraft,
   targetSetup: {
     targetObject: RuleTargetObject;
-    observationTargetObject?: EvalTargetObject;
-    scopeControl: RuleScopeControl;
     /** Switching target swaps the filter while it still equals the current target's default. */
     defaultFilterFor?: (targetObject: RuleTargetObject) => FilterState;
-  } = {
-    targetObject: EvalTargetObject.EVENT,
-    scopeControl: "hidden",
-  },
+  } = { targetObject: EvalTargetObject.EVENT },
 ): RuleSetupStore {
   const { defaultFilterFor } = targetSetup;
   return createStore<ReturnType<RuleSetupStore["getState"]>>((set) => ({
@@ -32,9 +26,6 @@ export function createRuleSetupStore(
     initialDraft,
     selectedObservation: null,
     targetObject: targetSetup.targetObject,
-    observationTargetObject:
-      targetSetup.observationTargetObject ?? EvalTargetObject.EVENT,
-    scopeControl: targetSetup.scopeControl,
     actions: {
       setName: (name) => set({ name }),
       setFilter: (filter) => set({ filter }),

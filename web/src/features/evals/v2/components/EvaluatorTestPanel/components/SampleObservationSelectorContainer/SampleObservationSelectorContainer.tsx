@@ -13,7 +13,6 @@ export function SampleObservationSelectorContainer({
   projectId,
   timeRange,
   onOpenTrace,
-  samplePresentation = "table",
 }: {
   store: EvaluatorSetupStore;
   projectId: string;
@@ -23,7 +22,6 @@ export function SampleObservationSelectorContainer({
   onOpenTrace: Parameters<
     typeof EvaluatorSampleObservationSelector
   >[0]["onOpenTrace"];
-  samplePresentation?: "table" | "detail";
 }) {
   const selectedObservationId = useStore(
     store,
@@ -61,7 +59,6 @@ export function SampleObservationSelectorContainer({
       onFilterStateChange={changeFilterState}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
-      samplePresentation={samplePresentation}
     />
   );
 }

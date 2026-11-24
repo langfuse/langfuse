@@ -16,7 +16,6 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
-  TracePresentationProvider,
   useTracePresentation,
   type TracePresentation,
 } from "@/src/features/traces/contexts/TracePresentationProvider";
@@ -77,17 +76,6 @@ export type TraceProps = {
   truncatedAtObservations?: number;
   /** This is the previous trace, kept on screen while the next one loads. */
   isPlaceholderData?: boolean;
-  /**
-   * Selects this observation when the URL has none. The URL observation still
-   * wins, so a caller that sets the query param keeps control of later clicks.
-   */
-  preferredObservationId?: string | null;
-  /**
-   * Embedded sample view. "messages" opens the transcript. "observation" opens
-   * the span preview, has no Messages tab and ignores tree clicks. Both hide
-   * the metrics row. Unset on the standalone trace page.
-   */
-  presentation?: TracePresentation;
 };
 
 const DESKTOP_LAYOUTS = {
@@ -244,7 +232,8 @@ function ConnectedSessionTrace({
  */
 export function Trace(props: TraceProps | TraceLoadingProps) {
   const traceContext = props.context ?? "fullscreen";
-  const presentation = props.presentation ?? null;
+  const { presentation, preferredObservationId: embedderObservationId } =
+    useTracePresentation();
   const desktopLayoutKey = desktopLayoutKeyFor({
     presentation,
     traceContext,
@@ -255,7 +244,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   const trace = props.isLoading === true ? null : props.trace;
   const observations = props.isLoading === true ? null : props.observations;
   const preferredObservationId =
-    props.isLoading === true ? null : (props.preferredObservationId ?? null);
+    props.isLoading === true ? null : embedderObservationId;
   const defaultObservationId = useMemo(
     () =>
       preferredObservationId ??
@@ -264,30 +253,26 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
   );
 
   return (
-    <TracePresentationProvider presentation={presentation}>
-      <ViewPreferencesProvider traceContext={traceContext}>
-        <SelectionProvider
-          defaultObservationId={defaultObservationId}
-          isMobile={isMobile}
-          expandDetailOnMount={desktopLayout.expandDetailOnMount}
-          selectionLocked={presentation === "observation"}
-        >
-          {props.isLoading === true ? (
-            <TraceLoading desktopLayout={desktopLayout} header={props.header} />
-          ) : (
-            <TraceWithSelection {...props} desktopLayout={desktopLayout} />
-          )}
-        </SelectionProvider>
-      </ViewPreferencesProvider>
-    </TracePresentationProvider>
+    <ViewPreferencesProvider traceContext={traceContext}>
+      {/* A new presentation starts a fresh view, including the embedded tab choice. */}
+      <SelectionProvider
+        key={presentation ?? "page"}
+        defaultObservationId={defaultObservationId}
+        isMobile={isMobile}
+        expandDetailOnMount={desktopLayout.expandDetailOnMount}
+      >
+        {props.isLoading === true ? (
+          <TraceLoading desktopLayout={desktopLayout} header={props.header} />
+        ) : (
+          <TraceWithSelection {...props} desktopLayout={desktopLayout} />
+        )}
+      </SelectionProvider>
+    </ViewPreferencesProvider>
   );
 }
 
 /** Layout only, before the trace arrives; each panel draws its own placeholder. */
-type TraceLoadingProps = Pick<
-  TraceProps,
-  "context" | "layout" | "header" | "presentation"
-> & {
+type TraceLoadingProps = Pick<TraceProps, "context" | "layout" | "header"> & {
   isLoading: true;
 };
 
@@ -512,11 +497,6 @@ function TraceContent({
   const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
     presentation === "messages" ? "messages" : "trace",
   );
-  const [seenPresentation, setSeenPresentation] = useState(presentation);
-  if (presentation !== seenPresentation) {
-    setSeenPresentation(presentation);
-    setEmbeddedView(presentation === "messages" ? "messages" : "trace");
-  }
   const router = useRouter();
   const isSessionTracePeek = useIsSessionTracePeek();
   const tracePeek =

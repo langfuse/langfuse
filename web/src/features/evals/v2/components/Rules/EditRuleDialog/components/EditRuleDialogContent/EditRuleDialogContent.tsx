@@ -10,6 +10,7 @@ import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
+import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
@@ -66,7 +67,7 @@ export function EditRuleDialogContent({
           };
         }),
       },
-      { targetObject: rule.targetObject, scopeControl: "locked" },
+      { targetObject: rule.targetObject },
     ),
   );
   const update = api.evalsV2.rules.update.useMutation({
@@ -138,6 +139,13 @@ export function EditRuleDialogContent({
       <DialogBody>
         <fieldset disabled={!hasWriteAccess} className="contents">
           <RuleSetup
+            filterStep={
+              <RuleFilterStep
+                projectId={projectId}
+                store={ruleSetupStore}
+                mode="edit"
+              />
+            }
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}

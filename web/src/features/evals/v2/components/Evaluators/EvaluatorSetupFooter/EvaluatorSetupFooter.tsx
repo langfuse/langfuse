@@ -1,15 +1,14 @@
+import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
 import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import {
   selectHasValidModel,
-  selectSampleScope,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -48,19 +47,19 @@ export function EvaluatorSetupFooter({
     store,
     useShallow((state) => {
       const draft = applyFallbackDecisionModel(state, fallbackDecisionModel);
-      const { definition } = prepareDraftForScope(draft);
-      // The saved evaluator keeps observation mappings, also in trace scope.
+      const { definition, mappings } = prepareEvaluatorDraft(draft);
+      const mappingsComplete = mappings.every(({ fieldState }) =>
+        Boolean(fieldState.selectedColumnId),
+      );
       const hasCompleteMappings =
-        state.type !== "LLM_AS_JUDGE" ||
-        prepareEvaluatorDraft(draft).mappings.every(({ fieldState }) =>
-          Boolean(fieldState.selectedColumnId),
-        );
+        state.type !== "LLM_AS_JUDGE" || mappingsComplete;
 
       return {
         currentSnapshot: evaluatorSetupSnapshot(state),
         canSubmit: Boolean(definition) && hasCompleteMappings,
+        // The saved evaluator keeps observation mappings, also for a trace target.
         observationMappingMissing:
-          !hasCompleteMappings && selectSampleScope(state) === "trace",
+          !mappingsComplete && state.targetObject === TopicsTargetObject,
         promptMessagesReason:
           state.type === "LLM_AS_JUDGE"
             ? getPromptMessagesValidationError(state.promptMessages)

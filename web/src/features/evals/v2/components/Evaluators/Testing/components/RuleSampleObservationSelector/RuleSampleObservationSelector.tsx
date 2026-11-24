@@ -66,7 +66,6 @@ export function RuleSampleObservationSelector({
     () => toEventsPreviewFilters(filterState),
     [filterState],
   );
-  const isTraceTranscript = targetObject === TopicsTargetObject;
 
   return (
     <SampleObservationSelectorBase
@@ -77,7 +76,7 @@ export function RuleSampleObservationSelector({
       previewFilters={previewFilters}
       tableName={tableName}
       registry={
-        isTraceTranscript
+        targetObject === TopicsTargetObject
           ? TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY
           : RULE_SAMPLE_FIELD_REGISTRY
       }
@@ -87,17 +86,12 @@ export function RuleSampleObservationSelector({
       leadingColumns={[]}
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
-      sampleScope={isTraceTranscript ? "trace" : "observation"}
-      showMatches={!isTraceTranscript}
+      targetObject={targetObject}
       filterTitle={filterTitle}
       filterDescription={filterDescription}
       filterTooltip={filterTooltip}
       matchingDescription="The first match is used to preview attached evaluator mappings."
-      matchingTooltip={
-        isTraceTranscript
-          ? "Roots of traces that have a span matching the rule filters over the last seven days."
-          : "Observations matching the rule filters over the last seven days."
-      }
+      matchingTooltip="Observations matching the rule filters over the last seven days."
       formatCount={(count) =>
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }

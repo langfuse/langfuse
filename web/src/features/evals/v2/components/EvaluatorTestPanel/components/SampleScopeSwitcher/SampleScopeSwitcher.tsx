@@ -1,49 +1,69 @@
+import {
+  EvalTargetObject,
+  isTraceTranscriptEvalType,
+  TopicsTargetObject,
+} from "@langfuse/shared";
+import { useStore } from "zustand";
+
 import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import type { EvaluatorSampleScope } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type {
+  EvaluatorSetupStore,
+  EvaluatorTargetObject,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function SampleScopeSwitcher({
-  scope,
-  onScopeChange,
-  traceComingSoon = false,
+  store,
+  onTargetObjectChange,
 }: {
-  scope: EvaluatorSampleScope;
-  onScopeChange: (scope: EvaluatorSampleScope) => void;
-  /** Shows Trace messages disabled, e.g. for evaluator types without trace testing. */
-  traceComingSoon?: boolean;
+  store: EvaluatorSetupStore;
+  onTargetObjectChange: (targetObject: EvaluatorTargetObject) => void;
 }) {
+  const targetObject = useStore(store, (state) => state.targetObject);
+  const traceAvailable = useStore(store, (state) =>
+    isTraceTranscriptEvalType(state.type),
+  );
+
   return (
     <div className="flex min-w-0 items-center gap-2">
       <h2 className="font-bold whitespace-nowrap">Test with</h2>
       <Tabs
-        value={scope}
+        value={targetObject}
         onValueChange={(value) =>
-          onScopeChange(
-            value === "trace" && !traceComingSoon ? "trace" : "observation",
+          onTargetObjectChange(
+            value === TopicsTargetObject
+              ? TopicsTargetObject
+              : EvalTargetObject.EVENT,
           )
         }
       >
         <Tabs.List variant="inset" size="sm">
           <Tabs.Trigger
-            value="observation"
+            value={EvalTargetObject.EVENT}
             label="Observation"
             tooltip="Evaluate one observation's input, output, and metadata."
           />
-          {traceComingSoon ? (
-            <Tabs.Trigger value="trace" disabled title="Coming soon">
-              Trace messages
-              <FeatureReleaseStatus status="coming-soon" />
-            </Tabs.Trigger>
-          ) : (
+          {traceAvailable ? (
             <Tabs.Trigger
-              value="trace"
+              value={TopicsTargetObject}
               label="Trace messages"
               tooltip="Evaluate all the messages within a trace as one transcript."
             />
+          ) : (
+            <Tabs.Trigger
+              value={TopicsTargetObject}
+              disabled
+              title="Coming soon"
+            >
+              Trace messages
+              <FeatureReleaseStatus status="coming-soon" />
+            </Tabs.Trigger>
           )}
         </Tabs.List>
       </Tabs>
-      {scope === "trace" ? <FeatureReleaseStatus status="internal" /> : null}
+      {targetObject === TopicsTargetObject ? (
+        <FeatureReleaseStatus status="internal" />
+      ) : null}
     </div>
   );
 }

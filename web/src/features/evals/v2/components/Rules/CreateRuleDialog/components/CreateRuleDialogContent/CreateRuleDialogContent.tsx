@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
+import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import type {
@@ -101,8 +102,6 @@ export function CreateRuleDialogContent({
       },
       {
         targetObject: ruleTargetObject,
-        observationTargetObject,
-        scopeControl: traceEvalsAvailable ? "editable" : "hidden",
         defaultFilterFor: initialDraft ? undefined : defaultFilterFor,
       },
     );
@@ -214,6 +213,13 @@ export function CreateRuleDialogContent({
         </DialogHeader>
         <DialogBody>
           <RuleSetup
+            filterStep={
+              <RuleFilterStep
+                projectId={projectId}
+                store={ruleSetupStore}
+                mode="create"
+              />
+            }
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}

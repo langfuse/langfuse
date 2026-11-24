@@ -1,42 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "@langfuse/icons";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { Button } from "@/src/components/ui/button";
 import { useTraceSampleTranscript } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+import { TracePresentationProvider } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 
 const SAMPLE_LIST_KEY = "evaluator-samples";
 
-function sampleViewIntent(
-  sampleScope: "observation" | "trace",
-  selected: SampleObservation | null,
-) {
-  if (selected == null) return null;
-  if (sampleScope === "trace")
-    return `trace:${selected.traceId ?? selected.id}`;
-  return `observation:${selected.id}`;
-}
-
-/**
- * One trace on screen. Observation scope opens the matched span; trace scope
- * opens Messages. Sample count and prev/next arrows sit above the trace.
- */
+/** One sample in the trace view, with its count and prev/next arrows above it. */
 export function EvaluatorSampleDetail({
   projectId,
-  sampleScope,
+  targetObject,
   observations,
   selectedObservationId,
   pending,
   onSelect,
 }: {
   projectId: string;
-  sampleScope: "observation" | "trace";
+  targetObject: RuleTargetObject;
   observations: SampleObservation[];
   selectedObservationId: string | null;
   pending: boolean;
@@ -58,7 +48,7 @@ export function EvaluatorSampleDetail({
 
   const [, setObservation] = useQueryParam("observation", StringParam);
   const intentRef = useRef<string | null>(null);
-  const viewIntent = sampleViewIntent(sampleScope, selected);
+  const isTraceTarget = targetObject === TopicsTargetObject;
 
   const detail = useTraceDetailData({
     projectId,
@@ -69,7 +59,7 @@ export function EvaluatorSampleDetail({
   const transcript = useTraceSampleTranscript({
     projectId,
     sample: selected,
-    enabled: sampleScope === "trace",
+    enabled: isTraceTarget,
   });
   const [dismissedNoMessagesFor, setDismissedNoMessagesFor] = useState<
     string | null
@@ -85,24 +75,31 @@ export function EvaluatorSampleDetail({
     );
   }
 
-  const selectSample = (observation: SampleObservation) => {
-    onSelect(observation);
-  };
   const sampleTraceId = selected.traceId ?? selected.id;
+  const view = isTraceTarget
+    ? ({
+        label: "Sample trace",
+        presentation: "messages",
+        observationId: null,
+      } as const)
+    : ({
+        label: "Sample observation",
+        presentation: "observation",
+        observationId: selected.id,
+      } as const);
+  const viewIntent = `${view.presentation}:${view.observationId ?? sampleTraceId}`;
   const showNoMessages =
-    sampleScope === "trace" &&
+    isTraceTarget &&
     transcript.hasNoMessages &&
     dismissedNoMessagesFor !== sampleTraceId;
-  const sampleLabel =
-    sampleScope === "trace" ? "Sample trace" : "Sample observation";
   const sampleNavigation = (
     <div className="flex shrink-0 items-center gap-3 border-b px-3 py-2">
       <div className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
         <span
           className="text-muted-foreground truncate text-xs"
-          title={sampleLabel}
+          title={view.label}
         >
-          {sampleLabel}
+          {view.label}
         </span>
         <span aria-hidden className="text-muted-foreground text-xs">
           ·
@@ -122,7 +119,7 @@ export function EvaluatorSampleDetail({
               const next = observations.find(
                 (observation) => observation.id === entry.id,
               );
-              if (next) selectSample(next);
+              if (next) onSelect(next);
             }}
           />
         ) : (
@@ -153,18 +150,9 @@ export function EvaluatorSampleDetail({
     <div
       className="flex min-h-0 flex-1 flex-col"
       ref={(element) => {
-        if (
-          !element ||
-          viewIntent == null ||
-          intentRef.current === viewIntent
-        ) {
-          return;
-        }
+        if (!element || intentRef.current === viewIntent) return;
         intentRef.current = viewIntent;
-        setObservation(
-          sampleScope === "observation" ? selected.id : undefined,
-          "replaceIn",
-        );
+        setObservation(view.observationId ?? undefined, "replaceIn");
       }}
     >
       {sampleNavigation}
@@ -184,24 +172,25 @@ export function EvaluatorSampleDetail({
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
-        <TraceDetailBody
-          trace={detail.data}
-          context="peek"
-          presentation={sampleScope === "trace" ? "messages" : "observation"}
-          preferredObservationId={
-            sampleScope === "observation" ? selected.id : null
-          }
-          truncatedAtObservations={detail.truncatedAtObservations}
-          isPlaceholderData={detail.isPlaceholderData}
-          keySuffix={sampleTraceId}
-          header={{
-            variant: "page",
-            headerProps: {
-              title: traceName,
-              itemType: "TRACE",
-            },
-          }}
-        />
+        <TracePresentationProvider
+          presentation={view.presentation}
+          preferredObservationId={view.observationId}
+        >
+          <TraceDetailBody
+            trace={detail.data}
+            context="peek"
+            truncatedAtObservations={detail.truncatedAtObservations}
+            isPlaceholderData={detail.isPlaceholderData}
+            keySuffix={sampleTraceId}
+            header={{
+              variant: "page",
+              headerProps: {
+                title: traceName,
+                itemType: "TRACE",
+              },
+            }}
+          />
+        </TracePresentationProvider>
       </div>
     </div>
   );

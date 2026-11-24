@@ -13,6 +13,7 @@ import {
   type EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -30,12 +31,16 @@ import { EvaluatorVersionConflictDialog } from "../components/Evaluators/Evaluat
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
 import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
+import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TraceSampleSelectorContainer/TraceSampleSelectorContainer";
+import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
-import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
+import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { buildTraceVariableMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -49,8 +54,8 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   createEvaluatorSetupStore,
-  type EvaluatorSampleScope,
   type EvaluatorSetupStore,
+  type EvaluatorTargetObject,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
@@ -624,18 +629,21 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition, traceVariableMapping } = prepareDraftForScope(
+      const { definition, mappings } = prepareEvaluatorDraft(
         applyFallbackDecisionModel(state, fallbackDecisionModel),
       );
       if (!definition) return;
       const { name, description } = metadata;
       const offerTraceRule = (evaluator: { id: string }) => {
-        if (!traceVariableMapping) return false;
+        if (state.targetObject !== TopicsTargetObject) return false;
         setSavedTraceEvaluator({
           id: evaluator.id,
           name,
           filter: state.traceSampleFilter,
-          variableMapping: traceVariableMapping,
+          variableMapping: buildTraceVariableMapping(
+            mappings.map(({ variable }) => variable),
+            state.traceVariableFields,
+          ),
         });
         return true;
       };
@@ -771,11 +779,12 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { scope, testDefinition } = prepareDraftForScope(
+    const { definition, mappings } = prepareEvaluatorDraft(
       applyFallbackDecisionModel(state, fallbackDecisionModel),
     );
     const selectedObservation = state.selectedObservation;
-    if (!testDefinition || !selectedObservation?.traceId) return;
+    if (!definition || !selectedObservation?.traceId) return;
+    const isTraceTest = state.targetObject === TopicsTargetObject;
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -783,10 +792,17 @@ export function EvaluatorSetupPage(
     testEvaluator.mutate({
       projectId,
       evaluatorId,
-      definition: testDefinition,
-      ...(scope === "observation"
-        ? { observationId: selectedObservation.id }
-        : {}),
+      definition:
+        isTraceTest && definition.type !== "CODE"
+          ? {
+              ...definition,
+              variableMapping: buildTraceVariableMapping(
+                mappings.map(({ variable }) => variable),
+                state.traceVariableFields,
+              ),
+            }
+          : definition,
+      ...(isTraceTest ? {} : { observationId: selectedObservation.id }),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,
     });
@@ -879,9 +895,9 @@ export function EvaluatorSetupPage(
     }
   };
 
-  const changeSampleScope = (scope: EvaluatorSampleScope) => {
-    if (evaluatorSetupStore.getState().sampleScope === scope) return;
-    evaluatorSetupStore.getState().actions.setSampleScope(scope);
+  const changeSampleTarget = (targetObject: EvaluatorTargetObject) => {
+    if (evaluatorSetupStore.getState().targetObject === targetObject) return;
+    evaluatorSetupStore.getState().actions.setTargetObject(targetObject);
     setObservationParam(undefined, "replaceIn");
     resetTestState();
   };
@@ -890,9 +906,28 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
-      timeRange={absoluteTimeRange}
-      onOpenTrace={openSampleTrace}
-      onScopeChange={changeSampleScope}
+      sampleSelector={
+        <SampleObservationSelectorContainer
+          store={evaluatorSetupStore}
+          projectId={projectId}
+          timeRange={absoluteTimeRange}
+          onOpenTrace={openSampleTrace}
+        />
+      }
+      traceSampleSelector={
+        <TraceSampleSelectorContainer
+          store={evaluatorSetupStore}
+          projectId={projectId}
+          timeRange={absoluteTimeRange}
+          onOpenTrace={openSampleTrace}
+        />
+      }
+      heading={
+        <SampleScopeSwitcher
+          store={evaluatorSetupStore}
+          onTargetObjectChange={changeSampleTarget}
+        />
+      }
       testResult={testResult}
       testPending={testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
@@ -1131,8 +1166,6 @@ export function EvaluatorSetupPage(
             <TraceRuleSavedDialog
               projectId={projectId}
               evaluator={savedTraceEvaluator}
-              filter={savedTraceEvaluator.filter}
-              variableMapping={savedTraceEvaluator.variableMapping}
               onDismiss={async () => {
                 await router.push(
                   `/project/${projectId}/evals/${savedTraceEvaluator.id}`,

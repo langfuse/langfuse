@@ -1,36 +1,16 @@
-type MappingMessage = {
-  id?: string;
-  role: unknown;
-  senderName?: string;
-  parts: unknown;
-  finishReason?: unknown;
-  source?: unknown;
-};
+import type { Thread, ThreadMessage, Turn } from "./types";
 
-type StoredThread = {
-  conversationHistory?: MappingMessage[];
-  currentTurn?: { messages?: MappingMessage[] };
-};
+/** A transcript message as eval variable paths see it. */
+type EvalVariableMessage = Pick<ThreadMessage, "role" | "parts">;
 
-function messageForMapping(message: MappingMessage) {
-  return {
-    ...(message.id === undefined ? {} : { id: message.id }),
-    role: message.role,
-    ...(message.senderName === undefined
-      ? {}
-      : { senderName: message.senderName }),
-    parts: message.parts,
-    ...(message.finishReason === undefined
-      ? {}
-      : { finishReason: message.finishReason }),
-    ...(message.source === undefined ? {} : { source: message.source }),
-  };
-}
+/** Stored JSON, so a thread may lack either message list. */
+type StoredThread = Partial<Pick<Thread, "conversationHistory">> & {
+  currentTurn?: Partial<Pick<Turn, "messages">>;
+};
 
 /**
- * Stored transcript threads -> the shape eval variable paths resolve against:
- * one `messages` list per thread, history first, no provenance. Reads stored
- * JSON, so anything that is not a thread list passes through unchanged.
+ * Stored threads as eval variable paths read them: one history-first `messages`
+ * list per thread with only `role` and `parts`; anything else passes through.
  */
 export function toEvalVariables(threads: unknown) {
   if (!Array.isArray(threads)) return threads;
@@ -38,6 +18,6 @@ export function toEvalVariables(threads: unknown) {
     messages: [
       ...(thread.conversationHistory ?? []),
       ...(thread.currentTurn?.messages ?? []),
-    ].map(messageForMapping),
+    ].map(({ role, parts }): EvalVariableMessage => ({ role, parts })),
   }));
 }

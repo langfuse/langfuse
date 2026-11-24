@@ -32,6 +32,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useViewPreferences } from "./ViewPreferencesProvider";
+import { useTracePresentation } from "./TracePresentationProvider";
 import { type MobileTraceTab } from "../components/TraceLayoutMobile";
 import {
   isPrettyLikeJsonView,
@@ -92,8 +93,6 @@ interface SelectionProviderProps {
   defaultObservationId: string | null;
   isMobile: boolean;
   expandDetailOnMount: boolean;
-  /** The caller owns the URL selection; tree, timeline and graph clicks do not change it. */
-  selectionLocked?: boolean;
 }
 
 export function SelectionProvider({
@@ -101,8 +100,9 @@ export function SelectionProvider({
   defaultObservationId,
   isMobile,
   expandDetailOnMount,
-  selectionLocked = false,
 }: SelectionProviderProps) {
+  // An observation sample keeps its URL selection; tree, timeline and graph clicks do not change it.
+  const selectionLocked = useTracePresentation().presentation === "observation";
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,

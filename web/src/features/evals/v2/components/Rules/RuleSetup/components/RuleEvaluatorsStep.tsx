@@ -46,11 +46,7 @@ export function RuleEvaluatorsStep({
     (state) => state.targetObject === TopicsTargetObject,
   );
   const sourceColumns = useEvalVariableSourceColumns();
-  const traceSample = useEvaluatorTraceSample({
-    projectId,
-    store,
-    enabled: isTraceTranscript,
-  });
+  const traceSample = useEvaluatorTraceSample({ projectId, store });
   const selectedObservationDetails = api.events.experimentBatchIO.useQuery(
     {
       projectId,
@@ -76,12 +72,29 @@ export function RuleEvaluatorsStep({
       select: (data) => data[0],
     },
   );
-  const sampleObject = isTraceTranscript
-    ? traceSample.sourceObject
-    : buildSelectedSampleObject({
-        observation: selectedObservation,
-        eventDetails: selectedObservationDetails.data,
-      });
+  const target = isTraceTranscript
+    ? {
+        noun: "traces",
+        sourceColumns: TRACE_TRANSCRIPT_SOURCE_COLUMNS,
+        evaluatorOptions: evaluatorOptions.filter(({ type }) =>
+          isTraceTranscriptEvalType(type),
+        ),
+        sampleObject: traceSample.sourceObject,
+        sourceUnavailableMessage:
+          "No sample trace is available to validate JSON paths.",
+        emptyDescription: "Attach an evaluator to run on matching traces.",
+      }
+    : {
+        noun: "observations",
+        sourceColumns,
+        evaluatorOptions,
+        sampleObject: buildSelectedSampleObject({
+          observation: selectedObservation,
+          eventDetails: selectedObservationDetails.data,
+        }),
+        sourceUnavailableMessage: undefined,
+        emptyDescription: undefined,
+      };
   const assignments = useStore(store, (state) => state.assignments);
   const costEstimate = useRuleCostEstimate({ projectId, store });
   const availableEstimates = costEstimate.estimates.filter(
@@ -126,39 +139,17 @@ export function RuleEvaluatorsStep({
     <Stepper
       number={2}
       title="Attach evaluators"
-      description={
-        isTraceTranscript
-          ? "Choose which evaluators should run on matching traces."
-          : "Choose which evaluators should run on matching observations."
-      }
+      description={`Choose which evaluators should run on matching ${target.noun}.`}
     >
-      <EvalVariableSourceColumnsProvider
-        value={
-          isTraceTranscript ? TRACE_TRANSCRIPT_SOURCE_COLUMNS : sourceColumns
-        }
-      >
+      <EvalVariableSourceColumnsProvider value={target.sourceColumns}>
         <EvaluatorAssignmentsEditor
-          evaluatorOptions={
-            isTraceTranscript
-              ? evaluatorOptions.filter(({ type }) =>
-                  isTraceTranscriptEvalType(type),
-                )
-              : evaluatorOptions
-          }
+          evaluatorOptions={target.evaluatorOptions}
           store={store}
           search={search}
           onSearchChange={onSearchChange}
-          sampleObject={sampleObject}
-          sourceUnavailableMessage={
-            isTraceTranscript
-              ? "No sample trace is available to validate JSON paths."
-              : undefined
-          }
-          emptyDescription={
-            isTraceTranscript
-              ? "Attach an evaluator to run on matching traces."
-              : undefined
-          }
+          sampleObject={target.sampleObject}
+          sourceUnavailableMessage={target.sourceUnavailableMessage}
+          emptyDescription={target.emptyDescription}
           costEstimates={costEstimate.estimates}
           estimatingEvaluatorIds={costEstimate.estimatingEvaluatorIds}
           footerTrailing={total}

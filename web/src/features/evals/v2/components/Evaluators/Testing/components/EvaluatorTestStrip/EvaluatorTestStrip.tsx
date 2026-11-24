@@ -6,7 +6,10 @@ import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Tes
 import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  selectHasValidModel,
+  type EvaluatorSetupStore,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useStore } from "zustand";
 
 function readVariables(result: unknown) {
@@ -61,19 +64,18 @@ function reasoningText(state: TestResultPanelState) {
 export function EvaluatorTestStrip({
   projectId,
   store,
-  hasValidModel,
   testResult,
   testPending,
   onRunTest,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
-  hasValidModel: boolean;
   testResult: unknown;
   testPending: boolean;
   onRunTest: () => void;
 }) {
   const type = useStore(store, (state) => state.type);
+  const hasValidModel = useStore(store, selectHasValidModel);
   const disabledReason = useEvaluatorTestAvailability({
     projectId,
     store,

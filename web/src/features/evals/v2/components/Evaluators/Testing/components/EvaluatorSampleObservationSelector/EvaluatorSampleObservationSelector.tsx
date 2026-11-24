@@ -1,12 +1,13 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useId, useMemo } from "react";
 import { Star } from "@langfuse/icons";
-import type { FilterState } from "@langfuse/shared";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 
 import { Radio } from "@/src/components/design-system/Radio/Radio";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   SampleObservationSelectorBase,
   type SampleObservation,
@@ -38,7 +39,6 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange,
   onSelect,
   onOpenTrace,
-  samplePresentation = "table",
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -47,8 +47,8 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
-  samplePresentation?: "table" | "detail";
 }) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -113,8 +113,8 @@ export function EvaluatorSampleObservationSelector({
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={preserveObservedOptions}
-      samplePresentation={samplePresentation}
-      sampleScope="observation"
+      samplePresentation={traceEvalsAvailable ? "detail" : "table"}
+      targetObject={EvalTargetObject.EVENT}
     />
   );
 }
