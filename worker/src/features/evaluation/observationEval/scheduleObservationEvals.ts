@@ -30,8 +30,14 @@ import {
 import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
-interface ScheduleObservationEvalsParams {
-  observation: ObservationForEval;
+export interface ScheduleObservationEvalsParams {
+  /** The fields that rule matching and job creation read. */
+  observation: ObservationEvalFilterFields;
+  /**
+   * The full observation. Called once, for the snapshot upload, and only when
+   * a rule selects the observation.
+   */
+  loadSnapshot: () => ObservationForEval;
   configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
@@ -93,7 +99,8 @@ export function isObservationAllowedForQueuedObservationEvals(
  *
  * The observation is uploaded to S3 once (not per config) for efficiency.
  *
- * @param params.observation - The ObservationForEval (converted from processToEvent() or ClickHouse)
+ * @param params.observation - The fields of the observation that rule matching reads
+ * @param params.loadSnapshot - Returns the full observation for the S3 upload
  * @param params.configs - Pre-fetched observation eval configs for this project
  * @param params.schedulerDeps - Dependencies for scheduling (S3, job execution, queue)
  */
@@ -102,6 +109,7 @@ export async function scheduleObservationEvals(
 ): Promise<void> {
   const {
     observation,
+    loadSnapshot,
     configs,
     schedulerDeps,
     executionMode,
@@ -176,7 +184,7 @@ export async function scheduleObservationEvals(
     projectId: observation.project_id,
     traceId: observation.trace_id,
     observationId: observation.span_id,
-    data: observation,
+    data: loadSnapshot(),
   });
 
   const assignmentAttempts = matchingConfigs.flatMap(

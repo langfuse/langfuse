@@ -9,8 +9,8 @@ import { createObservationEvalSchedulerDeps } from "./observationEval/createSche
 import {
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
+  type ScheduleObservationEvalsParams,
 } from "./observationEval/scheduleObservationEvals";
-import type { ObservationForEval } from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
 import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { prepareTraceDispatchRules } from "../traceDispatch/traceDispatchRules";
@@ -88,8 +88,14 @@ export async function scheduleEvals({
   schedulerDeps,
   buildFailureContext,
 }: {
-  /** Convert the payload only when an evaluation rule needs it. */
-  parseObservation: () => ObservationForEval;
+  /**
+   * Called only when an evaluation rule needs the observation. Returns the
+   * fields that rule matching reads and a loader for the full observation.
+   */
+  parseObservation: () => Pick<
+    ScheduleObservationEvalsParams,
+    "observation" | "loadSnapshot"
+  >;
   environment: string;
   /** Present only for sampled direct event writes. */
   traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
@@ -109,7 +115,7 @@ export async function scheduleEvals({
   }
 
   try {
-    const observation = parseObservation();
+    const { observation, loadSnapshot } = parseObservation();
     if (traceActivity && rules.traceTranscriptRules.length > 0) {
       matchedRuleIds = await matchTranscriptRules(
         { observation, traceActivity, schedulerDeps },
@@ -119,6 +125,7 @@ export async function scheduleEvals({
     if (isObservationAllowedForQueuedObservationEvals(observation)) {
       await scheduleObservationEvals({
         observation,
+        loadSnapshot,
         configs: rules.observationRules,
         schedulerDeps,
       });

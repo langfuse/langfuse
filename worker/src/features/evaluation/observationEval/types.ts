@@ -11,6 +11,7 @@ import { type EvalExecutionMode } from "@langfuse/shared";
 import type {
   EvalTargetObject,
   FilterState,
+  ObservationForEval,
   ObservationVariableMapping,
   TopicsTargetObject,
 } from "@langfuse/shared";
@@ -113,7 +114,7 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     traceId: string;
     observationId: string;
-    data: Record<string, unknown>;
+    data: ObservationForEval;
   }) => Promise<string>;
 
   /** Enqueue the eval job for execution */
