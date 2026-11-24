@@ -9,9 +9,14 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import { eventsObservationsView, getViewDeclaration } from "../dataModel";
+import {
+  billableUnitsView,
+  eventsObservationsView,
+  getViewDeclaration,
+} from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
+import { buildBillableUnits } from "./billableUnitsQuery";
 import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
 import { buildEventsObservations } from "./eventsObservationsQuery";
 import { buildSqlText } from "./sqlTextQuery";
@@ -41,10 +46,11 @@ export class QueryBuilder {
   }
 
   /**
-   * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
-   * observations view ({@link buildEventsObservations}) and the v2 score
-   * views ({@link buildScores}) compile through the query AST; every other
-   * view and version is assembled as SQL text ({@link buildSqlText}).
+   * The ClickHouse SQL and parameters of `query` for `projectId`. The
+   * billable-units view ({@link buildBillableUnits}), the v2 observations
+   * view ({@link buildEventsObservations}) and the v2 score views
+   * ({@link buildScores}) compile through the query AST; every other view
+   * and version is assembled as SQL text ({@link buildSqlText}).
    *
    * Errors: `InvalidRequestError` for a query the schema or the view rejects.
    */
@@ -60,6 +66,14 @@ export class QueryBuilder {
       );
     }
     const view = this.getViewDeclaration(query.view);
+    if (view === billableUnitsView) {
+      return buildBillableUnits(
+        query,
+        projectId,
+        this.version,
+        this.chartConfig,
+      );
+    }
     if (view === eventsObservationsView) {
       return buildEventsObservations(
         query,
