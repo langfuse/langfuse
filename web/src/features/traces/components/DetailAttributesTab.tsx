@@ -18,7 +18,7 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
-import { useIsEmbeddedTrace } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 
 export function DetailAttributesTab({
   observation,
@@ -52,7 +52,7 @@ export function DetailAttributesTab({
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const collapseIo = useIsEmbeddedTrace();
+  const { isEmbedded } = useTracePresentation();
   const hasAttributes =
     observation && Object.keys(observation.attributes).length > 0;
   const hasMetadata =
@@ -80,7 +80,7 @@ export function DetailAttributesTab({
               <IOSection
                 title="Metadata"
                 onCopy={state.copy}
-                defaultCollapsed={collapseIo}
+                defaultCollapsed={isEmbedded}
                 actions={
                   state.contentKind === "table" && state.hasExpandableRows
                     ? [
@@ -127,7 +127,7 @@ export function DetailAttributesTab({
               <IOSection
                 title="Model parameters"
                 onCopy={state.copy}
-                defaultCollapsed={collapseIo}
+                defaultCollapsed={isEmbedded}
                 actions={
                   state.contentKind === "table" && state.hasExpandableRows
                     ? [
@@ -157,7 +157,7 @@ export function DetailAttributesTab({
         {hasMetadata ? (
           <div>
             {metadataTooLarge ? (
-              <IOSection title="Custom Metadata" defaultCollapsed={collapseIo}>
+              <IOSection title="Custom Metadata" defaultCollapsed={isEmbedded}>
                 <LargeJsonFieldFallback
                   title="Custom Metadata"
                   hideTitle
@@ -192,7 +192,7 @@ export function DetailAttributesTab({
                   <IOSection
                     title="Custom Metadata"
                     onCopy={state.copy}
-                    defaultCollapsed={collapseIo}
+                    defaultCollapsed={isEmbedded}
                     actions={
                       state.contentKind === "table" && state.hasExpandableRows
                         ? [

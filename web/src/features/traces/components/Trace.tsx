@@ -507,7 +507,7 @@ function TraceContent({
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, scope, projectId, trace } = useTraceData();
-  const presentation = useTracePresentation();
+  const { presentation } = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
     presentation === "messages" ? "messages" : "trace",

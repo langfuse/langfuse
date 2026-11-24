@@ -25,7 +25,7 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { useIsEmbeddedTrace } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
@@ -84,7 +84,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
-    const hideMetrics = useIsEmbeddedTrace();
+    const { isEmbedded } = useTracePresentation();
     const { isAnnotationMode } = useViewPreferences();
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
@@ -283,7 +283,7 @@ export const ObservationDetailViewHeader = memo(
         ? `Comments (${commentCount})`
         : "Comment";
     const headerMetrics = (openModelDialog: () => void): HeaderMetric[] => {
-      if (hideMetrics) return [];
+      if (isEmbedded) return [];
       if (
         !isAnnotationMode &&
         observation.model &&
