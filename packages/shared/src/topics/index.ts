@@ -99,7 +99,6 @@ export const topicsModelSettingsSchema = z.object({
 });
 export type TopicsModelSettings = z.infer<typeof topicsModelSettingsSchema>;
 export const topicProcessingConfigSchema = z.object({
-  maxInputTokens: z.number().int().min(256).max(120_000).default(120_000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
@@ -308,7 +307,20 @@ export type TopicFacetOutcome =
 export type TopicSummaryState =
   | "complete"
   | "not_applicable"
-  | "insufficient_input";
+  | "insufficient_input"
+  /** Written without a model call: the transcript has nothing for the model. */
+  | "empty_input"
+  /** Written without a model call: the rendered text exceeds the Topics input limit (`LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS`). */
+  | "input_too_large";
+
+/** Results and counts report summaries written without a model call as `insufficient_input`. */
+export function reportedTopicSummaryState(
+  state: TopicSummaryState,
+): "complete" | "not_applicable" | "insufficient_input" {
+  return state === "empty_input" || state === "input_too_large"
+    ? "insufficient_input"
+    : state;
+}
 
 export interface TopicFacetVersion {
   projectId: string;
@@ -387,6 +399,8 @@ export interface TopicDefinition {
   projectId: string;
   topicId: string;
   createdByRunId: string;
+  /** Naming costs for this version. Absent or empty when no price was available. */
+  costDetails?: Record<string, number>;
   createdAt: string;
   labels: string[];
   name: string;
@@ -470,3 +484,5 @@ export interface TopicExecution {
 export type TopicExecutionSummary = Omit<TopicExecution, "input"> & {
   input: TopicManualRunInput | TopicExecutionInput;
 };
+
+export * from "./cost-estimate";

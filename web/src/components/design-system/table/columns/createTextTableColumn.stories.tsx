@@ -13,6 +13,7 @@ type Row = {
   name: string | null;
   count: number | null;
   isCountLoading?: boolean;
+  isSuperseded?: boolean;
 };
 
 const columns = [
@@ -29,6 +30,15 @@ const columns = [
     tooltip: ({ row }) =>
       row.original.name
         ? `Created: today\nCount: ${row.original.count ?? "—"}`
+        : undefined,
+  }),
+  createTextTableColumn<Row>({
+    id: "name-with-status",
+    accessorFn: (row) => row.name,
+    header: "Text with status",
+    status: ({ row }) =>
+      row.original.isSuperseded
+        ? { label: "Superseded", description: "A newer row replaces this one." }
         : undefined,
   }),
   createTextTableColumn<Row, number>({
@@ -63,7 +73,10 @@ export const Default = meta.story({
   args: {
     data: {
       status: "success",
-      data: [{ name: "Production generation", count: 1200 }],
+      data: [
+        { name: "Production generation", count: 1200 },
+        { name: "Staging generation", count: 40, isSuperseded: true },
+      ],
     },
   },
 });

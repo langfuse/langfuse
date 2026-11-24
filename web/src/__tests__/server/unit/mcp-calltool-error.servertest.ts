@@ -7,10 +7,16 @@ import {
   ProtocolErrorCode,
 } from "@modelcontextprotocol/client";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  getProductBaseUrl,
+} from "@langfuse/shared/src/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
+import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
+import { appToolResult } from "@/src/features/mcp/core/mcp-app";
+import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resources";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
@@ -105,6 +111,78 @@ describe("MCP tool results", () => {
       }
     },
   );
+});
+
+describe("MCP Apps", () => {
+  it("announces the UI resource, serves it, and passes result _meta through", async () => {
+    const schema = z.object({});
+    const [definition, handler] = defineTool({
+      name: "app-tool",
+      description: "test",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      ui: { resourceUri: WIDGET_APP_RESOURCE_URI },
+      handler: async () =>
+        appToolResult({ text: "summary", meta: { widget: { name: "Cost" } } }),
+    });
+    vi.mocked(toolRegistry.getEnabledTool).mockImplementation(async (name) =>
+      name === definition.name ? { definition, handler } : undefined,
+    );
+    expect(definition._meta?.ui.resourceUri).toBe(WIDGET_APP_RESOURCE_URI);
+    const server = createMcpServer(context);
+    const client = new Client({ name: "app-test", version: "1.0.0" });
+    const [serverTransport, clientTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const result = await client.callTool({
+        name: definition.name,
+        arguments: {},
+      });
+      expect(result.content).toEqual([{ type: "text", text: "summary" }]);
+      expect(result._meta).toEqual({ widget: { name: "Cost" } });
+      // The resource is the widget page's HTML, fetched from the app itself.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              '<!doctype html><html><head><script src="/_next/static/chunks/app.js"></script></head></html>',
+            ),
+        ),
+      );
+      const read = await client.request(
+        { method: "resources/read", params: { uri: WIDGET_APP_RESOURCE_URI } },
+        z.object({
+          contents: z.array(
+            z.object({
+              mimeType: z.string(),
+              text: z.string(),
+              _meta: z.object({
+                ui: z.object({
+                  csp: z.object({ resourceDomains: z.array(z.string()) }),
+                }),
+              }),
+            }),
+          ),
+        }),
+      );
+      // The page's root-relative assets must load from Langfuse, not from
+      // the host's sandbox origin.
+      const origin = getProductBaseUrl().origin;
+      expect(read.contents[0]?.mimeType).toBe(RESOURCE_MIME_TYPE);
+      expect(read.contents[0]?.text).toContain(
+        `<script src="${origin}/_next/static/chunks/app.js">`,
+      );
+      expect(read.contents[0]?._meta.ui.csp.resourceDomains).toEqual([origin]);
+    } finally {
+      vi.unstubAllGlobals();
+      await client.close();
+      await server.close();
+    }
+  });
 });
 
 describe("MCP skill resources", () => {

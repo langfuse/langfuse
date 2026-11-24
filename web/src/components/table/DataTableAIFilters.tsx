@@ -1,3 +1,4 @@
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -110,11 +111,7 @@ export function DataTableAIFilters({
       >
         {createFilterMutation.isPending ? "Loading..." : "Generate"}
       </Button>
-      {aiError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-          {aiError}
-        </div>
-      )}
+      {aiError && <Banner variant="error">{aiError}</Banner>}
     </div>
   );
 }

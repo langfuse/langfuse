@@ -1,7 +1,8 @@
 use super::*;
 use crate::capture::{
     ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RelayOutcome, sse::SseDecoder,
+    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RawRequest, RelayOutcome, RequestInput,
+    sse::SseDecoder,
 };
 use crate::config::ExecutionLimits;
 use crate::resolution::ApiFormat;
@@ -35,7 +36,7 @@ fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
+    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), RequestInput::from_body(br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#))
 }
 
 fn record_response(observer: &mut ExecutionCapture, content_type: &'static str) {
@@ -234,8 +235,10 @@ async fn request_configuration_is_projected_out_of_input() {
         "metadata": {"purpose": "test"}, "prompt_cache_key": "cache-key"
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        request.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     )
     .into_facts();
@@ -268,8 +271,10 @@ async fn configuration_beyond_the_parse_budget_stays_in_input() {
         "text": half, "metadata": half, "temperature": 0.5,
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        request.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     )
     .into_facts();
@@ -298,8 +303,13 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         }
     });
     for mode in [IngestionMode::Full, IngestionMode::Usage] {
-        let capture =
-            OpenAiResponsesCapture::new(&HeaderMap::new(), codex.to_string().as_bytes(), mode);
+        let capture = OpenAiResponsesCapture::new(
+            RawRequest::from_input(
+                &HeaderMap::new(),
+                RequestInput::from_body(codex.to_string().as_bytes()),
+            ),
+            mode,
+        );
         assert_eq!(
             capture.client_metadata().unwrap()["x-codex-installation-id"],
             "install-1"
@@ -320,8 +330,10 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         "client_metadata": {"team": "search"}
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        unknown.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(unknown.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     );
     assert!(capture.client_metadata().is_none());
@@ -375,7 +387,7 @@ async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            br#"{"stream":true,"input":"hello"}"#,
+            RequestInput::from_body(br#"{"stream":true,"input":"hello"}"#),
         );
         record_response(&mut observer, "application/json; charset=utf-8");
         observer.push_bytes(br#"{"output":[],"status":"completed"}"#);
@@ -838,6 +850,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key")
                 .unwrap(),
             telemetry::DEFAULT_RETAINED_BYTES,
+            Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -911,6 +924,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     let telemetry = telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -983,7 +997,7 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            request.as_bytes(),
+            RequestInput::from_body(request.as_bytes()),
         );
         record_response(
             &mut observer,
@@ -1026,7 +1040,7 @@ async fn request_at_input_limit_is_captured_in_full() {
         ApiFormat::OpenAiResponses,
         &context,
         &HeaderMap::new(),
-        request.as_bytes(),
+        RequestInput::from_body(request.as_bytes()),
     );
     let facts = &captured(&observer).facts;
     assert!(facts.input_complete);
@@ -1052,7 +1066,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                     ApiFormat::OpenAiResponses,
                     &context,
                     &HeaderMap::new(),
-                    request.to_string().as_bytes(),
+                    RequestInput::from_body(request.to_string().as_bytes()),
                 );
                 record_response(
                     &mut execution,

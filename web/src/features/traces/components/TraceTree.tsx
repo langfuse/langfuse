@@ -67,21 +67,26 @@ function LoadedTraceTree() {
     roots,
     comments,
     metricEmphasis,
-    sessionTraces,
+    scope: traceScope,
     nodeMap,
     trace,
     isNavigationReady,
   } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed, collapseAll } =
-    useSelection();
+  const {
+    selectedNodeId,
+    selectionLocked,
+    collapsedNodes,
+    toggleCollapsed,
+    collapseAll,
+  } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
-  const scope = sessionTraces ? "session" : "trace";
+  const scope = traceScope.type;
   const previousScope = useRef(scope);
   const selectedTreeNodeId = resolveTreeNodeId(
     nodeMap,
     selectedNodeId,
-    trace.id,
+    trace?.id ?? "",
   );
 
   useLayoutEffect(() => {
@@ -116,6 +121,7 @@ function LoadedTraceTree() {
         return (
           <TraceTreeRow
             {...row}
+            onSelect={selectionLocked ? undefined : row.onSelect}
             node={typedNode}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
@@ -144,7 +150,7 @@ function TraceTreeRow({
   isSelected: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  onSelect: () => void;
+  onSelect: (() => void) | undefined;
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;

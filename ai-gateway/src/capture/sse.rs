@@ -46,8 +46,10 @@ impl SseDecoder {
 
     fn end_line(&mut self, event: &mut impl FnMut(&[u8])) {
         if !self.line_nonempty {
-            if matches!(self.state, EventState::Collecting) && !self.data.is_empty() {
-                event(&self.data[..self.data.len() - 1]);
+            if matches!(self.state, EventState::Collecting)
+                && let Some((_, payload)) = self.data.split_last()
+            {
+                event(payload);
             }
             self.data.clear();
             self.state = EventState::Collecting;

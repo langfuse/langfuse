@@ -79,7 +79,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
   isTopicsProcessingActive: vi.fn(async (projectId: string) =>
     topicsProjects.has(projectId),
   ),
@@ -1880,20 +1879,13 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(offset).toBeLessThan(610_000);
   });
 
-  it("does not dispatch or sample metrics on self-hosted deployments even with trace dispatch enabled", async () => {
+  it("dispatches on self-hosted deployments with events dispatch enabled", async () => {
     await recordActivity("project", [matched("trace")]);
     await makeDue("project", "trace");
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    const evaluate = vi.spyOn(client(), "eval");
-    const evaluateCached = vi.spyOn(client(), "evalsha");
-    const lock = vi.spyOn(client(), "set");
     await runner()["execute"]();
-    await new TraceDispatchMetricsRunner()["execute"]();
-    expect(evaluate).not.toHaveBeenCalled();
-    expect(evaluateCached).not.toHaveBeenCalled();
-    expect(lock).not.toHaveBeenCalled();
-    expect(await client().hlen(recordingKeys.pending)).toBe(1);
-    expect(await queue.count()).toBe(0);
+    expect(await client().hlen(recordingKeys.pending)).toBe(0);
+    expect(await queue.count()).toBe(1);
   });
 
   it("admits a stable trace-ID sample at the Topics rule's rate", async () => {
@@ -1920,11 +1912,11 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    // An unreadable gate falls back to the Topics allowlist.
+    // An unreadable gate admits nothing.
     vi.mocked(getTopicsProcessingSampling).mockRejectedValueOnce(
       new Error("postgres down"),
     );
-    expect(await resolveTraceDispatchSamplingRate("project")).toBe(1);
+    expect(await resolveTraceDispatchSamplingRate("project")).toBe(0);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_dispatch.topics_gate_failures",
       1,

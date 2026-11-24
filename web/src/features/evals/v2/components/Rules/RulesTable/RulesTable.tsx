@@ -24,7 +24,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -88,12 +88,14 @@ function RuleEvaluatorsCell({
   }
 
   return (
-    <SingleLineOverflowList
+    <OverflowList
       items={assignments}
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
-      renderItem={(assignment) => (
-        <Badge color="filled" text={assignment.evaluator.name} />
+      renderItem={(assignment, { getItemProps }) => (
+        <span {...getItemProps()}>
+          <Badge color="filled" text={assignment.evaluator.name} />
+        </span>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip
@@ -288,6 +290,7 @@ function RulesTableContent({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
+              targetObject={row.original.targetObject}
               onUpgrade={
                 upgradeRequired
                   ? () => {

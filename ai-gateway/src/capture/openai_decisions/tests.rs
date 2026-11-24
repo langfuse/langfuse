@@ -1,4 +1,4 @@
-use crate::capture::ExecutionCapture;
+use crate::capture::{ExecutionCapture, RequestInput};
 use crate::resolution::ApiFormat;
 use crate::test_support::resolved_request_context_with_mode;
 use axum::http::{HeaderMap, HeaderValue, header};
@@ -11,7 +11,7 @@ async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
         ApiFormat::OpenAiDecisions,
         &context,
         &HeaderMap::new(),
-        br#"{"model":"typesafe-ai/jev","input":"I was charged twice.","questions":[{"type":"choice","name":"department","choices":["billing","other"]}]}"#,
+        RequestInput::from_body(br#"{"model":"typesafe-ai/jev","input":"I was charged twice.","questions":[{"type":"choice","name":"department","choices":["billing","other"]}]}"#),
     );
     let mut headers = HeaderMap::new();
     headers.insert(

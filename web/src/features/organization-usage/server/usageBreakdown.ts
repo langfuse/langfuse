@@ -121,9 +121,7 @@ const getBucketStarts = (
 /**
  * Billable units per bucket, project and unit type from the legacy traces,
  * observations and scores tables, the only ones a `legacy` deployment writes:
- * rows counted by `created_at` in a half-open window, no FINAL. Scores include
- * the listable data types, plus CORRECTION rows created at or after the
- * billing cutoff.
+ * rows counted by `created_at` in a half-open window, no FINAL.
  */
 const getLegacyBillableUnitsByBucket = async ({
   projectIds,

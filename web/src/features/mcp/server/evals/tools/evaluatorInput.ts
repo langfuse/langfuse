@@ -6,7 +6,10 @@ import {
   DecisionModelQuestionsSchema,
   DecisionModelStateKeySchema,
   EvalOutputDataTypeSchema,
+  EvalTargetObject,
   EvalTemplateType,
+  evalVariableMappingListSchema,
+  getEvalVariableColumnIds,
   observationVariableMapping,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -34,8 +37,17 @@ export const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
 });
 
 const McpObservationVariableMappingSchema = observationVariableMapping.extend({
+  selectedColumnId: observationVariableMapping.shape.selectedColumnId.describe(
+    `Column the variable reads from. One of: ${getEvalVariableColumnIds(EvalTargetObject.EVENT).join(", ")}.`,
+  ),
   jsonSelector: z.string().optional(),
 });
+
+// Evaluator definitions also accept the transcript column `threads`;
+// MCP accepts observation columns only.
+const McpVariableMappingColumnsSchema = evalVariableMappingListSchema(
+  EvalTargetObject.EVENT,
+);
 
 const McpDecisionModelQuestionBaseSchema = z.object({
   id: DecisionModelChoiceQuestionSchema.shape.id.describe(
@@ -296,6 +308,19 @@ function validateEvaluatorInput(
       message:
         "Code evaluator mappings are managed by Langfuse and cannot be provided.",
     });
+  }
+
+  if (input.type !== EvalTemplateType.CODE && input.variableMapping) {
+    const columns = McpVariableMappingColumnsSchema.safeParse(
+      input.variableMapping,
+    );
+    for (const issue of columns.error?.issues ?? []) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["variableMapping", ...issue.path],
+        message: issue.message,
+      });
+    }
   }
 
   const parsed = CreateEvaluatorWithoutProjectSchema.safeParse(

@@ -1,5 +1,3 @@
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
-
 import { type McpFeatureModule } from "@/src/features/mcp/server/registry";
 
 import {
@@ -29,5 +27,4 @@ export const topicsFeature = {
       handler: handleListTopicAssignments,
     },
   ],
-  isEnabled: (context) => isTopicsProjectEnabled(context.projectId),
 } as const satisfies McpFeatureModule;

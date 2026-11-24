@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { describe, it, expect } from "vitest";
 
 import {
+  buildEvalScoreBucketPrefix,
   buildEventBucketPrefix,
   parseEventKey,
   safeBlobFilenameStem,
@@ -198,6 +199,8 @@ describe("buildEventBucketPrefix", () => {
 });
 
 describe("parseEventKey", () => {
+  const envPrefix = process.env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX ?? "";
+
   it("parses a standard event key into structured pieces", () => {
     const parsed = parseEventKey("proj-1/observation/obs-123/abc-def.json");
     expect(parsed).toEqual({
@@ -206,6 +209,7 @@ describe("parseEventKey", () => {
       entityType: "observation",
       eventBodyId: "obs-123",
       eventId: "abc-def",
+      bucketPrefix: `${envPrefix}proj-1/observation/obs-123/`,
     });
   });
 
@@ -217,6 +221,7 @@ describe("parseEventKey", () => {
       entityType: "score",
       eventBodyId: "a/b/c",
       eventId: "event-x",
+      bucketPrefix: `${envPrefix}proj-1/score/a/b/c/`,
     });
   });
 
@@ -269,7 +274,27 @@ describe("buildEventBucketPrefix / parseEventKey round-trip", () => {
         entityType,
         eventBodyId: safeBlobKeySegment(entityId),
         eventId,
+        bucketPrefix: prefix,
       });
     });
   }
+
+  it("round-trips an eval score key to its project and hashed prefix", () => {
+    const scoreId = "score-rt";
+    const prefix = buildEvalScoreBucketPrefix({ projectId, scoreId });
+    expect(prefix).toMatch(
+      new RegExp(
+        `^${envPrefix}evals/score/[0-9a-f]{3}/${projectId}/${scoreId}/$`,
+      ),
+    );
+    const relativeKey = `${prefix}${eventId}.json`.slice(envPrefix.length);
+    expect(parseEventKey(relativeKey)).toEqual({
+      kind: "standard",
+      projectId,
+      entityType,
+      eventBodyId: scoreId,
+      eventId,
+      bucketPrefix: prefix,
+    });
+  });
 });

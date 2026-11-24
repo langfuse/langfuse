@@ -1,22 +1,16 @@
-import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
+import { queryClickhouse } from "@langfuse/shared/src/server";
 import {
-  isPrismaRecordNotFoundError,
-  clearModelCacheForProject,
-  queryClickhouse,
-  findModel,
-  hasPricingTierUsageDetails,
-  matchPricingTier,
-  escapeSqlLikePattern,
-  modelScopeRankSql,
-  visibleModelsSql,
-} from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
+  deleteModelDefinition,
+  getModelDefinition,
+  listModelDefinitions,
+  testModelDefinitionMatch,
+  upsertModelDefinition,
+} from "@/src/features/models/server/modelDefinitionService";
 import {
-  GetModelResultSchema,
   ModelLastUsedQueryResult,
+  TestModelMatchInputSchema,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -24,183 +18,34 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  LangfuseNotFoundError,
-  ModelUsageUnit,
-  paginationZod,
-  Prisma,
-} from "@langfuse/shared";
-
-import { TRPCError } from "@trpc/server";
-
-const ModelAllOptions = z.object({
-  projectId: z.string(),
-  searchString: z.string(),
-  ...paginationZod,
-});
-
-const paginateArray = <T>(params: {
-  limit: number;
-  page: number;
-  data: Array<T>;
-}): Array<T> => {
-  const { data, limit, page } = params;
-  const startIndex = limit * page;
-  const endIndex = startIndex + limit;
-
-  return data.slice(startIndex, endIndex);
-};
+import { paginationZod } from "@langfuse/shared";
 
 export const modelRouter = createTRPCRouter({
   getById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), modelId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const modelQueryResult = await ctx.prisma.$queryRaw`
-          SELECT
-            m.id,
-            m.scope as "scope",
-            m.project_id as "projectId",
-            m.model_name as "modelName",
-            m.match_pattern as "matchPattern",
-            m.tokenizer_config as "tokenizerConfig",
-            m.tokenizer_id as "tokenizerId",
-            COALESCE(
-              (
-                SELECT
-                  JSON_AGG(
-                    JSON_BUILD_OBJECT(
-                      'id', mpt.id,
-                      'name', mpt.name,
-                      'isDefault', mpt.is_default,
-                      'priority', mpt.priority,
-                      'conditions', mpt.conditions,
-                      'prices', COALESCE(
-                        (
-                          SELECT
-                            JSONB_OBJECT_AGG(p.usage_type, p.price)
-                          FROM
-                            prices p
-                          WHERE
-                            p.pricing_tier_id = mpt.id
-                        ),
-                        '{}'::jsonb
-                      )
-                    )
-                    ORDER BY mpt.priority ASC
-                  )
-                FROM
-                  pricing_tiers mpt
-                WHERE
-                  mpt.model_id = m.id
-              ),
-              '[]'::json
-            ) AS "pricingTiers"
-          FROM
-            models m
-          WHERE
-            m.id = ${input.modelId}
-            AND ${visibleModelsSql(input.projectId, "m")};
-      `;
-
-      const model = z.array(GetModelResultSchema).parse(modelQueryResult)[0];
-
-      if (!model) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Model not found",
-        });
-      }
-
-      return model;
-    }),
+    .query(({ input }) =>
+      getModelDefinition({
+        owner: { type: "project", projectId: input.projectId },
+        modelId: input.modelId,
+      }),
+    ),
 
   getAll: protectedProjectProcedure
-    .input(ModelAllOptions)
-    .query(async ({ input, ctx }) => {
-      const { projectId, page, limit, searchString } = input;
-
-      const searchStringTemplate = `%${escapeSqlLikePattern(searchString)}%`;
-      const searchStringCondition = searchString
-        ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
-        : Prisma.sql`AND 1=1`;
-
-      const [allModelsQueryResult, totalCountQuery] = await Promise.all([
-        // All models
-        ctx.prisma.$queryRaw`
-          SELECT DISTINCT ON (${modelScopeRankSql("m")}, m.model_name)
-            m.id,
-            m.scope as "scope",
-            m.project_id as "projectId",
-            m.model_name as "modelName",
-            m.match_pattern as "matchPattern",
-            m.tokenizer_config as "tokenizerConfig",
-            m.tokenizer_id as "tokenizerId",
-            COALESCE(
-              (
-                SELECT
-                  JSON_AGG(
-                    JSON_BUILD_OBJECT(
-                      'id', mpt.id,
-                      'name', mpt.name,
-                      'isDefault', mpt.is_default,
-                      'priority', mpt.priority,
-                      'conditions', mpt.conditions,
-                      'prices', COALESCE(
-                        (
-                          SELECT
-                            JSONB_OBJECT_AGG(p.usage_type, p.price)
-                          FROM
-                            prices p
-                          WHERE
-                            p.pricing_tier_id = mpt.id
-                        ),
-                        '{}'::jsonb
-                      )
-                    )
-                    ORDER BY mpt.priority ASC
-                  )
-                FROM
-                  pricing_tiers mpt
-                WHERE
-                  mpt.model_id = m.id
-              ),
-              '[]'::json
-            ) AS "pricingTiers"
-          FROM
-            models m
-          WHERE
-            ${visibleModelsSql(projectId, "m")}
-            ${searchStringCondition}
-          ORDER BY
-            ${modelScopeRankSql("m")},
-            m.model_name,
-            m.created_at DESC NULLS LAST,
-            m.id
-          `,
-
-        // Total count
-        ctx.prisma.$queryRaw<
-          {
-            count: number;
-          }[]
-        >`
-          SELECT COUNT(DISTINCT (scope, model_name))
-          FROM models
-          WHERE ${visibleModelsSql(projectId)}
-          ${searchStringCondition};
-        `,
-      ]);
-
-      const allModels = z
-        .array(GetModelResultSchema)
-        .parse(allModelsQueryResult);
-      const totalCount = z.coerce.number().parse(totalCountQuery[0].count);
-
-      return {
-        models: paginateArray({ data: allModels, page, limit }),
-        totalCount,
-      };
-    }),
+    .input(
+      z.object({
+        projectId: z.string(),
+        searchString: z.string(),
+        ...paginationZod,
+      }),
+    )
+    .query(({ input }) =>
+      listModelDefinitions({
+        owner: { type: "project", projectId: input.projectId },
+        searchString: input.searchString,
+        page: input.page,
+        limit: input.limit,
+      }),
+    ),
 
   lastUsedByModelIds: protectedProjectProcedure
     .input(
@@ -246,264 +91,50 @@ export const modelRouter = createTRPCRouter({
 
   upsert: protectedProjectProcedure
     .input(UpsertModelSchema)
-    .mutation(async ({ input, ctx }) => {
-      const {
-        modelId: providedModelId,
-        projectId,
-        modelName,
-        matchPattern,
-        tokenizerConfig,
-        tokenizerId,
-        pricingTiers,
-      } = input;
-
+    .mutation(({ input, ctx }) => {
+      const { projectId, ...modelInput } = input;
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
         scope: "models:CUD",
       });
 
-      // Check if regex is valid POSIX regex
-      // Use DB to check, because JS regex is not POSIX compliant
-      const isValidRegex = await isValidPostgresRegex(
-        input.matchPattern,
-        ctx.prisma,
-      );
-      if (!isValidRegex) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid regex, needs to be Postgres syntax",
-        });
-      }
-
-      const modelId = providedModelId ?? uuidv4();
-
-      const result = await ctx.prisma.$transaction(async (tx) => {
-        // Check whether model belongs to project
-        // This check is important to prevent users from updating prices for models that they do not have access to
-        const existingModel = await tx.model.findUnique({
-          where: {
-            id: modelId,
-          },
-        });
-
-        if (existingModel && existingModel.projectId !== projectId) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Model not found",
-          });
-        }
-
-        // Check if model name is unique within the project
-        // Note: The database has a uniqueness constraint on (projectId, modelName, startDate, unit),
-        // but this constraint is not enforced when startDate or unit are NULL.
-        // We do an explicit check here to ensure uniqueness on just (projectId, modelName).
-        // TODO(LFE-3229): After models table cleanup, enforce uniqueness constraint directly on (projectId, modelName)
-        const existingModelName = await tx.model.findFirst({
-          where: {
-            projectId,
-            modelName,
-          },
-        });
-
-        if (existingModelName && modelId !== existingModelName.id) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `Model name '${modelName}' already exists in project`,
-          });
-        }
-
-        const upsertedModel = await tx.model.upsert({
-          where: {
-            id: modelId,
-            projectId: projectId,
-          },
-          create: {
-            id: modelId,
-            scope: "PROJECT",
-            projectId,
-            modelName,
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-            startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-            unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
-          },
-          update: {
-            matchPattern,
-            tokenizerConfig,
-            tokenizerId,
-          },
-        });
-
-        // Delete all existing pricing tiers
-        await tx.pricingTier.deleteMany({
-          where: {
-            modelId: upsertedModel.id,
-          },
-        });
-
-        // Create new pricing tiers
-        for (const tier of pricingTiers) {
-          const createdTier = await tx.pricingTier.create({
-            data: {
-              modelId: upsertedModel.id,
-              name: tier.name,
-              isDefault: tier.isDefault,
-              priority: tier.priority,
-              conditions: tier.conditions,
-            },
-          });
-
-          // Create prices for this tier
-          await Promise.all(
-            Object.entries(tier.prices).map(([usageType, price]) =>
-              tx.price.create({
-                data: {
-                  modelId: upsertedModel.id,
-                  projectId: upsertedModel.projectId,
-                  pricingTierId: createdTier.id,
-                  usageType,
-                  price,
-                },
-              }),
-            ),
-          );
-        }
-
-        await auditLog({
-          session: ctx.session,
-          resourceType: "model",
-          resourceId: upsertedModel.id,
-          action: providedModelId ? "update" : "create",
-          after: { model: upsertedModel, pricingTiers },
-        });
-
-        return upsertedModel;
+      return upsertModelDefinition({
+        owner: { type: "project", projectId },
+        actor: { session: ctx.session },
+        input: modelInput,
       });
-
-      // Clear model cache for the project after successful upsert
-      await clearModelCacheForProject(projectId);
-
-      return result;
     }),
+
   delete: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        modelId: z.string(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
+    .input(z.object({ projectId: z.string(), modelId: z.string() }))
+    .mutation(({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "models:CUD",
       });
 
-      let deletedModel;
-      try {
-        deletedModel = await ctx.prisma.model.delete({
-          where: {
-            id: input.modelId,
-            projectId: input.projectId,
-          },
-        });
-      } catch (error) {
-        if (isPrismaRecordNotFoundError(error)) {
-          throw new LangfuseNotFoundError("Model not found");
-        }
-        throw error;
-      }
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "model",
-        resourceId: input.modelId,
-        action: "delete",
-        before: deletedModel,
+      return deleteModelDefinition({
+        owner: { type: "project", projectId: input.projectId },
+        actor: { session: ctx.session },
+        modelId: input.modelId,
       });
-
-      // Clear model cache for the project after successful deletion
-      await clearModelCacheForProject(input.projectId);
-
-      return deletedModel;
     }),
-  testMatch: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        modelName: z.string().min(1),
-        usageDetails: z.record(z.string(), z.number()).optional(),
-        modelParameters: z.record(z.string(), z.string()).optional(),
-        metadata: z.record(z.string(), z.string()).optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const { projectId, modelName, usageDetails, modelParameters, metadata } =
-        input;
 
+  testMatch: protectedProjectProcedure
+    .input(TestModelMatchInputSchema.extend({ projectId: z.string() }))
+    .query(({ input, ctx }) => {
+      const { projectId, ...matchInput } = input;
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
         scope: "models:CUD",
       });
 
-      // Step 1: Use existing findModel from shared
-      const { model, pricingTiers } = await findModel({
-        projectId,
-        model: modelName,
+      return testModelDefinitionMatch({
+        owner: { type: "project", projectId },
+        ...matchInput,
       });
-
-      if (!model) {
-        return { matched: false as const };
-      }
-
-      // Without usage details, fall back to the model's default pricing tier.
-      const defaultTier = pricingTiers.find((tier) => tier.isDefault);
-      const matchResult = (() => {
-        if (hasPricingTierUsageDetails(usageDetails)) {
-          return matchPricingTier(pricingTiers, usageDetails ?? {}, {
-            modelParameters,
-            metadata,
-          });
-        }
-        if (defaultTier) {
-          return { pricingTierId: defaultTier.id };
-        }
-        return null;
-      })();
-
-      if (!matchResult) {
-        return { matched: false as const };
-      }
-
-      // Step 3: Find the full tier details
-      const matchedTier = pricingTiers.find(
-        (t) => t.id === matchResult.pricingTierId,
-      );
-      if (!matchedTier) {
-        return { matched: false as const };
-      }
-
-      return {
-        matched: true as const,
-        model: {
-          id: model.id,
-          modelName: model.modelName,
-          matchPattern: model.matchPattern,
-          scope: model.scope,
-          projectId: model.projectId,
-        },
-        matchedTier: {
-          id: matchedTier.id,
-          name: matchedTier.name,
-          priority: matchedTier.priority,
-          isDefault: matchedTier.isDefault,
-          prices: Object.fromEntries(
-            matchedTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
-          ),
-        },
-      };
     }),
 });

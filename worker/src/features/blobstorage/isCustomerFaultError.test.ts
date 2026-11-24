@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
-import {
-  classifyCustomerFault,
-  isCustomerFaultError,
-} from "./isCustomerFaultError";
+import { classifyCustomerFault } from "./isCustomerFaultError";
 
 // Forwarding smoke test only. This module re-exports the classifier from
 // ../integrations/customerFaultClassification, which owns the exhaustive case
@@ -17,7 +14,6 @@ describe("blob storage customer-fault re-export", () => {
       "blocked-ip",
       "Blocked IP address detected",
     );
-    expect(isCustomerFaultError(err)).toBe(true);
     expect(classifyCustomerFault(err)).toBe("ssrf_blocked_endpoint");
   });
 
@@ -26,7 +22,6 @@ describe("blob storage customer-fault re-export", () => {
       "dns-lookup-failed",
       "DNS lookup failed for host.example",
     );
-    expect(isCustomerFaultError(err)).toBe(false);
     expect(classifyCustomerFault(err)).toBeUndefined();
   });
 });

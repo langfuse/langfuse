@@ -52,15 +52,14 @@ it.each([
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
+      session: createSession({
         user: {
           canToggleV4: false,
           v4BetaEnabled: false,
           v4UpgradeUiAvailable: true,
-          featureFlags: testFeatureFlags({}),
         },
         environment: { v4WriteMode: "dual" },
-      } as Session,
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
       entitlements: [],
@@ -80,11 +79,11 @@ it.each([
 );
 
 it.each([
-  { topicsEnabled: true, visible: true },
-  { topicsEnabled: false, visible: false },
+  { projectId: "project-1", visible: true },
+  { projectId: "other-project", visible: false },
 ])(
-  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
-  ({ topicsEnabled, visible }) => {
+  "shows the Topics entry only to project members ($projectId)",
+  ({ projectId, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
     const session = createSession({
       user: { featureFlags: testFeatureFlags({ langfuseTopics: true }) },
@@ -92,13 +91,13 @@ it.each([
         {
           id: "org-1",
           role: "VIEWER",
-          projects: [{ id: "project-1", topicsEnabled }],
+          projects: [{ id: "project-1" }],
         },
       ],
     });
     const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
-      routerProjectId: "project-1",
+      routerProjectId: projectId,
       routerOrganizationId: undefined,
       session,
       enableExperimentalFeatures: false,

@@ -253,7 +253,7 @@ function sqlLiteral(value: unknown, type: string): string {
   const t = type.trim();
   if (t.startsWith("Array")) {
     if (!Array.isArray(value)) {
-      throw new Error(`Expected array bind for ${t}, got ${typeof value}`);
+      throw new TypeError(`Expected array bind for ${t}, got ${typeof value}`);
     }
     return `[${value.map((item) => sqlLiteral(item, "String")).join(", ")}]`;
   }

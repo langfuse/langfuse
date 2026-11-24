@@ -9,7 +9,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
-import { ArrowDown, ArrowUp } from "@langfuse/icons";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -29,6 +29,25 @@ function dialogOutsideNav(root: HTMLElement | null): boolean {
   return false;
 }
 
+type NavOrientation = "vertical" | "horizontal";
+
+function useNavOrientation(orientation: NavOrientation) {
+  if (orientation === "horizontal") {
+    return {
+      PreviousIcon: ChevronLeft,
+      NextIcon: ChevronRight,
+      previousLabel: "Previous sample",
+      nextLabel: "Next sample",
+    };
+  }
+  return {
+    PreviousIcon: ArrowUp,
+    NextIcon: ArrowDown,
+    previousLabel: "Navigate up",
+    nextLabel: "Navigate down",
+  };
+}
+
 export const DetailPageNav = (props: {
   currentId: string;
   path: (entry: ListEntry) => string;
@@ -36,13 +55,25 @@ export const DetailPageNav = (props: {
   onNavigate?: (entry: ListEntry) => void;
   /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
   size?: ButtonProps["size"];
+  /** Sample panels step left and right. Detail pages step up and down. */
+  orientation?: NavOrientation;
   /**
    * Compact mode for header action rows: icon-only ghost arrows with the K/J
    * hint moved to the tooltip. Shortcuts still work.
    */
   compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const {
+    currentId,
+    path,
+    listKey,
+    onNavigate,
+    size,
+    compact,
+    orientation = "vertical",
+  } = props;
+  const { PreviousIcon, NextIcon, previousLabel, nextLabel } =
+    useNavOrientation(orientation);
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -152,9 +183,9 @@ export const DetailPageNav = (props: {
       return (
         <div ref={rootRef} className="flex flex-row gap-1">
           <HeaderActionButton
-            label="Navigate up"
+            label={previousLabel}
             shortcut="K"
-            icon={<ArrowUp size="base" />}
+            icon={<PreviousIcon size="base" />}
             active={shortcutPulse === "previous"}
             disabled={!previousPageEntry}
             onClick={() => {
@@ -164,9 +195,9 @@ export const DetailPageNav = (props: {
             }}
           />
           <HeaderActionButton
-            label="Navigate down"
+            label={nextLabel}
             shortcut="J"
-            icon={<ArrowDown size="base" />}
+            icon={<NextIcon size="base" />}
             active={shortcutPulse === "next"}
             disabled={!nextPageEntry}
             onClick={() => {
@@ -185,11 +216,11 @@ export const DetailPageNav = (props: {
       );
     return (
       <div ref={rootRef} className="flex flex-row gap-1">
-        <Tooltip label="Navigate up" shortcut={{ keys: ["K"] }}>
+        <Tooltip label={previousLabel} shortcut={{ keys: ["K"] }}>
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
-              aria-label="Navigate up"
+              aria-label={previousLabel}
               variant="outline"
               type="button"
               size={size}
@@ -201,16 +232,16 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowUp size="base" color="default" />
+              <PreviousIcon size="base" color="default" />
             </Button>
           )}
         </Tooltip>
 
-        <Tooltip label="Navigate down" shortcut={{ keys: ["J"] }}>
+        <Tooltip label={nextLabel} shortcut={{ keys: ["J"] }}>
           {({ getTriggerProps }) => (
             <Button
               {...getTriggerProps()}
-              aria-label="Navigate down"
+              aria-label={nextLabel}
               variant="outline"
               type="button"
               size={size}
@@ -222,7 +253,7 @@ export const DetailPageNav = (props: {
                 }
               }}
             >
-              <ArrowDown size="base" color="default" />
+              <NextIcon size="base" color="default" />
             </Button>
           )}
         </Tooltip>
