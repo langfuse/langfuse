@@ -38,7 +38,6 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
           </p>
           <div className="pt-3">
             <Button
-              variant="outline"
               text="Setup guide"
               icon={BookOpen}
               href={GATEWAY_SETUP.docsUrl}
