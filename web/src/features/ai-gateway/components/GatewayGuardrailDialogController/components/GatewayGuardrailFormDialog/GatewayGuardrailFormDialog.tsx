@@ -656,8 +656,7 @@ function PresetMultiSelectField({
         {!errorMessage && allowCustomPrefixes ? (
           <p className="text-muted-foreground text-xs">
             Search known secrets or type to add up to{" "}
-            {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes (3-32
-            printable ASCII chars, no spaces; matches prefix + 16+ token chars).
+            {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes.
           </p>
         ) : null}
       </div>
