@@ -458,6 +458,7 @@ const events = {
     "setup_flow_finished",
     "map_viewed",
     "map_created",
+    "map_refreshed",
     "snapshot_started",
     "map_selected",
     "topic_selected",
