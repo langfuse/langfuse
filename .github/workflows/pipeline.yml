@@ -32,6 +32,12 @@ env:
   # golang-migrate release installed for ClickHouse migrations. The cache key
   # and scripts/ci/install-golang-migrate.sh both read this value.
   GOLANG_MIGRATE_VERSION: v4.19.1
+  # Test jobs build the native addon with thin instead of fat LTO, the same
+  # setting ai-gateway's release profile uses. Fat LTO is a ~45s
+  # single-threaded link on every job that builds the addon; thin LTO
+  # parallelizes it. Docker builds do not inherit this, so released images
+  # and test-docker-build keep packages/native's fat-LTO profile.
+  CARGO_PROFILE_RELEASE_LTO: thin
 
   # Disable CI cache restores for fork PRs.
   #
@@ -722,9 +728,11 @@ jobs:
             service: langfuse-web
             runner: blacksmith-8vcpu-ubuntu-2404
             health_url: http://localhost:3000/api/public/health
+          # The worker image compiles the Rust addon and its cargo tools, so a
+          # layer-cache miss is CPU-bound and this leg often finishes last.
           - component: worker
             service: langfuse-worker
-            runner: blacksmith-4vcpu-ubuntu-2404
+            runner: blacksmith-8vcpu-ubuntu-2404
             health_url: http://localhost:3030/api/health
     steps:
       - name: Checkout
@@ -1104,6 +1112,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Load default env
+        run: |
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
+      - name: Start dev containers in background
+        # Independent of the install and build, so let them overlap the
+        # container startup. "Wait for dev containers" collects the result.
+        run: |
+          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+        env:
+          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
+          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Use Node.js ${{ matrix.node-version }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1133,25 +1154,23 @@ jobs:
         run: |
           bash scripts/ci/install-golang-migrate.sh
           which migrate
-      - name: Load default env
+      - name: Build
+        # Runs before "Seed DB" (`prisma migrate dev`), so generate the Prisma
+        # client the shared build type-checks against here. `prisma generate`
+        # only reads the schema and needs no database.
         run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
-          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
-      - name: Run + migrate
+          pnpm --filter=shared run db:generate
+          pnpm --filter=worker... run build
+      - name: Wait for dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
           docker compose ps
-        env:
-          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
-          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
-      - name: Ensure no unhealthy status
-        run: |
+          if [ "$(cat /tmp/compose-up.exit)" != "0" ]; then exit 1; fi
           if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
-          else
-            echo "All services are healthy"
           fi
       - name: Seed DB
         run: |
@@ -1172,8 +1191,6 @@ jobs:
         if: matrix.deploy-mode == ''
         run: |
           pnpm --filter=shared ch:dev-tables
-      - name: Build
-        run: pnpm --filter=worker... run build
       - name: run native codec tests against ClickHouse
         if: matrix.deploy-mode == ''
         env:
@@ -1319,7 +1336,7 @@ jobs:
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e CARGO_PROFILE_RELEASE_LTO -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \
@@ -1701,7 +1718,9 @@ jobs:
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Cache-cold by design, so every run compiles web, worker and both Rust
+    # crates from scratch; the build saturates 8 vCPUs for about two minutes.
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
       - llm-connections-filter
