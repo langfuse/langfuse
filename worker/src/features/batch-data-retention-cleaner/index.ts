@@ -640,7 +640,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
             row.oldest_timestamp,
           );
           if (Number.isNaN(oldestTimestamp.getTime())) {
-            throw new Error(
+            throw new TypeError(
               `Invalid oldest timestamp for project ${row.project_id}`,
             );
           }

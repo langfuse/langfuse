@@ -128,7 +128,7 @@ export const AcceptsFile = meta.story({
   play: async ({ args, canvasElement }) => {
     const input = canvasElement.querySelector('input[type="file"]');
     if (!(input instanceof HTMLInputElement)) {
-      throw new Error("Dropzone file input not found");
+      throw new TypeError("Dropzone file input not found");
     }
 
     const file = new File(["content"], "example.txt", {
@@ -157,7 +157,7 @@ export const RejectsOversizedFile = meta.story({
   play: async ({ args, canvasElement }) => {
     const input = canvasElement.querySelector('input[type="file"]');
     if (!(input instanceof HTMLInputElement)) {
-      throw new Error("Dropzone file input not found");
+      throw new TypeError("Dropzone file input not found");
     }
 
     await userEvent.upload(input, new File(["too large"], "example.txt"));
