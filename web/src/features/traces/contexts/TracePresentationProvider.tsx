@@ -6,11 +6,13 @@ export type TracePresentation = "messages" | "observation";
 type TracePresentationContextValue = {
   /** Null on the standalone trace page. */
   presentation: TracePresentation | null;
+  isEmbedded: boolean;
   preferredObservationId: string | null;
 };
 
 const TracePresentationContext = createContext<TracePresentationContextValue>({
   presentation: null,
+  isEmbedded: false,
   preferredObservationId: null,
 });
 
@@ -26,7 +28,11 @@ export function TracePresentationProvider({
   children: ReactNode;
 }) {
   const value = useMemo(
-    () => ({ presentation, preferredObservationId }),
+    () => ({
+      presentation,
+      isEmbedded: presentation != null,
+      preferredObservationId,
+    }),
     [presentation, preferredObservationId],
   );
   return (

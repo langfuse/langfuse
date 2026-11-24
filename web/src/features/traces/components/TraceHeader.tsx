@@ -168,7 +168,7 @@ function LoadedTraceHeader({
     [mergedScores],
   );
 
-  const { presentation } = useTracePresentation();
+  const { isEmbedded } = useTracePresentation();
   const tags = trace.tags;
   const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
   const scheduledForDeletion = useMemo(
@@ -304,7 +304,7 @@ function LoadedTraceHeader({
       {(configuredHeader) => (
         <ObservabilityEntityDetailHeader
           {...configuredHeader}
-          metrics={presentation ? [] : metrics}
+          metrics={isEmbedded ? [] : metrics}
           isPlaceholderData={isPlaceholderData}
           notice={
             scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined

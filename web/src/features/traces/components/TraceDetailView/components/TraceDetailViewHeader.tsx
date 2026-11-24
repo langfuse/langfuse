@@ -128,7 +128,7 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
-  const { presentation } = useTracePresentation();
+  const { isEmbedded } = useTracePresentation();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -419,7 +419,8 @@ function LoadedTraceDetailViewHeader({
         )}
       />
 
-      {!presentation && (
+      {/* Metadata badges */}
+      {!isEmbedded && (
         <div className="flex flex-col gap-2">
           {/* Timestamp alone in annotation mode; otherwise first in the badge row */}
           {isAnnotationMode && timestampBadge}

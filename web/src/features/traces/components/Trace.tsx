@@ -492,7 +492,7 @@ function TraceContent({
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData, scope, projectId, trace } = useTraceData();
-  const { presentation } = useTracePresentation();
+  const { presentation, isEmbedded } = useTracePresentation();
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const [embeddedView, setEmbeddedView] = useState<"messages" | "trace">(
     presentation === "messages" ? "messages" : "trace",
@@ -554,9 +554,9 @@ function TraceContent({
   // The embedded eval panel decides its own gate and asks for the transcript.
   const showMessagesTab =
     presentation === "messages" ||
-    (presentation == null && isV4 && unifiedTraceSessionViewEnabled);
+    (!isEmbedded && isV4 && unifiedTraceSessionViewEnabled);
   const activeView = traceTab({
-    presentation,
+    isEmbedded,
     showMessagesTab,
     embeddedView,
     traceView,
@@ -625,7 +625,7 @@ function TraceContent({
               value={activeView}
               onValueChange={(value) => {
                 const next = value === "messages" ? "messages" : "trace";
-                if (presentation) {
+                if (isEmbedded) {
                   setEmbeddedView(next);
                   return;
                 }
@@ -702,20 +702,20 @@ const traceContentClassName =
   "flex h-full w-full min-w-0 flex-col overflow-hidden";
 
 function traceTab({
-  presentation,
+  isEmbedded,
   showMessagesTab,
   embeddedView,
   traceView,
   isSessionTracePeek,
 }: {
-  presentation: TracePresentation | null;
+  isEmbedded: boolean;
   showMessagesTab: boolean;
   embeddedView: "messages" | "trace";
   traceView: string | null | undefined;
   isSessionTracePeek: boolean;
 }) {
   if (!showMessagesTab) return "trace";
-  if (presentation) return embeddedView;
+  if (isEmbedded) return embeddedView;
   return !isSessionTracePeek && traceView === "messages" ? "messages" : "trace";
 }
 
