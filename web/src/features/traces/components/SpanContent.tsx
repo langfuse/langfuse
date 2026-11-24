@@ -33,6 +33,8 @@ import {
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useObservationEvaluationHint } from "@/src/features/traces/contexts/ObservationEvaluationHintsProvider";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   selectNodeCorrections,
   selectNodeScores,
@@ -128,6 +130,7 @@ function LoadedSpanContent({
     );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
+  const evaluationHint = useObservationEvaluationHint(node);
 
   return (
     <button
@@ -166,6 +169,18 @@ function LoadedSpanContent({
               )}
           </div>
         </div>
+
+        {evaluationHint ? (
+          <Badge
+            color="violet"
+            size="sm"
+            text={
+              evaluationHint === "tested"
+                ? "Will be evaluated"
+                : "Also evaluated"
+            }
+          />
+        ) : null}
 
         {/* Metrics and scores row */}
         {(shouldRenderAnyMetrics ||
