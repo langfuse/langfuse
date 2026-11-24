@@ -89,6 +89,19 @@ export function recordTopicModelCall(
   recordIncrement("langfuse.topics.llm_calls", 1, { stage, adapter, status });
 }
 
+/** Request body size of one model call, counted when it is sent, whether or not it succeeds. */
+export function recordTopicRequestBytes(
+  stage: "summary" | "embedding" | "naming",
+  adapter: string,
+  bytes: number,
+): void {
+  recordDistribution("langfuse.topics.llm_request_bytes", bytes, {
+    stage,
+    adapter,
+    unit: "bytes",
+  });
+}
+
 /** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
 export function recordTopicCostEstimate(
   outcome: "done" | "failed" | "superseded",

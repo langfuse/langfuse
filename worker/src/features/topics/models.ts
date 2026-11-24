@@ -30,7 +30,11 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { createEventLoopYielder } from "./event-loop";
-import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
+import {
+  recordTopicModelCall,
+  recordTopicRequestBytes,
+  recordTopicTokenUsage,
+} from "./metrics";
 import {
   llmRequestEgressBytes,
   recordExportVolume,
@@ -142,6 +146,7 @@ async function topicModelCall<T>(
       for (const [key, value] of Object.entries(identifiers))
         if (value != null) fields[`langfuse.topics.${key}`] = value;
       span.setAttributes(fields);
+      recordTopicRequestBytes(stage, model.adapter, requestBytes);
       try {
         const result = await call();
         recordTopicModelCall(stage, model.adapter, {});
