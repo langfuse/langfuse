@@ -32,6 +32,7 @@ const input: DispatchInput = {
   execution: { jobExecutionId: "job-1" },
   code: { source: "def evaluate(): pass" },
   payload: {
+    targetType: "observation",
     observation: { input: null, output: null, metadata: null, toolCalls: [] },
   },
 };

@@ -190,7 +190,10 @@ export async function processEval(
     projectId: event.projectId,
   };
   const prepared = isTraceTranscriptJob(event)
-    ? await prepare(transcriptTarget(event.transcriptS3Path), prepareParams)
+    ? await prepare(
+        transcriptTarget(event.transcriptS3Path, template.type),
+        prepareParams,
+      )
     : await prepare(
         observationTarget({
           observationS3Path: event.observationS3Path,
@@ -253,6 +256,7 @@ export async function processEval(
       executionResult = await executeCodeBasedEvaluation({
         ...executionParams,
         template,
+        threads: prepared.threads,
         ...(resolved.type === "v2"
           ? { evaluatorId: resolved.evaluatorId }
           : {}),
@@ -339,6 +343,7 @@ type EvalTarget<T> = {
   environment: (loaded: T) => string | null | undefined;
   observationId?: (loaded: T) => string | undefined;
   experimentId?: (loaded: T) => string | null | undefined;
+  threads?: (loaded: T) => StoredTranscript["transcript"]["threads"];
   extract: (
     loaded: T,
     variableMapping: Prisma.JsonValue,
@@ -360,6 +365,7 @@ async function prepare<T>(
       extractedVariables: ExtractedVariable[];
       environment: string;
       hasExperimentContext?: boolean;
+      threads?: StoredTranscript["transcript"]["threads"];
     }
 > {
   const loaded = await target.load(target.path);
@@ -380,6 +386,7 @@ async function prepare<T>(
     ...(target.experimentId
       ? { hasExperimentContext: Boolean(target.experimentId(loaded)) }
       : {}),
+    ...(target.threads ? { threads: target.threads(loaded) } : {}),
   };
 }
 
@@ -411,6 +418,7 @@ function observationTarget(params: {
 
 function transcriptTarget(
   transcriptS3Path: string,
+  evaluatorType: EvalTemplateType,
 ): EvalTarget<StoredTranscript> {
   return {
     path: transcriptS3Path,
@@ -441,7 +449,10 @@ function transcriptTarget(
       return { ...stored, transcript: stored.transcript };
     },
     environment: (stored) => stored.traceContext.environment,
+    threads: (stored) => stored.transcript.threads,
     extract(stored, variableMapping) {
+      // Code evaluators receive the threads themselves, not mapped variables.
+      if (evaluatorType === EvalTemplateType.CODE) return [];
       let parsedMapping;
       try {
         parsedMapping = observationVariableMappingList.parse(variableMapping);
@@ -702,7 +713,6 @@ function buildV2Execution(params: {
     return { type: "cancelled" as const, reason: "version-missing" };
   }
   const organizationId = evaluator.project.orgId;
-  // TODO: a transcript code eval is not supported yet. Its empty mapping should be threads.
   const variableMapping =
     assignment?.variableMapping ??
     version.variableMapping ??

@@ -1,4 +1,8 @@
-import type { ToolCallForEval } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+  type ToolCallForEval,
+} from "@langfuse/shared";
 
 // Compact contract metadata drives editor completions and type-checks hover-doc
 // coverage. Keep the executable declarations below readable for users.
@@ -127,6 +131,28 @@ export type PythonCodeEvalCompletionName =
   | Labels<PythonCompletionContract["resultConstructors"]>
   | Labels<PythonConstructorParameters>;
 
+// Merged into pathProperties above only when trace evals are available.
+export const CODE_EVAL_TRACE_COMPLETION_PATHS = {
+  TYPESCRIPT: {
+    ctx: [{ label: "trace", detail: 'TraceEvaluationContext["trace"]' }],
+    "ctx.trace": [{ label: "threads", detail: "TraceThread[]" }],
+  },
+  PYTHON: {
+    ctx: [{ label: "trace", detail: "TraceContext | None" }],
+    "ctx.trace": [{ label: "threads", detail: "list[dict[str, Any]]" }],
+  },
+} as const;
+
+type TraceCompletionPaths = typeof CODE_EVAL_TRACE_COMPLETION_PATHS;
+
+export type TypeScriptTraceCodeEvalCompletionName = Labels<
+  TraceCompletionPaths["TYPESCRIPT"][keyof TraceCompletionPaths["TYPESCRIPT"]]
+>;
+
+export type PythonTraceCodeEvalCompletionName = Labels<
+  TraceCompletionPaths["PYTHON"][keyof TraceCompletionPaths["PYTHON"]]
+>;
+
 type MutuallyExtends<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? true
@@ -150,30 +176,15 @@ type _PythonToolCallCompletionsMatchRuntime = Expect<
   >
 >;
 
-export const TYPESCRIPT_CODE_EVAL_CONTRACT = `type ToolCall = {
+const TYPESCRIPT_TOOL_CALL_CONTRACT = `type ToolCall = {
   id: string;
   name: string;
   arguments: unknown;
   type: string;
   index: number;
-};
+};`;
 
-type EvaluationContext = {
-  observation: {
-    input: any;
-    output: any;
-    metadata: any;
-    toolCalls: ToolCall[];
-  };
-  experiment:
-    | {
-        itemExpectedOutput: any;
-        itemMetadata: any;
-      }
-    | undefined;
-};
-
-type ScoreBase = {
+const TYPESCRIPT_RESULT_CONTRACT = `type ScoreBase = {
   name: string;
   comment?: string;
   configId?: string | null;
@@ -191,6 +202,153 @@ type EvaluationResult = {
   scores: Score[];
 };
 `;
+
+export const TYPESCRIPT_CODE_EVAL_CONTRACT = `${TYPESCRIPT_TOOL_CALL_CONTRACT}
+
+type EvaluationContext = {
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+    toolCalls: ToolCall[];
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+${TYPESCRIPT_RESULT_CONTRACT}`;
+
+/** The contract when trace evals are available: EvaluationContext also covers trace targets. */
+export const TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT = `${TYPESCRIPT_TOOL_CALL_CONTRACT}
+
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type TextPart = { type: "text"; text: string; refusal?: true };
+
+type ReasoningPart = {
+  type: "reasoning";
+  content:
+    | { kind: "text"; text: string; signature?: string }
+    | { kind: "redacted"; data: string }
+    | { kind: "encrypted"; data: string }
+    | { kind: "data"; value: JsonValue };
+};
+
+type FilePart = {
+  type: "file";
+  mediaType?: string;
+  filename?: string;
+  reasoning?: true;
+  content:
+    | { kind: "url"; url: string }
+    | { kind: "base64"; data: string }
+    | { kind: "reference"; id: string };
+};
+
+type DataPart = { type: "data"; name?: string; value: JsonValue };
+
+type CustomPart = { type: "custom"; kind: string; value: JsonValue };
+
+type ToolCallPart = {
+  type: "tool-call";
+  toolCallId: string | null;
+  toolName: string;
+  input: JsonValue;
+  toolType?: string;
+  providerExecuted?: boolean;
+  invalid?: true;
+};
+
+type ToolResultPart = {
+  type: "tool-result";
+  toolCallId: string | null;
+  toolName?: string;
+  isError?: boolean;
+  output:
+    | { type: "text"; value: string }
+    | { type: "json"; value: JsonValue }
+    | {
+        type: "content";
+        value: (TextPart | ReasoningPart | FilePart | DataPart | CustomPart)[];
+      };
+};
+
+type MessagePart =
+  | TextPart
+  | ReasoningPart
+  | ToolCallPart
+  | ToolResultPart
+  | FilePart
+  | DataPart
+  | CustomPart;
+
+type TraceMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  parts: MessagePart[];
+  source: "input" | "output";
+  id?: string;
+  senderName?: string;
+  finishReason?: {
+    type:
+      | "stop"
+      | "length"
+      | "tool-calls"
+      | "content-filter"
+      | "error"
+      | "other"
+      | "unknown";
+    raw: string;
+  };
+  /** Only on messages this trace produced; replayed history has none. */
+  observationId?: string;
+  traceId?: string;
+  /** ISO 8601. */
+  startTime?: string;
+  endTime?: string | null;
+};
+
+type TraceThread = { messages: TraceMessage[] };
+
+type ObservationEvaluationContext = {
+  targetType: "observation";
+  observation: {
+    input: any;
+    output: any;
+    metadata: any;
+    toolCalls: ToolCall[];
+  };
+  experiment:
+    | {
+        itemExpectedOutput: any;
+        itemMetadata: any;
+      }
+    | undefined;
+};
+
+type TraceEvaluationContext = {
+  targetType: "trace";
+  trace: {
+    threads: TraceThread[];
+  };
+};
+
+type EvaluationContext<T extends "observation" | "trace" = "observation"> =
+  Extract<
+    ObservationEvaluationContext | TraceEvaluationContext,
+    { targetType: T }
+  >;
+
+${TYPESCRIPT_RESULT_CONTRACT}`;
 
 // Keep in sync with the Prettier output so the Format button is a no-op on
 // the untouched starter code.
@@ -278,6 +436,60 @@ export const DEFAULT_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationCont
           if matches_output
           else "Output does not match the input."
         ),
+      )
+    ]
+  )`;
+
+export const TRACE_PYTHON_CODE_EVAL_CONTRACT =
+  PYTHON_CODE_EVAL_CONTRACT.replace(
+    `@dataclass
+class EvaluationContext:
+    observation: ObservationContext
+    experiment: ExperimentContext | None = None
+`,
+    `@dataclass
+class TraceContext:
+    threads: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationContext:
+    observation: ObservationContext | None = None
+    experiment: ExperimentContext | None = None
+    trace: TraceContext | None = None
+    target_type: str = "observation"
+`,
+  );
+
+const TRACE_TYPESCRIPT_CODE_EVAL_SOURCE = `function evaluate(ctx: EvaluationContext<"trace">): EvaluationResult {
+  const messageCount = ctx.trace.threads.reduce(
+    (count, thread) => count + thread.messages.length,
+    0,
+  );
+
+  return {
+    scores: [
+      {
+        name: "Message count",
+        value: messageCount,
+        dataType: "NUMERIC",
+        comment: "Messages across all threads of the trace transcript.",
+      },
+    ],
+  };
+}`;
+
+const TRACE_PYTHON_CODE_EVAL_SOURCE = `def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+  """Evaluates one trace transcript and returns one or more Langfuse scores."""
+  message_count = sum(len(thread["messages"]) for thread in ctx.trace.threads)
+
+  return EvaluationResult(
+    scores=[
+      Score(
+        name="Message count",
+        value=message_count,
+        data_type="NUMERIC",
+        comment="Messages across all threads of the trace transcript.",
       )
     ]
   )`;
@@ -487,7 +699,15 @@ export type CodeEvalSourceCodeLanguage = "PYTHON" | "TYPESCRIPT";
 
 export function getDefaultCodeEvalSource(
   sourceCodeLanguage: CodeEvalSourceCodeLanguage,
+  targetObject:
+    | EvalTargetObject
+    | typeof TopicsTargetObject = EvalTargetObject.EVENT,
 ) {
+  if (targetObject === TopicsTargetObject) {
+    return sourceCodeLanguage === "PYTHON"
+      ? TRACE_PYTHON_CODE_EVAL_SOURCE
+      : TRACE_TYPESCRIPT_CODE_EVAL_SOURCE;
+  }
   return sourceCodeLanguage === "PYTHON"
     ? DEFAULT_PYTHON_CODE_EVAL_SOURCE
     : DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE;
@@ -521,8 +741,13 @@ function stripCodeEvalContract({
   // so try every shipped version, newest first.
   const contracts =
     sourceCodeLanguage === "PYTHON"
-      ? [PYTHON_CODE_EVAL_CONTRACT, ...PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS]
+      ? [
+          TRACE_PYTHON_CODE_EVAL_CONTRACT,
+          PYTHON_CODE_EVAL_CONTRACT,
+          ...PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
+        ]
       : [
+          TRACE_TYPESCRIPT_CODE_EVAL_CONTRACT,
           TYPESCRIPT_CODE_EVAL_CONTRACT,
           ...PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
         ];

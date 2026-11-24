@@ -1,3 +1,4 @@
+import type { NormalizedMessage } from "../../utils/normalized-io/types";
 import type { Thread, ThreadMessage, Turn } from "./types";
 
 /** A transcript message as eval variable paths see it. */
@@ -19,5 +20,33 @@ export function toEvalVariables(threads: unknown) {
       ...(thread.conversationHistory ?? []),
       ...(thread.currentTurn?.messages ?? []),
     ].map(({ role, parts }): EvalVariableMessage => ({ role, parts })),
+  }));
+}
+
+type CodeEvalTraceMessage = NormalizedMessage & {
+  observationId?: string;
+  traceId?: string;
+  startTime?: string;
+  endTime?: string | null;
+};
+
+export type CodeEvalTraceThread = { messages: CodeEvalTraceMessage[] };
+
+/**
+ * Threads for code evaluators: whole messages, current-turn ones with provenance.
+ * ISO date strings keep in-memory and JSON dispatchers handing over equal values.
+ */
+export function toCodeEvalThreads(threads: Thread[]): CodeEvalTraceThread[] {
+  return threads.map((thread) => ({
+    messages: [
+      ...thread.conversationHistory,
+      ...thread.currentTurn.messages.map(
+        ({ startTime, endTime, ...message }) => ({
+          ...message,
+          startTime: startTime.toISOString(),
+          endTime: endTime?.toISOString() ?? null,
+        }),
+      ),
+    ],
   }));
 }

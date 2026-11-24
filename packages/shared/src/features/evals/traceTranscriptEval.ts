@@ -8,11 +8,13 @@ import { extractValueFromObject } from "./utilities";
 export const TRACE_TRANSCRIPT_EVAL_COLUMN = "threads";
 
 /**
- * Judge and decision-model assignments. Code evaluators are not scheduled here.
+ * Evaluator types a trace transcript rule can run. Code evaluators receive
+ * the whole transcript instead of mapped variables.
  */
 export const TRACE_TRANSCRIPT_EVAL_TYPES = [
   EvalTemplateTypeEnum.LLM_AS_JUDGE,
   EvalTemplateTypeEnum.DECISION_MODEL,
+  EvalTemplateTypeEnum.CODE,
 ] as const;
 
 export function isTraceTranscriptEvalType(type: EvalTemplateType) {

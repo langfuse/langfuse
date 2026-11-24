@@ -61,7 +61,7 @@ messages from the content.
 
 ### Eval threads
 
-[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toEvalVariables` flattens each thread into one `messages` list, history first, with only `role` and `parts` per message; eval variable paths resolve against it.
+[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toEvalVariables` flattens each thread into one `messages` list, history first, with only `role` and `parts` per message; eval variable paths resolve against it. `toCodeEvalThreads` keeps whole messages, with provenance and ISO date strings on current-turn messages, for code evaluators.
 
 ## Execution issues
 

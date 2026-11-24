@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -8,6 +9,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type UseCodeEvalSourceValidationParams = {
+  projectId: string;
   enabled: boolean;
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
@@ -27,14 +29,17 @@ function getLanguageLabel(sourceCodeLanguage: CodeEvalSourceCodeLanguage) {
 async function getCodeEvalValidationResult({
   sourceCode,
   sourceCodeLanguage,
+  traceEvalsAvailable,
 }: {
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
+  traceEvalsAvailable: boolean;
 }): Promise<CodeEvalValidationResult> {
   try {
     return await validateCodeEvalSourceWithLanguage({
       source: sourceCode,
       sourceCodeLanguage,
+      traceEvalsAvailable,
     });
   } catch (error) {
     return {
@@ -56,10 +61,12 @@ async function getCodeEvalValidationResult({
 }
 
 export function useCodeEvalSourceValidation({
+  projectId,
   enabled,
   sourceCode,
   sourceCodeLanguage,
 }: UseCodeEvalSourceValidationParams) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const [validationResult, setValidationResult] =
     useState<CodeEvalValidationResult | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -79,13 +86,14 @@ export function useCodeEvalSourceValidation({
       const result = await getCodeEvalValidationResult({
         sourceCode: nextSourceCode,
         sourceCodeLanguage: nextSourceCodeLanguage,
+        traceEvalsAvailable,
       });
       setValidationResult(result);
       setIsPending(false);
 
       return !result.hasErrors;
     },
-    [sourceCode, sourceCodeLanguage],
+    [sourceCode, sourceCodeLanguage, traceEvalsAvailable],
   );
 
   useEffect(() => {
@@ -98,7 +106,11 @@ export function useCodeEvalSourceValidation({
     setIsPending(true);
 
     const timeout = setTimeout(() => {
-      getCodeEvalValidationResult({ sourceCode, sourceCodeLanguage })
+      getCodeEvalValidationResult({
+        sourceCode,
+        sourceCodeLanguage,
+        traceEvalsAvailable,
+      })
         .then((result) => {
           if (!isActive) return;
           setValidationResult(result);
@@ -112,7 +124,7 @@ export function useCodeEvalSourceValidation({
       isActive = false;
       clearTimeout(timeout);
     };
-  }, [enabled, reset, sourceCode, sourceCodeLanguage]);
+  }, [enabled, reset, sourceCode, sourceCodeLanguage, traceEvalsAvailable]);
 
   return {
     isValid: Boolean(validationResult) && !validationResult?.hasErrors,

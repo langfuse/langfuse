@@ -4,6 +4,7 @@ import type {
   CodeEvalTemplateVariable,
   ToolCallForEval,
 } from "../../features/evals/observationForEval";
+import type { CodeEvalTraceThread } from "../transcript/eval-threads";
 export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
@@ -29,7 +30,8 @@ export type CodeEvalScope = {
   evaluatorId: string;
 };
 
-export type CodeEvalPayload = {
+type ObservationCodeEvalPayload = {
+  targetType: "observation";
   observation: {
     input: unknown;
     output: unknown;
@@ -41,6 +43,15 @@ export type CodeEvalPayload = {
     itemMetadata: unknown;
   };
 };
+
+type TraceCodeEvalPayload = {
+  targetType: "trace";
+  trace: {
+    threads: CodeEvalTraceThread[];
+  };
+};
+
+export type CodeEvalPayload = ObservationCodeEvalPayload | TraceCodeEvalPayload;
 
 /**
  * Compile-time lockstep between the canonical code-eval variable list and the
@@ -55,7 +66,10 @@ export const CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE = {
   toolCalls: "observation",
   experimentItemExpectedOutput: "experiment",
   experimentItemMetadata: "experiment",
-} as const satisfies Record<CodeEvalTemplateVariable, keyof CodeEvalPayload>;
+} as const satisfies Record<
+  CodeEvalTemplateVariable,
+  keyof ObservationCodeEvalPayload
+>;
 
 export type DispatchInput = {
   scope: CodeEvalScope;

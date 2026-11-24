@@ -33,6 +33,7 @@ import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import {
   getCodeEvalHoverDocs,
   PROPERTY_ACCESS_ONLY_HOVER_KEYS,
@@ -49,6 +50,7 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type CodeEvalTemplateFormBodyProps = {
+  projectId: string;
   sourceCode: string;
   sourceCodeLanguage: CodeEvalSourceCodeLanguage;
   onSourceCodeChange: (value: string) => void;
@@ -220,6 +222,7 @@ async function formatTypeScriptSource(source: string) {
 }
 
 export function CodeEvalTemplateFormBody({
+  projectId,
   sourceCode,
   sourceCodeLanguage,
   onSourceCodeChange,
@@ -228,6 +231,7 @@ export function CodeEvalTemplateFormBody({
   ctxSample,
   headerAction,
 }: CodeEvalTemplateFormBodyProps) {
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -364,16 +368,26 @@ export function CodeEvalTemplateFormBody({
   const codeEvalHoverExtension = useMemo(
     () =>
       createCodeEvalHoverExtension({
-        hoverDocs: getCodeEvalHoverDocs(sourceCodeLanguage),
+        hoverDocs: getCodeEvalHoverDocs(
+          sourceCodeLanguage,
+          traceEvalsAvailable,
+        ),
         ctxSample,
         languageExtension,
         codeMirrorTheme,
       }),
-    [codeMirrorTheme, ctxSample, languageExtension, sourceCodeLanguage],
+    [
+      codeMirrorTheme,
+      ctxSample,
+      languageExtension,
+      sourceCodeLanguage,
+      traceEvalsAvailable,
+    ],
   );
   const codeEvalCompletionExtension = useMemo(
-    () => getCodeEvalCompletionExtension(sourceCodeLanguage),
-    [sourceCodeLanguage],
+    () =>
+      getCodeEvalCompletionExtension(sourceCodeLanguage, traceEvalsAvailable),
+    [sourceCodeLanguage, traceEvalsAvailable],
   );
   const extensions = useMemo(
     () => [
