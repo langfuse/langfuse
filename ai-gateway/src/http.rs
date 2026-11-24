@@ -246,7 +246,7 @@ async fn relay(
     // The reservation travels with the body, so a caller that disconnects mid-parse
     // cannot free budget while the parse still holds the body.
     let (parsed, reservation) = inference
-        .run_cpu(request_bytes, move || {
+        .run_cpu(crate::cpu::CpuJob::ParseRequest, request_bytes, move || {
             (
                 parse_request_body(bytes, route.api_format(), capture),
                 reservation,

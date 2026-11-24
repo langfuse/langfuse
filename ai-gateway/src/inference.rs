@@ -12,7 +12,7 @@ use crate::{
     capture::{ExecutionCapture, GatewayRejection, RequestInput},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
-    cpu::CpuWork,
+    cpu::{CpuJob, CpuWork},
     guardrails::Finding,
     http::ParsedRequest,
     observability::ErrorOrigin,
@@ -259,11 +259,12 @@ impl InferenceService {
     /// Returns [`ResolutionError::Busy`] when the work did not complete.
     pub(crate) async fn run_cpu<T: Send + 'static>(
         &self,
+        job: CpuJob,
         input_bytes: usize,
         work: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T, ResolutionError> {
         self.cpu
-            .run(input_bytes, work)
+            .run(job, input_bytes, work)
             .await
             .ok_or(ResolutionError::Busy)
     }
@@ -439,7 +440,7 @@ impl InferenceService {
         let guardrails = context.guardrails().to_vec();
         let body = request.body().clone();
         let scanned = request.scanned.clone();
-        self.run_cpu(scanned.len(), move || {
+        self.run_cpu(CpuJob::ScanGuardrails, scanned.len(), move || {
             crate::guardrails::check(&guardrails, api_format, &body, &scanned)
         })
         .instrument(tracing::info_span!(
