@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { ArrowUpRight } from "@langfuse/icons";
 import { projectNoneRoleComment, type Role } from "@langfuse/shared";
 import { type SystemRole } from "@langfuse/shared/src/db";
-import {
-  orgNoneRoleComment,
-  systemRoleAccessRights,
-} from "@langfuse/shared/rbac";
+import { orgNoneRoleComment } from "@langfuse/shared/rbac";
 
 import {
   Select,
   SelectContent,
   SelectTrigger,
 } from "@/src/components/ui/select";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
+import {
+  roleDisplay,
+  type RoleDisplay,
+} from "@/src/features/rbac/components/roleDisplay";
+
+/** The ghost trigger's unseen border and the space after its role name; read-only roles reuse it to end at the same edge. */
+export const roleTrailingSpacing = "gap-1 border border-transparent pr-1.5";
 
 const triggerVariants = cva("", {
   variants: {
@@ -22,35 +27,83 @@ const triggerVariants = cva("", {
       default: "",
       compact: "w-30",
     },
+    variant: {
+      name: "",
+      detailed: "h-auto",
+    },
+    appearance: {
+      field: "",
+      /** No box until hovered, for a role that reads as text in a row. The arrow sits a pixel lower to look centred on the text. */
+      ghost: `hover:bg-muted data-[state=open]:bg-muted w-auto bg-transparent pl-2 [&>svg]:translate-y-px ${roleTrailingSpacing}`,
+    },
   },
   defaultVariants: {
     size: "default",
+    variant: "name",
+    appearance: "field",
+  },
+});
+
+const menuVariants = cva("", {
+  variants: {
+    menu: {
+      auto: "",
+      /** As wide as the trigger. */
+      trigger: "w-(--radix-select-trigger-width)",
+      /** Wider than a narrow trigger, opening toward the start. */
+      wide: "w-80",
+    },
+  },
+  defaultVariants: {
+    menu: "auto",
   },
 });
 
 /** RoleSelect offers permission previews for each role; the owner role is only selectable with `canManageOwnership`. */
-export function RoleSelect({
+export function RoleSelect<TRole extends SystemRole = Role>({
   roles,
   value,
   onValueChange,
   isProjectRole = false,
-  canManageOwnership,
+  canManageOwnership = true,
   disabled = false,
   triggerId,
+  "aria-label": ariaLabel,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
   size,
+  variant = "name",
+  appearance,
+  menu,
+  display,
+  valueLabel,
+  optionDisabledReason,
+  autoFocus,
+  onOpenChange,
 }: {
-  roles: Role[];
-  value: Role;
-  onValueChange: (role: Role) => void;
+  roles: TRole[];
+  value: TRole;
+  onValueChange: (role: TRole) => void;
   isProjectRole?: boolean;
-  canManageOwnership: boolean;
+  canManageOwnership?: boolean;
   disabled?: boolean;
   triggerId?: string;
+  "aria-label"?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
-} & VariantProps<typeof triggerVariants>) {
+  /** `detailed` shows the role's description in the trigger and a permissions link under it. */
+  variant?: "name" | "detailed";
+  /** display overrides how roles are presented, in the trigger, the options and the permission preview. */
+  display?: (role: SystemRole) => RoleDisplay;
+  /** valueLabel replaces the selected role's name in the trigger. */
+  valueLabel?: string;
+  /** A reason makes the option unselectable and replaces its description. */
+  optionDisabledReason?: (role: TRole) => string | undefined;
+  autoFocus?: boolean;
+  /** Called when the options open or close. */
+  onOpenChange?: (open: boolean) => void;
+} & Pick<VariantProps<typeof triggerVariants>, "size" | "appearance"> &
+  VariantProps<typeof menuVariants>) {
   const [open, setOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [permissionsRole, setPermissionsRole] = useState<SystemRole | null>(
@@ -63,55 +116,89 @@ export function RoleSelect({
     setPermissionsOpen(true);
   };
 
-  const SelectedIcon = roleIcons[value];
-  const keepDefaultNote = value === "NONE" && isProjectRole;
-  const label = `${systemRoleAccessRights[value].name}${
-    keepDefaultNote ? " (keep default role)" : ""
-  }`;
+  const shown = (display ?? roleDisplay)(value);
+  // A custom display names the roles itself, so it gets no default-role note.
+  const keepDefaultNote = !display && value === "NONE" && isProjectRole;
+  const label =
+    valueLabel ??
+    `${shown.name}${keepDefaultNote ? " (keep default role)" : ""}`;
 
   return (
     <>
       <Select
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          setOpen(next);
+          onOpenChange?.(next);
+        }}
         value={value}
-        onValueChange={(role) => onValueChange(role as Role)}
+        onValueChange={(role) => onValueChange(role as TRole)}
         disabled={disabled}
       >
         <SelectTrigger
           id={triggerId}
+          aria-label={ariaLabel}
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
-          className={triggerVariants({ size })}
+          className={triggerVariants({ size, variant, appearance })}
           disableValueLineClamp
+          autoFocus={autoFocus}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <SelectedIcon size="base" />
+          {variant === "detailed" ? (
+            <div className="flex flex-col text-left">
+              <span className="font-bold">{label}</span>
+              <span className="text-muted-foreground text-xs">
+                {shown.description}
+              </span>
+            </div>
+          ) : (
             <span className="truncate" title={label}>
               {label}
             </span>
-          </span>
+          )}
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent
+          align={menu === "wide" ? "end" : undefined}
+          className={menuVariants({ menu })}
+        >
           {roles.map((role) => (
             <RoleSelectItem
               key={role}
               role={role}
-              isProjectRole={isProjectRole}
+              display={display}
+              isProjectRole={display ? undefined : isProjectRole}
               disabledReason={
-                role === "OWNER" && !canManageOwnership
+                optionDisabledReason?.(role) ??
+                (role === "OWNER" && !canManageOwnership
                   ? "requires owner access"
-                  : undefined
+                  : undefined)
               }
               onViewPermissions={openPermissions}
             />
           ))}
         </SelectContent>
       </Select>
+      {variant === "detailed" && (
+        <button
+          type="button"
+          onClick={() => {
+            setPermissionsRole(value);
+            setPermissionsOpen(true);
+          }}
+          className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
+        >
+          View{" "}
+          <span className="inline-flex items-center gap-0.5 underline">
+            {rolePermissionCountLabel(value)}
+            <ArrowUpRight size="sm" />
+          </span>
+        </button>
+      )}
       <RolePermissionPopup
         open={permissionsOpen}
         onOpenChange={setPermissionsOpen}
-        role={permissionsRole}
+        roles={permissionsRole ? [permissionsRole] : []}
+        display={display}
         emptyStateComment={
           isProjectRole ? projectNoneRoleComment : orgNoneRoleComment
         }

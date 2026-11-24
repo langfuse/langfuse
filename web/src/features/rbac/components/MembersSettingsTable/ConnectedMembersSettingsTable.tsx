@@ -16,6 +16,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { GroupDialogHost } from "@/src/features/groups/components/GroupDialogHost";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -53,6 +54,16 @@ export function ConnectedMembersSettingsTable({
   const hasOrgCudAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:CUD",
+  });
+
+  const canSeeOrgGroups = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "groups:read",
+  });
+
+  const canManageOrgGroups = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "groups:CUD",
   });
 
   const hasProjectCudAccess = useHasProjectAccess({
@@ -214,146 +225,155 @@ export function ConnectedMembersSettingsTable({
   }
 
   return (
-    <CreateProjectMemberDialogController orgId={orgId} project={project}>
-      {({
-        hasAccess,
-        hasOnlySingleProjectAccess,
-        isSubmitting,
-        usageLimit,
-        openDialog,
-      }) => (
-        <MembersSettingsTable
-          orgId={orgId}
-          project={project}
-          currentUserId={session.data?.user?.id}
-          hasOrgCudAccess={hasOrgCudAccess}
-          hasProjectCudAccess={hasProjectCudAccess}
-          canManageOrgOwnership={canManageOrgOwnership}
-          canManageProjectOwnership={canManageProjectOwnership}
-          isAiGatewayEnabled={isAiGatewayEnabled}
-          isGroupsEnabled={isGroupsEnabled}
-          projectRolesEntitlement={projectRolesEntitlement}
-          showFeaturePreviews={
-            !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
-          }
-          updatingOrgRoleMembershipIds={updatingOrgRoleMembershipIds}
-          updatingProjectRoleMembershipIds={updatingProjectRoleMembershipIds}
-          onDelete={(member) => {
-            const isCurrentUser = member.meta.userId === session.data?.user?.id;
-            if (
-              !confirm(
-                isCurrentUser
-                  ? "Are you sure you want to leave the organization?"
-                  : "Are you sure you want to remove this member from the organization?",
-              )
-            ) {
-              return;
+    <>
+      {isGroupsEnabled && <GroupDialogHost orgId={orgId} />}
+      <CreateProjectMemberDialogController orgId={orgId} project={project}>
+        {({
+          hasAccess,
+          hasOnlySingleProjectAccess,
+          isSubmitting,
+          usageLimit,
+          openDialog,
+        }) => (
+          <MembersSettingsTable
+            orgId={orgId}
+            project={project}
+            currentUserId={session.data?.user?.id}
+            hasOrgCudAccess={hasOrgCudAccess}
+            canSeeOrgGroups={canSeeOrgGroups}
+            canManageOrgGroups={canManageOrgGroups}
+            hasProjectCudAccess={hasProjectCudAccess}
+            canManageOrgOwnership={canManageOrgOwnership}
+            canManageProjectOwnership={canManageProjectOwnership}
+            isAiGatewayEnabled={isAiGatewayEnabled}
+            isGroupsEnabled={isGroupsEnabled}
+            projectRolesEntitlement={projectRolesEntitlement}
+            showFeaturePreviews={
+              !project &&
+              hasOrgCudAccess &&
+              orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
             }
-            deleteMember.mutate({
-              orgId,
-              orgMembershipId: member.meta.orgMembershipId,
-            });
-          }}
-          onUpdateOrgRole={(member, role) => {
-            if (
-              member.meta.userId === session.data?.user?.id &&
-              !confirm(
-                "Are you sure that you want to change your own organization role?",
-              )
-            ) {
-              return;
-            }
-            const membershipId = member.meta.orgMembershipId;
-            setUpdatingOrgRoleMembershipIds((current) =>
-              new Set(current).add(membershipId),
-            );
-            updateOrgRole.mutate(
-              { orgId, orgMembershipId: membershipId, role },
-              {
-                onSettled: () =>
-                  setUpdatingOrgRoleMembershipIds((current) => {
-                    const next = new Set(current);
-                    next.delete(membershipId);
-                    return next;
-                  }),
-              },
-            );
-          }}
-          onUpdateProjectRole={(member, projectRole) => {
-            if (!project || projectRole === "AI_GATEWAY") return;
-            if (
-              member.meta.userId === session.data?.user?.id &&
-              !confirm(
-                "Are you sure that you want to change your own project role?",
-              )
-            ) {
-              return;
-            }
-            const membershipId = member.meta.orgMembershipId;
-            setUpdatingProjectRoleMembershipIds((current) =>
-              new Set(current).add(membershipId),
-            );
-            updateProjectRole.mutate(
-              {
+            updatingOrgRoleMembershipIds={updatingOrgRoleMembershipIds}
+            updatingProjectRoleMembershipIds={updatingProjectRoleMembershipIds}
+            onDelete={(member) => {
+              const isCurrentUser =
+                member.meta.userId === session.data?.user?.id;
+              if (
+                !confirm(
+                  isCurrentUser
+                    ? "Are you sure you want to leave the organization?"
+                    : "Are you sure you want to remove this member from the organization?",
+                )
+              ) {
+                return;
+              }
+              deleteMember.mutate({
                 orgId,
-                orgMembershipId: membershipId,
-                projectId: project.id,
-                userId: member.meta.userId,
-                projectRole,
-              },
+                orgMembershipId: member.meta.orgMembershipId,
+              });
+            }}
+            onUpdateOrgRole={(member, role) => {
+              if (
+                member.meta.userId === session.data?.user?.id &&
+                !confirm(
+                  "Are you sure that you want to change your own organization role?",
+                )
+              ) {
+                return;
+              }
+              const membershipId = member.meta.orgMembershipId;
+              setUpdatingOrgRoleMembershipIds((current) =>
+                new Set(current).add(membershipId),
+              );
+              updateOrgRole.mutate(
+                { orgId, orgMembershipId: membershipId, role },
+                {
+                  onSettled: () =>
+                    setUpdatingOrgRoleMembershipIds((current) => {
+                      const next = new Set(current);
+                      next.delete(membershipId);
+                      return next;
+                    }),
+                },
+              );
+            }}
+            onUpdateProjectRole={(member, projectRole) => {
+              if (!project || projectRole === "AI_GATEWAY") return;
+              if (
+                member.meta.userId === session.data?.user?.id &&
+                !confirm(
+                  "Are you sure that you want to change your own project role?",
+                )
+              ) {
+                return;
+              }
+              const membershipId = member.meta.orgMembershipId;
+              setUpdatingProjectRoleMembershipIds((current) =>
+                new Set(current).add(membershipId),
+              );
+              updateProjectRole.mutate(
+                {
+                  orgId,
+                  orgMembershipId: membershipId,
+                  projectId: project.id,
+                  userId: member.meta.userId,
+                  projectRole,
+                },
+                {
+                  onSettled: () =>
+                    setUpdatingProjectRoleMembershipIds((current) => {
+                      const next = new Set(current);
+                      next.delete(membershipId);
+                      return next;
+                    }),
+                },
+              );
+            }}
+            data={tableData}
+            loadingRowCount={paginationState.pageSize}
+            search={{
+              value: searchQuery ?? "",
+              onChange: (value) => setSearchQuery(value || null),
+            }}
+            roleFilter={{
+              value: roles,
+              onChange: (value) =>
+                setRolesParam(value.length > 0 ? value : null),
+            }}
+            toolbarActions={[
               {
-                onSettled: () =>
-                  setUpdatingProjectRoleMembershipIds((current) => {
-                    const next = new Set(current);
-                    next.delete(membershipId);
-                    return next;
-                  }),
+                id: "add-member",
+                label: hasOnlySingleProjectAccess
+                  ? "Add project member"
+                  : "Add new member",
+                variant: "secondary",
+                loading: isSubmitting,
+                hasAccess,
+                usageLimit,
+                icon: <PlusIcon size="base" aria-hidden="true" />,
+                onClick: openDialog,
               },
-            );
-          }}
-          data={tableData}
-          loadingRowCount={paginationState.pageSize}
-          search={{
-            value: searchQuery ?? "",
-            onChange: (value) => setSearchQuery(value || null),
-          }}
-          roleFilter={{
-            value: roles,
-            onChange: (value) => setRolesParam(value.length > 0 ? value : null),
-          }}
-          toolbarActions={[
-            {
-              id: "add-member",
-              label: hasOnlySingleProjectAccess
-                ? "Add project member"
-                : "Add new member",
-              variant: "secondary",
-              loading: isSubmitting,
-              hasAccess,
-              usageLimit,
-              icon: <PlusIcon size="base" aria-hidden="true" />,
-              onClick: openDialog,
-            },
-            ...(project && hasOrgCudAccess
-              ? [
-                  {
-                    id: "org-members",
-                    label: "Organization members",
-                    variant: "outline" as const,
-                    href: `/organization/${orgId}/settings/members`,
-                  },
-                ]
-              : []),
-          ]}
-          pagination={{
-            mode: "offset",
-            totalCount: members.data?.totalCount ?? null,
-            onChange: (state) => setPaginationState({ ...state, rolesKey }),
-            state: paginationState,
-          }}
-        />
-      )}
-    </CreateProjectMemberDialogController>
+              ...(project && hasOrgCudAccess
+                ? [
+                    {
+                      id: "org-members",
+                      label: "Organization members",
+                      variant: "outline" as const,
+                      href: `/organization/${orgId}/settings/members`,
+                    },
+                  ]
+                : []),
+            ]}
+            pagination={{
+              mode: "offset",
+              totalCount: members.data?.totalCount ?? null,
+              onChange: (state) => setPaginationState({ ...state, rolesKey }),
+              state: paginationState,
+            }}
+          />
+        )}
+      </CreateProjectMemberDialogController>
+    </>
   );
 }
 

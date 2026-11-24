@@ -57,7 +57,12 @@ type DialogProps = {
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
-  title: string;
+  title: React.ReactNode;
+  /** Shown before the title and description, e.g. an icon tile. */
+  titleMedia?: React.ReactNode;
+  description?: React.ReactNode;
+  /** Shown at the start of the footer, beside the buttons. */
+  footerNote?: React.ReactNode;
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -78,6 +83,9 @@ function DialogRoot({
   size,
   text,
   title,
+  titleMedia,
+  description,
+  footerNote,
 }: DialogProps) {
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
@@ -108,7 +116,7 @@ function DialogRoot({
         onClick={(event) => event.stopPropagation()}
       />
       <DialogPrimitive.Content
-        aria-describedby={undefined}
+        {...(description === undefined && { "aria-describedby": undefined })}
         className={cn(
           motionStyles.content,
           dialogContentVariants({ size }),
@@ -170,19 +178,27 @@ function DialogRoot({
         }}
       >
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
-          <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
-            <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
-              </DialogPrimitive.Title>
-              {requireExplicitClose ? null : (
-                <DialogPrimitive.Close
-                  className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-                  tabIndex={-1}
-                >
-                  <X size="base" />
-                  <span className="sr-only">Close</span>
-                </DialogPrimitive.Close>
+          <header className="bg-modal flex shrink-0 items-center gap-2.5 rounded-t-lg p-4">
+            {titleMedia}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex w-full items-center justify-between gap-4 text-left">
+                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
+                  {title}
+                </DialogPrimitive.Title>
+                {requireExplicitClose ? null : (
+                  <DialogPrimitive.Close
+                    className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+                    tabIndex={-1}
+                  >
+                    <X size="base" />
+                    <span className="sr-only">Close</span>
+                  </DialogPrimitive.Close>
+                )}
+              </div>
+              {description !== undefined && (
+                <DialogPrimitive.Description className="text-sm leading-relaxed">
+                  {description}
+                </DialogPrimitive.Description>
               )}
             </div>
           </header>
@@ -190,7 +206,7 @@ function DialogRoot({
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
           </PopoverLayerProvider>
           {hasActions || isCloseOnly ? (
-            <DialogFooter>
+            <DialogFooter note={footerNote}>
               {hideCloseButton ? null : (
                 <DialogPrimitive.Close asChild>
                   {isCloseOnly ? (
@@ -270,8 +286,8 @@ function DialogBody({
   spacing = "default",
 }: {
   children: React.ReactNode;
-  /** Separates the scrolling body from the header and footer with borders. */
-  separators?: "none" | "both";
+  /** Separates the scrolling body from the header and footer, or only the footer, with borders. */
+  separators?: "none" | "both" | "bottom";
   /** "compact" starts the body right under the header, for short forms. */
   spacing?: "default" | "compact";
 }) {
@@ -280,7 +296,8 @@ function DialogBody({
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed",
         separators === "both" && "border-y",
-        spacing === "compact" && separators === "none" && "pt-0",
+        separators === "bottom" && "border-b",
+        spacing === "compact" && separators !== "both" && "pt-0",
       )}
     >
       {children}
@@ -288,9 +305,20 @@ function DialogBody({
   );
 }
 
-function DialogFooter({ children }: { children: React.ReactNode }) {
+function DialogFooter({
+  children,
+  note,
+}: {
+  children: React.ReactNode;
+  note?: React.ReactNode;
+}) {
   return (
-    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
+    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
+      {note && (
+        <div className="text-muted-foreground order-last mb-3 min-w-0 text-xs sm:order-none sm:mr-auto sm:mb-0">
+          {note}
+        </div>
+      )}
       {children}
     </div>
   );

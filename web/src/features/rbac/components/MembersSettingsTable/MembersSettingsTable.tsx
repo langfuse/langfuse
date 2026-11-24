@@ -15,6 +15,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type StackMember } from "@/src/features/groups/components/GroupMemberStack";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { directRoleColumns } from "./directRoleColumns";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
@@ -68,6 +69,8 @@ export type MemberGroupRole = {
   groupName: string;
   groupSource: "SCIM" | "MANUAL";
   memberCount: number;
+  /** The group's first few members; `memberCount` is the full size. */
+  memberPreview: StackMember[];
   role: Role;
   level: "organization" | "project";
 };
@@ -80,6 +83,10 @@ type MembersSettingsTableProps = Pick<
   project?: { id: string; name: string };
   currentUserId?: string;
   hasOrgCudAccess: boolean;
+  /** May open a group from a role's details. */
+  canSeeOrgGroups: boolean;
+  /** May edit a group from a role's details. */
+  canManageOrgGroups: boolean;
   hasProjectCudAccess: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
@@ -146,6 +153,12 @@ function orgRoleBlockedReason(
   return undefined;
 }
 
+/** Hover text for a member whose groups do not raise their role. */
+const alsoInGroups = (effective: EffectiveRole) =>
+  effective.grants.length > 0
+    ? `Also in ${[...new Set(effective.grants.map((grant) => grant.groupName))].join(", ")}`
+    : undefined;
+
 function directRoleEditor(
   member: MembersSettingsTableRow,
   effective: EffectiveRole,
@@ -194,6 +207,8 @@ export function MembersSettingsTable({
   project,
   currentUserId,
   hasOrgCudAccess,
+  canSeeOrgGroups,
+  canManageOrgGroups,
   hasProjectCudAccess,
   canManageOrgOwnership,
   canManageProjectOwnership,
@@ -250,31 +265,36 @@ export function MembersSettingsTable({
                   groupRoles: member.groupRoles,
                   level: onProject ? "project" : "organization",
                 });
+                const editor = directRoleEditor(member, effective, {
+                  project,
+                  projectRolesEntitlement,
+                  hasOrgCudAccess,
+                  hasProjectCudAccess,
+                  canManageOrgOwnership,
+                  canManageProjectOwnership,
+                  isAiGatewayEnabled,
+                  updatingOrgRoleMembershipIds,
+                  updatingProjectRoleMembershipIds,
+                  onUpdateOrgRole,
+                  onUpdateProjectRole,
+                });
+                const cell = describeRoleCell(effective, onProject);
                 return (
                   <EffectiveRoleDialogController
                     effective={effective}
                     orgRole={member.orgRole}
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
-                    canSeeOrgSettings={hasOrgCudAccess}
+                    projectName={onProject ? project?.name : undefined}
+                    canSeeOrgGroups={canSeeOrgGroups}
+                    canManageOrgGroups={canManageOrgGroups}
                     member={{ name: member.user.name, email: member.email }}
-                    editor={directRoleEditor(member, effective, {
-                      project,
-                      projectRolesEntitlement,
-                      hasOrgCudAccess,
-                      hasProjectCudAccess,
-                      canManageOrgOwnership,
-                      canManageProjectOwnership,
-                      isAiGatewayEnabled,
-                      updatingOrgRoleMembershipIds,
-                      updatingProjectRoleMembershipIds,
-                      onUpdateOrgRole,
-                      onUpdateProjectRole,
-                    })}
+                    editor={editor}
                   >
                     {(openDialog) => (
                       <RoleCellTrigger
-                        {...describeRoleCell(effective, onProject)}
+                        {...cell}
+                        groupHint={cell.groupHint ?? alsoInGroups(effective)}
                         onClick={openDialog}
                       />
                     )}
@@ -348,6 +368,8 @@ export function MembersSettingsTable({
       canManageOrgOwnership,
       canManageProjectOwnership,
       hasOrgCudAccess,
+      canSeeOrgGroups,
+      canManageOrgGroups,
       hasProjectCudAccess,
       isAiGatewayEnabled,
       isGroupsEnabled,

@@ -10,20 +10,35 @@ const disabledActionTooltipVariants = cva("relative inline-flex", {
   variants: {
     width: {
       fill: "w-full sm:w-auto",
+      full: "flex w-full flex-col",
     },
   },
 });
 
-// A disabled button is not a hover target. The trigger is this wrapper, and
-// the layer above the button receives the pointer so the button can stay as it is.
+const widthOf = ({
+  isFullWidth,
+  shouldFill,
+}: {
+  isFullWidth: boolean;
+  shouldFill: boolean;
+}) => {
+  if (isFullWidth) return "full";
+  return shouldFill ? "fill" : undefined;
+};
+
+// A disabled control is not a hover target. The trigger is this wrapper, and
+// the layer above the control receives the pointer so the control can stay as it is.
 export function DisabledActionTooltip({
   label,
   shouldFill = false,
+  isFullWidth = false,
   children,
 }: {
   label: string;
   /** Match a dialog footer action that stretches on narrow screens. */
   shouldFill?: boolean;
+  /** Span the parent, for a disabled field rather than a button. */
+  isFullWidth?: boolean;
   children: ReactElement;
 }) {
   return (
@@ -38,7 +53,7 @@ export function DisabledActionTooltip({
                 ? triggerProps.className
                 : undefined,
               disabledActionTooltipVariants({
-                width: shouldFill ? "fill" : undefined,
+                width: widthOf({ isFullWidth, shouldFill }),
               }),
             )}
           >

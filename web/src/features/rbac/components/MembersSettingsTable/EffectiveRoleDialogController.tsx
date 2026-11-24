@@ -1,7 +1,7 @@
-import { useId, useState } from "react";
-import Link from "next/link";
-import { Lock } from "@langfuse/icons";
+import { useState } from "react";
+import { Check, InfoIcon } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
+import { type SystemRole } from "@langfuse/shared/src/db";
 import {
   grantsAccess,
   includesRole,
@@ -9,15 +9,26 @@ import {
   type AccessLevel,
 } from "@langfuse/shared/rbac";
 
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { memberCountLabel } from "@/src/features/groups/components/GroupMemberStack";
-import { EffectiveRoleCard } from "@/src/features/rbac/components/EffectiveRoleCard";
-import { RoleField } from "@/src/features/rbac/components/RoleField";
-import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
-import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
+import { DisabledActionTooltip } from "@/src/components/design-system/DisabledActionTooltip/DisabledActionTooltip";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { GroupLink } from "@/src/features/groups/components/GroupLink";
+import { GroupNameLabel } from "@/src/features/groups/components/GroupNameLabel";
+import { GroupSummaryCard } from "@/src/features/groups/components/GroupSummaryCard/GroupSummaryCard";
+import { AccessDialog } from "@/src/features/rbac/components/AccessDialog";
+import {
+  RoleSelect,
+  roleTrailingSpacing,
+} from "@/src/features/rbac/components/RoleSelect";
+import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
+import {
+  roleDisplay,
+  roleName,
+} from "@/src/features/rbac/components/roleDisplay";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
+import { cn } from "@/src/utils/tailwind";
 import { type MemberGroupRole } from "./MembersSettingsTable";
 
 function levelNote(
@@ -36,9 +47,9 @@ function levelNote(
 
 function inheritNoneDescription(orgRole: Role): string {
   if (orgRole === "AI_GATEWAY" || orgRole === "NONE") {
-    return `No project access: the organization role (${roleName(orgRole)}) gives none.`;
+    return "No direct access to this project.";
   }
-  return `Keep the organization role (${roleName(orgRole)}) on this project.`;
+  return `Uses the organization role (${roleName(orgRole)}).`;
 }
 
 const joinNames = (names: string[]) => [...new Set(names)].join(", ");
@@ -119,72 +130,63 @@ export const belowGroupFloor =
     const names = joinNames(
       floorGrants(effective).map((grant) => grant.groupName),
     );
-    return `Can't go below ${roleName(floor)}: ${names} already gives ${roleName(floor)}, and groups only add access`;
+    return `${names} already gives ${roleName(floor)}`;
   };
 
 type GroupReason = {
   key: string;
   groupId: string;
   label: string;
-  title: string;
-  levelNote?: string;
-  href: string;
-};
-
-type HeldRole = {
+  level: MemberGroupRole["level"];
+  source: MemberGroupRole["groupSource"];
+  memberCount: number;
+  memberPreview: MemberGroupRole["memberPreview"];
   role: Role;
-  directTag?: string;
-  groups: GroupReason[];
+  levelNote?: string;
+  /** Opens the group's members on the organization's Groups page; null when the viewer cannot open that page. */
+  href: string | null;
 };
 
-function directTag(effective: EffectiveRole, onProject: boolean) {
-  if (effective.directIsOrgDefault) return "Inherited from organization";
-  return onProject ? "Set on this project" : "Direct";
-}
-
-/** NONE grants nothing, so it never appears; on a project a set project role replaces the org role. */
-function heldRoles(
+/** One entry per group and role; a group giving the same role at both levels shows once. */
+function groupReasons(
   effective: EffectiveRole,
-  { orgId, projectId }: { orgId: string; projectId?: string },
-): HeldRole[] {
-  const byRole = new Map<Role, HeldRole>();
-  const held = (role: Role) => {
-    const existing = byRole.get(role);
-    if (existing) return existing;
-    const created: HeldRole = { role, groups: [] };
-    byRole.set(role, created);
-    return created;
-  };
-  if (effective.direct !== "NONE")
-    held(effective.direct).directTag = directTag(effective, Boolean(projectId));
+  { orgId, canSeeOrgGroups }: { orgId: string; canSeeOrgGroups: boolean },
+): GroupReason[] {
+  const reasons: GroupReason[] = [];
   for (const grant of effective.grants) {
-    const { groups } = held(grant.role);
-    if (groups.some((other) => other.groupId === grant.groupId)) continue;
-    groups.push({
+    if (
+      reasons.some(
+        (other) => other.groupId === grant.groupId && other.role === grant.role,
+      )
+    )
+      continue;
+    reasons.push({
       key: `${grant.groupId}-${grant.level}`,
       groupId: grant.groupId,
       label: grant.groupName,
-      title: `${grant.groupName} · ${grant.level === "project" ? "project group" : "organization group"} · ${memberCountLabel(grant.memberCount)} · ${roleName(grant.role)}`,
+      level: grant.level,
+      source: grant.groupSource,
+      memberCount: grant.memberCount,
+      memberPreview: grant.memberPreview,
+      role: grant.role,
       levelNote: levelNote(grant, effective.grants),
-      href:
-        grant.level === "project" && projectId
-          ? `/project/${projectId}/settings/groups`
-          : `/organization/${orgId}/settings/groups`,
+      href: canSeeOrgGroups
+        ? `/organization/${orgId}/settings/groups?group=${encodeURIComponent(grant.groupId)}`
+        : null,
     });
   }
-  return [...byRole.values()].toSorted((a, b) =>
-    byPermissionCount(a.role, b.role),
-  );
+  return reasons;
 }
 
-function omittedNote(
-  effective: EffectiveRole,
-  { orgRole, projectId }: { orgRole: Role; projectId?: string },
-) {
-  if (!projectId || effective.directIsOrgDefault) return null;
+/** The organization role, listed on a project as its own row. */
+function organizationRoleOnProject(
+  orgRole: Role,
+  onProject: boolean,
+): Role | null {
+  if (!onProject) return null;
   // A None or AI Gateway org role gives nothing on a project; the picker already says so.
   if (orgRole === "NONE" || orgRole === "AI_GATEWAY") return null;
-  return `Organization role (${roleName(orgRole)}) doesn't apply here because a project role is set.`;
+  return orgRole;
 }
 
 function raisingGrants(effective: EffectiveRole) {
@@ -206,22 +208,50 @@ function sourceTag(effective: EffectiveRole, onProject: boolean) {
   return onProject ? "Set on this project" : "Set directly";
 }
 
-const Em = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-foreground font-bold">{children}</span>
-);
-
-function lockNote(effective: EffectiveRole, firstName: string) {
-  const names = joinNames(
-    floorGrants(effective).map((grant) => grant.groupName),
+function lockNote(
+  effective: EffectiveRole,
+  firstName: string,
+  hrefOf: (groupId: string) => string | null,
+) {
+  const floorGroups = floorGrants(effective).filter(
+    (grant, index, all) =>
+      all.findIndex((other) => other.groupId === grant.groupId) === index,
   );
   return (
     <>
-      Anything below <Em>{roleName(effective.groupFloor ?? effective.role)}</Em>{" "}
-      has no effect while {firstName} is in <Em>{names}</Em>. To lower it,
-      remove {firstName} from the group.
+      Anything below {roleName(effective.groupFloor ?? effective.role)} has no
+      effect while {firstName} is in{" "}
+      {floorGroups.map((grant, index) => {
+        const href = hrefOf(grant.groupId);
+        return (
+          <span key={grant.groupId}>
+            {index > 0 && ", "}
+            {href ? (
+              <GroupLink
+                href={href}
+                className="text-link hover:text-link-hover underline underline-offset-2"
+              >
+                {grant.groupName}
+              </GroupLink>
+            ) : (
+              grant.groupName
+            )}
+          </span>
+        );
+      })}
+      . To lower it, remove {firstName} from the group.
     </>
   );
 }
+
+/** Names a project's direct roles: none of its own is described as keeping the organization role. */
+const projectRoleDisplay = (orgRole: Role) => (role: SystemRole) =>
+  role === "NONE"
+    ? {
+        name: roleName(role),
+        description: inheritNoneDescription(orgRole),
+      }
+    : roleDisplay(role);
 
 export type DirectRoleEditor = {
   roles: Role[];
@@ -237,182 +267,265 @@ type EffectiveRoleSourceProps = {
   orgRole: Role;
   orgId: string;
   projectId?: string;
-  canSeeOrgSettings: boolean;
+  projectName?: string;
+  /** Whether the viewer may open the organization's Groups page. */
+  canSeeOrgGroups: boolean;
+  /** Whether the viewer may change groups and their members. */
+  canManageOrgGroups: boolean;
   member: { name: string | null; email: string | null };
   editor: DirectRoleEditor;
 };
 
-function SourceTag({ children }: { children: React.ReactNode }) {
+/** A group that gives a role: its name opens the group's members and its card summarizes the group. */
+function GroupName({
+  group,
+  canEditGroup,
+}: {
+  group: GroupReason;
+  canEditGroup: boolean;
+}) {
+  const content = (
+    <>
+      <GroupNameLabel name={group.label} />
+      {group.levelNote && (
+        <span className="text-foreground-tertiary shrink-0">
+          ({group.levelNote})
+        </span>
+      )}
+    </>
+  );
   return (
-    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-xs">
-      {children}
+    <span className="flex min-w-0">
+      <HoverCard
+        openDelay={150}
+        closeDelay={100}
+        placement="bottom"
+        content={
+          <GroupSummaryCard
+            name={group.label}
+            level={group.level}
+            source={group.source}
+            role={group.role}
+            memberCount={group.memberCount}
+            memberPreview={group.memberPreview}
+            membersHref={group.href}
+            canEditGroup={canEditGroup}
+          />
+        }
+      >
+        {({ getTriggerProps }) =>
+          group.href ? (
+            <GroupLink
+              href={group.href}
+              className="focus-visible:ring-ring flex min-w-0 items-center gap-1 rounded-sm hover:underline focus-visible:ring-2 focus-visible:outline-hidden"
+              {...getTriggerProps()}
+            >
+              {content}
+            </GroupLink>
+          ) : (
+            <span
+              className="flex min-w-0 items-center gap-1"
+              tabIndex={0}
+              {...getTriggerProps()}
+            >
+              {content}
+            </span>
+          )
+        }
+      </HoverCard>
     </span>
   );
 }
 
-function ReasonList({ directTag, groups }: Omit<HeldRole, "role">) {
+/** One source of a member's access: what it is on the left, the role it gives on the right. */
+function SourceRow({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <span className="flex min-w-0 flex-col gap-1">
-      {directTag && (
-        <span className="flex items-baseline gap-2">
-          <SourceTag>{directTag}</SourceTag>
+    <li className="flex min-h-11 items-center justify-between gap-3 pr-0.5 pl-1.5">
+      <span className="flex min-w-0">{label}</span>
+      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+        {children}
+      </span>
+    </li>
+  );
+}
+
+/** Marks the role a member ends up with. */
+function EffectiveMarker() {
+  return (
+    <Tooltip label="This role applies">
+      {({ getTriggerProps }) => (
+        <span
+          role="img"
+          aria-label="This role applies"
+          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-green-600 text-white"
+          {...getTriggerProps()}
+        >
+          <Check size="sm" color="inherit" aria-hidden="true" />
         </span>
       )}
-      {groups.length > 0 && (
-        <span className="flex min-w-0 items-baseline gap-2">
-          <SourceTag>{groups.length > 1 ? "Groups" : "Group"}</SourceTag>
-          <span className="min-w-0">
-            {groups.map((group, index) => (
-              <span key={group.key}>
-                {index > 0 && <span className="text-muted-foreground">, </span>}
-                <Link
-                  href={group.href}
-                  title={group.title}
-                  className="underline-offset-2 hover:underline"
-                >
-                  {group.label}
-                </Link>
-                {group.levelNote && (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    ({group.levelNote})
-                  </span>
-                )}
-              </span>
-            ))}
-          </span>
-        </span>
-      )}
+    </Tooltip>
+  );
+}
+
+/** A role set elsewhere, so it only reads here. It ends where the picker's role name ends. */
+function ReadOnlyRole({ children }: { children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex items-center", roleTrailingSpacing)}>
+      {children}
+      <span className="invisible inline-flex" aria-hidden="true">
+        <DropdownIndicator />
+      </span>
     </span>
   );
 }
 
 function RoleDialog({
-  effective,
+  effective: saved,
   orgRole,
   orgId,
   projectId,
-  canSeeOrgSettings,
+  projectName,
+  canSeeOrgGroups,
+  canManageOrgGroups,
   member,
   editor,
   onDone,
 }: EffectiveRoleSourceProps & { onDone: () => void }) {
-  const fieldId = useId();
   const onProject = Boolean(projectId);
   const [selected, setSelected] = useState<Role>(editor.value);
-  const [permissionsRole, setPermissionsRole] = useState<Role | null>(null);
-  const held = heldRoles(effective, { orgId, projectId });
-  const omitted = omittedNote(effective, { orgRole, projectId });
-  // One direct role and no groups: the card and roles list would only repeat the picker.
-  const explain =
-    held.length > 1 || held.some(({ groups }) => groups.length > 0);
-  const displayName = member.name ?? member.email ?? "this member";
+  const [hasTriedRoles, setHasTriedRoles] = useState(false);
+  // Previews the role being picked, before it is saved.
+  const effective =
+    selected === editor.value
+      ? saved
+      : resolveEffectiveRole({
+          orgRole: onProject ? orgRole : selected,
+          projectRole: onProject && selected !== "NONE" ? selected : undefined,
+          groupRoles: saved.grants,
+          level: saved.level,
+        });
+  const groups = groupReasons(effective, { orgId, canSeeOrgGroups });
+  const organizationRole = organizationRoleOnProject(orgRole, onProject);
+  // A direct project role replaces the organization role on that project.
+  const isOrganizationRoleReplaced =
+    organizationRole !== null && !effective.directIsOrgDefault;
+  const inGroups = groups.length > 0;
+  const listedRoleCount =
+    groups.length + (organizationRole ? 1 : 0) + (selected === "NONE" ? 0 : 1);
+  // With a single role listed there is nothing to tell apart.
+  const isEffective = (role: Role) =>
+    listedRoleCount > 1 && effective.roles.includes(role);
+  const grantedRoles = effective.roles.filter((role) => role !== "NONE");
+  const displayName = member.name ?? member.email ?? "This member";
   const firstName = displayName.split(" ")[0] ?? displayName;
-  const scopeLabel = onProject ? "on this project" : "in this organization";
-  const roleKind = editor.isProjectRole ? "Project role" : "Organization role";
+  const directRoleDisplay = editor.isProjectRole
+    ? projectRoleDisplay(orgRole)
+    : roleDisplay;
+  const directRoleName = directRoleDisplay(selected).name;
+  const isLockedByGroup = editor.roles.some(
+    (role) =>
+      belowGroupFloor(saved, { allowNone: editor.isProjectRole })(role) !==
+      undefined,
+  );
+
+  const directRolePicker = (
+    <RoleSelect
+      aria-label={`Directly assigned role: ${directRoleName}`}
+      appearance="ghost"
+      menu="wide"
+      roles={editor.roles}
+      value={selected}
+      onValueChange={setSelected}
+      onOpenChange={(open) => {
+        // Waits for the options to close, so nothing moves under the pointer.
+        if (!open) setHasTriedRoles(true);
+      }}
+      isProjectRole={editor.isProjectRole}
+      display={directRoleDisplay}
+      optionDisabledReason={editor.optionDisabledReason}
+      disabled={editor.disabledReason !== undefined}
+    />
+  );
 
   return (
-    <Dialog
-      title={roleKind}
-      size="default"
-      closeLabel="Cancel"
-      actions={[
-        {
-          label: "Save",
-          disabled:
-            editor.disabledReason !== undefined || selected === editor.value,
-          onClick: () => {
-            editor.onChange(selected);
-            onDone();
-          },
-        },
-      ]}
+    <AccessDialog
+      level={onProject ? "project" : "organization"}
+      projectName={projectName}
+      projectHref={projectId ? `/project/${projectId}` : undefined}
+      subject={member.email ?? displayName}
+      isSaveDisabled={
+        editor.disabledReason !== undefined || selected === editor.value
+      }
+      onSave={() => {
+        editor.onChange(selected);
+        onDone();
+      }}
     >
-      <Dialog.Body spacing="compact">
-        <div className="flex flex-col gap-3 text-sm">
-          <p>
-            {displayName} {scopeLabel}
-          </p>
-          {explain && (
-            <EffectiveRoleCard
-              caption="combined permissions of direct and group roles"
-              roles={effective.roles}
-              onViewPermissions={setPermissionsRole}
-            />
-          )}
-          {explain && (
-            <div className="flex flex-col gap-1">
-              <p className="text-muted-foreground text-xs">
-                Roles {firstName} holds {scopeLabel}
-              </p>
-              <ul className="flex flex-col divide-y rounded-md border">
-                {held.map(({ role, ...reasons }) => (
-                  <li
-                    key={role}
-                    className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-3 py-2"
-                  >
-                    <span className="font-bold">
-                      <RoleWithIcon role={role} />
-                    </span>
-                    <ReasonList {...reasons} />
-                  </li>
-                ))}
-              </ul>
-              {omitted && (
-                <p className="text-muted-foreground text-xs">{omitted}</p>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor={fieldId} className="font-bold">
-              Direct {roleKind.toLowerCase()} for {firstName}
-            </label>
-            {editor.disabledReason ? (
-              <p className="text-muted-foreground">{editor.disabledReason}</p>
-            ) : (
-              <RoleField
-                id={fieldId}
-                roles={editor.roles}
-                value={selected}
-                onChange={setSelected}
-                noneLabel={
-                  editor.isProjectRole ? "Inherit from organization" : undefined
-                }
-                noneDescription={
-                  editor.isProjectRole
-                    ? inheritNoneDescription(orgRole)
-                    : undefined
-                }
-                optionDisabledReason={editor.optionDisabledReason}
-              />
-            )}
-            {effective.raisedByGroup && (
-              <p className="text-muted-foreground flex items-start gap-2 text-xs">
-                <Lock size="sm" aria-hidden="true" __rawClassName="mt-0.5" />
-                <span>{lockNote(effective, firstName)}</span>
-              </p>
-            )}
-          </div>
-
-          {onProject && canSeeOrgSettings && (
-            <Link
-              href={`/organization/${orgId}/settings/members`}
-              className="text-muted-foreground w-fit text-xs underline"
-            >
-              Open organization members
-            </Link>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="text-muted-foreground font-bold">
+            {inGroups ? "Access granted through" : "Access"}
+          </h3>
+          {grantedRoles.length > 0 && (
+            <RolePermissionsLink roles={grantedRoles} isCombined={inGroups} />
           )}
         </div>
-      </Dialog.Body>
-      <RolePermissionPopup
-        open={permissionsRole !== null}
-        onOpenChange={(next) => {
-          if (!next) setPermissionsRole(null);
-        }}
-        role={permissionsRole}
-      />
-    </Dialog>
+        <ul className="flex flex-col rounded-lg border px-2 py-1.5">
+          {groups.map((group) => (
+            <SourceRow
+              key={group.key}
+              label={
+                <GroupName group={group} canEditGroup={canManageOrgGroups} />
+              }
+            >
+              {isEffective(group.role) && <EffectiveMarker />}
+              <ReadOnlyRole>{roleName(group.role)}</ReadOnlyRole>
+            </SourceRow>
+          ))}
+          {organizationRole && (
+            <SourceRow label="Organization role">
+              {!isOrganizationRoleReplaced && isEffective(organizationRole) && (
+                <EffectiveMarker />
+              )}
+              <ReadOnlyRole>{roleName(organizationRole)}</ReadOnlyRole>
+            </SourceRow>
+          )}
+          <SourceRow label="Directly assigned">
+            {(!organizationRole || isOrganizationRoleReplaced) &&
+              isEffective(effective.direct) && <EffectiveMarker />}
+            {editor.disabledReason ? (
+              <DisabledActionTooltip label={editor.disabledReason}>
+                {directRolePicker}
+              </DisabledActionTooltip>
+            ) : (
+              directRolePicker
+            )}
+          </SourceRow>
+        </ul>
+        {hasTriedRoles && isLockedByGroup && (
+          <p className="text-muted-foreground flex items-start gap-2 text-xs">
+            <span className="flex h-lh shrink-0 items-center">
+              <InfoIcon size="sm" aria-hidden="true" />
+            </span>
+            <span>
+              {lockNote(
+                saved,
+                firstName,
+                (groupId) =>
+                  groups.find((group) => group.groupId === groupId)?.href ??
+                  null,
+              )}
+            </span>
+          </p>
+        )}
+      </section>
+    </AccessDialog>
   );
 }
 

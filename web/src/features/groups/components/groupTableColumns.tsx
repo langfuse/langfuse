@@ -1,4 +1,5 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { GroupNameLabel } from "@/src/features/groups/components/GroupNameLabel";
 import {
   GroupMemberStack,
   type StackMember,
@@ -17,11 +18,10 @@ export function groupTableColumns<T extends GroupTableRow>() {
     name: {
       accessorKey: "displayName",
       header: "Name",
+      size: 240,
       sensitive: true,
       cell: ({ row }) => (
-        <span className="truncate" title={row.original.group.displayName}>
-          {row.original.group.displayName}
-        </span>
+        <GroupNameLabel name={row.original.group.displayName} />
       ),
     },
     source: {
@@ -30,9 +30,9 @@ export function groupTableColumns<T extends GroupTableRow>() {
       enableHiding: true,
       headerTooltip: {
         description:
-          "SCIM: synced from your identity provider, so its name and members are managed there. Langfuse: created here by an admin.",
+          "SCIM: synced from your identity provider, so its name and members are managed there. Created in Langfuse: made here by an admin.",
       },
-      size: 120,
+      size: 180,
       cell: ({ row }) => (
         <GroupSourceLabel source={row.original.group.source} />
       ),

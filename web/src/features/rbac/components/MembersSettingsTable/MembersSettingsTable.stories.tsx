@@ -8,6 +8,22 @@ import {
 
 const meta = preview.meta({ component: MembersSettingsTable });
 
+const groupMemberNames = [
+  "Ada Lovelace",
+  "Grace Hopper",
+  "Alan Turing",
+  "Katherine Johnson",
+  "Linus Torvalds",
+];
+
+const memberPreview = (count: number) =>
+  groupMemberNames.slice(0, count).map((name, index) => ({
+    userId: `group-member-${index}`,
+    name,
+    email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+    image: null,
+  }));
+
 const members: MembersSettingsTableRow[] = [
   {
     user: { name: "Ada Lovelace", image: null },
@@ -32,6 +48,7 @@ const members: MembersSettingsTableRow[] = [
         groupName: "platform-admins",
         groupSource: "SCIM",
         memberCount: 12,
+        memberPreview: memberPreview(5),
         role: "ADMIN",
         level: "organization",
       },
@@ -79,6 +96,8 @@ export const Default = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -140,13 +159,19 @@ export const AdminViewingOwner = meta.story({
     };
 
     const owner = await openRoleDialogFor(/Barbara Liskov/);
-    await expect(owner.getByText("Requires owner access")).toBeInTheDocument();
+    // The role picker is greyed out and says why on hover.
+    const picker = owner.getByRole("combobox");
+    await expect(picker).toBeDisabled();
+    await userEvent.hover(picker.parentElement as HTMLElement);
+    await waitFor(() =>
+      expect(screen.getByText("Requires owner access")).toBeVisible(),
+    );
     await expect(owner.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(owner.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     const admin = await openRoleDialogFor(/Ada Lovelace/);
-    await expect(admin.queryByText("Requires owner access")).toBeNull();
+    await expect(admin.getByRole("combobox")).toBeEnabled();
   },
 });
 
@@ -154,6 +179,8 @@ export const FilteredByRole = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -188,6 +215,8 @@ export const Loading = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canManageOrgGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -228,6 +257,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "langfuse-org-admins",
       groupSource: "SCIM",
       memberCount: 4,
+      memberPreview: memberPreview(4),
       role: "ADMIN",
       level: "organization",
     },
@@ -236,6 +266,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "llm-app-maintainers",
       groupSource: "MANUAL",
       memberCount: 17,
+      memberPreview: memberPreview(5),
       role: "MEMBER",
       level: "project",
     },
@@ -259,6 +290,49 @@ export const EffectiveRoleFromGroup = meta.story({
         name: "Admin, From langfuse-org-admins. Open role details",
       }),
     ).toBeInTheDocument();
+  },
+});
+
+const ownRoleHigher: MembersSettingsTableRow = {
+  user: { name: "Mary Jackson", image: null },
+  email: "mary@example.com",
+  providers: ["okta"],
+  createdAt: new Date("2026-03-11"),
+  orgRole: "ADMIN",
+  groupRoles: [
+    {
+      groupId: "group-2",
+      groupName: "data-science",
+      groupSource: "SCIM",
+      memberCount: 4,
+      memberPreview: memberPreview(4),
+      role: "MEMBER",
+      level: "organization",
+    },
+  ],
+  featurePreviews: null,
+  featurePreviewManagement: null,
+  meta: { userId: "user-8", orgMembershipId: "membership-8" },
+};
+
+export const GroupIconMarksGroupMembers = meta.story({
+  name: "(Test) The group icon marks members who are in a group",
+  args: {
+    ...Default.input.args,
+    data: { status: "success", data: [...members, ownRoleHigher] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const roleCell = (name: RegExp) =>
+      within(canvas.getByRole("row", { name })).getByRole("button", {
+        name: /Open role details/,
+      });
+    // The hover text names the group only for members who are in one.
+    await expect(roleCell(/Mary Jackson/)).toHaveAttribute(
+      "title",
+      "Admin · Also in data-science",
+    );
+    await expect(roleCell(/Ada Lovelace/)).toHaveAttribute("title", "Admin");
   },
 });
 
