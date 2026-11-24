@@ -4,9 +4,9 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { ChevronDown, ChevronUp, type IconComponent } from "@langfuse/icons";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
+import { type Badge } from "../Badge/Badge";
 
 type SelectOption<V> = {
   type?: "option";
@@ -156,9 +156,7 @@ export function SelectDropdown<V extends string>({
               </SelectPrimitive.ItemText>
             }
             title={node.disabled ? node.disabledReason : node.label}
-            badges={node.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
+            badges={node.badges}
           />
         </SelectPrimitive.Item>
       </InputDropdown.Option>

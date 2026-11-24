@@ -24,6 +24,8 @@ type SelectInputProps<V extends string> = Pick<
 > & {
   placeholder: string;
   search?: { placeholder: string };
+  /** Popup alignment for searchable selects. */
+  align?: React.ComponentProps<typeof AsyncSelectInput>["align"];
   /** Keeps the portaled option list out of session replay; not applied with `search`. */
   noCapture?: boolean;
   /** See `SelectDropdown`; not applied with `search`. */
@@ -42,6 +44,7 @@ function SelectInputInner<V extends string>(
     noCapture,
     customOption,
     search,
+    align,
     error,
     muted,
     ...triggerProps
@@ -91,6 +94,7 @@ function SelectInputInner<V extends string>(
         onValueChange={(option) => onValueChange(option.value)}
         placeholder={placeholder}
         emptyMessage={emptyMessage}
+        align={align}
         search={{
           ...search,
           value: searchValue,

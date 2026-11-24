@@ -1,9 +1,6 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Combobox,
-  type ComboboxOptionGroup,
-} from "@/src/components/ui/Combobox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { X } from "@langfuse/icons";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
@@ -12,7 +9,6 @@ import {
   NO_DATASET_LABEL,
   UNNAMED_DATASET_LABEL,
 } from "@/src/features/experiments/constants/comparison";
-import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
@@ -44,13 +40,21 @@ export function ExperimentBaselineControls({
 
   // Grouped by dataset and dated, so two runs sharing a name are two readable
   // options rather than the same label twice.
-  const baselineOptionGroups = useMemo<ComboboxOptionGroup<string>[]>(() => {
-    const byDataset = new Map<string, ComboboxOptionGroup<string>>();
+  const baselineOptionGroups = useMemo(() => {
+    const byDataset = new Map<
+      string,
+      Extract<
+        ComponentProps<typeof SelectInput<string>>["options"][number],
+        { type: "group" }
+      >
+    >();
 
     for (const experiment of experimentNames) {
       const datasetKey = experiment.datasetId ?? NO_DATASET_KEY;
       const group = byDataset.get(datasetKey) ?? {
-        heading:
+        type: "group" as const,
+        id: datasetKey,
+        label:
           experiment.datasetId === null
             ? NO_DATASET_LABEL
             : (experiment.datasetName ?? UNNAMED_DATASET_LABEL),
@@ -59,7 +63,7 @@ export function ExperimentBaselineControls({
       group.options.push({
         value: experiment.experimentId,
         label: experiment.experimentName,
-        badge: formatRunRecency(experiment.startTime),
+        badges: [{ text: formatRunRecency(experiment.startTime) }],
       });
       byDataset.set(datasetKey, group);
     }
@@ -68,11 +72,11 @@ export function ExperimentBaselineControls({
   }, [experimentNames]);
 
   return (
-    <div className="flex min-w-0 items-center">
+    <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
-        <Combobox
+        <SelectInput
           options={baselineOptionGroups}
-          value={baselineId}
+          value={baselineId ?? ""}
           onValueChange={(id) => {
             if (id === baselineId) return;
             capture(
@@ -85,13 +89,9 @@ export function ExperimentBaselineControls({
             onBaselineChange(id);
           }}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
-          emptyText="No experiments found"
-          searchPlaceholder="Search experiments..."
+          emptyMessage="No experiments found"
+          search={{ placeholder: "Search experiments..." }}
           disabled={isLoading}
-          className={cn(
-            "rounded-l-none border-l-0",
-            baselineId && "rounded-r-none",
-          )}
         />
       </div>
 
@@ -99,7 +99,7 @@ export function ExperimentBaselineControls({
         <Button
           variant="outline"
           size="icon"
-          className="-ml-px shrink-0 rounded-l-none"
+          className="shrink-0"
           onClick={() => {
             capture(
               "experiment:baseline_changed",

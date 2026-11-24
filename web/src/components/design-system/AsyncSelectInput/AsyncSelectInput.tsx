@@ -13,7 +13,6 @@ import { type SelectDropdown } from "../SelectDropdown/SelectDropdown";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
-import { Badge } from "../Badge/Badge";
 
 type SelectedOption<V extends string> = Pick<
   Extract<
@@ -33,6 +32,7 @@ export function AsyncSelectInput<V extends string>({
   loading,
   callToActionOption,
   virtualized = false,
+  align = "start",
   emptyMessage = "No options available.",
   error,
   muted,
@@ -64,6 +64,7 @@ export function AsyncSelectInput<V extends string>({
     onSelect: () => void;
   };
   virtualized?: boolean;
+  align?: "start" | "center" | "end";
   error?: boolean;
   muted?: boolean;
   ref?: React.Ref<HTMLButtonElement>;
@@ -141,9 +142,7 @@ export function AsyncSelectInput<V extends string>({
             checked={value?.value === option.value}
             label={option.label}
             title={option.disabled ? option.disabledReason : option.label}
-            badges={option.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
+            badges={option.badges}
           />
         </Command.Item>
       </InputDropdown.Option>
@@ -167,7 +166,10 @@ export function AsyncSelectInput<V extends string>({
   const Icon = value?.icon;
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
+    <PopoverPrimitive.Root
+      open={open && !triggerProps.disabled}
+      onOpenChange={handleOpenChange}
+    >
       <InputControl
         contentLayout="spread"
         error={error}
@@ -178,7 +180,7 @@ export function AsyncSelectInput<V extends string>({
           type="button"
           role="combobox"
           aria-controls={listId}
-          aria-expanded={open}
+          aria-expanded={open && !triggerProps.disabled}
           title={value?.label}
           {...triggerProps}
         >
@@ -198,7 +200,7 @@ export function AsyncSelectInput<V extends string>({
       <PopoverPrimitive.Portal container={container}>
         <InputDropdown.Content width="popover-trigger">
           <PopoverPrimitive.Content
-            align="start"
+            align={align}
             sideOffset={4}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}
@@ -313,12 +315,14 @@ export function AsyncSelectInput<V extends string>({
                           const content = items.map(renderOption);
                           if (group)
                             return (
-                              <Command.Group
+                              <InputDropdown.Group
                                 key={group.id}
-                                heading={group.label}
+                                label={group.label}
                               >
-                                {content}
-                              </Command.Group>
+                                <Command.Group heading={group.label}>
+                                  {content}
+                                </Command.Group>
+                              </InputDropdown.Group>
                             );
                           return (
                             <React.Fragment key={items[0].value}>

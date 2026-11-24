@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import { LayoutDashboard } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import { Combobox } from "@/src/components/ui/Combobox";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -47,8 +46,8 @@ export function HomeDashboardSelect({
     const toOption = (d: { id: string; name: string; owner: string }) => ({
       value: d.id,
       label: d.name,
-      ...(d.owner === "LANGFUSE" ? { icon: <LangfuseIcon size={14} /> } : {}),
-      ...(d.id === defaultDashboardId ? { badge: "default" } : {}),
+      ...(d.owner === "LANGFUSE" ? { icon: LayoutDashboard } : {}),
+      ...(d.id === defaultDashboardId ? { badges: [{ text: "default" }] } : {}),
     });
     const curated = items.filter((d) => d.owner === "LANGFUSE");
     const project = items.filter((d) => d.owner === "PROJECT");
@@ -56,13 +55,17 @@ export function HomeDashboardSelect({
       ...(project.length > 0
         ? [
             {
-              heading: "This project",
+              type: "group" as const,
+              id: "project",
+              label: "This project",
               options: project.map(toOption),
             },
           ]
         : []),
       {
-        heading: "Langfuse-maintained",
+        type: "group" as const,
+        id: "langfuse",
+        label: "Langfuse-maintained",
         options: curated.map(toOption),
       },
     ];
@@ -83,19 +86,20 @@ export function HomeDashboardSelect({
   }
 
   return (
-    <Combobox
-      options={options}
-      value={value}
-      onValueChange={(id) => {
-        if (typeof id !== "string" || id === value) return;
-        onValueChange(id);
-      }}
-      placeholder={currentDashboardName}
-      searchPlaceholder="Search dashboards..."
-      emptyText="No dashboards found"
-      className="my-0 w-auto max-w-60"
-      name="home-dashboard"
-      align="end"
-    />
+    <div className="w-auto max-w-60">
+      <SelectInput
+        options={options}
+        value={value}
+        onValueChange={(id) => {
+          if (id === value) return;
+          onValueChange(id);
+        }}
+        placeholder={currentDashboardName}
+        search={{ placeholder: "Search dashboards..." }}
+        align="end"
+        emptyMessage="No dashboards found"
+        aria-label="Home dashboard"
+      />
+    </div>
   );
 }

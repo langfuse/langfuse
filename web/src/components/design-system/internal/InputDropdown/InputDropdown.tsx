@@ -1,10 +1,16 @@
 import { Slot } from "@radix-ui/react-slot";
 import { Check, LoaderCircle, Search as SearchIcon } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef, type ReactNode } from "react";
+import {
+  type ComponentProps,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
 import { Checkbox } from "../../Checkbox/Checkbox";
+import { Badge } from "../../Badge/Badge";
+import { DropdownIndicator } from "../../DropdownIndicator/DropdownIndicator";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
@@ -102,6 +108,60 @@ function Option({
   );
 }
 
+function Group({
+  label,
+  children,
+  count,
+  caption,
+  ...expansion
+}: {
+  label: string;
+  children: ReactNode;
+  count?: number;
+  caption?: { text: string; description: string };
+} & (
+  | { expanded?: never; onExpandedChange?: never }
+  | { expanded: boolean; onExpandedChange?: (expanded: boolean) => void }
+)) {
+  if (expansion.expanded === undefined) {
+    return <Slot aria-label={label}>{children}</Slot>;
+  }
+
+  const { expanded, onExpandedChange } = expansion;
+  return (
+    <>
+      <button
+        type="button"
+        disabled={!onExpandedChange}
+        aria-expanded={expanded}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.stopPropagation();
+        }}
+        onClick={() => onExpandedChange?.(!expanded)}
+        className="bg-muted/40 enabled:hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs disabled:cursor-default"
+      >
+        {onExpandedChange && (
+          <DropdownIndicator
+            size="sm"
+            direction={expanded ? "down" : "right"}
+          />
+        )}
+        <span className="truncate font-semibold">{label}</span>
+        <span>{count}</span>
+        {caption && (
+          <span
+            title={caption.description}
+            className="text-muted-foreground ml-auto shrink-0 italic"
+          >
+            {caption.text}
+          </span>
+        )}
+      </button>
+      {expanded && <Slot aria-label={label}>{children}</Slot>}
+    </>
+  );
+}
+
 function Loading({ message }: { message: string }) {
   return (
     <Option highlight="aria-selected">
@@ -129,7 +189,7 @@ type OptionContentProps = {
    * beneath it when it does not, so the label — the thing the option is picked
    * by — is never the only item that can give up space.
    */
-  badges?: ReactNode;
+  badges?: readonly ComponentProps<typeof Badge>[];
   title: string;
   checked: boolean;
 };
@@ -138,7 +198,7 @@ function SingleSelectOptionContent({ checked, ...props }: OptionContentProps) {
   return (
     <>
       <OptionLabel {...props} />
-      <OptionIndicator hasBadges={!!props.badges}>
+      <OptionIndicator hasBadges={Boolean(props.badges?.length)}>
         <Check
           aria-hidden="true"
           size="base"
@@ -152,7 +212,7 @@ function SingleSelectOptionContent({ checked, ...props }: OptionContentProps) {
 function MultiSelectOptionContent({ checked, ...props }: OptionContentProps) {
   return (
     <>
-      <OptionIndicator hasBadges={!!props.badges} leading>
+      <OptionIndicator hasBadges={Boolean(props.badges?.length)} leading>
         <Checkbox
           checked={checked}
           size="sm"
@@ -187,7 +247,9 @@ function OptionLabel({
           <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
         )}
       </span>
-      {badges}
+      {badges?.map((badge, index) => (
+        <Badge key={index} {...badge} />
+      ))}
     </span>
   );
 }
@@ -220,6 +282,7 @@ function OptionIndicator({
 }
 
 export const InputDropdown = {
+  Group,
   Content,
   Empty,
   List,

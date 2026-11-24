@@ -9,7 +9,7 @@ import {
   type ExperimentComparisonSource,
 } from "@/src/features/experiments/lib/analytics";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
-import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
+import { ConnectedExperimentComparisonSelect } from "./ConnectedExperimentComparisonSelect";
 import { getExperimentColorStyles } from "./table/types";
 import { cn } from "@/src/utils/tailwind";
 
@@ -151,7 +151,7 @@ export function ExperimentSelectionControls({
       </div>
 
       <div className="w-full min-w-0 flex-1">
-        <ExperimentComparisonSelector
+        <ConnectedExperimentComparisonSelect
           projectId={projectId}
           baselineExperimentId={baselineId}
           selectedIds={comparisonIds}
