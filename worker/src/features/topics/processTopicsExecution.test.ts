@@ -10,7 +10,10 @@ import type {
   TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
-import { TOPICS_TEXT_VERSION } from "@langfuse/shared/src/server";
+import {
+  recordIncrement,
+  TOPICS_TEXT_VERSION,
+} from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
 const { topicSourceKey } = vi.hoisted(() => ({
@@ -970,6 +973,11 @@ describe("Topics execution", () => {
 
       const refit = state.runs.get("refit")!;
       expect(refit).toMatchObject({ status: "completed", ruleId: "rule" });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.topics.rule_fits",
+        1,
+        { outcome: "published", trigger: "automatic" },
+      );
       const sameTopics = refit.topics.some((topic) =>
         published.topics.some((other) => other.topicId === topic.topicId),
       );
