@@ -8,7 +8,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GatewayGuardrailsChart } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsChart/GatewayGuardrailsChart";
 import { ConnectedGatewayGuardrailsTable } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsTable/ConnectedGatewayGuardrailsTable";
-import { useGatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayTimeSeriesInterval } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
@@ -36,10 +35,6 @@ export function GatewayGuardrailsPage({
     useGatewaySettingsAccess(organizationId);
   const openLimitFeedback = useOpenGuardrailsLimitFeedback();
   const table = useGatewayGuardrailsTableState(organizationId);
-  const guardrailSelection = useGatewayGuardrailSelection(
-    organizationId,
-    table,
-  );
   const [interval, setInterval] = useState<GatewayTimeSeriesInterval>("day");
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
@@ -106,9 +101,7 @@ export function GatewayGuardrailsPage({
             timeRange={absoluteTimeRange}
             interval={interval}
             onIntervalChange={setInterval}
-            selection={guardrailSelection.selection}
-            tags={guardrailSelection.tags}
-            onRemoveTag={guardrailSelection.removeTag}
+            table={table}
           />
         ) : null}
         <ConnectedGatewayGuardrailsTable

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useStore } from "zustand";
 
 import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { api } from "@/src/utils/api";
@@ -8,31 +9,40 @@ const ALL_TAG = "all";
 /**
  * Resolves the guardrails selected in the table for the chart filter: either
  * the individually checked rows or, under select-all, every guardrail matching
- * the table's search query.
+ * the table's search query. Subscribes directly to `selectionStore` so ticking
+ * a row only re-renders the chart, not the page or table.
  */
 export function useGatewayGuardrailSelection(
   organizationId: string,
   table: ReturnType<typeof useGatewayGuardrailsTableState>,
 ) {
+  const rowSelection = useStore(table.selectionStore, (s) => s.rowSelection);
+  const selectAll = useStore(table.selectionStore, (s) => s.selectAll);
+  const rows = table.guardrails.data?.rows;
+  const selectedRows = useMemo(
+    () => (rows ?? []).filter((row) => rowSelection[row.id]),
+    [rows, rowSelection],
+  );
+
   const matching = api.aiGateway.guardrails.listMatching.useQuery(
     {
       orgId: organizationId,
       searchQuery: table.matching.searchQuery,
     },
-    { enabled: table.selectAll },
+    { enabled: selectAll },
   );
 
   const { refetch } = matching;
   const selection = useMemo((): GatewayGuardrailSelection => {
-    if (!table.selectAll) {
-      if (table.selectedRows.length === 0) return { status: "none" };
+    if (!selectAll) {
+      if (selectedRows.length === 0) return { status: "none" };
       return {
         status: "selected",
         querySelection: {
           type: "ids",
-          ids: table.selectedRows.map((row) => row.id),
+          ids: selectedRows.map((row) => row.id),
         },
-        guardrails: table.selectedRows.map((row) => ({
+        guardrails: selectedRows.map((row) => ({
           value: row.id,
           label: row.name,
         })),
@@ -60,18 +70,18 @@ export function useGatewayGuardrailSelection(
     matching.isError,
     refetch,
     table.matching,
-    table.selectAll,
-    table.selectedRows,
+    selectAll,
+    selectedRows,
   ]);
 
-  const tags = table.selectAll
+  const tags = selectAll
     ? [
         {
           value: ALL_TAG,
           label: `All ${matching.data?.length ?? table.guardrails.data?.totalCount ?? 0} guardrails`,
         },
       ]
-    : table.selectedRows.map((row) => ({
+    : selectedRows.map((row) => ({
         value: row.id,
         label: row.name,
       }));
@@ -81,7 +91,7 @@ export function useGatewayGuardrailSelection(
       table.clearSelection();
       return;
     }
-    const row = table.selectedRows.find((candidate) => candidate.id === value);
+    const row = selectedRows.find((candidate) => candidate.id === value);
     if (row) table.toggleRow(row.id);
   };
 

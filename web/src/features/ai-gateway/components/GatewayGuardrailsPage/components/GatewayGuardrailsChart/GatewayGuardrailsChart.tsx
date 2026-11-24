@@ -6,7 +6,8 @@ import {
   type GatewayTimeSeriesInterval,
 } from "@/src/features/ai-gateway/constants/gatewayTimeSeriesIntervals";
 import { buildGuardrailChartData } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/components/GatewayGuardrailsChart/fns/buildGuardrailChartData";
-import type { GatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
+import { useGatewayGuardrailSelection } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useGatewayGuardrailSelection";
+import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
 import { api } from "@/src/utils/api";
 
@@ -15,9 +16,7 @@ export type GatewayGuardrailsChartProps = {
   timeRange: { from: Date; to: Date };
   interval: GatewayTimeSeriesInterval;
   onIntervalChange: (interval: GatewayTimeSeriesInterval) => void;
-  selection: GatewayGuardrailSelection;
-  tags: { value: string; label: string }[];
-  onRemoveTag: (value: string) => void;
+  table: ReturnType<typeof useGatewayGuardrailsTableState>;
 };
 
 export function GatewayGuardrailsChart({
@@ -25,10 +24,12 @@ export function GatewayGuardrailsChart({
   timeRange,
   interval,
   onIntervalChange,
-  selection,
-  tags,
-  onRemoveTag,
+  table,
 }: GatewayGuardrailsChartProps) {
+  const { selection, tags, removeTag } = useGatewayGuardrailSelection(
+    organizationId,
+    table,
+  );
   const selectedGuardrails =
     selection.status === "selected" ? selection.guardrails : undefined;
   const querySelection =
@@ -118,7 +119,7 @@ export function GatewayGuardrailsChart({
         filter={{
           label: "Selected guardrails",
           items: tags,
-          onRemove: onRemoveTag,
+          onRemove: removeTag,
         }}
         tabs={{
           value: interval,

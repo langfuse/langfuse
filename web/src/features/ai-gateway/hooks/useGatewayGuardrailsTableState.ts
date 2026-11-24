@@ -21,16 +21,9 @@ export function useGatewayGuardrailsTableState(organizationId: string) {
     page: pagination.pageIndex,
     limit: pagination.pageSize,
   });
-  const rowSelection = useStore(selectionStore, (s) => s.rowSelection);
-  const selectAll = useStore(selectionStore, (s) => s.selectAll);
-  const rows = guardrails.data?.rows;
 
-  const selectedRows = useMemo(
-    () => (rows ?? []).filter((row) => rowSelection[row.id]),
-    [rows, rowSelection],
-  );
-
-  const { clearSelection, toggleRow } = selectionStore.getState().actions;
+  const { clearSelection, toggleRow: setRowSelected } =
+    selectionStore.getState().actions;
   const update = (changes: Partial<typeof state>) => {
     clearSelection();
     store.setState(changes);
@@ -59,12 +52,11 @@ export function useGatewayGuardrailsTableState(organizationId: string) {
   return {
     guardrails,
     selectionStore,
-    selectedRows,
-    selectAll,
     matching,
     clearSelection,
     clampPageAfterDelete,
-    toggleRow: (rowId: string) => toggleRow(rowId, !rowSelection[rowId]),
+    toggleRow: (rowId: string) =>
+      setRowSelected(rowId, !selectionStore.getState().rowSelection[rowId]),
     search: {
       value: searchQuery,
       onChange: (value: string) =>
