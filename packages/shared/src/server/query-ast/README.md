@@ -136,6 +136,11 @@ must carry the `.golden.test.ts` suffix to run there.
   `expressionBuilder()` loses the check entirely: helper results don't carry
   their table scope in their type, and Kysely's `select()` / `where()` accept
   any expression.
+- **Helpers take columns as expressions.** A helper parameter that names a
+  column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
+  column-name string, so the calling query's builder checks the column. Don't
+  cast or `@ts-expect-error` a query past the types; add the missing column or
+  helper instead.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -348,7 +353,9 @@ widening behavior.
 - `eb.fn("ch_function", [...])` — a ClickHouse function by name. The name must be on `ALLOWED_FUNCTIONS` (`functions.ts`), since a function can read a table or server state. The return type defaults to `unknown`; no arity or return checking.
 - New columns — add them to the table registry in `schema.ts` (one `defineTable`
   entry per relation) as queries need them. That single declaration drives the
-  row types, the runtime column-type map, and the tenanted-table set.
+  row types, the runtime column-type map, and the tenanted-table set. Take each
+  type from the latest ClickHouse migration, `Nullable(…)` kept and
+  `LowCardinality(T)` registered as `T`: binds take their type from it.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
