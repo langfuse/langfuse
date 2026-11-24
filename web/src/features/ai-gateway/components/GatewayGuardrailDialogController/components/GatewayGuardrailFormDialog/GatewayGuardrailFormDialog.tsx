@@ -624,9 +624,6 @@ export function GatewayGuardrailFormDialog({
                 failure={externalTest.outcome.failure}
               />
             ) : null}
-            <DialogPrimitive.Close asChild>
-              <Button variant="ghost" text="Cancel" disabled={isBusy} />
-            </DialogPrimitive.Close>
             {externalTest ? (
               <Button
                 type="button"
