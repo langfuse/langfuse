@@ -24,3 +24,22 @@ SELECT
 FROM topic_facet_summaries
 WHERE processing_state != 'insufficient_input'
   AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- A view created earlier by dev-tables.sh or by hand keeps its old query under
+-- IF NOT EXISTS, so set the query explicitly.
+ALTER TABLE billable_events_topic_facet_summaries_mv {CLICKHOUSE_CLUSTER_CLAUSE} MODIFY QUERY
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'topic_facet_summary' AS event_type,
+    concat(
+        facet_id, ':', toString(facet_version), ':',
+        toString(length(trace_id)), ':', trace_id, ':',
+        if(trace_id = '', session_id, '')
+    ) AS event_id,
+    unit_start_time AS event_time,
+    toUInt64(transcript_bytes) AS event_bytes,
+    environment
+FROM topic_facet_summaries
+WHERE processing_state != 'insufficient_input'
+  AND created_at >= now() - INTERVAL 48 HOUR;
