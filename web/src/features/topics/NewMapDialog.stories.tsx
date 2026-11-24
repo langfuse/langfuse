@@ -116,10 +116,9 @@ function NewMapStory({
           samplingPercent={samplingPercent}
           dailyTraces={180}
           backfillTraces={412}
-          canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}
-          disabled={facetIds.length === 0}
+          facetCount={facetIds.length}
           error={null}
           onStart={fn()}
         />

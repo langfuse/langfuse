@@ -1,4 +1,5 @@
 import { expect, fn, within } from "storybook/test";
+import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
 import preview from "../../../.storybook/preview";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import { costEstimateFixture as estimate } from "./topicCostEstimateFixture";
@@ -10,10 +11,9 @@ const meta = preview.meta({
     samplingPercent: 100,
     dailyTraces: 954,
     backfillTraces: 500,
-    canAddModelPrice: true,
     onAddModelPrice: fn(),
     starting: false,
-    disabled: false,
+    facetCount: 2,
     error: null,
     onStart: fn(),
   },
@@ -61,7 +61,7 @@ export const UnpricedModel = meta.story({
 
 // Without permission to edit model definitions the button stays, disabled.
 export const UnpricedModelWithoutPermission = meta.story({
-  args: { ...UnpricedModel.input.args, canAddModelPrice: false },
+  args: { ...UnpricedModel.input.args, onAddModelPrice: undefined },
 });
 
 export const Failed = meta.story({
@@ -86,5 +86,19 @@ export const LabelsEstimate = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Estimate cost" }),
     ).toBeDisabled();
+  },
+});
+
+export const TestOversizedSelection = meta.story({
+  name: "(Test) Explains why a large selection cannot be estimated",
+  args: { facetCount: TOPICS_COST_ESTIMATE_MAX_FACETS + 1 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/cost estimates support up to/i),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Estimate cost" }),
+    ).not.toBeInTheDocument();
   },
 });

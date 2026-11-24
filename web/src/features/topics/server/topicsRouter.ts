@@ -5,6 +5,7 @@ import {
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
+  TOPICS_COST_ESTIMATE_MAX_FACETS,
   topicIdSchema,
   topicFacetRefSchema,
   topicRuleConfigSchema,
@@ -21,6 +22,8 @@ import {
 import {
   readTopicExecutionSummary,
   getTopicExecutionCosts,
+  getTopicExecutionNamingCosts,
+  getTopicRuleMapCosts,
   enqueueTopicSnapshotSetup,
   readTopicSnapshotSummarizing,
   writeTopicExecution,
@@ -90,6 +93,8 @@ import {
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const includeCosts = z.boolean().default(true);
+// A history page plus the selected snapshot and an open run detail.
+const visibleExecutionIds = z.array(topicIdSchema).max(102);
 const mapInput = projectInput.extend({ runId: topicIdSchema });
 // Snapshots offer 7 or 14 days; longer windows risk an out-of-memory fit.
 const SNAPSHOT_MAX_WINDOW_MS = 14 * 86_400_000;
@@ -161,7 +166,7 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
 
 const costEstimateInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
-  facetIds: z.array(topicIdSchema).min(1).max(50),
+  facetIds: z.array(topicIdSchema).min(1).max(TOPICS_COST_ESTIMATE_MAX_FACETS),
 });
 
 /** The facets' current versions and the project's stored Topics models; null without a summary model. */
@@ -648,14 +653,39 @@ export const topicsRouter = createTRPCRouter({
       return { ...execution, estimatedCost: costs?.[execution.id] ?? null };
     }),
   executionCosts: topicsProcedure
-    .input(
-      projectInput.extend({
-        // A history page plus the selected snapshot and an open run detail.
-        executionIds: z.array(topicIdSchema).max(102),
-      }),
-    )
+    .input(projectInput.extend({ executionIds: visibleExecutionIds }))
     .query(({ input }) =>
       getTopicExecutionCosts(input.projectId, input.executionIds),
+    ),
+  executionCostBreakdown: topicsProcedure
+    .input(
+      projectInput.extend({
+        executionIds: visibleExecutionIds,
+        includeSummaryCosts: z.boolean().default(true),
+      }),
+    )
+    .query(
+      async ({ input: { projectId, executionIds, includeSummaryCosts } }) => {
+        const [costs, naming] = await Promise.all([
+          includeSummaryCosts
+            ? getTopicExecutionCosts(projectId, executionIds)
+            : null,
+          getTopicExecutionNamingCosts(projectId, executionIds),
+        ]);
+        return Object.fromEntries(
+          executionIds.map(
+            (id) =>
+              [
+                id,
+                {
+                  summaries:
+                    costs && Object.hasOwn(costs, id) ? costs[id] : null,
+                  naming: Object.hasOwn(naming, id) ? naming[id] : null,
+                },
+              ] as const,
+          ),
+        );
+      },
     ),
   setupTraceCounts: topicsProcedure
     .input(
@@ -725,6 +755,9 @@ export const topicsRouter = createTRPCRouter({
         ruleId: input.ruleId,
       }),
     ),
+  ruleMapCosts: topicsProcedure.query(({ input }) =>
+    getTopicRuleMapCosts(input.projectId),
+  ),
   ruleSetupStatus: topicsProcedure
     .input(projectInput.extend({ ruleId: topicIdSchema }))
     .query(({ input }) => readTopicRuleSetup(input.projectId, input.ruleId)),

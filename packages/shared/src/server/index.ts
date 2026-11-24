@@ -37,6 +37,7 @@ export * from "./services/email/passwordReset/sendResetPasswordVerificationReque
 export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export type { UsageThresholdPlan } from "./services/email/usageThresholdPlan";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/email/blobStorageExportFailed/sendBlobStorageExportFailedEmail";
 export * from "./services/email/posthogExportFailed/sendPostHogExportFailedEmail";
@@ -188,6 +189,7 @@ export { type Turn } from "./transcript/types";
 export { type Thread } from "./transcript/types";
 export { type Transcript } from "./transcript/types";
 export { createTraceTranscriptStorage } from "./eventsDispatch/storage";
+export { serializeTraceTranscriptInputs } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_MAX_CHARACTERS } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_PREFIX } from "./eventsDispatch/storage";
 export { TRACE_TRANSCRIPT_RETENTION_MS } from "./eventsDispatch/storage";
