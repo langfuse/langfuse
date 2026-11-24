@@ -45,7 +45,8 @@ export function useTracesWithSelection(
       ? { ...query, traceId: selectedTraceId }
       : null,
   );
-  return pinned.rows.length > 0
+  // A pinned row kept from another topic may not belong to this one.
+  return pinned.rows.length > 0 && !pinned.isStale
     ? { ...traces, rows: [...pinned.rows, ...traces.rows] }
     : traces;
 }

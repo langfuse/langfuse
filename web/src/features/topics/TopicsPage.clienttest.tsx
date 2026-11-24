@@ -639,10 +639,15 @@ it("shows one loading page until the default map's results load", () => {
 
   state.rulesPending = false;
   state.maps = oneRuleMaps;
+  state.resultsDataAvailable = false;
   view.rerender(<TopicsPage />);
   expect(state.currentTopics).toHaveBeenLastCalledWith(
     expect.objectContaining({ enabled: true, ruleId: "rule-1" }),
   );
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+
+  state.resultsDataAvailable = true;
+  view.rerender(<TopicsPage />);
   expect(screen.getByTestId("current-topics")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Edit map" })).toBeInTheDocument();
 });

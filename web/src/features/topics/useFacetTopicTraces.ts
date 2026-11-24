@@ -8,6 +8,7 @@ export type TopicMapScope = { ruleId?: string; analysisId?: string };
 type TraceSourceInput = TopicMapScope & {
   projectId?: string;
   facetId?: string;
+  traceId?: string;
 };
 
 export const FacetTraceSource = createContext<
@@ -33,7 +34,7 @@ export function useFacetTopicTraces(
       enabled: Boolean(source) && query !== null,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
       // Another topic or filter of the same question keeps its rows until these
-      // load; another question or map starts empty.
+      // load; another question, map or looked-up trace starts empty.
       placeholderData: (previous, previousQuery) => {
         const input = (
           previousQuery?.queryKey[1] as { input?: TraceSourceInput } | undefined
@@ -41,7 +42,8 @@ export function useFacetTopicTraces(
         return input?.projectId === projectId &&
           input.facetId === facetId &&
           input.ruleId === source?.ruleId &&
-          input.analysisId === source?.analysisId
+          input.analysisId === source?.analysisId &&
+          input.traceId === query?.traceId
           ? previous
           : undefined;
       },

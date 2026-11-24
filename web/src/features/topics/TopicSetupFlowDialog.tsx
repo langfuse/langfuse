@@ -199,8 +199,9 @@ export function TopicSetupFlowDialog({
       size="lg"
       {...(viewerBlocked ? { closeLabel: "Close" } : {})}
     >
-      {/* Every step keeps the first step's height, so the centered dialog doesn't move between steps. */}
-      <div className="flex min-h-0 flex-1 flex-col sm:min-h-[min(36rem,70vh)]">
+      {/* Every step keeps the first step's height, so the centered dialog doesn't move between steps.
+          The cap leaves room for the header inside the dialog's 85vh limit. */}
+      <div className="flex min-h-0 flex-1 flex-col sm:min-h-[min(36rem,calc(85vh-5rem))]">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4">
           {step === "questions" ? (
             <>

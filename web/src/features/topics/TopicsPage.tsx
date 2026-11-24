@@ -466,13 +466,17 @@ function TopicsWorkspaceContent({
   )
     setFirstLoadSettled(true);
   // Traces follow the results on screen, so a switch requests no traces for stale topics.
+  const shownAnalysisId = switchingMap
+    ? analysisResults.data?.execution.id
+    : analysisId;
+  const shownAnalysis = maps.data?.analyses.find(
+    (analysis) => analysis.id === shownAnalysisId,
+  );
+  // An undefined rule means every rule, so this must not fall back with `??`.
+  const shownRuleId = switchingMap ? results.data?.ruleId : selectedRule?.id;
   const scope = analysisId
-    ? {
-        analysisId: switchingMap
-          ? analysisResults.data?.execution.id
-          : analysisId,
-      }
-    : { ruleId: switchingMap ? results.data?.ruleId : selectedRule?.id };
+    ? { analysisId: shownAnalysisId ?? undefined }
+    : { ruleId: shownRuleId };
   const traceFilters = useTopicTraceFilters(
     projectId,
     shownResults.data?.facets ?? [],
@@ -855,30 +859,35 @@ function TopicsWorkspaceContent({
                       mapBuilt={awaitingSetupMap}
                     />
                   ) : null}
-                  {analysisState &&
-                  analysisId &&
-                  analysisResults.data &&
-                  busy(analysisState.status) ? (
-                    <TopicSetupProgressView
-                      variant="snapshot"
-                      {...snapshotProgress(
-                        analysisResults.data.execution,
-                        facets.data ?? [],
+                  {analysisState && shownAnalysisId && analysisResults.data ? (
+                    // While another snapshot loads, the one on screen stays, dimmed.
+                    <div
+                      aria-busy={switchingMap || undefined}
+                      className={cn(
+                        "flex min-h-0 min-w-0 flex-1 flex-col transition-opacity",
+                        switchingMap && "pointer-events-none opacity-60",
                       )}
-                      retrying={false}
-                      canRetry={false}
-                      onViewDetails={() => openExecution(analysisId)}
-                    />
-                  ) : null}
-                  {analysisState &&
-                  analysisId &&
-                  !busy(analysisState.status) ? (
-                    <TopicAnalysisState
-                      status={analysisState.status}
-                      outcome={analysisState.outcome}
-                      traceCount={selectedAnalysis?.traceCount ?? 0}
-                      onViewRun={() => openExecution(analysisId)}
-                    />
+                    >
+                      {busy(analysisState.status) ? (
+                        <TopicSetupProgressView
+                          variant="snapshot"
+                          {...snapshotProgress(
+                            analysisResults.data.execution,
+                            facets.data ?? [],
+                          )}
+                          retrying={false}
+                          canRetry={false}
+                          onViewDetails={() => openExecution(shownAnalysisId)}
+                        />
+                      ) : (
+                        <TopicAnalysisState
+                          status={analysisState.status}
+                          outcome={analysisState.outcome}
+                          traceCount={shownAnalysis?.traceCount ?? 0}
+                          onViewRun={() => openExecution(shownAnalysisId)}
+                        />
+                      )}
+                    </div>
                   ) : null}
                   {!showOnboarding &&
                     !showBuilding &&

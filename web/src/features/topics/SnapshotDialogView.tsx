@@ -324,9 +324,14 @@ function SnapshotSummary({
           <Layers size="base" aria-hidden="true" />
           Counting summarized traces…
         </span>
+        {/* Holds the summarize line's space, which usually follows the counts. */}
+        <span className="flex items-center gap-2">
+          <Sparkles size="base" aria-hidden="true" />
+          Checking which traces still need a summary…
+        </span>
         <span className="flex items-center gap-2">
           <Clock size="base" aria-hidden="true" />
-          Usually ready in 1–2 minutes.
+          Estimating how long it takes…
         </span>
         <span className="flex items-center gap-2">
           <Camera size="base" aria-hidden="true" />

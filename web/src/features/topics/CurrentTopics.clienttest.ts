@@ -284,6 +284,17 @@ describe("trace selection", () => {
     expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
     expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
   });
+
+  it("leaves out a pinned row kept from the previous lookup", () => {
+    const staleLookup = (query: TopicTraceQuery | null) => ({
+      ...fakeTraces(query),
+      isStale: query?.traceId !== undefined,
+    });
+    const rows = renderHook(() =>
+      useTracesWithSelection(staleLookup, {}, "picked"),
+    ).result.current.rows.map((item) => item.traceId);
+    expect(rows).toEqual(loaded);
+  });
 });
 
 describe("Open in Tracing", () => {
