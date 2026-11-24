@@ -63,6 +63,7 @@ describe("EVENTS_CORE_TRUNCATIONS", () => {
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
     expect([...TENANTED_TABLES].sort()).toEqual([
+      "billable_events",
       "events",
       "events_core",
       "events_full",

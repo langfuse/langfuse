@@ -36,6 +36,7 @@ export type ChColumnType =
   | "Nullable(String)"
   | "Float64"
   | "Decimal(18,12)"
+  | "DateTime('UTC')"
   | "DateTime64(3)"
   | "DateTime64(3, 'UTC')"
   | "DateTime64(6)"
@@ -81,6 +82,7 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
           : T extends "Nullable(UInt16)"
             ? number | null
             : T extends
+                  | "DateTime('UTC')"
                   | "DateTime64(3)"
                   | "DateTime64(3, 'UTC')"
                   | "DateTime64(6)"
@@ -116,6 +118,7 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   // ClickHouse stores Bool as UInt8, so numeric aggregates accept it.
   Bool: "number",
   "Nullable(UInt16)": "number",
+  "DateTime('UTC')": "date",
   "DateTime64(3)": "date",
   "DateTime64(3, 'UTC')": "date",
   "DateTime64(6)": "date",
@@ -434,6 +437,20 @@ const TABLE_REGISTRY = {
       created_at: "DateTime64(3, 'UTC')",
     },
   }),
+  // Append-only billing ledger, one row per ingestion of a billable unit
+  // (`0057_create_billable_events`). No dedup: readers that count units
+  // deduplicate themselves (`uniq` over event type and id). Only the columns
+  // the dashboard view reads; `event_type` and `environment` are
+  // `LowCardinality(String)`, an encoding the registry does not model.
+  billable_events: defineTable({
+    columns: {
+      ingested_at: "DateTime('UTC')",
+      project_id: "String",
+      event_type: "String",
+      event_id: "String",
+      environment: "String",
+    },
+  }),
 } as const;
 
 type RowOf<Cols extends Record<string, ChColumnType>> = {
@@ -618,6 +635,7 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
   "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
+  "DateTime('UTC')": "DateTime('UTC')",
   "DateTime64(3)": "DateTime64(3)",
   // Binds with the zone, so the UTC string of a `Date` parses as UTC on any
   // server timezone.
