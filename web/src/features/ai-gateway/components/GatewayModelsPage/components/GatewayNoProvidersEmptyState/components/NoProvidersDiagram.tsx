@@ -1,6 +1,5 @@
 import { useId } from "react";
 
-import launchStyles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import { GATEWAY_TRAFFIC_SOURCES } from "@/src/features/ai-gateway/constants/gatewayTrafficSources";
 import { providerColorIcons } from "@/src/features/ai-gateway/constants/providerColorIcons";
 import { providerShortLabels } from "@/src/features/ai-gateway/constants/providerShortLabels";
@@ -67,15 +66,12 @@ export function NoProvidersDiagram() {
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        "bg-surface-section w-full rounded-2xl px-6 py-5",
-        launchStyles.dotGrid,
-      )}
+      className={cn("bg-muted w-full rounded-xl px-6 py-5", styles.dotGrid)}
     >
       <svg
         viewBox={`0 0 ${VIEWBOX.width} ${VIEWBOX.height}`}
         fill="none"
-        className="text-foreground block h-auto w-full"
+        className="text-foreground block h-auto w-full overflow-visible"
       >
         <defs>
           <linearGradient
@@ -121,8 +117,8 @@ export function NoProvidersDiagram() {
               y={y - SOURCE_CHIP.height / 2}
               width={SOURCE_CHIP.width}
               height={SOURCE_CHIP.height}
-              rx={8}
-              className="fill-card stroke-border"
+              rx={6}
+              className={cn("fill-card", styles.chip)}
             />
             <text
               x={SOURCE_CHIP.x + 12}
@@ -151,8 +147,8 @@ export function NoProvidersDiagram() {
                 y={y - PROVIDER_PILL.height / 2}
                 width={PROVIDER_PILL.width}
                 height={PROVIDER_PILL.height}
-                rx={10}
-                className="fill-card stroke-border"
+                rx={6}
+                className={cn("fill-card", styles.chip)}
               />
               <Logo size="lg" x={PROVIDER_PILL.x + 12} y={y - ICON.lg / 2} />
               <text
@@ -184,7 +180,7 @@ export function NoProvidersDiagram() {
                   cx={centerX}
                   cy={moreY}
                   r={MORE_ROW.avatar / 2}
-                  className="fill-card stroke-border"
+                  className={cn("fill-card", styles.chip)}
                 />
                 <Logo
                   size="base"
