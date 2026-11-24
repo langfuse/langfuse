@@ -28,3 +28,21 @@ export const savedDashboardBlockSchema = dashboardBlockContentSchema.and(
 );
 
 export type SavedDashboardBlock = z.infer<typeof savedDashboardBlockSchema>;
+
+const dashboardBlockIdentitySchema = z.object({ id: z.uuid() });
+
+export const dashboardBlockPatchSchema = z.union([
+  dashboardBlockIdentitySchema
+    .extend({
+      op: z.literal("upsert"),
+      expectedRevision: z.number().int().nonnegative(),
+      beforePlacementId: z.string().nullable().optional(),
+    })
+    .and(dashboardBlockContentSchema),
+  dashboardBlockIdentitySchema.extend({
+    op: z.literal("remove"),
+    expectedRevision: z.number().int().positive(),
+  }),
+]);
+
+export type DashboardBlockPatch = z.infer<typeof dashboardBlockPatchSchema>;

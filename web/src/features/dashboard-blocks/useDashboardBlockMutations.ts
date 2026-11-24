@@ -6,7 +6,7 @@ function invalidateDashboardBlockViews(
   utils: ReturnType<typeof api.useUtils>,
   context: MutationContext,
 ) {
-  utils.dashboardBlocks.getAll.invalidate(context);
+  utils.dashboard.getDashboardBlocks.invalidate(context);
   utils.dashboard.getDashboard.invalidate(context);
   utils.dashboard.getHomeDashboard.invalidate({ projectId: context.projectId });
 }
@@ -17,7 +17,7 @@ export function useSaveDashboardBlock({
   onSaved,
 }: MutationContext & { onSaved: () => void }) {
   const utils = api.useUtils();
-  return api.dashboardBlocks.save.useMutation({
+  return api.dashboard.updateDashboardDefinition.useMutation({
     onSuccess: () => {
       invalidateDashboardBlockViews(utils, { projectId, dashboardId });
       onSaved();
@@ -36,7 +36,7 @@ export function useRemoveDashboardBlock({
   onRemoved,
 }: MutationContext & { onRemoved: () => void }) {
   const utils = api.useUtils();
-  return api.dashboardBlocks.remove.useMutation({
+  return api.dashboard.updateDashboardDefinition.useMutation({
     onSuccess: () => {
       invalidateDashboardBlockViews(utils, { projectId, dashboardId });
       onRemoved();

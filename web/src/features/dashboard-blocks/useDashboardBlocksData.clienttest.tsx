@@ -61,7 +61,7 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
                       code:
                         status === 403 ? "FORBIDDEN" : "INTERNAL_SERVER_ERROR",
                       httpStatus: status,
-                      path: "dashboardBlocks.getAll",
+                      path: "dashboard.getDashboardBlocks",
                     },
                   },
                 },
@@ -72,11 +72,13 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
           headers: { "Content-Type": "application/json" },
         });
       };
-      if (request.pathname.includes("dashboardBlocks.capabilities")) {
+      if (
+        request.pathname.includes("dashboard.getDashboardBlockCapabilities")
+      ) {
         capabilityReads++;
         return respond({ multiQuery: true, markdown: true });
       }
-      if (!request.pathname.includes("dashboardBlocks.getAll"))
+      if (!request.pathname.includes("dashboard.getDashboardBlocks"))
         throw new Error("Unexpected query");
       return new Promise<Response>((resolve) =>
         reads.push({
@@ -133,7 +135,11 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
   ) =>
     act(() => {
       queryClient!.setQueryData(
-        getQueryKey(api.dashboardBlocks.capabilities, { projectId }, "query"),
+        getQueryKey(
+          api.dashboard.getDashboardBlockCapabilities,
+          { projectId },
+          "query",
+        ),
         capabilities,
       );
     });
@@ -168,7 +174,7 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
     act(() => {
       queryClient!.invalidateQueries({
         queryKey: getQueryKey(
-          api.dashboardBlocks.getAll,
+          api.dashboard.getDashboardBlocks,
           { projectId: "other-project", dashboardId: "other-dashboard" },
           "query",
         ),
@@ -185,7 +191,7 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
       }),
     );
     const key = getQueryKey(
-      api.dashboardBlocks.getAll,
+      api.dashboard.getDashboardBlocks,
       {
         projectId: "other-project",
         dashboardId: "other-dashboard",

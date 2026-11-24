@@ -33,12 +33,18 @@ import {
   paginationZod,
   orderBy,
   StringNoHTML,
+  dashboardBlockPatchSchema,
+  ForbiddenError,
   InvalidRequestError,
   singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
+import { canAuthorDashboardBlocks } from "@/src/features/feature-flags/utils";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -61,12 +67,16 @@ const GetDashboardInput = z.object({
   dashboardId: z.string(),
 });
 
-// Update dashboard definition input schema
-const UpdateDashboardDefinitionInput = z.object({
-  projectId: z.string(),
-  dashboardId: z.string(),
-  definition: DashboardDefinitionSchema,
-});
+const UpdateDashboardDefinitionInput = z.union([
+  GetDashboardInput.extend({
+    definition: DashboardDefinitionSchema,
+    blockPatch: z.never().optional(),
+  }),
+  GetDashboardInput.extend({
+    blockPatch: dashboardBlockPatchSchema,
+    definition: z.never().optional(),
+  }),
+]);
 
 // Update dashboard input schema
 const UpdateDashboardInput = z.object({
@@ -533,6 +543,46 @@ export const dashboardRouter = createTRPCRouter({
       return dashboard;
     }),
 
+  getDashboardBlockCapabilities: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+      const enabled =
+        canAuthorDashboardBlocks(ctx.session) &&
+        hasProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "dashboards:CUD",
+        });
+      return { multiQuery: enabled, markdown: enabled };
+    }),
+
+  getDashboardBlocks: protectedProjectProcedure
+    .input(
+      GetDashboardInput.extend({
+        kinds: z.array(z.enum(["multiQuery", "markdown"])).optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:read",
+      });
+      const blocks = await DashboardService.getDashboardBlocks(
+        input.projectId,
+        input.dashboardId,
+      );
+      const { kinds } = input;
+      return kinds
+        ? blocks.filter((block) => kinds.includes(block.kind))
+        : blocks;
+    }),
+
   createDashboard: protectedProjectProcedure
     .input(CreateDashboardInput)
     .mutation(async ({ ctx, input }) => {
@@ -561,14 +611,25 @@ export const dashboardRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      const dashboard = await DashboardService.updateDashboardDefinition(
-        input.dashboardId,
+      if (input.definition) {
+        return DashboardService.updateDashboardDefinition(
+          input.dashboardId,
+          input.projectId,
+          input.definition,
+          ctx.session.user.id,
+        );
+      }
+      if (!canAuthorDashboardBlocks(ctx.session)) {
+        throw new ForbiddenError(
+          "Dashboard block authoring requires the employee feature preview.",
+        );
+      }
+      return DashboardService.patchDashboardBlock(
         input.projectId,
-        input.definition,
+        input.dashboardId,
+        input.blockPatch,
         ctx.session.user.id,
       );
-
-      return dashboard;
     }),
 
   updateDashboardMetadata: protectedProjectProcedure

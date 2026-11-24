@@ -10,8 +10,8 @@ import superjson from "superjson";
 const t = initTRPC.create({ transformer: superjson });
 const classic = t.router({});
 const current = t.router({
-  dashboardBlocks: t.router({
-    capabilities: t.procedure.query(() => ({
+  dashboard: t.router({
+    getDashboardBlockCapabilities: t.procedure.query(() => ({
       multiQuery: false,
       markdown: false,
     })),
@@ -44,8 +44,8 @@ it("preserves successful flags across transient errors without restoring revoked
   const disabled = { multiQuery: false, markdown: false };
   let response: "enabled" | "disabled" | "transient" | "denied" = "enabled";
   const router = t.router({
-    dashboardBlocks: t.router({
-      capabilities: t.procedure.query(() => {
+    dashboard: t.router({
+      getDashboardBlockCapabilities: t.procedure.query(() => {
         if (response === "transient")
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         if (response === "denied") throw new TRPCError({ code: "FORBIDDEN" });
@@ -55,7 +55,7 @@ it("preserves successful flags across transient errors without restoring revoked
   });
   const client = clientFor(router);
   const key = ["capabilities", { projectId: "one" }];
-  const read = () => client.dashboardBlocks.capabilities.query();
+  const read = () => client.dashboard.getDashboardBlockCapabilities.query();
   const attempt = async (queryKey = key, source = read) => {
     try {
       await cache.fetchQuery({
@@ -102,7 +102,7 @@ it("preserves successful flags across transient errors without restoring revoked
     expect(await attempt()).toEqual(enabled);
     expect(
       await attempt(key, () =>
-        clientFor(classic).dashboardBlocks.capabilities.query(),
+        clientFor(classic).dashboard.getDashboardBlockCapabilities.query(),
       ),
     ).toEqual(disabled);
     response = "transient";

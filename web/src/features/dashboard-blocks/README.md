@@ -18,9 +18,26 @@ The `multi-query/` subtree owns its query editor, execution, preparation, and ch
 
 ## Employee rollout and migration
 
-Deploy the PostgreSQL migration `20261123160000_add_dashboard_blocks` first. It adds the `DashboardBlockKind` enum and an empty `dashboard_blocks` table. The primary key is `(dashboard_id, id)`. Each row stores its kind, versioned JSON configuration, optional placement anchor, edit revision and creation time. The dashboard foreign key cascades on deletion. Existing dashboards, widgets, Home cards and their saved grid JSON require no updates. There is no backfill or ClickHouse migration.
+This release uses the existing PostgreSQL `dashboards.definition` JSON column. It requires no database migration, backfill or ClickHouse changes.
 
-Once every web replica supports the new table and clone path, staff can opt in from their account menu. Select **Internal view** under **View mode**, then open **Feature preview** and enable **Dashboard block authoring** (`dashboardBlockAuthoring`). As in Topics, staff eligibility uses the account email's exact domain, `@langfuse.com` or `@clickhouse.com`, case-insensitively. Self-hosted installations use the same email-domain convention. The preview defaults off. After enrollment, authoring works in either view on dashboards the employee can edit. Staff can opt out in either view and re-enroll in Internal view. Ordinary readers retain access to the saved blocks. Organization defaults and deployment-wide experimental settings cannot grant block authoring.
+A classic dashboard starts with `{ "widgets": [...] }`. Saving its first Markdown or multi-query block adds the root version `"1"` and a `blocks` array. That array contains all classic placements and the new blocks. The `widgets` array mirrors only classic chart and preset placements, so older readers can display it unchanged. For example, a dashboard with a Home card and a note can be stored as follows.
+
+```json
+{
+  "version": "1",
+  "widgets": [
+    { "type": "preset", "id": "traces", "presetId": "home-traces", "x": 0, "y": 0, "x_size": 12, "y_size": 5 }
+  ],
+  "blocks": [
+    { "type": "preset", "id": "traces", "presetId": "home-traces", "x": 0, "y": 0, "x_size": 12, "y_size": 5 },
+    { "id": "90426bdb-2e6f-494b-b306-b048beeae938", "kind": "markdown", "config": { "version": 1, "title": "Traffic", "content": "The chart counts traces in the selected period." }, "revision": 1, "beforePlacementId": "traces" }
+  ]
+}
+```
+
+The dashboard router accepts either the original layout or a single block edit through `updateDashboardDefinition`. A block edit locks the dashboard row, compares the saved block revision, then patches that block. Two editors can update different blocks. If they edit the same block from the same revision, the second receives a conflict and must reload.
+
+Once every web replica supports the versioned definition and clone path, staff can opt in from their account menu. Select **Internal view** under **View mode**, then open **Feature preview** and enable **Dashboard block authoring** (`dashboardBlockAuthoring`). As in Topics, staff eligibility uses the account email's exact domain, `@langfuse.com` or `@clickhouse.com`, case-insensitively. Self-hosted installations use the same email-domain convention. The preview defaults off. After enrollment, authoring works in either view on dashboards the employee can edit. Staff can opt out in either view and re-enroll in Internal view. Ordinary readers retain access to the saved blocks. Organization defaults and deployment-wide experimental settings cannot grant block authoring.
 
 | Person opening a project dashboard                         | Can see saved charts and Markdown | Can add, edit, move or remove blocks |
 | ---------------------------------------------------------- | --------------------------------- | ------------------------------------ |
@@ -30,7 +47,7 @@ Once every web replica supports the new table and clone path, staff can opt in f
 
 ![An unflagged project member sees the saved observation count, the Markdown note, and a classic Home card.](./docs/reader-without-preview.png)
 
-The existing dashboard read includes a presence hint so an ordinary classic dashboard can load without a separate block-list request. A new client pointed at a pre-feature server falls back to the classic dashboard. Older application versions continue to read and save the original grid. Rolling the application back hides blocks on those binaries but preserves their rows for a later upgrade. Leave the additive migration in place.
+The existing dashboard read includes a presence hint so an ordinary classic dashboard can load without a separate block-list request. A new client pointed at a pre-feature server falls back to the classic dashboard. Older application versions continue to read and save the original grid. Turning the preview off keeps both the document and its contents visible on the upgraded app. A true application rollback restores the pre-feature layout writer. Opening a dashboard on that version preserves the complete document, but saving a classic layout replaces it with `{widgets}` and drops the new blocks on that dashboard. During a rollback, pause layout edits on pilot dashboards that must retain their blocks or back up their definitions before editing.
 
 A block refers to an existing chart placement or the end of the dashboard. If its anchor disappears, it displays at the end. Upgraded same-project clones include stored blocks and revisions are checked on updates. A clone created by a pre-feature server contains only the classic grid. The classic JSON export and existing public dashboard definition also represent the original grid.
 
@@ -42,4 +59,4 @@ Multi-query schedules up to five ordinary analytics queries per chart. For examp
 
 Bump the format when an older editor could discard a saved option or change its meaning. For example, a new percentile label that exists only in the editor UI can reuse the format. A new persisted member that describes a formula needs a version that understands the member. Introduce readers for both formats before turning on a newer writer. Convert one definition at a time on an explicit save, or use a measured migration for a later rollout. Existing classic widgets require no rewrite.
 
-A reader skips an unsupported block version. An individual update or removal also checks the stored format and edit revision before changing the row. Same-project clones on upgraded servers copy each config as stored, including formats the running server cannot display. Unversioned pilot Markdown is read as version 1. New Markdown and multi-query writes carry an explicit version.
+A reader skips an unsupported block version. An individual update or removal also checks the stored format and edit revision before changing the block. Same-project clones on upgraded servers copy each config as stored, including formats the running server cannot display. Unversioned pilot Markdown is read as version 1. New Markdown and multi-query writes carry an explicit version.

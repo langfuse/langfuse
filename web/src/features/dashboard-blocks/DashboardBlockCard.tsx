@@ -54,8 +54,11 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
           .mutateAsync({
             projectId,
             dashboardId,
-            id: block.id,
-            expectedRevision: block.revision,
+            blockPatch: {
+              op: "remove",
+              id: block.id,
+              expectedRevision: block.revision,
+            },
           })
           .then(() => undefined);
       }}

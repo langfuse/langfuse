@@ -10,7 +10,7 @@ export function useDashboardBlockCapabilities(
   const utils = api.useUtils();
   const queryClient = useQueryClient();
   const queryKey = getQueryKey(
-    api.dashboardBlocks.capabilities,
+    api.dashboard.getDashboardBlockCapabilities,
     { projectId },
     "query",
   );
@@ -21,7 +21,7 @@ export function useDashboardBlockCapabilities(
         queryClient,
         queryKey,
         read: () =>
-          utils.client.dashboardBlocks.capabilities.query(
+          utils.client.dashboard.getDashboardBlockCapabilities.query(
             { projectId },
             { signal },
           ),

@@ -42,12 +42,16 @@ export function useDashboardBlocksData({
   const utils = api.useUtils();
   const queryClient = useQueryClient();
   const input = { projectId, dashboardId };
-  const queryKey = getQueryKey(api.dashboardBlocks.getAll, input, "query");
+  const queryKey = getQueryKey(
+    api.dashboard.getDashboardBlocks,
+    input,
+    "query",
+  );
   const saved = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
       try {
-        return await utils.client.dashboardBlocks.getAll.query(input, {
+        return await utils.client.dashboard.getDashboardBlocks.query(input, {
           signal,
         });
       } catch (error) {

@@ -227,6 +227,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     api.dashboard.updateDashboardDefinition.useMutation({
       // Saves are silent; the header shows a spinner while in flight.
       onSuccess: (updatedDashboard, variables) => {
+        if (!variables.definition) return;
         if (!clearDraftIfSaved(variables.definition)) return;
 
         utils.dashboard.getDashboard.setData(

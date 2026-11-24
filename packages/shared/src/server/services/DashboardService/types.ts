@@ -1,6 +1,7 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilterList } from "../../../";
+import { savedDashboardBlockSchema } from "../../../domain/dashboard-block";
 import {
   persistedWidgetViewToQueryView,
   type views,
@@ -125,6 +126,14 @@ export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
 
 export const DashboardDefinitionSchema = z.object({
   widgets: z.array(DashboardDefinitionWidgetSchema),
+});
+
+/** Version 1 mirrors classic placements in widgets; blocks carries the complete layout. */
+export const DashboardDefinitionV1Schema = DashboardDefinitionSchema.extend({
+  version: z.literal("1"),
+  blocks: z.array(
+    z.union([DashboardDefinitionWidgetSchema, savedDashboardBlockSchema]),
+  ),
 });
 
 export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);

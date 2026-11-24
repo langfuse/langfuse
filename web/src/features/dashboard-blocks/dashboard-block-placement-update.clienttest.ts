@@ -27,6 +27,7 @@ it("moves only a valid saved snapshot while preserving its config and revision",
   };
   const payload = createDashboardBlockPlacementUpdate(block, "next-row");
   expect(payload).toEqual({
+    op: "upsert",
     id: block.id,
     kind: block.kind,
     config: block.config,

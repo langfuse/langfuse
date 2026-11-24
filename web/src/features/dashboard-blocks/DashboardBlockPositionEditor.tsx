@@ -97,7 +97,7 @@ export function DashboardBlockPositionEditor({
               beforePlacementId === block.beforePlacementId
             )
               return;
-            mutation.mutate({ projectId, dashboardId, ...input });
+            mutation.mutate({ projectId, dashboardId, blockPatch: input });
           })}
         >
           <Controller

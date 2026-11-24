@@ -67,10 +67,13 @@ export function DashboardBlockEditor({
     mutation.mutate({
       projectId,
       dashboardId,
-      id,
-      expectedRevision: request.block?.revision ?? 0,
-      beforePlacementId,
-      ...content,
+      blockPatch: {
+        op: "upsert",
+        id,
+        expectedRevision: request.block?.revision ?? 0,
+        beforePlacementId,
+        ...content,
+      },
     });
   };
   if (!canEdit)

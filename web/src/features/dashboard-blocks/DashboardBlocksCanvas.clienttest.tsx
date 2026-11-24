@@ -149,7 +149,7 @@ it("keeps classic charts available when the first block read is paused offline",
     queryClient = useQueryClient();
     queryClient.setQueryDefaults(
       getQueryKey(
-        api.dashboardBlocks.getAll,
+        api.dashboard.getDashboardBlocks,
         { projectId: "offline-project", dashboardId: "offline-dashboard" },
         "query",
       ),

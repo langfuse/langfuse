@@ -21,6 +21,12 @@ import {
   dashboardWidgetViewToQueryView,
 } from "./types";
 import { z } from "zod";
+import {
+  getDashboardBlocks,
+  hasDashboardBlocks,
+  updateClassicLayout,
+  patchDashboardBlock,
+} from "./dashboard-definition-storage";
 
 import {
   getValidAggregationsForMeasureType,
@@ -102,6 +108,9 @@ function nextCloneName(sourceName: string, existingNames: string[]): string {
 }
 
 export class DashboardService {
+  public static getDashboardBlocks = getDashboardBlocks;
+  public static patchDashboardBlock = patchDashboardBlock;
+
   /**
    * Retrieves a list of dashboards for a given project.
    */
@@ -175,7 +184,7 @@ export class DashboardService {
         projectId,
         createdBy: userId,
         updatedBy: userId,
-        definition: initialDefinition,
+        definition: DashboardDefinitionSchema.parse(initialDefinition),
         ...(filters !== undefined && { filters }),
       },
     });
@@ -228,18 +237,36 @@ export class DashboardService {
             projectId,
             createdBy: userId,
             updatedBy: userId,
-            definition:
-              definition ?? DashboardDefinitionSchema.parse(source.definition),
+            definition: DashboardDefinitionSchema.parse(
+              definition ?? source.definition,
+            ),
           },
         });
-        // Keep dormant and newer configurations opaque when cloning within their project.
-        await tx.$executeRaw`
-          INSERT INTO dashboard_blocks (dashboard_id, id, kind, config, before_placement_id, created_at)
-          SELECT ${clone.id}, block.id, block.kind, block.config, block.before_placement_id, block.created_at
-          FROM dashboard_blocks AS block
-          JOIN dashboards AS source ON source.id = block.dashboard_id
-          WHERE block.dashboard_id = ${dashboardId} AND source.project_id = ${projectId}
+        // Copy same-project content inside PostgreSQL, including unknown formats or
+        // numbers that JavaScript cannot represent. Revisions belong to the clone.
+        const copied = await tx.$executeRaw`
+          UPDATE dashboards AS target SET definition = CASE
+            WHEN source.definition->'version' = '"1"'::jsonb AND jsonb_typeof(source.definition->'blocks') = 'array'
+            THEN jsonb_set(source.definition, '{blocks}', (
+              SELECT COALESCE(jsonb_agg(CASE WHEN entry->>'kind' IN ('markdown', 'multiQuery')
+                AND jsonb_typeof(entry->'revision') = 'number'
+                THEN jsonb_set(entry, '{revision}', '1'::jsonb) ELSE entry END ORDER BY ord), '[]'::jsonb)
+              FROM jsonb_array_elements(source.definition->'blocks') WITH ORDINALITY AS stored(entry, ord)
+            )) ELSE source.definition END
+          FROM dashboards AS source
+          WHERE target.id = ${clone.id} AND target.project_id = ${projectId}
+            AND source.id = ${dashboardId} AND source.project_id = ${projectId}
+            AND (source.definition ? 'version' OR source.definition ? 'blocks')
         `;
+        if (copied && definition) {
+          await updateClassicLayout(
+            tx,
+            projectId,
+            clone.id,
+            () => definition,
+            userId,
+          );
+        }
         if (setAsHome) {
           await tx.project.update({
             where: { id: projectId },
@@ -294,14 +321,9 @@ export class DashboardService {
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
   ): Promise<DashboardDomain> {
-    return this.updateDashboardRecord(dashboardId, projectId, {
-      updatedBy: userId,
-      definition: {
-        // Already sanitized: the input is parsed against
-        // DashboardDefinitionSchema, which strips unknown keys.
-        widgets: definition.widgets,
-      },
-    });
+    return prisma.$transaction((tx) =>
+      updateClassicLayout(tx, projectId, dashboardId, () => definition, userId),
+    );
   }
 
   /**
@@ -348,7 +370,6 @@ export class DashboardService {
         id: dashboardId,
         OR: [{ projectId }, { projectId: null }],
       },
-      include: { blocks: { select: { id: true }, take: 1 } },
     });
 
     if (!dashboard) {
@@ -361,7 +382,8 @@ export class DashboardService {
         owner: dashboard.projectId ? "PROJECT" : "LANGFUSE",
       }),
       hasDashboardBlocks:
-        dashboard.projectId !== null && dashboard.blocks.length > 0,
+        dashboard.projectId !== null &&
+        hasDashboardBlocks(dashboard.definition),
     };
   }
 
@@ -649,32 +671,19 @@ export class DashboardService {
         },
       });
 
-      // 2. fetch dashboard to change reference
-      const dashboard = await tx.dashboard.findFirst({
-        where: { id: dashboardId, projectId },
-      });
-
-      if (!dashboard) {
-        throw new LangfuseNotFoundError(
-          `Dashboard ${dashboardId} not found in project ${projectId}`,
-        );
-      }
-
-      const definition = (dashboard.definition ?? {
-        widgets: [],
-      }) as z.infer<typeof DashboardDefinitionSchema>;
-      const updatedWidgets = (definition.widgets || []).map((w: any) =>
-        w.id === placementId ? { ...w, widgetId: newWidget.id } : w,
+      await updateClassicLayout(
+        tx,
+        projectId,
+        dashboardId,
+        ({ widgets }) => ({
+          widgets: widgets.map((placement) =>
+            placement.type === "widget" && placement.id === placementId
+              ? { ...placement, widgetId: newWidget.id }
+              : placement,
+          ),
+        }),
+        userId,
       );
-
-      // 3. update dashboard with new widget reference
-      await tx.dashboard.update({
-        where: { id: dashboardId, projectId },
-        data: {
-          updatedBy: userId,
-          definition: { widgets: updatedWidgets },
-        },
-      });
 
       return newWidget.id;
     });
