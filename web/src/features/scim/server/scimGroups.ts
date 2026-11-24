@@ -9,6 +9,7 @@ import {
   addGroupMembers,
   deleteGroup,
   GroupMembersNotInOrgError,
+  lockGroup,
   removeGroupMembers,
   replaceGroupMembers,
 } from "@/src/features/groups/server/groupService";
@@ -343,6 +344,8 @@ export async function replaceScimGroup(
   const memberIds = parseMemberIds(body.members);
 
   return transactOrConflict(async (tx) => {
+    await lockGroup(tx, groupId);
+    const before = (await getScimGroup(orgId, groupId, tx)) ?? existing;
     await tx.group.update({
       where: { id: groupId, orgId },
       data: { displayName, externalId },
@@ -355,7 +358,7 @@ export async function replaceScimGroup(
         resourceType: "group",
         resourceId: groupId,
         action: "update",
-        before: toScimGroup(existing),
+        before: toScimGroup(before),
         after: toScimGroup(updated),
       },
       tx,
@@ -395,6 +398,8 @@ export async function patchScimGroup(
   const operations = body.Operations as PatchOperation[];
 
   return transactOrConflict(async (tx) => {
+    await lockGroup(tx, groupId);
+    const before = (await getScimGroup(orgId, groupId, tx)) ?? existing;
     for (const operation of operations) {
       await applyPatchOperation(tx, orgId, groupId, operation);
     }
@@ -410,7 +415,7 @@ export async function patchScimGroup(
         resourceType: "group",
         resourceId: groupId,
         action: "update",
-        before: toScimGroup(existing),
+        before: toScimGroup(before),
         after: toScimGroup(updated),
       },
       tx,

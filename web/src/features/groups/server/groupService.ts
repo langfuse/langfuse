@@ -97,8 +97,8 @@ export async function replaceGroupMembers(
   await addGroupMembers(tx, { orgId, groupId, userIds });
 }
 
-/** lockGroup locks a group for the transaction so concurrent role saves for it run one after another. */
-async function lockGroup(tx: Tx, groupId: string): Promise<void> {
+/** lockGroup locks a group for the transaction so concurrent writes to its roles or members run one after another. */
+export async function lockGroup(tx: Tx, groupId: string): Promise<void> {
   await tx.$queryRaw`
     SELECT id FROM groups
     WHERE id = ${groupId}
