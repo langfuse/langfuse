@@ -15,7 +15,7 @@ import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
-import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { useIsEmbeddedTrace } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -139,7 +139,7 @@ function TracePanelNavigationHeaderExpanded({
   const [headerContainerRef, headerContainerSize] =
     useElementSize<HTMLDivElement>();
   const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 299;
-  const forceViewMenu = useTracePresentation() != null;
+  const forceViewMenu = useIsEmbeddedTrace();
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one

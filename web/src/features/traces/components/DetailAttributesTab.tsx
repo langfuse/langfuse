@@ -18,7 +18,7 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
-import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { useIsEmbeddedTrace } from "@/src/features/traces/contexts/TracePresentationProvider";
 
 export function DetailAttributesTab({
   observation,
@@ -52,7 +52,7 @@ export function DetailAttributesTab({
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const collapseIo = useTracePresentation() != null;
+  const collapseIo = useIsEmbeddedTrace();
   const hasAttributes =
     observation && Object.keys(observation.attributes).length > 0;
   const hasMetadata =

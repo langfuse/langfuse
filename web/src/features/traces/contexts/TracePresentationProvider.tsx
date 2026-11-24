@@ -26,3 +26,7 @@ export function TracePresentationProvider({
 export function useTracePresentation() {
   return use(TracePresentationContext);
 }
+
+export function useIsEmbeddedTrace(): boolean {
+  return useTracePresentation() != null;
+}

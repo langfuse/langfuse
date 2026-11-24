@@ -39,7 +39,7 @@ import {
 } from "../../TraceMetadataBadges";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
-import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { useIsEmbeddedTrace } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
@@ -128,7 +128,7 @@ function LoadedTraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
-  const hideMetrics = useTracePresentation() != null;
+  const hideMetrics = useIsEmbeddedTrace();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
