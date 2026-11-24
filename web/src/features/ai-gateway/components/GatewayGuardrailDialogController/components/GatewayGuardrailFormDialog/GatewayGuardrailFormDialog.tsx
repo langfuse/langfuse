@@ -351,13 +351,6 @@ export function GatewayGuardrailFormDialog({
                     />
                   )}
 
-                  <div className="flex items-center gap-3 pt-1">
-                    <h4 className="text-foreground shrink-0 text-sm font-bold">
-                      Where it runs
-                    </h4>
-                    <div className="border-border flex-1 border-t border-dashed" />
-                  </div>
-
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
