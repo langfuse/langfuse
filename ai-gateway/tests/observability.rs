@@ -30,6 +30,7 @@ impl Gateway {
     #[expect(
         clippy::unwrap_used,
         clippy::expect_used,
+        clippy::indexing_slicing,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
     fn start(
@@ -85,6 +86,7 @@ impl Gateway {
 
     #[expect(
         clippy::unwrap_used,
+        clippy::indexing_slicing,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
     async fn request(&self, sampled: bool) -> String {
@@ -193,6 +195,7 @@ async fn start_collector() -> (String, Arc<Mutex<Vec<(String, Bytes)>>>, JoinHan
 #[expect(
     clippy::unwrap_used,
     clippy::expect_used,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 async fn wait_until_gateway_read(client: &tokio::net::TcpStream) {
@@ -215,6 +218,10 @@ async fn wait_until_gateway_read(client: &tokio::net::TcpStream) {
     };
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "test helper polling /proc/net/tcp; tokio::fs is not enabled"
+            )]
             let table = std::fs::read_to_string("/proc/net/tcp").unwrap();
             let unsent = queued(&table, client_port, gateway_port).map(|(tx, _)| tx);
             let unread = queued(&table, gateway_port, client_port).map(|(_, rx)| rx);
@@ -294,6 +301,7 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
 
 #[expect(
     clippy::unwrap_used,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
@@ -343,6 +351,7 @@ fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
 /// the top level, and the operational server span carries it as an attribute.
 #[expect(
     clippy::panic,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_ids: &[String]) {
@@ -396,6 +405,7 @@ fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_http_metrics(metrics: &[ResourceMetrics]) {

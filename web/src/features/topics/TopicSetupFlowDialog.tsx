@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { TopicSliceFields } from "./TopicSliceFields";
@@ -8,16 +8,19 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Info,
   Lock,
   RefreshCw,
 } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { JudgeModelPicker } from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import {
@@ -45,9 +48,17 @@ const STEP_NUMBERS: Record<TopicSetupStep, string> = {
 
 const MODEL_ROWS = [
   { slot: "summary", label: "Summaries" },
-  { slot: "embedding", label: "Embeddings" },
+  {
+    slot: "embedding",
+    label: "Embeddings",
+    hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. The model and dimensions are fixed once the first summaries are embedded, because vectors from different models can't be compared.",
+  },
   { slot: "clustering", label: "Grouping" },
-] as const;
+] as const satisfies ReadonlyArray<{
+  slot: string;
+  label: string;
+  hint?: string;
+}>;
 
 export type TopicSetupPastCount =
   | { status: "loading" }
@@ -59,6 +70,8 @@ export type TopicSetupFlowDialogProps = {
   busy: boolean;
   canWrite: boolean;
   clustering: JudgeModel | null;
+  /** Shown in the Review step below the trace summary. */
+  costEstimate?: ReactNode;
   connectionCaption: string;
   /** False when the project has no AI connection yet; models cannot be picked. */
   hasConnection: boolean;
@@ -75,6 +88,9 @@ export type TopicSetupFlowDialogProps = {
   connectionSettingsUrl: string;
   onEdit: (step: "questions" | "traces") => void;
   onEmbeddingChange: (model: JudgeModel) => void;
+  /** Name of the map the setup creates, edited on the review step. */
+  name: string;
+  onNameChange: (name: string) => void;
   onNext: () => void;
   onQuestionEnabled: (
     name: TopicSetupQuestion["name"],
@@ -102,6 +118,7 @@ export function TopicSetupFlowDialog({
   busy,
   canWrite,
   clustering,
+  costEstimate,
   connectionCaption,
   hasConnection,
   canAddConnection,
@@ -115,6 +132,8 @@ export function TopicSetupFlowDialog({
   connectionSettingsUrl,
   onEdit,
   onEmbeddingChange,
+  name,
+  onNameChange,
   onNext,
   onQuestionEnabled,
   onSamplePercentChange,
@@ -152,7 +171,11 @@ export function TopicSetupFlowDialog({
     clustering,
   });
   // The server picks its own traces, so a failed estimate must not block Start.
-  const canStart = canWrite && !busy && pastCount.status !== "loading";
+  const canStart =
+    canWrite &&
+    !busy &&
+    pastCount.status !== "loading" &&
+    name.trim().length > 0;
   // Without a connection, people who cannot add one only get a link to share and Close.
   const viewerBlocked = !hasConnection && !canAddConnection;
   // Without a connection Next stays clickable and opens the connection settings instead.
@@ -241,6 +264,7 @@ export function TopicSetupFlowDialog({
                         <ModelRow
                           key={row.slot}
                           label={row.label}
+                          hint={"hint" in row ? row.hint : undefined}
                           model={model}
                           recommended={
                             model
@@ -324,12 +348,24 @@ export function TopicSetupFlowDialog({
                   pastCount.status === "ready" ? pastCount.dailyTraces : null
                 }
                 disabled={!canWrite}
-                tooltip="Share of matching traces Topics analyzes. Applies to the first backfill and to new traces once automatic processing is on."
+                tooltip={`Share of new matching traces Topics analyzes once automatic processing is on. The first backfill runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} traces at any rate.`}
               />
             </div>
           ) : null}
           {step === "review" ? (
             <div className="flex flex-col gap-2.5">
+              <div className="ph-no-capture mb-2.5">
+                <TopicSliceFields.Section label="Name">
+                  <Input
+                    aria-label="Map name"
+                    placeholder="e.g. Support agent"
+                    value={name}
+                    maxLength={100}
+                    disabled={!canWrite}
+                    onChange={(event) => onNameChange(event.target.value)}
+                  />
+                </TopicSliceFields.Section>
+              </div>
               <ReviewRow
                 label="Look for"
                 onEdit={() => onEdit("questions")}
@@ -376,13 +412,7 @@ export function TopicSetupFlowDialog({
                   { value: backfillLine(pastCount) },
                 ]}
               />
-              {notice ? (
-                <Alert variant="warning" size="sm">
-                  <Alert.Description>
-                    <p>{notice}</p>
-                  </Alert.Description>
-                </Alert>
-              ) : null}
+              {notice ? <Banner variant="warning">{notice}</Banner> : null}
               <div className="bg-light-blue text-dark-blue mt-1 flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
                 {pastCount.status !== "ready" || pastCount.matched > 0 ? (
                   <span className="flex items-center gap-2">
@@ -395,6 +425,7 @@ export function TopicSetupFlowDialog({
                   New traces show up {waitMinutes} min after their last activity
                 </span>
               </div>
+              {costEstimate}
             </div>
           ) : null}
           {step !== "questions" && error ? (
@@ -439,7 +470,7 @@ function backfillLine(count: TopicSetupPastCount) {
   if (count.status === "loading") return "Counting past traces…";
   if (count.status === "error") return "Could not count past traces";
   if (count.matched === 0) return "No matching traces in the last 30 days";
-  return `Runs on up to ${TOPIC_SETUP_BACKFILL_LIMIT.toLocaleString("en-US")} recent traces that match your filters`;
+  return `Runs on up to ${count.matched.toLocaleString("en-US")} recent traces that match your filters`;
 }
 
 function nextStepDisabled({
@@ -464,6 +495,7 @@ function nextStepDisabled({
 
 function ModelRow({
   disabled,
+  hint,
   label,
   model,
   onConfigureProviders,
@@ -472,6 +504,7 @@ function ModelRow({
   recommended,
 }: {
   disabled: boolean;
+  hint?: string;
   label: string;
   model: JudgeModel | null;
   onConfigureProviders: () => void;
@@ -482,7 +515,22 @@ function ModelRow({
   const [open, setOpen] = useState(false);
   return (
     <div className="grid gap-1 px-3 py-2 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center sm:gap-2 sm:py-1.5 sm:pr-1.5">
-      <span className="text-sm">{label}</span>
+      <span className="flex items-center gap-1.5 text-sm">
+        {label}
+        {hint ? (
+          <Tooltip label={hint}>
+            {({ getTriggerProps }) => (
+              <button
+                type="button"
+                {...getTriggerProps()}
+                aria-label={`About ${label}`}
+              >
+                <Info aria-hidden size="sm" color="muted" />
+              </button>
+            )}
+          </Tooltip>
+        ) : null}
+      </span>
       <JudgeModelPicker
         purpose="decision"
         open={open && !disabled}

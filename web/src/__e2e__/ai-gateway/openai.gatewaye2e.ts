@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { GatewayResolveResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
-import { GatewayProvider } from "@langfuse/shared/src/db";
+import {
+  GatewayProvider,
+  GatewaySpendLimitInterval,
+} from "@langfuse/shared/src/db";
 import {
   COMPLETION_TIMEOUT_MS,
   completeAndExpectIngested,
@@ -73,6 +76,8 @@ const COMPLETIONS = [
   },
 ] as const;
 
+const SPEND_LIMITED_COMPLETION = COMPLETIONS[1];
+
 const UNAUTHENTICATED_REQUESTS = [
   {
     path: "/openai/v1/responses",
@@ -137,6 +142,116 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
           providerModel: model,
         });
       });
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  // One provider is enough: the gateway counts spend the same way for every provider.
+  it(
+    "admits a request within the key's spend limit and rejects the next once it is spent",
+    async () => {
+      const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
+      await withGatewayApiKey(
+        apiFormat,
+        async ({ secretKey }) => {
+          // Waits until the first request is ingested, by when its cost was counted.
+          await completeAndExpectIngested({
+            secretKey,
+            apiFormat,
+            path,
+            body,
+            providerModel: model,
+          });
+
+          const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+          expect(response.headers.get("retry-after")).toBeNull();
+          await expectGatewayError(response, 429, {
+            error: {
+              message: expect.stringContaining("total budget"),
+              type: "insufficient_quota",
+              param: null,
+              code: "spend_limit_exceeded",
+            },
+          });
+        },
+        {
+          spendLimit: {
+            interval: GatewaySpendLimitInterval.TOTAL,
+            limitUsd: 0.000001,
+          },
+        },
+      );
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  it(
+    "caps each key without a budget of its own by the default key budget, counted per key",
+    async () => {
+      const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
+      const { caller } = suite.admin;
+      const { API_KEY: previousDefault } =
+        await caller.aiGateway.getDefaultSpendLimits({
+          orgId: ORGANIZATION_ID,
+        });
+      const setKeyDefault = (
+        spendLimit: Parameters<
+          typeof caller.aiGateway.setDefaultSpendLimit
+        >[0]["spendLimit"],
+      ) =>
+        caller.aiGateway.setDefaultSpendLimit({
+          orgId: ORGANIZATION_ID,
+          scope: "API_KEY",
+          spendLimit,
+        });
+      await setKeyDefault({
+        interval: GatewaySpendLimitInterval.TOTAL,
+        limitUsd: 0.000001,
+      });
+      try {
+        await withGatewayApiKey(apiFormat, async (first) => {
+          await withGatewayApiKey(apiFormat, async (second) => {
+            await completeAndExpectIngested({
+              secretKey: first.secretKey,
+              apiFormat,
+              path,
+              body,
+              providerModel: model,
+            });
+            const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${first.secretKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(body),
+            });
+            await expectGatewayError(rejected, 429, {
+              error: expect.objectContaining({
+                code: "spend_limit_exceeded",
+              }),
+            });
+
+            // The first key spent the default, but the second has its own count.
+            await completeAndExpectIngested({
+              secretKey: second.secretKey,
+              apiFormat,
+              path,
+              body,
+              providerModel: model,
+            });
+          });
+        });
+      } finally {
+        await setKeyDefault(previousDefault);
+      }
     },
     COMPLETION_TIMEOUT_MS,
   );

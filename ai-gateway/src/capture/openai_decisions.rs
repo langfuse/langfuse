@@ -1,6 +1,6 @@
 //! `OpenAI` Decisions request and JSON response capture.
 use super::{
-    RawRequest, bounded_string, error_detail, facts::ProviderFacts, parse_request,
+    InputOmission, RawRequest, bounded_string, error_detail, facts::ProviderFacts,
     response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
@@ -10,19 +10,19 @@ use serde_json::{Map, Value};
 pub(super) struct OpenAiDecisionsCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     request_complete: bool,
 }
 
 impl OpenAiDecisionsCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
             body: ResponseBody::Unknown,
             request_complete: false,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -40,8 +40,8 @@ impl OpenAiDecisionsCapture {
     }
 
     /// Decisions answers in a single JSON body, so completion never starts early.
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
-        self.body.push(bytes, |_| {});
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
+        self.body.push(bytes, parse_limit, |_| {});
         false
     }
 

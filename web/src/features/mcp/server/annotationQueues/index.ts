@@ -8,6 +8,10 @@ import {
   handleCreateAnnotationQueueItem,
 } from "./tools/createAnnotationQueueItem";
 import {
+  batchCreateAnnotationQueueItemsTool,
+  handleBatchCreateAnnotationQueueItems,
+} from "./tools/batchCreateAnnotationQueueItems";
+import {
   createAnnotationQueueTool,
   handleCreateAnnotationQueue,
 } from "./tools/createAnnotationQueue";
@@ -68,6 +72,10 @@ export const annotationQueuesFeature = {
     {
       definition: createAnnotationQueueItemTool,
       handler: handleCreateAnnotationQueueItem,
+    },
+    {
+      definition: batchCreateAnnotationQueueItemsTool,
+      handler: handleBatchCreateAnnotationQueueItems,
     },
     {
       definition: updateAnnotationQueueItemTool,

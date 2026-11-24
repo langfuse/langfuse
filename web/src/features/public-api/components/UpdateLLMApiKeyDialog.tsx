@@ -15,9 +15,15 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 
 export function UpdateLLMApiKeyDialog({
   owner,
+  initialApiKey,
+  onAfterClose,
   children,
 }: {
   owner: LlmConnectionFormOwner;
+  /** Opens the dialog on mount for this connection. */
+  initialApiKey?: LlmApiKeyListItem;
+  /** Called after the dialog closed itself, dismissed or saved. */
+  onAfterClose?: () => void;
   children: ComponentProps<
     typeof DialogController<LlmApiKeyListItem>
   >["children"];
@@ -26,6 +32,8 @@ export function UpdateLLMApiKeyDialog({
 
   return (
     <DialogController<LlmApiKeyListItem>
+      initialState={() => initialApiKey}
+      onDismiss={onAfterClose}
       renderDialog={({ state: apiKey, closeDialog }) => (
         <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
           <DialogHeader>
@@ -34,7 +42,10 @@ export function UpdateLLMApiKeyDialog({
           <CreateLLMApiKeyForm
             key={apiKey.id}
             owner={owner}
-            onSuccess={closeDialog}
+            onSuccess={() => {
+              closeDialog();
+              onAfterClose?.();
+            }}
             customization={uiCustomization}
             mode="update"
             existingKey={apiKey}

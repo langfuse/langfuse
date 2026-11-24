@@ -1,5 +1,9 @@
-import type { GatewayIngestionMode, Role } from "@langfuse/shared";
+import type {
+  GatewayIngestionMode,
+  GatewaySpendLimitScope,
+} from "@langfuse/shared";
 
+import type { GatewaySpendBudgetInterval } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
 import type { GatewayApiKeyExpirationPreset } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
 import type { GatewayIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
@@ -18,6 +22,20 @@ export type GatewaySettingsSurface = "setup_guide" | "overview";
 /** Credentials can also be added from the models page's empty state. */
 export type GatewayCredentialSurface = GatewaySettingsSurface | "models_page";
 
+/** Whether a connection overrides its endpoint; never the URL or header names. */
+type GatewayEndpointUsage = {
+  hasCustomBaseUrl: boolean;
+  extraHeaderCount: number;
+};
+
+/** Every saved or removed spend budget, wherever it was edited. */
+type GatewayBudgetChange = OrganizationContext & {
+  surface: "budgets_page" | "setup_guide" | "api_key_dialog";
+  scope: GatewaySpendLimitScope;
+  /** Keys or users the change applied to; 1 for organization and default budgets. */
+  subjectCount: number;
+};
+
 export type AiGatewayEventMap = {
   "ai_gateway:setup_guide_viewed": OrganizationContext;
   "ai_gateway:setup_step_completed": OrganizationContext &
@@ -28,22 +46,26 @@ export type AiGatewayEventMap = {
           ingestionMode: GatewayIngestionMode;
         }
       | { step: "credential"; stepNumber: 2; provider: GatewayProvider }
-      | { step: "team_invite"; stepNumber: 3; isSkipped: boolean }
+      | { step: "budgets"; stepNumber: 3; isSkipped: boolean }
+      | { step: "team_invite"; stepNumber: 4; isSkipped: boolean }
+      | { step: "api_key"; stepNumber: 5; isSkipped: boolean }
     );
   "ai_gateway:ingestion_settings_saved": OrganizationContext &
     Pick<GatewayIngestionSettings, "ingestionMode" | "projectTarget"> & {
       surface: GatewaySettingsSurface;
     };
-  "ai_gateway:provider_credential_added": OrganizationContext & {
-    surface: GatewayCredentialSurface;
-    provider: GatewayProvider;
-    isFirstCredential: boolean;
-  };
-  "ai_gateway:provider_credential_updated": OrganizationContext & {
-    provider: GatewayProvider;
-    isRenamed: boolean;
-    isCredentialReplaced: boolean;
-  };
+  "ai_gateway:provider_credential_added": OrganizationContext &
+    GatewayEndpointUsage & {
+      surface: GatewayCredentialSurface;
+      provider: GatewayProvider;
+      isFirstCredential: boolean;
+    };
+  "ai_gateway:provider_credential_updated": OrganizationContext &
+    GatewayEndpointUsage & {
+      provider: GatewayProvider;
+      isRenamed: boolean;
+      isCredentialReplaced: boolean;
+    };
   "ai_gateway:provider_credential_deleted": OrganizationContext & {
     provider: GatewayProvider;
   };
@@ -61,13 +83,15 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
-    /** Organization role of the creator; null when they are not a member. */
-    creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;
     metadataCount: number;
     hasDescription: boolean;
     expiryPreset: GatewayApiKeyExpirationPreset;
+    /** Null when the key was created without a spend budget. */
+    spendBudgetInterval: GatewaySpendBudgetInterval | null;
+    /** 0 when the key may call every enabled model. */
+    modelPatternCount: number;
   };
   "ai_gateway:api_key_updated": OrganizationContext & {
     metadataCount: number;
@@ -94,6 +118,16 @@ export type AiGatewayEventMap = {
   "ai_gateway:model_name_copied": OrganizationContext & {
     provider: GatewayProvider;
   };
+  "ai_gateway:custom_model_added": OrganizationContext & {
+    provider: GatewayProvider;
+  };
+  "ai_gateway:custom_model_removed": OrganizationContext & {
+    provider: GatewayProvider;
+  };
+  "ai_gateway:budget_saved": GatewayBudgetChange & {
+    interval: GatewaySpendBudgetInterval;
+  };
+  "ai_gateway:budget_removed": GatewayBudgetChange;
   /** The user expanded a tool's setup steps ("Show all steps") after creating a key. */
   "ai_gateway:agent_setup_instructions_viewed": OrganizationContext & {
     agentId: AgentSetupInstructions["id"];

@@ -1,12 +1,10 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 export function TopicsErrorMessage({ message }: TopicsErrorMessageProps) {
   return (
-    <Alert variant="destructive">
-      <Alert.Description>
-        <p className="break-words">{message}</p>
-      </Alert.Description>
-    </Alert>
+    <Banner variant="error">
+      <p className="break-words">{message}</p>
+    </Banner>
   );
 }
 

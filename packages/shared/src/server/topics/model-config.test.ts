@@ -126,6 +126,34 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).toHaveBeenCalledOnce();
   });
 
+  it("tests an inherited organization connection as the saving project", async () => {
+    mocks.candidates.mockResolvedValue({
+      LlmApiKeys: [],
+      organization: {
+        organizationLlmApiKeys: [
+          {
+            ...connection("bedrock", LLMAdapter.Bedrock),
+            projectId: null,
+            organizationId: "target-org",
+          },
+        ],
+      },
+    });
+    await saveTopicsModelSettings("project", {
+      summary: slot("bedrock", "claude-sonnet"),
+      embedding: null,
+      embeddingDimensions: 1024,
+      clustering: null,
+    });
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          connection: expect.objectContaining({ projectId: "project" }),
+        }),
+      }),
+    );
+  });
+
   it("saves a partial setup only while automatic processing is off", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
@@ -190,7 +218,7 @@ describe("prepareTopicsModelSettings", () => {
     ["model", { embedding: slot("openai", "text-embedding-3-large") }],
     ["dimensions", { embeddingDimensions: 512 as const }],
   ])(
-    "locks the embedding %s once summaries are embedded",
+    "locks the embedding %s once summaries are embedded with it",
     async (_, change) => {
       mocks.current.mockResolvedValue({
         embeddingModel: "text-embedding-3-small",
@@ -199,7 +227,11 @@ describe("prepareTopicsModelSettings", () => {
       mocks.hasEmbeddings.mockResolvedValue(true);
       await expect(
         saveTopicsModelSettings("project", { ...settings, ...change }),
-      ).rejects.toThrow("cannot change after summaries were embedded");
+      ).rejects.toThrow("can't change once summaries are embedded");
+      expect(mocks.hasEmbeddings).toHaveBeenCalledWith("project", {
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 1024,
+      });
       // Other slots stay editable; the embedding connection may change too.
       await saveTopicsModelSettings("project", {
         ...settings,

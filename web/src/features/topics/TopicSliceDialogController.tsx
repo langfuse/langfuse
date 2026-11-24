@@ -5,12 +5,13 @@ import { NewMapDialog } from "./NewMapDialog";
 import { SnapshotDialog } from "./SnapshotDialog";
 import { TopicRefreshMapDialog } from "./TopicRefreshMapDialog";
 import { TopicRuleDialog } from "./TopicRuleDialog";
+import { type TopicRuleMap } from "./topic-maps";
 
 export type TopicSliceDialog =
   | { kind: "map" }
   | { kind: "snapshot" }
   | { kind: "rule"; rule: TopicRule }
-  | { kind: "refresh"; rule: TopicRule };
+  | { kind: "refresh"; rule: TopicRuleMap };
 
 /**
  * Owns the New map, New snapshot, Edit map and Refresh map dialogs, which open

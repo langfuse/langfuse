@@ -24,6 +24,7 @@ import { prepareMobileTopics } from "./prepare-mobile-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 import { FacetTraceSource } from "./useFacetTopicTraces";
 import { type MobileTopicsVisualization } from "./TopicsResultsViewSelect";
+import { useTopicsCapture } from "./useTopicsCapture";
 
 const VISUALIZATIONS = [
   { value: "treemap", label: "Treemap" },
@@ -69,6 +70,7 @@ export function MobileTopicsView({
   showUnassigned,
   mapActions,
 }: MobileTopicsViewProps) {
+  const capture = useTopicsCapture();
   const [navigation, setNavigation] = useState({
     view,
     panel: filters.length > 0 || searchQuery ? "traces" : "topics",
@@ -129,12 +131,20 @@ export function MobileTopicsView({
     onSearchQueryChange(null);
     showPanel("traces");
   }
-  function selectTopic(topicId: string | null) {
+  function selectTopic(
+    topicId: string | null,
+    surface: "tile" | "row" | "map",
+  ) {
     if (topicId === null) {
       onFiltersChange([]);
       onSearchQueryChange(null);
       return;
     }
+    capture("topics:topic_selected", {
+      view: view === "map" ? "mobile_map" : "mobile_treemap",
+      surface,
+      isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
+    });
     onFiltersChange(
       topicId === UNASSIGNED_TOPIC_ID
         ? [
@@ -181,7 +191,7 @@ export function MobileTopicsView({
             topics={topics}
             totalCount={facet.counts.total}
             selectedTopicId={selectedTopicId}
-            onSelectTopic={selectTopic}
+            onSelectTopic={(topicId) => selectTopic(topicId, "row")}
             onShowAllTraces={showAllTraces}
           />
           {facet.topics.length === 0 ? (
@@ -251,20 +261,18 @@ export function MobileTopicsView({
           </section>
         </Tabs.Content>
         <Tabs.Content value="visualization" layout="fill">
-          {view !== "grid" ? (
-            <div className="flex shrink-0 items-center border-b p-2">
-              <div className="w-40">
-                <SelectInput
-                  aria-label="Visualization"
-                  placeholder="Visualization"
-                  value={view}
-                  onValueChange={onViewChange}
-                  options={[...VISUALIZATIONS]}
-                  noCapture
-                />
-              </div>
+          <div className="flex shrink-0 items-center border-b p-2">
+            <div className="w-40">
+              <SelectInput
+                aria-label="Visualization"
+                placeholder="Visualization"
+                value={view}
+                onValueChange={onViewChange}
+                options={[...VISUALIZATIONS]}
+                noCapture
+              />
             </div>
-          ) : null}
+          </div>
           <MobileTopicVisualization
             facet={facet}
             treemapTopics={topics}
@@ -277,7 +285,9 @@ export function MobileTopicsView({
                 : null
             }
             matchingTraceIds={matchingTraceIds}
-            onSelectTopic={selectTopic}
+            onSelectTopic={(topicId) =>
+              selectTopic(topicId, view === "map" ? "map" : "tile")
+            }
             onSelectTrace={selectTrace}
           />
         </Tabs.Content>

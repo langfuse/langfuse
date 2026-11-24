@@ -62,7 +62,7 @@ export const HoverableContent = meta.story({
     await userEvent.unhover(trigger);
     await userEvent.hover(action);
     await userEvent.click(action);
-    await expect(body.getByRole("dialog")).toBeVisible();
+    await waitFor(() => expect(body.getByRole("dialog")).toBeVisible());
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(body.queryByRole("dialog")).not.toBeInTheDocument(),

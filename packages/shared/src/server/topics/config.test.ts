@@ -70,14 +70,14 @@ describe("Topics project allowlist", () => {
     },
   );
 
-  it("stays disabled outside Langfuse Cloud even when switched on and allowlisted", async () => {
+  it("enables self-hosted instances without a cloud region", async () => {
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", undefined);
     vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "true");
     vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "project-a");
     const { isTopicsEnabled, isTopicsProjectEnabled } =
       await import("./config.js");
-    expect(isTopicsEnabled()).toBe(false);
-    expect(isTopicsProjectEnabled("project-a")).toBe(false);
+    expect(isTopicsEnabled()).toBe(true);
+    expect(isTopicsProjectEnabled("project-a")).toBe(true);
   });
 
   it.each([undefined, ""])(

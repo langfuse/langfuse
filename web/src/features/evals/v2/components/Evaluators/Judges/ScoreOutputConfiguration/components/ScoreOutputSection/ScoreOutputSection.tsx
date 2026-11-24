@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useId, useState } from "react";
 import { Plus, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -22,11 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { CategoryEditorPopover } from "./components/CategoryEditorPopover/CategoryEditorPopover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 
 import {
@@ -280,9 +275,10 @@ export function ScoreOutputSection({
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
                     {categoryWarnings[index] ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <Tooltip label={categoryWarnings[index]}>
+                        {({ getTriggerProps }) => (
                           <span
+                            {...getTriggerProps()}
                             className="text-dark-yellow inline-flex shrink-0"
                             aria-label={`Warning: ${categoryWarnings[index]}`}
                           >
@@ -292,10 +288,7 @@ export function ScoreOutputSection({
                               aria-hidden="true"
                             />
                           </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {categoryWarnings[index]}
-                        </TooltipContent>
+                        )}
                       </Tooltip>
                     ) : null}
                     {!readOnly ? <DropdownIndicator /> : null}

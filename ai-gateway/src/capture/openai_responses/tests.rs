@@ -1,7 +1,8 @@
 use super::*;
 use crate::capture::{
-    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, ProtocolCapture,
-    RelayOutcome, sse::SseDecoder,
+    ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
+    MAX_RESPONSE_PARSE_BYTES, ProtocolCapture, RawRequest, RelayOutcome, RequestInput,
+    sse::SseDecoder,
 };
 use crate::config::ExecutionLimits;
 use crate::resolution::ApiFormat;
@@ -18,7 +19,10 @@ use serde_json::json;
 use std::{
     convert::Infallible,
     future::pending,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::sync::Notify;
@@ -32,7 +36,7 @@ fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
+    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), RequestInput::from_body(br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#))
 }
 
 fn record_response(observer: &mut ExecutionCapture, content_type: &'static str) {
@@ -231,8 +235,10 @@ async fn request_configuration_is_projected_out_of_input() {
         "metadata": {"purpose": "test"}, "prompt_cache_key": "cache-key"
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        request.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     )
     .into_facts();
@@ -265,8 +271,10 @@ async fn configuration_beyond_the_parse_budget_stays_in_input() {
         "text": half, "metadata": half, "temperature": 0.5,
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        request.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(request.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     )
     .into_facts();
@@ -295,8 +303,13 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         }
     });
     for mode in [IngestionMode::Full, IngestionMode::Usage] {
-        let capture =
-            OpenAiResponsesCapture::new(&HeaderMap::new(), codex.to_string().as_bytes(), mode);
+        let capture = OpenAiResponsesCapture::new(
+            RawRequest::from_input(
+                &HeaderMap::new(),
+                RequestInput::from_body(codex.to_string().as_bytes()),
+            ),
+            mode,
+        );
         assert_eq!(
             capture.client_metadata().unwrap()["x-codex-installation-id"],
             "install-1"
@@ -317,8 +330,10 @@ async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
         "client_metadata": {"team": "search"}
     });
     let capture = OpenAiResponsesCapture::new(
-        &HeaderMap::new(),
-        unknown.to_string().as_bytes(),
+        RawRequest::from_input(
+            &HeaderMap::new(),
+            RequestInput::from_body(unknown.to_string().as_bytes()),
+        ),
         IngestionMode::Full,
     );
     assert!(capture.client_metadata().is_none());
@@ -372,7 +387,7 @@ async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            br#"{"stream":true,"input":"hello"}"#,
+            RequestInput::from_body(br#"{"stream":true,"input":"hello"}"#),
         );
         record_response(&mut observer, "application/json; charset=utf-8");
         observer.push_bytes(br#"{"output":[],"status":"completed"}"#);
@@ -421,7 +436,7 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
     record_response(&mut observer, "text/event-stream");
     observer.push_bytes(b"data: malformed\n\n");
     observer
-        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_OUTPUT_CAPTURE_BYTES + 1)).as_bytes());
+        .push_bytes(format!("data: {}\n\n", "x".repeat(MAX_RESPONSE_PARSE_BYTES + 1)).as_bytes());
     observer.push_bytes(terminal("completed", 0).as_bytes());
     observer.end_body();
     let capture = captured(&observer);
@@ -432,6 +447,53 @@ async fn oversized_and_malformed_events_do_not_prevent_later_facts() {
         capture.facts.usage_details.as_ref().unwrap()["total_tokens"],
         130
     );
+}
+
+#[tokio::test]
+async fn reads_usage_next_to_a_generated_image_only_for_charged_requests() {
+    let image = "A".repeat(3 * MAX_OUTPUT_CAPTURE_BYTES);
+    let completed = event(
+        "response.completed",
+        json!({"response":{"id":"resp-1","status":"completed","usage":{"input_tokens":10,"output_tokens":4160,"total_tokens":4170},"output":[{"type":"image_generation_call","result":image}]}}),
+    );
+    // (charged, memory available for the larger parse, usage read)
+    for (charged, available, expected) in [
+        (false, true, None),
+        (true, true, Some(json!(4170))),
+        (true, false, None),
+    ] {
+        let mut observer = observer("usage").await;
+        let grown = Arc::new(AtomicUsize::new(0));
+        if charged {
+            observer.parse_growth = Some(growth(&grown, available));
+        }
+        record_response(&mut observer, "text/event-stream");
+        observer.push_bytes(event("response.output_text.delta", json!({"delta":"hi"})).as_bytes());
+        assert_eq!(
+            grown.load(Ordering::Relaxed),
+            0,
+            "a small event needs no growth"
+        );
+        observer.push_bytes(completed.as_bytes());
+        observer.end_body();
+        assert_eq!(
+            captured(&observer)
+                .facts
+                .usage_details
+                .as_ref()
+                .map(|usage| usage["total_tokens"].clone()),
+            expected,
+        );
+        assert_eq!(grown.load(Ordering::Relaxed), usize::from(charged));
+    }
+}
+
+fn growth(grown: &Arc<AtomicUsize>, available: bool) -> crate::capture::ResponseParseGrowth {
+    let grown = Arc::clone(grown);
+    Box::new(move || {
+        grown.fetch_add(1, Ordering::Relaxed);
+        available.then(|| -> Box<dyn Send + Sync> { Box::new(()) })
+    })
 }
 
 #[tokio::test]
@@ -587,7 +649,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let _guard = tracing::subscriber::set_default(subscriber);
     let response = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -642,7 +704,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let _guard = tracing::subscriber::set_default(subscriber);
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"request-content"}"#),
@@ -705,7 +767,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let _guard = tracing::subscriber::set_default(subscriber);
         let headers = HeaderMap::new();
         let call = provider.forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &headers,
             Bytes::from_static(br#"{"model":"requested"}"#),
@@ -801,7 +863,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let forwarded = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &headers,
                 Bytes::from(
@@ -883,7 +945,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     });
     let forwarded = provider
         .forward(
-            provider.admit(),
+            provider.admit(None),
             context,
             &HeaderMap::new(),
             Bytes::from(body.to_string()),
@@ -933,7 +995,7 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
             ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
-            request.as_bytes(),
+            RequestInput::from_body(request.as_bytes()),
         );
         record_response(
             &mut observer,
@@ -976,7 +1038,7 @@ async fn request_at_input_limit_is_captured_in_full() {
         ApiFormat::OpenAiResponses,
         &context,
         &HeaderMap::new(),
-        request.as_bytes(),
+        RequestInput::from_body(request.as_bytes()),
     );
     let facts = &captured(&observer).facts;
     assert!(facts.input_complete);
@@ -1002,7 +1064,7 @@ async fn capture_regression_preserves_native_request_and_usage() {
                     ApiFormat::OpenAiResponses,
                     &context,
                     &HeaderMap::new(),
-                    request.to_string().as_bytes(),
+                    RequestInput::from_body(request.to_string().as_bytes()),
                 );
                 record_response(
                     &mut execution,

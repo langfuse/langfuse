@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     capture::{
         ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-        ProtocolCapture, ProviderFacts,
+        ProtocolCapture, ProviderFacts, RequestInput,
     },
     providers::{ProviderLimits, ProviderTransport, Route},
     resolution::ApiFormat,
@@ -34,7 +34,7 @@ async fn new_observer(mode: &'static str) -> ExecutionCapture {
         ApiFormat::AnthropicMessages,
         &context,
         &HeaderMap::new(),
-        REQUEST,
+        RequestInput::from_body(REQUEST),
     )
 }
 
@@ -626,7 +626,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.admit(),
+            provider.admit(None),
             context,
             &headers,
             crate::providers::RequestBody {
@@ -634,6 +634,9 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
                 model_range: crate::providers::model_range(REQUEST).unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
+                input: Some(RequestInput::from_body(REQUEST)),
+                stream_options: crate::providers::StreamOptions::default(),
             },
             Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
@@ -710,12 +713,6 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             at_limit.as_str(),
             Some(InputOmissionReason::ContentEncoding),
         ),
-        (
-            "full",
-            HeaderMap::new(),
-            "not json",
-            Some(InputOmissionReason::InvalidJson),
-        ),
         ("usage", HeaderMap::new(), over_limit.as_str(), None),
     ] {
         let context =
@@ -725,7 +722,7 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             ApiFormat::AnthropicMessages,
             &context,
             &headers,
-            body.as_bytes(),
+            RequestInput::from_body(body.as_bytes()),
         );
         let facts = &captured(&observer).facts;
         assert_eq!(

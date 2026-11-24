@@ -65,6 +65,14 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
   },
   {
+    flag: "traceTranscriptEvals",
+    description:
+      "Evaluate a whole trace from its conversation transcript instead of a single observation.",
+    details:
+      "Set an evaluation rule to trace scope, map evaluator variables to the trace's messages, and test it on sample traces. Rules run once a trace has been idle.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
     flag: "sessionViewV2",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",

@@ -17,6 +17,7 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   declarePendingDatasetItemMedia,
   getMediaBucketPath,
+  getMediaDownloadUrl,
   getMediaId,
   getCurrentSpan,
   linkMediaToTraceOrObservation,
@@ -159,11 +160,12 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
   }
 
   const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
-  const url = await getMediaStorageServiceClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
+  const url = await getMediaDownloadUrl({
+    storageService: getMediaStorageServiceClient(media.bucketName),
+    bucketPath: media.bucketPath,
+    contentType: media.contentType,
     ttlSeconds,
-    false,
-  );
+  });
 
   return GetMediaResponseSchema.parse({
     mediaId,

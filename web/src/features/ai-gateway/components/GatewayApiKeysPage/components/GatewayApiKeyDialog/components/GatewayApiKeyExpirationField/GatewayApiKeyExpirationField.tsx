@@ -1,12 +1,17 @@
-import { useId } from "react";
 import { useController, type Control } from "react-hook-form";
 
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { localDateInputValue } from "@/src/features/apiKey/fns/localDateInputValue";
 import { gatewayApiKeyExpirationOptions } from "@/src/features/ai-gateway/constants/gatewayApiKeyExpirationOptions";
-import { ExpirationPresetOption } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/components/GatewayApiKeyExpirationField/components/ExpirationPresetOption/ExpirationPresetOption";
 import type { GatewayApiKeyFormValues } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeyDialog/types/gatewayApiKeyFormSchema";
+
+// The section is removed instead of choosing "never".
+const sectionExpirationOptions = gatewayApiKeyExpirationOptions.filter(
+  (option) => option.value !== "never",
+);
 
 type GatewayApiKeyExpirationFieldProps = {
   control: Control<GatewayApiKeyFormValues>;
@@ -17,37 +22,50 @@ export function GatewayApiKeyExpirationField({
   control,
   disabled,
 }: GatewayApiKeyExpirationFieldProps) {
-  const radioName = useId();
-
   return (
-    <Form.Field control={control} name="expiryPreset" label="Expiration">
-      {(field) => (
-        <div className="flex flex-col gap-2">
-          <div
-            id={field.id}
-            role="radiogroup"
-            aria-label="Expiration"
-            aria-disabled={disabled || undefined}
-            className="flex flex-wrap gap-2"
-          >
-            {gatewayApiKeyExpirationOptions.map((option) => (
-              <ExpirationPresetOption
-                key={option.value}
-                name={radioName}
-                value={option.value}
-                label={option.label}
-                checked={field.value === option.value}
-                disabled={disabled}
-                onSelect={field.onChange}
-              />
-            ))}
-          </div>
-          {field.value === "custom" ? (
-            <CustomExpirationInput control={control} disabled={disabled} />
-          ) : null}
-        </div>
+    <CustomTooltip
+      content={
+        <span>
+          The key stops working after this. It cannot be changed once the key is
+          created.
+        </span>
+      }
+    >
+      {({ getTriggerProps }) => (
+        <Form.Field
+          control={control}
+          name="expiryPreset"
+          label="Expiration"
+          registerLabelTooltip={getTriggerProps}
+        >
+          {(field) => (
+            <div className="flex flex-col gap-2">
+              <div id={field.id}>
+                <Tabs
+                  activationMode="manual"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <Tabs.List variant="inset" size="md" aria-label="Expiration">
+                    {sectionExpirationOptions.map((option) => (
+                      <Tabs.Trigger
+                        key={option.value}
+                        value={option.value}
+                        label={option.label}
+                        disabled={disabled}
+                      />
+                    ))}
+                  </Tabs.List>
+                </Tabs>
+              </div>
+              {field.value === "custom" ? (
+                <CustomExpirationInput control={control} disabled={disabled} />
+              ) : null}
+            </div>
+          )}
+        </Form.Field>
       )}
-    </Form.Field>
+    </CustomTooltip>
   );
 }
 

@@ -130,6 +130,7 @@ describe("REST API key creation schemas", () => {
         "LEGACY_PROJECT_API_KEY",
         "LEGACY_ORGANIZATION_API_KEY",
         "AI_GATEWAY",
+        "AI_GATEWAY_INFERENCE",
         "OWNER",
         "",
         "INVALID",
@@ -145,13 +146,14 @@ describe("REST API key creation schemas", () => {
         "MEMBER",
         "VIEWER",
         "SCORES_INGEST",
-        "AI_GATEWAY",
+        "AI_GATEWAY_INFERENCE",
         "APPLICATION",
       ],
       invalidRoles: [
         "INGEST",
         "LEGACY_PROJECT_API_KEY",
         "LEGACY_ORGANIZATION_API_KEY",
+        "AI_GATEWAY",
         "OWNER",
         "",
         "INVALID",
@@ -1208,6 +1210,10 @@ describe("Projects API", () => {
         body: { role: "LEGACY_ORGANIZATION_API_KEY" },
       },
       { label: "gateway role", body: { role: "AI_GATEWAY" } },
+      {
+        label: "gateway inference role",
+        body: { role: "AI_GATEWAY_INFERENCE" },
+      },
       { label: "role array", body: { role: [] } },
     ])("rejects $label without creating a key", async ({ body }) => {
       const before = await prisma.apiKey.count({ where: { projectId } });

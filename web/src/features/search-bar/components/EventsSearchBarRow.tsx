@@ -35,6 +35,7 @@ import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBa
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 type EventsSearchBarRowProps = Omit<
@@ -70,6 +71,7 @@ function EventsSearchBarRowContent({
   store,
   commit,
   observed,
+  managedEnvironmentPolicy,
   erroredColumns,
   fieldReason,
   freeTextReason,
@@ -86,7 +88,7 @@ function EventsSearchBarRowContent({
 }: {
   aiFeaturesEnabled: boolean;
   inputId?: string;
-  spacing?: "table" | "flush";
+  spacing?: "table" | "page" | "flush";
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -94,6 +96,7 @@ function EventsSearchBarRowContent({
   store: SearchBarStore;
   commit: SearchCommit;
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   /** Columns whose lazy fetch terminally errored — value-stage loading settles to
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
@@ -167,11 +170,13 @@ function EventsSearchBarRowContent({
       className={cn(
         "min-w-0",
         spacing === "table" && "px-2 pt-2 pb-1",
+        spacing === "page" && "px-3 pt-2 pb-1",
         className,
       )}
     >
       {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
+          key={`${projectId}:${tableName}:${registry.id}`}
           projectId={projectId}
           tableName={tableName}
           isV4={isV4}
@@ -179,6 +184,7 @@ function EventsSearchBarRowContent({
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
           registryId={aiRegistryId}
+          registry={registry}
           size={size}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
@@ -189,6 +195,7 @@ function EventsSearchBarRowContent({
             inputId={inputId}
             projectId={projectId}
             observed={observed}
+            managedEnvironmentPolicy={managedEnvironmentPolicy}
             erroredColumns={erroredColumns}
             fieldReason={fieldReason}
             freeTextReason={freeTextReason}

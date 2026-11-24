@@ -9,21 +9,17 @@ const meta = preview.meta({
 });
 
 const message = (
-  <div className="flex items-start gap-2 sm:items-center">
-    <Bot size="base" __rawClassName="mt-0.5 sm:mt-0" />
-    <span>
-      <span className="font-bold">
-        Langfuse works great with your AI agents.
-      </span>{" "}
-      Connect your tools to your Langfuse data.
-    </span>
-  </div>
+  <span>
+    <span className="font-bold">Langfuse works great with your AI agents.</span>{" "}
+    Connect your tools to your Langfuse data.
+  </span>
 );
 
 export const Default = meta.story({
   args: {
     variant: "info",
     align: "middle",
+    icon: Bot,
     children: message,
     actions: [],
     onDismiss: fn(),
@@ -45,10 +41,22 @@ export const Warning = meta.story({
   },
 });
 
+export const WithOneAction = meta.story({
+  args: {
+    variant: "info",
+    align: "middle",
+    icon: Bot,
+    children: message,
+    actions: [{ type: "button", label: "Learn more", onClick: fn() }],
+    onDismiss: fn(),
+  },
+});
+
 export const WithActions = meta.story({
   args: {
     variant: "info",
     align: "middle",
+    icon: Bot,
     children: message,
     actions: [
       { type: "button", label: "Learn more", onClick: fn() },

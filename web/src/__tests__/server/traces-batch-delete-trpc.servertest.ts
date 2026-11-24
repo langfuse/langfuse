@@ -13,8 +13,6 @@ vi.mock("@langfuse/shared/src/server", async () => {
     },
   };
 });
-
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -35,6 +33,7 @@ import {
   createOrgProjectAndApiKey,
   deriveAuditLogEventId,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const traceDeleteQuery = (userId: string) => ({
   filter: [
@@ -50,41 +49,29 @@ const traceDeleteQuery = (userId: string) => ({
 
 const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey({ plan: "Team" });
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: `user-${randomUUID()}`,
       name: "Batch Delete Test User",
-      canCreateOrganizations: true,
       v4BetaEnabled: opts.v4BetaEnabled ?? false,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
     },
-    environment: {} as any,
-  };
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        plan: "cloud:team",
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            name: project.name,
+            hasTraces: true,
+          },
+        ],
+      },
+    ],
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   return {
@@ -137,7 +124,7 @@ describe("traces.deleteMany batch action", () => {
     const query = traceDeleteQuery(userId);
     const batchActionId = `${projectId}-traces-trace-delete`;
 
-    await caller.traces.deleteMany({
+    const response = await caller.traces.deleteMany({
       projectId,
       traceIds: [randomUUID()],
       isBatchAction: true,
@@ -147,6 +134,12 @@ describe("traces.deleteMany batch action", () => {
     const batchAction = await prisma.batchAction.findUniqueOrThrow({
       where: { id: batchActionId },
     });
+    // The client hides matching rows up to this cutoff, so it must be the
+    // exact bound the worker resolves the query with.
+    expect(response.cutoffCreatedAt).toBe(
+      TraceDeleteBatchActionConfigSchema.parse(batchAction.config)
+        .cutoffCreatedAt,
+    );
     expect(batchAction).toMatchObject({
       projectId,
       userId: session.user!.id,

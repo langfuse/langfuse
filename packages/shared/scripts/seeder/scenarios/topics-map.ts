@@ -1,5 +1,6 @@
 import { prisma } from "../../../src/db";
 import {
+  commandClickhouse,
   createTrace,
   createObservation,
   createTracesCh,
@@ -8,18 +9,25 @@ import {
 } from "../../../src/server";
 import {
   createTopicRun,
+  getTopicRuleMapCosts,
   ensureDefaultTopicFacets,
   listTopicRules,
   saveTopicRule,
-  saveTopicRun,
   writeTopicAssignments,
   writeTopicSummaries,
 } from "../../../src/server/topics";
 import type {
   TopicAssignment,
   TopicDefinition,
+  TopicRule,
   TopicSummary,
 } from "../../../src/topics";
+import { TOPICS_MIN_EMBEDDING_DIMENSIONS } from "../../../src/topics";
+import { prepareTopicsCostEstimate } from "./topics-cost-estimate";
+import {
+  saveSeedCostRun,
+  seedTopicCostSnapshots,
+} from "./topics-cost-snapshots";
 import type { FilterState } from "../../../src/types";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, Rng, utcDayStartMs } from "./rng";
@@ -108,9 +116,23 @@ const ISSUE_TOPICS: SeedTopic[] = [
   },
 ];
 
+// The enterprise rule fits its own Intent map on fewer traces, so its topics
+// have other names than the first rule's.
+const ENTERPRISE_INTENT_TOPICS: SeedTopic[] = [
+  {
+    name: "Enterprise invoices and seat changes",
+    description: "Annual-plan invoices, seat counts and procurement.",
+    count: 34,
+  },
+  {
+    name: "Production incidents on SSO workspaces",
+    description: "Errors and outages reported by enterprise teams.",
+    count: 14,
+  },
+];
 const OUTLIERS = 7;
 const AWAITING = 4;
-const DIMENSIONS = 16;
+const EMBEDDING_MODEL = "text-embedding-3-small";
 const ISSUES_APPLICABLE = 60;
 const SECOND_RULE_TRACES = 48;
 // Rules are found again by name, so the prefix keeps re-runs off the project's own rules.
@@ -143,7 +165,7 @@ const OUTLIER_REQUESTS = [
 export const topicsMapScenario: ScenarioDefinition = {
   name: "topics-map",
   description:
-    "A published Topics map without model calls: 116 traces, two live rules (one with a long name), Intent and Issues maps with nine and five topics of very different sizes, long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project.",
+    "Published Intent and Issues maps for 116 traces, two live rules with shared processing costs, and two snapshots with fully or partially priced results. Includes long topic names, outliers and traces awaiting a map. Needs Topics enabled for the project. Makes no model calls.",
   supportsV4: true,
   flags: [],
   run: async (ctx, params) => {
@@ -153,6 +175,7 @@ export const topicsMapScenario: ScenarioDefinition = {
       INTENT_TOPICS.reduce((sum, topic) => sum + topic.count, 0) + OUTLIERS;
     const traceCount = assignedCount + AWAITING;
     const dayStart = utcDayStartMs();
+    const definitionCreatedAt = new Date(dayStart).toISOString();
     const cohortFrom = dayStart - 2 * 86_400_000;
     const cohortTo = dayStart - 60 * 60 * 1000;
     // Discovery traces spread across the cohort; awaiting ones arrive after it.
@@ -173,8 +196,10 @@ export const topicsMapScenario: ScenarioDefinition = {
       events: traceCount * 2,
       rules: RULE_NAMES.length,
       maps: 3,
+      costSnapshots: 2,
+      pricedLiveMaps: RULE_NAMES.length,
       summaries: traceCount * 2,
-      assignments: assignedCount + ISSUES_APPLICABLE + SECOND_RULE_TRACES,
+      assignments: assignedCount * 3 + ISSUES_APPLICABLE + SECOND_RULE_TRACES,
     };
     const summary = {
       scenario: "topics-map",
@@ -278,10 +303,15 @@ export const topicsMapScenario: ScenarioDefinition = {
         throw new SeedError(`Built-in "${name}" facet not found.`);
       return { id: found.id, version: found.versions[0].version };
     };
+    const geometry = {
+      embeddingModel: EMBEDDING_MODEL,
+      dimensions: TOPICS_MIN_EMBEDDING_DIMENSIONS,
+    };
+    await prepareTopicsCostEstimate(ctx.projectId, geometry);
     const intent = facet("Intent");
     const issues = facet("Issues");
     const existingRules = await listTopicRules(ctx.projectId);
-    const rules = [];
+    const rules: TopicRule[] = [];
     for (const [index, name] of RULE_NAMES.entries())
       rules.push(
         await saveTopicRule({
@@ -293,7 +323,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         }),
       );
 
-    const processedAt = new Date(dayStart).toISOString();
+    const processedAt = new Date().toISOString();
     const source = (index: number) => ({
       traceId: traceIds[index]!,
       sessionId: null,
@@ -315,7 +345,16 @@ export const topicsMapScenario: ScenarioDefinition = {
           ...source(index),
           facetId: facetRef.id,
           facetVersion: facetRef.version,
-          triggerType: "manual",
+          triggerType: "rule",
+          // The second rule's filter matches the first SECOND_RULE_TRACES traces.
+          ruleIds: rules
+            .filter(
+              (rule, r) =>
+                rule.facetIds.includes(facetRef.id) &&
+                (r === 0 || index < SECOND_RULE_TRACES),
+            )
+            .map((rule) => rule.id),
+          executionId: null,
           state: complete ? "complete" : "not_applicable",
           summary: complete ? summaryText(topic, requests[index]!) : "",
           embedding: complete
@@ -323,8 +362,9 @@ export const topicsMapScenario: ScenarioDefinition = {
             : [],
           transcriptId: traceIds[index]!,
           transcriptVersion: "seed",
+          transcriptBytes: 0,
           summaryModel: "seed-summary",
-          embeddingModel: "seed-embedding",
+          embeddingModel: EMBEDDING_MODEL,
           providedUsageDetails: {},
           usageDetails: {},
           providedCostDetails: {},
@@ -346,9 +386,24 @@ export const topicsMapScenario: ScenarioDefinition = {
       (index) => issuesOf[index],
       (index) => index < ISSUES_APPLICABLE || index >= assignedCount,
     );
-    ctx.log("writing summaries");
-    await writeTopicSummaries([...intentSummaries, ...issueSummaries]);
-
+    // Each cost snapshot owns two Intent summaries. Both live maps share the next one.
+    const snapshotSummaries = intentSummaries.slice(0, 4);
+    const liveSummaries = intentSummaries.slice(snapshotSummaries.length);
+    liveSummaries[0]!.costDetails = { summary_input: 0.12, total: 0.12 };
+    // A replay replaces these five synthetic summaries, including earlier cohort dates.
+    await commandClickhouse({
+      query: `DELETE FROM topic_facet_summaries
+        WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+          AND facet_version = {version:UInt32} AND trace_id IN {traceIds:Array(String)}
+          AND transcript_version = 'seed' AND summary_model = 'seed-summary'
+        SETTINGS lightweight_deletes_sync = 2`,
+      params: {
+        projectId: ctx.projectId,
+        facetId: intent.id,
+        version: intent.version,
+        traceIds: traceIds.slice(0, snapshotSummaries.length + 1),
+      },
+    });
     // Run ids are unique across projects, so the default prefix alone would collide.
     const runPrefix = `${ctx.idPrefix}-${ctx.projectId}`;
     const maps = [
@@ -374,7 +429,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         runId: `${runPrefix}-enterprise-intent`,
         rule: rules[1]!,
         facet: intent,
-        topics: INTENT_TOPICS,
+        topics: ENTERPRISE_INTENT_TOPICS,
         topicOf: (index: number) => intentOf[index],
         members: (index: number) => index < SECOND_RULE_TRACES,
         summaries: intentSummaries,
@@ -384,18 +439,49 @@ export const topicsMapScenario: ScenarioDefinition = {
     await prisma.topicClusteringRun.deleteMany({
       where: {
         projectId: ctx.projectId,
-        id: { in: maps.map((map) => map.runId) },
+        id: {
+          in: [
+            ...maps.map((map) => map.runId),
+            `${runPrefix}-setup`,
+            `${runPrefix}-nightly`,
+          ],
+        },
       },
     });
+    const ruleIds = rules.map((rule) => rule.id);
+    const previousMapCosts = await getTopicRuleMapCosts(ctx.projectId);
+    ctx.log("writing summaries");
+    await writeTopicSummaries([...liveSummaries, ...issueSummaries]);
+    summary.links.push(`${summary.links[0]}?map=rule:${rules[0]!.id}`);
+    const snapshotRunIds: string[] = [];
     for (const map of maps) {
       const config = {
         timeRange: {
           from: new Date(cohortFrom).toISOString(),
           to: new Date(cohortTo).toISOString(),
         },
-        embeddingModel: "seed-embedding",
-        dimensions: DIMENSIONS,
+        ...geometry,
       };
+      const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
+        // The centroid geometry is immutable for a given version.
+        topicVersionId: `${map.runId}-topic-${k}-${geometry.dimensions}d`,
+        projectId: ctx.projectId,
+        topicId: `${map.runId}-topic-${k}`,
+        createdByRunId: map.runId,
+        createdAt: definitionCreatedAt,
+        labels: [],
+        name: topic.name,
+        description: topic.description,
+        centroid: unit(k),
+        radius: 0.4,
+        representativeSummaries: [],
+        metadata: {},
+      }));
+      if (map === maps[0]) {
+        const billing = definitions[0]!;
+        billing.topicVersionId = `${billing.topicId}-priced`;
+        billing.costDetails = { naming_input: 0.1, total: 0.1 };
+      }
       await createTopicRun({
         id: map.runId,
         projectId: ctx.projectId,
@@ -404,20 +490,6 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
         config,
       });
-      const definitions: TopicDefinition[] = map.topics.map((topic, k) => ({
-        topicVersionId: `${map.runId}-topic-${k}`,
-        projectId: ctx.projectId,
-        topicId: `${map.runId}-topic-${k}`,
-        createdByRunId: map.runId,
-        createdAt: processedAt,
-        tags: [],
-        name: topic.name,
-        description: topic.description,
-        centroid: unit(k),
-        radius: 0.4,
-        representativeSummaries: [],
-        metadata: {},
-      }));
       const assignments: TopicAssignment[] = traceIds.flatMap((_, index) => {
         if (!map.members(index)) return [];
         const k = map.topicOf(index);
@@ -429,6 +501,7 @@ export const topicsMapScenario: ScenarioDefinition = {
             facetVersion: map.facet.version,
             summaryProcessedAt: map.summaries[index]!.processedAt,
             runId: map.runId,
+            ruleId: map.rule.id,
             topicId: definition?.topicId ?? null,
             topicVersionId: definition?.topicVersionId ?? null,
             distance: definition ? 0.05 + rng.next() * 0.2 : null,
@@ -440,7 +513,7 @@ export const topicsMapScenario: ScenarioDefinition = {
         ];
       });
       ctx.log(`publishing ${map.runId} (${assignments.length} traces)`);
-      await saveTopicRun({
+      const published = await saveSeedCostRun({
         id: map.runId,
         projectId: ctx.projectId,
         facetId: map.facet.id,
@@ -455,12 +528,29 @@ export const topicsMapScenario: ScenarioDefinition = {
         ruleId: map.rule.id,
       });
       await writeTopicAssignments(assignments);
+      if (map === maps[0]) {
+        const snapshots = await seedTopicCostSnapshots(
+          ctx,
+          published,
+          assignments,
+          snapshotSummaries,
+          config.timeRange,
+          geometry,
+        );
+        snapshotRunIds.push(...snapshots.map(({ runId }) => runId));
+        summary.links.push(
+          ...snapshots.map(
+            ({ id }) =>
+              `${summary.links[0]}?map=analysis:${id}&executionId=${id}`,
+          ),
+        );
+      }
     }
 
     const queryParams = {
       projectId: ctx.projectId,
       traceIds,
-      runIds: maps.map((map) => map.runId),
+      runIds: [...maps.map((map) => map.runId), ...snapshotRunIds],
     };
     const verified: Record<string, number> = {
       traces: await countRows(
@@ -504,6 +594,14 @@ export const topicsMapScenario: ScenarioDefinition = {
         "uniqExact(clustering_run_id, trace_id)",
       ),
     };
+    const mapCosts = await getTopicRuleMapCosts(ctx.projectId);
+    verified.pricedLiveMaps = ruleIds.filter((id, index) => {
+      const cost = mapCosts[id];
+      const expected =
+        (previousMapCosts[id] ?? 0) + (index === 0 ? 0.16 : 0.06);
+      return cost != null && Math.abs(cost - expected) < 1e-12;
+    }).length;
+    verified.costSnapshots = snapshotRunIds.length;
     for (const [entity, expected] of Object.entries(counts)) {
       if (verified[entity] !== expected) {
         throw new SeedError(
@@ -524,8 +622,8 @@ function topicIndexes(topics: SeedTopic[], outliers: number) {
 }
 
 function unit(k: number) {
-  return Array.from({ length: DIMENSIONS }, (_, i) =>
-    i === k % DIMENSIONS ? 1 : 0,
+  return Array.from({ length: TOPICS_MIN_EMBEDDING_DIMENSIONS }, (_, i) =>
+    i === k % TOPICS_MIN_EMBEDDING_DIMENSIONS ? 1 : 0,
   );
 }
 
