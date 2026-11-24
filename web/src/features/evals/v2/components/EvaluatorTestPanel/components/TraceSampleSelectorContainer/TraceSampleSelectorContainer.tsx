@@ -54,7 +54,7 @@ export function TraceSampleSelectorContainer({
       resolveSelection={resolveSelection}
       getRowClassName={undefined}
       filterDescription="A trace matches when one of its observations matches every filter. The rule you save uses these filters."
-      filterTooltip="These filters control which traces you can pick to test with"
+      filterTooltip="Filters are checked per observation. A trace matches when a single observation meets every condition. Example: name = llm-call and level = ERROR finds traces with a failed llm-call, not traces with an llm-call and some other failed observation."
       matchingDescription=""
       matchingTooltip=""
       formatCount={(count) => compactNumberFormatter(count)}

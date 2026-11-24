@@ -59,6 +59,8 @@ export const TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY = createFieldRegistry({
     traceTranscriptColumnIds.has(column.id),
   ),
   searchExamples: ["traceName:support-chat", "tags:billing", "env:production"],
+  searchPlaceholder:
+    "Search: matches traces where at least one observation matches all of these filters",
   aiFilterPrompt: false,
   aiContextFields: [],
   filterStateErrors: (filters) =>
