@@ -111,13 +111,9 @@ const input: TopicManualRunInput = {
   }),
 };
 
-function caller(
-  role: "ADMIN" | "VIEWER" = "ADMIN",
-  langfuseTopics = true,
-  topicsEnabled = true,
-) {
+function caller(role: "ADMIN" | "VIEWER" = "ADMIN", topicsEnabled = true) {
   const session = createSession({
-    user: { id: "user-a", featureFlags: testFeatureFlags({ langfuseTopics }) },
+    user: { id: "user-a", featureFlags: testFeatureFlags() },
     organizations: [{ id: "org-a", role, projects: [{ id: projectId }] }],
     environment: { topicsEnabled },
   });
@@ -231,25 +227,10 @@ beforeEach(() => {
   mocks.getTopicRuns.mockResolvedValue([]);
 });
 
-describe("Topics feature access", () => {
-  it("rejects reads and execution without an explicit opt-in", async () => {
-    const disabled = caller("ADMIN", false);
-    await expect(disabled.facets({ projectId })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    await expect(
-      disabled.retry({ projectId, executionId: "execution-a" }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
-  });
-});
-
 describe("Topics deployment switch", () => {
   // Every Topics API is behind the visibility gate: with the switch off it
   // answers NOT_FOUND before reading or writing anything.
-  const outside = () => caller("ADMIN", true, false);
+  const outside = () => caller("ADMIN", false);
   const reads = [
     ["current results", () => outside().currentResults({ projectId })],
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
@@ -322,68 +303,23 @@ describe("Topics deployment switch", () => {
 describe("Topics visibility gate", () => {
   // Page, sidebar and API all call this one gate.
   it.each([
-    ["a Cloud member with the preview", {}, "EU", true, true],
+    ["a Cloud member without any preview", {}, "EU", true, true],
+    ["a self-hosted member", {}, undefined, true, true],
     ["the deployment switch off", {}, "EU", false, false],
-    ["the preview off on Cloud", { langfuseTopics: false }, "EU", true, false],
-    [
-      "a self-hosted member without the preview",
-      { langfuseTopics: false },
-      undefined,
-      true,
-      true,
-    ],
-    [
-      "self-hosted with the switch off",
-      { langfuseTopics: false },
-      undefined,
-      false,
-      false,
-    ],
-    [
-      "ClickHouse staff in internal view",
-      { email: "member@clickhouse.com", langfuseTopics: false },
-      "EU",
-      true,
-      true,
-    ],
-    [
-      "staff opting out of internal view",
-      {
-        email: "member@clickhouse.com",
-        internalFeatures: false,
-        langfuseTopics: false,
-      },
-      "EU",
-      true,
-      false,
-    ],
-    ["a role without topics:read", { role: "NONE" }, undefined, true, false],
+    ["a role without topics:read", { role: "NONE" }, "EU", true, false],
     [
       "internal view without project membership",
-      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
+      { email: "member@clickhouse.com", role: null },
       "EU",
       true,
       false,
     ],
   ] as const)("%s", (_case, user, region, topicsEnabled, expected) => {
-    const {
-      langfuseTopics = true,
-      email,
-      internalFeatures = true,
-      role = "VIEWER",
-    }: {
-      langfuseTopics?: boolean;
-      email?: string;
-      internalFeatures?: boolean;
-      role?: Role | null;
-    } = user;
+    const { email, role = "VIEWER" }: { email?: string; role?: Role | null } =
+      user;
     setCloudRegion(region);
     const session = createSession({
-      user: {
-        id: "user-a",
-        email,
-        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
-      },
+      user: { id: "user-a", email, featureFlags: testFeatureFlags() },
       organizations: role
         ? [{ id: "org-a", role, projects: [{ id: projectId }] }]
         : [],
@@ -905,7 +841,7 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("rejects a different project and a disabled feature flag before storage access", async () => {
+  it("rejects a different project and the switch off before storage access", async () => {
     await expect(
       caller().executions({ projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });

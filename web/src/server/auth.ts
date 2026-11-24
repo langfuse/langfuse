@@ -17,7 +17,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server/parseFlags";
+} from "@/src/features/feature-flags/utils";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,

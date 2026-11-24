@@ -15,7 +15,7 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Topics is gated per user (feature preview) on top of `topics:read`.
+  // Topics visibility from canViewTopics: deployment switch and `topics:read`.
   topicsAvailable?: boolean;
 };
 

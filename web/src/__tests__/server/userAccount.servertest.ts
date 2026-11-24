@@ -28,7 +28,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 
   it.each([{ emailDomain: "example.com" }, { emailDomain: "langfuse.com" }])(
-    "rejects a Topics toggle in external view without a grant ($emailDomain)",
+    "rejects a trace evals toggle in external view without a grant ($emailDomain)",
     async (options) => {
       const { caller, userId } = await createCaller({
         ...options,
@@ -39,7 +39,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       });
       await expect(
         caller.userAccount.setFeaturePreviewEnabled({
-          flag: "langfuseTopics",
+          flag: "traceTranscriptEvals",
           enabled: true,
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -53,41 +53,44 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     },
   );
 
-  it("lets internal staff manage Topics locally without changing other flags", async () => {
+  it("lets internal staff manage trace evals locally without changing other flags", async () => {
     const { caller, userId } = await createCaller({
       emailDomain: "clickhouse.com",
     });
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: true,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).toEqual(["templateFlag", "langfuseTopics"]);
+    ).toEqual(["templateFlag", "traceTranscriptEvals"]);
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: false,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).not.toContain("langfuseTopics");
+    ).not.toContain("traceTranscriptEvals");
   });
 
-  it("lets an external user turn off an existing Topics grant", async () => {
+  it("lets an external user turn off an existing trace evals grant", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "langfuseTopics"],
+      featureFlags: ["templateFlag", "traceTranscriptEvals"],
     });
     await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
+      flag: "traceTranscriptEvals",
       enabled: false,
     });
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
+    ).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("traceTranscriptEvals"),
+    ]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -394,7 +397,7 @@ async function createCaller({
         internalFeatures: !featureFlags.includes(
           getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
         ),
-        langfuseTopics: featureFlags.includes("langfuseTopics"),
+        traceTranscriptEvals: featureFlags.includes("traceTranscriptEvals"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
         templateFlag: featureFlags.includes("templateFlag"),
