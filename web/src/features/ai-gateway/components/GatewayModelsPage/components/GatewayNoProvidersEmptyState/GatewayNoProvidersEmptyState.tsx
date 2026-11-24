@@ -1,4 +1,4 @@
-import { Plus } from "@langfuse/icons";
+import { BookOpen, Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { TileCard } from "@/src/components/TileCard/TileCard";
@@ -28,7 +28,9 @@ export function GatewayNoProvidersEmptyState({
           <Button
             variant="outline"
             text="Setup guide"
+            icon={BookOpen}
             href={GATEWAY_SETUP_DOCS_URL}
+            hideExternalIcon
           />
           <Button text="Add connection" icon={Plus} onClick={onAddProvider} />
         </>
