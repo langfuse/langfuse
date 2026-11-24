@@ -4,7 +4,7 @@ import type {
   CodeEvalTemplateVariable,
   ToolCallForEval,
 } from "../../features/evals/observationForEval";
-import type { CodeEvalTraceThread } from "../../features/evals/traceTranscriptEval";
+import type { CodeEvalTraceThread } from "../transcript/eval-threads";
 export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;

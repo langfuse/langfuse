@@ -27,7 +27,7 @@ import {
 import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
-import { projectTranscriptThreadsForCodeEval } from "../../features/evals/traceTranscriptEval";
+import { toCodeEvalThreads } from "../transcript/eval-threads";
 import type { Thread } from "../transcript/types";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
@@ -120,7 +120,7 @@ function buildCodeEvalPayload(params: {
   if (params.threads) {
     return {
       targetType: "trace",
-      trace: { threads: projectTranscriptThreadsForCodeEval(params.threads) },
+      trace: { threads: toCodeEvalThreads(params.threads) },
     };
   }
   const byName = new Map(

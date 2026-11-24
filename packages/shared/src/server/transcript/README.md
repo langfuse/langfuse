@@ -59,6 +59,10 @@ messages from the content.
 
 [`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
 
+### Eval threads
+
+[`eval-threads.ts`](eval-threads.ts) projects transcript threads for evaluators. `toMappingThreads` flattens each thread into one `messages` list, history first and without provenance, which eval variable paths resolve against. `toCodeEvalThreads` keeps provenance on current-turn messages, with ISO date strings, for code evaluators.
+
 ## Execution issues
 
 `assembleTranscriptContext(orderedObservations, options?)` composes
