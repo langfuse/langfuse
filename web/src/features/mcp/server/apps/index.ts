@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import type { McpFeatureModule } from "../registry";
 import { handleRenderWidget, renderWidgetTool } from "./tools/renderWidget";
 
@@ -9,4 +10,7 @@ export const appsFeature = {
   name: "apps",
   description: "Render Langfuse charts inline in the chat (MCP Apps)",
   tools: [{ definition: renderWidgetTool, handler: handleRenderWidget }],
+  // renderWidget queries the v2 views, so it is offered where queryMetrics is.
+  isEnabled: async () =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
 } as const satisfies McpFeatureModule;

@@ -11,16 +11,13 @@ import {
   buildWidgetOrderBy,
   dimension,
   getResultUnit,
-  getViewDeclaration,
   isV2BreakdownChart,
   metric,
-  resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
   type views,
   viewsV2,
   type QueryType,
-  type ViewVersion,
 } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -29,7 +26,6 @@ import {
   DashboardService,
   dashboardWidgetViewToQueryView,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
@@ -111,7 +107,7 @@ const RenderWidgetInputSchema = RenderWidgetBaseSchema.extend({
       message: "view is required unless widgetId is set",
     });
   }
-  if (!input.metrics?.length) {
+  if (!input.metrics || input.metrics.length === 0) {
     ctx.addIssue({
       code: "custom",
       path: ["metrics"],
@@ -138,17 +134,15 @@ type WidgetSpec = {
     row_limit?: number;
     defaultSort?: { column: string; order: "ASC" | "DESC" };
   };
-  version: ViewVersion;
   url: string;
 };
 
 /**
- * The newest query version with current data. Only legacy-mode deployments
- * still write the v1 tables alone; elsewhere the events-backed v2 views are
- * current, as queryMetrics assumes.
+ * Charts read the events-backed v2 views, like queryMetrics. The apps
+ * feature is offered under the same flag (../index.ts). Saved v1 widgets,
+ * `traces` included, have v2 declarations too.
  */
-const newestReadableVersion = (): ViewVersion =>
-  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ? "v1" : "v2";
+const VERSION = "v2";
 
 const toDay = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -185,16 +179,6 @@ const loadSavedWidgetSpec = async (
     filters: mapLegacyUiTableFilterToView(view, widget.filters),
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-    version: resolveWidgetRenderVersion({
-      shape: {
-        view,
-        dimensions: widget.dimensions,
-        measures: metrics.map((m) => ({ measure: m.measure })),
-        filters: widget.filters,
-      },
-      persistedMinVersion: widget.minVersion,
-      newestReadableVersion: newestReadableVersion(),
-    }),
     url: buildDashboardWidgetUrl({ projectId: context.projectId, widgetId }),
   };
 };
@@ -216,7 +200,6 @@ const adHocSpec = (
     filters: input.filters ?? [],
     chartType,
     chartConfig: { type: chartType },
-    version: newestReadableVersion(),
     url: buildDashboardsUrl({ projectId: context.projectId }),
   };
 };
@@ -268,29 +251,15 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         }
         const isTimeSeries = isTimeSeriesChart(spec.chartType);
         const hasDimension = spec.dimensions.length > 0;
-        // Every result goes into one MCP response, so breakdowns are bounded
-        // on any query version, not only where v2 validation requires it:
-        // the top rows by the first metric, and no high-cardinality series.
+        // Every row goes into one MCP response. validateQuery rejects
+        // unbounded high-cardinality series, and breakdowns keep their top
+        // rows by the first metric, as on the dashboard.
         const needsTopN = isV2BreakdownChart({
-          version: "v2",
+          version: VERSION,
           hasDimension,
           isTimeSeries,
           chartType: spec.chartType,
         });
-        const viewDimensions = getViewDeclaration(
-          spec.view,
-          spec.version,
-        ).dimensions;
-        const unboundedSeries = isTimeSeries
-          ? spec.dimensions.find(
-              (d) => viewDimensions[d.field]?.highCardinality,
-            )
-          : undefined;
-        if (unboundedSeries) {
-          throw new InvalidRequestError(
-            `${unboundedSeries.field} has too many values to chart over time. Use a breakdown chart such as HORIZONTAL_BAR for its top values.`,
-          );
-        }
 
         const buildQuery = (overrides: Partial<QueryType>): QueryType => ({
           view: spec.view,
@@ -323,17 +292,13 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
         });
 
         const run = async (query: QueryType) => {
-          const validation = validateQuery(query, spec.version);
+          const validation = validateQuery(query, VERSION);
           if (!validation.valid) {
             throw new InvalidRequestError(validation.reason);
           }
-          return executeQuery(
-            context.projectId,
-            query,
-            spec.version,
-            spec.version === "v2",
-            { clickhouseSettings: MCP_CLICKHOUSE_SETTINGS },
-          );
+          return executeQuery(context.projectId, query, VERSION, true, {
+            clickhouseSettings: MCP_CLICKHOUSE_SETTINGS,
+          });
         };
 
         const alias = metricAlias(firstMetric);
@@ -342,7 +307,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           spec.view,
           firstMetric.measure,
           firstMetric.aggregation,
-          spec.version,
+          VERSION,
         );
 
         // A single number also gets a trend and the previous period's value,
@@ -385,7 +350,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           chartType: spec.chartType,
           chartConfig: { ...spec.chartConfig, type: spec.chartType },
           view: spec.view,
-          version: spec.version,
+          version: VERSION,
           metrics: spec.metrics.map((m) => ({
             measure: m.measure,
             agg: m.aggregation,
