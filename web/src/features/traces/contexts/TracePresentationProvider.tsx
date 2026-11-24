@@ -2,7 +2,7 @@ import { createContext, use, useMemo, type ReactNode } from "react";
 
 /**
  * How an embedded trace is shown. "messages" is the transcript.
- * "observation" is the span preview with its metadata collapsed.
+ * "observation" is the span preview of one observation.
  * Null on the standalone trace page.
  */
 export type TracePresentation = "messages" | "observation";
