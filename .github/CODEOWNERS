@@ -90,18 +90,33 @@
 /packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb
 /packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb
 
-# Billing job (cloud usage metering)
-/worker/src/ee/cloudUsageMetering/ @Steffen911 @jordibosch20
-/worker/src/queues/cloudUsageMeteringQueue.ts @Steffen911 @jordibosch20
+# Billing: usage metering job, usage thresholds, spend alerts, Stripe/billing server code and webhooks
+/worker/src/ee/cloudUsageMetering/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudUsageMeteringQueue.ts @jordibosch20 @Steffen911
+/worker/src/ee/usageThresholds/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudFreeTierUsageThresholdQueue.ts @jordibosch20 @Steffen911
+/worker/src/ee/cloudSpendAlerts/ @jordibosch20 @Steffen911
+/worker/src/queues/cloudSpendAlertQueue.ts @jordibosch20 @Steffen911
+/web/src/ee/features/billing/server/ @jordibosch20 @Steffen911
+/web/src/app/api/billing/ @jordibosch20 @Steffen911
+
+# SSO
+/web/src/ee/features/multi-tenant-sso/ @jordibosch20 @Steffen911 @marksalpeter
+
+# Admin and internal APIs
+/web/src/pages/api/admin/ @Steffen911 @hassiebp @nimarb
+/web/src/pages/api/internal/ @Steffen911 @hassiebp @nimarb
+/web/src/ee/features/admin-api/ @Steffen911 @hassiebp @nimarb
 
 # Query builder: code that applies the project_id (tenant isolation) filter
-/packages/shared/src/features/query/server/queryBuilder.ts @Steffen911 @hassiebp @nimarb
-/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @Steffen911 @hassiebp @nimarb
-# Declared after /packages/shared/src/server/query-ast/ so it keeps its existing owner
-/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @Steffen911 @hassiebp @nimarb
+/packages/shared/src/features/query/server/queryBuilder.ts @niklassemmler
+/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler
+# Declared after /packages/shared/src/server/query-ast/ (same owner) so the order stays explicit
+/packages/shared/src/server/query-ast/tenancy.ts @niklassemmler
 
-# Dockerfiles
+# Dockerfiles and root docker-compose files
 **/Dockerfile @Steffen911 @hassiebp @nimarb
+/docker-compose*.yml @Steffen911 @hassiebp @nimarb
 
 # Next.js config and app shell
 /web/next.config.mjs @Steffen911 @hassiebp @nimarb
