@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
+import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
@@ -56,11 +57,7 @@ export function EvaluatorSetupFooter({
         );
 
       return {
-        currentSnapshot: JSON.stringify({
-          name: state.name.trim(),
-          description: state.description.trim() || null,
-          definition: prepareEvaluatorDraft(state).definition,
-        }),
+        currentSnapshot: evaluatorSetupSnapshot(state),
         canSubmit: Boolean(definition) && hasCompleteMappings,
         observationMappingMissing:
           !hasCompleteMappings && selectSampleScope(state) === "trace",

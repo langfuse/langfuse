@@ -3,6 +3,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { StringParam, useQueryParam } from "use-query-params";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "@langfuse/icons";
 import {
@@ -33,7 +34,7 @@ import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { evaluatorSetupSnapshot } from "@/src/features/evals/v2/fns/evaluators/evaluatorSetupSnapshot";
 import { prepareDraftForScope } from "@/src/features/evals/v2/fns/evaluators/prepareDraftForScope";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
@@ -302,14 +303,8 @@ export function EvaluatorSetupPage(
     projectId,
     modelDraft.type === "DECISION_MODEL",
   );
-  // The default decision model arrives with the connection list. It is applied
-  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
-    JSON.stringify({
-      name: state.name.trim(),
-      description: state.description.trim() || null,
-      definition: prepareEvaluatorDraft(state).definition,
-    });
+    evaluatorSetupSnapshot(state);
   const initialSnapshot = useRef(getCurrentSnapshot());
   const testPanelOpen = useStore(
     evaluatorSetupStore,
@@ -348,6 +343,7 @@ export function EvaluatorSetupPage(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
+  const [, setObservationParam] = useQueryParam("observation", StringParam);
   const sampleTracePeekNavigation = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
@@ -888,7 +884,9 @@ export function EvaluatorSetupPage(
   };
 
   const changeSampleScope = (scope: EvaluatorSampleScope) => {
+    if (evaluatorSetupStore.getState().sampleScope === scope) return;
     evaluatorSetupStore.getState().actions.setSampleScope(scope);
+    setObservationParam(undefined, "replaceIn");
     resetTestState();
   };
 

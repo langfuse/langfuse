@@ -25,11 +25,10 @@ export function SampleObservationSelectorContainer({
   >[0]["onOpenTrace"];
   samplePresentation?: "table" | "detail";
 }) {
-  const selectedObservation = useStore(
+  const selectedObservationId = useStore(
     store,
-    (state) => state.selectedObservation,
+    (state) => state.selectedObservation?.id ?? null,
   );
-  const selectedObservationId = selectedObservation?.id ?? null;
   const filterState = useStore(store, (state) => state.sampleFilter);
   const actions = store.getState().actions;
   const onboardingAnalytics = useEvalOnboardingAnalytics();
@@ -58,7 +57,6 @@ export function SampleObservationSelectorContainer({
       projectId={projectId}
       timeRange={timeRange}
       selectedObservationId={selectedObservationId}
-      selectedObservation={selectedObservation}
       filterState={filterState}
       onFilterStateChange={changeFilterState}
       onSelect={actions.setSelectedObservation}

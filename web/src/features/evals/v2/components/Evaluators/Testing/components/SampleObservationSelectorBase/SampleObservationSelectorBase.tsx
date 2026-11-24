@@ -3,7 +3,6 @@
 import {
   useCallback,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
   type UIEvent,
@@ -166,7 +165,6 @@ export type SampleObservationSelectorBaseProps = {
   tableName: string;
   registry: FieldRegistry | undefined;
   selectedObservationId: string | null;
-  selectedObservation?: SampleObservation | null;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
   leadingColumns: LangfuseColumnDef<SampleObservation>[];
@@ -188,24 +186,6 @@ export type SampleObservationSelectorBaseProps = {
   /** Trace transcript rules keep the filter and do not list matching traces. */
   showMatches?: boolean;
 };
-
-function suppressedRetarget(
-  resolved: SampleObservation | null | undefined,
-  retainedId: string | null,
-  retainedIsListed: boolean,
-  selectedObservationId: string | null,
-) {
-  if (
-    resolved &&
-    retainedId &&
-    !retainedIsListed &&
-    selectedObservationId === retainedId &&
-    resolved.id !== retainedId
-  ) {
-    return undefined;
-  }
-  return resolved;
-}
 
 /** First matching observation per trace, in match order. */
 function matchingTraces(observations: SampleObservation[]) {
@@ -236,7 +216,6 @@ export function SampleObservationSelectorBase(
     tableName,
     registry,
     selectedObservationId,
-    selectedObservation = null,
     onSelect,
     onOpenTrace,
     leadingColumns,
@@ -291,11 +270,9 @@ export function SampleObservationSelectorBase(
         ]
       : EXAMPLES;
   }, [datasetOptions, sampleScope]);
-  const retainedSelectionId = useRef<string | null>(null);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
-    retainedSelectionId.current = null;
     const resolved = typeof next === "function" ? next(filterState) : next;
     onFilterStateChange(resolved);
   };
@@ -484,19 +461,13 @@ export function SampleObservationSelectorBase(
       : undefined;
   const querySettled =
     observationQuery.isSuccess && !observationQuery.isFetching;
-  const retainedId = retainedSelectionId.current;
-  const retainedIsListed =
-    querySettled &&
-    retainedId != null &&
-    matchingObservations.some((observation) => observation.id === retainedId);
-  const detailSelectionToReconcile = suppressedRetarget(
-    querySettled
-      ? resolveSelection(matchingObservations, selectedObservationId)
-      : undefined,
-    retainedId,
-    retainedIsListed,
-    selectedObservationId,
-  );
+  const detailObservations =
+    sampleScope === "trace"
+      ? matchingTraces(matchingObservations)
+      : matchingObservations;
+  const detailSelectionToReconcile = querySettled
+    ? resolveSelection(detailObservations, selectedObservationId)
+    : undefined;
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -703,14 +674,10 @@ export function SampleObservationSelectorBase(
         <div className="flex min-h-0 flex-1 flex-col border-t">
           <div
             ref={
-              retainedIsListed || detailSelectionToReconcile !== undefined
+              detailSelectionToReconcile !== undefined
                 ? (element) => {
                     // Commit fresh query results through the existing selection owner without a data-sync effect.
-                    if (!element) return;
-                    if (retainedIsListed) retainedSelectionId.current = null;
-                    if (detailSelectionToReconcile !== undefined) {
-                      onSelect(detailSelectionToReconcile);
-                    }
+                    if (element) onSelect(detailSelectionToReconcile);
                   }
                 : undefined
             }
@@ -719,13 +686,8 @@ export function SampleObservationSelectorBase(
           <EvaluatorSampleDetail
             projectId={projectId}
             sampleScope={sampleScope}
-            observations={
-              sampleScope === "trace"
-                ? matchingTraces(matchingObservations)
-                : matchingObservations
-            }
+            observations={detailObservations}
             selectedObservationId={selectedObservationId}
-            selectedObservation={selectedObservation}
             pending={observationsPending}
             onSelect={onSelect}
           />

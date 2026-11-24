@@ -34,7 +34,6 @@ export function EvaluatorSampleObservationSelector({
   projectId,
   timeRange,
   selectedObservationId,
-  selectedObservation = null,
   filterState,
   onFilterStateChange,
   onSelect,
@@ -44,7 +43,6 @@ export function EvaluatorSampleObservationSelector({
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
   selectedObservationId: string | null;
-  selectedObservation?: SampleObservation | null;
   filterState: FilterState;
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
@@ -100,7 +98,6 @@ export function EvaluatorSampleObservationSelector({
       tableName="evaluator-sample-observations"
       registry={EVALUATOR_FIELD_REGISTRY}
       selectedObservationId={selectedObservationId}
-      selectedObservation={selectedObservation}
       onSelect={onSelect}
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}

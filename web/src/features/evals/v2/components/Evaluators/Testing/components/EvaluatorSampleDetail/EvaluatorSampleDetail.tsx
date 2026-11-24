@@ -32,7 +32,6 @@ export function EvaluatorSampleDetail({
   sampleScope,
   observations,
   selectedObservationId,
-  selectedObservation = null,
   pending,
   onSelect,
 }: {
@@ -40,19 +39,13 @@ export function EvaluatorSampleDetail({
   sampleScope: "observation" | "trace";
   observations: SampleObservation[];
   selectedObservationId: string | null;
-  selectedObservation?: SampleObservation | null;
   pending: boolean;
   onSelect: (observation: SampleObservation | null) => void;
 }) {
-  const selectedFromPage =
-    observations.find(
-      (observation) => observation.id === selectedObservationId,
-    ) ?? null;
-  const selected =
-    selectedFromPage ??
-    (selectedObservation?.id === selectedObservationId
-      ? selectedObservation
-      : null);
+  const sampleIndex = observations.findIndex(
+    (observation) => observation.id === selectedObservationId,
+  );
+  const selected = observations[sampleIndex] ?? null;
   const { setDetailPageList } = useDetailPageLists();
   const entries = useMemo(
     () => observations.map((observation) => ({ id: observation.id })),
@@ -95,10 +88,6 @@ export function EvaluatorSampleDetail({
   const selectSample = (observation: SampleObservation) => {
     onSelect(observation);
   };
-  const sampleIndex = observations.findIndex(
-    (observation) => observation.id === selected.id,
-  );
-  const samplePosition = sampleIndex >= 0 ? sampleIndex + 1 : 1;
   const sampleTraceId = selected.traceId ?? selected.id;
   const showNoMessages =
     sampleScope === "trace" &&
@@ -111,7 +100,7 @@ export function EvaluatorSampleDetail({
           {sampleScope === "trace" ? "Sample trace" : "Sample observation"}
         </span>
         <span className="text-sm font-medium tabular-nums">
-          {samplePosition} of {observations.length}
+          {sampleIndex + 1} of {observations.length}
         </span>
       </div>
       {observations.length > 1 ? (

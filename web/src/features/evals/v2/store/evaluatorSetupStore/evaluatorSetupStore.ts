@@ -549,6 +549,7 @@ export function createEvaluatorSetupStore({
             ? state
             : {
                 sampleScope,
+                selectedObservation: null,
                 activeMapping: null,
                 sourceCode: starterForScope(
                   state,

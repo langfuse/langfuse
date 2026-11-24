@@ -31,9 +31,9 @@ export function TraceSampleSelectorContainer({
   timeRange: AbsoluteTimeRange | null;
   onOpenTrace: (observation: SampleObservation) => void;
 }) {
-  const selectedObservation = useStore(
+  const selectedObservationId = useStore(
     store,
-    (state) => state.selectedObservation,
+    (state) => state.selectedObservation?.id ?? null,
   );
   const filterState = useStore(store, (state) => state.traceSampleFilter);
   const actions = store.getState().actions;
@@ -47,8 +47,7 @@ export function TraceSampleSelectorContainer({
       previewFilters={filterState}
       tableName="evaluator-sample-traces"
       registry={TRACE_TRANSCRIPT_SAMPLE_FIELD_REGISTRY}
-      selectedObservationId={selectedObservation?.id ?? null}
-      selectedObservation={selectedObservation}
+      selectedObservationId={selectedObservationId}
       onSelect={actions.setSelectedObservation}
       onOpenTrace={onOpenTrace}
       leadingColumns={NO_LEADING_COLUMNS}
