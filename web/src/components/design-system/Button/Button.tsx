@@ -63,8 +63,6 @@ type ButtonProps = {
 } & (
   | {
       href: string;
-      /** Drops the trailing external-link glyph from a link to another site. */
-      hideExternalIcon?: boolean;
       ref?: Ref<HTMLAnchorElement>;
       disabled?: never;
       loading?: never;
@@ -75,7 +73,6 @@ type ButtonProps = {
     }
   | ({
       href?: never;
-      hideExternalIcon?: never;
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
       form?: string;
@@ -125,15 +122,13 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
-          {props.hideExternalIcon ? null : (
-            /* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */
-            <ExternalLink
-              size="sm"
-              color={iconColor}
-              aria-hidden
-              __rawClassName="-translate-y-px"
-            />
-          )}
+          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
+          <ExternalLink
+            size="sm"
+            color={iconColor}
+            aria-hidden
+            __rawClassName="-translate-y-px"
+          />
         </a>
       );
     }
