@@ -418,6 +418,21 @@ fn within(bytes: u32, limit: u32, what: &str) -> Result<u32, String> {
 /// Validates an organization's rules in the control plane against `limits`:
 /// each rule on its own, then all rules combined.
 pub fn validate(patterns: &[String], limits: &Limits) -> Report {
+    let (rules, hirs, all_valid) = check_rules(patterns, limits);
+    let (set_bytes, set_error) = if all_valid {
+        check_set(&hirs, limits.max_set_bytes)
+    } else {
+        (None, None)
+    };
+    Report {
+        ok: set_error.is_none() && all_valid,
+        rules,
+        set_error,
+        set_bytes,
+    }
+}
+
+fn check_rules(patterns: &[String], limits: &Limits) -> (Vec<RuleResult>, Vec<Hir>, bool) {
     let mut rules = Vec::with_capacity(patterns.len());
     let mut hirs = Vec::with_capacity(patterns.len());
     let mut all_valid = true;
@@ -443,23 +458,19 @@ pub fn validate(patterns: &[String], limits: &Limits) -> Report {
         }
     }
 
-    let (set_bytes, set_error) = if all_valid && !hirs.is_empty() {
-        let refs: Vec<&Hir> = hirs.iter().collect();
-        match compiled_size(&refs, limits.max_set_bytes)
-            .and_then(|bytes| within(bytes, limits.max_set_bytes, "rule set"))
-        {
-            Ok(bytes) => (Some(bytes), None),
-            Err(error) => (None, Some(error)),
-        }
-    } else {
-        (None, None)
-    };
+    (rules, hirs, all_valid)
+}
 
-    Report {
-        ok: set_error.is_none() && all_valid,
-        rules,
-        set_error,
-        set_bytes,
+fn check_set(hirs: &[Hir], max_set_bytes: u32) -> (Option<u32>, Option<String>) {
+    if hirs.is_empty() {
+        return (None, None);
+    }
+    let refs: Vec<&Hir> = hirs.iter().collect();
+    match compiled_size(&refs, max_set_bytes)
+        .and_then(|bytes| within(bytes, max_set_bytes, "rule set"))
+    {
+        Ok(bytes) => (Some(bytes), None),
+        Err(error) => (None, Some(error)),
     }
 }
 
@@ -536,6 +547,8 @@ mod tests {
             r"(?i)[[:lower:]]+",
             r"(?i)[[:^lower:]]+",
             r"foo(?i)bar|baz",
+            r"\Bfoo",
+            r"\d\B\d",
         ] {
             assert_eq!(error(pattern), None, "{pattern}");
         }
@@ -603,6 +616,11 @@ mod tests {
         let case_alt = compile(&[r"a(?i)b|c".to_string()]).unwrap();
         assert!(case_alt.is_match("aB"));
         assert!(case_alt.is_match("C"));
+
+        // `\B` uses ASCII word-boundary semantics without breaking UTF-8 matching.
+        let not_word_boundary = compile(&[r"\Bfoo".to_string()]).unwrap();
+        assert!(not_word_boundary.is_match("afoo"));
+        assert!(!not_word_boundary.is_match("éfoo"));
     }
 
     #[test]

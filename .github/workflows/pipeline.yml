@@ -214,7 +214,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.ai_gateway_guardrail_rules == 'true' }}
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway_guardrail_rules == 'true' || github.event_name == 'workflow_dispatch'))) }}
     defaults:
       run:
         working-directory: packages/ai-gateway-guardrail-rules
