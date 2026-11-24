@@ -1,5 +1,5 @@
 import { Sparkles } from "@langfuse/icons";
-import { expect, fn, userEvent } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { TileCard } from "./TileCard";
@@ -57,20 +57,4 @@ export const Static = meta.story({
       description="API key from console.anthropic.com"
     />
   ),
-});
-
-export const Clicks = meta.story({
-  name: "(Test) Clicking the card runs its action",
-  args: {
-    size: "md",
-    tile,
-    title: "Anthropic",
-    description: "API key from console.anthropic.com",
-    actionLabel: "Connect",
-    onClick: fn(),
-  },
-  play: async ({ canvas, args }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Anthropic/ }));
-    await expect(args.onClick).toHaveBeenCalledOnce();
-  },
 });

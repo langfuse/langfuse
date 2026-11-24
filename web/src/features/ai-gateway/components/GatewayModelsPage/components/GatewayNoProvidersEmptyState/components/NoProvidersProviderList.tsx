@@ -14,7 +14,7 @@ export function NoProvidersProviderList({
       <h3 id={headingId} className="text-lg font-bold">
         Connections
       </h3>
-      <ul className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">
         {children}
       </ul>
     </section>

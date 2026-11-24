@@ -66,7 +66,10 @@ export function NoProvidersDiagram() {
   return (
     <div
       aria-hidden="true"
-      className={cn("bg-muted w-full rounded-xl px-6 py-5", styles.dotGrid)}
+      className={cn(
+        "bg-muted dark:bg-surface-sunken w-full rounded-xl px-6 py-5",
+        styles.dotGrid,
+      )}
     >
       <svg
         viewBox={`0 0 ${VIEWBOX.width} ${VIEWBOX.height}`}
@@ -118,7 +121,7 @@ export function NoProvidersDiagram() {
               width={SOURCE_CHIP.width}
               height={SOURCE_CHIP.height}
               rx={6}
-              className={cn("fill-card", styles.chip)}
+              className={cn("fill-popover", styles.chip)}
             />
             <text
               x={SOURCE_CHIP.x + 12}
@@ -148,7 +151,7 @@ export function NoProvidersDiagram() {
                 width={PROVIDER_PILL.width}
                 height={PROVIDER_PILL.height}
                 rx={6}
-                className={cn("fill-card", styles.chip)}
+                className={cn("fill-popover", styles.chip)}
               />
               <Logo size="lg" x={PROVIDER_PILL.x + 12} y={y - ICON.lg / 2} />
               <text
@@ -180,7 +183,7 @@ export function NoProvidersDiagram() {
                   cx={centerX}
                   cy={moreY}
                   r={MORE_ROW.avatar / 2}
-                  className={cn("fill-card", styles.chip)}
+                  className={cn("fill-popover", styles.chip)}
                 />
                 <Logo
                   size="base"

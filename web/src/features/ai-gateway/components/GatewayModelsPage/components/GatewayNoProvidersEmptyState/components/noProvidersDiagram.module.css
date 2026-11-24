@@ -9,12 +9,7 @@
 
 .chip {
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.03))
-    drop-shadow(0 6px 20px rgb(0 0 0 / 0.09));
-}
-
-/* The shadow does not show on the dark panel. */
-:global(.dark) .chip {
-  stroke: hsl(var(--border));
+    drop-shadow(0 4px 12px rgb(0 0 0 / 0.05));
 }
 
 /* A traffic dot is a near-zero dash on a pathLength=100 copy of a line. */
