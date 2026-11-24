@@ -477,15 +477,13 @@ struct GuardrailMessage<'a> {
 
 impl GuardrailMessage<'_> {
     fn turn_item(&self) -> crate::guardrails::text::TurnItem {
-        if self
+        match self
             .role
             .and_then(crate::guardrails::text::string)
             .as_deref()
-            == Some("assistant")
         {
-            crate::guardrails::text::TurnItem::Reply
-        } else {
-            crate::guardrails::text::TurnItem::Caller
+            Some("assistant") => crate::guardrails::text::TurnItem::Model,
+            _ => crate::guardrails::text::TurnItem::Message,
         }
     }
 }
@@ -498,7 +496,7 @@ pub(super) fn guardrail_turn<'a>(
         Some(messages) => turn.push_items(
             "messages",
             messages,
-            GuardrailMessage::turn_item,
+            classify_guardrail_message,
             read_guardrail_message,
         )?,
         None => false,
@@ -507,6 +505,14 @@ pub(super) fn guardrail_turn<'a>(
         turn.push_member("system", system);
     }
     Ok(turn)
+}
+
+fn classify_guardrail_message(
+    item: &serde_json::value::RawValue,
+) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
+    let message: GuardrailMessage<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    Ok(message.turn_item())
 }
 
 fn read_guardrail_message(

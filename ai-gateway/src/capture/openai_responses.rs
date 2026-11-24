@@ -336,22 +336,33 @@ struct GuardrailItem<'a> {
 }
 
 impl GuardrailItem<'_> {
-    /// The model's messages and reasoning are replies; its tool calls
-    /// (`function_call`, `web_search_call`, `mcp_call`, ...) are calls.
+    /// The model's messages, reasoning and tool calls (`function_call`,
+    /// `web_search_call`, `mcp_call`, ...) come from the model; user, system and
+    /// developer messages are messages; tool outputs and anything else answer it.
     fn turn_item(&self) -> crate::guardrails::text::TurnItem {
         let role = self.role.and_then(crate::guardrails::text::string);
         let kind = self.kind.and_then(crate::guardrails::text::string);
         let kind = kind.as_deref().unwrap_or_default();
-        if role.as_deref() == Some("assistant") || kind == "reasoning" {
-            crate::guardrails::text::TurnItem::Reply
-        } else if kind.ends_with("_call")
-            || (kind.starts_with("mcp_") && kind != "mcp_approval_response")
-        {
-            crate::guardrails::text::TurnItem::Call
-        } else {
-            crate::guardrails::text::TurnItem::Caller
+        match role.as_deref() {
+            Some("assistant") => crate::guardrails::text::TurnItem::Model,
+            Some("user" | "system" | "developer") => crate::guardrails::text::TurnItem::Message,
+            _ if kind == "reasoning"
+                || kind.ends_with("_call")
+                || (kind.starts_with("mcp_") && kind != "mcp_approval_response") =>
+            {
+                crate::guardrails::text::TurnItem::Model
+            }
+            _ => crate::guardrails::text::TurnItem::Output,
         }
     }
+}
+
+fn classify_guardrail_item(
+    item: &serde_json::value::RawValue,
+) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
+    let item: GuardrailItem<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    Ok(item.turn_item())
 }
 
 pub(super) fn guardrail_turn<'a>(
@@ -359,12 +370,9 @@ pub(super) fn guardrail_turn<'a>(
 ) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
     let mut turn = crate::guardrails::text::LastTurn::default();
     let had_model_item = match member("input") {
-        Some(items) if items.starts_with('[') => turn.push_items(
-            "input",
-            items,
-            GuardrailItem::turn_item,
-            read_guardrail_item,
-        )?,
+        Some(items) if items.starts_with('[') => {
+            turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
+        }
         Some(input) => {
             turn.push_member("input", input);
             false

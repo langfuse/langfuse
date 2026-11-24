@@ -1233,3 +1233,33 @@ fn every_output_answering_the_newest_calls_is_scanned_when_calls_and_outputs_int
         ["result a", "result b", "new"]
     );
 }
+
+#[test]
+fn a_model_item_after_the_newest_user_message_does_not_hide_it() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"ssn 123-45-6789"},
+            {"type":"web_search_call","id":"ws_1","status":"completed"}]"#
+        ),
+        ["ssn 123-45-6789", "sys"]
+    );
+}
+
+#[test]
+fn model_items_between_the_newest_calls_neither_hide_outputs_nor_get_scanned() {
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"type":"reasoning","summary":[]},
+            {"type":"function_call","call_id":"a","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"a","output":"result a"},
+            {"type":"reasoning","summary":[]},
+            {"role":"assistant","content":[{"type":"output_text","text":"model text"}]},
+            {"type":"function_call","call_id":"b","name":"f","arguments":"{}"},
+            {"type":"function_call_output","call_id":"b","output":"result b"}]"#
+        ),
+        ["result a", "result b"]
+    );
+}

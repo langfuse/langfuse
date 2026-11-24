@@ -176,13 +176,16 @@ pub(crate) fn for_each<'a, T: Deserialize<'a>>(
 /// Who produced a conversation item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TurnItem {
-    /// A model reply: an assistant message or reasoning.
-    Reply,
-    /// A tool call from the model, which the caller answers with an output item.
-    Call,
-    /// A message or tool output from the caller.
-    Caller,
+    /// From the model: a reply, reasoning or a tool call.
+    Model,
+    /// A user, system or developer message.
+    Message,
+    /// A tool output or other caller item that answers the model.
+    Output,
 }
+
+/// Tells who produced one conversation item.
+pub(crate) type ClassifyItem = fn(&RawValue) -> Result<TurnItem, Unreadable>;
 
 /// Reads the text of one conversation item.
 pub(crate) type ReadItem = fn(&RawValue, &mut dyn FnMut(&str)) -> Result<(), Unreadable>;
@@ -204,9 +207,13 @@ enum TurnPart {
         read: ReadItem,
     },
     /// The items of a member's array from byte `start` on, each read by `read`.
+    /// Model items before byte `tail` are skipped: only trailing ones, such as an
+    /// assistant prefill, come from the caller.
     Items {
         member: &'static str,
         start: usize,
+        tail: usize,
+        classify: ClassifyItem,
         read: ReadItem,
     },
 }
@@ -228,56 +235,58 @@ impl LastTurn {
         self.bytes += raw.len();
     }
 
-    /// Adds the last turn of the conversation in member `name`: every item after
-    /// the last item from the model that precedes a caller item. Trailing model
-    /// items, such as an assistant prefill, belong to it too, so the newest caller
-    /// message is never skipped. When the items after the model's last reply hold
-    /// tool calls, the turn starts at the first of them, so every output answering
-    /// them belongs to it however calls and outputs interleave. Returns whether the
-    /// model spoke earlier.
-    pub(crate) fn push_items<'a, T: Deserialize<'a>>(
+    /// Adds the last turn of the conversation in member `name`: the caller items
+    /// after the last message the model answered before a later caller item, and
+    /// any model items after the last caller item, such as an assistant prefill.
+    /// Tool outputs of the newest calls belong to it however they interleave with
+    /// the calls; in a tool loop without model replies, outputs since the last
+    /// message are read again, since a stateless request cannot tell them apart.
+    /// Returns whether the model spoke before the newest caller item.
+    pub(crate) fn push_items(
         &mut self,
         name: &'static str,
-        raw: &'a str,
-        classify: impl Fn(&T) -> TurnItem,
+        raw: &str,
+        classify: ClassifyItem,
         read: ReadItem,
     ) -> Result<bool, Unreadable> {
         let mut first = None;
-        let mut after_model = None;
-        let mut previous_from_model = false;
-        let mut turn_start = None;
-        let mut first_call_since_reply = None;
-        let mut any_call = false;
-        for_each(raw, |item: &'a RawValue| {
+        let mut start = None;
+        let mut tail = None;
+        let mut after_message = None;
+        let mut model_since_message = false;
+        let mut model_seen = false;
+        let mut model_before_caller = false;
+        for_each(raw, |item: &RawValue| {
             let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
+            let end = offset + item.get().len();
             first.get_or_insert(offset);
-            if previous_from_model {
-                after_model = Some(offset);
+            let kind = classify(item)?;
+            if kind == TurnItem::Model {
+                model_since_message = true;
+                model_seen = true;
+                return Ok(());
             }
-            let parsed: T = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
-            let kind = classify(&parsed);
-            previous_from_model = kind != TurnItem::Caller;
-            match kind {
-                TurnItem::Reply => first_call_since_reply = None,
-                TurnItem::Call => {
-                    any_call = true;
-                    first_call_since_reply.get_or_insert(offset);
-                }
-                TurnItem::Caller => turn_start = after_model,
+            if model_since_message && after_message.is_some() {
+                start = after_message;
             }
+            if kind == TurnItem::Message {
+                after_message = Some(end);
+                model_since_message = false;
+            }
+            tail = Some(end);
+            model_before_caller = model_seen;
             Ok(())
         })?;
-        let start = first_call_since_reply
-            .or(turn_start)
-            .or(first)
-            .unwrap_or(raw.len());
+        let start = start.or(first).unwrap_or(raw.len());
         self.parts.push(TurnPart::Items {
             member: name,
             start,
+            tail: tail.unwrap_or(start),
+            classify,
             read,
         });
         self.bytes += raw.len() - start;
-        Ok(turn_start.is_some() || any_call)
+        Ok(model_before_caller)
     }
 
     /// Sends the last turn's text to `sink`, reading the members `member` returns.
@@ -296,17 +305,23 @@ impl LastTurn {
                 TurnPart::Items {
                     member: name,
                     start,
+                    tail,
+                    classify,
                     read,
                 } => {
                     let Some(raw) = member(name) else { continue };
-                    let mut rest = raw.get(start..).ok_or(Unreadable)?.trim_start();
+                    let rest = raw.get(start..).ok_or(Unreadable)?.trim_start();
+                    let mut rest = rest.strip_prefix(',').unwrap_or(rest).trim_start();
                     // The array was validated when the turn was found, so the
                     // items from `start` are values separated by commas up to `]`.
                     while !rest.is_empty() && !rest.starts_with(']') {
                         let mut items =
                             serde_json::Deserializer::from_str(rest).into_iter::<&RawValue>();
                         let item = items.next().ok_or(Unreadable)?.map_err(|_| Unreadable)?;
-                        read(item, sink)?;
+                        let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
+                        if offset >= tail || classify(item)? != TurnItem::Model {
+                            read(item, sink)?;
+                        }
                         rest = rest
                             .get(items.byte_offset()..)
                             .ok_or(Unreadable)?
@@ -378,19 +393,19 @@ mod tests {
         collect(item, sink)
     }
 
+    fn classify_role(item: &RawValue) -> Result<TurnItem, Unreadable> {
+        let role: &str = serde_json::from_str(item.get()).map_err(|_| Unreadable)?;
+        Ok(match role {
+            "assistant" | "call" => TurnItem::Model,
+            "tool" => TurnItem::Output,
+            _ => TurnItem::Message,
+        })
+    }
+
     fn turn(raw: &str) -> (Vec<String>, usize) {
         let mut turn = LastTurn::default();
-        turn.push_items(
-            "messages",
-            raw,
-            |role: &&str| match *role {
-                "assistant" => TurnItem::Reply,
-                "call" => TurnItem::Call,
-                _ => TurnItem::Caller,
-            },
-            read_role,
-        )
-        .unwrap();
+        turn.push_items("messages", raw, classify_role, read_role)
+            .unwrap();
         let mut roles = Vec::new();
         turn.read(|_| Some(raw), &mut |role| roles.push(role.to_owned()))
             .unwrap();
@@ -416,7 +431,13 @@ mod tests {
     fn a_turn_is_sized_by_its_own_items_not_the_conversation() {
         let history = "x".repeat(100_000);
         let raw = format!(r#"[ "{history}" , "assistant" , "user" ]"#);
-        assert_eq!(turn(&raw), (vec!["user".to_owned()], r#""user" ]"#.len()));
+        assert_eq!(
+            turn(&raw),
+            (
+                vec!["user".to_owned()],
+                r#" , "assistant" , "user" ]"#.len()
+            )
+        );
     }
 
     #[test]
