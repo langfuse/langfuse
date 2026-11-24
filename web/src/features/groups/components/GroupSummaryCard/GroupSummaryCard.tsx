@@ -16,7 +16,7 @@ type GroupSummaryCardProps = {
   name: string;
   /** Where the group's role applies. */
   level: "organization" | "project";
-  source: "SCIM" | "MANUAL" | "SYSTEM";
+  source: "SCIM" | "MANUAL";
   role: Role;
   memberCount: number;
   /** The group's first few members; `memberCount` is the full size. */
