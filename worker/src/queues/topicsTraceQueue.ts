@@ -9,6 +9,7 @@ import {
   type QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { processTopicsTrace } from "../features/topics/processTopicsTrace";
 
@@ -38,7 +39,7 @@ export const topicsTraceQueueProcessorBuilder =
     const attempt = job.data.retryBaggage?.attempt ?? 0;
     // A throw records no outcome; after the last attempt nothing retries the trace.
     const countLastFailure = (error: unknown) => {
-      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1))
+      if (isFinalBullmqAttempt(job, error))
         recordIncrement("langfuse.topics.trace_outcomes", 1, {
           source: "trace_queue",
           outcome: "failed",
