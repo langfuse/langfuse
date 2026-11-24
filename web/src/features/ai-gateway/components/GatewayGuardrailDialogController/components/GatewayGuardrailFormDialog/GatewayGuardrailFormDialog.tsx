@@ -8,20 +8,21 @@ import {
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, LifeBuoy, Plus, X } from "@langfuse/icons";
+import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import {
+  AsyncMultiSelectTagInput,
+  type MultiSelectTagOption,
+} from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import {
-  TagAutocompleteInput,
-  type TagAutocompleteOption,
-} from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
+import type { TagAutocompleteOption } from "@/src/components/TagAutocompleteInput/TagAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
@@ -501,12 +502,9 @@ function PresetMultiSelectField({
   const inputId = useId();
   const errorId = useId();
   const [query, setQuery] = useState("");
+  const trimmed = query.trim();
 
-  const allPresetsSelected =
-    availablePresets.length > 0 &&
-    availablePresets.every((preset) => selectedPresets.includes(preset));
-
-  const selectedItems = useMemo<TagAutocompleteOption[]>(
+  const selectedItems = useMemo<MultiSelectTagOption<string>[]>(
     () => [
       ...selectedPresets.map((preset) => ({
         value: `${PRESET_VALUE_PREFIX}${preset}`,
@@ -516,18 +514,17 @@ function PresetMultiSelectField({
         ? secretPrefixes.map((prefix) => ({
             value: `${CUSTOM_PREFIX_VALUE_PREFIX}${prefix}`,
             label: prefix,
-            title: `Custom prefix "${prefix}" (matches prefix + 16+ token characters)`,
+            secondaryLabel: "Custom prefix",
           }))
         : []),
     ],
     [allowCustomPrefixes, secretPrefixes, selectedPresets],
   );
 
-  const options = useMemo<TagAutocompleteOption[]>(() => {
-    const trimmed = query.trim();
+  const options = useMemo<MultiSelectTagOption<string>[]>(() => {
     const needle = trimmed.toLowerCase();
 
-    const presetOptions: TagAutocompleteOption[] = availablePresets
+    const presetOptions: MultiSelectTagOption<string>[] = availablePresets
       .filter((preset) => {
         if (!needle) return true;
         const label = GATEWAY_GUARDRAIL_PRESET_LABELS[preset].toLowerCase();
@@ -536,21 +533,34 @@ function PresetMultiSelectField({
       .map((preset) => ({
         value: `${PRESET_VALUE_PREFIX}${preset}`,
         label: GATEWAY_GUARDRAIL_PRESET_LABELS[preset],
-        checked: selectedPresets.includes(preset),
       }));
 
+    const customPrefixOptions: MultiSelectTagOption<string>[] =
+      allowCustomPrefixes
+        ? secretPrefixes
+            .filter(
+              (prefix) => !needle || prefix.toLowerCase().includes(needle),
+            )
+            .map((prefix) => ({
+              value: `${CUSTOM_PREFIX_VALUE_PREFIX}${prefix}`,
+              label: prefix,
+              secondaryLabel: "Custom prefix",
+            }))
+        : [];
+
+    const baseOptions = [...presetOptions, ...customPrefixOptions];
+
     if (!allowCustomPrefixes || !trimmed || secretPrefixes.includes(trimmed)) {
-      return presetOptions;
+      return baseOptions;
     }
 
     if (secretPrefixes.length >= GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES) {
       return [
-        ...presetOptions,
+        ...baseOptions,
         {
           value: `${ADD_PREFIX_VALUE_PREFIX}limit`,
-          label: "Add custom prefix",
+          label: `Add custom prefix`,
           secondaryLabel: `Max ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} reached`,
-          icon: Plus,
           disabled: true,
         },
       ];
@@ -559,47 +569,31 @@ function PresetMultiSelectField({
     const prefixError = validateSecretPrefix(trimmed);
     if (prefixError) {
       return [
-        ...presetOptions,
+        ...baseOptions,
         {
           value: `${ADD_PREFIX_VALUE_PREFIX}invalid`,
-          label: "Add custom prefix",
+          label: `Add custom prefix`,
           secondaryLabel: prefixError,
-          icon: Plus,
           disabled: true,
         },
       ];
     }
 
     return [
-      ...presetOptions,
+      ...baseOptions,
       {
         value: `${ADD_PREFIX_VALUE_PREFIX}${trimmed}`,
-        label: "Add custom prefix",
+        label: `+ Add custom prefix`,
         secondaryLabel: trimmed,
-        icon: Plus,
-        checked: false,
       },
     ];
-  }, [
-    allowCustomPrefixes,
-    availablePresets,
-    query,
-    secretPrefixes,
-    selectedPresets,
-  ]);
+  }, [allowCustomPrefixes, availablePresets, secretPrefixes, trimmed]);
 
-  const handleToggleAll = () => {
-    if (allPresetsSelected) {
-      onPresetsChange([]);
-      if (allowCustomPrefixes) onSecretPrefixesChange([]);
-      return;
-    }
-    onPresetsChange([...availablePresets]);
-  };
-
-  const handleValueChange = (nextItems: TagAutocompleteOption[]) => {
+  const handleValueChange = (nextItems: MultiSelectTagOption<string>[]) => {
     const nextPresets: GatewayGuardrailPreset[] = [];
     const nextPrefixes: string[] = [];
+    let addedCustomPrefix = false;
+
     for (const item of nextItems) {
       if (item.value.startsWith(PRESET_VALUE_PREFIX)) {
         const preset = item.value.slice(
@@ -607,72 +601,57 @@ function PresetMultiSelectField({
         ) as GatewayGuardrailPreset;
         nextPresets.push(preset);
       } else if (item.value.startsWith(CUSTOM_PREFIX_VALUE_PREFIX)) {
-        nextPrefixes.push(item.value.slice(CUSTOM_PREFIX_VALUE_PREFIX.length));
+        const prefix = item.value.slice(CUSTOM_PREFIX_VALUE_PREFIX.length);
+        if (!nextPrefixes.includes(prefix)) nextPrefixes.push(prefix);
+      } else if (item.value.startsWith(ADD_PREFIX_VALUE_PREFIX)) {
+        const prefix = item.value.slice(ADD_PREFIX_VALUE_PREFIX.length);
+        if (
+          !nextPrefixes.includes(prefix) &&
+          nextPrefixes.length < GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES
+        ) {
+          nextPrefixes.push(prefix);
+          addedCustomPrefix = true;
+        }
       }
     }
+
+    if (addedCustomPrefix) setQuery("");
     onPresetsChange(nextPresets);
     if (allowCustomPrefixes) onSecretPrefixesChange(nextPrefixes);
   };
 
-  const handleOptionSelect = (option: TagAutocompleteOption) => {
-    setQuery("");
-    if (option.value.startsWith(ADD_PREFIX_VALUE_PREFIX)) {
-      const prefix = option.value.slice(ADD_PREFIX_VALUE_PREFIX.length);
-      if (
-        !secretPrefixes.includes(prefix) &&
-        secretPrefixes.length < GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES
-      ) {
-        onSecretPrefixesChange([...secretPrefixes, prefix]);
-      }
-      return;
-    }
-    if (option.value.startsWith(PRESET_VALUE_PREFIX)) {
-      const preset = option.value.slice(
-        PRESET_VALUE_PREFIX.length,
-      ) as GatewayGuardrailPreset;
-      const isSelected = selectedPresets.includes(preset);
-      onPresetsChange(
-        isSelected
-          ? selectedPresets.filter((item) => item !== preset)
-          : [...selectedPresets, preset],
-      );
-    }
-  };
-
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <label htmlFor={inputId} className="text-sm leading-none font-bold">
-          Detect
-        </label>
-        <Button
-          variant="text"
-          size="sm"
-          text={allPresetsSelected ? "Deselect all" : "Select all"}
-          onClick={handleToggleAll}
-        />
-      </div>
+      <label htmlFor={inputId} className="text-sm leading-none font-bold">
+        Detect
+      </label>
       <div className="flex flex-col gap-1">
-        <TagAutocompleteInput
+        <AsyncMultiSelectTagInput
           id={inputId}
-          label="Detect"
-          describedById={errorMessage ? errorId : undefined}
+          aria-label="Detect"
+          aria-describedby={errorMessage ? errorId : undefined}
+          aria-invalid={Boolean(errorMessage)}
           value={selectedItems}
           options={options}
           onValueChange={handleValueChange}
-          onOptionSelect={handleOptionSelect}
-          search={{ value: query, onValueChange: setQuery }}
           placeholder={
             allowCustomPrefixes
-              ? "Search secrets or type a custom prefix…"
-              : "Search"
+              ? "Select secrets or add prefixes"
+              : "Select patterns"
           }
+          search={{
+            placeholder: allowCustomPrefixes
+              ? "Search secrets or type a custom prefix…"
+              : "Search patterns…",
+            value: query,
+            onValueChange: setQuery,
+          }}
+          selectAllLabel={trimmed ? undefined : "Select all"}
           emptyMessage={
             allowCustomPrefixes
               ? "Type 3-32 ASCII characters to add a custom prefix."
               : "No matching patterns."
           }
-          clearLabel="Clear patterns"
           error={Boolean(errorMessage)}
         />
         {errorMessage ? (
@@ -682,7 +661,7 @@ function PresetMultiSelectField({
         ) : null}
         {!errorMessage && allowCustomPrefixes ? (
           <p className="text-muted-foreground text-xs">
-            Type to filter known secrets or add up to{" "}
+            Search known secrets or type to add up to{" "}
             {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes (3-32
             printable ASCII chars, no spaces; matches prefix + 16+ token chars).
           </p>
