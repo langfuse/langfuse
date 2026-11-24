@@ -19,6 +19,9 @@ export const isEditableIn = (
   scope: ModelScope,
 ) => editableScopeByOwner[ownerScope] === scope;
 
+export const cloneLabelFor = (owner: ModelOwner) =>
+  owner.scope === "project" ? "Clone to project" : "Clone to organization";
+
 export const modelsSettingsHref = (owner: ModelOwner) =>
   owner.scope === "project"
     ? `/project/${owner.projectId}/settings/models`
