@@ -20,14 +20,14 @@ export function useDeleteGatewayGuardrails(organizationId: string) {
     target: GatewayGuardrailDeleteTargetInput,
   ) => {
     try {
-      await mutation.mutateAsync({
+      const result = await mutation.mutateAsync({
         orgId: organizationId,
         target,
       });
-      return true;
+      return result.deletedCount;
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-guardrails");
-      return false;
+      return null;
     } finally {
       await invalidateGuardrails();
     }

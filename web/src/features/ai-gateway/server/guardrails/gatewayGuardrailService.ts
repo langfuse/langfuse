@@ -51,6 +51,10 @@ export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
   | { type: "matching"; searchQuery?: string };
 
+export type GatewayGuardrailTimeSeriesSelection =
+  | { type: "ids"; ids: string[] }
+  | { type: "matching"; searchQuery?: string };
+
 export class GatewayGuardrailService {
   private readonly repository: GatewayGuardrailRepository;
   private readonly configService: GatewayConfigService;
@@ -136,7 +140,7 @@ export class GatewayGuardrailService {
     fromTimestamp: Date;
     toTimestamp: Date;
     granularity: GatewayGuardrailTimeBucket;
-    guardrailIds?: string[];
+    selection?: GatewayGuardrailTimeSeriesSelection;
   }) {
     const recordingProjectId = await this.configService.getRecordingProjectId(
       params.organizationId,
@@ -148,9 +152,10 @@ export class GatewayGuardrailService {
       });
     }
 
-    const guardrailIds = params.guardrailIds
-      ? [...new Set(params.guardrailIds)]
-      : undefined;
+    const guardrailIds = await this.resolveTimeSeriesGuardrailIds(
+      params.organizationId,
+      params.selection,
+    );
     const groupByGuardrail =
       guardrailIds !== undefined &&
       guardrailIds.length > 0 &&
@@ -166,6 +171,19 @@ export class GatewayGuardrailService {
     });
 
     return { groupByGuardrail, points };
+  }
+
+  private async resolveTimeSeriesGuardrailIds(
+    organizationId: string,
+    selection: GatewayGuardrailTimeSeriesSelection | undefined,
+  ): Promise<string[] | undefined> {
+    if (!selection) return undefined;
+    if (selection.type === "ids") return [...new Set(selection.ids)];
+    const matching = await this.repository.listMatching({
+      organizationId,
+      searchQuery: selection.searchQuery,
+    });
+    return matching.map(({ id }) => id);
   }
 
   searchTargets(params: {
@@ -234,12 +252,6 @@ export class GatewayGuardrailService {
     assignments: GatewayGuardrailAssignmentInput[];
     session: OrgAuthedContext["session"];
   }) {
-    const existing = await this.repository.findById({
-      organizationId: params.organizationId,
-      id: params.id,
-    });
-    if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
-
     const presets = [...new Set(params.presets)];
     const assignments = await this.normalizeAndValidateAssignments(
       params.organizationId,
@@ -247,7 +259,19 @@ export class GatewayGuardrailService {
     );
 
     const updated = await this.writeGuardrail(async (tx) => {
-      const record = await new GatewayGuardrailRepository(tx).update({
+      const repo = new GatewayGuardrailRepository(tx);
+      // Lock the guardrail row before replacing assignments so concurrent saves cannot interleave.
+      const locked = await repo.lockById({
+        organizationId: params.organizationId,
+        id: params.id,
+      });
+      if (!locked) throw new LangfuseNotFoundError("Guardrail not found");
+      const existing = await repo.findById({
+        organizationId: params.organizationId,
+        id: params.id,
+      });
+      if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
+      const record = await repo.update({
         organizationId: params.organizationId,
         id: existing.id,
         name: params.name,

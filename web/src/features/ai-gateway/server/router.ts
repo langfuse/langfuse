@@ -1069,9 +1069,17 @@ export const aiGatewayRouter = createTRPCRouter({
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
         granularity: z.enum(["day", "week", "month"]),
-        guardrailIds: z
-          .array(z.string().min(1))
-          .max(GATEWAY_GUARDRAIL_MAX_BULK_DELETE)
+        selection: z
+          .discriminatedUnion("type", [
+            z.object({
+              type: z.literal("ids"),
+              ids: z.array(z.string().min(1)).max(100),
+            }),
+            z.object({
+              type: z.literal("matching"),
+              searchQuery: z.string().trim().optional(),
+            }),
+          ])
           .optional(),
       }),
     )
@@ -1085,7 +1093,7 @@ export const aiGatewayRouter = createTRPCRouter({
         fromTimestamp: input.fromTimestamp,
         toTimestamp: input.toTimestamp,
         granularity: input.granularity,
-        guardrailIds: input.guardrailIds,
+        selection: input.selection,
       });
     }),
 

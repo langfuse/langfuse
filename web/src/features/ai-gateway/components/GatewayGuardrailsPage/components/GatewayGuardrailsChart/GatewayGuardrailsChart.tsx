@@ -31,10 +31,8 @@ export function GatewayGuardrailsChart({
 }: GatewayGuardrailsChartProps) {
   const selectedGuardrails =
     selection.status === "selected" ? selection.guardrails : undefined;
-  const selectedIds = useMemo(
-    () => selectedGuardrails?.map(({ value }) => value),
-    [selectedGuardrails],
-  );
+  const querySelection =
+    selection.status === "selected" ? selection.querySelection : undefined;
   const labels = useMemo(() => {
     if (
       !selectedGuardrails ||
@@ -54,7 +52,7 @@ export function GatewayGuardrailsChart({
       fromTimestamp: timeRange.from,
       toTimestamp: timeRange.to,
       granularity: interval,
-      guardrailIds: selectedIds,
+      selection: querySelection,
     },
     {
       enabled: selection.status === "none" || selection.status === "selected",

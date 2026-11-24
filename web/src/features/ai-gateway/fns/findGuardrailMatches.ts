@@ -1,5 +1,5 @@
 import {
-  presetPatterns,
+  GATEWAY_GUARDRAIL_PRESETS,
   type GatewayGuardrailPreset,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
@@ -7,6 +7,23 @@ export type GuardrailTestSegment = {
   text: string;
   matched: boolean;
 };
+
+// Precompiled once from static built-in presets so no runtime argument ever reaches RegExp().
+const COMPILED_PRESET_REGEXES: Record<GatewayGuardrailPreset, RegExp[]> = {
+  email: [],
+  us_ssn: [],
+  credit_card: [],
+  iban: [],
+  aws_access_key_id: [],
+};
+
+for (const preset of Object.keys(
+  GATEWAY_GUARDRAIL_PRESETS,
+) as GatewayGuardrailPreset[]) {
+  for (const pattern of GATEWAY_GUARDRAIL_PRESETS[preset]) {
+    COMPILED_PRESET_REGEXES[preset].push(new RegExp(pattern, "g"));
+  }
+}
 
 /**
  * Matches `text` client-side against the selected built-in presets' regex
@@ -17,12 +34,16 @@ export function findGuardrailMatches(
   presets: readonly GatewayGuardrailPreset[],
 ): GuardrailTestSegment[] {
   if (!text) return [];
-  const patterns = presets.flatMap((preset) => [...presetPatterns(preset)]);
-  if (patterns.length === 0) return [{ text, matched: false }];
+  const regexes = presets.flatMap((preset) =>
+    Object.hasOwn(COMPILED_PRESET_REGEXES, preset)
+      ? COMPILED_PRESET_REGEXES[preset]
+      : [],
+  );
+  if (regexes.length === 0) return [{ text, matched: false }];
 
   const spans: Array<[number, number]> = [];
-  for (const pattern of patterns) {
-    const regex = new RegExp(pattern, "g");
+  for (const regex of regexes) {
+    regex.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(text)) !== null) {
       if (match[0].length === 0) {

@@ -176,6 +176,18 @@ export class GatewayGuardrailRepository {
     });
   }
 
+  /** Serializes concurrent writes to a guardrail row inside a transaction. */
+  async lockById(params: { organizationId: string; id: string }) {
+    const locked = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id
+      FROM "gateway_guardrails"
+      WHERE id = ${params.id}
+        AND organization_id = ${params.organizationId}
+      FOR UPDATE
+    `;
+    return locked.length > 0;
+  }
+
   async update(params: {
     organizationId: string;
     id: string;

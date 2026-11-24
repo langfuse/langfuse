@@ -28,6 +28,10 @@ export function useGatewayGuardrailSelection(
       if (table.selectedRows.length === 0) return { status: "none" };
       return {
         status: "selected",
+        querySelection: {
+          type: "ids",
+          ids: table.selectedRows.map((row) => row.id),
+        },
         guardrails: table.selectedRows.map((row) => ({
           value: row.id,
           label: row.name,
@@ -45,6 +49,7 @@ export function useGatewayGuardrailSelection(
     if (!matching.data) return { status: "loading" };
     return {
       status: "selected",
+      querySelection: table.matching,
       guardrails: matching.data.map(({ id, name }) => ({
         value: id,
         label: name,
@@ -54,6 +59,7 @@ export function useGatewayGuardrailSelection(
     matching.data,
     matching.isError,
     refetch,
+    table.matching,
     table.selectAll,
     table.selectedRows,
   ]);
@@ -86,4 +92,10 @@ export type GatewayGuardrailSelection =
   | { status: "none" }
   | { status: "loading" }
   | { status: "error"; onRetry: () => void }
-  | { status: "selected"; guardrails: { value: string; label: string }[] };
+  | {
+      status: "selected";
+      querySelection:
+        | { type: "ids"; ids: string[] }
+        | { type: "matching"; searchQuery?: string };
+      guardrails: { value: string; label: string }[];
+    };

@@ -36,16 +36,34 @@ export function useGatewayGuardrailsTableState(organizationId: string) {
     store.setState(changes);
   };
 
+  const clampPageAfterDelete = (deletedCount: number) => {
+    const remaining = Math.max(
+      0,
+      (guardrails.data?.totalCount ?? 0) - deletedCount,
+    );
+    const maxPage =
+      remaining === 0 ? 0 : Math.floor((remaining - 1) / pagination.pageSize);
+    if (pagination.pageIndex > maxPage) {
+      store.setState({ pagination: { ...pagination, pageIndex: maxPage } });
+    }
+  };
+
+  const matching = useMemo(
+    () => ({
+      type: "matching" as const,
+      searchQuery: trimmedSearch,
+    }),
+    [trimmedSearch],
+  );
+
   return {
     guardrails,
     selectionStore,
     selectedRows,
     selectAll,
-    matching: {
-      type: "matching" as const,
-      searchQuery: trimmedSearch,
-    },
+    matching,
     clearSelection,
+    clampPageAfterDelete,
     toggleRow: (rowId: string) => toggleRow(rowId, !rowSelection[rowId]),
     search: {
       value: searchQuery,

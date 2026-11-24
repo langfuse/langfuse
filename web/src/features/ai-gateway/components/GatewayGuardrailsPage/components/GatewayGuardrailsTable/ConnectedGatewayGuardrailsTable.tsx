@@ -69,8 +69,11 @@ export function ConnectedGatewayGuardrailsTable({
           error={deletion.error?.message}
           onAfterDismiss={() => deletion.reset()}
           onConfirm={async (state) => {
-            const deleted = await deleteGuardrails(state.target);
-            if (!deleted) throw new Error("Guardrails could not be deleted.");
+            const deletedCount = await deleteGuardrails(state.target);
+            if (deletedCount === null) {
+              throw new Error("Guardrails could not be deleted.");
+            }
+            table.clampPageAfterDelete(deletedCount);
             if (state.clearAfterDelete) clearSelection();
           }}
         >
