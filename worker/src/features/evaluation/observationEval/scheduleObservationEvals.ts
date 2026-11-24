@@ -4,6 +4,7 @@ import {
   JobExecutionStatus,
   type FilterState,
   type EvalExecutionMode,
+  type ObservationEvalFilterFields,
   canRunEvalRule,
   coerceLegacyEmptyMetadataFilters,
   mapEventEvalFilterColumnIdToField,
@@ -229,7 +230,7 @@ export async function scheduleObservationEvals(
 }
 
 interface ProcessConfigParams {
-  observation: ObservationForEval;
+  observation: Pick<ObservationForEval, "project_id" | "trace_id" | "span_id">;
   matchingConfig: ObservationEvalRule;
   assignment: ScheduledObservationEvalAssignment;
   observationS3Path: string;
@@ -391,7 +392,7 @@ function getExecutableAssignments(
  * Returns true if observation matches all filter conditions (or filter is empty).
  */
 function evaluateFilter(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   config: ObservationEvalRule,
 ): boolean {
   const filterConditions = coerceLegacyEmptyMetadataFilters(
@@ -405,7 +406,7 @@ function evaluateFilter(
     filterConditions.length === 0;
 
   // Map filter column IDs to observation field values for in-memory filtering
-  const fieldMapper = (obs: ObservationForEval, column: string) =>
+  const fieldMapper = (obs: ObservationEvalFilterFields, column: string) =>
     mapEventEvalFilterColumnIdToField(obs, column);
 
   // Use InMemoryFilterService to evaluate filter if there are conditions

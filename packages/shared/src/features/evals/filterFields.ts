@@ -2,7 +2,10 @@ import { ObservationLevel, ObservationType } from "../../domain/observations";
 import { isRootObservation } from "../../eventsTable";
 import type { ColumnDefinition } from "../../tableDefinitions/types";
 import type { FilterCondition } from "../../types";
-import type { ObservationForEval } from "./observationForEval";
+import type {
+  ObservationEvalFilterFields,
+  ObservationForEval,
+} from "./observationForEval";
 
 export type EvalFilterDefinition = {
   columns: ColumnDefinition[];
@@ -220,7 +223,7 @@ export const evalFilterEmptyEqualsNullColumns: ReadonlySet<string> = new Set(
  * @returns The value from the observation object
  */
 export function mapEventEvalFilterColumnIdToField(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   column: string,
 ) {
   const columnMapping = evalFilterFieldsById.get(column);
