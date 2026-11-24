@@ -56,6 +56,7 @@ export function GatewayPage() {
         hideTitleRow: page.hideTitle,
         actionButtonsLeft: page.actionsLeft,
         actionButtonsRight: page.actions,
+        mobileActionButtons: page.mobileActions,
         help: page.help,
       }}
     >

@@ -48,6 +48,8 @@ type GatewayPageEntry = {
   actionsLeft?: ReactNode;
   /** Rendered on the right of the page title row. */
   actions?: ReactNode;
+  /** Rendered inline in the mobile header instead of folding into an overflow popover. */
+  mobileActions?: ReactNode;
   help?: { description: string; href?: string };
   show: boolean;
   /** Set when the page needs the gateway set up first. */
@@ -264,6 +266,12 @@ export function useGatewayPages(): GatewayPageEntry[] {
         <GatewayGuardrailsPage organizationId={organization.id} />
       ),
       actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayGuardrailsHeaderActions organizationId={organization.id} />
+        ) : undefined,
+      mobileActions:
         access.canManageGateway &&
         !access.showNotDeployedNotice &&
         !showsNotSetUpNotice ? (
