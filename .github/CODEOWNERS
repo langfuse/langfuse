@@ -80,6 +80,22 @@
 /web/src/features/auth-credentials/server/ @marksalpeter @jordibosch20 @Steffen911
 /packages/shared/src/server/auth/ @marksalpeter @jordibosch20 @Steffen911
 
+# Public API security: API-key auth, access scopes, rate limiting and request middleware
+/web/src/features/public-api/server/apiAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/enforceAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/verifyProjectApiKeyAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/authenticateOrganizationApiRequest.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/shadowAuth.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/shadowAuthDiff.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/toApiAccessScope.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/apiKeyCreationRoleSchema.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/RateLimitService.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/withMiddlewares.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/createAuthedProjectAPIRoute.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/cors.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/projectApiKeyRouter.ts @marksalpeter @jordibosch20 @Steffen911
+/web/src/features/public-api/server/organizationApiKeyRouter.ts @marksalpeter @jordibosch20 @Steffen911
+
 # tRPC configuration (context, procedures, auth middleware, handler)
 /web/src/server/api/trpc.ts @Steffen911 @nimarb @hassiebp
 /web/src/pages/api/trpc/ @Steffen911 @nimarb @hassiebp
@@ -88,6 +104,11 @@
 /packages/shared/clickhouse/migrations/ @Steffen911 @niklassemmler @marksalpeter @jordibosch20 @sumerman
 /packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 /packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
+
+# Migration runner scripts (run at container startup)
+/web/entrypoint.sh @Steffen911 @hassiebp @nimarb
+/packages/shared/scripts/cleanup.sql @Steffen911 @hassiebp @nimarb
+/packages/shared/clickhouse/scripts/ @Steffen911 @hassiebp @nimarb
 
 # Billing: usage metering job, usage thresholds, spend alerts, Stripe/billing server code and webhooks
 /worker/src/ee/cloudUsageMetering/ @jordibosch20 @Steffen911
