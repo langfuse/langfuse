@@ -25,7 +25,7 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
-import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
+import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
   GatewayGuardrailTargetsInput,
   type GatewayGuardrailTargetPicker,
