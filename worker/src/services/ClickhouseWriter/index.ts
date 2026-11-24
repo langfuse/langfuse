@@ -304,13 +304,22 @@ export class ClickhouseWriter<
     const outcome: ClickhouseWriterRowTerminalOutcome<Row> =
       status === "inserted" ? { status, row } : { status, row, error };
     try {
-      onTerminal(outcome);
+      const result: unknown = onTerminal(outcome);
+      if (result) {
+        Promise.resolve(result).catch((error: unknown) =>
+          this.handleTerminalCallbackError(error),
+        );
+      }
     } catch (error) {
-      this.logger.error(
-        `${this.logPrefix}ClickhouseWriter terminal row callback failed`,
-        { error },
-      );
+      this.handleTerminalCallbackError(error);
     }
+  }
+
+  private handleTerminalCallbackError(error: unknown): void {
+    this.logger.error(
+      `${this.logPrefix}ClickhouseWriter terminal row callback failed`,
+      { error },
+    );
   }
 
   private settleRows<Row>(

@@ -290,9 +290,15 @@ describe("ClickhouseWriter", () => {
       .mockResolvedValueOnce()
       .mockResolvedValueOnce();
 
-    const callbackFor = (id: string) => ({
+    const callbackFor = (id: string, failure?: "throw" | "reject") => ({
       onTerminal: (outcome: { status: string; row: unknown }) => {
         terminal.push({ id, ...outcome });
+        if (failure === "throw") {
+          throw new Error(`${id} callback failed`);
+        }
+        if (failure === "reject") {
+          return Promise.reject(new Error(`${id} callback rejected`));
+        }
       },
     });
 
@@ -301,7 +307,11 @@ describe("ClickhouseWriter", () => {
       first as any,
       callbackFor(first.id),
     );
-    writer.addToQueue(TableName.EventsFull, second as any);
+    writer.addToQueue(
+      TableName.EventsFull,
+      second as any,
+      callbackFor(second.id, "throw"),
+    );
 
     await vi.waitFor(() => expect(mockInsert).toHaveBeenCalledTimes(1));
     expect(terminal).toEqual([]);
@@ -312,14 +322,22 @@ describe("ClickhouseWriter", () => {
     writer.addToQueue(
       TableName.EventsFull,
       third as any,
-      callbackFor(third.id),
+      callbackFor(third.id, "reject"),
     );
     await writer.flushAll(true);
 
     expect(mockInsert).toHaveBeenCalledTimes(3);
-    expect(terminal.map(({ id, status }) => ({ id, status }))).toEqual([
-      { id: "event-1", status: "inserted" },
-      { id: "event-3", status: "inserted" },
+    expect(terminal).toHaveLength(3);
+    expect(
+      terminal.map(({ id, status, row }) => ({
+        id,
+        status,
+        rowId: (row as { id: string }).id,
+      })),
+    ).toEqual([
+      { id: "event-1", status: "inserted", rowId: "event-1" },
+      { id: "event-2", status: "inserted", rowId: "event-2" },
+      { id: "event-3", status: "inserted", rowId: "event-3" },
     ]);
     expect(terminal.map(({ row }) => row)).toEqual(
       expect.arrayContaining([
@@ -337,6 +355,17 @@ describe("ClickhouseWriter", () => {
         }),
       ]),
     );
+
+    await vi.waitFor(() => {
+      expect(
+        vi
+          .mocked(logger.error)
+          .mock.calls.filter(
+            ([message]) =>
+              message === "ClickhouseWriter terminal row callback failed",
+          ),
+      ).toHaveLength(2);
+    });
   });
 
   it("settles final drops and teardown callbacks without retaining sampled rows", async () => {
@@ -1391,8 +1420,13 @@ describe("ClickhouseWriter", () => {
         name: `test${i}`,
       }));
 
+      const settled: [string, string][] = [];
       records.forEach((record) => {
-        writer.addToQueue(TableName.Traces, record as any);
+        writer.addToQueue(TableName.Traces, record as any, {
+          onTerminal: ({ row, status }) => {
+            settled.push([row.id, status]);
+          },
+        });
       });
 
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
@@ -1412,10 +1446,14 @@ describe("ClickhouseWriter", () => {
       expect(writer["queue"][TableName.Traces][0].data.id).toBe("2");
       expect(writer["queue"][TableName.Traces][1].data.id).toBe("3");
 
+      await vi.advanceTimersByTimeAsync(100);
+      expect(settled).toEqual([["0", "inserted"], ["1", "inserted"]]);
+
       // Advance timer again to process the requeued items
       await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
       expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+      expect(settled).toEqual(records.map(({ id }) => [id, "inserted"]));
     });
   });
 });
