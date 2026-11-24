@@ -50,9 +50,8 @@
 # CI pipeline scripts
 /scripts/ci/ @Steffen911 @hassiebp @nimarb @maxdeichmann
 
-# Public APIs (REST routes, auth/rate limiting/middleware, shared types)
+# Public API routes
 /web/src/pages/api/public/ @Steffen911 @hassiebp @nimarb
-/web/src/features/public-api/ @Steffen911 @hassiebp @nimarb
 
 # Ingestion API (declared after /web/src/pages/api/public/ so it takes precedence)
 /web/src/pages/api/public/ingestion.ts @sumerman @Steffen911
