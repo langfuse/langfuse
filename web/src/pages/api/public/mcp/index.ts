@@ -19,7 +19,10 @@
  * the transport layer needs direct response control for both JSON and SSE responses.
  * Error handling, header validation, and CORS are implemented in this route layer.
  *
- * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
+ * Authentication:
+ * - BasicAuth (Public Key:Secret Key) - LF-1927
+ * - Optional OIDC bearer JWT alongside BasicAuth - see
+ *   web/src/features/mcp/README.md and MCP_AUTH_OIDC_* env vars.
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
  */
@@ -28,17 +31,12 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
-import { type ServerContext } from "@/src/features/mcp/types";
-import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
-import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+import { authenticateMcpRequest } from "@/src/features/mcp/server/auth";
+import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
+import { BaseError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -74,43 +72,11 @@ export default async function handler(
       return;
     }
 
-    // Each tool authorizes its own action.
-    const authResult = await shadowAuth({
-      req,
-      action: __dangerouslySkipAuthz,
-      allowedAccessLevels: ["project"],
-      allowInAppAgentKey: true,
-    });
+    // Authenticate: dispatches to BasicAuth or OIDC bearer based on the
+    // Authorization header and MCP_AUTH_OIDC_ENABLED.
+    const { context, scope } = await authenticateMcpRequest(req);
 
-    if (!authResult.success) {
-      throw authResult.error;
-    }
-
-    const { scope, ctx } = authResult;
-
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (scope.accessLevel !== "project" || !scope.projectId) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
-      );
-    }
-
-    addUserToSpan({
-      apiKeyId: scope.apiKeyId,
-      publicKey: scope.publicKey,
-      projectId: scope.projectId,
-      orgId: scope.orgId,
-      plan: scope.plan,
-    });
-
-    // Check if ingestion is suspended due to usage limits
-    if (scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
-
-    // Rate limit MCP requests
+    // Rate limit MCP requests (applies to both auth paths)
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
         scope,
@@ -120,28 +86,6 @@ export default async function handler(
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
-
-    // Build ServerContext from authenticated scope. In-app-agent keys need a
-    // run override for mutating tools; read-only tools remain available
-    // without it via their MCP readOnlyHint annotation.
-    const context: ServerContext = {
-      projectId: scope.projectId,
-      orgId: scope.orgId,
-      userId: undefined, // API keys don't have associated users
-      apiKeyId: scope.apiKeyId,
-      accessLevel: "project",
-      publicKey: scope.publicKey,
-      plan: scope.plan,
-      rateLimitOverrides: scope.rateLimitOverrides,
-      accessAuditLogEnabled: scope.accessAuditLogEnabled,
-      userAgent: req.headers["user-agent"],
-      auditRequest: getAuditRequestContext(
-        req.headers,
-        req.socket.remoteAddress,
-      ),
-      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
-      auth: ctx,
-    };
 
     logger.debug("MCP request authenticated", {
       method: req.method,
@@ -193,32 +137,6 @@ export default async function handler(
       });
     }
   }
-}
-
-export function getInAppAgentContext(
-  req: NextApiRequest,
-  isInAppAgentKey: boolean | undefined,
-): ServerContext["inAppAgent"] {
-  if (isInAppAgentKey !== true) {
-    return undefined;
-  }
-
-  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
-
-  if (typeof headerValue !== "string") {
-    return { permissions: "read" };
-  }
-
-  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
-    safeJsonParse(headerValue),
-  );
-
-  return parsedOverride.success
-    ? {
-        permissions: "tool-allowlist",
-        allowedToolNames: parsedOverride.data.toolNames,
-      }
-    : { permissions: "read" };
 }
 
 /**

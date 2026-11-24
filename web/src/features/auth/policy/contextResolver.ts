@@ -227,7 +227,7 @@ function boundResourceFor(
 }
 
 /** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
-function toPrincipalOrganization(
+export function toPrincipalOrganization(
   org: OrganizationWithProjects,
 ): PrincipalOrganization {
   const cloudConfig = getCloudConfig(org);
