@@ -72,7 +72,18 @@ REQUIRED_SECRET_KEYS: tuple[str, ...] = (
     "LANGFUSE_AI_GATEWAY_SERVICE_KEY",
     "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY",
     "LANGFUSE_AI_GATEWAY_REDIS_AUTH",
+    "LANGFUSE_INIT_USER_EMAIL",
+    "LANGFUSE_INIT_USER_PASSWORD",
+    "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+    "LANGFUSE_INIT_PROJECT_SECRET_KEY",
 )
+
+DEFAULT_INIT_ORG_ID = "modal-poc-org"
+DEFAULT_INIT_ORG_NAME = "Modal PoC Org"
+DEFAULT_INIT_PROJECT_ID = "modal-poc-project"
+DEFAULT_INIT_PROJECT_NAME = "Modal PoC Project"
+DEFAULT_INIT_USER_EMAIL = "admin@langfuse-modal-poc.example"
+DEFAULT_INIT_USER_NAME = "Modal PoC Admin"
 
 # Relative memory weights used only when --runtime=vm (Modal's VM runtime carves
 # an explicit memory reserve out of the main Sandbox VM for Sidecars).
@@ -183,6 +194,10 @@ def generate_secret_payload() -> dict[str, str]:
         "LANGFUSE_AI_GATEWAY_SERVICE_KEY": secrets.token_hex(32),
         "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY": generate_es256_private_key_pem(),
         "LANGFUSE_AI_GATEWAY_REDIS_AUTH": redis_auth,
+        "LANGFUSE_INIT_USER_EMAIL": DEFAULT_INIT_USER_EMAIL,
+        "LANGFUSE_INIT_USER_PASSWORD": f"Lf-{secrets.token_hex(16)}",
+        "LANGFUSE_INIT_PROJECT_PUBLIC_KEY": f"pk-lf-{secrets.token_hex(16)}",
+        "LANGFUSE_INIT_PROJECT_SECRET_KEY": f"sk-lf-{secrets.token_hex(16)}",
     }
 
 
@@ -319,6 +334,11 @@ def build_app_sidecar_specs(
         "LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT": minio_url,
         "LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT": "http://minio:9000",
         "LANGFUSE_AI_GATEWAY_PUBLIC_URL": gateway_url,
+        "LANGFUSE_INIT_ORG_ID": DEFAULT_INIT_ORG_ID,
+        "LANGFUSE_INIT_ORG_NAME": DEFAULT_INIT_ORG_NAME,
+        "LANGFUSE_INIT_PROJECT_ID": DEFAULT_INIT_PROJECT_ID,
+        "LANGFUSE_INIT_PROJECT_NAME": DEFAULT_INIT_PROJECT_NAME,
+        "LANGFUSE_INIT_USER_NAME": DEFAULT_INIT_USER_NAME,
     }
     web_spec = SidecarSpec(
         name="web",
@@ -662,6 +682,11 @@ def cmd_up(args: argparse.Namespace) -> int:
     print(f"  MinIO S3:     {minio_url}")
     print(f"  Sandbox ID:   {sandbox.object_id}")
     print(
+        "\nRead the pre-provisioned Langfuse login credentials from the Modal Secret:\n"
+        f"  modal shell --secret {args.secret_name} --no-pty -c "
+        "'printf \"Email: %s\\nPassword: %s\\n\" \"$LANGFUSE_INIT_USER_EMAIL\" \"$LANGFUSE_INIT_USER_PASSWORD\"'"
+    )
+    print(
         "\nStop when finished (Sandboxes bill per second while running):\n"
         f"  python examples/modal/modal_app.py stop --app-name {args.app_name} --sandbox-name {args.sandbox_name}"
     )
@@ -715,17 +740,21 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     tunnels = sandbox.tunnels()
     web_url = tunnels[WEB_PORT].url.rstrip("/")
     gateway_url = tunnels[GATEWAY_PORT].url.rstrip("/")
+    minio_url = tunnels[MINIO_PUBLIC_PORT].url.rstrip("/")
 
     checks = [
         ("Langfuse Web health", f"{web_url}/api/public/health"),
+        ("Langfuse Web UI", f"{web_url}/auth/sign-in"),
         ("AI Gateway liveness", f"{gateway_url}/health"),
         ("AI Gateway readiness", f"{gateway_url}/ready"),
+        ("MinIO S3 tunnel", f"{minio_url}/minio/health/live"),
     ]
     failed = False
     for label, url in checks:
         status, body = _http_get(url)
         marker = "OK" if status == 200 else "FAIL"
-        print(f"[{marker}] {label}: HTTP {status} ({url}) -> {body[:160]}")
+        preview = body.replace("\n", " ")[:160]
+        print(f"[{marker}] {label}: HTTP {status} ({url}) -> {preview}")
         if status != 200:
             failed = True
 

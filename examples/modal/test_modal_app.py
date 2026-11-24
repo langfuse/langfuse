@@ -174,6 +174,10 @@ class ModalAppTests(unittest.TestCase):
             payload["MINIO_ROOT_PASSWORD"],
             payload["LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY"],
         )
+        self.assertEqual(payload["LANGFUSE_INIT_USER_EMAIL"], modal_app.DEFAULT_INIT_USER_EMAIL)
+        self.assertGreaterEqual(len(payload["LANGFUSE_INIT_USER_PASSWORD"]), 20)
+        self.assertTrue(payload["LANGFUSE_INIT_PROJECT_PUBLIC_KEY"].startswith("pk-lf-"))
+        self.assertTrue(payload["LANGFUSE_INIT_PROJECT_SECRET_KEY"].startswith("sk-lf-"))
 
     def test_render_caddyfile_wires_ports_and_streaming_headers(self) -> None:
         caddyfile = modal_app.render_caddyfile()
@@ -237,6 +241,8 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(
             web_env["LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT"], "http://minio:9000"
         )
+        self.assertEqual(web_env["LANGFUSE_INIT_ORG_ID"], modal_app.DEFAULT_INIT_ORG_ID)
+        self.assertEqual(web_env["LANGFUSE_INIT_PROJECT_ID"], modal_app.DEFAULT_INIT_PROJECT_ID)
 
         # Gateway talks to Web over the local bridge and Redis for spend budgets.
         gw_env = by_name["ai-gateway"].kwargs["env"]

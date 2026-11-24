@@ -30,7 +30,7 @@ Internet (HTTPS via Modal encrypted tunnels)
 - **Main Sandbox (`caddy:2-alpine`):** Exposes ports `3000` (Langfuse UI), `3031` (AI Gateway), and `9090` (MinIO presigned URLs) via Modal's `encrypted_ports`. Starting Caddy first lets `modal_app.py` obtain the tunnel URLs *before* starting `web`, so `NEXTAUTH_URL`, `LANGFUSE_AI_GATEWAY_PUBLIC_URL`, and `LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT` match the live HTTPS origins immediately. Caddy receives **no Modal Secrets**.
 - **7 isolated Sidecars (published images):** Every service runs from its published registry image (`docker.langfuse.com/langfuse/{langfuse,langfuse-worker,ai-gateway}:4`, `postgres:17`, `clickhouse/clickhouse-server:26.3.62.3`, `redis:7`, `cgr.dev/chainguard/minio`) on the Sandbox's host-local bridge network (`/etc/hosts` resolves `postgres`, `clickhouse`, `redis`, `minio`, `web`, `worker`, `ai-gateway`).
 - **Gateway ↔ Langfuse:** `ai-gateway` calls `http://web:3000` directly over the private local bridge (`LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true` is safe because traffic never leaves the host-local bridge) and connects to `redis://redis:6379` for spend budgets.
-- **Secrets:** All runtime secrets (`NEXTAUTH_SECRET`, `SALT`, `ENCRYPTION_KEY`, DB/ClickHouse/Redis/MinIO passwords, `LANGFUSE_AI_GATEWAY_SERVICE_KEY`, and an ES256 P-256 `LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY`) live exclusively in a Modal Secret (`langfuse-modal-poc`), never in code.
+- **Secrets:** All runtime secrets (`NEXTAUTH_SECRET`, `SALT`, `ENCRYPTION_KEY`, DB/ClickHouse/Redis/MinIO passwords, `LANGFUSE_AI_GATEWAY_SERVICE_KEY`, an ES256 P-256 `LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY`, and the pre-provisioned `LANGFUSE_INIT_*` login and project API keys) live exclusively in a Modal Secret (`langfuse-modal-poc`), never in code.
 - **Data sidecar egress lock:** Postgres, ClickHouse, Redis, and MinIO run with `outbound_cidr_allowlist=[]` (zero outbound internet access while remaining reachable on the local bridge).
 
 ## Prerequisites
@@ -78,17 +78,24 @@ python examples/modal/modal_app.py smoke
 This checks:
 
 - `GET <Langfuse UI>/api/public/health` → `200`
+- `GET <Langfuse UI>/auth/sign-in` → `200` (Langfuse UI reachable over HTTPS via Caddy)
 - `GET <AI Gateway>/health` → `200 {"status":"ok"}`
 - `GET <AI Gateway>/ready` → `200 {"status":"ready"}` (proves control-plane wiring to `langfuse-web`)
+- `GET <MinIO S3>/minio/health/live` → `200`
 - `GET http://worker:3030/api/health` (inside the Sandbox bridge) → `200`
 
 ### 4. Try an AI Gateway request end-to-end
 
-1. Open the printed **Langfuse UI** URL (`https://<tunnel-3000>.modal.host`) and sign up to create an organization and project.
+1. Open the printed **Langfuse UI** URL (`https://<tunnel-3000>.modal.host`) and either sign up or log in with the pre-provisioned admin user (its credentials are stored only in Modal Secret `langfuse-modal-poc` — read them locally with the Modal CLI):
+   ```bash
+   modal shell --secret langfuse-modal-poc --no-pty -c \
+     'printf "Email: %s\nPassword: %s\n" "$LANGFUSE_INIT_USER_EMAIL" "$LANGFUSE_INIT_USER_PASSWORD"'
+   ```
 2. Open **AI Gateway** in the organization settings:
+   - Configure ingestion to record into your project (e.g. `Modal PoC Project`).
    - Add an upstream provider connection (e.g. OpenAI or Anthropic) with your provider API key.
    - Create an AI Gateway key. The UI automatically displays the live Modal **AI Gateway** URL (`LANGFUSE_AI_GATEWAY_PUBLIC_URL`).
-3. Send a request through the gateway:
+3. Send a request through the gateway (use `<connection-name>:<model>` to target a specific connection, or a bare OpenAI/Anthropic model name like `gpt-4o-mini` for implicit routing):
    ```bash
    curl -sS "<AI_GATEWAY_URL>/openai/v1/chat/completions" \
      -H "Authorization: Bearer <YOUR_GATEWAY_KEY>" \
@@ -98,7 +105,7 @@ This checks:
        "messages": [{"role": "user", "content": "Say hello from Modal"}]
      }'
    ```
-4. Reload **Traces** in the Langfuse UI — the gateway exports the OTLP generation span to `web`, which enqueues it in `redis`/`minio`, and `worker` writes it into `clickhouse`.
+4. Reload **Traces** / **Observations** in the Langfuse UI — the gateway exports the OTLP generation span to `web`, which enqueues it in `redis`/`minio`, and `worker` writes it into `clickhouse`.
 
 ### 5. Stop the stack (important for billing)
 
