@@ -49,11 +49,11 @@ const LAYOUTS = {
   },
   lines: {
     width: 560,
-    hubX: 300,
+    hubX: 280,
     hubGap: 21,
-    pillX: 400,
-    moreX: 396,
-    bend: [364, 368],
+    pillX: 380,
+    moreX: 376,
+    bend: [344, 348],
   },
 } as const;
 
