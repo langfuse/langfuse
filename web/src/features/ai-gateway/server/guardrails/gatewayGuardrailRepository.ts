@@ -100,7 +100,7 @@ export class GatewayGuardrailRepository {
       this.prisma.gatewayGuardrail.findMany({
         where,
         select: GUARDRAIL_SELECT,
-        orderBy: [{ name: "asc" }, { id: "asc" }],
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: params.page * params.limit,
         take: params.limit,
       }),
@@ -139,7 +139,7 @@ export class GatewayGuardrailRepository {
     return this.prisma.gatewayGuardrail.findMany({
       where: toGuardrailWhere(params),
       select: { id: true, name: true },
-      orderBy: [{ name: "asc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
   }
 
