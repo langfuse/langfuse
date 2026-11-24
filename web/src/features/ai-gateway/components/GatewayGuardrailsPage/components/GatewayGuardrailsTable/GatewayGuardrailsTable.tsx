@@ -11,7 +11,7 @@ import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GATEWAY_GUARDRAIL_ACTION_LABELS } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
-import { formatGuardrailPresetsSummary } from "@/src/features/ai-gateway/fns/formatGuardrailPresetsSummary";
+import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";
 import { assertUnreachable } from "@/src/utils/types";
@@ -33,11 +33,8 @@ type GuardrailAssignment = GatewayGuardrailRow["assignments"][number];
 
 const guardrailCellSkeleton = (
   <div className="flex items-center gap-2.5">
-    <Skeleton className="size-7 shrink-0 rounded-md" />
-    <div className="flex flex-col gap-1">
-      <Skeleton className="h-3.5 w-28" />
-      <Skeleton className="h-3 w-40" />
-    </div>
+    <Skeleton className="size-6 shrink-0 rounded-md" />
+    <Skeleton className="h-3.5 w-32" />
   </div>
 );
 
@@ -51,34 +48,19 @@ const guardrailColumn = createTableColumn<
   size: 280,
   enableResizing: false,
   loadingCell: guardrailCellSkeleton,
-  renderCell: (_name, { row }) => {
-    const summary = formatGuardrailPresetsSummary({
-      presets: row.original.presets,
-      secretPrefixes: row.original.secretPrefixes,
-      containsWords: row.original.containsWords,
-    });
-    return (
-      <div className="ph-no-capture flex min-w-0 items-center gap-2.5 py-0.5">
-        <span className="bg-muted text-foreground flex size-7 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold">
-          {summary.badge}
-        </span>
-        <div className="flex min-w-0 flex-col">
-          <span
-            className="text-foreground truncate text-sm font-medium"
-            title={row.original.name}
-          >
-            {row.original.name}
-          </span>
-          <span
-            className="text-muted-foreground truncate text-xs"
-            title={summary.subtitle}
-          >
-            {summary.subtitle}
-          </span>
-        </div>
-      </div>
-    );
-  },
+  renderCell: (_name, { row }) => (
+    <div className="ph-no-capture flex min-w-0 items-center gap-2.5">
+      <span className="bg-muted text-foreground flex size-6 shrink-0 items-center justify-center rounded-md border font-mono text-[11px] font-bold">
+        {getGuardrailBadge(row.original)}
+      </span>
+      <span
+        className="text-foreground truncate text-sm font-medium"
+        title={row.original.name}
+      >
+        {row.original.name}
+      </span>
+    </div>
+  ),
 });
 
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({
@@ -204,4 +186,21 @@ export function GatewayGuardrailsTable({
       }
     />
   );
+}
+
+function getGuardrailBadge(row: GatewayGuardrailRow) {
+  if (
+    row.presets.length === 0 &&
+    row.secretPrefixes.length === 0 &&
+    row.containsWords.length > 0
+  ) {
+    return "Aa";
+  }
+  const isSecrets =
+    row.secretPrefixes.length > 0 ||
+    (row.presets.length > 0 &&
+      row.presets.every(
+        (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
+      ));
+  return isSecrets ? "***" : "PII";
 }
