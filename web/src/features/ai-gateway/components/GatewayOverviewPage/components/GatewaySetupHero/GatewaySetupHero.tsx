@@ -51,7 +51,7 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
               : "No provider connected yet."}
           </p>
         </div>
-        <div className="w-full max-w-lg basis-lg">
+        <div className="w-full max-w-md basis-md">
           <GatewayFanOutDiagram sources={[]} />
         </div>
       </div>
