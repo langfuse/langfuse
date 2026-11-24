@@ -600,7 +600,9 @@ class AzureBlobStorageService implements StorageService {
           blobHTTPHeaders: { blobContentType: fileType },
         });
       } else {
-        throw new TypeError("Unsupported data type. Must be Readable or string.");
+        throw new TypeError(
+          "Unsupported data type. Must be Readable or string.",
+        );
       }
 
       return;
