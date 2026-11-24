@@ -86,9 +86,9 @@
 /web/src/pages/api/trpc/ @Steffen911 @nimarb @hassiebp
 
 # Database migrations
-/packages/shared/clickhouse/migrations/ @Steffen911 @sumerman
-/packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb
-/packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb
+/packages/shared/clickhouse/migrations/ @Steffen911 @niklassemmler @marksalpeter @jordibosch20 @sumerman
+/packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
+/packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 
 # Billing: usage metering job, usage thresholds, spend alerts, Stripe/billing server code and webhooks
 /worker/src/ee/cloudUsageMetering/ @jordibosch20 @Steffen911
