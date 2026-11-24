@@ -1709,6 +1709,7 @@ jobs:
     name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: "10"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1763,23 +1764,27 @@ jobs:
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"
-      # Download directly. This job holds provider credentials and stays
-      # cache-cold; a shared migrate cache would execute a binary saved by
-      # another job.
-      - name: Install golang-migrate
-        run: |
-          bash scripts/ci/install-golang-migrate.sh
-      - name: Start dev containers
-        run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
+      # Download directly and run container startup plus schema migrations in
+      # the background so they overlap Rust toolchain setup and the build.
+      # This job holds provider credentials and stays cache-cold; a shared
+      # migrate cache would execute a binary saved by another job.
+      # `prisma migrate deploy` skips `prisma generate`, so it does not race
+      # `@langfuse/shared#db:generate` inside `pnpm run build`.
+      - name: Start dev containers and migrations in background
         env:
           POSTGRES_VERSION: 15
-      - name: Migrate and seed
         run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed
+          (
+            set +e
+            (
+              set -euo pipefail
+              bash scripts/ci/install-golang-migrate.sh
+              docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+              pnpm --filter=@langfuse/shared exec dotenv -e ../../.env -- prisma migrate deploy
+              pnpm --filter=shared run ch:up
+            ) > /tmp/infra-setup.log 2>&1
+            echo $? > /tmp/infra-setup.exit
+          ) > /dev/null 2>&1 &
       # Turbo starts the native addon and AI Gateway builds in parallel. They
       # may use different workspace-pinned Rust toolchains, so install both
       # serially before either build can trigger rustup.
@@ -1792,12 +1797,25 @@ jobs:
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers and migrations
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/infra-setup.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background infra setup"; cat /tmp/infra-setup.log; exit 1; }
+          cat /tmp/infra-setup.log
+          docker compose ps
+          exit "$(cat /tmp/infra-setup.exit)"
+      - name: Seed DB
+        run: pnpm --filter=shared run db:seed
       - name: Run server
-        run: (pnpm run start&)
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
       - name: Check worker health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Run AI Gateway end-to-end tests
         run: pnpm --filter=web run test:e2e:ai-gateway
         env:
@@ -1807,6 +1825,9 @@ jobs:
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
           LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
           LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      - name: Langfuse server log
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
