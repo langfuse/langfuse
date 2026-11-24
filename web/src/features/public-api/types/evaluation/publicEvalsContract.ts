@@ -1,6 +1,7 @@
 import {
   arrayOptionsFilter,
   categoryOptionsFilter,
+  DecisionModelStateKeySchema,
   nullFilter,
   numberFilter,
   numberObjectFilter,
@@ -16,9 +17,16 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 
-const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
-export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
-  PUBLIC_EVALUATOR_TYPES;
+const PUBLIC_EVALUATOR_TYPES = [
+  "llm_as_judge",
+  "code",
+  "decision_model",
+] as const;
+export const [
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
+] = PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
 export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
@@ -165,6 +173,15 @@ const ExperimentPromptVariableMappingInput = createMappingSchema(
 export const PromptVariableMappingInput = z.union([
   ObservationPromptVariableMappingInput,
   ExperimentPromptVariableMappingInput,
+]);
+
+export const DecisionModelStateMappingInput = z.union([
+  ObservationPromptVariableMappingInput.extend({
+    variable: DecisionModelStateKeySchema,
+  }),
+  ExperimentPromptVariableMappingInput.extend({
+    variable: DecisionModelStateKeySchema,
+  }),
 ]);
 
 // This shape preserves incomplete mappings so callers can repair them.

@@ -1673,7 +1673,9 @@ paths:
         An evaluator defines **how** Langfuse should score data. LLM-as-a-judge
         evaluators define a prompt, expected structured output, and optional
         model configuration. Code evaluators define source code and a runtime
-        language.
+        language. Decision-model evaluators define typed questions, a
+        decision-model configuration, and a mapping from observation data to
+        state keys.
 
 
         This always creates a new evaluator with version `1`. Names are not
@@ -1890,7 +1892,8 @@ paths:
         definition, include `type` and every definition field for that type.
         Definition fields are replaced as a complete unit rather than merged.
         For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to
-        `null` selects the project's default evaluation model.
+        `null` selects the project's default evaluation model. Decision-model
+        evaluators always require `modelConfig`.
 
 
         Replacing a definition automatically returns an evaluator paused by an
@@ -10663,10 +10666,13 @@ components:
       enum:
         - llm_as_judge
         - code
-      description: |-
+        - decision_model
+      description: >-
         The evaluator type.
 
-        The public API supports LLM-as-a-judge and code evaluators.
+
+        The public API supports LLM-as-a-judge, code, and decision-model
+        evaluators.
     CodeEvaluatorSourceCodeLanguage:
       title: CodeEvaluatorSourceCodeLanguage
       type: string
@@ -12026,6 +12032,210 @@ components:
         - sourceCodeLanguage
       allOf:
         - $ref: '#/components/schemas/EvaluatorVersionBase'
+    DecisionModelEntry:
+      title: DecisionModelEntry
+      description: >-
+        Instruction text, or a JSON value that the decision model receives as
+        structured instructions.
+    DecisionModelChoiceOption:
+      title: DecisionModelChoiceOption
+      type: object
+      description: One allowed answer of a `choice` question.
+      properties:
+        value:
+          type: string
+          description: >-
+            Answer value stored as the categorical score value. Must be unique
+            within the question.
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          nullable: true
+          description: Optional description of when this answer applies.
+      required:
+        - value
+    DecisionModelScoreLevel:
+      title: DecisionModelScoreLevel
+      type: object
+      description: One level of a `score` question, ordered from lowest to highest.
+      properties:
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: Description of this level.
+      required:
+        - description
+    DecisionModelNoulCriteria:
+      title: DecisionModelNoulCriteria
+      type: object
+      description: >-
+        Optional criteria for the `true` and `false` answers of a `noul`
+        question.
+      properties:
+        'true':
+          $ref: '#/components/schemas/DecisionModelEntry'
+          nullable: true
+          description: When the answer is true.
+        'false':
+          $ref: '#/components/schemas/DecisionModelEntry'
+          nullable: true
+          description: When the answer is false.
+    DecisionModelChoiceQuestion:
+      title: DecisionModelChoiceQuestion
+      type: object
+      description: Pick one of a fixed list of options. Produces a categorical score.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name.
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelChoiceOption'
+          description: Between 2 and 255 unique options.
+      required:
+        - id
+        - scoreName
+        - instructions
+        - options
+    DecisionModelScoreQuestion:
+      title: DecisionModelScoreQuestion
+      type: object
+      description: Rate on an ordered scale. Produces a numeric score.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name.
+        levels:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelScoreLevel'
+          description: Between 2 and 10 levels, ordered from lowest to highest.
+      required:
+        - id
+        - scoreName
+        - instructions
+        - levels
+    DecisionModelNoulQuestion:
+      title: DecisionModelNoulQuestion
+      type: object
+      description: Answer true or false. Produces a boolean score.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name.
+        criteria:
+          $ref: '#/components/schemas/DecisionModelNoulCriteria'
+          nullable: true
+          description: Optional criteria for the true and false answers.
+      required:
+        - id
+        - scoreName
+        - instructions
+    DecisionModelQuestion:
+      title: DecisionModelQuestion
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - choice
+            - $ref: '#/components/schemas/DecisionModelChoiceQuestion'
+          required:
+            - type
+          title: DecisionModelChoiceQuestion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - score
+            - $ref: '#/components/schemas/DecisionModelScoreQuestion'
+          required:
+            - type
+          title: DecisionModelScoreQuestion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - noul
+            - $ref: '#/components/schemas/DecisionModelNoulQuestion'
+          required:
+            - type
+          title: DecisionModelNoulQuestion
+      description: >-
+        One typed question answered by a decision-model evaluator. Each question
+        produces one score.
+    DecisionModelEvaluatorVersion:
+      title: DecisionModelEvaluatorVersion
+      type: object
+      properties:
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Typed questions answered during evaluation.
+        variables:
+          type: array
+          items:
+            type: string
+          description: State keys available to the questions and evaluation-rule mappings.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          description: Default mapping from observation data to state keys.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model used for evaluation.
+      required:
+        - type
+        - questions
+        - variables
+        - variableMapping
+        - modelConfig
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorVersionBase'
     EvaluatorVersion:
       title: EvaluatorVersion
       oneOf:
@@ -12053,6 +12263,18 @@ components:
           required:
             - type
           title: CodeEvaluatorVersion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/DecisionModelEvaluatorVersion'
+          required:
+            - type
+          title: DecisionModelEvaluatorVersion
     EvaluationRuleAssignment:
       title: EvaluationRuleAssignment
       type: object
@@ -12224,6 +12446,42 @@ components:
         - sourceCodeLanguage
       allOf:
         - $ref: '#/components/schemas/EvaluatorBase'
+    DecisionModelEvaluator:
+      title: DecisionModelEvaluator
+      type: object
+      properties:
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Typed questions answered by the latest evaluator version.
+        variables:
+          type: array
+          items:
+            type: string
+          description: State keys available to the questions and evaluation-rule mappings.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          description: >-
+            Default mapping from observation data to state keys for the latest
+            version.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model used by the latest version.
+      required:
+        - type
+        - questions
+        - variables
+        - variableMapping
+        - modelConfig
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorBase'
     Evaluator:
       title: Evaluator
       oneOf:
@@ -12251,6 +12509,18 @@ components:
           required:
             - type
           title: CodeEvaluator
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/DecisionModelEvaluator'
+          required:
+            - type
+          title: DecisionModelEvaluator
       description: >-
         One evaluator that can be used for scoring.
 
@@ -12343,6 +12613,53 @@ components:
         - type
         - sourceCode
         - sourceCodeLanguage
+    CreateDecisionModelEvaluatorRequest:
+      title: CreateDecisionModelEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            Human-readable evaluator name. Names are not identifiers and do not
+            need to be unique.
+        description:
+          type: string
+          nullable: true
+          description: Optional human-readable evaluator description.
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: >-
+            Between 1 and 50 typed questions. Question ids and score names must
+            be unique.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: >-
+            Decision-model connection and model. Required.
+
+
+            The provider must be a decision-model connection of the project.
+            Call `GET /api/public/llm-connections` to discover available
+            providers.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          description: >-
+            At least one mapping from observation data to a state key. Each
+            `variable` is a state key that starts with a letter or underscore
+            and contains only letters, digits, and underscores.
+      required:
+        - name
+        - type
+        - questions
+        - modelConfig
+        - variableMapping
     CreateEvaluatorRequest:
       title: CreateEvaluatorRequest
       oneOf:
@@ -12370,6 +12687,18 @@ components:
           required:
             - type
           title: CreateCodeEvaluatorRequest
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/CreateDecisionModelEvaluatorRequest'
+          required:
+            - type
+          title: CreateDecisionModelEvaluatorRequest
       description: >-
         Initial evaluator definition with metadata and definition fields at the
         same level. The returned evaluator starts at version `1`.
@@ -12456,12 +12785,47 @@ components:
         - type
         - sourceCode
         - sourceCodeLanguage
+    UpdateDecisionModelEvaluatorRequest:
+      title: UpdateDecisionModelEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable evaluator name.
+        description:
+          type: string
+          nullable: true
+          description: New description. Set to `null` to clear it.
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type. The type of an existing evaluator cannot change.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Complete replacement list of typed questions.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model. Required.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          description: Complete replacement mapping from observation data to state keys.
+      required:
+        - type
+        - questions
+        - modelConfig
+        - variableMapping
     UpdateEvaluatorRequest:
       title: UpdateEvaluatorRequest
       oneOf:
         - $ref: '#/components/schemas/UpdateEvaluatorMetadataRequest'
         - $ref: '#/components/schemas/UpdateLlmAsJudgeEvaluatorRequest'
         - $ref: '#/components/schemas/UpdateCodeEvaluatorRequest'
+        - $ref: '#/components/schemas/UpdateDecisionModelEvaluatorRequest'
       description: >-
         Metadata-only update or complete flattened definition replacement. At
         least one field must be provided.

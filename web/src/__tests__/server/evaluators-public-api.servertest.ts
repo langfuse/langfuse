@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { encrypt } from "@langfuse/shared/encryption";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -227,6 +232,119 @@ describe("stable evaluators public API", () => {
       auth,
     );
     expect(nestedDefinition.status).toBe(400);
+  });
+
+  it("creates and manages decision-model evaluators", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "typesafe",
+        adapter: LLMAdapter.TypeSafe,
+        secretKey: encrypt("sk-typesafe"),
+        displaySecretKey: "...safe",
+      },
+    });
+    const questions = [
+      {
+        id: "tone",
+        type: "choice",
+        scoreName: "tone",
+        instructions: "Classify the tone of the answer",
+        options: [
+          { value: "friendly", description: "Warm and polite" },
+          { value: "rude" },
+        ],
+      },
+      {
+        id: "helpful",
+        type: "noul",
+        scoreName: "helpful",
+        instructions: { goal: "Does the answer resolve the question?" },
+      },
+    ];
+
+    const created = await makeZodVerifiedAPICall(
+      Evaluator,
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "decision evaluator",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [
+          { variable: "answer", source: "output" },
+          { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+        ],
+      },
+      auth,
+      201,
+    );
+    expect(created.body).toMatchObject({
+      type: "decision_model",
+      version: 1,
+      questions,
+      variables: ["answer", "user_id"],
+      variableMapping: [
+        { variable: "answer", source: "output" },
+        { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+      ],
+      modelConfig: { provider: "typesafe", model: "jev-1" },
+    });
+
+    const replaced = await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${created.body.id}`,
+      {
+        type: "decision_model",
+        questions: [
+          {
+            id: "quality",
+            type: "score",
+            scoreName: "quality",
+            instructions: "Rate the answer quality",
+            levels: [{ description: "Poor" }, { description: "Great" }],
+          },
+        ],
+        modelConfig: { provider: "typesafe", model: "jev-2" },
+        variableMapping: [{ variable: "answer", source: "output" }],
+      },
+      auth,
+    );
+    expect(replaced.body).toMatchObject({
+      version: 2,
+      questions: [{ id: "quality", type: "score" }],
+      variables: ["answer"],
+      modelConfig: { provider: "typesafe", model: "jev-2" },
+    });
+
+    const listed = await makeZodVerifiedAPICall(
+      ListEvaluatorsResponse,
+      "GET",
+      "/api/public/v2/evaluators",
+      undefined,
+      auth,
+    );
+    expect(listed.body.data.map(({ id }) => id)).toContain(created.body.id);
+
+    const invalidStateKey = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "invalid state key",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [{ variable: "user-id", source: "metadata" }],
+      },
+      auth,
+    );
+    expect(invalidStateKey.status).toBe(400);
+    expect(PublicApiError.parse(invalidStateKey.body)).toMatchObject({
+      code: "invalid_body",
+    });
   });
 
   it("gets an evaluator", async () => {
