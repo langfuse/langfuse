@@ -29,6 +29,25 @@ function dialogOutsideNav(root: HTMLElement | null): boolean {
   return false;
 }
 
+type NavOrientation = "vertical" | "horizontal";
+
+function useNavOrientation(orientation: NavOrientation | undefined) {
+  if (orientation === "horizontal") {
+    return {
+      PreviousIcon: ChevronLeft,
+      NextIcon: ChevronRight,
+      previousLabel: "Previous sample",
+      nextLabel: "Next sample",
+    };
+  }
+  return {
+    PreviousIcon: ArrowUp,
+    NextIcon: ArrowDown,
+    previousLabel: "Navigate up",
+    nextLabel: "Navigate down",
+  };
+}
+
 export const DetailPageNav = (props: {
   currentId: string;
   path: (entry: ListEntry) => string;
@@ -37,7 +56,7 @@ export const DetailPageNav = (props: {
   /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
   size?: ButtonProps["size"];
   /** Sample panels step left and right. Detail pages step up and down. */
-  orientation?: "vertical" | "horizontal";
+  orientation?: NavOrientation;
   /**
    * Compact mode for header action rows: icon-only ghost arrows with the K/J
    * hint moved to the tooltip. Shortcuts still work.
@@ -46,11 +65,8 @@ export const DetailPageNav = (props: {
 }) => {
   const { currentId, path, listKey, onNavigate, size, compact, orientation } =
     props;
-  const horizontal = orientation === "horizontal";
-  const PreviousIcon = horizontal ? ChevronLeft : ArrowUp;
-  const NextIcon = horizontal ? ChevronRight : ArrowDown;
-  const previousLabel = horizontal ? "Previous sample" : "Navigate up";
-  const nextLabel = horizontal ? "Next sample" : "Navigate down";
+  const { PreviousIcon, NextIcon, previousLabel, nextLabel } =
+    useNavOrientation(orientation);
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
