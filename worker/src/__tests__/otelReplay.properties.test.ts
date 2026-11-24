@@ -1544,7 +1544,14 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       {
         key: "langfuse.observation.output",
         value: JSON.stringify({
-          output: [],
+          output: [
+            {
+              type: "function_call",
+              call_id: "call_1",
+              name: "get_weather",
+              arguments: '{"city":"Berlin"}',
+            },
+          ],
           tools: [{ name: "get_weather", description: "forecast" }],
         }),
       },
