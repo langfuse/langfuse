@@ -97,12 +97,10 @@ export function Tag({
         title={[text, secondaryText].filter(Boolean).join(" ")}
       >
         {text}
+        {secondaryText && (
+          <span className="text-foreground-tertiary ml-1">{secondaryText}</span>
+        )}
       </span>
-      {secondaryText && (
-        <span className="text-foreground-tertiary shrink-0 py-0.5">
-          {secondaryText}
-        </span>
-      )}
       {remove && (
         <button
           type="button"

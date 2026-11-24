@@ -11,6 +11,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Checkbox } from "../../Checkbox/Checkbox";
 import { Badge } from "../../Badge/Badge";
 import { DropdownIndicator } from "../../DropdownIndicator/DropdownIndicator";
+import { markerColors } from "../../Tag/Tag";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
@@ -18,15 +19,23 @@ function Content({
   width,
   ...props
 }: SlottedProps & {
-  width: "popover-trigger" | "select-trigger";
+  width:
+    | "popover-trigger"
+    | "popover-wide"
+    | "popover-extra-wide"
+    | "select-trigger";
 }) {
   return (
     <Slot
       className={cn(
         "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative min-w-32 overflow-hidden rounded-md border shadow-md outline-hidden",
-        width === "popover-trigger"
-          ? "w-(--radix-popover-trigger-width)"
-          : "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 w-(--radix-select-trigger-width)",
+        width === "popover-trigger" && "w-(--radix-popover-trigger-width)",
+        width === "popover-wide" &&
+          "w-[min(max(24rem,var(--radix-popover-trigger-width)),var(--radix-popover-content-available-width))] min-w-0",
+        width === "popover-extra-wide" &&
+          "w-[min(max(32rem,var(--radix-popover-trigger-width)),var(--radix-popover-content-available-width))] min-w-0",
+        width === "select-trigger" &&
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 w-(--radix-select-trigger-width)",
       )}
       {...props}
     />
@@ -186,6 +195,7 @@ function Loading({ message }: { message: string }) {
 type OptionContentProps = {
   label: ReactNode;
   secondaryLabel?: string;
+  markerColor?: keyof typeof markerColors;
   /**
    * Trailing metadata pills. They share the label's line while it fits and wrap
    * beneath it when it does not, so the label — the thing the option is picked
@@ -230,29 +240,39 @@ function MultiSelectOptionContent({ checked, ...props }: OptionContentProps) {
 function OptionLabel({
   label,
   secondaryLabel,
+  markerColor,
   badges,
   title,
 }: Omit<OptionContentProps, "checked">) {
   return (
-    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-      {/*
-        `flex-auto`, not `flex-1`: the basis must stay `auto` so the label's
-        own width is what decides whether the badges still fit on this line
-        (a `flex-1` basis of 0 would let everything share one line forever,
-        which is the bug). Growing from that basis keeps the label filling
-        the row when it does fit, which is what holds the badges against the
-        right edge and keeps `title` hoverable across the whole row.
-      */}
-      <span className="flex-auto truncate" title={title}>
-        {label}
-        {secondaryLabel && (
-          <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
-        )}
+    <>
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        {/* Keep the label's natural width so badges sit beside it and wrap when needed. */}
+        <span className="flex-initial truncate" title={title}>
+          {markerColor && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "mr-1.5 inline-block size-2 rounded-full align-baseline",
+                markerColors[markerColor],
+              )}
+            />
+          )}
+          {label}
+        </span>
+        {badges?.map((badge, index) => (
+          <Badge key={index} color="filled" {...badge} />
+        ))}
       </span>
-      {badges?.map((badge, index) => (
-        <Badge key={index} {...badge} />
-      ))}
-    </span>
+      {secondaryLabel && (
+        <span
+          className="text-muted-foreground shrink-0 self-start whitespace-nowrap"
+          title={title}
+        >
+          {secondaryLabel}
+        </span>
+      )}
+    </>
   );
 }
 

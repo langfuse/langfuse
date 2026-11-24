@@ -33,9 +33,12 @@ export function AsyncSelectInput<V extends string>({
   callToActionOption,
   virtualized = false,
   align = "start",
+  dropdownWidth = "trigger",
   emptyMessage = "No options available.",
   error,
   muted,
+  prefix,
+  trailingAction,
   ref,
   ...triggerProps
 }: Pick<
@@ -49,6 +52,8 @@ export function AsyncSelectInput<V extends string>({
   | "disabled"
   | "onBlur"
 > & {
+  prefix?: React.ComponentProps<typeof InputControl>["prefix"];
+  trailingAction?: React.ComponentProps<typeof InputControl>["trailingAction"];
   value: SelectedOption<V> | null;
   onValueChange: (option: SelectedOption<V>) => void;
   placeholder: string;
@@ -65,6 +70,7 @@ export function AsyncSelectInput<V extends string>({
   };
   virtualized?: boolean;
   align?: "start" | "center" | "end";
+  dropdownWidth?: "trigger" | "wide";
   error?: boolean;
   muted?: boolean;
   ref?: React.Ref<HTMLButtonElement>;
@@ -141,6 +147,7 @@ export function AsyncSelectInput<V extends string>({
           <InputDropdown.SingleSelectOptionContent
             checked={value?.value === option.value}
             label={option.label}
+            secondaryLabel={option.secondaryLabel}
             title={option.disabled ? option.disabledReason : option.label}
             badges={option.badges}
           />
@@ -170,38 +177,45 @@ export function AsyncSelectInput<V extends string>({
       open={open && !triggerProps.disabled}
       onOpenChange={handleOpenChange}
     >
-      <InputControl
-        contentLayout="spread"
-        error={error}
-        disabled={triggerProps.disabled}
-      >
-        <PopoverPrimitive.Trigger
-          ref={ref}
-          type="button"
-          role="combobox"
-          aria-controls={listId}
-          aria-expanded={open && !triggerProps.disabled}
-          title={value?.label}
-          {...triggerProps}
+      <PopoverPrimitive.Anchor asChild>
+        <InputControl
+          contentLayout="spread"
+          error={error}
+          disabled={triggerProps.disabled}
+          prefix={prefix}
+          trailingAction={trailingAction}
         >
-          {Icon && <Icon size="base" aria-hidden />}
-          <span
+          <PopoverPrimitive.Trigger
+            ref={ref}
+            type="button"
+            role="combobox"
+            aria-controls={listId}
+            aria-expanded={open && !triggerProps.disabled}
             title={value?.label}
-            className={cn(
-              "min-w-0 flex-1 truncate text-left",
-              muted && "text-muted-foreground",
-            )}
+            {...triggerProps}
           >
-            {value?.label ?? placeholder}
-          </span>
-          <DropdownIndicator color={error ? "destructive" : "tertiary"} />
-        </PopoverPrimitive.Trigger>
-      </InputControl>
+            {Icon && <Icon size="base" aria-hidden />}
+            <span
+              title={value?.label}
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                muted && "text-muted-foreground",
+              )}
+            >
+              {value?.label ?? placeholder}
+            </span>
+            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
+          </PopoverPrimitive.Trigger>
+        </InputControl>
+      </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
-        <InputDropdown.Content width="popover-trigger">
+        <InputDropdown.Content
+          width={dropdownWidth === "wide" ? "popover-wide" : "popover-trigger"}
+        >
           <PopoverPrimitive.Content
             align={align}
             sideOffset={4}
+            collisionPadding={dropdownWidth === "wide" ? 8 : undefined}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}
           >
@@ -275,7 +289,13 @@ export function AsyncSelectInput<V extends string>({
                             if (row.type === "action") return actionContent;
                             if (row.type === "heading")
                               return (
-                                <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+                                <div
+                                  className={cn(
+                                    "text-muted-foreground px-1.5 pt-2 pb-1 text-[11px] font-medium",
+                                    item.index > 0 &&
+                                      "border-border/60 mt-1 border-t",
+                                  )}
+                                >
                                   {row.label}
                                 </div>
                               );
@@ -319,7 +339,10 @@ export function AsyncSelectInput<V extends string>({
                                 key={group.id}
                                 label={group.label}
                               >
-                                <Command.Group heading={group.label}>
+                                <Command.Group
+                                  heading={group.label}
+                                  className="[&_[cmdk-group-heading]]:text-muted-foreground [[cmdk-group]:not([hidden])~&]:border-border/60 [&_[cmdk-group-heading]]:px-1.5 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [[cmdk-group]:not([hidden])~&]:mt-1 [[cmdk-group]:not([hidden])~&]:border-t"
+                                >
                                   {content}
                                 </Command.Group>
                               </InputDropdown.Group>

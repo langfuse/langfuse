@@ -12,6 +12,7 @@ type SelectOption<V> = {
   type?: "option";
   value: V;
   label: string;
+  secondaryLabel?: string;
   icon?: IconComponent;
   explanation?: {
     title: string;

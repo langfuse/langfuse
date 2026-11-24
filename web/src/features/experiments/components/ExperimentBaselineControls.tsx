@@ -1,7 +1,5 @@
 import { type ComponentProps, useMemo } from "react";
-import { Button } from "@/src/components/ui/button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { X } from "@langfuse/icons";
+import { ExperimentBaselineSelect } from "./ExperimentBaselineSelect";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import {
@@ -44,7 +42,7 @@ export function ExperimentBaselineControls({
     const byDataset = new Map<
       string,
       Extract<
-        ComponentProps<typeof SelectInput<string>>["options"][number],
+        ComponentProps<typeof ExperimentBaselineSelect>["options"][number],
         { type: "group" }
       >
     >();
@@ -63,7 +61,7 @@ export function ExperimentBaselineControls({
       group.options.push({
         value: experiment.experimentId,
         label: experiment.experimentName,
-        badges: [{ text: formatRunRecency(experiment.startTime) }],
+        secondaryLabel: formatRunRecency(experiment.startTime),
       });
       byDataset.set(datasetKey, group);
     }
@@ -72,51 +70,32 @@ export function ExperimentBaselineControls({
   }, [experimentNames]);
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <div className="min-w-0 flex-1">
-        <SelectInput
-          options={baselineOptionGroups}
-          value={baselineId ?? ""}
-          onValueChange={(id) => {
-            if (id === baselineId) return;
-            capture(
-              "experiment:baseline_changed",
-              baselineChangedProps({
-                tableName: "experiment-items",
-                source: "picker",
-              }),
-            );
-            onBaselineChange(id);
-          }}
-          placeholder={baselineName ?? baselineId ?? "Select baseline..."}
-          emptyMessage="No experiments found"
-          search={{ placeholder: "Search experiments..." }}
-          disabled={isLoading}
-        />
-      </div>
-
-      {baselineId && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0"
-          onClick={() => {
-            capture(
-              "experiment:baseline_changed",
-              baselineChangedProps({
-                tableName: "experiment-items",
-                source: "clear",
-              }),
-            );
-            onBaselineClear();
-          }}
-          disabled={isLoading}
-          title="Clear baseline"
-          aria-label="Clear baseline"
-        >
-          <X size="base" color="default" />
-        </Button>
-      )}
-    </div>
+    <ExperimentBaselineSelect
+      options={baselineOptionGroups}
+      baselineId={baselineId}
+      baselineName={baselineName}
+      isLoading={isLoading}
+      onBaselineChange={(id) => {
+        if (id === baselineId) return;
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "picker",
+          }),
+        );
+        onBaselineChange(id);
+      }}
+      onBaselineClear={() => {
+        capture(
+          "experiment:baseline_changed",
+          baselineChangedProps({
+            tableName: "experiment-items",
+            source: "clear",
+          }),
+        );
+        onBaselineClear();
+      }}
+    />
   );
 }

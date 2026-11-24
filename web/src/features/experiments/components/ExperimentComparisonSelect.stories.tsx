@@ -17,7 +17,6 @@ function InteractiveComparisonSelect(args: Props) {
   const [value, setValue] = useState(args.value);
   const [groups, setGroups] = useState(args.groups);
   const [searchQuery, setSearchQuery] = useState(args.searchQuery);
-  const [autoSelect, setAutoSelect] = useState(args.isAutoSelectEnabled);
   const query = searchQuery.trim().toLowerCase();
 
   return (
@@ -41,8 +40,6 @@ function InteractiveComparisonSelect(args: Props) {
           }))
           .filter((group) => group.options.length > 0)}
         searchQuery={searchQuery}
-        isAutoSelectEnabled={autoSelect}
-        onAutoSelectEnabledChange={setAutoSelect}
         onSearchChange={setSearchQuery}
         onValueChange={setValue}
       />
@@ -86,30 +83,12 @@ const meta = preview.meta({
     searchQuery: "",
     isLoading: false,
     selectionLimitReached: false,
-    isAutoSelectEnabled: true,
     onSearchChange: fn(),
     onValueChange: fn(),
-    onAutoSelectEnabledChange: fn(),
   },
 });
 
 export const Default = meta.story({});
-
-export const KeyboardAutoSelect = meta.story({
-  name: "(Test) Keyboard auto-select",
-  args: { value: [] },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    canvas.getByRole("combobox", { name: "Compare" }).focus();
-    await userEvent.tab();
-    const preference = canvas.getByRole("checkbox", {
-      name: /Auto-select a comparison/,
-    });
-    await expect(preference).toHaveFocus();
-    await userEvent.keyboard(" ");
-    await expect(preference).not.toBeChecked();
-  },
-});
 
 export const CompareRuns = meta.story({
   name: "(Test) Compare runs",

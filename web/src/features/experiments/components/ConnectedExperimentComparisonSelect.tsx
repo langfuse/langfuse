@@ -6,7 +6,6 @@ import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useE
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  autoComparisonPreferenceChangedProps,
   comparisonChangedProps,
   comparisonPickerOpenedProps,
 } from "@/src/features/experiments/lib/analytics";
@@ -39,8 +38,6 @@ type ConnectedExperimentComparisonSelectProps = {
   colorExperimentIds: string[];
   selectedExperimentCount: number;
   onSelectedIdsChange: (ids: string[]) => void;
-  isAutoSelectEnabled: boolean;
-  onAutoSelectEnabledChange: (isEnabled: boolean) => void;
 };
 
 export function ConnectedExperimentComparisonSelect({
@@ -50,8 +47,6 @@ export function ConnectedExperimentComparisonSelect({
   colorExperimentIds,
   selectedExperimentCount,
   onSelectedIdsChange,
-  isAutoSelectEnabled,
-  onAutoSelectEnabledChange,
 }: ConnectedExperimentComparisonSelectProps) {
   const {
     searchResults,
@@ -143,6 +138,12 @@ export function ConnectedExperimentComparisonSelect({
     });
   }, [searchResults, baselineDatasetKey]);
 
+  const markerColorsById = new Map(
+    colorExperimentIds.map((id) => [
+      id,
+      getExperimentColorStyles(id, colorExperimentIds).markerColor,
+    ]),
+  );
   const selectedOptions = selectedIds.map((id) => {
     const run = availableExperimentNames.find(
       (experiment) => experiment.experimentId === id,
@@ -158,9 +159,7 @@ export function ConnectedExperimentComparisonSelect({
       label: run?.experimentName ?? id,
       secondaryLabel: otherDataset,
       showSecondaryLabelInTag: true,
-      color: colorExperimentIds.includes(id)
-        ? getExperimentColorStyles(id, colorExperimentIds).markerColor
-        : undefined,
+      color: markerColorsById.get(id),
     };
   });
 
@@ -214,17 +213,6 @@ export function ConnectedExperimentComparisonSelect({
       isLoading={isLoading}
       onOpenChange={handleOpenChange}
       selectionLimitReached={isMaxReached}
-      isAutoSelectEnabled={isAutoSelectEnabled}
-      onAutoSelectEnabledChange={(isEnabled) => {
-        capture(
-          "experiment:auto_comparison_preference_changed",
-          autoComparisonPreferenceChangedProps({
-            tableName: "experiment-items",
-            isEnabled,
-          }),
-        );
-        onAutoSelectEnabledChange(isEnabled);
-      }}
       groups={groups.map((group) => ({
         id: group.datasetKey,
         label: group.label,
@@ -255,6 +243,7 @@ export function ConnectedExperimentComparisonSelect({
           return {
             value: id,
             label: option.experimentName,
+            color: markerColorsById.get(id),
             secondaryLabel: formatRunRecency(option.startTime),
             description: option.startTime.toLocaleString(),
             badges,

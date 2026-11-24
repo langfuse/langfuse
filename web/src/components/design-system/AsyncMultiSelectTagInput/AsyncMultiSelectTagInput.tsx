@@ -56,6 +56,12 @@ type AsyncMultiSelectTagInputProps<V> = {
   loading?: { message: string };
   label?: string;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Prefer `"trigger"` (the default) to match the full input width, including
+   * its prefix. Use `"wide"` or `"extra-wide"` when options need more room.
+   * Both wider presets are capped to the available viewport width.
+   */
+  dropdownWidth?: "trigger" | "wide" | "extra-wide";
 } & (
   | { options: MultiSelectTagOption<V>[]; groups?: never }
   | { options?: never; groups: OptionGroup<V>[] }
@@ -80,6 +86,7 @@ export function AsyncMultiSelectTagInput<V extends string>({
   loading,
   label,
   onOpenChange,
+  dropdownWidth = "trigger",
 }: AsyncMultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
@@ -168,10 +175,10 @@ export function AsyncMultiSelectTagInput<V extends string>({
           <InputDropdown.MultiSelectOptionContent
             label={option.label}
             secondaryLabel={option.secondaryLabel}
+            markerColor={option.color}
             title={option.description ?? visibleLabel}
             checked={isSelected}
             badges={option.badges?.map((text) => ({
-              color: "outline",
               size: "sm",
               text,
             }))}
@@ -186,132 +193,131 @@ export function AsyncMultiSelectTagInput<V extends string>({
       open={!disabled && open}
       onOpenChange={handleOpenChange}
     >
-      <InputControl
-        contentLayout="none"
-        error={error}
-        disabled={disabled}
-        prefix={label ? { label } : undefined}
-      >
-        <PopoverPrimitive.Trigger asChild>
-          <div
-            id={id}
-            className="cursor-pointer aria-disabled:cursor-not-allowed"
-            role="combobox"
-            aria-label={ariaLabel ?? label}
-            aria-controls={listId}
-            aria-describedby={ariaDescribedBy}
-            aria-expanded={open && !disabled}
-            aria-invalid={ariaInvalid}
-            aria-disabled={disabled}
-            tabIndex={disabled ? -1 : 0}
-            onPointerDown={(event) => {
-              if (disabled) event.preventDefault();
-            }}
-            onClick={(event) => {
-              if (disabled) event.preventDefault();
-            }}
-            onKeyDown={(event) => {
-              if (disabled) return;
-
-              if (event.target !== event.currentTarget) return;
-
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                handleOpenChange(!open);
-                return;
-              }
-
-              if (event.key === "Backspace" && value.length > 0) {
-                event.preventDefault();
-                const lastValue = value
-                  .filter(
-                    (selectedValue) => !disabledValues.includes(selectedValue),
-                  )
-                  .at(-1);
-                if (lastValue !== undefined) removeValue(lastValue);
-              }
-            }}
-          >
+      <PopoverPrimitive.Anchor asChild>
+        <InputControl
+          contentLayout="none"
+          error={error}
+          disabled={disabled}
+          prefix={label ? { label } : undefined}
+          trailingAction={
+            value.length > 0
+              ? {
+                  icon: X,
+                  label: "Clear selection",
+                  appearance: "inline",
+                  disabled: value.every((selectedValue) =>
+                    disabledValues.includes(selectedValue),
+                  ),
+                  onClick: () => changeValue([]),
+                }
+              : undefined
+          }
+        >
+          <PopoverPrimitive.Trigger asChild>
             <div
-              data-tag-input-layout
-              className="flex h-full min-w-0 items-center gap-1 px-1.5"
+              id={id}
+              className="cursor-pointer aria-disabled:cursor-not-allowed"
+              role="combobox"
+              aria-label={ariaLabel ?? label}
+              aria-controls={listId}
+              aria-describedby={ariaDescribedBy}
+              aria-expanded={open && !disabled}
+              aria-invalid={ariaInvalid}
+              aria-disabled={disabled}
+              tabIndex={disabled ? -1 : 0}
+              onPointerDown={(event) => {
+                if (disabled) event.preventDefault();
+              }}
+              onClick={(event) => {
+                if (disabled) event.preventDefault();
+              }}
+              onKeyDown={(event) => {
+                if (disabled) return;
+
+                if (event.target !== event.currentTarget) return;
+
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  handleOpenChange(!open);
+                  return;
+                }
+
+                if (event.key === "Backspace" && value.length > 0) {
+                  event.preventDefault();
+                  const lastValue = value
+                    .filter(
+                      (selectedValue) =>
+                        !disabledValues.includes(selectedValue),
+                    )
+                    .at(-1);
+                  if (lastValue !== undefined) removeValue(lastValue);
+                }
+              }}
             >
-              <div data-tags-container className="min-w-0 flex-1">
-                {selectedOptions.length === 0 ? (
-                  <span className="text-muted-foreground">{placeholder}</span>
-                ) : (
-                  <OverflowList
-                    additionalOverflowCount={0}
-                    spacing="tight"
-                    minVisible={1}
-                    items={selectedOptions}
-                    getKey={(option) => option.value}
-                    renderItem={(option, { getItemProps }) => (
-                      <span
-                        {...getItemProps({
-                          className: "max-w-48 min-w-10 shrink",
-                        })}
-                        data-value={option.value}
-                      >
-                        <Tag
-                          text={option.label}
-                          secondaryText={option.secondaryLabel}
-                          color={option.color}
-                          remove={{
-                            onRemove: () => removeValue(option.value),
-                            disabled: disabled || option.disabled,
-                          }}
-                        />
-                      </span>
-                    )}
-                    renderOverflow={({ overflowItemCount }) => (
-                      <span
-                        data-overflow-count={overflowItemCount}
-                        aria-label={`${overflowItemCount} more selected`}
-                        title={selectedOptions
-                          .slice(-overflowItemCount)
-                          .map((option) => option.label)
-                          .join("\n")}
-                        className="flex shrink-0"
-                      >
-                        <TagShell>+{overflowItemCount}</TagShell>
-                      </span>
-                    )}
+              <div
+                data-tag-input-layout
+                className="flex h-full min-w-0 items-center gap-1 px-1.5"
+              >
+                <div data-tags-container className="min-w-0 flex-1">
+                  {selectedOptions.length === 0 ? (
+                    <span className="text-muted-foreground">{placeholder}</span>
+                  ) : (
+                    <OverflowList
+                      additionalOverflowCount={0}
+                      spacing="tight"
+                      minVisible={1}
+                      items={selectedOptions}
+                      getKey={(option) => option.value}
+                      renderItem={(option, { getItemProps }) => (
+                        <span
+                          {...getItemProps({
+                            className: "max-w-full min-w-10 shrink",
+                          })}
+                          data-value={option.value}
+                        >
+                          <Tag
+                            text={option.label}
+                            secondaryText={option.secondaryLabel}
+                            color={option.color}
+                            remove={{
+                              onRemove: () => removeValue(option.value),
+                              disabled: disabled || option.disabled,
+                            }}
+                          />
+                        </span>
+                      )}
+                      renderOverflow={({ overflowItemCount }) => (
+                        <span
+                          data-overflow-count={overflowItemCount}
+                          aria-label={`${overflowItemCount} more selected`}
+                          title={selectedOptions
+                            .slice(-overflowItemCount)
+                            .map((option) => option.label)
+                            .join("\n")}
+                          className="flex shrink-0"
+                        >
+                          <TagShell>+{overflowItemCount}</TagShell>
+                        </span>
+                      )}
+                    />
+                  )}
+                </div>
+                {value.length === 0 && (
+                  <DropdownIndicator
+                    color={error ? "destructive" : "tertiary"}
                   />
                 )}
               </div>
-              {value.length === 0 && (
-                <DropdownIndicator color={error ? "destructive" : "tertiary"} />
-              )}
-              {value.length > 0 && (
-                <button
-                  type="button"
-                  disabled={
-                    disabled ||
-                    value.every((selectedValue) =>
-                      disabledValues.includes(selectedValue),
-                    )
-                  }
-                  data-clear-selection
-                  aria-label="Clear selection"
-                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1 disabled:cursor-not-allowed"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    changeValue([]);
-                  }}
-                >
-                  <X size="base" />
-                </button>
-              )}
             </div>
-          </div>
-        </PopoverPrimitive.Trigger>
-      </InputControl>
+          </PopoverPrimitive.Trigger>
+        </InputControl>
+      </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
-        <InputDropdown.Content width="popover-trigger">
+        <InputDropdown.Content width={`popover-${dropdownWidth}`}>
           <PopoverPrimitive.Content
             align="start"
             sideOffset={4}
+            collisionPadding={dropdownWidth === "trigger" ? undefined : 8}
             onOpenAutoFocus={(event) => {
               if (!searchInputRef.current) return;
               event.preventDefault();
