@@ -61,6 +61,10 @@
 /worker/src/queues/otelIngestionQueue.ts @sumerman @Steffen911
 /worker/src/services/IngestionService/ @sumerman @Steffen911
 /worker/src/features/otel-ingestion/ @sumerman @Steffen911
+/web/src/server/otel/ @sumerman @Steffen911
+/packages/shared/src/server/otel/ @sumerman @Steffen911
+/packages/shared/src/server/redis/ingestionQueue.ts @sumerman @Steffen911
+/packages/shared/src/server/redis/otelIngestionQueue.ts @sumerman @Steffen911
 
 # RBAC and entitlements
 /packages/shared/src/features/rbac/ @marksalpeter @jordibosch20 @Steffen911
