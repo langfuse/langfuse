@@ -44,7 +44,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       id: "pii",
       badge: "PII",
       name: "PII detection",
-      description: "SSNs, credit cards, emails, IBANs, IP addresses",
+      description: "SSNs, credit cards, emails, IBANs, IPs",
       presets: GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.pii,
       defaultPresets: ["us_ssn", "credit_card", "email"],
       sampleTestText:
@@ -54,7 +54,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       id: "secrets",
       badge: "***",
       name: "Secret detection",
-      description: "API keys, tokens, private keys, JWTs, custom prefixes",
+      description: "API keys, tokens, private keys, JWTs",
       presets: GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.secrets,
       defaultPresets: [...GATEWAY_GUARDRAIL_PRESETS_BY_GROUP.secrets],
       sampleTestText:
@@ -64,7 +64,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       id: "contains",
       badge: "Aa",
       name: "Keyword blocklist",
-      description: "Match exact words or phrases",
+      description: "Exact words or phrases",
       presets: [],
       defaultPresets: [],
       sampleTestText: "This document is confidential and internal only.",
