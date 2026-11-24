@@ -1,5 +1,3 @@
-import type { GatewayGuardrailAction } from "@langfuse/shared/src/db";
-
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
@@ -84,12 +82,3 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
         "This document mentions Project Falcon and is internal only.",
     },
   ];
-
-export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
-  GatewayGuardrailAction,
-  string
-> = {
-  BLOCK: "Block",
-  LOG: "Log",
-  REDACT: "Mask",
-};

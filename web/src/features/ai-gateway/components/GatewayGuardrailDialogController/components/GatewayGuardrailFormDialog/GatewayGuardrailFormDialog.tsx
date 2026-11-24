@@ -31,6 +31,7 @@ import {
   type GatewayGuardrailTargetPicker,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
+  GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
@@ -56,10 +57,10 @@ import { cn } from "@/src/utils/tailwind";
 const ACTION_OPTIONS: Array<{
   value: GatewayGuardrailUiAction;
   label: string;
-}> = [
-  { value: "BLOCK", label: "Block" },
-  { value: "LOG", label: "Log" },
-];
+}> = GATEWAY_GUARDRAIL_UI_ACTIONS.map((value) => ({
+  value,
+  label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
+}));
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 

@@ -1,3 +1,5 @@
+import type { GatewayGuardrailAction } from "@langfuse/shared/src/db";
+
 export const GATEWAY_GUARDRAIL_MAX_NAME_LENGTH = 200;
 export const GATEWAY_GUARDRAIL_MAX_TARGETS = 100;
 export const GATEWAY_GUARDRAIL_MAX_BULK_DELETE = 500;
@@ -16,3 +18,12 @@ export const GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH = 100;
 
 export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES = 128 * 1024;
 export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES = 512 * 1024;
+
+export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
+  GatewayGuardrailAction,
+  string
+> = {
+  BLOCK: "Block",
+  LOG: "Log",
+  REDACT: "Mask",
+};
