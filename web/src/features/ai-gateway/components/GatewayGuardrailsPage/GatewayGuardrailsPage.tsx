@@ -93,7 +93,7 @@ export function GatewayGuardrailsPage({
           </Banner>
         ) : null}
         {isRecording === undefined ? (
-          <Skeleton className="h-80 rounded-lg" />
+          <Skeleton className="h-96 rounded-lg" />
         ) : null}
         {canQueryAnalytics ? (
           <GatewayGuardrailsChart

@@ -107,7 +107,7 @@ export function GatewayGuardrailsChart({
   })();
 
   return (
-    <div className="ph-no-capture min-w-0">
+    <div className="ph-no-capture h-96 min-w-0">
       <WidgetChartCard
         title="Flagged requests"
         description="Select rows below to see their flagged requests."
