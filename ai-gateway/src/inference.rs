@@ -438,10 +438,14 @@ impl InferenceService {
             return Ok(crate::guardrails::Outcome::default());
         }
         let guardrails = context.guardrails().to_vec();
+        let organization_id = context.attribution().organization_id().as_str().to_owned();
         let body = request.body().clone();
         let scanned = request.scanned.clone();
         self.run_cpu(CpuJob::ScanGuardrails, scanned.len(), move || {
-            crate::guardrails::check(&guardrails, api_format, &body, &scanned)
+            let started = std::time::Instant::now();
+            let outcome = crate::guardrails::check(&guardrails, api_format, &body, &scanned);
+            crate::observability::guardrails_checked(&organization_id, started.elapsed());
+            outcome
         })
         .instrument(tracing::info_span!(
             "request.guardrails",
