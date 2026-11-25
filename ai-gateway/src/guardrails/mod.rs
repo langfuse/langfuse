@@ -190,14 +190,14 @@ impl Guardrails {
             turn_bytes.saturating_add(64),
             "guardrails",
         )?;
-        let payloads = if !local.external_blocks.is_empty() {
-            serialize_external_blocks(&guardrails, &local.external_blocks)
-        } else {
+        let payloads = if local.external_blocks.is_empty() {
             let turn_text = local.take_turn_text();
             let payloads = ExternalPayloads::for_guardrails(&guardrails, &[turn_text.as_str()]);
             drop(turn_text);
             drop(turn_text_reservation.take());
             payloads
+        } else {
+            serialize_external_blocks(&guardrails, &local.external_blocks)
         };
         let started = std::time::Instant::now();
         let results = self
