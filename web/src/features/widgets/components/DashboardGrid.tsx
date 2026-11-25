@@ -209,12 +209,10 @@ export function DashboardGrid({
 
   // Desktop grid. Small screens render the stacked layout above.
   return (
-    <ResizeContainer className="w-full min-w-0 overflow-hidden" settleMs={200}>
+    <ResizeContainer className="w-full min-w-0" settleMs={200}>
       {(width) => {
-        const rowHeight =
-          width !== null
-            ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16)
-            : MIN_ROW_HEIGHT;
+        if (width === null) return null;
+        const rowHeight = Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16);
         const layout = widgets.map((w) => {
           const contentHeight = contentHeights[w.id];
           const contentRows = contentHeight
@@ -237,33 +235,31 @@ export function DashboardGrid({
         });
 
         return (
-          width !== null && (
-            <Responsive
-              className="layout"
-              width={width}
-              layouts={{ lg: layout }}
-              cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-              margin={[GRID_GAP, GRID_GAP]}
-              containerPadding={[0, 0]}
-              rowHeight={rowHeight}
-              isDraggable={canEdit}
-              isResizable={canEdit}
-              onDragStop={handleLayoutChange} // Save immediately when drag stops
-              onResizeStop={handleLayoutChange} // Save immediately when resize stops
-              draggableHandle=".drag-handle"
-              useCSSTransforms
-            >
-              {widgets.map((widget) => (
-                <div
-                  key={widget.id}
-                  data-placement-id={widget.id}
-                  className="max-h-full max-w-full"
-                >
-                  {renderPlacement(widget)}
-                </div>
-              ))}
-            </Responsive>
-          )
+          <Responsive
+            className="layout"
+            width={width}
+            layouts={{ lg: layout }}
+            cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
+            margin={[GRID_GAP, GRID_GAP]}
+            containerPadding={[0, 0]}
+            rowHeight={rowHeight}
+            isDraggable={canEdit}
+            isResizable={canEdit}
+            onDragStop={handleLayoutChange} // Save immediately when drag stops
+            onResizeStop={handleLayoutChange} // Save immediately when resize stops
+            draggableHandle=".drag-handle"
+            useCSSTransforms
+          >
+            {widgets.map((widget) => (
+              <div
+                key={widget.id}
+                data-placement-id={widget.id}
+                className="max-h-full max-w-full"
+              >
+                {renderPlacement(widget)}
+              </div>
+            ))}
+          </Responsive>
         );
       }}
     </ResizeContainer>

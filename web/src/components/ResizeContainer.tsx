@@ -6,6 +6,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -53,6 +54,7 @@ function useScaledElementWidth(settleMs: number) {
     const clearScale = () => {
       container.style.removeProperty(CONTENT_SCALE_VAR);
       container.style.removeProperty(SCALED_HEIGHT_VAR);
+      container.style.overflow = "";
     };
 
     const paintScale = () => {
@@ -69,12 +71,12 @@ function useScaledElementWidth(settleMs: number) {
         SCALED_HEIGHT_VAR,
         `${Math.round(content.scrollHeight * scale)}px`,
       );
+      container.style.overflow = "hidden";
     };
 
     const publish = (next: number) => {
       committedWidth = next;
       lastObservedWidth = next;
-      clearScale();
       setWidth((current) => (current === next ? current : next));
     };
 
@@ -107,6 +109,13 @@ function useScaledElementWidth(settleMs: number) {
     };
   }, [container, content, settleMs]);
 
+  useLayoutEffect(() => {
+    if (!container || width == null) return;
+    container.style.removeProperty(CONTENT_SCALE_VAR);
+    container.style.removeProperty(SCALED_HEIGHT_VAR);
+    container.style.overflow = "";
+  }, [container, width]);
+
   const contentStyle = useMemo(
     () =>
       width == null ? scaledContentStyle : { ...scaledContentStyle, width },
@@ -131,7 +140,7 @@ export function ResizeContainer({
   return (
     <div
       ref={containerRef}
-      className={cn("w-full min-w-0 overflow-hidden", className)}
+      className={cn("w-full min-w-0", className)}
       style={containerStyle}
     >
       <div ref={contentRef} style={contentStyle}>

@@ -64,7 +64,7 @@ describe("ResizeContainer", () => {
 
     expect(view.getByText("400")).toBeInTheDocument();
     expect(containerOf(view).className).toContain("grid-host");
-    expect(containerOf(view).className).toContain("overflow-hidden");
+    expect(containerOf(view).style.overflow).toBe("");
     expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
       "",
     );
@@ -81,6 +81,7 @@ describe("ResizeContainer", () => {
     expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
       "1.25",
     );
+    expect(containerOf(view).style.overflow).toBe("hidden");
     expect(containerOf(view).style.getPropertyValue("--lf-scaled-height")).toBe(
       "300px",
     );
@@ -92,6 +93,7 @@ describe("ResizeContainer", () => {
     expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
       "",
     );
+    expect(containerOf(view).style.overflow).toBe("");
   });
 
   it("restarts the settle timer on each width change", () => {
