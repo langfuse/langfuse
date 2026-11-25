@@ -404,7 +404,7 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
     select: {
       id: true,
       filter: true,
-      assignments: { select: { evaluatorId: true, variableMapping: true } },
+      assignments: { select: { evaluatorId: true } },
     },
   });
 
@@ -642,30 +642,6 @@ export function attachEvaluator(params: {
       evaluatorId: params.assignment.evaluatorId,
       variableMapping: jsonValue(params.assignment.variableMapping),
     },
-  });
-}
-
-export function upsertEvaluatorAssignment(params: {
-  prisma: RulePrisma;
-  projectId: string;
-  ruleId: string;
-  assignment: RuleAssignmentInput;
-}) {
-  const variableMapping = jsonValue(params.assignment.variableMapping);
-  return params.prisma.evaluationRuleEvaluatorAssignment.upsert({
-    where: {
-      evaluationRuleId_evaluatorId: {
-        evaluationRuleId: params.ruleId,
-        evaluatorId: params.assignment.evaluatorId,
-      },
-    },
-    create: {
-      projectId: params.projectId,
-      evaluationRuleId: params.ruleId,
-      evaluatorId: params.assignment.evaluatorId,
-      variableMapping,
-    },
-    update: { variableMapping },
   });
 }
 

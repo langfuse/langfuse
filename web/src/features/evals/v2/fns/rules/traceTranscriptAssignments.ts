@@ -28,7 +28,7 @@ export function traceTranscriptMapping(mapping: ObservationVariableMapping[]) {
   }));
 }
 
-/** The mapping the test panel runs on; the stored fields stay what a save persists. */
+/** The mapping the test panel runs on and a save persists. */
 export function variableFieldsForTarget(
   targetObject: EvaluatorTargetObject,
   variableFields: Record<string, VariableFieldState>,

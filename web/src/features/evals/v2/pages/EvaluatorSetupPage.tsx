@@ -7,7 +7,6 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "@langfuse/icons";
 import {
-  observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
   EvalTargetObject,
@@ -38,6 +37,7 @@ import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components
 import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
@@ -340,8 +340,6 @@ export function EvaluatorSetupPage(
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
     targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
-    variableMapping: ObservationVariableMapping[];
-    initialRuleId?: string;
   } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
@@ -634,34 +632,25 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(
-        applyFallbackDecisionModel(state, fallbackDecisionModel),
-      );
-      if (!definition) return;
-      const { name, description } = metadata;
-      const isTraceTranscript = state.targetObject === TopicsTargetObject;
-      const { mappings: testedMappings } = prepareEvaluatorDraft({
+      const { definition } = prepareEvaluatorDraft({
         ...applyFallbackDecisionModel(state, fallbackDecisionModel),
         variableFields: variableFieldsForTarget(
           state.targetObject,
           state.variableFields,
         ),
       });
-      const offerRuleAttachment = async (
-        evaluator: { id: string },
-        { initialRuleId }: { initialRuleId?: string } = {},
-      ) => {
+      if (!definition) return;
+      const { name, description } = metadata;
+      const isTraceTranscript = state.targetObject === TopicsTargetObject;
+      const offerRuleAttachment = (evaluator: { id: string }) => {
         setSavedEvaluator({
           id: evaluator.id,
           name,
           type: state.type,
-          defaultVariableMapping: observationVariableMappingList
-            .catch([])
-            .parse(
-              definition.type === "LLM_AS_JUDGE"
-                ? definition.variableMapping
-                : undefined,
-            ),
+          defaultVariableMapping: prepareModernRuleVariableMapping(
+            definition.type === "CODE" ? undefined : definition.variableMapping,
+            state.type,
+          ).defaultVariableMapping,
           sampleFilter: isTraceTranscript
             ? state.traceSampleFilter
             : state.sampleFilter,
@@ -670,15 +659,6 @@ export function EvaluatorSetupPage(
           targetObject: isTraceTranscript
             ? TopicsTargetObject
             : EvalTargetObject.EVENT,
-          variableMapping: isTraceTranscript
-            ? observationVariableMappingList.catch([]).parse(
-                testedMappings.map(({ variable, fieldState }) => ({
-                  templateVariable: variable,
-                  ...fieldState,
-                })),
-              )
-            : [],
-          initialRuleId,
         });
       };
 
@@ -717,18 +697,13 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        if (shouldOfferRuleAttachment(evaluator) && isTraceTranscript) {
-          const attachedRules =
-            await utils.client.evalsV2.rules.listRulesForEvaluator.query({
-              projectId,
-              evaluatorId: evaluator.id,
-            });
-          await offerRuleAttachment(evaluator, {
-            initialRuleId: attachedRules.find(
-              ({ evaluationRule }) =>
-                evaluationRule.targetObject === TopicsTargetObject,
-            )?.evaluationRule.id,
-          });
+        // Evaluators opened on Trace messages already have trace rules.
+        if (
+          shouldOfferRuleAttachment(evaluator) &&
+          isTraceTranscript &&
+          props.initialTargetObject !== TopicsTargetObject
+        ) {
+          offerRuleAttachment(evaluator);
           return;
         }
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
@@ -781,7 +756,7 @@ export function EvaluatorSetupPage(
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
-      await offerRuleAttachment(evaluator);
+      offerRuleAttachment(evaluator);
     } catch (error) {
       hasCreatedRef.current = false;
       if (

@@ -71,12 +71,13 @@ export function CreateRuleDialog({
   const initialEvaluatorFromOptions = options.find(
     (evaluator) => evaluator.id === initialEvaluator?.id,
   );
-  // The options list can be cached from before the evaluator was edited, so a
-  // mapping the caller supplies wins over the cached entry's.
+  // The options list can be cached from before the evaluator was edited, so
+  // the caller's mappings win over the cached entry's.
   const resolvedInitialEvaluator =
-    initialEvaluatorFromOptions && initialEvaluator?.initialVariableMapping
+    initialEvaluatorFromOptions && initialEvaluator
       ? {
           ...initialEvaluatorFromOptions,
+          defaultVariableMapping: initialEvaluator.defaultVariableMapping,
           initialVariableMapping: initialEvaluator.initialVariableMapping,
         }
       : (initialEvaluatorFromOptions ?? initialEvaluator);

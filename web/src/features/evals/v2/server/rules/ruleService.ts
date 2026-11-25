@@ -8,7 +8,6 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
-  stableJsonStringify,
   TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
@@ -353,14 +352,6 @@ export class RuleService {
   ) {
     const targetObject = input.targetObject ?? EvalTargetObject.EVENT;
     const filter = this.validateRuleFilters(targetObject, input.filter);
-    // Trace assignments store explicit mappings; observation assignments store none.
-    const assignment: RuleAssignmentInput = {
-      evaluatorId: input.evaluatorId,
-      variableMapping:
-        targetObject === TopicsTargetObject
-          ? (input.variableMapping ?? [])
-          : null,
-    };
     const attachToMatch = async () => {
       const matchingRule =
         await repository.findActiveRuleWithMatchingFilterAndSampling({
@@ -372,11 +363,20 @@ export class RuleService {
           visibility: this.visibility,
         });
       if (!matchingRule) return null;
-      return this.attachEvaluatorToMatchingRule(
-        input.projectId,
-        matchingRule,
-        assignment,
-      );
+
+      if (
+        matchingRule.assignments.some(
+          (assignment) => assignment.evaluatorId === input.evaluatorId,
+        )
+      ) {
+        return this.get(input.projectId, matchingRule.id);
+      }
+
+      return this.attach({
+        projectId: input.projectId,
+        ruleId: matchingRule.id,
+        assignment: { evaluatorId: input.evaluatorId, variableMapping: null },
+      });
     };
 
     const existingRule = await attachToMatch();
@@ -403,7 +403,9 @@ export class RuleService {
       filter,
       sampling: input.sampling,
       enabled: true,
-      evaluatorAssignments: [assignment],
+      evaluatorAssignments: [
+        { evaluatorId: input.evaluatorId, variableMapping: null },
+      ],
     };
     const rule =
       targetObject === TopicsTargetObject
@@ -416,31 +418,6 @@ export class RuleService {
             createdByUserId,
           );
     return { action: "created" as const, rule };
-  }
-
-  private async attachEvaluatorToMatchingRule(
-    projectId: string,
-    matchingRule: NonNullable<
-      Awaited<
-        ReturnType<
-          typeof repository.findActiveRuleWithMatchingFilterAndSampling
-        >
-      >
-    >,
-    assignment: RuleAssignmentInput,
-  ) {
-    const current = matchingRule.assignments.find(
-      ({ evaluatorId }) => evaluatorId === assignment.evaluatorId,
-    );
-    if (
-      current &&
-      (assignment.variableMapping === null ||
-        stableJsonStringify(current.variableMapping) ===
-          stableJsonStringify(assignment.variableMapping))
-    ) {
-      return this.get(projectId, matchingRule.id);
-    }
-    return this.attach({ projectId, ruleId: matchingRule.id, assignment });
   }
 
   async update(input: RuleServiceUpdateInput) {
@@ -793,12 +770,7 @@ export class RuleService {
           ? await this.assertTraceTranscriptAssignments({
               prisma,
               projectId: params.projectId,
-              assignments: [
-                {
-                  evaluatorId: params.assignment.evaluatorId,
-                  variableMapping: params.assignment.variableMapping ?? [],
-                },
-              ],
+              assignments: [params.assignment],
             })
           : await this.prepareModernAssignments({
               prisma,
@@ -806,17 +778,12 @@ export class RuleService {
               targetObject: rule.targetObject,
               assignments: [params.assignment],
             });
-      const write = {
+      await repository.attachEvaluator({
         prisma,
         projectId: params.projectId,
         ruleId: params.ruleId,
         assignment: assignment!,
-      };
-      if (rule.targetObject === TopicsTargetObject) {
-        await repository.upsertEvaluatorAssignment(write);
-      } else {
-        await repository.attachEvaluator(write);
-      }
+      });
       if (params.enableRule) {
         this.assertLegacyRuleCanBeEnabled(rule.targetObject, true);
         await assertActiveRuleLimitNotExceeded({
@@ -971,8 +938,13 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      // A null mapping normalizes to empty so validation rejects it, not crashes.
-      const variableMapping = assignment.variableMapping ?? [];
+      // A null assignment mapping inherits the evaluator version's mapping.
+      const variableMapping =
+        assignment.variableMapping ??
+        prepareModernRuleVariableMapping(
+          latestVersion.variableMapping,
+          evaluator.type,
+        ).defaultVariableMapping;
       const extracted = extractTranscriptEvalVariables(null, variableMapping);
       if (!extracted.ok) throw new InvalidRequestError(extracted.error);
       assertCompleteEvaluatorVariableMapping({
