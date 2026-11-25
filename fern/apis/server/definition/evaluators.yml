@@ -320,7 +320,7 @@ types:
         docs: Name of the score this question produces. Must be unique within the evaluator.
       instructions:
         type: DecisionModelEntry
-        docs: Question instructions. Refer to state keys from `variableMapping` by name.
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
       criteria:
         type: list<DecisionModelChoiceCriterion>
         docs: The allowed answers. Between 2 and 255, with unique values.
@@ -336,7 +336,7 @@ types:
         docs: Name of the score this question produces. Must be unique within the evaluator.
       instructions:
         type: DecisionModelEntry
-        docs: Question instructions. Refer to state keys from `variableMapping` by name.
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
       criteria:
         type: list<DecisionModelScoreCriterion>
         docs: The levels of the scale. Between 2 and 10, ordered from lowest to highest.
@@ -353,7 +353,7 @@ types:
         docs: Name of the score this question produces. Must be unique within the evaluator.
       instructions:
         type: DecisionModelEntry
-        docs: Question instructions. Refer to state keys from `variableMapping` by name.
+        docs: Question instructions. Refer to state keys from `variableMapping` by name, wrapped in backticks, for example `` `user_message` ``.
       criteria:
         type: optional<nullable<DecisionModelBooleanCriteria>>
         docs: Optional descriptions of when the statement is true and when it is false.

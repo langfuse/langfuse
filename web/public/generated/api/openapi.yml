@@ -12110,7 +12110,7 @@ components:
           $ref: '#/components/schemas/DecisionModelEntry'
           description: >-
             Question instructions. Refer to state keys from `variableMapping` by
-            name.
+            name, wrapped in backticks, for example `` `user_message` ``.
         criteria:
           type: array
           items:
@@ -12138,7 +12138,7 @@ components:
           $ref: '#/components/schemas/DecisionModelEntry'
           description: >-
             Question instructions. Refer to state keys from `variableMapping` by
-            name.
+            name, wrapped in backticks, for example `` `user_message` ``.
         criteria:
           type: array
           items:
@@ -12170,7 +12170,7 @@ components:
           $ref: '#/components/schemas/DecisionModelEntry'
           description: >-
             Question instructions. Refer to state keys from `variableMapping` by
-            name.
+            name, wrapped in backticks, for example `` `user_message` ``.
         criteria:
           $ref: '#/components/schemas/DecisionModelBooleanCriteria'
           nullable: true
