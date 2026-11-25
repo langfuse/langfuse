@@ -14,8 +14,7 @@ use crate::{
     resolution::ResolutionError,
 };
 
-const EXTERNAL_GUARDRAIL_TIMEOUT: Duration = Duration::from_secs(5);
-const EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
@@ -48,7 +47,7 @@ pub(crate) struct ExternalGuardrailClient {
 }
 
 impl ExternalGuardrailClient {
-    pub(crate) fn new(policy: OutboundPolicy) -> Result<Self, ResolutionError> {
+    pub(crate) fn new(policy: OutboundPolicy, timeout: Duration) -> Result<Self, ResolutionError> {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -57,7 +56,7 @@ impl ExternalGuardrailClient {
             .no_brotli()
             .no_deflate()
             .no_zstd()
-            .connect_timeout(EXTERNAL_CONNECT_TIMEOUT)
+            .connect_timeout(timeout.min(MAX_EXTERNAL_CONNECT_TIMEOUT))
             .pool_idle_timeout(POOL_IDLE_TIMEOUT)
             .tcp_keepalive(TCP_KEEPALIVE)
             .pool_max_idle_per_host(16)
@@ -66,7 +65,7 @@ impl ExternalGuardrailClient {
         Ok(Self {
             client: crate::observability::instrument_client(client, "guardrail.external"),
             policy: Arc::new(policy),
-            timeout: EXTERNAL_GUARDRAIL_TIMEOUT,
+            timeout,
             #[cfg(test)]
             origin_override: None,
         })
@@ -130,8 +129,7 @@ impl ExternalGuardrailClient {
 
     #[cfg(test)]
     pub(crate) fn for_test(origin: String, timeout: Duration) -> Self {
-        let mut client = Self::new(OutboundPolicy::default()).unwrap();
-        client.timeout = timeout;
+        let mut client = Self::new(OutboundPolicy::default(), timeout).unwrap();
         client.origin_override = Some(origin);
         client
     }

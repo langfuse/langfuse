@@ -47,11 +47,12 @@ pub(crate) struct Guardrails {
 impl Guardrails {
     pub(crate) fn new(
         policy: OutboundPolicy,
+        external_timeout: Duration,
         cpu: CpuWork,
         memory_budget: Arc<Semaphore>,
     ) -> Result<Self, ResolutionError> {
         Ok(Self {
-            external: ExternalGuardrailClient::new(policy)?,
+            external: ExternalGuardrailClient::new(policy, external_timeout)?,
             cpu,
             memory_budget,
         })
