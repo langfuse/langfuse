@@ -2,6 +2,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useRef } from "react";
+import { useMediaQuery } from "react-responsive";
 import { CopyIcon, CopyPlusIcon, PencilIcon, TrashIcon } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -94,6 +95,9 @@ export function PresetDashboardWidget({
       };
 }) {
   const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
+  const touchActions = useMediaQuery({
+    query: "(pointer: coarse), (hover: none)",
+  });
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -291,7 +295,7 @@ export function PresetDashboardWidget({
     hasRbacCUDAccess && onEditPreset
       ? (selection) => ({
           ...actions,
-          inline: true,
+          inline: touchActions,
           buttons: [
             {
               id: "edit",

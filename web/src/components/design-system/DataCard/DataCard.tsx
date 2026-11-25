@@ -137,10 +137,17 @@ export function DataCard({
     />
   ));
   const isToggle = tabs?.variant === "toggle";
+  const actionBar = actions && <DataCardActionBar actions={actions} />;
 
   const header = (
     <div className="flex shrink-0 flex-col p-4">
-      <div className="flex h-5 min-w-0 items-center justify-between gap-3">
+      <div
+        className={
+          actions?.inline
+            ? "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2"
+            : "flex h-5 min-w-0 items-center justify-between gap-3"
+        }
+      >
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 items-center gap-1.5">
             <h3
@@ -158,7 +165,14 @@ export function DataCard({
             )}
           </div>
         </div>
-        <div className="flex max-w-2/3 min-w-0 items-center justify-end gap-2">
+        {actions?.inline && actionBar}
+        <div
+          className={
+            actions?.inline
+              ? "col-span-2 flex min-w-0 items-center gap-2 empty:hidden"
+              : "flex max-w-2/3 min-w-0 items-center justify-end gap-2"
+          }
+        >
           {filter && filter.items.length > 0 && <FilterTags filter={filter} />}
           {tabs && isToggle && (
             <div className="flex shrink-0">
@@ -172,7 +186,10 @@ export function DataCard({
             </div>
           )}
           {controls.map((control) => (
-            <div key={control.id} className="w-80 min-w-0">
+            <div
+              key={control.id}
+              className={actions?.inline ? "min-w-0 flex-1" : "w-80 min-w-0"}
+            >
               {control.type === "multiselect" ? (
                 <MultiSelectTagInput
                   aria-label={control.label}
@@ -197,7 +214,7 @@ export function DataCard({
               )}
             </div>
           ))}
-          {actions && <DataCardActionBar actions={actions} />}
+          {!actions?.inline && actionBar}
         </div>
       </div>
       {description && (
