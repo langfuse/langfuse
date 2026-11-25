@@ -148,7 +148,10 @@ export function MultiSelect({
   }, [selectableOptions, selectedValues]);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const pendingFreeTextRef = useRef<string | null>(null);
+  const pendingFreeTextRef = useRef<{
+    forValue: string;
+    value: string;
+  } | null>(null);
   const latestCommitContextRef = useRef({
     selectedValues,
     freeTextInput,
@@ -173,27 +176,32 @@ export function MultiSelect({
   }, []);
 
   const commitDebouncedValue = useCallback(
-    (value: string, updateDraft: boolean) => {
+    (pending: { forValue: string; value: string }, updateDraft: boolean) => {
       const {
         selectedValues: latestSelectedValues,
         freeTextInput: latestFreeTextInput,
         optionValues: latestOptionValues,
         onValueChange: latestOnValueChange,
       } = latestCommitContextRef.current;
-      if (!latestFreeTextInput) return;
+      if (!latestFreeTextInput || latestFreeTextInput !== pending.forValue) {
+        return;
+      }
 
       const nextSelectedValues = new Set(latestSelectedValues);
       nextSelectedValues.delete(latestFreeTextInput);
-      if (value.length > 0) {
-        nextSelectedValues.add(value);
+      if (pending.value.length > 0) {
+        nextSelectedValues.add(pending.value);
       }
       if (updateDraft) {
-        if (value.length === 0 || latestOptionValues.has(value)) {
+        if (
+          pending.value.length === 0 ||
+          latestOptionValues.has(pending.value)
+        ) {
           setFreeTextDraft(null);
         } else {
           setFreeTextDraft({
             forValue: latestFreeTextInput,
-            text: value,
+            text: pending.value,
             committed: true,
           });
         }
@@ -208,10 +216,10 @@ export function MultiSelect({
   // the timer fires (e.g. closing an outer filter popover).
   useEffect(
     () => () => {
-      const pendingValue = pendingFreeTextRef.current;
+      const pending = pendingFreeTextRef.current;
       clearDebounce();
-      if (pendingValue !== null) {
-        commitDebouncedValue(pendingValue, false);
+      if (pending !== null) {
+        commitDebouncedValue(pending, false);
       }
     },
     [clearDebounce, commitDebouncedValue],
@@ -315,11 +323,14 @@ export function MultiSelect({
       text: nextValue,
     });
     clearDebounce();
-    pendingFreeTextRef.current = nextValue;
+    if (!freeTextInput) return;
+
+    const pending = { forValue: freeTextInput, value: nextValue };
+    pendingFreeTextRef.current = pending;
     debounceTimeout.current = setTimeout(() => {
       pendingFreeTextRef.current = null;
       debounceTimeout.current = null;
-      commitDebouncedValue(nextValue, true);
+      commitDebouncedValue(pending, true);
     }, 500);
   };
 
@@ -466,7 +477,26 @@ export function MultiSelect({
                     className={itemClassName}
                     disabled={isLoading}
                     onSelect={() => {
+                      clearDebounce();
                       const nextSelectedValues = new Set(selectedValues);
+                      if (freeTextInput && freeText !== freeTextInput) {
+                        nextSelectedValues.delete(freeTextInput);
+                        if (freeText.length > 0) {
+                          nextSelectedValues.add(freeText);
+                        }
+                        if (
+                          freeText.length === 0 ||
+                          optionValues.has(freeText)
+                        ) {
+                          setFreeTextDraft(null);
+                        } else {
+                          setFreeTextDraft({
+                            forValue: freeTextInput,
+                            text: freeText,
+                            committed: true,
+                          });
+                        }
+                      }
                       if (isSelected) {
                         nextSelectedValues.delete(option.value);
                       } else {
