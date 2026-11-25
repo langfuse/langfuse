@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import TracesTable from "@/src/features/traces/TracesTable";
 import Page from "@/src/components/layouts/Page";
@@ -96,14 +95,15 @@ export default function TracesPage() {
           legacy table can briefly mount, restore a v3 saved view, and
           promote its viewId into the URL before the correct mode
           resolves. */}
-      {!isResolved ? null : isV4 ? (
+      {isResolved && isV4 && (
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
           showAllEnvironments={router.query.showAllEnvironments === "true"}
         />
-      ) : (
+      )}
+      {isResolved && !isV4 && (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>

@@ -1,4 +1,4 @@
-import { Pencil, RotateCcw, Trash } from "@langfuse/icons";
+import { ListTree, Pencil, RotateCcw, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
@@ -21,6 +21,7 @@ import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/G
 import { GatewayDefaultBudgetTag } from "@/src/features/ai-gateway/components/GatewayDefaultBudgetTag/GatewayDefaultBudgetTag";
 import { GatewaySpendBudgetBadge } from "@/src/features/ai-gateway/components/GatewaySpendBudgetBadge/GatewaySpendBudgetBadge";
 import { GatewayApiKeyModelsCell } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeyModelsCell/GatewayApiKeyModelsCell";
+import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
 
@@ -70,6 +71,7 @@ export function GatewayApiKeysTable({
   onResetBudget,
   onRevoke,
   onCreateKey,
+  ingestionProjectId,
   pagination,
   search,
   orderBy,
@@ -82,6 +84,8 @@ export function GatewayApiKeysTable({
   onResetBudget: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   onCreateKey: () => void;
+  /** Configured ingestion project the user can open; hides "Show traces" when absent. */
+  ingestionProjectId?: string | null;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
@@ -206,6 +210,50 @@ export function GatewayApiKeysTable({
     }),
   ];
 
+  const getRowActions = (row: GatewayApiKey) => [
+    {
+      id: "edit",
+      type: "item" as const,
+      title: "Edit key",
+      icon: Pencil,
+      onClick: () => onEdit(row),
+    },
+    {
+      id: "resetBudget",
+      type: "item" as const,
+      title: "Reset budget",
+      icon: RotateCcw,
+      disabled:
+        row.spendLimit || row.defaultSpendLimit
+          ? undefined
+          : { reason: "This key has no budget to reset." },
+      onClick: () => onResetBudget(row),
+    },
+    ...(ingestionProjectId
+      ? [
+          {
+            id: "showTraces",
+            type: "item" as const,
+            title: "Show traces",
+            icon: ListTree,
+            href: buildGatewayTracesHref({
+              projectId: ingestionProjectId,
+              subject: "key",
+              subjectId: row.apiKey.id,
+            }),
+          },
+        ]
+      : []),
+    {
+      id: "revoke",
+      type: "item" as const,
+      title: "Revoke key",
+      icon: Trash,
+      variant: "destructive" as const,
+      onClick: () => onRevoke(row.apiKey.id),
+    },
+  ];
+
   return (
     <TableCard
       tableName="gatewayApiKeys"
@@ -213,34 +261,7 @@ export function GatewayApiKeysTable({
       data={data}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
-      actions={(row) => [
-        {
-          id: "edit",
-          type: "item",
-          title: "Edit key",
-          icon: Pencil,
-          onClick: () => onEdit(row),
-        },
-        {
-          id: "resetBudget",
-          type: "item",
-          title: "Reset budget",
-          icon: RotateCcw,
-          disabled:
-            row.spendLimit || row.defaultSpendLimit
-              ? undefined
-              : { reason: "This key has no budget to reset." },
-          onClick: () => onResetBudget(row),
-        },
-        {
-          id: "revoke",
-          type: "item",
-          title: "Revoke key",
-          icon: Trash,
-          variant: "destructive",
-          onClick: () => onRevoke(row.apiKey.id),
-        },
-      ]}
+      actions={getRowActions}
       pagination={pagination}
       search={
         hasNoKeys

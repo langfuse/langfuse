@@ -1,80 +1,81 @@
 import type { FilterState } from "@langfuse/shared";
-import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
+import { TOPICS_COST_ESTIMATE_MAX_FACETS } from "@langfuse/shared/topics";
+import { useQueryClient } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
+import isEqual from "lodash/isEqual";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
-import { TopicCostEstimateView } from "./TopicCostEstimateView";
+import { api, type RouterInputs } from "@/src/utils/api";
+import {
+  TopicCostEstimateCard,
+  type TopicCostForecast,
+} from "./TopicCostEstimateCard";
+import type { TopicEstimateVolume } from "./TopicCostEstimateView";
 import { useTopicsCapture } from "./useTopicsCapture";
 
-type TopicCostEstimateProps = {
+type TopicCostEstimateInput = {
   projectId: string;
   filter: FilterState;
   facetIds: string[];
-  samplingPercent: number;
-  /** Finished matching traces a day, before sampling. */
-  dailyTraces: number | null;
-  /** Traces the first backfill would summarize, up to its limit. */
-  backfillTraces: number | null;
-  source: "setup" | "new_map";
+  source: "setup" | "new_map" | "snapshot";
 };
+
+export function useTopicCostEstimate({
+  projectId,
+  filter,
+  facetIds,
+  source,
+}: TopicCostEstimateInput): TopicCostForecast {
+  const capture = useTopicsCapture();
+  const queryClient = useQueryClient();
+  const input = { projectId, filter, facetIds };
+  const estimate = api.topics.costEstimate.useQuery(input, {
+    enabled:
+      facetIds.length > 0 && facetIds.length <= TOPICS_COST_ESTIMATE_MAX_FACETS,
+    refetchInterval: (query) =>
+      query.state.data?.status === "running" ? 2000 : false,
+  });
+  const refreshEstimate = (selection: RouterInputs["topics"]["costEstimate"]) =>
+    queryClient.invalidateQueries({
+      queryKey: getQueryKey(api.topics.costEstimate, selection, "query"),
+      exact: true,
+    });
+  const start = api.topics.startCostEstimate.useMutation({
+    onSuccess: (_result, submitted) => refreshEstimate(submitted),
+  });
+  const matchesSelection = isEqual(start.variables, input);
+  const canAddModelPrice = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
+  return {
+    estimate: estimate.data ?? null,
+    facetCount: facetIds.length,
+    modelPrice: canAddModelPrice
+      ? { projectId, onCreated: () => refreshEstimate(input) }
+      : null,
+    // Keep the action disabled while the newly started estimate loads.
+    starting: (matchesSelection && start.isPending) || estimate.isRefetching,
+    error: matchesSelection ? (start.error?.message ?? null) : null,
+    onStart: () => {
+      capture("topics:cost_estimate_started", { source });
+      start.mutate(input);
+    },
+  };
+}
 
 /** Starts a background cost estimate and follows it until its result. */
 export function TopicCostEstimate({
   projectId,
   filter,
   facetIds,
-  samplingPercent,
-  dailyTraces,
-  backfillTraces,
   source,
-}: TopicCostEstimateProps) {
-  const capture = useTopicsCapture();
-  const utils = api.useUtils();
-  const input = { projectId, filter, facetIds };
-  const estimate = api.topics.costEstimate.useQuery(input, {
-    enabled: facetIds.length > 0,
-    refetchInterval: (query) =>
-      query.state.data?.status === "running" ? 2000 : false,
-  });
-  const start = api.topics.startCostEstimate.useMutation({
-    onSuccess: () => utils.topics.costEstimate.invalidate(input),
-  });
-  // Null once the record expired, so the card offers a new estimate.
-  const current = estimate.data ?? null;
-  const canAddModelPrice = useHasProjectAccess({
+  ...volume
+}: TopicCostEstimateInput & TopicEstimateVolume) {
+  const forecast = useTopicCostEstimate({
     projectId,
-    scope: "models:CUD",
+    filter,
+    facetIds,
+    source,
   });
-  // The summary model first: it carries nearly all of the cost.
-  const unpricedModel =
-    current && !current.prices.summaryPriced
-      ? current.inputs.summaryModel
-      : (current?.inputs.embeddingModel ?? undefined);
-  return (
-    <UpsertModelFormDialogController
-      action="create"
-      projectId={projectId}
-      prefilledModelData={{ modelName: unpricedModel }}
-      // Stay in the dialog; prices apply on read, so the card then shows the cost.
-      onCreated={() => utils.topics.costEstimate.invalidate(input)}
-    >
-      {({ openDialog }) => (
-        <TopicCostEstimateView
-          estimate={current}
-          samplingPercent={samplingPercent}
-          dailyTraces={dailyTraces}
-          backfillTraces={backfillTraces}
-          canAddModelPrice={canAddModelPrice}
-          onAddModelPrice={openDialog}
-          // Also while the started estimate loads, so a second click cannot slip in.
-          starting={start.isPending || estimate.isRefetching}
-          disabled={facetIds.length === 0}
-          error={start.error?.message ?? null}
-          onStart={() => {
-            capture("topics:cost_estimate_started", { source });
-            start.mutate(input);
-          }}
-        />
-      )}
-    </UpsertModelFormDialogController>
-  );
+  return <TopicCostEstimateCard {...forecast} {...volume} />;
 }

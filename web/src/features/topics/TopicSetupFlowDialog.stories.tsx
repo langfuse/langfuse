@@ -11,7 +11,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TopicSetupFlowDialog } from "./TopicSetupFlowDialog";
-import { costEstimateFixture } from "./topicCostEstimateFixture";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
 import { TopicCostEstimateView } from "./TopicCostEstimateView";
 import {
   TOPIC_SETUP_QUESTIONS,
@@ -72,10 +72,9 @@ function SetupStory({
           samplingPercent={samplePercent}
           dailyTraces={180}
           backfillTraces={412}
-          canAddModelPrice
           onAddModelPrice={fn()}
           starting={false}
-          disabled={false}
+          facetCount={selected.filter((question) => question.enabled).length}
           error={null}
           onStart={fn()}
         />

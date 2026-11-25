@@ -850,6 +850,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
             &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key")
                 .unwrap(),
             telemetry::DEFAULT_RETAINED_BYTES,
+            Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
         )
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
@@ -923,6 +924,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     let telemetry = telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;

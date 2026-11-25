@@ -26,10 +26,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/Page";
 
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
+import { useEnvironmentFilter } from "@/src/hooks/useEnvironmentFilter";
+import { convertSelectedEnvironmentsToFilter } from "@/src/utils/environmentFilter";
 import {
   useReadPath,
   type ResolvedReadPath,

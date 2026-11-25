@@ -55,8 +55,8 @@ type TopicsEventProperties = {
     questionCount: number;
     filterCount: number;
   };
-  /** Estimate cost, in the setup Review step or the New map dialog. */
-  "topics:cost_estimate_started": { source: "setup" | "new_map" };
+  /** The dialog where the user requested a processing estimate. */
+  "topics:cost_estimate_started": { source: "setup" | "new_map" | "snapshot" };
   /** Once per page mount and map, when the map has topics. */
   "topics:map_viewed": {
     mapKind: TopicsMapKind;
@@ -68,6 +68,12 @@ type TopicsEventProperties = {
     filterCount: number;
     facetCount: number;
     samplePercent: number;
+  };
+  "topics:map_refreshed": {
+    filterCount: number;
+    facetCount: number;
+    /** Minutes since the map's previous refit; null before its first fit. */
+    minutesSinceLastRefit: number | null;
   };
   "topics:snapshot_started": {
     filterCount: number;
@@ -102,3 +108,24 @@ export type TopicsEventInput<E extends TopicsEventName> =
 export type TopicsEventMap = {
   [E in TopicsEventName]: TopicsEventProperties[E] & TopicsAnalyticsContext;
 };
+
+/** Metadata-only payload for `topics:map_refreshed` from a live map's config. */
+export function mapRefreshedProperties(
+  rule: {
+    filter: readonly unknown[];
+    facetIds: readonly string[];
+    lastRefitAt: string | null;
+  },
+  now: number,
+): TopicsEventInput<"topics:map_refreshed"> {
+  const lastRefitMs = rule.lastRefitAt
+    ? Date.parse(rule.lastRefitAt)
+    : Number.NaN;
+  return {
+    filterCount: rule.filter.length,
+    facetCount: rule.facetIds.length,
+    minutesSinceLastRefit: Number.isFinite(lastRefitMs)
+      ? Math.max(0, Math.round((now - lastRefitMs) / 60_000))
+      : null,
+  };
+}

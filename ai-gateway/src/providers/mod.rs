@@ -450,14 +450,18 @@ fn rewrite_body(
     let mut rewritten = Vec::with_capacity(body.len() + added);
     let mut copied = 0;
     for (range, replacement) in edits {
-        if range.start < copied || range.start > range.end || range.end > body.len() {
+        if range.start > range.end || range.end > body.len() {
             return Err(ProviderError::Configuration);
         }
-        rewritten.extend_from_slice(&body[copied..range.start]);
+        let prefix = body
+            .get(copied..range.start)
+            .ok_or(ProviderError::Configuration)?;
+        rewritten.extend_from_slice(prefix);
         rewritten.extend_from_slice(&replacement);
         copied = range.end;
     }
-    rewritten.extend_from_slice(&body[copied..]);
+    let suffix = body.get(copied..).ok_or(ProviderError::Configuration)?;
+    rewritten.extend_from_slice(suffix);
     Ok(Bytes::from(rewritten))
 }
 

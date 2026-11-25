@@ -1743,8 +1743,21 @@ describe("AI gateway control plane", () => {
       allGatewayKeyIds,
     );
     const byId = new Map(ownerLabels.apiKeys.map((key) => [key.id, key]));
-    expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
-    expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
+    const userIdByName = new Map(
+      ownerLabels.users.map((user) => [user.name, user.id]),
+    );
+    expect(byId.get(memberKey.id)).toMatchObject({
+      name: "Member key",
+      ownerUserId: userIdByName.get("Gateway member"),
+    });
+    expect(byId.get(gatewayUserKey.id)).toMatchObject({
+      name: "Gateway user key",
+      ownerUserId: userIdByName.get("Gateway ai_gateway"),
+    });
+    expect(byId.get(serviceKey.id)).toMatchObject({
+      name: "Service key",
+      ownerUserId: null,
+    });
     expect(ownerLabels.users.map((user) => user.name).sort()).toEqual([
       "Gateway admin",
       "Gateway ai_gateway",
@@ -1762,7 +1775,12 @@ describe("AI gateway control plane", () => {
     const memberLabels = await member.aiGateway.getAnalyticsLabels({
       orgId: owner.org.id,
     });
-    expect(memberLabels.apiKeys.map((key) => key.id)).toEqual([memberKey.id]);
+    expect(memberLabels.apiKeys).toEqual([
+      expect.objectContaining({
+        id: memberKey.id,
+        ownerUserId: userIdByName.get("Gateway member"),
+      }),
+    ]);
     expect(memberLabels.users.map((user) => user.name)).toEqual([
       "Gateway member",
     ]);

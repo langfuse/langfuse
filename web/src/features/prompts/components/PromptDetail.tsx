@@ -485,7 +485,7 @@ export const PromptDetail = ({
                     <History size="base" color="default" />
                     <span className="shrink-0">Version #{prompt.version}</span>
                     <span
-                      className="text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
+                      className="ph-no-capture text-muted-foreground min-w-0 flex-1 truncate text-left font-normal"
                       title={prompt.commitMessage ?? prompt.name}
                     >
                       {prompt.commitMessage ?? prompt.name}
@@ -518,7 +518,7 @@ export const PromptDetail = ({
                     # {prompt.version}
                   </BadgeShell>
                   <span
-                    className="text-primary min-w-0 truncate text-lg leading-6 font-bold"
+                    className="ph-no-capture text-primary min-w-0 truncate text-lg leading-6 font-bold"
                     title={prompt.commitMessage ?? prompt.name}
                   >
                     {prompt.commitMessage ?? prompt.name}

@@ -27,6 +27,7 @@ import {
   useTraceData,
   useSingleTraceData,
 } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
@@ -167,6 +168,7 @@ function LoadedTraceHeader({
     [mergedScores],
   );
 
+  const { isEmbedded } = useTracePresentation();
   const tags = trace.tags;
   const pendingTraceDeletions = usePendingTraceDeletions(trace.projectId);
   const scheduledForDeletion = useMemo(
@@ -302,7 +304,7 @@ function LoadedTraceHeader({
       {(configuredHeader) => (
         <ObservabilityEntityDetailHeader
           {...configuredHeader}
-          metrics={metrics}
+          metrics={isEmbedded ? [] : metrics}
           isPlaceholderData={isPlaceholderData}
           notice={
             scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined

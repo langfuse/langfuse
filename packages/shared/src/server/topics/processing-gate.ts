@@ -2,15 +2,15 @@ import { JobConfigState, prisma, type Prisma } from "../../db";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
-import { isTopicsProjectEnabled } from "./config";
 
 // Saves and pauses delete the key; the TTL bounds a missed delete or a fill
 // that read Postgres before a concurrent save committed.
 const CACHE_TTL_SECONDS = 300;
 // Ingestion awaits this lookup, so a slow or unreachable Postgres must not hold it.
 const LOOKUP_TIMEOUT_MS = 2_000;
-// After a failed lookup the allowlist answer is cached briefly, so an outage
-// costs one slow lookup per project per window instead of one per batch.
+// After a failed lookup "nothing admitted" is cached briefly, so an outage
+// costs one slow lookup per project per window instead of one per batch, and
+// a Postgres outage cannot admit every project's traces at once.
 const FAILURE_TTL_SECONDS = 30;
 const CACHE_KEY_PREFIX = "langfuse:topics:processing-active";
 
@@ -32,23 +32,21 @@ export function topicRuleWhere(
 
 /**
  * The share of the project's new traces that enter trace dispatch for
- * Topics: the largest sampling rate of the active rules when the project is allowlisted,
- * Topics is on with all three models configured, and an active rule runs at
- * least one facet that is not blocked; otherwise 0. The answer is cached in
- * Redis. A failed or timed-out lookup caches the allowlist answer (1) briefly
- * and propagates.
+ * Topics. A project with automatic processing on and all three models configured
+ * uses the largest sampling rate among active rules with an unblocked facet.
+ * Other projects return 0. Redis caches the result. A failed or timed-out
+ * lookup briefly caches 0 and propagates.
  */
 export async function getTopicsProcessingSampling(
   projectId: string,
 ): Promise<number> {
-  if (!isTopicsProjectEnabled(projectId)) return 0;
   const cached = await readCache(projectId);
   if (cached !== null) return cached;
   let sampling: number;
   try {
     sampling = await withTimeout(lookupProcessingSampling(projectId));
   } catch (error) {
-    await writeCache(projectId, 1, FAILURE_TTL_SECONDS);
+    await writeCache(projectId, 0, FAILURE_TTL_SECONDS);
     throw error;
   }
   await writeCache(projectId, sampling, CACHE_TTL_SECONDS);

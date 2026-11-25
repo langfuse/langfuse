@@ -7,6 +7,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { api } from "@/src/utils/api";
 import { EditGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/EditGatewayApiKeyDialogController/EditGatewayApiKeyDialogController";
 import { GatewayResetBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayResetBudgetDialogController/GatewayResetBudgetDialogController";
@@ -42,6 +44,8 @@ export function ConnectedGatewayApiKeysTable({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
 
   const hasNoKeys =
     searchQuery.trim().length === 0 && apiKeysQuery.data?.totalCount === 0;
@@ -115,6 +119,7 @@ export function ConnectedGatewayApiKeysTable({
                           ? { status: "loading" }
                           : { status: "success", data: rows }
                       }
+                      ingestionProjectId={ingestionProjectId}
                       lastUsed={lastUsed}
                       spend={spend}
                       orderBy={orderBy}

@@ -1,6 +1,6 @@
 import { type ChangeEvent, useState } from "react";
-import { CircleCheck, CircleX } from "@langfuse/icons";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
@@ -170,47 +170,19 @@ function getAddDisabledReason(params: {
 function CustomModelTestOutcome({ result }: { result: CustomModelTestResult }) {
   if (result.success) {
     return (
-      <div
-        role="status"
-        className="border-dark-green/20 bg-light-green flex gap-2 rounded-md border p-3"
-      >
-        <CircleCheck
-          size="base"
-          color="inherit"
-          __rawClassName="text-dark-green mt-0.5"
-          aria-hidden="true"
-        />
-        <div>
-          <p className="text-dark-green font-bold">Request accepted</p>
-          <p className="text-dark-green text-sm">
-            The provider responded in {result.durationMs}ms. This model is ready
-            to add.
-          </p>
-        </div>
-      </div>
+      <Banner variant="success" title="Request accepted">
+        The provider responded in {result.durationMs}ms. This model is ready to
+        add.
+      </Banner>
     );
   }
   const title = result.status
     ? `Request failed — ${result.status}`
     : "Request failed";
   return (
-    <div
-      role="alert"
-      className="border-dark-red/20 bg-light-red flex gap-2 rounded-md border p-3"
-    >
-      <CircleX
-        size="base"
-        color="inherit"
-        __rawClassName="text-dark-red mt-0.5"
-        aria-hidden="true"
-      />
-      <div className="min-w-0">
-        <p className="text-dark-red font-bold">{title}</p>
-        <p className="ph-no-capture text-dark-red text-sm break-words">
-          {result.error}
-        </p>
-      </div>
-    </div>
+    <Banner variant="error" title={title}>
+      <p className="ph-no-capture break-words">{result.error}</p>
+    </Banner>
   );
 }
 

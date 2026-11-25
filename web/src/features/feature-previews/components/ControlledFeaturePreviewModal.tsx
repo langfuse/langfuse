@@ -56,10 +56,6 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
-  const isTopicsEnabled =
-    internalViewEnabled ||
-    authSession.data?.user?.featureFlags.langfuseTopics === true;
-
   const hasTraceEvalsProject = belongsToTraceEvalsProject(
     authSession.data?.user,
   );
@@ -101,19 +97,6 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("unifiedTraceSessionView"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    ...(isTopicsEnabled
-      ? {
-          langfuseTopics: {
-            enabled: isTopicsEnabled,
-            disabled: internalViewEnabled,
-            warningReason: internalViewEnabled
-              ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."
-              : undefined,
-            onToggle: onToggle("langfuseTopics"),
-            isToggling: setFeaturePreviewEnabled.isPending,
-          },
-        }
-      : {}),
     ...(hasTraceEvalsProject
       ? {
           traceTranscriptEvals: {
