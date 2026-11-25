@@ -856,9 +856,8 @@ export class LlmConnectionService {
       params.input.config,
       customModels,
     );
+    let writesBackStoredConfig = false;
     if (!params.input.config && params.input.customModels) {
-      // Write the stored config back only when pruning changed it, so an
-      // update without config does not overwrite a concurrent config change.
       const storedConfig =
         LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
         undefined;
@@ -866,28 +865,44 @@ export class LlmConnectionService {
         storedConfig,
         customModels,
       );
-      if (prunedConfig !== storedConfig) config = prunedConfig;
+      if (prunedConfig !== storedConfig) {
+        config = prunedConfig;
+        writesBackStoredConfig = true;
+      }
     }
 
-    const key = await this.repository.update({
-      owner: params.owner,
-      id: params.input.id,
-      data: {
-        ...(params.input.secretKey
-          ? {
-              secretKey: encrypt(params.input.secretKey),
-              displaySecretKey: getDisplaySecretKey(params.input.secretKey),
-            }
-          : {}),
-        externalId,
-        extraHeaders: encryptedExtraHeaders,
-        extraHeaderKeys,
-        baseURL: params.input.baseURL,
-        withDefaultModels: params.input.withDefaultModels,
-        customModels: params.input.customModels,
-        config,
-      },
-    });
+    // Writing back the stored config must not overwrite a concurrent change.
+    const key = await this.repository
+      .update({
+        owner: params.owner,
+        id: params.input.id,
+        expectedUpdatedAt: writesBackStoredConfig
+          ? existingKey.updatedAt
+          : undefined,
+        data: {
+          ...(params.input.secretKey
+            ? {
+                secretKey: encrypt(params.input.secretKey),
+                displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+              }
+            : {}),
+          externalId,
+          extraHeaders: encryptedExtraHeaders,
+          extraHeaderKeys,
+          baseURL: params.input.baseURL,
+          withDefaultModels: params.input.withDefaultModels,
+          customModels: params.input.customModels,
+          config,
+        },
+      })
+      .catch((error: unknown) => {
+        if (writesBackStoredConfig && isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseConflictError(
+            "The LLM connection was changed by another request. Reload and try again.",
+          );
+        }
+        throw error;
+      });
 
     await auditLog({
       ...params.actor,

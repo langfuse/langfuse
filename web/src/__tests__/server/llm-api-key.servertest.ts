@@ -370,13 +370,6 @@ describe("llmApiKey.all RPC", () => {
       adapter: LLMAdapter.Bedrock,
       customModels: [profileArn],
       withDefaultModels: false,
-      config: {
-        region: "us-east-1",
-        customModelConfig: {
-          [profileArn]: { modelFamily: "anthropic" },
-          [otherModel]: { modelFamily: "anthropic" },
-        },
-      },
     });
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({ projectId });
