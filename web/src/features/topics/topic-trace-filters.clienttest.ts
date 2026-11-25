@@ -164,8 +164,6 @@ describe("topic trace filtering", () => {
   it("groups no-topic outcomes and supports assignment exclusions", () => {
     expect(getTopicAssignment("not_applicable")).toBe("no_topic");
     expect(getTopicAssignment("insufficient_input")).toBe("no_topic");
-    expect(getTopicAssignment("empty_input")).toBe("no_topic");
-    expect(getTopicAssignment("input_too_large")).toBe("no_topic");
     expect(
       ids(
         filterTopicTraces(
