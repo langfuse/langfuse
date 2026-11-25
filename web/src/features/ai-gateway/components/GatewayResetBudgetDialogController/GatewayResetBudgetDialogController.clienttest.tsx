@@ -70,7 +70,7 @@ describe("GatewayResetBudgetDialogController", () => {
       fireEvent.click(screen.getByRole("button", { name: "Reset budget" }));
 
       const dialog = screen.getByRole("dialog");
-      const description = screen.getByText(new RegExp(target.name));
+      const description = screen.getByText(target.name, { exact: false });
 
       expect(dialog).toHaveClass("ph-no-capture");
       expect(description.closest(".ph-no-capture")).toBe(dialog);
