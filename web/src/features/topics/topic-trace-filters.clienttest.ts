@@ -222,7 +222,12 @@ describe("topic trace filtering", () => {
       topicIds: { operator: "any of", values: ["billing"] },
       statuses: {
         operator: "any of",
-        values: ["not_applicable", "insufficient_input"],
+        values: [
+          "not_applicable",
+          "insufficient_input",
+          "empty_input",
+          "input_too_large",
+        ],
       },
     });
     expect(

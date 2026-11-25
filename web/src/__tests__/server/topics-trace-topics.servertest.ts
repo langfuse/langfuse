@@ -92,7 +92,7 @@ describe("tracesTopics", () => {
       runnerUpDistance: 0.2,
       origin: "online" as const,
       coordinates: null,
-      assignedAt: now,
+      createdAt: now,
     });
     // Rule A placed the trace in its earlier run only; rule B in its current run.
     await writeTopicAssignments([

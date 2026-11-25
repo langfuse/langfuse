@@ -148,7 +148,7 @@ async function assignSummaries(
   summaries: TopicSummary[],
   run: TopicRun,
   coordinates: Map<string, [number, number]> = new Map(),
-  assignedAt = new Date().toISOString(),
+  createdAt = new Date().toISOString(),
 ) {
   return instrumentAsync(
     { name: "topics.assignment", traceScope: "topics" },
@@ -170,7 +170,7 @@ async function assignSummaries(
                 run,
                 ruleId: run.ruleId ?? null,
                 origin: "initial",
-                assignedAt,
+                createdAt,
                 coordinates,
               }),
             );
