@@ -65,11 +65,9 @@ export function GatewayGuardrailsChart({
     return buildGuardrailChartData({
       groupByGuardrail: query.data.groupByGuardrail,
       points: query.data.points,
-      timeRange,
-      interval,
       labels,
     });
-  }, [query.data, timeRange, interval, labels]);
+  }, [query.data, labels]);
 
   const handleIntervalChange = (value: string) => {
     const option = GATEWAY_TIME_SERIES_INTERVALS.find(

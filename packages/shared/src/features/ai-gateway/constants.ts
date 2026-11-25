@@ -19,7 +19,18 @@ export const AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY =
   "langfuse.gateway.api_key.owner.user_id";
 
 /**
- * Metadata key holding the JSON array of `{ id, action, location }` guardrails
- * a gateway request matched. Always set by the gateway, never by callers.
+ * Metadata key set to `true` on any gateway request that matched at least one
+ * guardrail. Always set by the gateway, never by callers.
  */
-export const AI_GATEWAY_GUARDRAILS_METADATA_KEY = "langfuse.gateway.guardrails";
+export const AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY =
+  "langfuse.gateway.guardrails.flagged";
+
+/**
+ * Metadata key prefix for individual matched guardrails:
+ * `langfuse.gateway.guardrails.<id> = "block" | "log"` (omitted when a
+ * guardrail did not match). Presence in `metadata_names` lets ClickHouse
+ * filter on `events_core` via `idx_metadata_names` without reading
+ * `metadata_values`.
+ */
+export const AI_GATEWAY_GUARDRAIL_METADATA_PREFIX =
+  "langfuse.gateway.guardrails.";

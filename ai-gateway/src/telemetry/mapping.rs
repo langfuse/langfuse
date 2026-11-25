@@ -254,9 +254,30 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
-    // The matched guardrails as `{id, action}` objects, to filter generations by either.
-    if let Some(guardrails) = facts.metadata.get("guardrails") {
-        metadata.insert("langfuse.gateway.guardrails".into(), guardrails.clone());
+    // Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+    // a scalar `.flagged` marker so ClickHouse filters on `events_core.metadata_names`
+    // via `idx_metadata_names` without reading `metadata_values` or parsing JSON.
+    if let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array)
+        && !guardrails.is_empty()
+    {
+        metadata.insert("langfuse.gateway.guardrails.flagged".into(), json!(true));
+        for finding in guardrails {
+            if let (Some(id), Some(action)) = (
+                finding.get("id").and_then(Value::as_str),
+                finding.get("action").and_then(Value::as_str),
+            ) {
+                metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+                let mut details = Map::new();
+                details.insert("action".into(), json!(action));
+                if let Some(location) = finding.get("location").and_then(Value::as_str) {
+                    details.insert("location".into(), json!(location));
+                }
+                metadata.insert(
+                    format!("langfuse.gateway.guardrails.{id}.finding"),
+                    Value::Object(details),
+                );
+            }
+        }
     }
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),

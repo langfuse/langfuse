@@ -1828,8 +1828,16 @@ async fn guardrails_block_or_mark_requests_whose_last_turn_matches() {
         let metadata: serde_json::Value =
             serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
         assert_eq!(
-            metadata["langfuse.gateway.guardrails"],
-            serde_json::json!([{"id": format!("g-{action}"), "action": action, "location": "request"}]),
+            metadata["langfuse.gateway.guardrails.flagged"],
+            serde_json::json!(true),
+        );
+        assert_eq!(
+            metadata[format!("langfuse.gateway.guardrails.g-{action}")],
+            serde_json::json!(action),
+        );
+        assert_eq!(
+            metadata[format!("langfuse.gateway.guardrails.g-{action}.finding")],
+            serde_json::json!({"action": action, "location": "request"}),
         );
     }
 }
