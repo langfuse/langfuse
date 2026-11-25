@@ -148,7 +148,10 @@ pub(crate) fn find_regex_spans<'a>(
     }
 }
 
-/// Appends every non-overlapping occurrence of `needle` in `text` as a span.
+/// Appends every non-overlapping occurrence of `needle` in `text` as a span,
+/// enforcing alphanumeric boundaries on any end of `needle` that starts or ends
+/// with an alphanumeric character so short entity/word matches (e.g. `"Al"` or
+/// `"ass"`) do not corrupt unrelated words (`"Algorithm"`, `"class"`).
 pub(crate) fn find_literal_spans<'a>(
     text: &str,
     needle: &str,
@@ -159,16 +162,35 @@ pub(crate) fn find_literal_spans<'a>(
     if needle.is_empty() {
         return;
     }
+    let check_start = needle.chars().next().is_some_and(char::is_alphanumeric);
+    let check_end = needle.chars().next_back().is_some_and(char::is_alphanumeric);
     for (start, _) in text.match_indices(needle) {
         let end = start.saturating_add(needle.len());
-        if end <= text.len() {
-            out.push(RedactionSpan {
-                start,
-                end,
-                priority,
-                label,
-            });
+        if end > text.len() {
+            continue;
         }
+        if check_start
+            && text
+                .get(..start)
+                .and_then(|before| before.chars().next_back())
+                .is_some_and(char::is_alphanumeric)
+        {
+            continue;
+        }
+        if check_end
+            && text
+                .get(end..)
+                .and_then(|after| after.chars().next())
+                .is_some_and(char::is_alphanumeric)
+        {
+            continue;
+        }
+        out.push(RedactionSpan {
+            start,
+            end,
+            priority,
+            label,
+        });
     }
 }
 
@@ -350,15 +372,44 @@ mod tests {
     }
 
     #[test]
-    fn private_key_pattern_redacts_entire_pem_block() {
-        let pattern = r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:\s+[A-Za-z0-9+/=:, \t\r\n-]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?";
+    fn private_key_pattern_redacts_multiline_and_json_escaped_pem_blocks_linearly() {
+        let pattern = r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?";
         let regex = redact_regex(pattern).unwrap();
-        let text = "before\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\nsecretBody==\n-----END RSA PRIVATE KEY-----\nafter";
+
+        // Real newlines with encrypted PEM headers.
+        let text = "before\n-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,AABB\n\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----\nafter";
         let mut spans = Vec::new();
         find_regex_spans(&regex, text, 0, "[KEY]", &mut spans);
         assert_eq!(
             apply_redactions(text, &mut spans).as_deref(),
             Some("before\n[KEY]\nafter")
+        );
+
+        // Literal `\n` escapes as pasted from service-account JSON or `.env`.
+        let escaped = r#"{"private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADAN\n-----END PRIVATE KEY-----\n"}"#;
+        let mut spans = Vec::new();
+        find_regex_spans(&regex, escaped, 0, "[KEY]", &mut spans);
+        assert_eq!(
+            apply_redactions(escaped, &mut spans).as_deref(),
+            Some(r#"{"private_key":"[KEY]\n"}"#)
+        );
+
+        // Repeated BEGIN headers without END stay linear time and match each header.
+        let repeated = "-----BEGIN PRIVATE KEY-----\n".repeat(200);
+        let mut spans = Vec::new();
+        find_regex_spans(&regex, &repeated, 0, "[KEY]", &mut spans);
+        assert_eq!(spans.len(), 200);
+    }
+
+    #[test]
+    fn literal_spans_respect_alphanumeric_word_boundaries() {
+        let text = "Ask Al about the Algorithm and class assistant ass!";
+        let mut spans = Vec::new();
+        find_literal_spans(text, "Al", 0, "[NAME]", &mut spans);
+        find_literal_spans(text, "ass", 1, "[WORD]", &mut spans);
+        assert_eq!(
+            apply_redactions(text, &mut spans).as_deref(),
+            Some("Ask [NAME] about the Algorithm and class assistant [WORD]!")
         );
     }
 

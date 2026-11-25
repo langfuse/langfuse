@@ -96,7 +96,10 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   private_key: {
     group: "secrets",
     patterns: [
-      String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:\s+[A-Za-z0-9+/=:, \t\r\n-]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?`,
+      // Matches a full PEM block (real or JSON-escaped `\n`/`\r\n`) when an END
+      // marker follows, or the opening BEGIN header alone if truncated. Disallowing
+      // `--` inside the body keeps repeated BEGIN headers strictly linear time.
+      String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?`,
     ],
   },
   jwt: {

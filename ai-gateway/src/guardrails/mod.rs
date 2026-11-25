@@ -1299,8 +1299,10 @@ fn redact_external_leaf<'a>(
                 .and_then(|&index| guardrails.get(index))
             {
                 let label = guardrail.redaction_label();
-                for needle in &ext_match.matches {
-                    redact::find_literal_spans(base_text, needle, slot, label, &mut combined);
+                for item in &ext_match.items {
+                    if let Some(needle) = item.matched_text.as_deref() {
+                        redact::find_literal_spans(base_text, needle, slot, label, &mut combined);
+                    }
                 }
             }
         }
@@ -1345,6 +1347,10 @@ fn redact_external_leaf<'a>(
     Ok(None)
 }
 
+/// Maps every reported item in `ext_match.items` onto `per_leaf_spans`.
+/// Returns `true` only when `ext_match.items` is non-empty and every reported
+/// item mapped to at least one valid span; otherwise leaves `per_leaf_spans`
+/// untouched so the caller falls back to provider `outputs` or fails closed.
 fn collect_external_match_spans<'a>(
     leaves: &[ExternalLeaf],
     ext_match: &ExternalMatch,
@@ -1352,42 +1358,56 @@ fn collect_external_match_spans<'a>(
     label: &'a str,
     per_leaf_spans: &mut [Vec<RedactionSpan<'a>>],
 ) -> bool {
-    let mut found_any = false;
-    for (assessment_index, range) in &ext_match.offsets {
-        let target_leaf = if leaves.len() == 1 {
-            Some(0)
-        } else if ext_match.assessment_count == leaves.len() {
-            Some(*assessment_index)
-        } else {
-            None
-        };
-        if let Some(leaf_index) = target_leaf
-            && let (Some(leaf), Some(spans)) =
-                (leaves.get(leaf_index), per_leaf_spans.get_mut(leaf_index))
-            && range.start < range.end
-            && range.end <= leaf.text.len()
-            && leaf.text.is_char_boundary(range.start)
-            && leaf.text.is_char_boundary(range.end)
+    if ext_match.items.is_empty() {
+        return false;
+    }
+    let mut staged: Vec<Vec<RedactionSpan<'a>>> = vec![Vec::new(); leaves.len()];
+    for item in &ext_match.items {
+        let mut item_covered = false;
+        if let Some((assessment_index, range)) = &item.offset {
+            let target_leaf = if leaves.len() == 1 {
+                Some(0)
+            } else if ext_match.assessment_count == leaves.len() {
+                Some(*assessment_index)
+            } else {
+                None
+            };
+            if let Some(leaf_index) = target_leaf
+                && let (Some(leaf), Some(spans)) =
+                    (leaves.get(leaf_index), staged.get_mut(leaf_index))
+                && range.start < range.end
+                && range.end <= leaf.text.len()
+                && leaf.text.is_char_boundary(range.start)
+                && leaf.text.is_char_boundary(range.end)
+            {
+                spans.push(RedactionSpan {
+                    start: range.start,
+                    end: range.end,
+                    priority,
+                    label,
+                });
+                item_covered = true;
+            }
+        }
+        if !item_covered
+            && let Some(needle) = item.matched_text.as_deref()
         {
-            spans.push(RedactionSpan {
-                start: range.start,
-                end: range.end,
-                priority,
-                label,
-            });
-            found_any = true;
+            for (leaf, spans) in leaves.iter().zip(staged.iter_mut()) {
+                let before = spans.len();
+                redact::find_literal_spans(&leaf.text, needle, priority, label, spans);
+                if spans.len() > before {
+                    item_covered = true;
+                }
+            }
+        }
+        if !item_covered {
+            return false;
         }
     }
-    for (leaf, spans) in leaves.iter().zip(per_leaf_spans.iter_mut()) {
-        let before = spans.len();
-        for needle in &ext_match.matches {
-            redact::find_literal_spans(&leaf.text, needle, priority, label, spans);
-        }
-        if spans.len() > before {
-            found_any = true;
-        }
+    for (dest, mut added) in per_leaf_spans.iter_mut().zip(staged) {
+        dest.append(&mut added);
     }
-    found_any
+    true
 }
 
 fn apply_external_outputs(
@@ -1633,6 +1653,20 @@ mod tests {
         }
     }
 
+    fn match_item(text: &str) -> external::ExternalMatchItem {
+        external::ExternalMatchItem {
+            matched_text: Some(text.to_owned()),
+            offset: None,
+        }
+    }
+
+    fn offset_item(index: usize, range: Range<usize>) -> external::ExternalMatchItem {
+        external::ExternalMatchItem {
+            matched_text: None,
+            offset: Some((index, range)),
+        }
+    }
+
     fn scanned(body: &str, members: &[&'static str]) -> ScannedMembers {
         let parsed: std::collections::BTreeMap<&str, &serde_json::value::RawValue> =
             serde_json::from_str(body).unwrap();
@@ -1831,8 +1865,7 @@ mod tests {
                 &[(
                     0,
                     ExternalOutcome::Matched(ExternalMatch {
-                        matches: vec!["555-0199".into(), "bob@example.com".into()],
-                        offsets: Vec::new(),
+                        items: vec![match_item("555-0199"), match_item("bob@example.com")],
                         assessment_count: 2,
                         outputs: vec!["Hi Alice, call {PHONE}".into(), "mail {EMAIL}".into()],
                         has_unmappable_intervention: false,
@@ -1866,8 +1899,7 @@ mod tests {
                 &[(
                     0,
                     ExternalOutcome::Matched(ExternalMatch {
-                        matches: Vec::new(),
-                        offsets: vec![(0, 3..8), (1, 5..20)],
+                        items: vec![offset_item(0, 3..8), offset_item(1, 5..20)],
                         assessment_count: 2,
                         outputs: Vec::new(),
                         has_unmappable_intervention: false,
@@ -1908,8 +1940,7 @@ mod tests {
                 &[(
                     0,
                     ExternalOutcome::Matched(ExternalMatch {
-                        matches: Vec::new(),
-                        offsets: Vec::new(),
+                        items: Vec::new(),
                         assessment_count: 0,
                         outputs: vec![
                             "Hi {NAME}, call {PHONE}".into(),
@@ -2011,8 +2042,10 @@ mod tests {
                 &[(
                     0,
                     ExternalOutcome::Matched(ExternalMatch {
-                        matches: vec!["555-0199".into()],
-                        offsets: vec![(0, 99..120)],
+                        items: vec![external::ExternalMatchItem {
+                            matched_text: Some("555-0199".into()),
+                            offset: Some((0, 99..120)),
+                        }],
                         assessment_count: 1,
                         ..ExternalMatch::default()
                     }),
@@ -2027,6 +2060,39 @@ mod tests {
         assert_eq!(
             rewritten["messages"][0]["content"][0]["text"],
             "line 1\ncall [PII]"
+        );
+    }
+
+    #[test]
+    fn bedrock_redact_fails_closed_on_partial_match_coverage() {
+        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
+        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
+        let members = scanned(body, &["messages"]);
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        items: vec![match_item("555-0199"), match_item("555-0199\nline 3")],
+                        assessment_count: 1,
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            outcome.blocking().map(|finding| finding.id.as_str()),
+            Some("br")
         );
     }
 
@@ -2052,8 +2118,7 @@ mod tests {
                 &[(
                     0,
                     ExternalOutcome::Matched(ExternalMatch {
-                        matches: vec!["alice@example.com".into()],
-                        offsets: Vec::new(),
+                        items: vec![match_item("alice@example.com")],
                         assessment_count: 1,
                         outputs: Vec::new(),
                         has_unmappable_intervention: true,

@@ -12,7 +12,9 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{ExternalGuardrailClient, ExternalMatch, ExternalOutcome};
+use crate::guardrails::external::{
+    ExternalGuardrailClient, ExternalMatch, ExternalMatchItem, ExternalOutcome,
+};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -331,15 +333,16 @@ fn collect_matched_items(
             Some(BEDROCK_ACTION_ANONYMIZED) => *has_anonymized = true,
             _ => {}
         }
-        if let (Some(start), Some(end)) = (item.start, item.end)
-            && start < end
-        {
-            result.offsets.push((assessment_index, start..end));
-        }
-        if let Some(matched) = item.matched_text
-            && !matched.is_empty()
-        {
-            result.matches.push(matched);
+        let offset = match (item.start, item.end) {
+            (Some(start), Some(end)) if start < end => Some((assessment_index, start..end)),
+            _ => None,
+        };
+        let matched_text = item.matched_text.filter(|matched| !matched.is_empty());
+        if offset.is_some() || matched_text.is_some() {
+            result.items.push(ExternalMatchItem {
+                matched_text,
+                offset,
+            });
         }
     }
 }
@@ -538,7 +541,12 @@ mod tests {
         }"#;
         let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
         let extracted = extract_external_match(parsed);
-        assert_eq!(extracted.matches, vec!["alice@example.com", "ORD-42"]);
+        let matched: Vec<&str> = extracted
+            .items
+            .iter()
+            .filter_map(|item| item.matched_text.as_deref())
+            .collect();
+        assert_eq!(matched, vec!["alice@example.com", "ORD-42"]);
         assert_eq!(extracted.outputs, vec!["Contact {EMAIL} or {PHONE}"]);
         assert_eq!(extracted.assessment_count, 1);
     }
@@ -556,8 +564,7 @@ mod tests {
         }"#;
         let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
         let extracted = extract_external_match(parsed);
-        assert!(extracted.matches.is_empty());
-        assert!(extracted.offsets.is_empty());
+        assert!(extracted.items.is_empty());
         assert!(extracted.outputs.is_empty());
         assert!(extracted.has_unmappable_intervention);
     }

@@ -18,14 +18,23 @@ const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
+/// One matched entity/word reported by an external guardrail assessment.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ExternalMatchItem {
+    /// Matched literal substring reported in the provider assessment.
+    pub matched_text: Option<String>,
+    /// Explicit UTF-8 byte offset range `(assessment_index, start..end)` when
+    /// the provider supplies one.
+    pub offset: Option<(usize, Range<usize>)>,
+}
+
 /// Structured redaction hints returned by an external guardrail intervention.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ExternalMatch {
-    /// Matched literal substrings reported in provider assessments.
-    pub matches: Vec<String>,
-    /// Explicit UTF-8 byte offset ranges `(assessment_index, start..end)` when
-    /// an external provider supplies them.
-    pub offsets: Vec<(usize, Range<usize>)>,
+    /// Matched entities/words reported in provider assessments; every item
+    /// must map to a valid span before literal/offset redaction is considered
+    /// complete.
+    pub items: Vec<ExternalMatchItem>,
     /// Number of assessment entries returned by the provider.
     pub assessment_count: usize,
     /// Masked/anonymized output texts per content block, empty when the
