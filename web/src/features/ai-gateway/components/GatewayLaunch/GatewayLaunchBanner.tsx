@@ -97,7 +97,6 @@ export function GatewayLaunchBanner({
         key={organizationId}
         organizationId={organizationId}
         state={state}
-        setupOptions={setupOptions}
         open={open}
         onOpenChange={setOpen}
       />
