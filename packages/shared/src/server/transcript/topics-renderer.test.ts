@@ -417,7 +417,7 @@ describe("Topics transcript renderer", () => {
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .text,
     ).toContain("last action: assistant tool call\nvisible reply: none");
-    // Measured, not rendered: a "none" that ends on a pending tool call (an approval, a client-side tool).
+    // A run that ends on an unanswered tool call, such as an approval, is a pending call.
     expect(
       renderTranscript(pending, [root, generation], topicsTranscriptConfig)
         .visibleReply,
@@ -442,7 +442,7 @@ describe("Topics transcript renderer", () => {
     expect(
       renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
     ).toContain("visible reply: none");
-    // Blank text after the call still measures as a pending call.
+    // Blank text after the call does not change the ending.
     const trailing: Transcript = {
       threads: [
         {
