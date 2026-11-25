@@ -12,101 +12,11 @@ import {
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import {
-  containerWidthScale,
-  nextContainerWidthCommit,
-} from "./containerWidthCommit";
+import { useScaledElementWidth } from "@/src/hooks/useScaledElementWidth";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
-
-/**
- * Container width for react-grid-layout.
- *
- * Publishing a new width re-renders the grid and every chart in it. While
- * the container's own width is changing, the committed layout stays put and
- * is scaled with CSS to fill the box. One React update runs `delayMs` after
- * the width stops changing. Width-only observation avoids a feedback loop
- * from the height written to keep the scaled layout from overlapping content
- * below it.
- */
-function useDebouncedContainerWidth(delayMs: number) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState<number | null>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const grid = gridRef.current;
-    if (!container || !grid) return;
-
-    let frame = 0;
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    let committedWidth = 0;
-    let lastObservedWidth = -1;
-
-    const measure = () => Math.round(container.clientWidth);
-
-    const paintScale = () => {
-      frame = 0;
-      const live = measure();
-      const scale = containerWidthScale(committedWidth, live);
-      if (Math.abs(scale - 1) < 0.001) {
-        grid.style.transform = "";
-        container.style.height = "";
-        return;
-      }
-      grid.style.transformOrigin = "top left";
-      grid.style.transform = `scale(${scale})`;
-      container.style.height = `${Math.round(grid.scrollHeight * scale)}px`;
-    };
-
-    const publish = (next: number) => {
-      committedWidth = next;
-      lastObservedWidth = next;
-      grid.style.transform = "";
-      container.style.height = "";
-      setWidth((current) => (current === next ? current : next));
-    };
-
-    const schedule = () => {
-      const live = measure();
-      if (live === lastObservedWidth) return;
-      lastObservedWidth = live;
-      if (frame === 0) frame = requestAnimationFrame(paintScale);
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        if (frame !== 0) {
-          cancelAnimationFrame(frame);
-          frame = 0;
-        }
-        const settled = measure();
-        const decision = nextContainerWidthCommit({
-          pendingWidth: settled,
-          committedWidth,
-          settled: true,
-        });
-        if (decision.kind === "commit") publish(decision.width);
-        else paintScale();
-      }, delayMs);
-    };
-
-    publish(measure());
-    const observer = new ResizeObserver(schedule);
-    observer.observe(container);
-
-    return () => {
-      if (frame !== 0) cancelAnimationFrame(frame);
-      clearTimeout(settleTimer);
-      observer.disconnect();
-      grid.style.transform = "";
-      container.style.height = "";
-    };
-  }, [delayMs]);
-
-  return { containerRef, gridRef, width };
-}
 
 // Hook to detect screen size
 function useMediaQuery(query: string) {
@@ -174,7 +84,8 @@ export function DashboardGrid({
     activeKey: activeChartKey,
     onActiveKeyChange: setActiveChartKey,
   };
-  const { containerRef, gridRef, width } = useDebouncedContainerWidth(200);
+  const { containerRef, contentRef, width, containerStyle, contentStyle } =
+    useScaledElementWidth({ settleMs: 200 });
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
   );
@@ -324,8 +235,12 @@ export function DashboardGrid({
 
   // Desktop grid. Small screens render the stacked layout above.
   return (
-    <div ref={containerRef} className="w-full min-w-0 overflow-hidden">
-      <div ref={gridRef} style={width != null ? { width } : undefined}>
+    <div
+      ref={containerRef}
+      className="w-full min-w-0 overflow-hidden"
+      style={containerStyle}
+    >
+      <div ref={contentRef} style={contentStyle}>
         {width !== null && (
           <Responsive
             className="layout"
