@@ -34,6 +34,7 @@ function projectRuleFilterToRegistry(
   }) as FilterState;
 }
 
+/** @internal */
 export function prepareReusableRuleFilterPresets(
   reusableFilters: ReusableFilter[],
   registry: FieldRegistry,

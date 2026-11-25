@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+/** @internal */
 export function signHmacSha256(message: string, secret: string): string {
   return createHmac("sha256", secret).update(message, "utf8").digest("hex");
 }

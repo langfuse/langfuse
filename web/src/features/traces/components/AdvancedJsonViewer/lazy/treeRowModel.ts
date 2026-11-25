@@ -16,6 +16,7 @@ import type { AsyncJsonSource } from "./asyncJsonSource";
 import type { JsonRow, RowModel, RowWindow, ValueResult } from "./rowModel";
 
 /** Children fetched per expand / load-more. */
+/** @internal */
 export const PAGE_SIZE = 100;
 
 interface NodeState {

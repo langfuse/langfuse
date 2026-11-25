@@ -101,6 +101,7 @@ export function truncateOversizedRecord<
   return record;
 }
 
+/** @internal */
 export function clampDecimal64Value(value: number): [number, boolean] {
   if (!Number.isFinite(value)) return [0, true];
   if (new Decimal(value).abs().gte(DECIMAL_64_12_LIMIT)) {
@@ -115,6 +116,7 @@ type CostMapContext = {
   fieldName: string;
 };
 
+/** @internal */
 export function clampDecimal64Map(
   map: Record<string, number>,
   context: CostMapContext,

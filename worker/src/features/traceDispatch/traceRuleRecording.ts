@@ -14,6 +14,7 @@ const SLOT_COUNT = 16_384;
 const shardTags = new Map<string, string>();
 
 /** Tag whose slot sits mid-range in this shard's share of the slot space, so shards spread evenly over masters. */
+/** @internal */
 export function getRecordingTag(shard: number): string {
   const count = traceDispatchConfig.shardCount;
   const cached = shardTags.get(`${count}:${shard}`);

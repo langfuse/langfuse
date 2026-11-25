@@ -14,6 +14,7 @@ const VIEW = "observations" as const;
 // `toChartFilters` before handing it here.
 
 /** The executeQuery column name for a metric, e.g. `p95_latency`, `count_count`. */
+/** @internal */
 export const metricField = (config: ChartViewConfig): string =>
   `${config.aggregation}_${getMetric(config.metric).measure}`;
 
