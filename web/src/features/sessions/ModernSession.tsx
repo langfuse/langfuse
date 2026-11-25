@@ -15,6 +15,9 @@ import {
 
 export type SessionWorkspaceNavigation = {
   activeView: "trace" | "messages";
+  activePeek?: ComponentProps<
+    typeof ConnectedModernSessionBodyTimeline
+  >["activePeek"];
   onViewChange: (value: "trace" | "messages") => void;
   onOpenTrace?: (
     id: string,
@@ -24,6 +27,7 @@ export type SessionWorkspaceNavigation = {
 
 type ModernSessionProps = {
   navigation?: SessionWorkspaceNavigation;
+  activePeek?: SessionWorkspaceNavigation["activePeek"];
   treeContent?: React.ReactNode;
   viewMode: "conversational" | "list";
   viewTabs: ComponentProps<typeof SessionViewTabs>;
@@ -77,6 +81,7 @@ export function ModernSession({
   filterControlsProps,
   onFilterObservationByName,
   navigation,
+  activePeek,
   treeContent,
 }: ModernSessionProps) {
   const sharedBodyProps = {
@@ -139,6 +144,7 @@ export function ModernSession({
           )}
         {isTimelineEnabled && viewMode === "list" && (
           <ConnectedSessionListBody
+            peekTraceId={activePeek?.traceId}
             {...sharedBodyProps}
             traceCommentCounts={traceCommentCounts}
             filterState={filterState.filter(
@@ -161,6 +167,7 @@ export function ModernSession({
             projectId={projectId}
             sessionId={sessionId}
             openPeek={openPeek}
+            activePeek={activePeek}
             filterState={filterState}
           />
         )}

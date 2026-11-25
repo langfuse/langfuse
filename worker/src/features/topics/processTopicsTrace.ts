@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
-  isTopicsProjectEnabled,
   readTopicExecutionSummary,
   isValidTopicSummary,
   listTopicFacets,
@@ -25,7 +24,7 @@ import type {
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
 import { topicFailureOwner } from "./metrics";
-import { TopicInputTooLarge } from "./models";
+import { TopicInputTooLarge } from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -251,7 +250,6 @@ async function processEvent(
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
-  if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
@@ -304,6 +302,9 @@ async function processEvent(
     traceId,
     reason,
     error: failure instanceof Error ? failure.message : String(failure),
+    ...(failure instanceof TopicInputTooLarge && {
+      characters: failure.characters,
+    }),
   });
   if (isRejectedConnection(failure)) {
     settingsCache.delete(projectId);

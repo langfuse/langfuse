@@ -10,6 +10,8 @@ use tokio::{sync::OwnedSemaphorePermit, time::Instant};
 use super::Grant;
 use crate::resolution::ProjectId;
 
+pub(crate) const DEFAULT_BATCH_LINGER_MS: u64 = 5_000;
+
 #[derive(Clone, Copy)]
 pub(super) struct BatchPolicy {
     pub max_records: usize,
@@ -24,7 +26,7 @@ impl Default for BatchPolicy {
         Self {
             max_records: 512,
             max_bytes: 4 * 1024 * 1024,
-            linger: Duration::from_secs(5),
+            linger: Duration::from_millis(DEFAULT_BATCH_LINGER_MS),
             expiry_margin: Duration::from_secs(30),
             max_open: 256,
         }

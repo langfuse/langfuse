@@ -26,7 +26,6 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   return {
     ...original,
     enqueueTopicExecution: vi.fn(),
-    isTopicsProjectEnabled: () => true,
     // Lets a test fail the summary count once, right after seeding.
     countTopicTraceSummaries: async (
       ...args: Parameters<typeof original.countTopicTraceSummaries>

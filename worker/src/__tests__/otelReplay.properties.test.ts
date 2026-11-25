@@ -1,6 +1,7 @@
 import "./helpers/otelReplaySetup";
 
 import { createHash, randomInt } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { Decimal } from "decimal.js";
 import fc, { type Arbitrary } from "fast-check";
 import { describe, expect, it, vi } from "vitest";
@@ -10,6 +11,7 @@ import * as dispatchConfig from "../features/eventsDispatch/config";
 import * as traceSampling from "../features/traceDispatch/traceDispatchSampling";
 import type { TraceSpanActivity } from "../features/traceDispatch/traceRuleRecording";
 import {
+  comparableOtelReplayRows,
   expectRawNativeParity,
   type OtelReplayResult,
   runOneOtelReplay,
@@ -24,6 +26,7 @@ import {
   jsonKeyArbitrary,
   recursiveJsonArbitrary,
 } from "./helpers/arbitraries/json";
+import { objectKeysReadBy } from "./helpers/sourceObjectKeys";
 
 const PROJECT_PREFIX = "otel-replay-property";
 const FILE_KEY = "otel-replay/test.json";
@@ -1397,18 +1400,29 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
       },
     ]),
   ],
-  ...[null, false, 0, 5e-324, true, "", [], [1], { name: "nested" }].map(
-    (name) =>
-      ["none", "object", "stringified"].map((attributes) => ({
-        scope: "other" as const,
-        sources: [],
-        toolMetadata: {
-          root: true,
-          attributes:
-            attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
-          name,
-        },
-      })),
+  ...[
+    null,
+    false,
+    0,
+    5e-324,
+    true,
+    "",
+    [],
+    [1],
+    { name: "nested" },
+    { toString: null },
+    [{ toString: null }],
+  ].map((name) =>
+    ["none", "object", "stringified"].map((attributes) => ({
+      scope: "other" as const,
+      sources: [],
+      toolMetadata: {
+        root: true,
+        attributes:
+          attributes as ProviderReplaySeed["toolMetadata"]["attributes"],
+        name,
+      },
+    })),
   ),
   [aiProviderSeed([{ key: "tag.tags", value: "" }])],
   [
@@ -1489,6 +1503,59 @@ const directedProviderExamples: ProviderReplaySeed[][] = [
           "\ud800": 1,
           "\ud801": 2,
           "\ufffd": 3,
+        }),
+      },
+    ]),
+  ],
+  // Tool columns clear when a call name or an output type cannot be stringified,
+  // and Responses output.tools fills definitions the input did not provide.
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: { name: "weather", arguments: {} },
+            },
+            { name: { toString: null }, arguments: {} },
+          ],
+        }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.input",
+        value: JSON.stringify({ tools: [{ name: "a" }] }),
+      },
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({ type: { toString: null } }),
+      },
+    ]),
+  ],
+  [
+    genericProviderSeed([
+      {
+        key: "langfuse.observation.output",
+        value: JSON.stringify({
+          output: [
+            {
+              type: "function_call",
+              call_id: "call_1",
+              name: "get_weather",
+              arguments: '{"city":"Berlin"}',
+            },
+          ],
+          tools: [{ name: "get_weather", description: "forecast" }],
         }),
       },
     ]),
@@ -2442,6 +2509,149 @@ async function assertLifecycleParity(testCase: LifecycleCase): Promise<void> {
   }
 }
 
+const TOOL_EXTRACTOR_SOURCE = fileURLToPath(
+  new URL(
+    "../../../packages/shared/src/server/ingestion/extractToolsBackend.ts",
+    import.meta.url,
+  ),
+);
+
+// Tool calls, tool definitions and messages in the forms SDKs send them.
+const toolSweepBlocks: Record<string, Json> = {
+  "flat call": { id: "c1", name: "weather", arguments: "{}" },
+  "chat call": {
+    id: "c2",
+    type: "function",
+    function: { name: "weather", arguments: "{}" },
+  },
+  "responses call": {
+    type: "function_call",
+    call_id: "c3",
+    name: "weather",
+    arguments: "{}",
+  },
+  "anthropic call": { type: "tool_use", id: "c4", name: "weather", input: {} },
+  "ai sdk call": {
+    type: "tool-call",
+    toolCallId: "c5",
+    toolName: "weather",
+    args: {},
+  },
+  "flat definition": {
+    name: "lookup",
+    description: "d",
+    parameters: { type: "object" },
+  },
+  "nested definition": {
+    type: "function",
+    function: { name: "lookup", parameters: {} },
+  },
+  "message with calls": {
+    role: "assistant",
+    content: "hi",
+    tool_calls: [
+      {
+        id: "c6",
+        type: "function",
+        function: { name: "weather", arguments: "{}" },
+      },
+    ],
+  },
+  "message with parts": {
+    role: "assistant",
+    content: [{ type: "tool_use", id: "c7", name: "weather", input: {} }],
+  },
+};
+
+type ToolSweepCase = { label: string; seed: ProviderReplaySeed };
+
+/**
+ * One span per way of placing a block under a key the TypeScript tool
+ * extractor reads. The keys come from the extractor's source, so a container
+ * it starts reading is swept without a change here. The label is the span name.
+ */
+function toolContainerSweep(): ToolSweepCase[] {
+  const keys = objectKeysReadBy(TOOL_EXTRACTOR_SOURCE);
+  const cases: ToolSweepCase[] = [];
+  const add = (attribute: string, shape: string, value: Json) => {
+    const label = `${attribute.split(".").at(-1)}: ${shape}`;
+    cases.push({
+      label,
+      seed: {
+        ...genericProviderSeed([
+          { key: attribute, value: JSON.stringify(value) },
+        ]),
+        spanName: label,
+      },
+    });
+  };
+  const payloads = [
+    "langfuse.observation.input",
+    "langfuse.observation.output",
+  ];
+  for (const key of keys) {
+    for (const [name, block] of Object.entries(toolSweepBlocks)) {
+      for (const attribute of payloads) {
+        add(attribute, `{${key}: ${name}}`, { [key]: block });
+        add(attribute, `{${key}: [${name}]}`, { [key]: [block] });
+        add(attribute, `[{${key}: ${name}}]`, [{ [key]: block }]);
+        add(attribute, `[{${key}: [${name}]}]`, [{ [key]: [block] }]);
+        add(attribute, `{${key}: "[${name}]"}`, {
+          [key]: JSON.stringify([block]),
+        });
+        add(
+          attribute,
+          `"{${key}: [${name}]}"`,
+          JSON.stringify({ [key]: [block] }),
+        );
+      }
+      add("langfuse.observation.metadata", `{${key}: [${name}]}`, {
+        [key]: [block],
+      });
+      add(
+        "langfuse.observation.metadata",
+        `{attributes: {${key}: [${name}]}}`,
+        {
+          attributes: { [key]: [block] },
+        },
+      );
+    }
+  }
+  return cases;
+}
+
+/** Labels of the spans whose stored row differs between the TypeScript and Rust paths. */
+async function toolSweepDifferences(cases: ToolSweepCase[]): Promise<string[]> {
+  const comparison = await runOtelReplayComparison({
+    bytes: buildProviderReplay(cases.map(({ seed }) => seed)),
+    projectId: `${PROJECT_PREFIX}-tool-sweep`,
+    fileKey: FILE_KEY,
+    mediaUploadEnabled: true,
+  });
+  // The label lookup below would hide a duplicated or an extra row.
+  expect(
+    [comparison.originalTs, comparison.earlyTs, comparison.earlyRust].map(
+      ({ storedRows }) => storedRows.length,
+    ),
+  ).toEqual([cases.length, cases.length, cases.length]);
+  const rowsByLabel = (result: OtelReplayResult) =>
+    new Map(
+      comparableOtelReplayRows(result.storedRows).map((row) => [
+        String(row.name),
+        JSON.stringify(row),
+      ]),
+    );
+  const expected = rowsByLabel(comparison.originalTs);
+  const others = [comparison.earlyTs, comparison.earlyRust].map(rowsByLabel);
+  return cases
+    .map(({ label }) => label)
+    .filter(
+      (label) =>
+        !expected.has(label) ||
+        others.some((rows) => rows.get(label) !== expected.get(label)),
+    );
+}
+
 // Shrinking replays the queue once per step. Stop early enough that a found
 // counterexample is reported instead of being lost to the Vitest timeout.
 const REPORT_BEFORE_TIMEOUT_MS = 90_000;
@@ -2496,6 +2706,17 @@ describe(
           examples: directedProviderExamples.map((example) => [example]),
         },
       );
+    });
+
+    it("stores the same row wherever a tool call or definition sits under a key the TypeScript extractor reads", async () => {
+      const cases = toolContainerSweep();
+      const differing: string[] = [];
+      for (let start = 0; start < cases.length; start += 500) {
+        differing.push(
+          ...(await toolSweepDifferences(cases.slice(start, start + 500))),
+        );
+      }
+      expect(differing).toEqual([]);
     });
 
     it("keeps rows, lookups and evaluation decisions aligned when known attributes carry the wrong type", async () => {

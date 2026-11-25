@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+import { BookOpen } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
@@ -58,17 +59,25 @@ export function TopicSetupNotice({
               so recurring patterns surface on their own.
             </p>
           </div>
-          {startBlockedReason ? (
-            <p role="status" className="text-muted-foreground text-sm">
-              {startBlockedReason}
-            </p>
-          ) : (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {startBlockedReason ? (
+              <p role="status" className="text-muted-foreground text-sm">
+                {startBlockedReason}
+              </p>
+            ) : (
+              <Button
+                text="Set up topics"
+                disabled={!canWrite || !canConfigure}
+                onClick={onStart}
+              />
+            )}
             <Button
-              text="Set up topics"
-              disabled={!canWrite || !canConfigure}
-              onClick={onStart}
+              variant="outline"
+              text="Learn more"
+              icon={BookOpen}
+              href="https://langfuse.com/topics"
             />
-          )}
+          </div>
         </div>
       ) : null}
     </>

@@ -34,6 +34,7 @@ import {
   arrayJoinElements,
   arrayLength,
   arrayMap,
+  cityHash64,
   count,
   countIf,
   firstMetadataValue,
@@ -64,6 +65,8 @@ import {
   tupleElement,
   typedValue,
   uniq,
+  uniqCombined,
+  uniqCombinedIf,
   uniqIf,
   useFinal,
   withFill,
@@ -915,6 +918,15 @@ describe("64-bit results", () => {
     >();
     expectTypeOf(
       uniqIf(eb.ref("e.trace_id"), isError).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      uniqCombined(eb.ref("e.trace_id")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      uniqCombinedIf(eb.ref("e.trace_id"), isError).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      cityHash64(eb.ref("e.trace_id"), eb.ref("e.span_id")).expressionType,
     ).toEqualTypeOf<number | undefined>();
     expectTypeOf(arrayLength(eb.ref("e.tags")).expressionType).toEqualTypeOf<
       number | undefined

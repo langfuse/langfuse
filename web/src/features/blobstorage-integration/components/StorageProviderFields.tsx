@@ -302,7 +302,7 @@ export const StorageProviderFields = ({
                           label: "IAM role",
                           disabled: true,
                           disabledReason: ROLE_AUTH_UPGRADE_MESSAGE,
-                          badges: [{ text: "Enterprise", color: "outline" }],
+                          badges: [{ text: "Enterprise" }],
                         }
                       : {
                           value: StorageIntegrationAuthType.ROLE_ARN,

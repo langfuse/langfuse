@@ -40,9 +40,6 @@ import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforce
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
-// Bootstrap MCP features - registers all tools at module load time
-import "@/src/features/mcp/server/bootstrap";
-
 /**
  * MCP API Route Handler
  *

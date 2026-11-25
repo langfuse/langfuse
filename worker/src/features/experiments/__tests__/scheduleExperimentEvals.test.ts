@@ -581,6 +581,7 @@ describe("scheduleExperimentObservationEvals", () => {
     expect(mockFetchEvalRules).toHaveBeenCalledWith("project-123");
     expect(mockScheduleObservationEvals).toHaveBeenCalledWith({
       observation,
+      loadSnapshot: expect.any(Function),
       configs: [{ id: "config-1" }],
       schedulerDeps: expect.any(Object),
     });

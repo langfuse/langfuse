@@ -36,7 +36,6 @@ async function createOwnerCaller() {
         templateFlag: true,
         v4BetaToggleVisible: false,
         experimentsV4Enabled: false,
-        langfuseTopics: false,
       },
     },
     organizations: [

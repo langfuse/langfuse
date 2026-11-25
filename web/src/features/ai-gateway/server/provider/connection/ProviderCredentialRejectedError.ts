@@ -15,8 +15,11 @@ export class ProviderCredentialRejectedError extends InvalidRequestError {
     body: string;
   };
 
-  constructor(response: ProviderAnswer) {
-    super("Provider connection test failed");
+  constructor(
+    response: ProviderAnswer,
+    message = "Provider connection test failed",
+  ) {
+    super(message);
     this.providerResponse = {
       status: response.status,
       statusText:

@@ -671,6 +671,8 @@ describe("Topics definition persistence", () => {
       row("2026-09-01T12:00:00.000Z", "complete"),
       row("2026-09-01T12:00:00.000Z", "not_applicable"),
       row("2026-09-01T12:00:00.000Z", "insufficient_input"),
+      row("2026-09-01T12:00:00.000Z", "empty_input"),
+      row("2026-09-01T12:00:00.000Z", "input_too_large"),
       row(end.toISOString(), "complete"),
     ]);
 
@@ -680,7 +682,7 @@ describe("Topics definition persistence", () => {
     });
     expect(
       counts.find((count) => count.projectId === telemetryProjectId)?.count,
-    ).toBe(3);
+    ).toBe(4);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
