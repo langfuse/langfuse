@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   getCurrentSpan,
   logger,
@@ -119,4 +118,5 @@ export type NewDecision =
   | { success: true }
   | { success: false; error: { httpCode: number } };
 
+/** @internal */
 export const __test = { newVerdict, legacyVerdict };

@@ -7,13 +7,11 @@
  */
 
 import { useCallback } from "react";
-import {
-  TraceGraphView as TraceGraphViewComponent,
-  type GraphViewMode,
-} from "@/src/features/trace-graph-view";
+import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
+import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useSelection } from "../../contexts/SelectionProvider";
@@ -24,6 +22,7 @@ export function TraceGraphView() {
     selectedNodeId,
     setSelectedNodeId,
     selectNode,
+    selectionLocked,
   } = useSelection();
   const { agentGraphData, isLoading } = useTraceGraphData();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
@@ -83,7 +82,9 @@ export function TraceGraphView() {
     <TraceGraphViewComponent
       selectedObservationId={selectedNodeId}
       defaultObservationId={defaultObservationId}
-      onSelectedObservationChange={handleSelectedObservationChange}
+      onSelectedObservationChange={
+        selectionLocked ? undefined : handleSelectedObservationChange
+      }
       agentGraphData={agentGraphData}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}

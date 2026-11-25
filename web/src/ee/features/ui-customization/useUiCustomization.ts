@@ -1,4 +1,4 @@
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { api } from "@/src/utils/api";
 
 export const useUiCustomization = () => {

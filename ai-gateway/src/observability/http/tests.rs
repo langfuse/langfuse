@@ -203,7 +203,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         let recording = Recording::start();
         let response = provider
             .forward(
-                provider.admit(),
+                provider.admit(None),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested"}"#),
@@ -302,6 +302,60 @@ async fn failed_responses_name_their_origin_on_the_server_span() {
             assert_eq!(status.as_u16(), provider_status);
         }
     }
+}
+
+/// Langfuse's own rate limit is a caller error, kept apart from the provider's 429.
+#[tokio::test]
+async fn organization_rate_limits_are_tagged_on_the_server_and_resolution_spans() {
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(429)
+            .header("retry-after", "5")
+            .header("langfuse-gateway-error-code", "rate_limit_exceeded")
+            .body(Body::from(
+                r#"{"error":"Langfuse AI Gateway rate limit exceeded","limit":"bytes","organizationId":"org-1"}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let service = InferenceService::for_test(
+        web.control_plane(),
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default()),
+    );
+    let recording = Recording::start();
+    let lifecycle = GatewayLifecycleState::default();
+    let app = instrument(crate::http::router(Some(service), lifecycle.clone()));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut serving = Box::pin(crate::server::serve(
+        listener,
+        app.clone(),
+        lifecycle,
+        std::future::pending(),
+        Duration::from_secs(1),
+    ));
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    let response = app.oneshot(generation_request()).await.unwrap();
+    assert_eq!(response.status(), 429);
+    axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+
+    let spans = recording.exporter.get_finished_spans().unwrap();
+    let server = spans
+        .iter()
+        .find(|span| span.span_kind == SpanKind::Server)
+        .unwrap();
+    assert_attribute(server, "error.origin", "client");
+    assert_attribute(server, "error.type", "rate_limited_bytes");
+    assert_attribute(server, "langfuse.organization.id", "org-1");
+    assert!(!matches!(
+        server.status,
+        opentelemetry::trace::Status::Error { .. }
+    ));
+    let resolution = spans.iter().find(|span| span.name == "resolution").unwrap();
+    assert_attribute(resolution, "gateway.outcome", "rate_limited");
+    assert_eq!(provider.calls(), 0);
 }
 
 /// Token counting captures no generation, yet a body that breaks after the
@@ -420,6 +474,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let service = InferenceService::for_test(
@@ -489,10 +544,11 @@ fn outbound_span<'a>(spans: &'a [SpanData], name: &str) -> &'a SpanData {
 /// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 9);
+    assert_eq!(spans.len(), 10);
     for (name, parent) in [
         ("resolution", server),
         ("request.body", server),
+        ("request.parse", server),
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),

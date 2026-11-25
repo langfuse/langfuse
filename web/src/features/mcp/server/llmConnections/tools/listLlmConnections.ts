@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { LLMApiKeySchema, LLMConnectionConfigSchema } from "@langfuse/shared";
 
-import { LlmConnectionService } from "@/src/features/llm-api-key/server";
-import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key";
+import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { BedrockAuthMethodSchema } from "@/src/features/llm-api-key/types";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
@@ -25,6 +25,7 @@ const LlmConnectionOutput = z
   .extend({
     scope: z.enum(["project", "organization"]),
     availableModels: z.array(z.string()),
+    decisionModels: z.array(z.string()),
     config: LLMConnectionConfigSchema.nullable(),
     authMethod: BedrockAuthMethodSchema.optional(),
   });
@@ -33,7 +34,7 @@ export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
   name: "listLlmConnections",
   description: [
     "List the LLM connections usable in the current project, including connections inherited from the organization. A project connection replaces an organization connection with the same provider name.",
-    "`provider` is a user-chosen name, not the vendor; use `adapter` to identify the API (e.g. openai, anthropic, bedrock). Pass `provider` and one of `availableModels` as an evaluator's modelConfig.",
+    "`provider` is a user-chosen name, not the vendor; use `adapter` to identify the API (e.g. openai, anthropic, bedrock). Pass `provider` and one of `availableModels` as an LLM-as-a-judge evaluator's modelConfig, or one of `decisionModels` for a decision-model evaluator.",
     "Returns metadata only, never credentials.",
   ].join(" "),
   action: "llmApiKeys:read",
@@ -57,5 +58,5 @@ export const [listLlmConnectionsTool, handleListLlmConnections] = defineTool({
         return { data: z.array(LlmConnectionOutput).parse(data) };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

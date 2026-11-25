@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Utility functions for JSON expansion state management across traces
  */
@@ -82,6 +81,7 @@ function isPrimitiveJsonValue(value: unknown): boolean {
  * True when the table's single-row array preview already shows every item
  * completely (a short list of primitives). Those lists should stay collapsed
  * by default so the preview is not duplicated as child rows.
+ * @internal
  */
 export function arrayFitsInSingleRowPreview(value: unknown): boolean {
   if (!Array.isArray(value) || value.length === 0) return false;

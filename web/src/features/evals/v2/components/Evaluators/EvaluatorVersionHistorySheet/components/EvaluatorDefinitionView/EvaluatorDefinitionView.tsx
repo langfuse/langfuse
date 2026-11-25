@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
@@ -80,7 +79,7 @@ function CodeEvaluatorDefinitionView({
             disabled
           />
         ) : (
-          <Badge color="primary" text="Language unavailable" />
+          <Badge color="outline" text="Language unavailable" />
         )}
       </EvaluationTypeConfiguration>
       <section className="flex flex-col gap-2">
@@ -217,8 +216,7 @@ function DecisionModelDefinitionView({
         disabled
       >
         <Badge
-          color="primary"
-          font="mono"
+          color="outline"
           text={
             definition.selectedModel
               ? `${definition.selectedModel.provider}: ${definition.selectedModel.model}`

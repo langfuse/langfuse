@@ -1,3 +1,4 @@
+/* oxlint-disable eqeqeq -- legacy Stripe invoice line parsing uses loose typeof checks */
 import type Stripe from "stripe";
 import { TRPCError } from "@trpc/server";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
@@ -23,7 +24,7 @@ import {
 import { stripeClient as defaultStripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { StripeCatalogue } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { createStripeClientReference } from "@/src/ee/features/billing/utils/stripeClientReference";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 import {
   makeIdempotencyKey,
@@ -64,6 +65,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
+/** @internal */
 export class BillingService {
   constructor(
     private stripe: Stripe,

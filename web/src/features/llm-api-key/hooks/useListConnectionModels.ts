@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { LlmConnectionFormOwner } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 import { api, type RouterInputs } from "@/src/utils/api";
 
-// The create shape plus the id the update procedures look the connection up by.
+// What listing uses, plus the id the update procedures look the connection up by.
 type ConnectionInput = Omit<
   RouterInputs["llmApiKey"]["listModels"],
   "projectId"
@@ -39,23 +39,39 @@ export function useListConnectionModels(params: {
     connectionInput: ConnectionInput,
   ): Promise<string[] | null> {
     setError(null);
+    const { id, adapter, secretKey, baseURL, extraHeaders } = connectionInput;
+    // In update mode an empty key means the stored one.
+    if (params.mode === "create" && !secretKey) {
+      setError("Enter the API key to fetch models.");
+      return null;
+    }
+    const listInput = { adapter, secretKey, baseURL, extraHeaders };
+
     try {
       let result;
       if (params.owner.scope === "project") {
-        const input = { ...connectionInput, projectId: params.owner.projectId };
+        const owner = { projectId: params.owner.projectId };
         result =
           params.mode === "create"
-            ? await mutListModels.mutateAsync(input)
-            : await mutListModelsUpdate.mutateAsync(input);
+            ? await mutListModels.mutateAsync({ ...listInput, ...owner })
+            : await mutListModelsUpdate.mutateAsync({
+                ...listInput,
+                ...owner,
+                id,
+              });
       } else {
-        const input = {
-          ...connectionInput,
-          orgId: params.owner.organizationId,
-        };
+        const owner = { orgId: params.owner.organizationId };
         result =
           params.mode === "create"
-            ? await mutListOrganizationModels.mutateAsync(input)
-            : await mutListOrganizationModelsUpdate.mutateAsync(input);
+            ? await mutListOrganizationModels.mutateAsync({
+                ...listInput,
+                ...owner,
+              })
+            : await mutListOrganizationModelsUpdate.mutateAsync({
+                ...listInput,
+                ...owner,
+                id,
+              });
       }
 
       if (!result.success) throw new Error(result.error);

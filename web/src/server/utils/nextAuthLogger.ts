@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type LoggerInstance } from "next-auth";
 
 import { logger } from "@langfuse/shared/src/server";
@@ -37,6 +36,7 @@ function serializeValue(value: unknown): unknown {
   }
 }
 
+/** @internal */
 export const serializeNextAuthMetadata = (
   metadata: unknown,
 ): Record<string, unknown> => {

@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
@@ -8,7 +7,7 @@ import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
 } from "@/src/components/ui/ResizableImage";
-import { type MediaContentType } from "@/src/features/media";
+import type { MediaContentType } from "@/src/features/media/validation";
 import { cn } from "@/src/utils/tailwind";
 
 export type MediaFileViewProps = {
@@ -90,7 +89,7 @@ export function MediaFileView({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink size="base" color="default" />
+            <SquareArrowOutUpRight size="base" color="default" />
           </Button>
         </div>
       ) : (

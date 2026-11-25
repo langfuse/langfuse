@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
 import {
   VirtualizedTreeNodeWrapper,
@@ -9,8 +8,11 @@ import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { type TreeNode } from "../types/treeNode";
+import { resolveTreeNodeId } from "../fns/resolveTreeNodeId";
+import { getCollapsedAncestors } from "../fns/getCollapsedAncestors";
 import {
   metricEmphasisFor,
   type MetricEmphasisContext,
@@ -62,16 +64,57 @@ function TraceTreeLoading() {
 }
 
 function LoadedTraceTree() {
-  const { roots, comments, metricEmphasis } = useTraceData();
-  const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
+  const {
+    roots,
+    comments,
+    metricEmphasis,
+    scope: traceScope,
+    nodeMap,
+    trace,
+    isNavigationReady,
+  } = useTraceData();
+  const {
+    selectedNodeId,
+    selectionLocked,
+    collapsedNodes,
+    toggleCollapsed,
+    collapseAll,
+  } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
+  const scope = traceScope.type;
+  const previousScope = useRef(scope);
+  const selectedTreeNodeId = resolveTreeNodeId(
+    nodeMap,
+    selectedNodeId,
+    trace?.id ?? "",
+  );
+
+  useLayoutEffect(() => {
+    if (previousScope.current === scope) return;
+    previousScope.current = scope;
+    if (!selectedTreeNodeId || collapsedNodes.size === 0) return;
+
+    const collapsedAncestors = getCollapsedAncestors(
+      roots,
+      selectedTreeNodeId,
+      collapsedNodes,
+    );
+    if (collapsedAncestors.size === 0) return;
+    collapseAll(
+      [...collapsedNodes].filter((id) => !collapsedAncestors.has(id)),
+    );
+  }, [scope, roots, selectedTreeNodeId, collapsedNodes, collapseAll]);
 
   return (
+    // Scope changes move rows without changing selection. Remount only the
+    // virtualizer so its initial selected-row scroll runs against the new tree.
     <VirtualizedTree
+      key={scope}
       roots={roots}
       collapsedNodes={collapsedNodes}
-      selectedNodeId={selectedNodeId}
+      selectedNodeId={selectedTreeNodeId}
+      isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
       renderNode={({ node, ...row }) => {
@@ -79,6 +122,7 @@ function LoadedTraceTree() {
         return (
           <TraceTreeRow
             {...row}
+            onSelect={selectionLocked ? undefined : row.onSelect}
             node={typedNode}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
@@ -107,13 +151,17 @@ function TraceTreeRow({
   isSelected: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  onSelect: () => void;
+  onSelect: (() => void) | undefined;
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-
+  const { isEmbedded, preferredObservationId } = useTracePresentation();
+  const isSelectedObservation =
+    isEmbedded &&
+    preferredObservationId != null &&
+    node.type !== "TRACE" &&
+    (node.observationId ?? node.id) === preferredObservationId;
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -123,15 +171,17 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      onHoverChange={setIsHovered}
+      surfaceClassName={
+        isSelectedObservation ? "bg-light-violet text-foreground" : undefined
+      }
     >
       <SpanContent
         node={node}
+        isSelectedObservation={isSelectedObservation}
         emphasis={emphasis}
         commentCount={commentCount}
         onSelect={onSelect}
         onHover={onHover}
-        surface={isSelected || isHovered ? "muted" : "default"}
       />
     </VirtualizedTreeNodeWrapper>
   );

@@ -15,6 +15,7 @@ export function joinPath(parts: (string | number)[]): string {
 /**
  * Split a path string into parts
  * @example splitPath("root.users.0.name") => ['root', 'users', 0, 'name']
+ * @internal
  */
 export function splitPath(path: string): (string | number)[] {
   return path.split(".").map((part) => {
@@ -28,6 +29,7 @@ export function splitPath(path: string): (string | number)[] {
  * Get the parent path of a given path
  * Returns null if no parent (i.e., already at root)
  * @example getParentPath("root.users.0.name") => "root.users.0"
+ * @internal
  */
 export function getParentPath(path: string): string | null {
   const parts = splitPath(path);
@@ -38,6 +40,7 @@ export function getParentPath(path: string): string | null {
 /**
  * Check if one path is an ancestor of another
  * @example isAncestorPath("root.users", "root.users.0.name") => true
+ * @internal
  */
 export function isAncestorPath(
   ancestorPath: string,
@@ -53,6 +56,7 @@ export function isAncestorPath(
 /**
  * Get all ancestor paths of a given path (excluding the path itself)
  * @example getAncestorPaths("root.users.0.name") => ["root", "root.users", "root.users.0"]
+ * @internal
  */
 export function getAncestorPaths(path: string): string[] {
   const parts = splitPath(path);

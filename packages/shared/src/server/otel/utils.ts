@@ -1,6 +1,13 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
+}
+
+/**
+ * Whether a datetime has a year outside 0000-9999, which `Date.toISOString()`
+ * writes with a sign and six digits. ClickHouse cannot read such a time.
+ */
+export function hasUnstorableYear(dateTime: string): boolean {
+  return /^[+-]\d{6}-/.test(dateTime);
 }
 
 export type OtelIdRejectionReason = "absent" | "not_an_id";

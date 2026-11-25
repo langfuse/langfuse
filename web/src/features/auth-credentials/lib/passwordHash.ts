@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { pbkdf2, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { compare, hash } from "bcryptjs";

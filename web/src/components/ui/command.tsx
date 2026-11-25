@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
-import { Command as CommandPrimitive } from "cmdk";
+import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
@@ -47,6 +47,7 @@ const CommandDialog = ({
       <DialogContent
         className={cn(
           commandDialogSurfaceClass,
+          "ph-no-capture",
           // Dark-mode depth: two near-black ambient layers.
           "top-[calc(var(--banner-offset)+clamp(4rem,20dvh,12rem))] translate-y-0 overflow-hidden p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9)]",
         )}
@@ -199,4 +200,5 @@ export {
   CommandItem,
   CommandSeparator,
   CommandShortcut,
+  useCommandState,
 };

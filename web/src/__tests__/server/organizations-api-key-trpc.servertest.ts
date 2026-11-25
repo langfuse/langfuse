@@ -1,10 +1,6 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type { Session } from "next-auth";
-
-// Session fixture sub-object types; casts keep the runtime fixtures unchanged
-// while satisfying newer required fields on the session user type.
-type SessionUser = NonNullable<Session["user"]>;
-type SessionOrg = SessionUser["organizations"][number];
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -71,77 +67,22 @@ describe("organization API keys trpc", () => {
     });
   });
 
-  // Instance admins bypass both RBAC and entitlement checks, so this session
-  // cannot cover plan gating. `entitledOwnerCaller` / `unentitledOwnerCaller`
-  // below are the non-admin owners used for that.
-  const ownerSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: true,
-    },
-    environment: {} as any,
-  };
+  // Organization-scoped API keys require the `admin-api` entitlement, so the
+  // default owner sits on a plan that carries it. `entitledOwnerCaller` /
+  // `unentitledOwnerCaller` below cover the plan gate explicitly.
+  const ownerSession = createSession({
+    organizations: [{ id: organizationId, role: "OWNER", plan: "cloud:team" }],
+  });
 
-  const memberSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-2",
-      canCreateOrganizations: true,
-      name: "Member User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "MEMBER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: false,
-    },
-    environment: {} as any,
-  };
+  const memberSession = createSession({
+    user: { id: "user-2", name: "Member User" },
+    organizations: [{ id: organizationId, role: "MEMBER" }],
+  });
 
-  const adminSession: Session = {
-    expires: "1",
-    user: {
-      id: "user-3",
-      canCreateOrganizations: true,
-      name: "Admin User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "ADMIN",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: false,
-    },
-    environment: {} as any,
-  };
+  const adminSession = createSession({
+    user: { id: "user-3", name: "Admin User" },
+    organizations: [{ id: organizationId, role: "ADMIN" }],
+  });
 
   const ownerCtx = createInnerTRPCContext({
     session: ownerSession,
@@ -165,29 +106,10 @@ describe("organization API keys trpc", () => {
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
 
   // Organization-scoped API keys are a paid feature (`admin-api` entitlement).
-  // These owners are deliberately not instance admins so the plan gate applies.
-  const ownerSessionOnPlan = (plan: SessionOrg["plan"]): Session => ({
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: organizationId,
-          name: "Test Organization",
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          projects: [] as SessionOrg["projects"],
-        } as SessionOrg,
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: false,
-    },
-    environment: {} as any,
-  });
+  const ownerSessionOnPlan = (plan: Plan) =>
+    createSession({
+      organizations: [{ id: organizationId, role: "OWNER", plan }],
+    });
 
   const callerForSession = (session: Session) =>
     appRouter.createCaller({
@@ -251,9 +173,16 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Gateway key",
+      });
+      const legacyGatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Legacy gateway key",
       });
       const ingestKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
@@ -269,6 +198,7 @@ describe("organization API keys trpc", () => {
       const ids = apiKeys.map((key) => key.id);
 
       expect(ids).not.toContain(gatewayKey.id);
+      expect(ids).not.toContain(legacyGatewayKey.id);
       expect(ids).toContain(ingestKey.id);
 
       const allApiKeys = await ownerCaller.organizationApiKeys.byOrganizationId(
@@ -277,6 +207,7 @@ describe("organization API keys trpc", () => {
       const allIds = allApiKeys.map((key) => key.id);
 
       expect(allIds).toContain(gatewayKey.id);
+      expect(allIds).toContain(legacyGatewayKey.id);
       expect(allIds).toContain(ingestKey.id);
     });
 
@@ -443,7 +374,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Original gateway key",
       });
@@ -464,9 +395,15 @@ describe("organization API keys trpc", () => {
           userId: null,
           apiKeyName: "Original gateway key",
           userName: null,
+          userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
+          spendLimits: [],
+          guardrails: [],
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });
@@ -479,6 +416,39 @@ describe("organization API keys trpc", () => {
       });
 
       expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
+    it("rejects a blank name for a gateway key but not for other keys", async () => {
+      for (const role of ["AI_GATEWAY_INFERENCE", "AI_GATEWAY"] as const) {
+        const gatewayKey = await createApiKey(prisma, {
+          tenant: OrganizationId(organizationId),
+          scope: OrganizationId(organizationId),
+          role: SystemRoleId(role),
+          createdBy: UserId("user-1"),
+          name: `Named ${role} key`,
+        });
+
+        await expect(
+          ownerCaller.organizationApiKeys.updateName({
+            orgId: organizationId,
+            keyId: gatewayKey.id,
+            name: "  ",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        await expect(
+          prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+        ).resolves.toMatchObject({ note: `Named ${role} key` });
+      }
+
+      const otherKey = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        name: "Named key",
+      });
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: otherKey.id,
+        name: "",
+      });
     });
 
     it("returns NOT_FOUND for a missing API key", async () => {
@@ -578,7 +548,7 @@ describe("organization API keys trpc", () => {
       const gatewayKey = await createApiKey(prisma, {
         tenant: OrganizationId(organizationId),
         scope: OrganizationId(organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: UserId("user-1"),
         name: "Cached gateway key",
       });
@@ -599,9 +569,15 @@ describe("organization API keys trpc", () => {
           userId: null,
           apiKeyName: "Cached gateway key",
           userName: null,
+          userEmail: null,
           keyMetadata: {},
+          keyAllowedModels: null,
+          spendLimits: [],
+          guardrails: [],
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });
@@ -708,28 +684,18 @@ describe("organization API keys trpc", () => {
 
   describe("organizationApiKeys.create role scoping", () => {
     const ownerCallerForOrg = (orgId: string) =>
-      callerForSession({
-        expires: "1",
-        user: {
-          id: "user-1",
-          canCreateOrganizations: true,
-          name: "Demo User",
+      callerForSession(
+        createSession({
           organizations: [
             {
               id: orgId,
               name: "Scoped Org",
               role: "OWNER",
               plan: "cloud:team",
-              cloudConfig: undefined,
-              metadata: {},
-              projects: [] as SessionOrg["projects"],
-            } as SessionOrg,
+            },
           ],
-          featureFlags: testFeatureFlags(),
-          admin: false,
-        },
-        environment: {} as any,
-      });
+        }),
+      );
 
     // An org key owns a single assignment on the organization, and the resolver
     // expands that owner to the project-kind wildcard, so a project-capable role
@@ -757,9 +723,9 @@ describe("organization API keys trpc", () => {
     it.each([
       "ADMIN",
       "VIEWER",
-      "INGEST",
+      "APPLICATION",
       "SCORES_INGEST",
-      "AI_GATEWAY",
+      "AI_GATEWAY_INFERENCE",
     ] as const)(
       "creates an organization key with %s when role selection is enabled",
       async (role) => {
@@ -770,6 +736,7 @@ describe("organization API keys trpc", () => {
         });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
+          name: `${role} key`,
           role,
         });
         expect(
@@ -784,6 +751,23 @@ describe("organization API keys trpc", () => {
         });
       },
     );
+
+    it("rejects an AI_GATEWAY_INFERENCE key without a name", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({
+        data: { id: orgId, name: "Scoped" },
+      });
+
+      await expect(
+        ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          name: "  ",
+          role: "AI_GATEWAY_INFERENCE",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
 
     describe.each([
       { migration: "legacy", enabled: "false" },
@@ -833,19 +817,21 @@ describe("organization API keys trpc", () => {
           });
           const caller = ownerCallerForOrg(orgId);
           const rejectedRoles = [
+            "INGEST",
             "LEGACY_PROJECT_API_KEY",
             "LEGACY_ORGANIZATION_API_KEY",
             "",
             "OWNER",
+            "AI_GATEWAY",
             "invalid",
           ];
           if (migration !== "enforce" || enabled === "false")
             rejectedRoles.push(
               "ADMIN",
               "VIEWER",
-              "INGEST",
+              "APPLICATION",
               "SCORES_INGEST",
-              "AI_GATEWAY",
+              "AI_GATEWAY_INFERENCE",
             );
           for (const role of rejectedRoles) {
             await expect(

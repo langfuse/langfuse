@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ReactNode } from "react";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {

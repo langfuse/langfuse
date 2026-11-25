@@ -6,12 +6,10 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useEffect, useMemo } from "react";
 import {
   customRowHeightMenu,
@@ -19,16 +17,15 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import { ListTree } from "@langfuse/icons";
-import { scoreFilters, useScoreColumns } from "@/src/features/scores";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { convertRunItemToItemsByItemUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
-import {
-  DatasetItemIOCell,
-  TraceObservationIOCell,
-} from "@/src/features/datasets/components/DatasetIOCells";
+import { DatasetItemIOCell } from "@/src/features/datasets/components/DatasetItemIOCell";
+import { TraceObservationIOCell } from "@/src/features/datasets/components/TraceObservationIOCell";
 import { type DatasetRunItemByItemRowData } from "@/src/features/datasets/lib/types";
 
 export function DatasetRunItemsByItemTable(props: {

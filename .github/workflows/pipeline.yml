@@ -29,6 +29,15 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
+  # golang-migrate release installed for ClickHouse migrations. The cache key
+  # and scripts/ci/install-golang-migrate.sh both read this value.
+  GOLANG_MIGRATE_VERSION: v4.19.1
+  # Test jobs build the native addon with thin instead of fat LTO, the same
+  # setting ai-gateway's release profile uses. Fat LTO is a ~45s
+  # single-threaded link on every job that builds the addon; thin LTO
+  # parallelizes it. Docker builds do not inherit this, so released images
+  # and test-docker-build keep packages/native's fat-LTO profile.
+  CARGO_PROFILE_RELEASE_LTO: thin
 
   # Disable CI cache restores for fork PRs.
   #
@@ -128,7 +137,9 @@ jobs:
   llm-connections-filter:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
-      changed: ${{ steps.filter.outputs.llm_connections }}
+      llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
+      topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
+      ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -136,49 +147,26 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Recommended for paths-filter action
-          # may save additional git fetch roundtrip if
-          # merge-base is found within latest N commits
+          # Recent history can avoid a fetch while finding the diff base.
           fetch-depth: 20
           persist-credentials: false
+      - name: Check changed-file range
+        id: range
+        # The PR files API caps at 3,000 files; unknown ranges need both suites.
+        env:
+          RUN_ALL: >-
+            ${{ (github.event_name == 'pull_request' &&
+                (!github.event.pull_request.changed_files || github.event.pull_request.changed_files >= 3000)) ||
+                (github.event_name == 'push' &&
+                (!github.event.before || github.event.before == '0000000000000000000000000000000000000000')) }}
+        run: echo "run_all=$RUN_ALL" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
+        if: ${{ steps.range.outputs.run_all == 'false' }}
         with:
-          filters: |
-            llm_connections:
-              - 'packages/shared/package.json'
-              - 'packages/shared/src/server/llm/**'
-              - 'worker/src/__tests__/llmConnections.test.ts'
-
-  ai-gateway-filter:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    outputs:
-      changed: ${{ steps.filter.outputs.ai_gateway }}
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 20
-          persist-credentials: false
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        id: filter
-        with:
-          filters: |
-            ai_gateway:
-              - 'ai-gateway/**'
-              - 'packages/shared/prisma/migrations/**/*gateway*/**'
-              - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
-              - 'web/src/features/ai-gateway/**'
-              - 'web/src/features/public-api/server/createAuthedProjectAPIRoute.ts'
-              - 'web/src/pages/api/internal/ai-gateway/**'
-              - 'web/src/pages/api/public/ingestion.ts'
-              - 'web/src/pages/api/public/media/**'
-              - 'web/src/pages/api/public/otel/v1/traces/**'
-              - 'web/src/server/utils/hmac.ts'
-              - 'web/src/server/utils/jwt.ts'
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          ref: ${{ github.event_name == 'push' && github.sha || '' }}
+          filters: .github/ci-paths.yml
 
   tests-ai-gateway:
     timeout-minutes: 20
@@ -211,7 +199,7 @@ jobs:
       - name: Check Rust dependency bans, licenses, and sources
         run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
+        run: cargo test --locked
       # Persistent layer cache, so the toolchain and compiled-dependency layers
       # are reused until the Dockerfile, Cargo.toml or Cargo.lock change.
       - name: Setup Blacksmith Builder
@@ -225,7 +213,7 @@ jobs:
 
   lint:
     timeout-minutes: 12
-    runs-on: blacksmith-16vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -286,20 +274,67 @@ jobs:
         run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
-      - name: merge-queue retry helper tests
-        run: bash scripts/ci/retry-on-merge-queue.test.sh
       - name: vitest CI reporter tests
         run: node --test scripts/vitest/ci-reporter.test.mjs
+      - name: merge gate tests
+        run: node --test scripts/ci/merge-gate.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+
+  typecheck:
+    name: typecheck and native checks
+    timeout-minutes: 12
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] typecheck job dependency cache only; no released artifacts are built or published from this cached state
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: Setup Turbo remote cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        continue-on-error: true
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
+        with:
+          provider: github
+          cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
+          use-relative-cache-path: true
+          server-port: "0"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Test native addon
+        run: pnpm --filter @langfuse/native run test
       - name: Install Rust dependency checkers
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
@@ -346,7 +381,7 @@ jobs:
       - name: run knip
         run: pnpm exec knip
 
-  prettier-check:
+  format-check:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
@@ -371,7 +406,7 @@ jobs:
           package-manager-cache: false
       - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] prettier check dependency cache only; no released artifacts are built or published from this cached state
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] formatting check dependency cache only; no released artifacts are built or published from this cached state
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -387,25 +422,21 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA="$PR_BASE_SHA"
-          else
-            BASE_SHA=$(git merge-base origin/main HEAD)
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            pnpm run format:check
+            exit 0
           fi
+          BASE_SHA="$PR_BASE_SHA"
 
           echo "Checking files changed from $BASE_SHA to HEAD"
 
-          if git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css'; then
-            echo "No JS/TS/CSS files changed - skipping prettier check"
+          if ! git diff --quiet "$BASE_SHA" HEAD -- '.oxfmtrc.*' '**/.oxfmtrc.*' 'oxfmt.config.*' '**/oxfmt.config.*' '.editorconfig' '**/.editorconfig'; then
+            pnpm run format:check
+          elif git diff --quiet --exit-code --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css'; then
+            echo "No JS/TS/CSS files changed - skipping formatting check"
           else
-            # --experimental-cli is intentionally omitted: its glob resolver treats bracket characters
-            # in Next.js dynamic-route paths (e.g. [projectId]) as glob character classes, causing
-            # "No files matching the given patterns were found" (exit 123) for any PR that touches a
-            # file inside a bracket-named directory. Standard prettier resolves explicit paths correctly.
-            # Parallelism and the ephemeral cache (the only extras --experimental-cli adds) provide no
-            # benefit when checking a handful of per-PR changed files.
-            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' \
-              | xargs -0 --no-run-if-empty pnpm prettier --check --
+            git diff --name-only -z --diff-filter=d "$BASE_SHA" HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts' '*.css' \
+              | xargs -0 --no-run-if-empty pnpm exec oxfmt --check --
           fi
 
   tests-eslint-plugin:
@@ -443,7 +474,7 @@ jobs:
         run: |
           pnpm install
       - name: run eslint-plugin tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/eslint-plugin run test
+        run: pnpm --filter @repo/eslint-plugin run test
 
   tests-in-app-agent-sandbox-runtime:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -489,9 +520,9 @@ jobs:
       - name: typecheck sandbox runtime
         run: pnpm --filter @repo/in-app-agent-sandbox-runtime run typecheck
       - name: run sandbox runtime unit tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test
       - name: run sandbox runtime docker e2e tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run test:e2e
 
   tests-storybook:
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -641,44 +672,43 @@ jobs:
       - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: Build icons for package tests
+        run: pnpm --filter @langfuse/icons run build
+      - name: Run icons package tests
+        run: pnpm --filter @langfuse/icons run test
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
         # The clickhouse binary isn't installed yet, so the SQL-equivalence
         # tests skip here (they run for real in the dedicated step below); every
         # other shared test hard-fails as usual.
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter @langfuse/shared run test
+        run: pnpm --filter @langfuse/shared run test
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
-        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
-        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
-        # mirror just skips the tests, never blocks (timeout-minutes bounds a
-        # hang, which continue-on-error alone would not).
-        continue-on-error: true
+        # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
+        # Fails the job if the install fails: without the binary the
+        # SQL-equivalence suites skip and would pass silently.
         timeout-minutes: 5
         env:
-          CLICKHOUSE_VERSION: 26.4.5.143
+          CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
+          curl -fsSL --retry 5 --retry-all-errors https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
             | gpg --dearmor \
             | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
           echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
             | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install --allow-downgrades -y \
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install --allow-downgrades -y \
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
-      - name: run SQL-equivalence tests (non-blocking)
-        # Non-blocking: a snapshot drift or an intentional SQL change emits a
-        # warning but must not fail the job (`|| echo` swallows the exit code).
-        # Make it a required check once the suite has proven stable.
-        run: |
-          pnpm --filter @langfuse/shared run test .golden.test \
-            || echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed (non-blocking). Regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u"
+      - name: run SQL-equivalence tests
+        # A snapshot drift fails the job. After an intentional SQL change,
+        # regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u
+        run: pnpm --filter @langfuse/shared run test .golden.test
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})
@@ -730,8 +760,8 @@ jobs:
         run: |
           if [ -n "$IRONBANK_USER" ]; then
             echo "ironbank=true" >> "$GITHUB_OUTPUT"
-            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
-            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9" >> "$GITHUB_OUTPUT"
+            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9" >> "$GITHUB_OUTPUT"
           elif [ "$SECRETS_EXPECTED" = "true" ]; then
             # Never degrade quietly where the credential is supposed to be
             # present: a green build on the wrong base misreports which image
@@ -741,8 +771,8 @@ jobs:
           else
             echo "Fork run without Registry1 access, building on Red Hat's public UBI9." >&2
             echo "ironbank=false" >> "$GITHUB_OUTPUT"
-            echo "base=registry.access.redhat.com/ubi9/ubi:9.8" >> "$GITHUB_OUTPUT"
-            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.8" >> "$GITHUB_OUTPUT"
+            echo "base=registry.access.redhat.com/ubi9/ubi:9.9" >> "$GITHUB_OUTPUT"
+            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.9" >> "$GITHUB_OUTPUT"
           fi
       - name: Login to Iron Bank
         if: steps.bases.outputs.ironbank == 'true'
@@ -843,17 +873,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
-        # Only needed by the "Migrate DB" step, so let the dependency setup
-        # overlap the 1-25s download. "Migrate DB" waits for the marker file.
+        # Only needed by the "Migrate DB" step, so let dependency setup overlap
+        # the install. A cache hit returns immediately; a miss downloads in the
+        # background. "Migrate DB" waits for the marker file.
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
@@ -1045,7 +1081,7 @@ jobs:
 
   tests-worker:
     timeout-minutes: 20
-    runs-on: ${{ matrix.deploy-mode == '-redis-cluster' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -1054,7 +1090,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
-      VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
+      VITEST_MAX_WORKERS: "8"
       NODE_ENV: test
     strategy:
       fail-fast: false
@@ -1076,6 +1112,19 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Load default env
+        run: |
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
+      - name: Start dev containers in background
+        # Independent of the install and build, so let them overlap the
+        # container startup. "Wait for dev containers" collects the result.
+        run: |
+          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+        env:
+          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
+          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Use Node.js ${{ matrix.node-version }} without cache
         if: env.CI_CACHE_ALLOWED != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1092,33 +1141,36 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations
-        run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
-      - name: Load default env
-        run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
-          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
-      - name: Run + migrate
-        run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
-          docker compose ps
         env:
-          # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
-          COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
-      - name: Ensure no unhealthy status
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
+          bash scripts/ci/install-golang-migrate.sh
+          which migrate
+      - name: Build
+        # Runs before "Seed DB" (`prisma migrate dev`), so generate the Prisma
+        # client the shared build type-checks against here. `prisma generate`
+        # only reads the schema and needs no database.
+        run: |
+          pnpm --filter=shared run db:generate
+          pnpm --filter=worker... run build
+      - name: Wait for dev containers
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
+          docker compose ps
+          if [ "$(cat /tmp/compose-up.exit)" != "0" ]; then exit 1; fi
           if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
-          else
-            echo "All services are healthy"
           fi
       - name: Seed DB
         run: |
@@ -1139,19 +1191,22 @@ jobs:
         if: matrix.deploy-mode == ''
         run: |
           pnpm --filter=shared ch:dev-tables
-      - name: Build
-        run: pnpm --filter=worker... run build
-      - name: run native codec tests against ClickHouse
-        if: matrix.deploy-mode == ''
-        env:
-          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: "1"
-        run: |
-          pnpm --filter @langfuse/native run test
-          pnpm --filter worker run test:native-codec
       - name: run tests
+        id: worker-suite
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
+          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: ${{ matrix.deploy-mode == '' && '1' || '0' }}
+          VITEST_CI_TIMINGS_PATH: ${{ runner.temp }}/vitest-worker.json
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Upload worker file timings
+        if: ${{ always() && steps.worker-suite.outcome != '' && steps.worker-suite.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vitest-worker-node${{ matrix.node-version }}-pg${{ matrix.postgres-version }}-mode${{ matrix.deploy-mode || '-default' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vitest-worker.json
+          if-no-files-found: error
+          retention-days: 7
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1161,7 +1216,7 @@ jobs:
     # ERR_OSSL_EVP_UNSUPPORTED. Databases and migrations run on the runner as
     # in tests-web/tests-worker; install, build, the web and worker processes
     # and the tests run in the container (scripts/ci/fips-tests.sh).
-    # Not part of all-ci-passed yet.
+    # Compatibility signal; not part of the required merge gate.
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs:
@@ -1212,13 +1267,18 @@ jobs:
         # its own copy for UBI.
         run: |
           pnpm install
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
         run: |
@@ -1265,11 +1325,12 @@ jobs:
       - name: Run ${{ matrix.suite }} tests under forced FIPS
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
           SUITE: ${{ matrix.suite }}
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e CARGO_PROFILE_RELEASE_LTO -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \
@@ -1282,7 +1343,8 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    # Fork pull requests get no provider secrets, so the live suites cannot run there.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.llm_connections == 'true' || needs.llm-connections-filter.outputs.topics_llm == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     env:
       NODE_ENV: test
@@ -1310,13 +1372,12 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      # Download directly. This job holds provider credentials and stays
+      # cache-cold; a shared migrate cache would execute a binary saved by
+      # another job.
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
+          bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
         run: |
@@ -1342,9 +1403,13 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
-      - name: Build
-        run: pnpm --filter=worker... run build
+      - name: Build shared package for provider tests
+        # Vitest loads the worker test sources directly. Both suites import
+        # the built shared package, but neither loads the native addon.
+        id: build
+        run: pnpm --filter=@langfuse/shared run build
       - name: run llm connection tests
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || needs.llm-connections-filter.outputs.llm_connections == 'true' }}
         run: pnpm --filter=worker run test:llm-connections-only
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
@@ -1352,6 +1417,19 @@ jobs:
           LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY }}
           LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL }}
           LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      # Runs after a failed connection suite too, so both provider reports are visible.
+      - name: run topics llm provider tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || needs.llm-connections-filter.outputs.topics_llm == 'true') }}
+        run: pnpm --filter=worker run test:topics-llm-providers
+        env:
+          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
           LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
@@ -1405,16 +1483,16 @@ jobs:
           cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
           use-relative-cache-path: true
           server-port: "0"
-      - name: Cache Next.js builds
+      # Restore-only: the nextjs-e2e job in warm-caches.yml is the only writer
+      # and saves this cache from main after every push.
+      - name: Restore Next.js build cache
         if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache; not part of any artifact build or publishing flow
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache saved from main; not part of any artifact build or publishing flow
         with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          path: web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-nextjs-e2e-
       - name: install dependencies
         run: |
@@ -1426,15 +1504,20 @@ jobs:
       # The next three downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
@@ -1481,7 +1564,7 @@ jobs:
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" pnpm --filter=web run test:e2e
+        run: pnpm --filter=web run test:e2e
       # Playwright writes a screenshot, an error context and a trace for every
       # failure, and the reporter prints the command to open them — but they
       # die with the runner, so a flake here is reported with no way to see
@@ -1548,18 +1631,34 @@ jobs:
           cache-prefix: ${{ runner.os }}-${{ runner.arch }}-node${{ env.NODE_VERSION }}-turbo-ci-
           use-relative-cache-path: true
           server-port: "0"
+      # Same web build as e2e-tests (identical turbo task hash), so it shares
+      # that job's restore-only Next.js cache.
+      - name: Restore Next.js build cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] e2e-only Next.js cache saved from main; not part of any artifact build or publishing flow
+        with:
+          path: web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-
       # The next two downloads/startups have no dependency on the build, so
       # they run in the background and the build overlaps them. Later steps
       # wait on their marker files.
+      - name: Restore golang-migrate cache
+        id: migrate-cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test-only migrate binary; not part of any artifact build or publishing flow
+        with:
+          path: ~/.cache/golang-migrate/${{ env.GOLANG_MIGRATE_VERSION }}
+          key: golang-migrate-${{ env.GOLANG_MIGRATE_VERSION }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install golang-migrate for Clickhouse migrations in background
+        env:
+          MIGRATE_CACHE_HIT: ${{ steps.migrate-cache.outputs.cache-hit }}
         run: |
           (
             set -e
-            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-              --output migrate.linux-amd64.tar.gz \
-              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-            tar xzf migrate.linux-amd64.tar.gz
-            sudo mv migrate /usr/bin/migrate
+            bash scripts/ci/install-golang-migrate.sh
             touch /tmp/migrate-installed
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
@@ -1615,14 +1714,17 @@ jobs:
 
   test-ai-gateway-e2e:
     timeout-minutes: 25
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Cache-cold by design, so every run compiles web, worker and both Rust
+    # crates from scratch; the build saturates 8 vCPUs for about two minutes.
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     needs:
       - pre-job
-      - ai-gateway-filter
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.ai-gateway-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
-    name: test-ai-gateway-e2e (node24, pg15)
+      - llm-connections-filter
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.ai_gateway == 'true' || github.event_name == 'workflow_dispatch'))) }}
+    name: test-ai-gateway-e2e
     env:
       NODE_ENV: test
+      LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: "10"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1649,12 +1751,23 @@ jobs:
       - name: Load default env
         run: cp .env.dev.example .env
       - name: Configure gateway signing
+        # Values written to GITHUB_ENV are printed in every later step's env
+        # header, so mask the secrets before they reach GITHUB_ENV. Masks match
+        # single lines, so the PEM body is masked line by line.
         run: |
+          service_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$service_key"
           openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/gateway-jwt-private.pem
+          while IFS= read -r line; do
+            case "$line" in
+              "" | -----*) ;;
+              *) echo "::add-mask::$line" ;;
+            esac
+          done < /tmp/gateway-jwt-private.pem
           openssl pkey -in /tmp/gateway-jwt-private.pem -pubout -out /tmp/gateway-jwt-public.pem
           delimiter="GATEWAY_KEY_$(openssl rand -hex 12)"
           {
-            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$(openssl rand -hex 32)"
+            echo "LANGFUSE_AI_GATEWAY_SERVICE_KEY=$service_key"
             echo "LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST=seed-org-id"
             echo "LANGFUSE_AI_GATEWAY_JWT_KEY_ID=ci"
             echo "LANGFUSE_AI_GATEWAY_JWT_ISSUER=langfuse-gateway-ci"
@@ -1666,24 +1779,27 @@ jobs:
             cat /tmp/gateway-jwt-public.pem
             echo "$delimiter"
           } >> "$GITHUB_ENV"
-      - name: Install golang-migrate
-        run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-      - name: Start dev containers
-        run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
+      # Download directly and run container startup plus schema migrations in
+      # the background so they overlap Rust toolchain setup and the build.
+      # This job holds provider credentials and stays cache-cold; a shared
+      # migrate cache would execute a binary saved by another job.
+      # `prisma migrate deploy` skips `prisma generate`, so it does not race
+      # `@langfuse/shared#db:generate` inside `pnpm run build`.
+      - name: Start dev containers and migrations in background
         env:
           POSTGRES_VERSION: 15
-      - name: Migrate and seed
         run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed
+          (
+            set +e
+            (
+              set -euo pipefail
+              bash scripts/ci/install-golang-migrate.sh
+              docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+              pnpm --filter=@langfuse/shared exec dotenv -e ../../.env -- prisma migrate deploy
+              pnpm --filter=shared run ch:up
+            ) > /tmp/infra-setup.log 2>&1
+            echo $? > /tmp/infra-setup.exit
+          ) > /dev/null 2>&1 &
       # Turbo starts the native addon and AI Gateway builds in parallel. They
       # may use different workspace-pinned Rust toolchains, so install both
       # serially before either build can trigger rustup.
@@ -1696,26 +1812,49 @@ jobs:
         env:
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers and migrations
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/infra-setup.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background infra setup"; cat /tmp/infra-setup.log; exit 1; }
+          cat /tmp/infra-setup.log
+          docker compose ps
+          exit "$(cat /tmp/infra-setup.exit)"
+      - name: Seed DB
+        run: pnpm --filter=shared run db:seed
       - name: Run server
-        run: (pnpm run start&)
+        run: (pnpm run start > /tmp/langfuse-start.log 2>&1 &)
       - name: Check worker health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3030/api/health > /dev/null; do sleep 2; done' \
+            || { echo "Worker was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Check server health
-        run: timeout 30 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/public/health > /dev/null; do sleep 2; done' \
+            || { echo "Langfuse was not healthy within 60s"; cat /tmp/langfuse-start.log; exit 1; }
       - name: Run AI Gateway end-to-end tests
         run: pnpm --filter=web run test:e2e:ai-gateway
         env:
           LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
           LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_API_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
+      - name: Langfuse server log
+        if: failure()
+        run: cat /tmp/langfuse-start.log || true
 
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       [
+        pre-job,
+        llm-connections-filter,
         lint,
+        typecheck,
         knip,
-        prettier-check,
+        format-check,
         tests-ai-gateway,
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
@@ -1735,155 +1874,40 @@ jobs:
     if: always()
     permissions:
       contents: read
-      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
-      - name: Set check result as an output
-        id: set-success-output
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "success=false" >> $GITHUB_OUTPUT
-          else
-            echo "success=true" >> $GITHUB_OUTPUT
-          fi
-      - name: Successful deploy
-        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: exit 0
-        working-directory: .
-      - name: Failing deploy
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1
-        working-directory: .
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         with:
           persist-credentials: false
-      - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        uses: ./.github/actions/notify-slack-failure
-        with:
-          message: "❌ CI failed on ${{ github.ref_name }}"
-          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
-      - name: Output job results
-        run: |
-          echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
+      - name: Require every planned CI job to pass
+        id: set-success-output
         env:
-          STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: node scripts/ci/merge-gate.mjs
 
-  # A merge-queue run that only went green because a step was retried still hides
-  # a real flake, and the retry means nobody is forced to look at it. Collect the
-  # markers scripts/ci/retry-on-merge-queue.sh leaves in the job logs and report
-  # them, so the flake gets fixed instead of silently re-rolled on every merge.
-  #
-  # Runs after the all-ci-passed gate and is not itself a required check, so it
-  # never delays a merge.
-  notify-flaky-merge-queue:
+  # The alert lives in its own job because only a job-level `cancelled()` tells
+  # whether the run was cancelled. Inside a step of the always() gate it reads
+  # the gate's own status, which never becomes cancelled. A job that exceeds
+  # timeout-minutes is cancelled without cancelling the run, so it still alerts.
+  notify-ci-failure:
     needs: all-ci-passed
-    if: ${{ github.event_name == 'merge_group' && needs.all-ci-passed.outputs.success == 'true' }}
+    if: ${{ !cancelled() && needs.all-ci-passed.result == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 10
     permissions:
       contents: read
       actions: read
     steps:
-      - name: Collect flaky jobs
-        id: flaky
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          # grep returns 1 on "no match", which is the normal case here.
-          set +e
-          set +o pipefail
-
-          # Keep in sync with FLAKY_MARKER in scripts/ci/retry-on-merge-queue.sh.
-          # Split so this job's own log — the runner echoes `run:` bodies into
-          # it — can never match the marker and report this job as flaky.
-          MARKER="LANGFUSE_CI_FLAKY""_RETRY_SUCCEEDED"
-          FLAKY=""
-          # A failed lookup must not read as "nothing was retried" — that would
-          # silently drop the very report this job exists to produce. Track it
-          # and fail the job at the end, after reporting whatever was found.
-          INCOMPLETE=0
-
-          JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)"
-          if [ "$?" -ne 0 ] || [ -z "$JOBS_JSON" ]; then
-            echo "::error title=Flaky-CI check failed::Could not list this run's jobs; a flaky retry may have gone unreported."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          # Only succeeded jobs can have been rescued by a retry; a job that
-          # failed anyway is already reported through the normal failure path.
-          JOBS_TSV="$(jq -r '.jobs[] | select(.conclusion == "success") | "\(.id)\t\(.name)"' <<<"$JOBS_JSON")"
-          if [ "$?" -ne 0 ]; then
-            echo "::error title=Flaky-CI check failed::Could not parse this run's job list; a flaky retry may have gone unreported."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          while IFS=$'\t' read -r JOB_ID JOB_NAME; do
-            [ -n "$JOB_ID" ] || continue
-            JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null)"
-            if [ "$?" -ne 0 ]; then
-              echo "::error title=Flaky-CI check incomplete::Could not download the log for '$JOB_NAME'; if it was retried, that went unreported."
-              INCOMPLETE=1
-              continue
-            fi
-            if grep -qF "$MARKER" <<<"$JOB_LOG"; then
-              if [ -n "$FLAKY" ]; then
-                FLAKY="$(printf '%s\n• %s' "$FLAKY" "$JOB_NAME")"
-              else
-                FLAKY="• $JOB_NAME"
-              fi
-            fi
-          done <<<"$JOBS_TSV"
-
-          if [ -z "$FLAKY" ]; then
-            echo "No retried steps in this run."
-            echo "flaky=false" >>"$GITHUB_OUTPUT"
-            exit "$INCOMPLETE"
-          fi
-
-          echo "Flaky jobs in this run:"
-          printf '%s\n' "$FLAKY"
-          echo "flaky=true" >>"$GITHUB_OUTPUT"
-
-          DELIM="FLAKY_EOF_${RANDOM}${RANDOM}"
-          {
-            echo "jobs<<$DELIM"
-            printf '%s\n' "$FLAKY"
-            echo "$DELIM"
-          } >>"$GITHUB_OUTPUT"
-
-          {
-            echo "### ⚠️ Flaky CI in the merge queue"
-            echo
-            echo "These jobs failed once and passed on retry:"
-            echo
-            printf '%s\n' "$FLAKY"
-          } >>"$GITHUB_STEP_SUMMARY"
-
-          exit "$INCOMPLETE"
-      # always(): an incomplete collection fails the step above on purpose, but
-      # the flakes it did find still need to reach Slack.
-      - name: Notify Slack
-        if: ${{ always() && steps.flaky.outputs.flaky == 'true' }}
-        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          webhook: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            title: "⚠️ Flaky CI in merge queue"
-            message: "⚠️ CI passed only after a retry on ${{ github.ref_name }}"
-            ref: "${{ github.ref_name }}"
-            actor: "${{ github.actor }}"
-            event: "${{ github.event_name }}"
-            commit: "${{ github.sha }}"
-            workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            failure_reason: ${{ toJSON(steps.flaky.outputs.jobs) }}
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ CI failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          ignore-job: all-ci-passed
 
   build-docker-image-release:
     needs: all-ci-passed
@@ -1981,8 +2005,8 @@ jobs:
             echo "::error::IRONBANK_USER is empty on a release build. Check the repository secrets." >&2
             exit 1
           fi
-          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
-          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.9" >> "$GITHUB_OUTPUT"
+          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.9" >> "$GITHUB_OUTPUT"
       - name: Log in to Iron Bank
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -2047,6 +2071,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -2062,6 +2087,7 @@ jobs:
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
             BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests
@@ -2250,21 +2276,17 @@ jobs:
     needs:
       - build-docker-image-release
       - publish-docker-image-release
-    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Job-level `!cancelled()` skips whole-run cancels; see notify-ci-failure.
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read
     steps:
-      - name: Fail when a release image job failed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"

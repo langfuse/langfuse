@@ -9,6 +9,7 @@
  */
 
 /** True only when both build ids are known and differ; unknown ids prove nothing. */
+/** @internal */
 export function isVersionMismatch(
   runningBuildId: string | null | undefined,
   observedBuildId: string | null | undefined,
@@ -19,23 +20,30 @@ export function isVersionMismatch(
 }
 
 /** Settling window after the FIRST differing build id, so we don't prompt a reload into a mid-rollout deploy (LFE-14537). */
+/** @internal */
 export const VERSION_UPDATE_DEBOUNCE_MS = 3 * 60 * 1000;
 
 /** At most one banner appearance per window, across tabs and reloads. */
+/** @internal */
 export const VERSION_UPDATE_SHOW_THROTTLE_MS = 2 * 60 * 60 * 1000;
 
 /** An explicit dismiss silences the banner this long, even for new build ids. */
+/** @internal */
 export const VERSION_UPDATE_DISMISS_SUPPRESSION_MS = 24 * 60 * 60 * 1000;
 
 /** The running build must have been superseded this long before any prompt. */
+/** @internal */
 export const VERSION_UPDATE_MIN_STALENESS_MS = 48 * 60 * 60 * 1000;
 
 /** localStorage key: epoch ms of the banner's last actual appearance. */
+/** @internal */
 export const VERSION_UPDATE_LAST_SHOWN_AT_KEY = "version-update-last-shown-at";
 /** localStorage key: epoch ms until which a dismiss suppresses the banner. */
+/** @internal */
 export const VERSION_UPDATE_SUPPRESSED_UNTIL_KEY =
   "version-update-suppressed-until";
 /** localStorage key: JSON `{ buildId, ts }` — when the running build was first seen superseded (single overwritten entry). */
+/** @internal */
 export const VERSION_UPDATE_STALE_SINCE_KEY = "version-update-stale-since";
 
 export type VersionUpdateStore = {
@@ -77,6 +85,7 @@ export type VersionUpdateStoreOptions = {
  * Build ids are opaque and unorderable, so "update available" is simply "ever
  * saw a build id ≠ ours" — sticky and flap-free while rolling-deploy pods serve
  * mixed responses; reloading converges the tab to whatever is currently served.
+ * @internal
  */
 export function createVersionUpdateStore(
   getRunningBuildId: () => string | null | undefined,

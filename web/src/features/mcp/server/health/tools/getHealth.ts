@@ -1,8 +1,6 @@
 import { z } from "zod";
-import {
-  runHealthCheck,
-  __dangerouslySkipAuthz,
-} from "@/src/features/public-api/server";
+import { runHealthCheck } from "@/src/features/public-api/server/health-service";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -37,5 +35,5 @@ export const [getHealthTool, handleGetHealth] = defineTool({
         });
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

@@ -3,7 +3,7 @@ import preview from "../../../../.storybook/preview";
 import { Dialog } from "@/src/components/ui/dialog";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { fn } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 
 import { ApiKeyCreateDialogContent } from "./ApiKeyCreateDialogContent";
 
@@ -70,12 +70,37 @@ export const WithoutRoleSelection = meta.story({
   ],
 });
 
+const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
+
 export const Created = meta.story({
+  name: "(Test) Created Masks Secret Key",
   args: {
     type: "detail",
     scope: "project",
-    secretKey: "sk-lf-1234567890abcdef",
-    publicKey: "pk-lf-1234567890abcdef",
+    secretKey: SECRET_KEY,
+    publicKey: "pk-lf-779bffdd-3973-4881-8cb0-06fd83d40ccc",
     baseUrl: "https://cloud.langfuse.com",
+  },
+  play: async ({ canvasElement }) => {
+    const body = canvasElement.ownerDocument.body;
+    const screen = within(body);
+    const writeText = spyOn(
+      navigator.clipboard,
+      "writeText",
+    ).mockResolvedValue();
+    try {
+      await expect(body.textContent).not.toContain(SECRET_KEY);
+
+      await userEvent.click(screen.getByRole("button", { name: "Copy key" }));
+      await expect(writeText).toHaveBeenLastCalledWith(SECRET_KEY);
+      await expect(body.textContent).not.toContain(SECRET_KEY);
+
+      await userEvent.click(
+        screen.getAllByRole("button", { name: "Show key" })[0]!,
+      );
+      await expect(screen.getByText(SECRET_KEY)).toBeVisible();
+    } finally {
+      writeText.mockRestore();
+    }
   },
 });

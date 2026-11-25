@@ -25,6 +25,16 @@ const openDialog = async (canvasElement: HTMLElement) => {
   return within(canvasElement.ownerDocument.body);
 };
 
+const chooseTestModel = async (
+  body: ReturnType<typeof within>,
+  model: string,
+) => {
+  await userEvent.click(
+    body.getByRole("combobox", { name: "Model used to test the connection" }),
+  );
+  await userEvent.click(await body.findByRole("option", { name: model }));
+};
+
 const meta = preview.meta({
   component: FetchedModelsDialog,
 });
@@ -96,8 +106,35 @@ export const SelectsFilteredModels = meta.story({
     await userEvent.click(
       body.getByRole("checkbox", { name: "Select all shown" }),
     );
+    await chooseTestModel(body, "gpt-a");
     await userEvent.click(body.getByRole("button", { name: "Use 2 models" }));
 
     await expect(args.onApply).toHaveBeenCalledWith(["gpt-a", "gpt-b"]);
+  },
+});
+
+export const ChoosesTestModel = meta.story({
+  name: "(Test) Puts the chosen test model first",
+  args: {
+    configuredModels: [],
+    fetchedModels: ["embedding-model", "llama-chat"],
+    onApply: fn(),
+  },
+  render: renderDialog,
+  play: async ({ args, canvasElement }) => {
+    const body = await openDialog(canvasElement);
+
+    // Without a configured model, nothing is tested until one is chosen.
+    await expect(
+      await body.findByRole("button", { name: "Use 2 models" }),
+    ).toBeDisabled();
+
+    await chooseTestModel(body, "llama-chat");
+    await userEvent.click(body.getByRole("button", { name: "Use 2 models" }));
+
+    await expect(args.onApply).toHaveBeenCalledWith([
+      "llama-chat",
+      "embedding-model",
+    ]);
   },
 });

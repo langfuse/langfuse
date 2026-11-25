@@ -16,34 +16,13 @@ const providerGroups: Array<[string, string[]]> = [
   ["Anthropic", ["claude-sonnet-4-5"]],
 ];
 
-const builtInFacets = [
-  {
-    id: "intent",
-    name: "Intent",
-    description: "What the run was asked to do.",
-    question: "What is the user trying to do?",
-    builtIn: true,
-    enabled: true,
-  },
-  {
-    id: "outcome",
-    name: "Outcome",
-    description: "Where the run ended and whether that is confirmed.",
-    question: "Did the assistant resolve the request?",
-    builtIn: true,
-    enabled: true,
-  },
-];
-
 const emptyDraft = {
   summary: null,
   embedding: null,
   embeddingDimensions: "1024",
   clustering: null,
-  facets: builtInFacets,
-  filters: [],
   idleSeconds: "600",
-  embeddingLocked: false,
+  hasEmbeddings: false,
   automaticProcessing: false,
 } satisfies ConfigureTopicsDraft;
 
@@ -52,21 +31,8 @@ const filledDraft = {
   embedding: { provider: "Amazon Bedrock", model: "us.cohere.embed-v4:0" },
   embeddingDimensions: "1024",
   clustering: { provider: "Amazon Bedrock", model: "us.openai.gpt-5.6-terra" },
-  facets: [
-    ...builtInFacets,
-    {
-      id: "frustration",
-      name: "Frustration",
-      question: "Is the user frustrated?",
-      builtIn: false,
-      enabled: false,
-    },
-  ],
   idleSeconds: "600",
-  filters: [
-    { column: "name", type: "string", operator: "=", value: "billing" },
-  ],
-  embeddingLocked: true,
+  hasEmbeddings: true,
   automaticProcessing: true,
 } satisfies ConfigureTopicsDraft;
 
@@ -105,8 +71,33 @@ export const Configured = meta.story({
   },
 });
 
+export const LockedEmbeddingExplainsWhy = meta.story({
+  name: "(Test) Changing an embedded model explains the lock and blocks Save",
+  args: {
+    draft: filledDraft,
+    notice: "none",
+  },
+  play: async () => {
+    const body = within(document.body);
+    const warning = /can't change once summaries are embedded/;
+    const save = body.getByRole("button", { name: "Save" });
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
+    const dimensions = body.getByRole("spinbutton", {
+      name: "Embedding dimensions",
+    });
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "512");
+    await expect(body.getByText(warning)).toBeVisible();
+    await expect(save).toBeDisabled();
+    await userEvent.clear(dimensions);
+    await userEvent.type(dimensions, "1024");
+    await expect(body.queryByText(warning)).not.toBeInTheDocument();
+    await expect(save).toBeEnabled();
+  },
+});
+
 export const SavesTheSheet = meta.story({
-  name: "(Test) Save sends facets, filter, and idle time",
+  name: "(Test) Save sends models and idle time",
   args: {
     draft: filledDraft,
     notice: "none",
@@ -118,17 +109,11 @@ export const SavesTheSheet = meta.story({
     });
     await userEvent.clear(idle);
     await userEvent.type(idle, "90");
-    await userEvent.click(body.getByRole("tab", { name: "Outcome" }));
-    await userEvent.click(body.getByRole("switch", { name: "Enable Outcome" }));
     await userEvent.click(body.getByRole("button", { name: "Save" }));
     await expect(args.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         idleSeconds: "90",
-        filters: filledDraft.filters,
-        facets: expect.arrayContaining([
-          expect.objectContaining({ name: "Intent", enabled: true }),
-          expect.objectContaining({ name: "Outcome", enabled: false }),
-        ]),
+        clustering: filledDraft.clustering,
       }),
     );
   },

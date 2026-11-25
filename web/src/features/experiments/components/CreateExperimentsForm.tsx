@@ -13,7 +13,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/src/components/ui/card";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DialogHeader,
   DialogTitle,
@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
@@ -249,6 +249,7 @@ export const CreateExperimentsForm = ({
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
+                          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                           role="combobox"
                           aria-expanded={datasetPopoverOpen}
                           disabled={
@@ -344,8 +345,16 @@ export const CreateExperimentsForm = ({
                     <Button
                       aria-label="Edit remote trigger settings"
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
-                      title="Edit remote trigger settings"
-                      onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                      title={
+                        !hasDatasetAccess
+                          ? "You do not have permission to configure remote experiments"
+                          : "Edit remote trigger settings"
+                      }
+                      disabled={!hasDatasetAccess}
+                      onClick={() => {
+                        if (!hasDatasetAccess) return;
+                        setShowRemoteExperimentUpsertForm(true);
+                      }}
                     >
                       <Cog size="base" />
                     </Button>
@@ -353,9 +362,23 @@ export const CreateExperimentsForm = ({
                 ) : (
                   <Button
                     className="w-full"
-                    disabled={!datasetId || isRemoteExperimentLoading}
+                    disabled={
+                      !datasetId ||
+                      isRemoteExperimentLoading ||
+                      !hasDatasetAccess
+                    }
+                    title={
+                      !hasDatasetAccess
+                        ? "You do not have permission to configure remote experiments"
+                        : undefined
+                    }
                     onClick={() => {
-                      if (!datasetId || isRemoteExperimentLoading) return;
+                      if (
+                        !datasetId ||
+                        isRemoteExperimentLoading ||
+                        !hasDatasetAccess
+                      )
+                        return;
                       setShowRemoteExperimentUpsertForm(true);
                     }}
                   >
@@ -401,7 +424,7 @@ export const CreateExperimentsForm = ({
     );
   }
 
-  if (showRemoteExperimentUpsertForm && datasetId) {
+  if (showRemoteExperimentUpsertForm && datasetId && hasDatasetAccess) {
     return (
       <RemoteExperimentUpsertForm
         projectId={projectId}

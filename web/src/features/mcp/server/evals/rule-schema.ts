@@ -12,13 +12,8 @@ import {
   ObservationPromptVariableMappingInput,
   PromptVariableMappingRead,
   PublicEvaluatorType,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/publicEvalsContract";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
-
-export const McpEvaluatorType = z.enum([
-  ...PublicEvaluatorType.options,
-  "decision_model",
-]);
 
 const RuleFilterBaseSchema = McpAdvancedFilterBaseSchema.describe(
   'Observation filter condition, e.g. {"column":"version","operator":"=","value":"1.0.0","type":"string"}. Use `key` for object columns such as `metadata`.',
@@ -163,7 +158,7 @@ export const EvaluationRuleResponseSchema = z
       z.object({
         evaluatorId: z.string(),
         evaluatorName: z.string(),
-        evaluatorType: McpEvaluatorType,
+        evaluatorType: PublicEvaluatorType,
         variableMapping: z.array(PromptVariableMappingRead).nullable(),
       }),
     ),

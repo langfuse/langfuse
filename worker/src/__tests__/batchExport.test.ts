@@ -7,6 +7,8 @@ import {
   createTraceScore,
   createDatasetRunScore,
   createScoresCh,
+  createAuditLogsCh,
+  convertDateToClickhouseDateTime,
   createTrace,
   createTracesCh,
   createManyDatasetItems,
@@ -1663,62 +1665,60 @@ describe("batch export test suite", () => {
   it("should export audit logs", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
 
-    // Create some audit log entries directly in the database
-    const auditLogEntries = [
+    await createAuditLogsCh([
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "OWNER",
-        userProjectRole: "ADMIN",
-        resourceType: "trace",
-        resourceId: randomUUID(),
+        org_id: orgId,
+        project_id: projectId,
+        actor_type: "USER",
+        user_org_role: "OWNER",
+        user_project_role: "ADMIN",
+        resource_type: "trace",
         action: "CREATE",
-        before: null,
         after: JSON.stringify({ name: "test-trace", version: 1 }),
-        createdAt: new Date("2024-01-01T10:00:00Z"),
-        updatedAt: new Date("2024-01-01T10:00:00Z"),
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-01T10:00:00Z"),
+        ),
       },
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "API_KEY" as const,
-        apiKeyId: randomUUID(),
-        resourceType: "score",
-        resourceId: randomUUID(),
+        org_id: orgId,
+        project_id: projectId,
+        actor_type: "API_KEY",
+        user_id: "",
+        api_key_id: randomUUID(),
+        resource_type: "score",
         action: "UPDATE",
         before: JSON.stringify({ value: 0.5 }),
         after: JSON.stringify({ value: 0.8 }),
-        createdAt: new Date("2024-01-02T10:00:00Z"),
-        updatedAt: new Date("2024-01-02T10:00:00Z"),
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-02T10:00:00Z"),
+        ),
       },
       {
-        id: randomUUID(),
-        projectId: projectId,
-        orgId: orgId,
-        type: "USER" as const,
-        userId: randomUUID(),
-        userOrgRole: "MEMBER",
-        userProjectRole: "VIEWER",
-        resourceType: "prompt",
-        resourceId: randomUUID(),
-        action: "DELETE",
-        before: JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-        after: null,
-        createdAt: new Date("2024-01-03T10:00:00Z"),
-        updatedAt: new Date("2024-01-03T10:00:00Z"),
+        org_id: orgId,
+        project_id: projectId,
+        event_kind: "access",
+        resource_type: "trace",
+        action: "list",
+        surface: "public-api",
+        route: "GET /api/public/v2/observations",
+        params: JSON.stringify({ limit: 1 }),
+        result_count: 1,
+        resource_refs: ["trace:trace-1"],
+        timestamp: convertDateToClickhouseDateTime(
+          new Date("2024-01-03T10:00:00Z"),
+        ),
       },
-    ];
+      // Not exported: a support access read and an organisation-level event.
+      {
+        org_id: orgId,
+        project_id: projectId,
+        event_kind: "access",
+        action: "read",
+        support_access: true,
+      },
+      { org_id: orgId },
+    ]);
 
-    // Insert audit log entries
-    await prisma.auditLog.createMany({
-      data: auditLogEntries,
-    });
-
-    // Export audit logs
     const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
@@ -1735,30 +1735,39 @@ describe("batch export test suite", () => {
 
     expect(rows).toHaveLength(3);
 
-    // Verify the audit logs are sorted by createdAt DESC
-    expect(rows[0].action).toBe("DELETE");
-    expect(rows[0].resourceType).toBe("prompt");
-    expect(rows[0].type).toBe("USER");
-    expect(rows[0].before).toBe(
-      JSON.stringify({ name: "old-prompt", content: "Hello World" }),
-    );
-    expect(rows[0].after).toBe(null);
+    // Newest first.
+    expect(rows[0]).toMatchObject({
+      eventKind: "access",
+      action: "list",
+      surface: "public-api",
+      route: "GET /api/public/v2/observations",
+      params: JSON.stringify({ limit: 1 }),
+      resultCount: 1,
+      resourceRefs: ["trace:trace-1"],
+      before: null,
+      after: null,
+    });
 
-    expect(rows[1].action).toBe("UPDATE");
-    expect(rows[1].resourceType).toBe("score");
-    expect(rows[1].type).toBe("API_KEY");
-    expect(rows[1].before).toBe(JSON.stringify({ value: 0.5 }));
-    expect(rows[1].after).toBe(JSON.stringify({ value: 0.8 }));
+    expect(rows[1]).toMatchObject({
+      eventKind: "change",
+      action: "UPDATE",
+      resourceType: "score",
+      type: "API_KEY",
+      before: JSON.stringify({ value: 0.5 }),
+      after: JSON.stringify({ value: 0.8 }),
+    });
 
-    expect(rows[2].action).toBe("CREATE");
-    expect(rows[2].resourceType).toBe("trace");
-    expect(rows[2].type).toBe("USER");
-    expect(rows[2].before).toBe(null);
-    expect(rows[2].after).toBe(
-      JSON.stringify({ name: "test-trace", version: 1 }),
-    );
+    expect(rows[2]).toMatchObject({
+      eventKind: "change",
+      action: "CREATE",
+      resourceType: "trace",
+      type: "USER",
+      userOrgRole: "OWNER",
+      userProjectRole: "ADMIN",
+      before: null,
+      after: JSON.stringify({ name: "test-trace", version: 1 }),
+    });
 
-    // Verify all rows have the correct project ID
     rows.forEach((row) => {
       expect(row.projectId).toBe(projectId);
       expect(row.orgId).toBe(orgId);
@@ -1779,21 +1788,20 @@ describe("batch export test suite", () => {
 
   it("should export every audit log exactly once across pages", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
-    const tiedCreatedAt = new Date("2024-01-02T10:00:00Z");
-    // Four entries share one createdAt so pages of two split a tie group.
-    const entries = Array.from({ length: 5 }, (_, i) => ({
-      id: randomUUID(),
-      projectId,
-      orgId,
-      type: "USER" as const,
-      userId: randomUUID(),
-      resourceType: "trace",
-      resourceId: randomUUID(),
-      action: "CREATE",
-      createdAt: i === 0 ? new Date("2024-01-01T10:00:00Z") : tiedCreatedAt,
-      updatedAt: tiedCreatedAt,
-    }));
-    await prisma.auditLog.createMany({ data: entries });
+    const tiedTimestamp = convertDateToClickhouseDateTime(
+      new Date("2024-01-02T10:00:00Z"),
+    );
+    // Four entries share one timestamp so pages of two split a tie group.
+    const entries = await createAuditLogsCh(
+      Array.from({ length: 5 }, (_, i) => ({
+        org_id: orgId,
+        project_id: projectId,
+        timestamp:
+          i === 0
+            ? convertDateToClickhouseDateTime(new Date("2024-01-01T10:00:00Z"))
+            : tiedTimestamp,
+      })),
+    );
 
     const stream = await getDatabaseReadStreamPaginated({
       projectId,
@@ -3312,812 +3320,6 @@ describe("batch export test suite", () => {
       expect(rows[0].CSAT).toEqual([1]);
       expect(rows[0].sentiment).toEqual(["positive"]);
     });
-    it("should export events with filters", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-1",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-2",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "SPAN",
-          name: "span-1",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter by type
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "type",
-            value: ["GENERATION"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.type === "GENERATION")).toBe(true);
-
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(
-        expect.arrayContaining(["generation-1", "generation-2"]),
-      );
-    });
-
-    it("should export events with name filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "api-call",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "database-query",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "api-call",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "name",
-            value: ["api-call"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.name === "api-call")).toBe(true);
-    });
-
-    it("should export events with scores", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create scores linked to this event
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "quality",
-        value: 0.95,
-        data_type: "NUMERIC",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("scored-event");
-      // Verify score is included
-      expect(rows[0].quality).toEqual([0.95]);
-    });
-
-    it("should export events with categorical scores", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "categorically-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create categorical score
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "sentiment",
-        value: undefined,
-        string_value: "positive",
-        data_type: "CATEGORICAL",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("categorically-scored-event");
-      // Verify categorical score is included
-      expect(rows[0].sentiment).toEqual(["positive"]);
-    });
-
-    it("should export events with categorical score names containing colons", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "colon-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const score = createTraceScore({
-        project_id: projectId,
-        trace_id: traceId,
-        observation_id: event.span_id,
-        name: "QA: #1 Primary Failure",
-        value: undefined,
-        string_value: "yes",
-        data_type: "CATEGORICAL",
-      });
-
-      await createScoresCh([score]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("colon-scored-event");
-      expect(rows[0]["QA: #1 Primary Failure"]).toEqual(["yes"]);
-    });
-
-    it("should handle empty events export", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(0);
-    });
-
-    it("should export events with environment filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "prod-event",
-          environment: "production",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "staging-event",
-          environment: "staging",
-          start_time: now + 1000000,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "another-prod-event",
-          environment: "production",
-          start_time: now + 2000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "environment",
-            value: ["production"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(2);
-      expect(rows.every((r) => r.environment === "production")).toBe(true);
-
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(
-        expect.arrayContaining(["prod-event", "another-prod-event"]),
-      );
-    });
-
-    it("should export events with date range filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      // Create events with different timestamps
-      const jan1 = new Date("2024-01-01T10:00:00Z").getTime() * 1000;
-      const jan15 = new Date("2024-01-15T10:00:00Z").getTime() * 1000;
-      const jan30 = new Date("2024-01-30T10:00:00Z").getTime() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "early-january-event",
-          start_time: jan1,
-          created_at: jan1,
-          updated_at: jan1,
-          event_ts: jan1,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "mid-january-event",
-          start_time: jan15,
-          created_at: jan15,
-          updated_at: jan15,
-          event_ts: jan15,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "late-january-event",
-          start_time: jan30,
-          created_at: jan30,
-          updated_at: jan30,
-          event_ts: jan30,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter for mid-January only
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date("2024-02-01T00:00:00Z"),
-        filter: [
-          {
-            type: "datetime",
-            operator: ">=",
-            column: "startTime",
-            value: new Date("2024-01-10T00:00:00Z"),
-          },
-          {
-            type: "datetime",
-            operator: "<",
-            column: "startTime",
-            value: new Date("2024-01-20T00:00:00Z"),
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("mid-january-event");
-    });
-
-    it("should export events with usage details and cost details", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: randomUUID(),
-        type: "GENERATION",
-        name: "event-with-usage",
-        usage_details: { input: 100, output: 200, total: 300 },
-        cost_details: { input: 0.01, output: 0.02, total: 0.03 },
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("event-with-usage");
-      expect(rows[0].usageDetails).toEqual({
-        input: 100,
-        output: 200,
-        total: 300,
-      });
-      expect(rows[0].costDetails).toEqual({
-        input: 0.01,
-        output: 0.02,
-        total: 0.03,
-      });
-    });
-
-    it("should export events with searchQuery filter", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "searchable-generation",
-          start_time: now,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "other-generation",
-          start_time: now + 1000000,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-        searchQuery: "searchable",
-        searchType: ["id"],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("searchable-generation");
-    });
-
-    it("should export events with trace metadata (denormalized fields)", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const userId = randomUUID();
-      const sessionId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        trace_name: "parent-trace",
-        user_id: userId,
-        session_id: sessionId,
-        type: "GENERATION",
-        name: "event-with-trace-data",
-        tags: ["tag1", "tag2"],
-        release: "v1.2.3",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        name: "event-with-trace-data",
-        traceId: traceId,
-        traceName: "parent-trace",
-        userId: userId,
-        sessionId: sessionId,
-        tags: ["tag1", "tag2"],
-        release: "v1.2.3",
-      });
-    });
-
-    it("should export events respecting row limit", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const now = Date.now() * 1000;
-
-      // Create 10 events
-      const events = Array.from({ length: 10 }, (_, i) =>
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: `event-${i}`,
-          start_time: now + i * 1000000,
-        }),
-      );
-
-      await createEventsCh(events);
-
-      // Limit to 5 rows
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-        rowLimit: 5,
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(5);
-    });
-
-    it("should export events with multiple score types", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000;
-
-      const event = createEvent({
-        project_id: projectId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "multi-scored-event",
-        start_time: now,
-      });
-
-      await createEventsCh([event]);
-
-      // Create multiple scores of different types
-      const scores = [
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "accuracy",
-          value: 0.95,
-          data_type: "NUMERIC",
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "category",
-          value: undefined,
-          string_value: "excellent",
-          data_type: "CATEGORICAL",
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: event.span_id,
-          name: "is_correct",
-          value: 1,
-          data_type: "BOOLEAN",
-        }),
-      ];
-
-      await createScoresCh(scores);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0].name).toBe("multi-scored-event");
-      expect(rows[0].accuracy).toEqual([0.95]);
-      expect(rows[0].category).toEqual(["excellent"]);
-      expect(rows[0].is_correct).toEqual([1]);
-    });
-
-    it("should export events with filter and sorting", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      // Create events with different timestamps and types
-      const jan1 = new Date("2024-01-01T10:00:00Z").getTime() * 1000;
-      const jan2 = new Date("2024-01-02T10:00:00Z").getTime() * 1000;
-      const jan3 = new Date("2024-01-03T10:00:00Z").getTime() * 1000;
-      const jan4 = new Date("2024-01-04T10:00:00Z").getTime() * 1000;
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-1",
-          environment: "production",
-          start_time: jan1,
-          created_at: jan1,
-          updated_at: jan1,
-          event_ts: jan1,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "SPAN",
-          name: "span-event-1",
-          environment: "production",
-          start_time: jan2,
-          created_at: jan2,
-          updated_at: jan2,
-          event_ts: jan2,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-2",
-          environment: "staging",
-          start_time: jan3,
-          created_at: jan3,
-          updated_at: jan3,
-          event_ts: jan3,
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "gen-event-3",
-          environment: "production",
-          start_time: jan4,
-          created_at: jan4,
-          updated_at: jan4,
-          event_ts: jan4,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      // Filter by type=GENERATION AND environment=production
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date("2024-01-05T00:00:00Z"),
-        filter: [
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "type",
-            value: ["GENERATION"],
-          },
-          {
-            type: "stringOptions",
-            operator: "any of",
-            column: "environment",
-            value: ["production"],
-          },
-        ],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      // Should only return GENERATION events in production environment
-      expect(rows).toHaveLength(2);
-
-      // Verify all results match filters
-      expect(rows.every((r) => r.type === "GENERATION")).toBe(true);
-      expect(rows.every((r) => r.environment === "production")).toBe(true);
-
-      // Results should be sorted by start_time DESC (default)
-      const exportedNames = rows.map((row) => row.name);
-      expect(exportedNames).toEqual(["gen-event-3", "gen-event-1"]);
-    });
-
-    // ==================== EVENTS TABLE EXPORT TESTS ====================
-
-    it("should export events from events table", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-
-      const traceId = randomUUID();
-      const now = Date.now() * 1000; // Events use microseconds
-
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: traceId,
-          type: "SPAN",
-          name: "span-event",
-          start_time: now,
-          end_time: now + 1000000, // 1 second later in microseconds
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "GENERATION",
-          name: "generation-event",
-          provided_model_name: "gpt-4",
-          start_time: now,
-          end_time: now + 2000000, // 2 seconds later
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          type: "EVENT",
-          name: "simple-event",
-          start_time: now,
-        }),
-      ];
-
-      await createEventsCh(events);
-
-      const stream = await getEventsStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        filter: [],
-      });
-
-      const rows: any[] = [];
-
-      for await (const chunk of stream) {
-        rows.push(chunk);
-      }
-
-      expect(rows).toHaveLength(3);
-      expect(rows).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: events[0].span_id,
-            name: "span-event",
-            type: "SPAN",
-          }),
-          expect.objectContaining({
-            id: events[1].span_id,
-            name: "generation-event",
-            type: "GENERATION",
-            providedModelName: "gpt-4",
-          }),
-          expect.objectContaining({
-            id: events[2].span_id,
-            name: "simple-event",
-            type: "EVENT",
-          }),
-        ]),
-      );
-    });
-
     it("should export events with filters", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

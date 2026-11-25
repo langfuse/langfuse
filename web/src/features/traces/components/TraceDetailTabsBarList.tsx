@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ReactNode } from "react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -9,7 +8,7 @@ import type { DetailTab } from "../contexts/SelectionProvider";
 
 const labels: Record<DetailTab, string> = {
   preview: "Preview",
-  attributes: "Attributes",
+  attributes: "Metadata",
   scores: "Scores",
   log: "Log View",
 };

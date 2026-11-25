@@ -1,14 +1,18 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
+// Blob storage export job for one project: computes the export window, streams
+// each table to the customer bucket, writes the manifest, and handles failures.
+
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
+import { createBlobStorageRoleCredentials } from "@langfuse/shared/src/server/ee/storageRoleAuth/blobStorageRoleCredentials";
 import {
   QueueName,
   TQueueJobTypes,
   logger,
   StorageService,
   StorageServiceFactory,
+  storageKeys,
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
@@ -59,6 +63,7 @@ import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
+  StorageIntegrationAuthType,
   BlobStorageIntegrationFileType,
   BatchExportFileFormat,
   BlobStorageExportMode,
@@ -67,6 +72,7 @@ import {
   type ExportFieldGroup,
   getObservationFieldGroups,
   getScoreFieldGroups,
+  getTraceFieldGroups,
   isLegacyExportSource,
   isLegacyExporter,
   resolveBlobExportTuning,
@@ -139,6 +145,7 @@ function resolveBlobExportFormat(
   return compressed ? entry.gzip : entry.raw;
 }
 
+/** @internal */
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
 // When a catch-up run lands within this distance of the frontier, treat it as
@@ -150,16 +157,19 @@ export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffe
 // scheduled run (its minTimestamp = lastSyncAt already covers it). Must be >= 1000ms
 // (the key granularity) and well below any frequencyInterval so no meaningful data
 // is deferred.
+/** @internal */
 export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
 
 // Persisted as lastError when a window exceeds S3's 10,000-part multipart cap.
 // Retrying re-queries a retention-shrinking window until a truncated object
 // commits as success, so the run stops loud instead of degrading silently.
+/** @internal */
 export const BLOB_EXPORT_PART_LIMIT_ERROR_MESSAGE =
   "Blob storage export stopped: the export window exceeded the storage provider's " +
   "10,000-part multipart upload limit. Increase the upload part size or reduce the " +
   "export frequency so each window fits within the limit.";
 
+/** @internal */
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
   projectId: string,
@@ -358,6 +368,8 @@ type BlobStorageConnectionConfig = {
   region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
+  // IAM role auth; replaces the access keys when set.
+  credentials?: ReturnType<typeof createBlobStorageRoleCredentials>;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
 };
@@ -386,9 +398,13 @@ const createBlobStorageService = (
       { name: "InvalidGcsServiceAccountKey" },
     );
   }
+  const keys = useGoogleCloudStorage
+    ? undefined
+    : storageKeys(config.accessKeyId, config.secretAccessKey);
   return StorageServiceFactory.getInstance({
-    accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
-    secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
+    credentials: config.credentials
+      ? { type: "role", provider: config.credentials }
+      : keys,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -401,6 +417,7 @@ const createBlobStorageService = (
     googleCloudCredentials: gcsServiceAccountKey,
     useOCIObjectStorage: false, // Not supported in blob storage integration
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
+    sendContentMd5: true,
   });
 };
 
@@ -558,7 +575,8 @@ const processBlobStorageExport = async (config: {
         })();
 
         // Each table's query only receives its own groups. Score groups are
-        // opt-in, so the empty-selection fallback covers observation groups only.
+        // opt-in, so the empty-selection fallback covers observation groups only;
+        // traces export in full unless a trace group is stored.
         const selectedFieldGroups: ExportFieldGroup[] =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
             ? config.exportFieldGroups
@@ -566,6 +584,7 @@ const processBlobStorageExport = async (config: {
         const observationFieldGroups =
           getObservationFieldGroups(selectedFieldGroups);
         const scoreFieldGroups = getScoreFieldGroups(selectedFieldGroups);
+        const traceFieldGroups = getTraceFieldGroups(selectedFieldGroups);
 
         // blob.path already encodes parquet (no per-table fallback), so no
         // separate blob.config.parquet attribute is needed.
@@ -624,6 +643,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  traceFieldGroups,
                 )
               ).stream;
               break;
@@ -718,6 +738,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                traceFieldGroups,
               );
               break;
             case "observations":
@@ -1171,6 +1192,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       where: {
         projectId,
       },
+      include: { project: { select: { orgId: true } } },
     },
   );
 
@@ -1299,14 +1321,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    const usesRole =
+      blobStorageIntegration.authType === StorageIntegrationAuthType.ROLE_ARN;
+
     // One client per run, shared by all table uploads and the manifest write.
     const storageService = createBlobStorageService({
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || "auto",
-      accessKeyId: blobStorageIntegration.accessKeyId || undefined,
-      secretAccessKey: blobStorageIntegration.secretAccessKey
-        ? decrypt(blobStorageIntegration.secretAccessKey)
+      accessKeyId: usesRole
+        ? undefined
+        : blobStorageIntegration.accessKeyId || undefined,
+      secretAccessKey:
+        !usesRole && blobStorageIntegration.secretAccessKey
+          ? decrypt(blobStorageIntegration.secretAccessKey)
+          : undefined,
+      credentials: usesRole
+        ? createBlobStorageRoleCredentials({
+            ...blobStorageIntegration,
+            orgId: blobStorageIntegration.project.orgId,
+          })
         : undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,

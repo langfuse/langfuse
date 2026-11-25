@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SkillNameSchema, UpdateSkillLabelsBodySchema } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { SkillService } from "@/src/features/skills/server";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -40,5 +40,5 @@ export const [updateSkillLabelsTool, handleUpdateSkillLabels] = defineTool({
           },
         }),
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

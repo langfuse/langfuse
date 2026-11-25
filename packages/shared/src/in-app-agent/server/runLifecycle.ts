@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LangfuseConflictError } from "../../index";
 import {
   InAppAgentRunErrorCode,
@@ -383,6 +382,9 @@ export async function decideToolApproval(params: {
           approved: params.approved,
           ...(params.toolInputs ? { toolInputs: params.toolInputs } : {}),
           context: parentRequest.success ? parentRequest.data.context : [],
+          ...(parentRequest.success && parentRequest.data.topicsAvailable
+            ? { topicsAvailable: true }
+            : {}),
         },
       }),
     };

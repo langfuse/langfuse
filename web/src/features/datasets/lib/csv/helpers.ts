@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parse } from "csv-parse";
 import {
   isJsonNumberLiteral,
@@ -181,6 +180,7 @@ function inferTypeFromValue(value: string): ColumnType {
 }
 
 // Helper to parse a single value
+/** @internal */
 export function parseValue(value: string): Prisma.JsonValue {
   if (value === "" || value.toLowerCase() === "null") return null;
 

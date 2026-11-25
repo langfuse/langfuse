@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
 import { createVertex } from "ai-sdk-google-vertex-v4";
@@ -151,6 +150,7 @@ function createOpenAIInAppAgentLanguageModel(config: {
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
 // in-app agent must run on a model generation that supports it.
+/** @internal */
 export function getBedrockReasoningProviderOptions(modelId: string) {
   if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
     return undefined;

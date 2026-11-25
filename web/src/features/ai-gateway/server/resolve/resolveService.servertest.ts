@@ -1,8 +1,11 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
+import {
+  type GatewayApiFormat,
+  GatewayResolveResponseSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -17,6 +20,7 @@ const mockEnv = vi.hoisted(() => ({
   LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id" as string | undefined,
   LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
   LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
@@ -29,16 +33,32 @@ vi.mock("@/src/server/utils/jwt", () => ({
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
-  decrypt: vi.fn(() => "sk-test"),
+  decrypt: vi.fn((value: string) => {
+    if (value === "corrupt-bedrock-guardrail") {
+      throw new Error("Unsupported state or unable to authenticate data");
+    }
+    return value === "encrypted-bedrock-guardrail"
+      ? JSON.stringify({ apiKey: "bedrock-guardrail-key" })
+      : "sk-test";
+  }),
 }));
 
-const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
+const serviceWith = (
+  findFirst: () => Promise<unknown>,
+  keyOrgId = "org-1",
+  guardrails: unknown[] = [],
+) => {
   const prisma = {
     apiKey: { findFirst },
+    gatewayGuardrail: { findMany: () => Promise.resolve(guardrails) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
@@ -54,7 +74,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -66,17 +90,25 @@ const row = (overrides: {
   metadata?: unknown;
   userId?: string | null;
   note?: string | null;
-  user?: { name: string | null } | null;
+  user?: { name: string | null; email: string | null } | null;
 }) => ({
   id: "key-1",
   orgId: "org-1",
   userId: overrides.userId === undefined ? "user-1" : overrides.userId,
   expiresAt: null,
   note: overrides.note === undefined ? "CI key" : overrides.note,
-  user: overrides.user === undefined ? { name: "Alice" } : overrides.user,
+  user:
+    overrides.user === null
+      ? null
+      : {
+          ...(overrides.user ?? { name: "Alice", email: "alice@example.com" }),
+          organizationMemberships: [{ orgId: "org-1", role: "MEMBER" }],
+        },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
+  gatewaySpendLimits: [],
   organization: {
+    gatewaySpendLimits: [],
     gatewayConfig: {
       defaultIngestionProjectId: overrides.withoutProject ? null : "project-1",
       ingestionMode: overrides.ingestionMode ?? "USAGE",
@@ -123,6 +155,7 @@ describe("GatewayResolveService", () => {
         api_format: "openai.responses",
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
+        extra_headers: {},
       },
       // Metadata stays in its own object, so a metadata key called project_id
       // cannot redirect attribution.
@@ -133,6 +166,7 @@ describe("GatewayResolveService", () => {
         user_id: "user-1",
         key_name: "CI key",
         user_name: "Alice",
+        user_email: "alice@example.com",
         key_metadata: { team: "platform", project_id: "spoofed-project" },
         provider_connection_id: "connection-1",
       },
@@ -142,13 +176,16 @@ describe("GatewayResolveService", () => {
         token_type: "Bearer",
         expires_at: expect.any(Number),
       },
+      spend_limits: [],
+      guardrails: [],
+      pricing: null,
     });
   });
 
   it.each([
     { note: "", userId: null, user: null },
-    { note: null, userId: "user-1", user: { name: null } },
-    { note: null, userId: "user-1", user: { name: "" } },
+    { note: null, userId: "user-1", user: { name: null, email: null } },
+    { note: null, userId: "user-1", user: { name: "", email: "" } },
   ])(
     "sends absent key snapshots as null (%o)",
     async ({ note, userId, user }) => {
@@ -166,6 +203,7 @@ describe("GatewayResolveService", () => {
           key_name: null,
           user_id: userId,
           user_name: null,
+          user_email: null,
         },
       });
     },
@@ -284,6 +322,45 @@ describe("GatewayResolveService", () => {
     },
   );
 
+  describe("on Langfuse Cloud", () => {
+    beforeEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    });
+    afterEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    });
+
+    it("resolves a stored NONE mode as USAGE with an ingestion grant", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE" })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        attribution: { project_id: "project-1" },
+        ingestion_mode: "usage",
+        ingestion: { access_token: "ingestion-token", token_type: "Bearer" },
+      });
+    });
+
+    it("refuses to resolve a stored NONE mode without an ingestion project", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE", withoutProject: true })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
   it("rejects an unknown or expired gateway key", async () => {
     const service = serviceWith(() => Promise.resolve(null));
 
@@ -303,7 +380,12 @@ describe("GatewayResolveService", () => {
           orgId: "org-not-allowed",
           expiresAt: null,
           gatewayAssociation: null,
-          organization: { gatewayConfig: null, gatewayAiConnections: [] },
+          gatewaySpendLimits: [],
+          organization: {
+            gatewaySpendLimits: [],
+            gatewayConfig: null,
+            gatewayAiConnections: [],
+          },
         }),
       "org-not-allowed",
     );
@@ -316,6 +398,111 @@ describe("GatewayResolveService", () => {
     ).rejects.toMatchObject({
       status: 403,
       message: "Gateway is not enabled for this organization",
+    });
+  });
+
+  it("decrypts Bedrock guardrail API keys in the resolve response", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-bedrock",
+        name: "Bedrock filter",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toMatchObject({
+      guardrails: [
+        {
+          id: "gr-bedrock",
+          name: "Bedrock filter",
+          type: "bedrock",
+          action: "block",
+          patterns: [],
+          guardrail_id: "abc123def",
+          guardrail_version: "1",
+          region: "us-east-1",
+          api_key: "bedrock-guardrail-key",
+        },
+      ],
+    });
+  });
+
+  it("emits fail_closed when a Bedrock guardrail credential cannot be decrypted or config is invalid", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-corrupt-secret",
+        name: "Corrupt secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "corrupt-bedrock-guardrail",
+      },
+      {
+        id: "gr-missing-secret",
+        name: "Missing secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-invalid-config",
+        name: "Invalid config",
+        type: "BEDROCK",
+        action: "LOG",
+        config: { region: "not-a-region" },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-corrupt-secret",
+          name: "Corrupt secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-missing-secret",
+          name: "Missing secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-invalid-config",
+          name: "Invalid config",
+          type: "fail_closed",
+          action: "log",
+          patterns: [],
+        },
+      ],
     });
   });
 });

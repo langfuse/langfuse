@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import {
   ChatMessage,
   ChatMessageRole,
@@ -124,7 +125,7 @@ export const replaceVariablesInPrompt = (
       }
     }
     if (!Array.isArray(actualValue)) {
-      throw new Error(
+      throw new TypeError(
         `Placeholder '${placeholderName}' must be an array of messages`,
       );
     }

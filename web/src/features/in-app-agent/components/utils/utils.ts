@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -54,6 +54,8 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchCreateAnnotationQueueItems: "Adding to annotation queue",
+  batchCreateScores: "Creating scores",
   batchUpsertDatasetItems: "Saving dataset items",
   configureExternalMediaStorage: "Configuring external media storage",
   createAnnotationQueueAssignment: "Assigning annotation queue",
@@ -87,7 +89,9 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  renderWidget: "Charting metrics",
   runBatchEvaluation: "Running batch evaluation",
+  setDefaultEvaluationModel: "Setting default evaluation model",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",
@@ -185,6 +189,7 @@ function getAutoInAppAgentToolProgressLabel(strippedName: string): string {
     .join(" ");
 }
 
+/** @internal */
 export function getInAppAgentToolProgressLabelResolution(toolName: string): {
   source: "docs" | "skill" | "override" | "auto";
   label: string;
@@ -209,6 +214,7 @@ export function getInAppAgentToolProgressLabelResolution(toolName: string): {
   };
 }
 
+/** @internal */
 export function getInAppAgentToolProgressLabel(toolName: string): string {
   return getInAppAgentToolProgressLabelResolution(toolName).label;
 }

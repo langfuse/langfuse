@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type IncomingHttpHeaders } from "http";
 
 import {
@@ -26,6 +25,7 @@ import {
 } from "@/src/features/auth/policy/types";
 
 /** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → resolve → enforce route settings. */
+/** @internal */
 export class Authenticator {
   constructor(
     private readonly authn: Verifier = new Verifier(),

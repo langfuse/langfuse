@@ -16,9 +16,13 @@ const meta = preview.meta({
 function StatefulContent({
   closeDialog,
   initialValue,
+  startPendingSave,
+  finishPendingSave,
 }: {
   closeDialog: () => void;
   initialValue: string;
+  startPendingSave: (close: () => void) => void;
+  finishPendingSave: () => void;
 }) {
   const [value, setValue] = useState(initialValue);
 
@@ -33,6 +37,12 @@ function StatefulContent({
         <button type="button" onClick={closeDialog}>
           Close from content
         </button>
+        <button type="button" onClick={() => startPendingSave(closeDialog)}>
+          Start pending save
+        </button>
+        <button type="button" onClick={finishPendingSave}>
+          Finish pending save
+        </button>
       </Dialog.Body>
     </Dialog>
   );
@@ -40,30 +50,41 @@ function StatefulContent({
 
 export const FreshContentOnOpen = meta.story({
   name: "(Test) Fresh content on open",
-  render: () => (
-    <DialogController<string>
-      renderDialog={({ state, closeDialog }) => (
-        <StatefulContent closeDialog={closeDialog} initialValue={state} />
-      )}
-    >
-      {({ openDialog }) => (
-        <>
-          <button type="button" onClick={() => openDialog("")}>
-            Open
-          </button>
-          <button type="button" onClick={() => openDialog("updated")}>
-            Open updated
-          </button>
-        </>
-      )}
-    </DialogController>
-  ),
+  render: function Render() {
+    const [finishPendingSave, setFinishPendingSave] = useState(() => () => {});
+    return (
+      <DialogController<string>
+        renderDialog={({ state, closeDialog }) => (
+          <StatefulContent
+            closeDialog={closeDialog}
+            initialValue={state}
+            startPendingSave={(close) => setFinishPendingSave(() => close)}
+            finishPendingSave={finishPendingSave}
+          />
+        )}
+      >
+        {({ openDialog }) => (
+          <>
+            <button type="button" onClick={() => openDialog("")}>
+              Open
+            </button>
+            <button type="button" onClick={() => openDialog("updated")}>
+              Open updated
+            </button>
+          </>
+        )}
+      </DialogController>
+    );
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "Open" }));
     await userEvent.type(body.getByRole("textbox", { name: "Draft" }), "old");
+    await userEvent.click(
+      body.getByRole("button", { name: "Start pending save" }),
+    );
     await userEvent.click(
       body.getByRole("button", { name: "Close from content" }),
     );
@@ -83,6 +104,17 @@ export const FreshContentOnOpen = meta.story({
       ).toBeVisible(),
     );
     await userEvent.click(canvas.getByRole("button", { name: "Open updated" }));
+    expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue("updated");
+    await userEvent.click(
+      body.getByRole("button", { name: "Finish pending save" }),
+    );
+    await expect(body.getByRole("dialog")).toHaveAttribute(
+      "data-state",
+      "open",
+    );
+    await waitFor(() =>
+      expect(body.getByRole("textbox", { name: "Draft" })).toBeVisible(),
+    );
     expect(body.getByRole("textbox", { name: "Draft" })).toHaveValue("updated");
     await userEvent.click(
       body.getByRole("button", { name: "Close from content" }),

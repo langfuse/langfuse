@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -16,8 +15,8 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Global Langfuse admin flag. This bypasses project membership checks.
-  isAdmin: boolean;
+  // Topics visibility from canViewTopics (`topics:read`).
+  topicsAvailable?: boolean;
 };
 
 type InAppAgentMcpToolPolicy = {
@@ -29,7 +28,7 @@ type InAppAgentMcpToolPolicy = {
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
 // MCP registry names and are the source of truth for the tool-name type below.
-// Exhaustiveness against web's MCP toolRegistry is enforced by type and runtime
+// Exhaustiveness against web's MCP tool registry is enforced by type and runtime
 // assertions in web's in-app-agent stream servertest, so new MCP tools must be
 // classified before the in-app agent can auto/approval-gate them.
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
@@ -54,6 +53,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "annotationQueues:read" },
   },
   createAnnotationQueueItem: {
+    approval: "approval",
+    availability: { scope: "annotationQueues:CUD" },
+  },
+  batchCreateAnnotationQueueItems: {
     approval: "approval",
     availability: { scope: "annotationQueues:CUD" },
   },
@@ -197,6 +200,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "evaluationRule:CUD" },
   },
+  getDefaultEvaluationModel: {
+    approval: "auto",
+    availability: { scope: "evalDefaultModel:read" },
+  },
+  setDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
+  },
+  deleteDefaultEvaluationModel: {
+    approval: "approval",
+    availability: { scope: "evalDefaultModel:CUD" },
+  },
   listExperiments: {
     approval: "auto",
     availability: { scope: "promptExperiments:read" },
@@ -238,6 +253,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "project:read" },
   },
   getMetricsSchema: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
+  renderWidget: {
     approval: "auto",
     availability: { scope: "project:read" },
   },
@@ -353,6 +372,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "scores:save" },
   },
+  batchCreateScores: {
+    approval: "approval",
+    availability: { scope: "scores:save" },
+  },
   listScoreConfigs: {
     approval: "auto",
     availability: { scope: "scoreConfigs:read" },
@@ -424,6 +447,26 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  listTopicFacets: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopics: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicRules: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicSummaries: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicAssignments: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
   },
   getV4MigrationData: {
     approval: "auto",
@@ -534,9 +577,15 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
     return false;
   }
 
+  if (
+    policy.availability.scope === "topics:read" &&
+    params.userAccess.topicsAvailable !== true
+  ) {
+    return false;
+  }
+
   return hasProjectAccessByRole({
     role: params.userAccess.projectRole ?? Role.MEMBER,
-    admin: params.userAccess.isAdmin,
     scope: policy.availability.scope,
   });
 }

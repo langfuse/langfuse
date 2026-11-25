@@ -1,7 +1,7 @@
-import { type ReactNode, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { SkillFilePreview } from "./SkillFilePreview";
 import { getSkillFileLanguageExtensions } from "../utils/getSkillFileLanguageExtensions";
 
@@ -10,6 +10,7 @@ export function SkillFileView({
   content,
   mode,
   children,
+  fileNavigation,
 }: {
   path: string;
   content: string | undefined;
@@ -21,6 +22,7 @@ export function SkillFileView({
         onChange: (content: string) => void;
       };
   children?: ReactNode;
+  fileNavigation?: ComponentProps<typeof SkillFilePreview>["fileNavigation"];
 }) {
   const [formatted, setFormatted] = useState(mode.kind === "view");
   const isMarkdown = /\.(md|markdown)$/i.test(path);
@@ -43,7 +45,14 @@ export function SkillFileView({
         />
       );
     }
-    return <SkillFilePreview path={path} content={content} format={display} />;
+    return (
+      <SkillFilePreview
+        path={path}
+        content={content}
+        format={display}
+        fileNavigation={fileNavigation}
+      />
+    );
   }
   const fileBody = (
     <div className="min-h-0 flex-1 overflow-auto p-3">
@@ -65,7 +74,7 @@ export function SkillFileView({
           <div className="flex shrink-0 items-center gap-2">
             <Badge
               text={mode.kind === "draft" ? "Editing draft" : "Viewing"}
-              color={mode.kind === "draft" ? "blue" : "primary"}
+              color={mode.kind === "draft" ? "info" : "outline"}
             />
             {isMarkdown ? (
               <Tabs.List aria-label="File display" variant="inset" size="sm">

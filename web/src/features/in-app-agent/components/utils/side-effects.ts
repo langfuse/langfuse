@@ -16,7 +16,9 @@ export type InAppAgentTrpcInvalidationTarget =
   | "dashboard"
   | "dashboardWidgets"
   | "datasets"
+  | "defaultLlmModel"
   | "evals"
+  | "evalsV2"
   | "experiments"
   | "externalMediaStorage"
   | "models"
@@ -35,6 +37,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listAnnotationQueueItems: [],
   langfuse_getAnnotationQueueItem: [],
   langfuse_createAnnotationQueueItem: [
+    "annotationQueues",
+    "annotationQueueItems",
+  ],
+  langfuse_batchCreateAnnotationQueueItems: [
     "annotationQueues",
     "annotationQueueItems",
   ],
@@ -85,6 +91,13 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
   langfuse_runBatchEvaluation: ["evals"],
+  langfuse_getDefaultEvaluationModel: [],
+  langfuse_setDefaultEvaluationModel: ["defaultLlmModel", "evals", "evalsV2"],
+  langfuse_deleteDefaultEvaluationModel: [
+    "defaultLlmModel",
+    "evals",
+    "evalsV2",
+  ],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
@@ -97,6 +110,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
+  langfuse_renderWidget: [],
   langfuse_listModels: [],
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
@@ -111,6 +125,11 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getPromptUnresolved: [],
   langfuse_listAlerts: [],
   langfuse_getAlert: [],
+  langfuse_listTopicRules: [],
+  langfuse_listTopicFacets: [],
+  langfuse_listTopics: [],
+  langfuse_listTopicSummaries: [],
+  langfuse_listTopicAssignments: [],
   langfuse_listPrompts: [],
   langfuse_createTextPrompt: ["prompts"],
   langfuse_createChatPrompt: ["prompts"],
@@ -125,6 +144,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
+  langfuse_batchCreateScores: ["scores", "scoreAnalytics"],
   langfuse_listScoreConfigs: [],
   langfuse_getScoreConfig: [],
   langfuse_createScoreConfig: ["scoreConfigs"],
@@ -196,8 +216,14 @@ function performTargetInvalidation(
   if (target === "datasets") {
     return utils.datasets.invalidate();
   }
+  if (target === "defaultLlmModel") {
+    return utils.defaultLlmModel.invalidate();
+  }
   if (target === "evals") {
     return utils.evals.invalidate();
+  }
+  if (target === "evalsV2") {
+    return utils.evalsV2.invalidate();
   }
   if (target === "experiments") {
     return utils.experiments.invalidate();

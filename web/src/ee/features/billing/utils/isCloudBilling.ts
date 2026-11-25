@@ -1,4 +1,4 @@
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 /**
  * Client-side hook to check if cloud billing features are available.

@@ -1,7 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-import { getProjectV4MigrationData } from "@/src/features/v4/server";
+import { getProjectV4MigrationData } from "@/src/features/v4/server/v4TransitionService";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 
@@ -24,6 +24,5 @@ export const [getV4MigrationDataTool, handleGetV4MigrationData] = defineTool({
           projectId: context.projectId,
         }),
     }),
-  readOnlyHint: true,
-  expensiveHint: true,
+  annotations: { readOnlyHint: true },
 });

@@ -34,6 +34,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
+import {
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -44,53 +48,48 @@ import {
 import {
   createMcpTestSetup,
   createPromptInDb,
+  findCallableTool,
   mockServerContext,
   verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
-import "@/src/features/mcp/server/bootstrap";
 import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { getEnabledTools, MCP_TOOLS } from "@/src/features/mcp/server/tools";
+import { handleBatchCreateAnnotationQueueItems } from "@/src/features/mcp/server/annotationQueues/tools/batchCreateAnnotationQueueItems";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
+import { handleCreateAnnotationQueueAssignment } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueAssignment";
+import { handleCreateAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueueItem";
+import { handleDeleteAnnotationQueueAssignment } from "@/src/features/mcp/server/annotationQueues/tools/deleteAnnotationQueueAssignment";
+import { handleDeleteAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/deleteAnnotationQueueItem";
+import { handleGetAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/getAnnotationQueue";
+import { handleGetAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/getAnnotationQueueItem";
+import { handleListAnnotationQueueItems } from "@/src/features/mcp/server/annotationQueues/tools/listAnnotationQueueItems";
+import { handleListAnnotationQueues } from "@/src/features/mcp/server/annotationQueues/tools/listAnnotationQueues";
+import { handleUpdateAnnotationQueueItem } from "@/src/features/mcp/server/annotationQueues/tools/updateAnnotationQueueItem";
+import { handleCreateComment } from "@/src/features/mcp/server/comments/tools/createComment";
+import { handleGetComment } from "@/src/features/mcp/server/comments/tools/getComment";
+import { handleListComments } from "@/src/features/mcp/server/comments/tools/listComments";
+import { handleBatchUpsertDatasetItems } from "@/src/features/mcp/server/datasets/tools/batchUpsertDatasetItems";
+import { handleCreateDatasetRunItem } from "@/src/features/mcp/server/datasets/tools/createDatasetRunItem";
+import { handleDeleteDatasetItem } from "@/src/features/mcp/server/datasets/tools/deleteDatasetItem";
+import { handleDeleteDatasetRun } from "@/src/features/mcp/server/datasets/tools/deleteDatasetRun";
+import { handleGetDataset } from "@/src/features/mcp/server/datasets/tools/getDataset";
+import { handleGetDatasetItem } from "@/src/features/mcp/server/datasets/tools/getDatasetItem";
+import { handleGetDatasetRun } from "@/src/features/mcp/server/datasets/tools/getDatasetRun";
+import { handleListDatasetItems } from "@/src/features/mcp/server/datasets/tools/listDatasetItems";
+import { handleListDatasetRunItems } from "@/src/features/mcp/server/datasets/tools/listDatasetRunItems";
+import { handleListDatasetRuns } from "@/src/features/mcp/server/datasets/tools/listDatasetRuns";
+import { handleListDatasets } from "@/src/features/mcp/server/datasets/tools/listDatasets";
 import {
-  handleCreateAnnotationQueue,
-  handleCreateAnnotationQueueAssignment,
-  handleCreateAnnotationQueueItem,
-  handleDeleteAnnotationQueueAssignment,
-  handleDeleteAnnotationQueueItem,
-  handleGetAnnotationQueue,
-  handleGetAnnotationQueueItem,
-  handleListAnnotationQueueItems,
-  handleListAnnotationQueues,
-  handleUpdateAnnotationQueueItem,
-} from "@/src/features/mcp/server/annotationQueues/tools";
-import {
-  handleCreateComment,
-  handleGetComment,
-  handleListComments,
-} from "@/src/features/mcp/server/comments/tools";
-import {
-  handleBatchUpsertDatasetItems,
-  handleCreateDatasetRunItem,
-  handleDeleteDatasetItem,
-  handleDeleteDatasetRun,
-  handleGetDataset,
-  handleGetDatasetItem,
-  handleGetDatasetRun,
-  handleListDatasetItems,
-  handleListDatasetRunItems,
-  handleListDatasetRuns,
-  handleListDatasets,
   handleUpsertDataset,
-  handleUpsertDatasetItem,
   upsertDatasetTool,
-} from "@/src/features/mcp/server/datasets/tools";
-import { handleGetHealth } from "@/src/features/mcp/server/health/tools";
-import {
-  handleCreateModel,
-  handleDeleteModel,
-  handleGetModel,
-  handleListModels,
-} from "@/src/features/mcp/server/models/tools";
+} from "@/src/features/mcp/server/datasets/tools/upsertDataset";
+import { handleUpsertDatasetItem } from "@/src/features/mcp/server/datasets/tools/upsertDatasetItem";
+import { handleGetHealth } from "@/src/features/mcp/server/health/tools/getHealth";
+import { handleCreateModel } from "@/src/features/mcp/server/models/tools/createModel";
+import { handleDeleteModel } from "@/src/features/mcp/server/models/tools/deleteModel";
+import { handleGetModel } from "@/src/features/mcp/server/models/tools/getModel";
+import { handleListModels } from "@/src/features/mcp/server/models/tools/listModels";
 import { handleCreateScoreConfig } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
 import { handleGetScoreConfig } from "@/src/features/mcp/server/scores/tools/getScoreConfig";
 import { handleListScoreConfigs } from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
@@ -121,21 +120,18 @@ const createProjectUser = async ({
     },
   });
 
-  const orgMembership = await prisma.organizationMembership.create({
-    data: {
-      orgId,
-      userId: user.id,
-      role: "MEMBER",
-    },
+  const orgMembership = await createOrgMembership(prisma, {
+    orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.create({
-    data: {
-      projectId,
-      userId: user.id,
-      role: "MEMBER",
-      orgMembershipId: orgMembership.id,
-    },
+  await createProjectMembership(prisma, {
+    orgId,
+    projectId,
+    userId: user.id,
+    role: "MEMBER",
+    orgMembershipId: orgMembership.id,
   });
 
   return user;
@@ -143,7 +139,7 @@ const createProjectUser = async ({
 
 describe("MCP public API tools", () => {
   const getToolNames = async (context = mockServerContext()) =>
-    (await toolRegistry.getToolDefinitions(context)).map((tool) => tool.name);
+    (await getEnabledTools(context)).map((tool) => tool.definition.name);
 
   it("registers public API tools", async () => {
     const toolNames = await getToolNames();
@@ -175,13 +171,17 @@ describe("MCP public API tools", () => {
     );
   });
 
-  it("exposes the same feature-enabled tools for in-app agent keys", async () => {
+  it("exposes the same feature-enabled tools for in-app agent keys, except MCP Apps", async () => {
     const toolNames = await getToolNames();
     const inAppToolNames = await getToolNames(
       mockServerContext({ inAppAgent: { permissions: "read" } }),
     );
 
-    expect(inAppToolNames.sort()).toEqual(toolNames.sort());
+    // The in-app agent renders no MCP Apps, so the apps feature is off for it.
+    expect(toolNames).toContain("renderWidget");
+    expect(inAppToolNames.sort()).toEqual(
+      toolNames.filter((name) => name !== "renderWidget").sort(),
+    );
   });
 
   it("does not resolve mutating tools for in-app agent keys without a run override", async () => {
@@ -195,13 +195,13 @@ describe("MCP public API tools", () => {
     );
 
     await expect(
-      toolRegistry.getEnabledTool("upsertDataset", context),
+      findCallableTool("upsertDataset", context),
     ).resolves.toBeUndefined();
     await expect(
-      toolRegistry.getEnabledTool("createModel", context),
+      findCallableTool("createModel", context),
     ).resolves.toBeUndefined();
     await expect(
-      toolRegistry.getEnabledTool("createDashboardWidget", context),
+      findCallableTool("createDashboardWidget", context),
     ).resolves.toBeUndefined();
   });
 
@@ -214,13 +214,13 @@ describe("MCP public API tools", () => {
     });
 
     await expect(
-      toolRegistry.getEnabledTool("upsertDataset", context),
+      findCallableTool("upsertDataset", context),
     ).resolves.toBeTruthy();
     await expect(
-      toolRegistry.getEnabledTool("createModel", context),
+      findCallableTool("createModel", context),
     ).resolves.toBeUndefined();
     await expect(
-      toolRegistry.getEnabledTool("listDatasets", context),
+      findCallableTool("listDatasets", context),
     ).resolves.toBeTruthy();
   });
 
@@ -233,10 +233,10 @@ describe("MCP public API tools", () => {
     });
 
     await expect(
-      toolRegistry.getEnabledTool("createDashboardWidget", context),
+      findCallableTool("createDashboardWidget", context),
     ).resolves.toBeTruthy();
     await expect(
-      toolRegistry.getEnabledTool("upsertDataset", context),
+      findCallableTool("upsertDataset", context),
     ).resolves.toBeUndefined();
   });
 
@@ -246,14 +246,15 @@ describe("MCP public API tools", () => {
     const destructiveToolNames = toolNames
       .filter(
         (toolName) =>
-          toolRegistry.getTool(toolName)?.definition.annotations
-            ?.destructiveHint,
+          MCP_TOOLS.find((tool) => tool.definition.name === toolName)
+            ?.definition.annotations?.destructiveHint,
       )
       .sort();
     expect(destructiveToolNames).toEqual(
       [
         "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
+        "batchCreateScores",
         "batchUpsertDatasetItems",
         "createChatPrompt",
         "createDashboard",
@@ -271,11 +272,13 @@ describe("MCP public API tools", () => {
         "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
+        "deleteDefaultEvaluationModel",
         "deleteEvaluationRule",
         "deleteEvaluator",
         "deleteModel",
         "deleteScoreConfig",
         "detachEvaluatorFromEvaluationRule",
+        "setDefaultEvaluationModel",
         "updateAnnotationQueueItem",
         "updateDashboard",
         "updateDashboardPlacement",
@@ -413,7 +416,7 @@ describe("MCP public API tools", () => {
           { queueId: queue.id, userId: user.id },
           context,
         ),
-      ).rejects.toThrow("An unexpected error occurred");
+      ).rejects.toThrow("audit failed");
     } finally {
       auditLogCreateSpy.mockRestore();
     }
@@ -446,6 +449,51 @@ describe("MCP public API tools", () => {
       success: true,
       message: "Annotation queue item deleted successfully",
     });
+  });
+
+  it("batch creates annotation queue items with one audit log each", async () => {
+    const { context, projectId } = await createMcpTestSetup();
+    const scoreConfig = await createScoreConfig(projectId);
+    const queue = (await handleCreateAnnotationQueue(
+      { name: `mcp-queue-${uuidv4()}`, scoreConfigIds: [scoreConfig.id] },
+      context,
+    )) as { id: string };
+
+    const { data } = (await handleBatchCreateAnnotationQueueItems(
+      {
+        queueId: queue.id,
+        items: [
+          { objectId: uuidv4(), objectType: "TRACE" },
+          {
+            objectId: uuidv4(),
+            objectType: "OBSERVATION",
+            status: "COMPLETED",
+          },
+        ],
+      } as unknown as Parameters<
+        typeof handleBatchCreateAnnotationQueueItems
+      >[0],
+      context,
+    )) as {
+      data: Array<{ id: string; status: string; completedAt: unknown }>;
+    };
+
+    expect(data.map(({ status }) => status).sort()).toEqual([
+      "COMPLETED",
+      "PENDING",
+    ]);
+    expect(
+      data.find(({ status }) => status === "COMPLETED")?.completedAt,
+    ).toBeTruthy();
+    await expect(
+      prisma.auditLog.count({
+        where: {
+          resourceType: "annotationQueueItem",
+          resourceId: { in: data.map(({ id }) => id) },
+          action: "create",
+        },
+      }),
+    ).resolves.toBe(2);
   });
 
   it("covers comment and model public API routes", async () => {
@@ -550,7 +598,7 @@ describe("MCP public API tools", () => {
       required: ["answer"],
       additionalProperties: false,
     };
-    const upsertDataset = await toolRegistry.getEnabledTool(
+    const upsertDataset = await findCallableTool(
       upsertDatasetTool.name,
       context,
     );
@@ -613,7 +661,7 @@ describe("MCP public API tools", () => {
         },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     const conflictingDatasetName = `mcp-dataset-conflict-${uuidv4()}`;
     await handleUpsertDataset({ name: conflictingDatasetName }, context);
@@ -714,7 +762,7 @@ describe("MCP public API tools", () => {
         { datasetId: dataset.id, items: [] },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     await expect(
       handleBatchUpsertDatasetItems(
@@ -724,7 +772,7 @@ describe("MCP public API tools", () => {
         },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     const datasetItems = (await handleListDatasetItems(
       { datasetId: dataset.id, page: 1, limit: 10 },
@@ -1029,13 +1077,11 @@ describe("MCP tool schema interoperability", () => {
   };
 
   const getAllToolPatterns = () =>
-    toolRegistry.getFeatures().flatMap((feature) =>
-      feature.tools.flatMap((tool) =>
-        collectPatterns(tool.definition.inputSchema).map((entry) => ({
-          tool: tool.definition.name,
-          ...entry,
-        })),
-      ),
+    MCP_TOOLS.flatMap((tool) =>
+      collectPatterns(tool.definition.inputSchema).map((entry) => ({
+        tool: tool.definition.name,
+        ...entry,
+      })),
     );
 
   it("advertises no pattern that requires the ECMAScript `u` flag", () => {

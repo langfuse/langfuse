@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   getValidAggregationsForMeasureType,
@@ -12,7 +11,7 @@ import {
   getWidgetImportFilterConfig,
   normalizeStoredWidgetFiltersForEditor,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
@@ -36,6 +35,7 @@ const widgetMetricSchema = MetricSchema.extend({
  * is the version of that envelope — bump it when the export shape changes
  * incompatibly. Distinct from the widget's own `minVersion`, which is the
  * query-engine (v1/v2) version.
+ * @internal
  */
 export const WIDGET_FILE_FORMAT_VERSION = 1;
 
@@ -131,6 +131,7 @@ export type ImportedWidgetResult = {
   removedFilters: boolean;
 };
 
+/** @internal */
 export function buildWidgetImportAllowedValues(
   options: WidgetImportOptionSets,
   parsedJson: unknown,
@@ -329,6 +330,7 @@ function normalizeImportedWidget(params: {
   };
 }
 
+/** @internal */
 export function parseAndNormalizeImportedWidget(params: {
   parsedJson: unknown;
   allowedValuesByColumn: Map<string, Set<string>>;

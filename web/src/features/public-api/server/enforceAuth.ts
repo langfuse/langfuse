@@ -25,7 +25,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
@@ -355,6 +355,7 @@ type ResolvedOrg = Success & { orgId: string };
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 
+/** @internal */
 export const __test = {
   getOrgId,
   getProjectId,

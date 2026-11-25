@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import type { MissingBucketValue } from "@/src/features/widgets";
+import type { MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -58,7 +58,10 @@ export const useAllModels = (
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
+  return {
+    data: allModels.data ? extractAllModels(allModels.data) : [],
+    isPending: allModels.isPending,
+  };
 };
 
 const extractAllModels = (
@@ -175,6 +178,7 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
+/** @internal */
 export const isEmptyTimeSeries = ({
   data,
   isNullValueAllowed = false,

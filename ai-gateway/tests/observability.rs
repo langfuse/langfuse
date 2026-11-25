@@ -17,7 +17,7 @@ use std::{
     sync::{Arc, Mutex, mpsc},
     time::{Duration, Instant},
 };
-use tokio::{io::AsyncWriteExt, task::JoinHandle};
+use tokio::task::JoinHandle;
 
 struct Gateway {
     child: Child,
@@ -30,6 +30,7 @@ impl Gateway {
     #[expect(
         clippy::unwrap_used,
         clippy::expect_used,
+        clippy::indexing_slicing,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
     fn start(
@@ -85,6 +86,7 @@ impl Gateway {
 
     #[expect(
         clippy::unwrap_used,
+        clippy::indexing_slicing,
         reason = "test helper outside #[test]; a panic fails the test"
     )]
     async fn request(&self, sampled: bool) -> String {
@@ -181,6 +183,58 @@ async fn start_collector() -> (String, Arc<Mutex<Vec<(String, Bytes)>>>, JoinHan
     (endpoint, captured, server)
 }
 
+/// Wait until the gateway has read everything `client` sent it.
+///
+/// Graceful shutdown stops accepting and closes connections whose HTTP version
+/// is still being sniffed, so a connection only holds the drain open once the
+/// gateway has accepted it and parsed its first bytes. Both happen out of sight
+/// of the client; the kernel's socket queues show when they are done: the
+/// client's send queue empties when loopback delivers, and the gateway's
+/// receive queue empties when it reads.
+#[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
+async fn wait_until_gateway_read(client: &tokio::net::TcpStream) {
+    let client_port = client.local_addr().unwrap().port();
+    let gateway_port = client.peer_addr().unwrap().port();
+    let queued = |table: &str, local: u16, remote: u16| {
+        table.lines().skip(1).find_map(|row| {
+            let columns: Vec<&str> = row.split_whitespace().collect();
+            let port = |address: &str| {
+                u16::from_str_radix(address.rsplit(':').next().unwrap(), 16).unwrap()
+            };
+            (port(columns[1]) == local && port(columns[2]) == remote).then(|| {
+                let (tx, rx) = columns[4].split_once(':').unwrap();
+                (
+                    u64::from_str_radix(tx, 16).unwrap(),
+                    u64::from_str_radix(rx, 16).unwrap(),
+                )
+            })
+        })
+    };
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "test helper polling /proc/net/tcp; tokio::fs is not enabled"
+            )]
+            let table = std::fs::read_to_string("/proc/net/tcp").unwrap();
+            let unsent = queued(&table, client_port, gateway_port).map(|(tx, _)| tx);
+            let unread = queued(&table, gateway_port, client_port).map(|(_, rx)| rx);
+            if unsent == Some(0) && unread == Some(0) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("gateway reads the stalled request");
+}
+
 impl Drop for Gateway {
     fn drop(&mut self) {
         let _ = self.child.kill();
@@ -247,6 +301,7 @@ async fn exports_otlp_traces_metrics_and_correlated_content_free_logs() {
 
 #[expect(
     clippy::unwrap_used,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
@@ -296,6 +351,7 @@ fn assert_operational_traces(traces: &[ResourceSpans], logs: &[Value]) {
 /// the top level, and the operational server span carries it as an attribute.
 #[expect(
     clippy::panic,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_ids: &[String]) {
@@ -349,6 +405,7 @@ fn assert_request_correlation(traces: &[ResourceSpans], logs: &[Value], request_
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
+    clippy::indexing_slicing,
     reason = "test helper outside #[test]; a panic fails the test"
 )]
 fn assert_http_metrics(metrics: &[ResourceMetrics]) {
@@ -422,8 +479,11 @@ async fn an_unresponsive_collector_does_not_extend_the_shutdown_deadline() {
     server.abort();
 }
 
+#[cfg(target_os = "linux")]
 #[tokio::test]
 async fn a_drain_timeout_leaves_the_telemetry_flush_its_own_budget() {
+    use tokio::io::AsyncWriteExt;
+
     let (endpoint, captured, server) = start_collector().await;
     let mut gateway = Gateway::start(&endpoint, "1", "3", "info");
     gateway.request(true).await;
@@ -435,6 +495,7 @@ async fn a_drain_timeout_leaves_the_telemetry_flush_its_own_budget() {
         .write_all(b"POST /openai/v1/responses HTTP/1.1\r\nhost: gateway\r\n")
         .await
         .unwrap();
+    wait_until_gateway_read(&stalled).await;
     let start = Instant::now();
     assert!(!gateway.terminate().await.success());
     assert!(start.elapsed() >= Duration::from_secs(1));

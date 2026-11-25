@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EditorState, Transaction } from "@codemirror/state";
 import { acceptCompletion, CompletionContext } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
@@ -59,7 +58,9 @@ function runCompletionSource(
   const source = getCodeEvalCompletionSource(sourceCodeLanguage);
   const result = source(new CompletionContext(state, position, false));
   if (result instanceof Promise) {
-    throw new Error("code eval completion source must resolve synchronously");
+    throw new TypeError(
+      "code eval completion source must resolve synchronously",
+    );
   }
   return result;
 }

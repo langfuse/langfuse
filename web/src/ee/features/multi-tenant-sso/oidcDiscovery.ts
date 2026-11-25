@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const oneLoginOidcPath = "/oidc/2";
 
 /**

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Duration-label text measurement — ported from Sentry's
  * `traceRenderers/traceTextMeasurer.tsx`.
@@ -10,6 +9,7 @@
  */
 
 /** Manual measurement average; used when no 2D context is available. */
+/** @internal */
 export const PX_PER_LETTER = 6.5;
 
 const UNITS = ["ns", "ms", "s", "m", "min", "h", "d", "∑"] as const;
@@ -49,6 +49,7 @@ export function createTextMeasurer(font = "12px ui-sans-serif"): TextMeasurer {
 }
 
 /** Explicit-context entry point: `null` exercises the `PX_PER_LETTER` fallback. */
+/** @internal */
 export function createTextMeasurerFrom(
   context: CanvasRenderingContext2D | null,
   font = "12px ui-sans-serif",

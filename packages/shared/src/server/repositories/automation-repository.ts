@@ -26,8 +26,10 @@ import {
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  isPagerDutyActionConfig,
+  SafePagerDutyActionConfigSchema,
 } from "../../domain/automations";
-import { InternalServerError } from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { FilterState } from "../../types";
 import {
   createDisplayHeaders,
@@ -78,7 +80,7 @@ export const getActionByIdWithSecrets = async ({
     };
   }
 
-  // SLACK and GITHUB_DISPATCH need no header decryption, so the stored config
+  // SLACK, GITHUB_DISPATCH and PAGERDUTY need no header decryption, so the stored config
   // is returned verbatim. Secrets are included by design here - callers that
   // hand configs to a client must use getActionById instead.
   return actionConfig as ActionDomainWithSecrets;
@@ -109,7 +111,7 @@ export const getActionById = async ({
 
 export type TriggerDomainWithActions = TriggerDomain & {
   actionIds: string[];
-  automations: { id: string; actionId: string }[];
+  automations: { id: string; actionId: string; actionType: Action["type"] }[];
 };
 
 export const getTriggerConfigurations = async ({
@@ -142,6 +144,7 @@ export const getTriggerConfigurations = async ({
     automations: trigger.automations.map((automation) => ({
       id: automation.id,
       actionId: automation.action.id,
+      actionType: automation.action.type,
     })),
   }));
 
@@ -239,6 +242,19 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         action.config,
         actionType,
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
+      );
+    case "PAGERDUTY":
+      if (isPagerDutyActionConfig(action.config)) {
+        return {
+          type: action.config.type,
+          displayRoutingKey: action.config.displayRoutingKey,
+          region: action.config.region,
+        };
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SafePagerDutyActionConfigSchema.shape),
       );
     default: {
       const unhandledActionType: never = actionType;

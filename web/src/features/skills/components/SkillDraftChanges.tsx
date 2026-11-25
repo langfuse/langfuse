@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
 import { useStore } from "zustand";
 import { api } from "@/src/utils/api";

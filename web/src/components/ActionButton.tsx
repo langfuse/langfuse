@@ -1,10 +1,15 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import React, { useMemo } from "react";
-import { Lock, AlertCircle, ExternalLink, Sparkle } from "@langfuse/icons";
+import {
+  Lock,
+  AlertCircle,
+  SquareArrowOutUpRight,
+  Sparkle,
+} from "@langfuse/icons";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type ActionButtonProps = Pick<
   ButtonProps,
@@ -174,11 +179,7 @@ const ButtonContent = React.forwardRef<
       ) : null}
       {children}
       {renderLink && isExternal ? (
-        <ExternalLink
-          size="sm"
-          aria-hidden
-          __rawClassName="ml-1 -translate-y-px"
-        />
+        <SquareArrowOutUpRight size="base" aria-hidden __rawClassName="ml-1" />
       ) : null}
     </>
   );

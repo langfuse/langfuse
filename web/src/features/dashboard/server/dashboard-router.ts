@@ -39,7 +39,7 @@ import {
   LANGFUSE_HOME_DASHBOARD_ID,
   type FilterState,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -161,7 +161,7 @@ function prepareScoresNumericV2Params(filter: FilterState) {
 
 /**
  * Converts ClickHouse histogram(N)(...) output to the { chartData, chartLabels }
- * shape returned by createHistogramData (used by the NumericScoreHistogram component).
+ * shape returned by createHistogramData (used by the NumericScoreHistogramCard component).
  *
  * ClickHouse histogram() returns an Array(Tuple(Float64, Float64, Float64))
  * where each tuple is (lower_bound, upper_bound, count).

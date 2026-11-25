@@ -117,6 +117,11 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     kind: z.literal("userMessage"),
     /** Sanitized AG-UI context items (current page, resolved view filters). */
     context: z.array(AgUiContextSchema),
+    /**
+     * Whether the submitting user can view Topics, evaluated by web at
+     * submission; absent means no.
+     */
+    topicsAvailable: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("approvalDecision"),
@@ -136,6 +141,8 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     toolInputs: InAppAgentToolInputsSchema.optional(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */
     context: z.array(AgUiContextSchema).default([]),
+    /** Inherited from the parent run. */
+    topicsAvailable: z.boolean().optional(),
   }),
 ]);
 

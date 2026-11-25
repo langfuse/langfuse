@@ -4,23 +4,14 @@
 
 import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
 import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 /** Per-view: the examples have to name fields the view actually has. */
 export function composerPlaceholder(registry: FieldRegistry): string {
+  if (registry.searchPlaceholder) return registry.searchPlaceholder;
   return registry.searchExamples.length > 0
     ? `Search — e.g. ${registry.searchExamples.join(", ")}`
     : "Search";
-}
-
-/** DOM id for an option row — referenced by aria-activedescendant. Option ids
- *  embed observed values (`value:My Test Trace`) and recent queries, which can
- *  contain whitespace; an id with whitespace is invalid HTML and breaks the
- *  aria-activedescendant IDREF. encodeURIComponent escapes whitespace (→ `%20`)
- *  while leaving underscore literal, so it is injective — distinct option ids
- *  always map to distinct DOM ids (a `\s+ → _` collapse would alias
- *  `My Test`/`My_Test` to the same duplicate id). */
-export function optionDomId(listboxId: string, optionId: string): string {
-  return `${listboxId}-opt-${encodeURIComponent(optionId)}`;
 }
 
 /**
@@ -30,11 +21,11 @@ export function optionDomId(listboxId: string, optionId: string): string {
  */
 export function deactivationReason(
   segment: ComposerSegment,
-  fieldReason?: (field: string) => string | null,
+  fieldReason?: (field: string, op?: CompareOp) => string | null,
   freeTextReason?: string | null,
 ): string | null {
   if (segment.kind === "filter")
-    return fieldReason?.(segment.displayField) ?? null;
+    return fieldReason?.(segment.displayField, segment.op) ?? null;
   if (segment.kind === "freeText") return freeTextReason ?? null;
   return null;
 }

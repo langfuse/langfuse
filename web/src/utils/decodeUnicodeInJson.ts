@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { decodeUnicodeEscapesOnly } from "@langfuse/shared";
 
 // Guards to keep decoding bounded on very large payloads. Exceeding either
 // limit returns the remainder undecoded (preserving browser responsiveness
 // over decoding completeness).
 export const DECODE_UNICODE_MAX_NODES = 50_000;
+/** @internal */
 export const DECODE_UNICODE_MAX_DEPTH = 200;
 
 // Mirrors the anti-prototype-pollution guard in deepParseJson (see

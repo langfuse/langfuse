@@ -1,13 +1,15 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   CircularRedirectError,
   fetchWithSecureRedirects,
-  getOutboundProxyDispatcher,
   MaxRedirectsExceededError,
-  OutboundUrlValidationError,
   RedirectValidationError,
+} from "../outbound-url/fetch";
+import {
+  getOutboundProxyDispatcher,
   type RequestInitWithDispatcher,
-} from "../outbound-url";
+} from "../outbound-url/connection";
+import { OutboundUrlValidationError } from "../outbound-url/validation";
+
 import {
   llmBaseUrlWhitelistFromEnv,
   validateLlmConnectionBaseURL,
@@ -50,6 +52,7 @@ export function createSecureLlmFetch({
   };
 }
 
+/** @internal */
 export async function fetchSecureLlmUrl(
   url: string,
   options: RequestInit,

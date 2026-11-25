@@ -1,4 +1,4 @@
-import { describe, expect, it, type TestContext } from "vitest";
+import { describe, expect, it } from "vitest";
 import { randomUUID } from "crypto";
 import {
   type BillableEventType,
@@ -9,19 +9,13 @@ import {
   createTraceScore,
   deleteEventsByTraceIds,
   deleteScoresByTraceIds,
+  getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
-import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
-
-// billable_events and its MVs are created only by the ClickHouse dev-tables
-// setup, which CI runs for the default deploy mode only.
-const skipUnlessBillableEvents = (ctx: TestContext) =>
-  skipUnlessClickhouseTablesExist(
-    ctx,
-    ["billable_events"],
-    "billable_events is created by ch:dev-tables only",
-  );
+import type { TopicSummary } from "@langfuse/shared/topics";
+import { writeTopicSummaries } from "@langfuse/shared/topics/server";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -87,8 +81,49 @@ const insertBillableEvents = (
   });
 
 describe("billable_events materialized views", () => {
-  it("records observations, one row per trace and every score type", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("preserves the payload size through core truncation and billing", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: "server-sized",
+        event_bytes: undefined,
+        input: "🔥".repeat(500),
+        output: "café".repeat(500),
+        metadata_names: ["large"],
+        metadata_values: ["x".repeat(500)],
+      }),
+    ]);
+    const full = await queryClickhouse<{ bytes: string }>({
+      query: `SELECT toString(event_bytes) AS bytes
+        FROM events_full WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(Number(full[0].bytes)).toBeGreaterThan(0);
+    const core = await queryClickhouse<{
+      bytes: string;
+      input_chars: string;
+      metadata_chars: string;
+    }>({
+      query: `SELECT toString(event_bytes) AS bytes, toString(lengthUTF8(input)) AS input_chars,
+        toString(lengthUTF8(metadata_values[1])) AS metadata_chars
+        FROM events_core WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(core).toEqual([
+      { bytes: full[0].bytes, input_chars: "200", metadata_chars: "200" },
+    ]);
+    const billable = await getBillableRows(projectId);
+    expect(
+      billable
+        .filter((row) => row.event_type === "observation")
+        .map((row) => String(row.event_bytes)),
+    ).toEqual([full[0].bytes]);
+  });
+
+  it("records observations, one row per trace and every score type", async () => {
     const projectId = randomUUID();
     const traceId = randomUUID();
     // Sorts right after traceId, which keeps the expected row order fixed.
@@ -214,8 +249,7 @@ describe("billable_events materialized views", () => {
     ]);
   });
 
-  it("bills a span id once per trace it appears in", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("bills a span id once per trace it appears in", async () => {
     const projectId = randomUUID();
 
     await createEventsCh([
@@ -241,8 +275,7 @@ describe("billable_events materialized views", () => {
     });
   });
 
-  it("keeps billed units when the trace is deleted", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("keeps billed units when the trace is deleted", async () => {
     const projectId = randomUUID();
     const traceId = randomUUID();
 
@@ -266,6 +299,130 @@ describe("billable_events materialized views", () => {
     expect(Number(remainingEvents[0].count)).toBe(0);
     expect(await billedUnitsAroundNow(projectId)).toEqual(billedBeforeDelete);
   });
+
+  it("copies the environment of observations, traces and scores", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+
+    await createEventsCh([
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        environment: "production",
+      }),
+    ]);
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        environment: "staging",
+      }),
+    ]);
+
+    const rows = await queryClickhouse<{
+      event_type: BillableEventType;
+      environment: string;
+    }>({
+      query: `SELECT event_type, environment FROM billable_events
+              WHERE project_id = {projectId: String}
+              ORDER BY event_type`,
+      params: { projectId },
+    });
+    expect(rows).toEqual([
+      { event_type: "observation", environment: "production" },
+      { event_type: "score", environment: "staging" },
+      { event_type: "trace", environment: "production" },
+    ]);
+  });
+
+  it("bills a Topics facet summary once per source and facet version", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const summary: TopicSummary = {
+      projectId,
+      facetId: "facet",
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      triggerType: "rule",
+      ruleIds: [],
+      executionId: null,
+      environment: "production",
+      traceName: "trace",
+      unitStartTime: new Date(Date.now() - HOUR).toISOString(),
+      state: "complete",
+      summary: "summary",
+      embedding: [1, ...Array<number>(255).fill(0)],
+      transcriptId: "transcript",
+      transcriptVersion: "1",
+      transcriptBytes: 1234,
+      summaryModel: "test",
+      embeddingModel: "test",
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
+      createdAt: new Date().toISOString(),
+      metadata: {},
+    };
+
+    await writeTopicSummaries([summary]);
+    await writeTopicSummaries([
+      // A duplicate write of the same summary
+      { ...summary, createdAt: new Date(Date.now() + SECOND).toISOString() },
+      // The trace joined a session after its first summary
+      { ...summary, sessionId: "late-session" },
+      { ...summary, facetVersion: 2 },
+      { ...summary, traceId: null, sessionId: "session", traceName: "" },
+      // A re-insert of an older summary is not new usage
+      {
+        ...summary,
+        facetId: "backfilled",
+        createdAt: new Date(THREE_DAYS_AGO).toISOString(),
+      },
+      // A facet with nothing to describe is still usage
+      {
+        ...summary,
+        facetId: "not-applicable",
+        state: "not_applicable",
+        summary: "",
+        embedding: [],
+      },
+      // The model judged the input insufficient: still usage
+      {
+        ...summary,
+        facetId: "insufficient",
+        state: "insufficient_input",
+        summary: "",
+        embedding: [],
+      },
+      // Skipped model calls are not usage
+      ...(["empty_input", "input_too_large"] as const).map((state) => ({
+        ...summary,
+        facetId: state,
+        state,
+        summary: "",
+        embedding: [],
+        transcriptBytes: 0,
+      })),
+    ]);
+
+    expect(await billedUnitsAroundNow(projectId)).toEqual({
+      topic_facet_summary: 5,
+    });
+    const ledgerRows = await queryClickhouse<{
+      environment: string;
+      event_bytes: string;
+    }>({
+      query: `SELECT DISTINCT environment, toString(event_bytes) AS event_bytes
+              FROM billable_events
+              WHERE project_id = {projectId: String}`,
+      params: { projectId },
+    });
+    expect(ledgerRows).toEqual([
+      { environment: "production", event_bytes: "1234" },
+    ]);
+  });
 });
 
 describe("getBillableUnitCountsByProjectInWindow", () => {
@@ -273,8 +430,7 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
   const T0 = new Date("2026-01-05T00:00:00.000Z");
   const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
 
-  it("deduplicates within the window and against the 24 hours before it", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("deduplicates within the window and against the 24 hours before it", async () => {
     const projectId = randomUUID();
     await insertBillableEvents(projectId, [
       { eventType: "trace", eventId: "twice-in-window", at: at(0) },
@@ -300,8 +456,7 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     });
   });
 
-  it("bills a multi-day trace once while its gaps stay under 24 hours", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("bills a multi-day trace once while its gaps stay under 24 hours", async () => {
     const projectId = randomUUID();
     const windowStarts = [0, 20 * HOUR, 40 * HOUR, 60 * HOUR].map(at);
     await insertBillableEvents(
@@ -325,8 +480,7 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     expect(counts).toEqual([{ trace: 1 }, {}, {}, {}]);
   });
 
-  it("counts per project and event type", async (ctx) => {
-    await skipUnlessBillableEvents(ctx);
+  it("counts per project and event type", async () => {
     const projectA = randomUUID();
     const projectB = randomUUID();
     await insertBillableEvents(projectA, [
@@ -363,5 +517,101 @@ describe("getBillableUnitCountsByProjectInWindow", () => {
     await expect(
       getBillableUnitCountsByProjectInWindow({ windowFrom: T0, windowTo: T0 }),
     ).rejects.toThrow("must end after it starts");
+  });
+});
+
+describe("getBillableUnitCountsByProjectAndBucket", () => {
+  const T0 = new Date("2026-01-05T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once in every bucket it appears in", async () => {
+    const projectId = randomUUID();
+    await insertBillableEvents(projectId, [
+      { eventType: "trace", eventId: "before-range", at: at(-2 * HOUR) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(10 * MINUTE) },
+      { eventType: "trace", eventId: "twice-in-hour", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(50 * MINUTE) },
+      { eventType: "trace", eventId: "across-hours", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "next-day", at: at(70 * MINUTE) },
+      { eventType: "trace", eventId: "next-day", at: at(26 * HOUR) },
+      { eventType: "observation", eventId: "obs", at: at(5 * MINUTE) },
+    ]);
+    const bucketed = (granularity: "hour" | "day") =>
+      getBillableUnitCountsByProjectAndBucket({
+        projectIds: [projectId],
+        from: T0,
+        to: at(27 * HOUR),
+        granularity,
+      }).then((rows) =>
+        rows
+          .map((row) => ({
+            bucket: row.bucket.toISOString(),
+            eventType: row.eventType,
+            count: row.count,
+          }))
+          .sort(
+            (a, b) =>
+              a.bucket.localeCompare(b.bucket) ||
+              a.eventType.localeCompare(b.eventType),
+          ),
+      );
+
+    expect(await bucketed("hour")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 2 },
+      { bucket: at(HOUR).toISOString(), eventType: "trace", count: 2 },
+      { bucket: at(26 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+    expect(await bucketed("day")).toEqual([
+      { bucket: at(0).toISOString(), eventType: "observation", count: 1 },
+      { bucket: at(0).toISOString(), eventType: "trace", count: 3 },
+      { bucket: at(24 * HOUR).toISOString(), eventType: "trace", count: 1 },
+    ]);
+  });
+});
+
+describe("getBillableUnitCountsForAllProjectsInRange", () => {
+  const T0 = new Date("2026-01-06T00:00:00.000Z");
+  const at = (offsetMs: number) => new Date(T0.getTime() + offsetMs);
+
+  it("counts each unit once per project and event type in the range", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    await insertBillableEvents(projectA, [
+      { eventType: "trace", eventId: "id-1", at: at(-SECOND) },
+      { eventType: "trace", eventId: "id-1", at: at(MINUTE) },
+      { eventType: "trace", eventId: "id-1", at: at(20 * HOUR) },
+      { eventType: "trace", eventId: "id-2", at: at(-SECOND) },
+      { eventType: "score", eventId: "id-1", at: at(HOUR) },
+      // `to` is exclusive.
+      { eventType: "observation", eventId: "id-3", at: at(24 * HOUR) },
+    ]);
+    await insertBillableEvents(projectB, [
+      { eventType: "observation", eventId: "id-1", at: at(MINUTE) },
+    ]);
+
+    const rows = await getBillableUnitCountsForAllProjectsInRange({
+      from: T0,
+      to: at(24 * HOUR),
+    });
+
+    expect(
+      rows
+        .filter((row) => [projectA, projectB].includes(row.projectId))
+        .map((row) => ({
+          project: row.projectId === projectA ? "A" : "B",
+          eventType: row.eventType,
+          count: row.count,
+        }))
+        .sort(
+          (a, b) =>
+            a.project.localeCompare(b.project) ||
+            a.eventType.localeCompare(b.eventType),
+        ),
+    ).toEqual([
+      { project: "A", eventType: "score", count: 1 },
+      { project: "A", eventType: "trace", count: 1 },
+      { project: "B", eventType: "observation", count: 1 },
+    ]);
   });
 });

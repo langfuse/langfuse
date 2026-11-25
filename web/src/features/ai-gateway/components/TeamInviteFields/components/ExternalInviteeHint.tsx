@@ -16,8 +16,8 @@ export function ExternalInviteeHint({ count }: ExternalInviteeHintProps) {
       </span>
       <span>
         {subject} in the organization yet. They&apos;ll be invited to the
-        organization and join as{" "}
-        <strong className="text-foreground font-bold">Member</strong>.
+        organization and join with the{" "}
+        <strong className="text-foreground font-bold">AI Gateway</strong> role.
       </span>
     </p>
   );

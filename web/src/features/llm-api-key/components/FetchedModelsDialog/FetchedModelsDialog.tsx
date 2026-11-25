@@ -3,7 +3,9 @@ import { useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
 type ModelRow = {
   model: string;
@@ -11,9 +13,9 @@ type ModelRow = {
 };
 
 /**
- * Configured models keep their order (the connection test uses the first one),
- * followed by the endpoint's other models. Configured models the endpoint no
- * longer returns stay in the list so they are only removed on purpose.
+ * Configured models keep their order, followed by the endpoint's other models.
+ * Configured models the endpoint no longer returns stay in the list so they are
+ * only removed on purpose.
  */
 function toModelRows(params: {
   configuredModels: string[];
@@ -35,6 +37,19 @@ function toModelRows(params: {
   ];
 }
 
+/** The chosen model while it stays selected, or the only selected model. */
+function resolveTestModel(params: {
+  testModel: string | undefined;
+  selectedModels: string[];
+}): string | undefined {
+  if (params.testModel && params.selectedModels.includes(params.testModel)) {
+    return params.testModel;
+  }
+  return params.selectedModels.length === 1
+    ? params.selectedModels[0]
+    : undefined;
+}
+
 type FetchedModelsDialogProps = {
   configuredModels: string[];
   fetchedModels: string[];
@@ -51,6 +66,11 @@ export function FetchedModelsDialog({
     () => new Set(rows.map((row) => row.model)),
   );
   const [query, setQuery] = useState("");
+  // The connection test sends a chat request to the first custom model, and a
+  // catalog's first id is often an embedding or audio model, so the user picks it.
+  const [testModel, setTestModel] = useState<string | undefined>(
+    configuredModels[0],
+  );
 
   const visibleRows = rows.filter((row) =>
     row.model.toLowerCase().includes(query.trim().toLowerCase()),
@@ -63,6 +83,12 @@ export function FetchedModelsDialog({
       else next.add(model);
       return next;
     });
+
+  const selectedModels = rows
+    .map((row) => row.model)
+    .filter((model) => selected.has(model));
+  const effectiveTestModel = resolveTestModel({ testModel, selectedModels });
+  const isMissingTestModel = selectedModels.length > 0 && !effectiveTestModel;
 
   // Acts on the filtered rows only, so a filter narrows what gets (de)selected.
   const areAllVisibleSelected =
@@ -85,9 +111,18 @@ export function FetchedModelsDialog({
       actions={[
         {
           label: `Use ${selected.size} model${selected.size === 1 ? "" : "s"}`,
+          disabled: isMissingTestModel,
+          disabledReason: "Choose the model used to test the connection.",
           onClick: () =>
             onApply(
-              rows.map((row) => row.model).filter((m) => selected.has(m)),
+              effectiveTestModel
+                ? [
+                    effectiveTestModel,
+                    ...selectedModels.filter(
+                      (model) => model !== effectiveTestModel,
+                    ),
+                  ]
+                : selectedModels,
             ),
         },
       ]}
@@ -140,7 +175,7 @@ export function FetchedModelsDialog({
                   {row.status === "missing" && (
                     <Badge
                       size="sm"
-                      color="yellow"
+                      color="warning"
                       text="Not returned by the endpoint"
                     />
                   )}
@@ -148,6 +183,29 @@ export function FetchedModelsDialog({
               );
             })}
           </div>
+          {selectedModels.length > 0 && (
+            <FormField
+              label="Model used to test the connection"
+              description="Saving the connection sends a chat request to this model. It becomes the first custom model."
+            >
+              {({ id, inputDescribedById }) => (
+                <div className="ph-no-capture">
+                  <SelectInput
+                    id={id}
+                    aria-describedby={inputDescribedById}
+                    value={effectiveTestModel ?? ""}
+                    onValueChange={setTestModel}
+                    placeholder="Select a model"
+                    options={selectedModels.map((model) => ({
+                      value: model,
+                      label: model,
+                    }))}
+                    noCapture
+                  />
+                </div>
+              )}
+            </FormField>
+          )}
         </div>
       </Dialog.Body>
     </Dialog>

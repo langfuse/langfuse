@@ -5,10 +5,6 @@ import { z } from "zod";
 export const MessageTypeSchema = z.enum(["Question", "Feedback", "Bug"]);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
-/** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const FormSectionSchema = z.enum(["intro", "form", "success"]);
-
 /** ── Topics (grouped + flattened) ────────────────────────────────────────── */
 export const TopicGroups = {
   Operations: [
@@ -83,6 +79,7 @@ export const isPlanWithoutCaseSeverity = (plan?: string): boolean =>
  * Whether a given severity level can be selected on the given plan. Used both
  * to grey out options in the UI and as a server-side safeguard in
  * `mapToPylonCaseSeverity`.
+ * @internal
  */
 export const isSeverityAllowedForPlan = (
   severity: string,

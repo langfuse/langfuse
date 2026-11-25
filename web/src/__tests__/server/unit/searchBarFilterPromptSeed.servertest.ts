@@ -12,18 +12,12 @@
 // Compiles the seed with the REAL SDK class (`ChatPromptClient`) rather than
 // a hand-rolled template substitution, so the mechanism under test is the
 // one the app actually runs at request time — this is exactly the class
-// `getPrompt(..., { type: "chat" })` returns. Imported from `langfuse-core`
-// directly (declared as a devDependency here) rather than re-exported from
-// `langfuse`: the pinned `langfuse@3.38.4` build's `.d.ts` claims to
-// re-export it, but its compiled JS does not, so `new ChatPromptClient(...)`
-// throws "not a constructor" if imported from `langfuse` at this pinned
-// version. `resolveFilterPrompt.ts` only ever imports the `ChatPromptClient`
-// TYPE from `langfuse` (erased at compile time), so production code is
-// unaffected by this gap.
+// `prompt.get(..., { type: "chat" })` returns.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ChatPromptClient, type ChatMessage } from "langfuse-core";
+import { ChatPromptClient } from "@langfuse/client";
+import type { ChatMessage } from "@langfuse/core";
 import {
   buildFieldCatalog,
   buildFilterSystemPrompt,
@@ -67,7 +61,7 @@ describe("search-bar-filter prompt seed", () => {
   it("compiles byte-for-byte identical to buildFilterSystemPrompt, given the same registry-derived variables", () => {
     const seed = loadSeed();
 
-    // The same client class `getPrompt(..., { type: "chat" })` yields —
+    // The same client class `prompt.get(..., { type: "chat" })` yields —
     // constructed directly from the committed seed rather than fetched, but
     // `.compile()` runs the identical mustache-render code path the app
     // hits on every managed-prompt request.

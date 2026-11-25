@@ -27,6 +27,8 @@ type ExpandableContentPeekProps = PropsWithChildren<{
   /** Label of the button that reveals the rest, e.g. "Show all steps". */
   expandLabel: string;
   collapsedHeight?: "sm" | "md" | "lg";
+  /** Starts with the full content shown, without fade or expand button. */
+  defaultExpanded?: boolean;
   /** Called once when the clamped content is revealed. */
   onAfterExpand?: () => void;
 }>;
@@ -67,9 +69,10 @@ export function ExpandableContentPeek({
   children,
   expandLabel,
   collapsedHeight = "md",
+  defaultExpanded = false,
   onAfterExpand,
 }: ExpandableContentPeekProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const isOverflowing = useIsOverflowing(containerRef, contentRef, !isExpanded);

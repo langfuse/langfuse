@@ -1,5 +1,4 @@
 #!/usr/bin/env tsx
-/* eslint-disable @typescript-eslint/no-use-before-define */
 
 /**
  * This script is used to filter a CSV file of events and convert it to a JSON file.
@@ -21,7 +20,6 @@ import {
   parseEventKey,
   QueueJobs,
   QueueName,
-  rawEventBucketPrefix,
   SecondaryIngestionQueue,
   TQueueJobTypes,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -341,9 +339,10 @@ async function convertCsvToJsonl(
         return;
       }
 
-      // Handle two S3 key path formats:
+      // Handle three S3 key path formats:
       // 1. projectId/entityType/eventBodyId/eventId.json (original)
-      // 2. otel/projectId/yyyy/mm/dd/hh/mm/eventId.json (OTEL-style)
+      // 2. evals/score/hash/projectId/scoreId/eventId.json (eval scores)
+      // 3. otel/projectId/yyyy/mm/dd/hh/mm/eventId.json (OTEL-style)
       const parsed = parseEventKey(keyValue);
 
       if (parsed?.kind === "otel") {
@@ -367,17 +366,8 @@ async function convertCsvToJsonl(
         otelOutputStream.write(JSON.stringify(otelJsonObject) + "\n");
         writtenOtelObjects++;
       } else if (parsed?.kind === "standard") {
-        const { projectId, entityType, eventBodyId, eventId } = parsed;
-
-        // The parsed eventBodyId is the literal segment in S3, whatever
-        // form the original producer wrote (sanitized + hashed, or raw).
-        // rawEventBucketPrefix passes it through verbatim so replay finds
-        // the file at the same key it was originally written to.
-        const bucketPrefix = rawEventBucketPrefix({
-          projectId,
-          entityType,
-          rawEntityIdSegment: eventBodyId,
-        });
+        const { projectId, entityType, eventBodyId, eventId, bucketPrefix } =
+          parsed;
 
         const jsonObject: JsonOutputItem = {
           useS3EventStore: true,

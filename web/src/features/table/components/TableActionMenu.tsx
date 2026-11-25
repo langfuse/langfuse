@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash, Plus } from "@langfuse/icons";
@@ -10,11 +10,7 @@ import {
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -124,13 +120,14 @@ export function TableActionMenu({
 
               if (action.disabled && action.disabledReason) {
                 return (
-                  <Tooltip key={action.id}>
-                    <TooltipTrigger asChild>
-                      <span>{menuItem}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      {action.disabledReason}
-                    </TooltipContent>
+                  <Tooltip
+                    key={action.id}
+                    label={action.disabledReason}
+                    placement="left"
+                  >
+                    {({ getTriggerProps }) => (
+                      <span {...getTriggerProps()}>{menuItem}</span>
+                    )}
                   </Tooltip>
                 );
               }

@@ -7,7 +7,8 @@ const fail = () => {
 const enumLike = new Proxy(
   {},
   {
-    get: (_target, prop) => (typeof prop === "symbol" ? undefined : String(prop)),
+    get: (_target, prop) =>
+      typeof prop === "symbol" ? undefined : String(prop),
     getOwnPropertyDescriptor: (_target, prop) => ({
       configurable: true,
       enumerable: true,

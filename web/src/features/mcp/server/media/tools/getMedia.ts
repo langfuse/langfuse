@@ -1,4 +1,5 @@
-import { getMedia, GetMediaQuerySchema } from "@/src/features/media/server";
+import { getMedia } from "@/src/features/media/server/mediaService";
+import { GetMediaQuerySchema } from "@/src/features/media/validation";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -21,5 +22,5 @@ export const [getMediaTool, handleGetMedia] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

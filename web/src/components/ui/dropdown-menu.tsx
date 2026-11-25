@@ -18,17 +18,6 @@ const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
-// Route the portal into the `popover` overlay layer (above `modal`). null
-// until mounted → falls back to <body>, SSR-parity. Layer order, not z-index,
-// stacks it. An explicit `container` prop still overrides the default.
-const DropdownMenuPortal = ({
-  ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Portal>) => {
-  const container = useLayerContainer("popover");
-  return <DropdownMenuPrimitive.Portal container={container} {...props} />;
-};
-DropdownMenuPortal.displayName = "DropdownMenuPortal";
-
 const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
@@ -348,6 +337,7 @@ type DropdownMenuItemAction = {
 );
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  noCapture?: boolean;
   disabled?: { reason: string };
   icon?: IconComponent;
   title: string;
@@ -453,7 +443,10 @@ const DropdownMenuItemWithSecondaryAction = (
   return (
     <DropdownMenuItem
       allowPointerEventsWhenDisabled
-      className="h-8 p-0 data-disabled:cursor-not-allowed"
+      className={cn(
+        "h-8 p-0 data-disabled:cursor-not-allowed",
+        props.noCapture && "ph-no-capture",
+      )}
       disabled={isDisabled}
       title={props.disabled?.reason}
       onClick={(event) => {
@@ -614,7 +607,6 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuGroup,
-  DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,

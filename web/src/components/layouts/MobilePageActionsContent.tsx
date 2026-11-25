@@ -21,7 +21,7 @@ export function MobilePageActionsContent({
     <PopoverContent
       align="end"
       collisionPadding={12}
-      className="w-[calc(100vw-1.5rem)] max-w-sm p-2"
+      className="w-max max-w-[min(24rem,calc(100vw-1.5rem))] min-w-48 p-2"
       onCloseAutoFocus={onCloseAutoFocus}
     >
       <div className="flex flex-col items-stretch gap-2">{children}</div>

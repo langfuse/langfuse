@@ -10,54 +10,35 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
-
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
-const createSession = (params: {
+const memberSession = (params: {
   orgId: string;
   projectId: string;
   orgRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   projectRole: "ADMIN" | "MEMBER" | "VIEWER";
-}): Session => ({
-  expires: "1",
-  user: {
-    id: randomUUID(),
-    name: "LLM connection test user",
-    canCreateOrganizations: true,
+}): Session =>
+  createSession({
+    user: { id: randomUUID(), name: "LLM connection test user" },
     organizations: [
       {
         id: params.orgId,
         role: params.orgRole,
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        name: "Test Organization",
-        metadata: {},
-        aiFeaturesEnabled: false,
-        aiTelemetryEnabled: false,
         projects: [
           {
             id: params.projectId,
             role: params.projectRole,
-            name: "Test Project",
-            deletedAt: null,
             retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date().toISOString(),
           },
         ],
       },
     ],
-    featureFlags: testFeatureFlags(),
-    admin: false,
-  },
-  environment: {} as never,
-});
+  });
 
 const createCaller = (session: Session) => {
   const ctx = createInnerTRPCContext({ session, headers: {} });
@@ -72,7 +53,7 @@ describe("organization LLM connections", () => {
   it("lets an owner manage a connection without exposing its secret", async () => {
     const setup = await createOrgProjectAndApiKey();
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "OWNER",
@@ -105,7 +86,7 @@ describe("organization LLM connections", () => {
   it("rejects an incompatible organization connection without blocking edits to an existing mismatch", async () => {
     const setup = await createOrgProjectAndApiKey();
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "OWNER",
@@ -169,7 +150,7 @@ describe("organization LLM connections", () => {
       },
     });
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "MEMBER",
@@ -215,7 +196,7 @@ describe("organization LLM connections", () => {
       ],
     });
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "MEMBER",
@@ -233,7 +214,7 @@ describe("organization LLM connections", () => {
   it("requires organization connection management to fetch a connection's models", async () => {
     const setup = await createOrgProjectAndApiKey();
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "MEMBER",
@@ -244,7 +225,6 @@ describe("organization LLM connections", () => {
     await expect(
       caller.organizationLlmApiKey.listModels({
         orgId: setup.orgId,
-        provider: "openai",
         adapter: LLMAdapter.OpenAI,
         secretKey: "sk-test",
         baseURL: "https://attacker.example.com/v1",
@@ -256,7 +236,7 @@ describe("organization LLM connections", () => {
   it("requires organization connection management to fetch an existing connection's models", async () => {
     const setup = await createOrgProjectAndApiKey();
     const owner = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "OWNER",
@@ -270,7 +250,7 @@ describe("organization LLM connections", () => {
       secretKey: "sk-organization-test",
     });
     const member = createCaller(
-      createSession({
+      memberSession({
         orgId: setup.orgId,
         projectId: setup.projectId,
         orgRole: "MEMBER",
@@ -282,7 +262,6 @@ describe("organization LLM connections", () => {
       member.organizationLlmApiKey.listModelsUpdate({
         id: created.id,
         orgId: setup.orgId,
-        provider: "openai",
         adapter: LLMAdapter.OpenAI,
       }),
     ).rejects.toThrow("does not have access");
@@ -295,7 +274,7 @@ describe("organization LLM connections", () => {
       createOrgProjectAndApiKey(),
     ]);
     const otherConnection = await createCaller(
-      createSession({
+      memberSession({
         orgId: otherSetup.orgId,
         projectId: otherSetup.projectId,
         orgRole: "OWNER",
@@ -308,7 +287,7 @@ describe("organization LLM connections", () => {
       secretKey: "sk-other-organization",
     });
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: ownSetup.orgId,
         projectId: ownSetup.projectId,
         orgRole: "OWNER",
@@ -319,7 +298,6 @@ describe("organization LLM connections", () => {
     const result = await caller.organizationLlmApiKey.listModelsUpdate({
       id: otherConnection.id,
       orgId: ownSetup.orgId,
-      provider: "openai",
       adapter: LLMAdapter.OpenAI,
     });
 
@@ -336,7 +314,7 @@ describe("organization LLM connections", () => {
       createOrgProjectAndApiKey(),
     ]);
     const caller = createCaller(
-      createSession({
+      memberSession({
         orgId: ownSetup.orgId,
         projectId: ownSetup.projectId,
         orgRole: "OWNER",

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -34,11 +34,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import {
@@ -51,11 +47,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
 } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useEvaluatorPromptSample } from "@/src/features/evals/v2/hooks/useEvaluatorPromptSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
@@ -77,7 +74,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
+  const sampleObject = useEvaluatorPromptSample({ projectId, store });
   return <PromptEditorContent store={store} sampleObject={sampleObject} />;
 }
 
@@ -95,16 +92,21 @@ export function PromptEditorContent({
       promptMessages: state.promptMessages,
       promptMessageIds: state.promptMessageIds,
       variableFields: state.variableFields,
+      targetObject: state.targetObject,
       promptPreviewEnabled: state.promptPreviewEnabled,
       actions: state.actions,
     })),
+  );
+  const variableFields = variableFieldsForTarget(
+    state.targetObject,
+    state.variableFields,
   );
   const combinedPrompt = state.promptMessages
     .map(({ content }) => content)
     .join("\n\n");
   const combinedPrepared = preparePromptEditorState({
     prompt: combinedPrompt,
-    variableFields: state.variableFields,
+    variableFields,
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
@@ -161,7 +163,7 @@ export function PromptEditorContent({
               combinedPrepared={combinedPrepared}
               prepared={preparePromptEditorState({
                 prompt: message.content,
-                variableFields: state.variableFields,
+                variableFields,
                 promptPreviewEnabled: state.promptPreviewEnabled,
                 sampleObject,
               })}
@@ -347,13 +349,16 @@ function SortablePromptMessage({
             </Button>
             {messageCount > 1 || message.role !== "user" || warningReason ? (
               warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
+                <Tooltip label={warningReason} delay={0}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex"
+                      tabIndex={0}
+                    >
                       {roleBadge}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
+                  )}
                 </Tooltip>
               ) : (
                 roleBadge

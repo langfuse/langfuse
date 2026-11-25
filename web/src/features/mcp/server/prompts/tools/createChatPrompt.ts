@@ -13,7 +13,7 @@ import {
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
-import { createPromptForApi } from "@/src/features/prompts/server";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 import {
   buildPromptUrl,
   PromptChatMessageSchema,
@@ -58,6 +58,7 @@ const ChatMessageBaseSchema = z.object({
  * or a placeholder reference ({type: 'placeholder', name}) that is replaced
  * with a runtime variable value when the prompt is compiled. A strict union is
  * only used at runtime — the base schema stays union-free for JSON Schema.
+ * @internal
  */
 export const ChatMessageSchema = PromptChatMessageSchema;
 
@@ -183,5 +184,5 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

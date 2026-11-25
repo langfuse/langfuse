@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+// Export source form field of the blob storage integration settings.
+
 import { useWatch } from "react-hook-form";
-import { Info, ExternalLink } from "@langfuse/icons";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   FormControl,
@@ -25,7 +27,7 @@ import {
   getExportSourceOptions,
   getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
-} from "@/src/features/analytics-integrations";
+} from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source
@@ -88,7 +90,7 @@ export const ExportSourceField = ({
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink size="sm" />
+                        <SquareArrowOutUpRight size="sm" />
                       </a>
                     </div>
                   </TooltipContent>
@@ -125,13 +127,13 @@ export const ExportSourceField = ({
       )}
 
       {!watchedValidation.ok && (
-        <Alert variant="destructive">
-          <Alert.Title>Saved export source is no longer available</Alert.Title>
-          <Alert.Description>
-            {/* Reason-specific body; texts live in the shared lookup. */}
-            {getExportSourceUnavailableMessage(watchedValidation.reason)}
-          </Alert.Description>
-        </Alert>
+        <Banner
+          variant="error"
+          title="Saved export source is no longer available"
+        >
+          {/* Reason-specific body; texts live in the shared lookup. */}
+          {getExportSourceUnavailableMessage(watchedValidation.reason)}
+        </Banner>
       )}
     </>
   );

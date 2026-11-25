@@ -6,22 +6,31 @@ import {
 import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/server";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { belongsToTraceEvalsProject } from "@/src/features/evals/transcriptEvalsAccess";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalFeaturePreviewFlag,
   personalFeaturePreviewFlags,
-  setUserFeaturePreview,
-  hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  hasInternalAccess,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import {
   deleteUserBoundApiKeys,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+
+// Deleting a user fires a foreign-key action on every table that references
+// users, and many of those columns are unindexed, so the delete scans those
+// tables. On a cold cache that exceeds Prisma's 5s interactive default.
+const DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS = 30_000;
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -88,21 +97,17 @@ export const userAccountRouter = createTRPCRouter({
   setViewMode: authenticatedProcedure
     .input(z.object({ mode: z.enum(["INTERNAL", "EXTERNAL"]) }))
     .mutation(async ({ input, ctx }) => {
-      const canEnableFeaturePreviews =
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-        ctx.session.user.v4BetaEnabled === true;
-
       if (
+        input.mode === "INTERNAL" &&
         !hasInternalAccess({
-          isAdmin: ctx.session.user.admin === true,
+          email: ctx.session.user.email,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        }) ||
-        !canEnableFeaturePreviews
+        })
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Internal view mode requires ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+          message: "Internal view is only available to eligible users.",
         });
       }
       await setUserFeaturePreview({
@@ -155,11 +160,16 @@ export const userAccountRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       if (
-        isAdminOnlyFeaturePreviewFlag(input.flag) &&
-        !ctx.session.user.admin
+        isInternalFeaturePreviewFlag(input.flag) &&
+        !isInternalViewEnabled(ctx.session) &&
+        !ctx.session.user.featureFlags[input.flag] &&
+        !(
+          input.flag === "traceTranscriptEvals" &&
+          belongsToTraceEvalsProject(ctx.session.user)
+        )
       ) {
         throw new ForbiddenError(
-          "Only administrators can change this feature preview.",
+          "This feature preview requires Internal view or an existing feature grant.",
         );
       }
 
@@ -169,7 +179,7 @@ export const userAccountRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !isInternalFeaturePreviewFlag(input.flag) &&
         !canEnableFeaturePreviews
       ) {
         throw new TRPCError({
@@ -227,6 +237,9 @@ export const userAccountRouter = createTRPCRouter({
         const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
 
         // Delete the user (cascade will handle related records)
+        await tx.sessionView.deleteMany({
+          where: { createdBy: userId, ownership: "PRIVATE" },
+        });
         await tx.user.delete({
           where: { id: userId },
         });
@@ -241,6 +254,7 @@ export const userAccountRouter = createTRPCRouter({
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: DELETE_ACCOUNT_TRANSACTION_TIMEOUT_MS,
       },
     );
 
@@ -343,21 +357,18 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4(
-        {
-          userCreatedAt: userRolloutState.createdAt,
-          organizations: userRolloutState.organizationMemberships.map(
-            (membership) => ({
-              id: membership.organization.id,
-              createdAt: membership.organization.createdAt,
-            }),
-          ),
-          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-            : [],
-        },
-        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
-      );
+      const userCanToggleV4 = canToggleV4({
+        userCreatedAt: userRolloutState.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
+        ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
+      });
 
       // Rollout-locked users may recover a missing opt-in, but cannot opt out.
       if (!userCanToggleV4 && !input.enabled) {

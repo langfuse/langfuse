@@ -11,8 +11,11 @@ const mocks = vi.hoisted(() => ({
   reportTrpcErrorWithoutToast: vi.fn(),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
+}));
+vi.mock("@/src/features/entitlements/hooks", () => ({
+  useHasEntitlement: () => false,
 }));
 vi.mock("@/src/utils/api", () => {
   const mutation = { useMutation: () => ({ mutateAsync: vi.fn() }) };
@@ -30,6 +33,7 @@ vi.mock("@/src/utils/api", () => {
         testUpdate: mutation,
         listModels: mutation,
         listModelsUpdate: mutation,
+        bedrockIamRoleAuth: { useQuery: () => ({ data: undefined }) },
       },
       organizationLlmApiKey: {
         all: { useQuery: () => ({ data: { data: [] } }) },
@@ -39,6 +43,7 @@ vi.mock("@/src/utils/api", () => {
         testUpdate: mutation,
         listModels: mutation,
         listModelsUpdate: mutation,
+        bedrockIamRoleAuth: { useQuery: () => ({ data: undefined }) },
       },
       useUtils: () => ({
         llmApiKey: { invalidate: vi.fn() },

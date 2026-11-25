@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConnectedBatchActionsTable } from "./BatchActionsTable/ConnectedBatchActionsTable";
 
 export function BatchActionsSettingsPage(props: { projectId: string }) {
@@ -21,12 +21,9 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
       {hasAccess ? (
         <ConnectedBatchActionsTable projectId={props.projectId} />
       ) : (
-        <Alert>
-          <Alert.Title>Access Denied</Alert.Title>
-          <Alert.Description>
-            You do not have permission to view batch actions.
-          </Alert.Description>
-        </Alert>
+        <Banner title="Access denied">
+          You do not have permission to view batch actions.
+        </Banner>
       )}
     </>
   );

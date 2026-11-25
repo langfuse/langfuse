@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalJsonParam, singleFilterList } from "@langfuse/shared";
+import { TOPIC_SUMMARY_STATES } from "@langfuse/shared/topics";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -33,9 +34,10 @@ const TopicFacetSchema = z
     description: z.string(),
     isBuiltIn: z.boolean(),
     active: z.boolean(),
+    ruleIds: z.array(z.string()),
     version: z.number().int(),
     prompt: z.string(),
-    publishedRun: z
+    publishedMap: z
       .object({
         id: z.string(),
         completedAt: z.coerce.date().nullable(),
@@ -48,12 +50,13 @@ const TopicFacetSchema = z
 
 const TopicSchema = z
   .object({
-    id: z.string(),
+    stableId: z.string(),
     versionId: z.string(),
     name: z.string(),
     description: z.string(),
     facet: FacetRefSchema,
-    runId: z.string(),
+    ruleId: z.string().nullable(),
+    mapId: z.string(),
     traceCount: z.number().int(),
   })
   .strict();
@@ -65,6 +68,8 @@ const TopicStatusCountsSchema = z
     awaitingMap: z.number().int(),
     notApplicable: z.number().int(),
     insufficientInput: z.number().int(),
+    emptyInput: z.number().int(),
+    inputTooLarge: z.number().int(),
   })
   .strict();
 
@@ -100,7 +105,8 @@ export const GetUnstableTopicsResponse = z
       z
         .object({
           facet: FacetRefSchema,
-          publishedRunId: z.string().nullable(),
+          ruleId: z.string().nullable(),
+          publishedMapId: z.string().nullable(),
           counts: TopicStatusCountsSchema,
         })
         .strict(),
@@ -109,8 +115,142 @@ export const GetUnstableTopicsResponse = z
   })
   .strict();
 
+const TopicRuleSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    filter: singleFilterList,
+    sampling: z.number(),
+    facetIds: z.array(z.string()),
+    updatedAt: z.coerce.date(),
+  })
+  .strict();
+
+export const GetUnstableTopicRulesQuery = pagination.extend({
+  filter: optionalJsonParam(singleFilterList, "filter"),
+});
+export const GetUnstableTopicRulesResponse = z
+  .object({ data: z.array(TopicRuleSchema), meta: paginationMeta })
+  .strict();
+
+export const TopicRuleIdQuery = z.object({ ruleId: z.string() });
+/** @alias */
+export const GetUnstableTopicRuleResponse = TopicRuleSchema;
+
+const TopicResultCursor = z.object({
+  v: z.literal(1),
+  timestamp: z.coerce.date(),
+  traceId: z.string(),
+  facetId: z.string(),
+  // Assignment pages: rules sharing a facet each have a row per trace.
+  runId: z.string().optional(),
+});
+
+export const encodeTopicResultCursor = (cursor: {
+  timestamp: Date;
+  traceId: string;
+  facetId: string;
+  runId?: string;
+}) =>
+  Buffer.from(
+    JSON.stringify({
+      v: 1,
+      timestamp: cursor.timestamp.toISOString(),
+      traceId: cursor.traceId,
+      facetId: cursor.facetId,
+      ...(cursor.runId !== undefined ? { runId: cursor.runId } : {}),
+    }),
+  ).toString("base64url");
+
+const resultListQuery = timeWindow.extend({
+  filter: optionalJsonParam(singleFilterList, "filter"),
+  orderBy: z
+    .enum(["timestamp.desc", "timestamp.asc"])
+    .default("timestamp.desc"),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  cursor: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined) return undefined;
+      try {
+        return TopicResultCursor.parse(
+          JSON.parse(Buffer.from(value, "base64url").toString("utf-8")),
+        );
+      } catch {
+        ctx.addIssue({ code: "custom", message: "Invalid cursor." });
+        return z.NEVER;
+      }
+    }),
+});
+
+const resultListMeta = z
+  .object({ cursor: z.string().nullable(), comment: z.string().optional() })
+  .strict();
+
+export const GetUnstableTopicSummariesQuery = resultListQuery.extend({
+  truncateSummaries: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .default(false),
+});
+export const GetUnstableTopicSummariesResponse = z
+  .object({
+    window: WindowSchema,
+    data: z.array(
+      z
+        .object({
+          traceId: z.string(),
+          traceName: z.string(),
+          environment: z.string(),
+          timestamp: z.coerce.date(),
+          facetId: z.string(),
+          facetName: z.string(),
+          facetVersion: z.number().int(),
+          state: z.enum(TOPIC_SUMMARY_STATES),
+          summary: z.string().nullable(),
+          summaryTruncated: z.boolean(),
+          createdAt: z.coerce.date(),
+        })
+        .strict(),
+    ),
+    meta: resultListMeta,
+  })
+  .strict();
+
+export const GetUnstableTopicAssignmentsQuery = resultListQuery;
+export const GetUnstableTopicAssignmentsResponse = z
+  .object({
+    window: WindowSchema,
+    data: z.array(
+      z
+        .object({
+          traceId: z.string(),
+          timestamp: z.coerce.date(),
+          facetId: z.string(),
+          facetName: z.string(),
+          facetVersion: z.number().int(),
+          ruleId: z.string().nullable(),
+          status: z.enum(["assigned", "outlier"]),
+          topic: z
+            .object({
+              stableId: z.string(),
+              versionId: z.string(),
+              name: z.string(),
+            })
+            .strict()
+            .nullable(),
+          mapId: z.string().nullable(),
+          createdAt: z.coerce.date(),
+        })
+        .strict(),
+    ),
+    meta: resultListMeta,
+  })
+  .strict();
+
 export const GetUnstableTopicQuery = timeWindow.extend({
-  topicId: z.string(),
+  topicStableId: z.string(),
 });
 export const GetUnstableTopicResponse = TopicSchema.extend({
   inCurrentMap: z.boolean(),

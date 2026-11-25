@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type * as ts from "@typescript/typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
@@ -8,16 +7,9 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 export {
-  DEFAULT_PYTHON_CODE_EVAL_SOURCE,
-  DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
-  PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
-  PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
-  PYTHON_CODE_EVAL_CONTRACT,
-  TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
-  isDefaultCodeEvalSource,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
@@ -622,6 +614,7 @@ async function validateCodeEvalSourceWithTypescript(
   return validateCodeEvalSource(source, tsModule);
 }
 
+/** @internal */
 export async function validateCodeEvalSourceWithPython(
   source: string,
 ): Promise<CodeEvalValidationResult> {
