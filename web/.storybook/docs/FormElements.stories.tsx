@@ -9,7 +9,9 @@ import { CopyInput } from "../../src/components/design-system/CopyInput/CopyInpu
 import { DateRangeInput } from "../../src/components/design-system/DateRangeInput/DateRangeInput";
 import { IconButton } from "../../src/components/design-system/IconButton/IconButton";
 import { Input } from "../../src/components/design-system/Input/Input";
+import { AsyncSelectInput } from "../../src/components/design-system/AsyncSelectInput/AsyncSelectInput";
 import { MultiSelectInput } from "../../src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { MultiSelectTagInput } from "../../src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import { PasswordInput } from "../../src/components/design-system/PasswordInput/PasswordInput";
 import {
   QueryInput,
@@ -94,6 +96,8 @@ function StandardControls() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("one");
   const [multi, setMulti] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [asyncSearch, setAsyncSearch] = useState("");
 
   return (
     <Row name="standard">
@@ -143,6 +147,33 @@ function StandardControls() {
           emptyMessage="None"
         />
       </Field>
+      <Field name="tags" label="MultiSelectTagInput">
+        <MultiSelectTagInput
+          aria-label="Tags"
+          value={tags}
+          options={selectOptions}
+          onValueChange={setTags}
+          placeholder="Tags"
+          searchPlaceholder="Search"
+          emptyMessage="None"
+        />
+      </Field>
+      <Field name="async-select" label="AsyncSelectInput">
+        <AsyncSelectInput
+          aria-label="Searchable select"
+          value={
+            selectOptions.find((option) => option.value === selected) ?? null
+          }
+          options={selectOptions}
+          onValueChange={(option) => setSelected(option.value)}
+          placeholder="Select"
+          search={{
+            placeholder: "Search",
+            value: asyncSearch,
+            onValueChange: setAsyncSearch,
+          }}
+        />
+      </Field>
       <Field name="date" label="DateRangeInput">
         <DateRangeInput
           value="7d"
@@ -166,6 +197,9 @@ function StandardControls() {
       </Field>
       <Field name="toggle" label="Toggle">
         <Toggle>Aa</Toggle>
+      </Field>
+      <Field name="switch-input" label="SwitchInput">
+        <SwitchInput id="form-elements-switch" description="Enabled" />
       </Field>
     </Row>
   );
@@ -205,6 +239,9 @@ export const StandardHeight = meta.story({
       "multiselect",
       "date",
       "query",
+      "tags",
+      "async-select",
+      "switch-input",
     ] as const;
     const buttonHeight = measuredHeight(row, "button");
     expect(buttonHeight, "Button default height").toBe(32);
@@ -280,9 +317,6 @@ export const Indicators = meta.story({
       </Field>
       <Field name="switch-sm" label="Switch sm">
         <Switch aria-label="Small switch" size="sm" />
-      </Field>
-      <Field name="switch-input" label="SwitchInput">
-        <SwitchInput id="form-elements-switch" description="Enabled" />
       </Field>
     </Row>
   ),
