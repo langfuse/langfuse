@@ -1672,6 +1672,51 @@ describe(
       }
     });
 
+    it("stores a span without an optional time ClickHouse cannot store", async () => {
+      const resource = buildFocusedResourceSpans({})[0];
+      const scope = resource.scopeSpans![0];
+      const span = scope.spans![0];
+      const bytes = Buffer.from(
+        JSON.stringify([
+          {
+            ...resource,
+            scopeSpans: [
+              {
+                ...scope,
+                spans: [
+                  {
+                    ...span,
+                    attributes: [
+                      ...(span.attributes ?? []),
+                      // Puts the completion start time in year 33713.
+                      {
+                        key: "ai.response.msToFirstChunk",
+                        value: { doubleValue: 1e15 },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ]),
+      );
+      const comparison = await runOtelReplayComparison({
+        bytes,
+        projectId: `${PROJECT_ID}-unstorable-optional-time`,
+        fileKey: `${FILE_KEY}.unstorable-optional-time`,
+      });
+      expectRawNativeParity(comparison);
+      for (const result of Object.values(comparison)) {
+        expect(
+          result.storedRows.map((row) => [
+            row.span_id,
+            row.completion_start_time,
+          ]),
+        ).toEqual([[FIRST_SPAN_ID, null]]);
+      }
+    });
+
     it("preserves JavaScript rounding for unsafe OTLP numbers in the raw document", async () => {
       // Keep the number literal in the S3 document. Serializing a JS object
       // first would round it before the production queue reads the bytes.

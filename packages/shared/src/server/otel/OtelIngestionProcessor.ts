@@ -42,7 +42,11 @@ import {
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  hasUnstorableYear,
+} from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
@@ -4227,11 +4231,9 @@ export class OtelIngestionProcessor {
       startTimeISO: startTimeISO ?? endTimeISO ?? fallbackISO,
       endTimeISO: endTimeISO ?? startTimeISO ?? fallbackISO,
     };
-    // toISOString() writes a year outside 0000-9999 with a sign and six digits.
-    const hasFourDigitYear = (iso: string) => /^\d{4}-/.test(iso);
     if (
-      !hasFourDigitYear(resolved.startTimeISO) ||
-      !hasFourDigitYear(resolved.endTimeISO)
+      hasUnstorableYear(resolved.startTimeISO) ||
+      hasUnstorableYear(resolved.endTimeISO)
     ) {
       OtelIngestionProcessor.recordConversionFailure("timestamp_out_of_range");
       return undefined;

@@ -62,18 +62,19 @@ impl IntoPrepared<DateTime64Micros> for String {
     }
 }
 
+// A nullable datetime column stores null for a value ClickHouse cannot hold, so an optional
+// timestamp never fails its row.
 impl IntoPrepared<Option<DateTime64Micros>> for String {
     fn into_prepared(self) -> Result<Option<DateTime64Micros>, String> {
-        parse_datetime_text(&self, "datetime")
-            .map(DateTime64Micros)
-            .map(Some)
+        Some(self).into_prepared()
     }
 }
 
 impl IntoPrepared<Option<DateTime64Micros>> for Option<String> {
     fn into_prepared(self) -> Result<Option<DateTime64Micros>, String> {
-        self.map(|value| parse_datetime_text(&value, "datetime").map(DateTime64Micros))
-            .transpose()
+        Ok(self
+            .and_then(|value| parse_datetime_text(&value, "datetime").ok())
+            .map(DateTime64Micros))
     }
 }
 
@@ -260,8 +261,23 @@ no_media_field!(
 
 #[cfg(test)]
 mod tests {
-    use super::{into_prepared, Decimal64, Value};
+    use super::{into_prepared, DateTime64Micros, Decimal64, Value};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn only_a_nullable_datetime_column_accepts_a_time_clickhouse_cannot_hold() {
+        let year_33713 = || "+33713-01-25T16:35:30.686Z".to_owned();
+        let nullable: Option<DateTime64Micros> =
+            into_prepared(Some(year_33713()), "completion_start_time").unwrap();
+        assert!(nullable.is_none());
+        let nullable: Option<DateTime64Micros> = into_prepared(year_33713(), "end_time").unwrap();
+        assert!(nullable.is_none());
+        let stored: Option<DateTime64Micros> =
+            into_prepared("2026-01-25 16:35:30.686".to_owned(), "end_time").unwrap();
+        assert_eq!(stored.map(|time| time.0), Some(1_769_358_930_686_000));
+        let required: Result<DateTime64Micros, String> = into_prepared(year_33713(), "start_time");
+        assert!(required.is_err());
+    }
 
     #[test]
     fn cost_values_keep_valid_entries_and_omit_invalid_values() {

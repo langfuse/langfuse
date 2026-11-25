@@ -1,7 +1,8 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
-import type { EarlyOtelBatch } from "@langfuse/native";
+import { PreparedEvent, type EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
+  hasUnstorableYear,
   logger,
   OtelIngestionProcessor,
   traceException,
@@ -35,6 +36,24 @@ type ProcessOtelEventsParams = {
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
 };
+
+/** The nullable timestamp columns of events_full, from the native row schema. */
+const nullableTimestampColumns = PreparedEvent.columns()
+  .filter(({ columnType }) => columnType.startsWith("Nullable(DateTime64"))
+  .map(({ name }) => name);
+
+/**
+ * Nulls each optional timestamp ClickHouse cannot store. One such value would
+ * fail the insert of every row sent with it.
+ */
+function clearUnstorableTimestamps(eventRecord: Record<string, unknown>): void {
+  for (const column of nullableTimestampColumns) {
+    const value = eventRecord[column];
+    if (typeof value === "string" && hasUnstorableYear(value)) {
+      eventRecord[column] = null;
+    }
+  }
+}
 
 /**
  * Processes a resource-spans batch for observation eval scheduling and direct
@@ -134,6 +153,8 @@ export async function processOtelEvents({
 
         return;
       }
+
+      clearUnstorableTimestamps(eventRecord);
 
       // Step 2: Keep transcript matches even if observation scheduling fails.
       const traceActivity = isTraceDispatchSampled(

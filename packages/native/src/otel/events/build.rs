@@ -333,11 +333,12 @@ impl<'a> EventSource<'a> {
             &config.fallback_time,
         ) else {
             // ClickHouse cannot store such a time. Dropping only this span preserves its siblings.
-            tracing::warn!(
-                project_id = %config.project_id,
-                observation_id = %span_id,
-                "Skipping OTEL span with a start or end time outside years 0000-9999"
-            );
+            // A wrong time unit hits every span of an exporter, so this is counted, not logged.
+            metrics::counter!(
+                "langfuse.ingestion.otel.conversion_failure",
+                "failure_type" => "timestamp_out_of_range", "timestamp_field" => "unknown"
+            )
+            .increment(1);
             return None;
         };
         let mut attributes = EventAttributes {
