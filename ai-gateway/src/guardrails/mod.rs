@@ -312,7 +312,11 @@ impl Guardrail {
     }
 
     fn is_external_enforce(&self) -> bool {
-        self.is_external() && self.action == GuardrailAction::Enforce
+        self.is_external()
+            && matches!(
+                self.action,
+                GuardrailAction::Enforce | GuardrailAction::Redact
+            )
     }
 
     fn is_local_redact(&self) -> bool {
@@ -1217,7 +1221,7 @@ fn build_combined_redactions(
         else {
             continue;
         };
-        if guardrail.action != GuardrailAction::Enforce {
+        if !guardrail.is_external_enforce() {
             continue;
         }
         let ExternalOutcome::Anonymized(outputs) = outcome else {
