@@ -141,7 +141,7 @@ export function EvaluatorTestStrip({
           <div className="min-w-0">
             <p className="text-muted-foreground text-xs">Variables</p>
             {variables.length > 0 ? (
-              <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-3">
+              <dl className="mt-2 grid grid-cols-[fit-content(40%)_minmax(0,1fr)] gap-x-4 gap-y-3">
                 {variables.map((variable) => (
                   <Fragment key={variable.name}>
                     <dt className="min-w-0">
