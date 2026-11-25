@@ -113,6 +113,30 @@ export interface McpTool<TName extends string = string> {
   ) => Promise<unknown>;
 }
 
+type JsonSchemaConverter = StandardSchemaWithJSON["~standard"]["jsonSchema"];
+type JsonSchemaOptions = Parameters<JsonSchemaConverter["input"]>[0];
+
+/**
+ * Converts a schema to JSON Schema once per direction and options: the SDK
+ * asks for it on every `tools/list`, and tool schemas do not change.
+ */
+const cachedJsonSchema = (
+  converter: JsonSchemaConverter,
+): JsonSchemaConverter => {
+  const cache = new Map<string, Record<string, unknown>>();
+  const cached =
+    (io: "input" | "output") =>
+    (options: JsonSchemaOptions): Record<string, unknown> => {
+      const key = `${io}:${JSON.stringify(options)}`;
+      const hit = cache.get(key);
+      if (hit) return hit;
+      const jsonSchema = converter[io](options);
+      cache.set(key, jsonSchema);
+      return jsonSchema;
+    };
+  return { input: cached("input"), output: cached("output") };
+};
+
 /** Validates with `inputSchema` and advertises the JSON Schema of `baseSchema`. */
 const toToolSchema = (
   inputSchema: z.ZodType<unknown>,
@@ -120,7 +144,7 @@ const toToolSchema = (
 ): StandardSchemaWithJSON => ({
   "~standard": {
     ...inputSchema["~standard"],
-    jsonSchema: baseSchema["~standard"].jsonSchema,
+    jsonSchema: cachedJsonSchema(baseSchema["~standard"].jsonSchema),
   },
 });
 
