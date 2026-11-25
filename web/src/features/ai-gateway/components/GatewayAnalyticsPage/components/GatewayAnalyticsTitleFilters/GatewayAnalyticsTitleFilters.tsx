@@ -13,9 +13,10 @@ export function GatewayAnalyticsTitleFilters({
   organizationId: string;
   canManageGateway: boolean;
 }) {
-  const { labels } = useGatewayAnalyticsLabels(organizationId);
+  const { labels, apiKeyOwners } = useGatewayAnalyticsLabels(organizationId);
   const { user, apiKey } = useGatewayAnalyticsFilters({
     labels,
+    apiKeyOwners,
     canFilterByUser: canManageGateway,
   });
 

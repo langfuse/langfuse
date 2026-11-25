@@ -2,19 +2,28 @@ import { useMemo } from "react";
 import { ArrayParam, useQueryParams, withDefault } from "use-query-params";
 import type { FilterState } from "@langfuse/shared";
 
+import {
+  filterApiKeysByOwner,
+  keepApiKeysOfUsers,
+} from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/filterApiKeysByOwner";
 import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 
 /**
  * User and API key selections, kept in the URL so the filters in the page
  * title row and the dashboard below share them. Values are IDs; options show
  * member and API key names. Viewers without the User filter ignore a shared
- * `users` param, since they would have no control to clear it.
+ * `users` param, since they would have no control to clear it. The two
+ * filters combine with AND, so while users are selected the API key options
+ * list only their keys, and changing the users drops selected keys of anyone
+ * else. Keys selected through a shared URL stay listed so they can be cleared.
  */
 export function useGatewayAnalyticsFilters({
   labels,
+  apiKeyOwners,
   canFilterByUser,
 }: {
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
+  apiKeyOwners: ReadonlyMap<string, string | null>;
   canFilterByUser: boolean;
 }) {
   const [query, setQuery] = useQueryParams({
@@ -39,17 +48,34 @@ export function useGatewayAnalyticsFilters({
   );
 
   const userOptions = useMemo(() => toOptions(labels.users), [labels.users]);
-  const apiKeyOptions = useMemo(
-    () => toOptions(labels.apiKeys),
-    [labels.apiKeys],
-  );
+  const apiKeyOptions = useMemo(() => {
+    const visibleIds = new Set(
+      filterApiKeysByOwner({
+        apiKeyIds: [...labels.apiKeys.keys()],
+        owners: apiKeyOwners,
+        userIds,
+        selectedApiKeyIds: apiKeyIds,
+      }),
+    );
+    return toOptions(labels.apiKeys).filter((option) =>
+      visibleIds.has(option.value),
+    );
+  }, [labels.apiKeys, apiKeyOwners, userIds, apiKeyIds]);
 
   return {
     filters,
     user: {
       values: userIds,
       options: userOptions,
-      onValueChange: (values: string[]) => setQuery({ users: values }),
+      onValueChange: (values: string[]) =>
+        setQuery({
+          users: values,
+          gatewayKeys: keepApiKeysOfUsers({
+            selectedApiKeyIds: apiKeyIds,
+            owners: apiKeyOwners,
+            userIds: values,
+          }),
+        }),
     },
     apiKey: {
       values: apiKeyIds,

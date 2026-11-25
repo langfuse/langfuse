@@ -1743,8 +1743,19 @@ describe("AI gateway control plane", () => {
       allGatewayKeyIds,
     );
     const byId = new Map(ownerLabels.apiKeys.map((key) => [key.id, key]));
-    expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
-    expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
+    const memberKeyOwner = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: memberKey.id },
+      select: { userId: true },
+    });
+    expect(memberKeyOwner.userId).not.toBeNull();
+    expect(byId.get(memberKey.id)).toMatchObject({
+      name: "Member key",
+      ownerUserId: memberKeyOwner.userId,
+    });
+    expect(byId.get(serviceKey.id)).toMatchObject({
+      name: "Service key",
+      ownerUserId: null,
+    });
     expect(ownerLabels.users.map((user) => user.name).sort()).toEqual([
       "Gateway admin",
       "Gateway ai_gateway",
