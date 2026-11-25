@@ -46,19 +46,20 @@ export function TabBar({
     >
       <div ref={scrollerRef} className="min-w-0 overflow-x-auto">
         <Tabs.List variant="underline" divider="none" aria-label={label}>
-          {tabs.map(({ menu, noCapture, ...tab }) => (
+          {tabs.map(({ menu, noCapture, ...tab }, index) => (
             <div
               key={tab.value}
               className={cn(
                 "group/tab relative flex h-full shrink-0 items-center",
-                variant === "editor" && "[&:first-child>[role=tab]]:ps-0",
-                variant === "editor" &&
-                  menu &&
-                  "max-w-72 [&>[role=tab]]:pe-6 pointer-coarse:[&>[role=tab]]:pe-10",
+                variant === "editor" && menu && "max-w-72",
                 noCapture && "ph-no-capture",
               )}
             >
-              <Tabs.Trigger {...tab} />
+              <Tabs.Trigger
+                {...tab}
+                flushStart={variant === "editor" && index === 0}
+                reserveMenuSpace={variant === "editor" && Boolean(menu)}
+              />
               {menu && (
                 <DropdownMenu
                   ariaLabel={menu.label}

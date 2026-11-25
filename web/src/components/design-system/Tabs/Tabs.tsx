@@ -80,6 +80,8 @@ const tabsTriggerVariants = cva(
         sm: "px-2 text-xs",
         md: "px-4 text-sm",
       },
+      flushStart: { true: "ps-0" },
+      reserveMenuSpace: { true: "pe-6 pointer-coarse:pe-10" },
     },
   },
 );
@@ -303,6 +305,10 @@ function TabsList({
 }
 
 type TabsTriggerProps = {
+  /** Align the label with the start of its containing bar. */
+  flushStart?: boolean;
+  /** Leave room for a trailing menu button over the trigger. */
+  reserveMenuSpace?: boolean;
   /** With a reason, hovering the disabled tab explains why it can't be selected. */
   disabled?: boolean | { disabledReason: string };
   icon?: IconComponent;
@@ -351,7 +357,12 @@ function TabsTrigger(props: TabsTriggerProps) {
   const { children, count, disabled, icon, internal, label, title, tooltip } =
     props;
   const className = cn(
-    tabsTriggerVariants({ look: list.look, size: list.size }),
+    tabsTriggerVariants({
+      look: list.look,
+      size: list.size,
+      flushStart: props.flushStart,
+      reserveMenuSpace: props.reserveMenuSpace,
+    }),
   );
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const disabledReason = getDisabledReason(disabled);
@@ -521,7 +532,6 @@ function TabsOverflowList({
   >(measureKey, activeIndex);
   const visible = new Set(visibleIndices ?? triggers.map((_, index) => index));
   const hiddenTriggers = triggers.filter((_, index) => !visible.has(index));
-  const replicaClassName = tabsTriggerVariants({ look: "underline" });
   const rowRef = React.useRef<HTMLDivElement>(null);
 
   const selectFromMenu = (value: string) => {
@@ -582,7 +592,14 @@ function TabsOverflowList({
             className="invisible absolute flex h-full w-max items-center"
           >
             {triggers.map((trigger) => (
-              <span key={trigger.props.value} className={replicaClassName}>
+              <span
+                key={trigger.props.value}
+                className={tabsTriggerVariants({
+                  look: "underline",
+                  flushStart: trigger.props.flushStart,
+                  reserveMenuSpace: trigger.props.reserveMenuSpace,
+                })}
+              >
                 <TabsTriggerContent
                   icon={trigger.props.icon}
                   internal={trigger.props.internal}
