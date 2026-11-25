@@ -157,13 +157,14 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
   if (request.method === "POST" && request.url === "/sandbox/cancel") {
     const body = CancelSandboxCommandSchema.parse(await readJsonBody(request));
     const kill = cancellableCommands.get(body.commandId);
-    kill?.();
+    const found = typeof kill === "function";
+    if (found) kill();
     logSandboxServer("bash.cancel", {
       requestId,
       commandId: body.commandId,
-      found: Boolean(kill),
+      found,
     });
-    return { statusCode: 200, body: { result: { cancelled: Boolean(kill) } } };
+    return { statusCode: 200, body: { result: { cancelled: found } } };
   }
 
   if (request.method === "POST" && request.url === "/sandbox") {
