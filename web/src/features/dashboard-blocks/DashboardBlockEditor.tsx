@@ -82,8 +82,7 @@ export function DashboardBlockEditor({
       <Dialog title="Editing unavailable" closeLabel="Close" noCapture>
         <Dialog.Body>
           <p className="text-muted-foreground text-sm">
-            This block is no longer available for editing. No changes have been
-            saved.
+            You can no longer edit this widget.
           </p>
         </Dialog.Body>
       </Dialog>
@@ -146,6 +145,6 @@ export function DashboardBlockEditor({
 function saveErrorMessage(failed: boolean, code: string | undefined) {
   if (!failed) return undefined;
   if (code === "CONFLICT")
-    return "This block was changed elsewhere. Your draft is still here. Cancel and reopen it to load the latest saved version.";
-  return "The block could not be saved. Your draft is still here; try again.";
+    return "This widget changed in another session. Cancel and reopen the editor to see the latest version.";
+  return "Could not save this widget. Your draft is still here. Try again.";
 }

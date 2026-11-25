@@ -2,10 +2,10 @@ import {
   normalizeMultiQueryConfig,
   type SavedMultiQueryConfig,
 } from "@langfuse/shared/dashboards";
-import { GripVerticalIcon, MoreVerticalIcon } from "@langfuse/icons";
-import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import {
+  DataCardActionBar,
+  type DataCardActions,
+} from "@/src/components/design-system/DataCardActionBar/DataCardActionBar";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -41,7 +41,7 @@ export function MultiQueryChart({
   );
   return (
     <section
-      className="ph-no-capture bg-background relative flex h-full min-h-0 flex-col gap-2 rounded-lg border p-4"
+      className="ph-no-capture bg-background group relative flex h-full min-h-0 flex-col gap-2 rounded-lg border p-4"
       aria-label={config.title}
     >
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -51,42 +51,7 @@ export function MultiQueryChart({
         >
           {config.title}
         </h3>
-        {actions ? (
-          <div className="flex shrink-0 items-center gap-1">
-            {actions.draggable ? (
-              <GripVerticalIcon
-                size="base"
-                __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
-              />
-            ) : null}
-            {actions.buttons?.map((action) => (
-              <IconButton
-                key={action.id}
-                label={action.label}
-                icon={action.icon}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                size="sm"
-              />
-            ))}
-            {actions.menu && actions.menu.length > 0 ? (
-              <DropdownMenu
-                noCapture
-                items={actions.menu}
-                ariaLabel="Chart actions"
-              >
-                {({ getTriggerProps }) => (
-                  <IconButton
-                    {...getTriggerProps()}
-                    label="Chart actions"
-                    icon={MoreVerticalIcon}
-                    size="sm"
-                  />
-                )}
-              </DropdownMenu>
-            ) : null}
-          </div>
-        ) : null}
+        {actions && <DataCardActionBar inline actions={actions} />}
       </div>
       {config.description ? (
         <p className="text-muted-foreground line-clamp-2 text-sm">

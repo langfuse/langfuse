@@ -621,7 +621,7 @@ export const dashboardRouter = createTRPCRouter({
       }
       if (!canAuthorDashboardBlocks(ctx.session)) {
         throw new ForbiddenError(
-          "Dashboard block authoring requires the employee feature preview.",
+          "Dashboard widget authoring requires the employee feature preview.",
         );
       }
       return DashboardService.patchDashboardBlock(

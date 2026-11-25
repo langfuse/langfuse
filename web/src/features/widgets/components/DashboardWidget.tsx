@@ -82,6 +82,7 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
+  showDuplicateButton = false,
   onDuplicateWidget,
 }: {
   projectId: string;
@@ -107,6 +108,7 @@ export function DashboardWidget({
    * Clones this widget (new widget row seeded from `widget`) next to this
    * tile. Passed only on editable (non-locked) dashboards.
    */
+  showDuplicateButton?: boolean;
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
@@ -542,6 +544,11 @@ export function DashboardWidget({
     minVersion: widget.data.minVersion,
   };
 
+  const duplicate =
+    !readOnly && hasCUDAccess && onDuplicateWidget
+      ? () => onDuplicateWidget(placement, widgetExportSource)
+      : undefined;
+
   const handleCopyToClipboard = async () => {
     try {
       await copyTextToClipboard(
@@ -648,6 +655,16 @@ export function DashboardWidget({
                       setIsCopyDialogOpen(true);
                     },
                   },
+                  ...(showDuplicateButton && duplicate
+                    ? [
+                        {
+                          id: "duplicate",
+                          label: "Duplicate widget",
+                          icon: CopyPlusIcon,
+                          onClick: duplicate,
+                        },
+                      ]
+                    : []),
                 ]
               : [],
           menu: [
@@ -676,15 +693,14 @@ export function DashboardWidget({
               icon: CopyIcon,
               onClick: handleCopyToClipboard,
             },
-            ...(onDuplicateWidget
+            ...(!showDuplicateButton && duplicate
               ? [
                   {
                     type: "item" as const,
                     id: "clone",
                     title: "Clone",
                     icon: CopyPlusIcon,
-                    onClick: () =>
-                      onDuplicateWidget(placement, widgetExportSource),
+                    onClick: duplicate,
                   },
                 ]
               : []),

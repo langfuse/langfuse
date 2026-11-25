@@ -46,8 +46,7 @@ export function DashboardBlockPositionEditor({
       <Dialog title="Editing unavailable" closeLabel="Close" noCapture>
         <Dialog.Body>
           <p className="text-muted-foreground text-sm">
-            This block is no longer available for editing. No changes have been
-            saved.
+            You can no longer edit this widget.
           </p>
         </Dialog.Body>
       </Dialog>
@@ -79,7 +78,7 @@ export function DashboardBlockPositionEditor({
     >
       <Dialog.Body>
         <p className="text-muted-foreground text-sm">
-          Choose where this saved block appears on the dashboard.
+          Choose where this widget appears on the dashboard.
         </p>
         <Form
           id={formId}
@@ -134,9 +133,9 @@ function positionError(
   failed: boolean,
 ) {
   if (!valid)
-    return "This saved block is invalid. Edit its configuration before changing its position.";
+    return "Edit this widget’s configuration before changing its position.";
   if (!failed) return undefined;
   if (code === "CONFLICT")
-    return "This block changed elsewhere. Cancel and reopen its position to load the latest saved revision.";
-  return "The position could not be saved. Your selection is still here; try again.";
+    return "This widget changed in another session. Cancel and reopen its position to see the latest version.";
+  return "Could not save the position. Your selection is still here. Try again.";
 }

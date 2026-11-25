@@ -7188,7 +7188,7 @@ paths:
       description: |-
         Create a dashboard from a legacy `widgets` definition or a version 1
         `blocks` definition. Project API credentials can create classic widget
-        and preset placements. Creating inline Markdown or multi-query blocks
+        and preset placements. Creating inline Markdown or multi-query widgets
         requires the employee feature preview in the application; public API
         credentials cannot create them.
       operationId: unstable_dashboards_create
@@ -7250,7 +7250,7 @@ paths:
     get:
       description: |-
         Get a dashboard by id, including supported inline Markdown and
-        multi-query blocks. Classic and version 1 definitions return version 1
+        multi-query widgets. Classic and version 1 definitions return version 1
         with a deprecated `widgets` mirror. If the stored root format is newer
         than this server supports, only its legacy `widgets` projection is
         returned; the server does not label that projection version 1.
@@ -7313,13 +7313,13 @@ paths:
         Update a dashboard's name, description, definition, or filters.
 
         A legacy `widgets` definition updates classic placements while
-        preserving inline blocks. A version 1 definition uses `blocks` as the
+        preserving inline widgets. A version 1 definition uses `blocks` as the
         complete supported layout; `widgets` may be omitted or must match the
         classic placements in `blocks`.
 
-        Project API credentials may round-trip existing inline blocks unchanged
+        Project API credentials may round-trip existing inline widgets unchanged
         while editing classic placements. Creating, editing, removing,
-        reordering, or submitting a stale revision of an inline block returns
+        reordering, or submitting a stale revision of an inline widget returns
         `403`. Use the application's employee feature preview to change inline
         content. Unsupported future entries are preserved in storage, and
         definitions with an unsupported root version cannot be edited.
@@ -7460,7 +7460,7 @@ paths:
         the same `id` already exists on the dashboard.
 
         This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query blocks.
+        Markdown and multi-query widgets.
       operationId: unstable_dashboards_addPlacement
       tags:
         - UnstableDashboards
@@ -7536,7 +7536,7 @@ paths:
         re-add the placement to swap content. Returns the updated placement.
 
         This endpoint manages classic placements only and preserves inline
-        Markdown and multi-query blocks.
+        Markdown and multi-query widgets.
       operationId: unstable_dashboards_updatePlacement
       tags:
         - UnstableDashboards
@@ -7603,9 +7603,11 @@ paths:
             schema:
               $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
     delete:
-      description: |-
+      description: >-
         Remove a classic placement from a dashboard grid without deleting the
-        referenced widget. Inline Markdown and multi-query blocks are preserved.
+
+        referenced widget. Inline Markdown and multi-query widgets are
+        preserved.
       operationId: unstable_dashboards_deletePlacement
       tags:
         - UnstableDashboards
@@ -15771,8 +15773,8 @@ components:
       type: object
       description: |-
         `blocks` is authoritative. When `widgets` is supplied, it must match the
-        classic placements in `blocks`. Placement and block ids must be unique.
-        Existing inline blocks must be echoed without changing their content,
+        classic placements in `blocks`. Placement and widget IDs must be unique.
+        Existing inline widgets must be echoed without changing their content,
         revision, order, or anchor; public credentials cannot mutate them.
       properties:
         version:
@@ -15829,7 +15831,7 @@ components:
         - beforePlacementId
       properties:
         id:
-          description: Stable block identifier.
+          description: Stable widget identifier.
           type: string
           format: uuid
         revision:
@@ -15839,7 +15841,7 @@ components:
           type: integer
         beforePlacementId:
           description: >-
-            Classic placement id before which this block appears, or null to
+            Classic placement id before which this widget appears, or null to
             append.
           type: string
           nullable: true

@@ -30,6 +30,7 @@ export type DashboardBlocksContextValue = {
       | "edit"
       | "save"
       | "cancel"
+      | "duplicate"
       | "remove"
       | "placement"
       | "layout_open"
@@ -45,6 +46,6 @@ export const DashboardBlocksContext = createContext<
 
 export function useDashboardBlocks() {
   const context = useContext(DashboardBlocksContext);
-  if (!context) throw new Error("Dashboard blocks require their provider");
+  if (!context) throw new Error("Dashboard widgets require their provider");
   return context;
 }

@@ -1,16 +1,11 @@
 import { type ComponentProps } from "react";
+import { Info } from "@langfuse/icons";
 import {
-  GripVerticalIcon,
-  MoreVerticalIcon,
-  Info,
-  type IconComponent,
-} from "@langfuse/icons";
+  DataCardActionBar,
+  type DataCardActions,
+} from "../DataCardActionBar/DataCardActionBar";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import {
-  DropdownMenu,
-  type DropdownMenuItemDefinition,
-} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Tag } from "@/src/components/design-system/Tag/Tag";
@@ -20,17 +15,7 @@ import {
   type Visualization,
 } from "../charts/internal/VisualizationFrame/VisualizationFrame";
 
-export type DataCardActions = {
-  draggable?: boolean;
-  buttons?: {
-    id: string;
-    label: string;
-    icon: IconComponent;
-    onClick: () => void;
-    disabled?: boolean;
-  }[];
-  menu?: DropdownMenuItemDefinition[];
-};
+export type { DataCardActions } from "../DataCardActionBar/DataCardActionBar";
 
 export function DataCard({
   title,
@@ -212,45 +197,7 @@ export function DataCard({
               )}
             </div>
           ))}
-          {actions && (
-            <div className="bg-card text-muted-foreground absolute top-2 right-2 z-1 flex items-center gap-2 rounded-md border px-2 py-1 opacity-0 shadow-sm group-focus-within:opacity-100 group-hover:opacity-100 has-aria-expanded:opacity-100">
-              {actions.draggable && (
-                <GripVerticalIcon
-                  size="base"
-                  __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
-                />
-              )}
-              {actions.buttons?.map(
-                ({ id, label, icon: Icon, onClick, disabled }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-label={label}
-                    title={label}
-                    onClick={onClick}
-                    disabled={disabled}
-                    className="hover:text-foreground disabled:opacity-50"
-                  >
-                    <Icon size="base" />
-                  </button>
-                ),
-              )}
-              {actions.menu && actions.menu.length > 0 && (
-                <DropdownMenu placement="bottom-end" items={actions.menu}>
-                  {({ getTriggerProps }) => (
-                    <button
-                      type="button"
-                      aria-label="Widget actions"
-                      className="hover:text-foreground"
-                      {...getTriggerProps()}
-                    >
-                      <MoreVerticalIcon size="base" />
-                    </button>
-                  )}
-                </DropdownMenu>
-              )}
-            </div>
-          )}
+          {actions && <DataCardActionBar actions={actions} />}
         </div>
       </div>
       {description && (

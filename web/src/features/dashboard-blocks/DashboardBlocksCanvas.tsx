@@ -26,7 +26,7 @@ export function DashboardBlocksCanvas({
 }
 
 function DashboardBlocksCanvasContent({
-  gridProps,
+  gridProps: baseGridProps,
 }: {
   gridProps: ComponentProps<typeof DashboardGrid>;
 }) {
@@ -40,6 +40,11 @@ function DashboardBlocksCanvasContent({
     placementOptions,
     track,
   } = useDashboardBlocks();
+  const gridProps: ComponentProps<typeof DashboardGrid> = {
+    ...baseGridProps,
+    duplicateSurface:
+      canEdit && capabilities.multiQuery ? "grid_toolbar" : "grid_menu",
+  };
   const [layoutMode, setLayoutMode] = useState(false);
   if (blocksPending)
     return (
@@ -52,8 +57,7 @@ function DashboardBlocksCanvasContent({
       <>
         {loadError && (
           <p role="alert" className="text-destructive mb-3 text-sm">
-            Additional dashboard blocks could not be loaded. Refresh to try
-            again.
+            Some dashboard widgets could not be loaded. Refresh to try again.
           </p>
         )}
         <DashboardGrid {...gridProps} />
@@ -65,7 +69,7 @@ function DashboardBlocksCanvasContent({
     <div className="flex flex-col gap-3">
       {loadError && (
         <p role="alert" className="text-destructive text-sm">
-          Additional dashboard blocks could not be refreshed.
+          Some dashboard widgets could not be refreshed.
         </p>
       )}
       {canEdit && (
@@ -84,10 +88,10 @@ function DashboardBlocksCanvasContent({
       {editingLayout ? (
         <>
           <div className="bg-muted/20 rounded-lg border p-3">
-            <p className="mb-2 text-sm font-medium">Block positions</p>
+            <p className="mb-2 text-sm font-medium">Widget positions</p>
             <p className="text-muted-foreground mb-3 text-xs">
-              Move and resize existing widgets below. Each saved block stays
-              before its selected chart row.
+              Choose where charts and Markdown appear. Move or resize grid
+              widgets below.
             </p>
             <div className="flex flex-col gap-2">
               {blocks.map((block) => (
@@ -133,23 +137,27 @@ function DashboardBlocksCanvasContent({
                 canEdit={false}
                 onDuplicateWidget={
                   gridProps.onDuplicateWidget
-                    ? (anchor, widget) => {
+                    ? (anchor, widget, surface) => {
                         const original = gridProps.widgets.find(
                           (item) => item.id === anchor.id,
                         );
                         if (original?.type === "widget")
-                          gridProps.onDuplicateWidget?.(original, widget);
+                          gridProps.onDuplicateWidget?.(
+                            original,
+                            widget,
+                            surface,
+                          );
                       }
                     : undefined
                 }
                 onDuplicatePreset={
                   gridProps.onDuplicatePreset
-                    ? (anchor) => {
+                    ? (anchor, surface) => {
                         const original = gridProps.widgets.find(
                           (item) => item.id === anchor.id,
                         );
                         if (original?.type === "preset")
-                          gridProps.onDuplicatePreset?.(original);
+                          gridProps.onDuplicatePreset?.(original, surface);
                       }
                     : undefined
                 }

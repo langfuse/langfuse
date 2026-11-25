@@ -231,7 +231,7 @@ async function replaceClassicLayout(
   const inlineIds = new Set(rawInlineIds(current));
   if (layout.widgets.some(({ id }) => inlineIds.has(id)))
     throw new LangfuseConflictError(
-      "A dashboard placement and block cannot have the same ID.",
+      "Dashboard widget and placement IDs must be unique.",
     );
   const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
 
@@ -268,7 +268,7 @@ export async function patchPublicDashboard(
         !isDeepStrictEqual(expected, knownInlineBlocks(layout))
       ) {
         throw new ForbiddenError(
-          "Dashboard blocks are read-only through the public API.",
+          "Saved Markdown and multi-query widgets are read-only through the public API.",
         );
       }
       result = await replaceClassicLayout(
@@ -305,7 +305,7 @@ export async function patchDashboardBlock(
     const layout = editableLayout(row.definition);
     if (layout.definition.widgets.some(({ id }) => id === patch.id)) {
       throw new LangfuseConflictError(
-        "Dashboard placement and block IDs must be unique.",
+        "Dashboard widget and placement IDs must be unique.",
       );
     }
     const entries = layout.definition.blocks;
@@ -316,13 +316,13 @@ export async function patchDashboardBlock(
     );
     if (matching.length > 1)
       throw new LangfuseConflictError(
-        "The dashboard contains duplicate block IDs.",
+        "The dashboard contains duplicate widget IDs.",
       );
     const index = matching[0];
     const current =
       index === undefined ? undefined : readSavedBlock(entries[index]);
     if (current === undefined && patch.expectedRevision !== 0)
-      throw new LangfuseNotFoundError("Dashboard block not found");
+      throw new LangfuseNotFoundError("Dashboard widget not found");
     if (
       current &&
       (!current.success ||
@@ -330,7 +330,7 @@ export async function patchDashboardBlock(
         (patch.op === "upsert" && current.data.kind !== patch.kind))
     ) {
       throw new LangfuseConflictError(
-        "This dashboard block changed. Reload it and try again.",
+        "This dashboard widget changed. Reload it and try again.",
       );
     }
 

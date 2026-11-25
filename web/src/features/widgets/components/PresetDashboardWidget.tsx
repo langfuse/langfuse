@@ -47,6 +47,7 @@ export function PresetDashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
+  showDuplicateButton = false,
   onDuplicatePreset,
   heightBehavior,
 }: {
@@ -76,6 +77,7 @@ export function PresetDashboardWidget({
    * Adds another placement of this preset card next to this tile (clone).
    * Passed only on editable (non-locked) dashboards.
    */
+  showDuplicateButton?: boolean;
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
   heightBehavior:
     | { mode: "fixed" }
@@ -231,7 +233,22 @@ export function PresetDashboardWidget({
     );
   }
 
+  const duplicate =
+    !readOnly && hasCUDAccess && onDuplicatePreset
+      ? () => onDuplicatePreset(placement)
+      : undefined;
   const actions: DataCardActions = {
+    buttons:
+      showDuplicateButton && duplicate
+        ? [
+            {
+              id: "duplicate",
+              label: "Duplicate widget",
+              icon: CopyPlusIcon,
+              onClick: duplicate,
+            },
+          ]
+        : [],
     draggable: !readOnly && (hasCUDAccess || isLockedEditable),
     menu: [
       {
@@ -241,14 +258,14 @@ export function PresetDashboardWidget({
         icon: CopyIcon,
         onClick: handleCopyToClipboard,
       },
-      ...(onDuplicatePreset
+      ...(!showDuplicateButton && duplicate
         ? [
             {
               type: "item" as const,
               id: "clone",
               title: "Clone",
               icon: CopyPlusIcon,
-              onClick: () => onDuplicatePreset(placement),
+              onClick: duplicate,
             },
           ]
         : []),

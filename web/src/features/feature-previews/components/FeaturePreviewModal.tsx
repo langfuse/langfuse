@@ -94,9 +94,9 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
     flag: "dashboardBlockAuthoring",
     description:
-      "Create and edit multi-query charts and Markdown blocks on dashboards.",
+      "Create and edit multi-query charts and Markdown widgets on dashboards.",
     details:
-      "Choose Add widget on a dashboard you can edit. Anyone with read access to that dashboard can view its saved blocks.",
+      "Choose Add widget on a dashboard you can edit. Anyone with read access to that dashboard can view its saved widgets.",
   },
 ];
 

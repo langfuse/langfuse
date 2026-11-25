@@ -39,7 +39,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
+import {
+  type DashboardPlacement,
+  type WidgetDuplicateSurface,
+} from "@/src/features/widgets/components/DashboardGrid";
 import {
   parsePastedWidget,
   toWidgetCreateFields,
@@ -444,9 +447,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // Duplicate a preset card: another placement of the same preset next to
   // the anchor tile (no widget row involved).
   const handleDuplicatePreset = useCallback(
-    (anchor: PresetPlacement) => {
+    (anchor: PresetPlacement, surface: WidgetDuplicateSurface) => {
       capture("dashboard:widget_duplicated", {
-        surface: "grid_menu",
+        surface,
+        isV4,
         kind: "preset",
         preset_id: anchor.presetId,
         dashboard_id: dashboardId,
@@ -456,7 +460,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         placementNextTo(anchor),
       );
     },
-    [capture, dashboardId, insertPresetPlacement],
+    [capture, dashboardId, insertPresetPlacement, isV4],
   );
 
   // Place a pasted preset card (next to `anchor` when given, else at the
@@ -489,7 +493,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // Duplicate a tile's widget: create an independent widget row seeded from
   // the source configuration, placed next to the source tile.
   const handleDuplicateWidget = useCallback(
-    async (anchor: DashboardPlacement, widget: WidgetExportSource) => {
+    async (
+      anchor: DashboardPlacement,
+      widget: WidgetExportSource,
+      surface: WidgetDuplicateSurface,
+    ) => {
       try {
         const result = await createWidgetAsync({
           projectId,
@@ -497,7 +505,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           name: `${widget.name} (Copy)`,
         });
         capture("dashboard:widget_duplicated", {
-          surface: "grid_menu",
+          surface,
+          isV4,
           kind: "widget",
           dashboard_id: dashboardId,
           chart_type: widget.chartType,
@@ -512,7 +521,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         );
       }
     },
-    [createWidgetAsync, projectId, dashboardId, capture, insertWidgetPlacement],
+    [
+      createWidgetAsync,
+      projectId,
+      dashboardId,
+      capture,
+      insertWidgetPlacement,
+      isV4,
+    ],
   );
 
   // Recreate a parsed clipboard widget as a project widget and place it on

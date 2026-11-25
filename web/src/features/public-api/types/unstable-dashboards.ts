@@ -68,7 +68,7 @@ function validateVersionedLayout(
     ctx.addIssue({
       code: "custom",
       path: ["blocks"],
-      message: "Block and placement ids must be unique",
+      message: "Widget and placement IDs must be unique",
     });
   }
   if (

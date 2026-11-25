@@ -71,7 +71,7 @@ export const featurePreviewLabels = {
   sessionViewV2Timeline: "Session Timeline",
   langfuseTopics: "Langfuse Topics",
   traceTranscriptEvals: "Trace transcript evals",
-  dashboardBlockAuthoring: "Dashboard block authoring",
+  dashboardBlockAuthoring: "Dashboard widget authoring",
   unifiedTraceSessionView: "Unified Trace and Session View",
 } satisfies Record<FeaturePreviewFlag | PersonalFeaturePreviewFlag, string>;
 

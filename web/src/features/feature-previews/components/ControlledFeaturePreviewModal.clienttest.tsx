@@ -129,10 +129,10 @@ describe("ControlledFeaturePreviewModal", () => {
       <ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /Dashboard block authoring/ }),
+      screen.getByRole("button", { name: /Dashboard widget authoring/ }),
     );
     const toggle = screen.getByRole("switch", {
-      name: "Toggle Dashboard block authoring",
+      name: "Toggle Dashboard widget authoring",
     });
     expect(toggle).not.toBeChecked();
     fireEvent.click(toggle);
@@ -144,15 +144,15 @@ describe("ControlledFeaturePreviewModal", () => {
     session.user!.featureFlags.internalFeatures = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
-      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+      screen.queryByRole("button", { name: /Dashboard widget authoring/ }),
     ).not.toBeInTheDocument();
     session.user!.featureFlags.dashboardBlockAuthoring = true;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Dashboard block authoring/ }),
+      screen.getByRole("button", { name: /Dashboard widget authoring/ }),
     );
     const holderToggle = screen.getByRole("switch", {
-      name: "Toggle Dashboard block authoring",
+      name: "Toggle Dashboard widget authoring",
     });
     expect(holderToggle).toBeChecked();
     fireEvent.click(holderToggle);
@@ -164,7 +164,7 @@ describe("ControlledFeaturePreviewModal", () => {
     session.user!.featureFlags.dashboardBlockAuthoring = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
-      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+      screen.queryByRole("button", { name: /Dashboard widget authoring/ }),
     ).not.toBeInTheDocument();
 
     session.user!.email = "member@example.com";
@@ -172,7 +172,7 @@ describe("ControlledFeaturePreviewModal", () => {
     session.user!.featureFlags.dashboardBlockAuthoring = true;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
     expect(
-      screen.queryByRole("button", { name: /Dashboard block authoring/ }),
+      screen.queryByRole("button", { name: /Dashboard widget authoring/ }),
     ).not.toBeInTheDocument();
   });
 });

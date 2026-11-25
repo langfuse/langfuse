@@ -15,6 +15,7 @@ import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useDashboardChartSync } from "@/src/features/dashboard/hooks/DashboardChartSyncProvider";
 
+export type WidgetDuplicateSurface = "grid_menu" | "grid_toolbar";
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 /**
@@ -80,6 +81,7 @@ export function DashboardGrid({
   getWidgetSchedulerId,
   onLockedEditAttempt,
   readOnly,
+  duplicateSurface = "grid_menu",
   onDuplicateWidget,
   onDuplicatePreset,
 }: {
@@ -104,13 +106,18 @@ export function DashboardGrid({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
+  duplicateSurface?: WidgetDuplicateSurface;
   /** Clone a tile's widget next to it (editable dashboards only). */
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
+    surface: WidgetDuplicateSurface,
   ) => void;
   /** Duplicate a preset card next to it (editable dashboards only). */
-  onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  onDuplicatePreset?: (
+    anchor: PresetPlacement,
+    surface: WidgetDuplicateSurface,
+  ) => void;
 }) {
   const chartSync = useDashboardChartSync();
   const { containerRef, width } = useDebouncedContainerWidth(200);
@@ -207,7 +214,12 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onDuplicatePreset={onDuplicatePreset}
+        showDuplicateButton={duplicateSurface === "grid_toolbar"}
+        onDuplicatePreset={
+          onDuplicatePreset
+            ? (anchor) => onDuplicatePreset(anchor, duplicateSurface)
+            : undefined
+        }
         heightBehavior={
           widget.presetId === "home-score-analytics"
             ? {
@@ -231,7 +243,13 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onDuplicateWidget={onDuplicateWidget}
+        showDuplicateButton={duplicateSurface === "grid_toolbar"}
+        onDuplicateWidget={
+          onDuplicateWidget
+            ? (anchor, widget) =>
+                onDuplicateWidget(anchor, widget, duplicateSurface)
+            : undefined
+        }
       />
     );
 

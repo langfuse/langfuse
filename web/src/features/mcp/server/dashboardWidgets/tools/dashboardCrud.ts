@@ -103,7 +103,7 @@ const publicBlockBaseSchema = classicPlacementBaseSchema
     beforePlacementId: z
       .unknown()
       .optional()
-      .describe("Placement id or null on a saved inline block."),
+      .describe("Placement id or null on a saved inline widget."),
     config: z
       .looseObject({})
       .optional()
@@ -116,7 +116,7 @@ const dashboardDefinitionBaseSchema = z
       .array(publicBlockBaseSchema)
       .optional()
       .describe(
-        "Version 1 placements and saved inline blocks. Copy inline blocks unchanged from getDashboard when editing classic placements.",
+        "Version 1 placements and saved inline widgets. Copy inline widgets unchanged from getDashboard when editing classic placements.",
       ),
     widgets: z
       .array(classicPlacementBaseSchema)
@@ -328,7 +328,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
   action: "dashboards:read",
   description:
-    "Get an editable dashboard by ID. Version 1 definition.blocks lists classic placements and saved Markdown or multi-query blocks. Classic placements use x, y, width and height in a 12-column grid. The deprecated widgets list mirrors classic placements.",
+    "Get an editable dashboard by ID. Version 1 definition.blocks lists classic placements and saved Markdown or multi-query widgets. Classic placements use x, y, width and height in a 12-column grid. The deprecated widgets list mirrors classic placements.",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   readOnlyHint: true,
@@ -351,7 +351,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
 export const [createDashboardTool, handleCreateDashboard] = defineTool({
   name: "createDashboard",
   description:
-    "Create an editable dashboard with classic widget or preset placements. Project API keys can read saved Markdown and multi-query blocks.",
+    "Create an editable dashboard with classic widget or preset placements. Project API keys can read saved Markdown and multi-query widgets.",
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
   inputSchema: PostUnstableDashboardBody,
@@ -371,7 +371,7 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Update dashboard metadata, filters, or classic placements. Supply version 1 blocks with all previously returned Markdown and multi-query blocks unchanged, or use a legacy widgets-only layout.",
+    "Update dashboard metadata, filters, or classic placements. Supply version 1 blocks with all previously returned Markdown and multi-query widgets unchanged, or use a legacy widgets-only layout.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(

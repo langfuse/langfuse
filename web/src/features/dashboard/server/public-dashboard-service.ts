@@ -203,7 +203,7 @@ export async function createPublicDashboard(params: {
     : undefined;
   if (definition?.expectedInlineBlocks?.length) {
     throw new ForbiddenError(
-      "Project API keys cannot create dashboard Markdown or multi-query blocks.",
+      "Project API keys cannot create Markdown or multi-query chart widgets.",
     );
   }
   if (definition) {

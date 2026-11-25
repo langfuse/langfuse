@@ -60,7 +60,7 @@ export function DashboardBlockPlacement({
               />
               <p className="text-muted-foreground text-xs">
                 Placed before the whole chart row. If that chart is removed,
-                this block appears after the remaining rows.
+                this widget appears after the remaining rows.
               </p>
             </div>
           </Accordion.Content>

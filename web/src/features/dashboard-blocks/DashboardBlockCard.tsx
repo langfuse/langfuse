@@ -1,11 +1,18 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Grid2X2, Pencil, Trash2 } from "@langfuse/icons";
+import { CopyPlusIcon, Grid2X2, Pencil, Trash2 } from "@langfuse/icons";
 import { type SavedDashboardBlock } from "@langfuse/shared";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
-import { useRemoveDashboardBlock } from "./useDashboardBlockMutations";
+import {
+  useRemoveDashboardBlock,
+  useSaveDashboardBlock,
+} from "./useDashboardBlockMutations";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { DashboardMarkdown } from "./DashboardMarkdown";
 import { useDashboardBlocks } from "./dashboard-block-context";
 const MultiQueryChart = dynamic(
@@ -32,6 +39,62 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
     track,
   } = useDashboardBlocks();
   const editable = canEdit && capabilities[block.kind];
+  const duplicate = useSaveDashboardBlock({
+    projectId,
+    dashboardId,
+    onSaved: () => {
+      track("duplicate", block.kind, true);
+      showSuccessToast({
+        operation: "widget.clone",
+        title: "Widget duplicated",
+        description: "You can edit the copy independently.",
+      });
+    },
+  });
+  const duplicateWidget = () => {
+    if (!editable || duplicate.isPending) return;
+    const copyTitle = (title: string, limit: number) => {
+      const suffix = " (Copy)";
+      return title.slice(0, limit - suffix.length) + suffix;
+    };
+    const content =
+      block.kind === "markdown"
+        ? {
+            kind: block.kind,
+            config: {
+              ...block.config,
+              title: copyTitle(block.config.title || "Markdown", 255),
+            },
+          }
+        : {
+            kind: block.kind,
+            config: {
+              ...block.config,
+              title: copyTitle(block.config.title, 200),
+            },
+          };
+    duplicate.mutate(
+      {
+        projectId,
+        dashboardId,
+        blockPatch: {
+          op: "upsert",
+          id: uuidv4(),
+          expectedRevision: 0,
+          beforePlacementId: block.beforePlacementId,
+          ...content,
+        },
+      },
+      {
+        onError: (error) =>
+          showErrorToast(
+            "Could not duplicate widget",
+            error.message,
+            classifyTrpcToastError(error, "widget.clone"),
+          ),
+      },
+    );
+  };
   const remove = useRemoveDashboardBlock({
     projectId,
     dashboardId,
@@ -39,15 +102,15 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
   });
   return (
     <ConfirmationDialogController
-      title="Remove block?"
-      text="This removes the block from this dashboard. Existing charts and their data are unchanged."
+      title="Remove widget?"
+      text="The widget will be removed from this dashboard."
       confirmLabel="Remove"
       variant="destructive"
       disabled={!editable}
       loading={remove.isPending}
       error={
         remove.error
-          ? "The block could not be removed. It may have changed elsewhere; refresh and try again."
+          ? "Could not remove the widget. Refresh and try again."
           : undefined
       }
       onConfirm={() => {
@@ -80,11 +143,10 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
             : [];
         const actions: DataCardActions | undefined = editable
           ? {
-              menu: [
+              buttons: [
                 {
                   id: "edit",
-                  type: "item",
-                  title: "Edit block",
+                  label: "Edit widget",
                   icon: Pencil,
                   onClick: () =>
                     openEditor(
@@ -97,11 +159,20 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                         : { kind: block.kind, block },
                     ),
                 },
+                {
+                  id: "duplicate",
+                  label: "Duplicate widget",
+                  icon: CopyPlusIcon,
+                  disabled: duplicate.isPending,
+                  onClick: duplicateWidget,
+                },
+              ],
+              menu: [
                 ...positionActions,
                 {
                   id: "remove",
                   type: "item",
-                  title: "Remove block",
+                  title: "Remove widget",
                   icon: Trash2,
                   variant: "destructive",
                   onClick: openDialog,
