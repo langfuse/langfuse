@@ -1,5 +1,3 @@
-import { BookOpen } from "@langfuse/icons";
-
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
@@ -30,7 +28,6 @@ export function GatewayNotSetUpNotice({
       <Button
         variant="outline"
         text="Learn more about AI Gateway"
-        icon={BookOpen}
         href={GATEWAY_OVERVIEW_DOCS_URL}
       />
       <GatewayTrafficDiagram />

@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { BookOpen } from "@langfuse/icons";
-
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -130,7 +128,6 @@ function AnalyticsNotRecorded({
       <Button
         variant="outline"
         text="How gateway analytics work"
-        icon={BookOpen}
         href={GATEWAY_ANALYTICS_DOCS_URL}
       />
       <GatewayTrafficDiagram />

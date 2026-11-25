@@ -1,5 +1,3 @@
-import { BookOpen } from "@langfuse/icons";
-
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
@@ -15,7 +13,6 @@ export function GatewayNotDeployedNotice() {
       <Button
         variant="outline"
         text="Self-hosting guide"
-        icon={BookOpen}
         href={GATEWAY_SELF_HOSTING_DOCS_URL}
       />
       <GatewayTrafficDiagram />

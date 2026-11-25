@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Box, KeyRound, Plus } from "@langfuse/icons";
+import { Box, KeyRound, Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
@@ -34,13 +34,12 @@ export function GatewayCreateFirstKeyPlaceholder({
       }
     >
       <GatewayPlaceholder.Actions>
-        <Button text="Create my key" icon={Plus} onClick={onCreateKey} />
         <Button
           variant="outline"
           text="Usage instructions"
-          icon={BookOpen}
           href={usageInstructionsHref}
         />
+        <Button text="Create my key" icon={Plus} onClick={onCreateKey} />
       </GatewayPlaceholder.Actions>
       <GatewayTrafficDiagram />
       <GatewayPlaceholder.Benefits>

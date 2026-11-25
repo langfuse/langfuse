@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   CircleDollarSign,
   KeyRound,
   ShieldCheck,
@@ -26,13 +25,8 @@ export function GatewayAnalyticsNoKeysEmptyState({
       description="Cost and usage show up here once requests go through the AI Gateway. Add a gateway key, then point your LLM client at the gateway."
     >
       <GatewayPlaceholder.Actions>
+        <Button variant="outline" text="Read the docs" href={docsHref} />
         <Button text="Add gateway key" icon={KeyRound} href={gatewayKeysHref} />
-        <Button
-          variant="outline"
-          text="Read the docs"
-          icon={BookOpen}
-          href={docsHref}
-        />
       </GatewayPlaceholder.Actions>
       <GatewayTrafficDiagram />
       <GatewayPlaceholder.Benefits>
