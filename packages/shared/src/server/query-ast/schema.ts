@@ -583,6 +583,7 @@ export const UNMODELED_COLUMNS: Record<
     "origin",
     "coordinates",
   ],
+  billable_events: ["event_time", "event_bytes"],
 };
 
 /**
