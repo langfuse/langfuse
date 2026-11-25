@@ -268,20 +268,44 @@ describe("unstable dashboard API", () => {
         prisma.dashboard.count({ where: { projectId } }),
       ).resolves.toBe(1);
 
-      await DashboardService.patchDashboardBlock(projectId, dashboard.id, {
-        op: "upsert",
-        id: note.id,
-        kind: "markdown",
-        expectedRevision: note.revision,
-        config: { ...note.config, title: "Revised" },
-      });
+      await DashboardService.patchDashboardBlock(
+        projectId,
+        dashboard.id,
+        {
+          op: "upsert",
+          id: note.id,
+          kind: "markdown",
+          expectedRevision: note.revision,
+          config: { ...note.config, title: "Revised" },
+        },
+        { canAuthorWidgets: true },
+      );
       const stale = await makeAPICall(
         "PATCH",
         path,
         { name: "Stale edit", definition: accepted.body.definition },
         auth,
       );
-      expect(stale.status).toBe(403);
+      expect(stale.status).toBe(409);
+      for (const revision of [chart.revision, chart.revision + 1]) {
+        const edited = {
+          ...chart,
+          revision,
+          config: { ...chart.config, title: "Edited" },
+        };
+        const rejected = await makeAPICall(
+          "PATCH",
+          path,
+          {
+            definition: {
+              version: "1",
+              blocks: [moved, note, edited, tabbedChart, converted],
+            },
+          },
+          auth,
+        );
+        expect(rejected.status).toBe(403);
+      }
       const updated = await makeZodVerifiedAPICall(
         PatchUnstableDashboardResponse,
         "PATCH",

@@ -284,11 +284,19 @@ describe("project dashboard blocks", () => {
       (await reader.dashboard.getDashboard(target)).definition.widgets,
     ).toEqual([moved]);
     await patchBlock(owner, target, patch);
-    await patchBlock(owner, target, {
-      op: "remove",
+    const removal = {
+      op: "remove" as const,
       id: patch.id,
       expectedRevision: 1,
+    };
+    await expect(patchBlock(reader, target, removal)).rejects.toMatchObject({
+      code: "FORBIDDEN",
     });
+    const classicEditor = caller(projectId, "ADMIN", {
+      email: "editor@example.com",
+      optedIn: false,
+    });
+    await patchBlock(classicEditor, target, removal);
     expect(
       (await reader.dashboard.getDashboard(target)).definition.widgets,
     ).toEqual([]);

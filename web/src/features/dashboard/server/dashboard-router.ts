@@ -34,7 +34,6 @@ import {
   orderBy,
   StringNoHTML,
   dashboardBlockPatchSchema,
-  ForbiddenError,
   InvalidRequestError,
   singleFilterList,
   LANGFUSE_HOME_DASHBOARD_ID,
@@ -621,16 +620,14 @@ export const dashboardRouter = createTRPCRouter({
           ctx.session.user.id,
         );
       }
-      if (!canAuthorDashboardBlocks(ctx.session)) {
-        throw new ForbiddenError(
-          "Dashboard widget authoring requires the employee feature preview.",
-        );
-      }
       return DashboardService.patchDashboardBlock(
         input.projectId,
         input.dashboardId,
         input.blockPatch,
-        ctx.session.user.id,
+        {
+          canAuthorWidgets: canAuthorDashboardBlocks(ctx.session),
+          userId: ctx.session.user.id,
+        },
       );
     }),
 

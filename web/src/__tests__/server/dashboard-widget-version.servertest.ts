@@ -463,13 +463,18 @@ describe("dashboard widget minVersion", () => {
       expect(res.dashboard?.owner).toBe("PROJECT");
       expect(res.dashboard?.hasDashboardBlocks).toBe(false);
 
-      await DashboardService.patchDashboardBlock(projectId, dashboard.id, {
-        op: "upsert",
-        id: uuidv4(),
-        expectedRevision: 0,
-        kind: "markdown",
-        config: { version: 1, title: "Notes", content: "Read by everyone" },
-      });
+      await DashboardService.patchDashboardBlock(
+        projectId,
+        dashboard.id,
+        {
+          op: "upsert",
+          id: uuidv4(),
+          expectedRevision: 0,
+          kind: "markdown",
+          config: { version: 1, title: "Notes", content: "Read by everyone" },
+        },
+        { canAuthorWidgets: true },
+      );
       const detail = await caller.dashboard.getDashboard({
         projectId,
         dashboardId: dashboard.id,

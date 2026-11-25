@@ -80,8 +80,9 @@ service:
         classic placements in `blocks`.
 
         Project API credentials may round-trip existing inline widgets unchanged
-        while editing classic placements. Creating, editing, removing,
-        reordering, or submitting a stale revision of an inline widget returns
+        while editing classic placements. If a saved widget has a newer
+        revision, reload the dashboard after the `409` response before retrying.
+        Creating, editing, removing, or reordering inline widgets returns
         `403`. Use the application's employee feature preview to change inline
         content. Unsupported future entries are preserved in storage, and
         definitions with an unsupported root version cannot be edited.

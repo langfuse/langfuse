@@ -192,7 +192,14 @@ export function DashboardBlockCard({
                 },
               ]
             : [];
-        const layoutActions = draggable ? { draggable } : undefined;
+        const removeAction = {
+          id: "remove",
+          type: "item",
+          title: "Remove widget",
+          icon: Trash2,
+          variant: "destructive",
+          onClick: () => confirm("remove"),
+        } as const;
         const actions: DataCardActions | undefined = editable
           ? {
               draggable,
@@ -234,17 +241,14 @@ export function DashboardBlockCard({
                       },
                     ]
                   : []),
-                {
-                  id: "remove",
-                  type: "item",
-                  title: "Remove widget",
-                  icon: Trash2,
-                  variant: "destructive",
-                  onClick: () => confirm("remove"),
-                },
+                removeAction,
               ],
             }
-          : layoutActions;
+          : canEdit && sourcePreset && !editOnly
+            ? { draggable, menu: [removeAction] }
+            : draggable
+              ? { draggable }
+              : undefined;
         const cardActions =
           editable && editOnly
             ? {

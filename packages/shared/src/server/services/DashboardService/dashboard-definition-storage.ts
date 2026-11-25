@@ -330,13 +330,31 @@ export async function patchPublicDashboard(
     if (patch.definition) {
       const layout = editableLayout(current.definition);
       const expected = patch.definition.expectedInlineBlocks;
-      if (
-        expected !== undefined &&
-        !isDeepStrictEqual(expected, knownInlineBlocks(layout))
-      ) {
-        throw new ForbiddenError(
-          "Saved Markdown and multi-query widgets are read-only through the public API.",
-        );
+      if (expected) {
+        const saved = knownInlineBlocks(layout);
+        if (
+          expected.length !== saved.length ||
+          expected.some((block, index) => {
+            const stored = saved[index];
+            return (
+              block.id !== stored.id ||
+              block.kind !== stored.kind ||
+              (block.revision >= stored.revision &&
+                !isDeepStrictEqual(block, stored))
+            );
+          })
+        )
+          throw new ForbiddenError(
+            "Saved Markdown and multi-query widgets are read-only through the public API.",
+          );
+        if (
+          expected.some(
+            (block, index) => block.revision < saved[index].revision,
+          )
+        )
+          throw new LangfuseConflictError(
+            "Saved dashboard widgets changed. Reload the dashboard and try again.",
+          );
       }
       result = await replaceClassicLayout(
         tx,
@@ -365,7 +383,7 @@ export async function patchDashboardBlock(
   projectId: string,
   dashboardId: string,
   patch: DashboardBlockPatch,
-  userId?: string,
+  { canAuthorWidgets, userId }: { canAuthorWidgets: boolean; userId?: string },
 ) {
   return prisma.$transaction(async (tx) => {
     const row = await lockDashboard(tx, projectId, dashboardId);
@@ -388,6 +406,18 @@ export async function patchDashboardBlock(
     const index = matching[0];
     const current =
       index === undefined ? undefined : readSavedBlock(entries[index]);
+    // A dashboard editor can remove a classic placement even after its Home card is converted.
+    if (
+      !canAuthorWidgets &&
+      !(
+        patch.op === "remove" &&
+        current?.success &&
+        current.data.kind === "convertedPreset"
+      )
+    )
+      throw new ForbiddenError(
+        "Dashboard widget authoring requires the employee feature preview.",
+      );
     const conflict = () =>
       new LangfuseConflictError(
         "This dashboard widget changed. Reload it and try again.",
