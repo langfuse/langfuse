@@ -1,6 +1,5 @@
 import motion from "./sidebarMotion.module.css";
 import { cn } from "@/src/utils/tailwind";
-import { SidebarVersionButton } from "./SidebarVersionButton";
 import { useRouter } from "next/router";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
@@ -9,7 +8,6 @@ import {
   getActiveSidebarNotifications,
 } from "@/src/components/nav/SidebarNotifications";
 import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
-import { SidebarVersionMenu } from "./SidebarVersionMenu";
 import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
 import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
 import { env } from "@/src/env.mjs";
@@ -104,21 +102,19 @@ export function AppShellSidebarPanel({
         <SidebarNavigation label="More" items={secondaryNavigation} />
       </SidebarPanel.Body>
       <SidebarPanel.Footer>
-        <SidebarVersionMenu state={versionState}>
-          {({ Trigger, triggerProps }) => (
-            <Trigger asChild>
-              <SidebarVersionButton state={versionState} {...triggerProps} />
-            </Trigger>
-          )}
-        </SidebarVersionMenu>
         <SidebarUserMenu
           user={user}
           items={userMenuItems}
+          versionState={versionState}
           side={surface === "mobile" ? "top" : "right"}
         >
           {({ Trigger }) => (
             <Trigger asChild>
-              <SidebarAccountButton user={user} surface={surface} />
+              <SidebarAccountButton
+                user={user}
+                surface={surface}
+                versionState={versionState}
+              />
             </Trigger>
           )}
         </SidebarUserMenu>

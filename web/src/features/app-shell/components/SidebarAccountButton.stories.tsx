@@ -19,6 +19,16 @@ export const VariantMatrix = meta.story({
             <div className="bg-sidebar text-sidebar-foreground p-2">
               <SidebarAccountButton
                 surface={surface}
+                versionState={{
+                  deployment: "self-hosted",
+                  plan: "oss",
+                  release: {
+                    status: "update-available",
+                    updateType: "minor",
+                    latestRelease: "v9.9.9",
+                  },
+                  migration: { status: "idle" },
+                }}
                 user={{
                   name: "Alexandra Morgan",
                   email: "alexandra.morgan@example.com",
@@ -42,6 +52,7 @@ export const ReplayPrivacy = meta.story({
       email: "replay-private-account@example.com",
       avatar: "",
     },
+    versionState: { deployment: "cloud" },
   },
   render: (args) => (
     <>
@@ -51,7 +62,6 @@ export const ReplayPrivacy = meta.story({
   ),
   play: async ({ args, canvas }) => {
     await expect(canvas.getByTitle(args.user.name)).toBeInTheDocument();
-    await expect(canvas.getByTitle(args.user.email)).toBeInTheDocument();
 
     const { record, EventType } = await import("posthog-js/dist/rrweb");
     const snapshots: unknown[] = [];

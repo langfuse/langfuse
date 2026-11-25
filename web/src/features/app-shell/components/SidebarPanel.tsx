@@ -45,11 +45,7 @@ function SidebarPanelSpacer() {
 }
 
 function SidebarPanelFooter({ children }: { children: ReactNode }) {
-  return (
-    <div className="border-sidebar-border shrink-0 border-t p-2">
-      {children}
-    </div>
-  );
+  return <div className="shrink-0 p-2">{children}</div>;
 }
 
 /** Layout slots of the sidebar panel; the same panel renders expanded, in the icon rail, and in the mobile menu. */

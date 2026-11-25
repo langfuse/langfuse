@@ -93,8 +93,7 @@
   justify-content: center;
 }
 
-.account,
-.version {
+.account {
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
@@ -102,9 +101,6 @@
   overflow: hidden;
   border-radius: 0.375rem;
   text-align: start;
-}
-
-.account {
   block-size: 3rem;
   gap: 0.25rem;
   transition:
@@ -119,10 +115,6 @@
 
 .account .identity {
   inline-size: calc(var(--sidebar-expanded-width, 12.75rem) - 5rem);
-}
-
-.version {
-  block-size: 2.75rem;
 }
 
 .iconLane {
@@ -151,8 +143,9 @@
 
 .statusDot {
   position: absolute;
-  inset-block-start: 0.5rem;
-  inset-inline-end: 0.375rem;
+  display: flex;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0.125rem;
 }
 
 .chevron {
@@ -205,12 +198,6 @@
 .sectionContent {
   min-block-size: 0;
   overflow: hidden;
-}
-
-@media (min-width: 768px) {
-  .version {
-    block-size: 1.75rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
