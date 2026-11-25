@@ -122,13 +122,21 @@ export class GatewayGuardrailService {
           );
           if (!config.success || !guardrail.encryptedCredential) {
             logger.error(
-              "Skipping Bedrock gateway guardrail with invalid config",
+              "Bedrock gateway guardrail has invalid config or missing credential; failing closed",
               {
                 guardrailId: guardrail.id,
                 organizationId: params.organizationId,
               },
             );
-            return [];
+            return [
+              {
+                id: guardrail.id,
+                name: guardrail.name,
+                type: "fail_closed" as const,
+                action,
+                patterns: [] as [],
+              },
+            ];
           }
           return [
             {

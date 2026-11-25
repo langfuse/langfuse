@@ -271,32 +271,41 @@ function decryptResolvedGuardrails(
   guardrails: GatewayCachedGuardrails,
   organizationId: string,
 ): GatewayResolveGuardrails {
-  return guardrails.flatMap<GatewayResolveGuardrails[number]>((guardrail) => {
-    if (guardrail.type === "regex") return [guardrail];
+  return guardrails.map<GatewayResolveGuardrails[number]>((guardrail) => {
+    if (guardrail.type === "regex" || guardrail.type === "fail_closed") {
+      return guardrail;
+    }
     try {
       const apiKey = decodeBedrockApiKey(
         decrypt(guardrail.encrypted_credential),
       );
-      return [
-        {
-          id: guardrail.id,
-          name: guardrail.name,
-          type: "bedrock" as const,
-          action: guardrail.action,
-          patterns: [] as [],
-          guardrail_id: guardrail.guardrail_id,
-          guardrail_version: guardrail.guardrail_version,
-          region: guardrail.region,
-          api_key: apiKey,
-        },
-      ];
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "bedrock" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+        guardrail_id: guardrail.guardrail_id,
+        guardrail_version: guardrail.guardrail_version,
+        region: guardrail.region,
+        api_key: apiKey,
+      };
     } catch (error) {
-      logger.error("Skipping Bedrock guardrail with unreadable credential", {
-        guardrailId: guardrail.id,
-        organizationId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return [];
+      logger.error(
+        "Bedrock guardrail credential could not be decrypted; failing closed",
+        {
+          guardrailId: guardrail.id,
+          organizationId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return {
+        id: guardrail.id,
+        name: guardrail.name,
+        type: "fail_closed" as const,
+        action: guardrail.action,
+        patterns: [] as [],
+      };
     }
   });
 }

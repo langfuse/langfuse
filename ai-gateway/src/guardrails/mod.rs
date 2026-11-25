@@ -197,6 +197,10 @@ pub(crate) enum GuardrailKind {
         patterns: Vec<String>,
     },
     Bedrock(BedrockGuardrail),
+    /// Control plane could not decrypt or validate a fail-closed guardrail;
+    /// always matches so the gateway enforces its action without forwarding
+    /// unscreened requests.
+    FailClosed,
     /// A guardrail type this gateway does not know skips the guardrail rather
     /// than failing resolution, so Web can add types before every gateway upgrades.
     Unknown,
@@ -218,14 +222,16 @@ impl Guardrail {
         }
         match &self.kind {
             GuardrailKind::Regex { patterns } => !patterns.is_empty(),
-            GuardrailKind::Bedrock(_) => true,
+            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed => true,
             GuardrailKind::Unknown => false,
         }
     }
 
     pub(crate) fn is_valid_from_resolve(&self) -> bool {
         match &self.kind {
-            GuardrailKind::Regex { .. } | GuardrailKind::Unknown => true,
+            GuardrailKind::Regex { .. }
+            | GuardrailKind::FailClosed
+            | GuardrailKind::Unknown => true,
             GuardrailKind::Bedrock(config) => {
                 crate::resolution::bedrock::is_aws_region(&config.region)
                     && crate::resolution::bedrock::is_guardrail_id(&config.guardrail_id)
@@ -238,7 +244,7 @@ impl Guardrail {
     fn regex_patterns(&self) -> Option<&[String]> {
         match &self.kind {
             GuardrailKind::Regex { patterns } => Some(patterns),
-            GuardrailKind::Bedrock(_) | GuardrailKind::Unknown => None,
+            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed | GuardrailKind::Unknown => None,
         }
     }
 
@@ -288,6 +294,7 @@ impl<'de> Deserialize<'de> for Guardrail {
                     .api_key
                     .ok_or_else(|| D::Error::missing_field("api_key"))?,
             }),
+            Some("fail_closed") => GuardrailKind::FailClosed,
             Some(_) => GuardrailKind::Unknown,
         };
         Ok(Self {
@@ -496,7 +503,8 @@ impl LocalScan {
 
 /// Runs the local regex guardrails against `turn` and, when any active external
 /// guardrail is present, collects the last turn's text in the same pass.
-/// Guardrails fail open: a regex whose patterns do not compile matches nothing.
+/// Regex guardrails fail open: a regex whose patterns do not compile matches
+/// nothing. Fail-closed guardrails always match.
 /// An unreadable turn is not a failure but a way to show the provider other text
 /// than the gateway scans, so it matches every active guardrail.
 fn scan_local(
@@ -557,7 +565,15 @@ fn scan_local(
         })
         .is_err()
     });
-    let mut matched = vec![false; active_indices.len()];
+    let mut matched: Vec<bool> = active_indices
+        .iter()
+        .map(|&index| {
+            matches!(
+                guardrails.get(index).map(|guardrail| &guardrail.kind),
+                Some(GuardrailKind::FailClosed)
+            )
+        })
+        .collect();
     for ((slot, _), is_match) in regex_slots.into_iter().zip(regex_matched) {
         if is_match && let Some(entry) = matched.get_mut(slot) {
             *entry = true;

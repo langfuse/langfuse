@@ -93,6 +93,17 @@ const GatewayRegexResolveGuardrailSchema = z
   })
   .strict();
 
+const GatewayFailClosedGuardrailSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    type: z.literal("fail_closed"),
+    action: GatewayResolveGuardrailActionSchema,
+    // Sent empty so gateways predating external guardrails decode and skip it.
+    patterns: z.tuple([]),
+  })
+  .strict();
+
 /**
  * Cached shape in Redis: external guardrail credentials stay encrypted until
  * `/resolve` builds the response, matching provider connections.
@@ -100,6 +111,7 @@ const GatewayRegexResolveGuardrailSchema = z
 export const GatewayCachedGuardrailsSchema = z.array(
   z.discriminatedUnion("type", [
     GatewayRegexResolveGuardrailSchema,
+    GatewayFailClosedGuardrailSchema,
     z
       .object({
         id: z.string(),
@@ -122,6 +134,7 @@ export type GatewayCachedGuardrails = z.infer<
 const GatewayResolveGuardrailsSchema = z.array(
   z.discriminatedUnion("type", [
     GatewayRegexResolveGuardrailSchema,
+    GatewayFailClosedGuardrailSchema,
     z
       .object({
         id: z.string(),

@@ -2,7 +2,10 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  type GatewayApiFormat,
+  GatewayResolveResponseSchema,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayResolveService } from "./resolveService";
 
 const mockEnv = vi.hoisted(() => ({
@@ -30,11 +33,14 @@ vi.mock("@/src/server/utils/jwt", () => ({
 }));
 
 vi.mock("@langfuse/shared/encryption", () => ({
-  decrypt: vi.fn((value: string) =>
-    value === "encrypted-bedrock-guardrail"
+  decrypt: vi.fn((value: string) => {
+    if (value === "corrupt-bedrock-guardrail") {
+      throw new Error("Unsupported state or unable to authenticate data");
+    }
+    return value === "encrypted-bedrock-guardrail"
       ? JSON.stringify({ apiKey: "bedrock-guardrail-key" })
-      : "sk-test",
-  ),
+      : "sk-test";
+  }),
 }));
 
 const serviceWith = (
@@ -428,6 +434,73 @@ describe("GatewayResolveService", () => {
           guardrail_version: "1",
           region: "us-east-1",
           api_key: "bedrock-guardrail-key",
+        },
+      ],
+    });
+  });
+
+  it("emits fail_closed when a Bedrock guardrail credential cannot be decrypted or config is invalid", async () => {
+    const service = serviceWith(() => Promise.resolve(row({})), "org-1", [
+      {
+        id: "gr-corrupt-secret",
+        name: "Corrupt secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: "corrupt-bedrock-guardrail",
+      },
+      {
+        id: "gr-missing-secret",
+        name: "Missing secret",
+        type: "BEDROCK",
+        action: "BLOCK",
+        config: {
+          guardrailId: "abc123def",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
+        encryptedCredential: null,
+      },
+      {
+        id: "gr-invalid-config",
+        name: "Invalid config",
+        type: "BEDROCK",
+        action: "LOG",
+        config: { region: "not-a-region" },
+        encryptedCredential: "encrypted-bedrock-guardrail",
+      },
+    ]);
+
+    const resolved = await service.resolve({
+      fastHashedSecretKey: "hashed-secret-key",
+      apiFormat: "openai.responses",
+    });
+    expect(GatewayResolveResponseSchema.parse(resolved)).toMatchObject({
+      guardrails: [
+        {
+          id: "gr-corrupt-secret",
+          name: "Corrupt secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-missing-secret",
+          name: "Missing secret",
+          type: "fail_closed",
+          action: "block",
+          patterns: [],
+        },
+        {
+          id: "gr-invalid-config",
+          name: "Invalid config",
+          type: "fail_closed",
+          action: "log",
+          patterns: [],
         },
       ],
     });

@@ -2179,6 +2179,39 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
 }
 
 #[tokio::test]
+async fn fail_closed_guardrails_enforce_action_without_calling_bedrock() {
+    for (action, expected_status, expected_message, provider_calls) in [
+        (
+            "block",
+            StatusCode::BAD_REQUEST,
+            Some(r#"Request blocked by guardrail "Broken Bedrock""#),
+            0,
+        ),
+        ("log", StatusCode::OK, None, 1),
+    ] {
+        run_bedrock_guardrail_case(BedrockGuardrailCase {
+            guardrails: serde_json::json!([{
+                "id": "g-broken",
+                "name": "Broken Bedrock",
+                "type": "fail_closed",
+                "action": action,
+                "patterns": []
+            }]),
+            input: serde_json::json!("hello"),
+            expected_bedrock_text: None,
+            bedrock_status: StatusCode::OK,
+            bedrock_action: "NONE",
+            expected_status,
+            expected_message,
+            expected_bedrock_calls: 0,
+            expected_provider_calls: provider_calls,
+            expected_findings: vec![("g-broken", action)],
+        })
+        .await;
+    }
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let web = FakeServer::start(|_| async {

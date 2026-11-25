@@ -123,7 +123,9 @@ impl ExternalGuardrailClient {
                 )
                 .await
             }
-            GuardrailKind::Regex { .. } | GuardrailKind::Unknown => false,
+            GuardrailKind::Regex { .. }
+            | GuardrailKind::FailClosed
+            | GuardrailKind::Unknown => false,
         }
     }
 
