@@ -273,14 +273,6 @@ export type GatewayGuardrailUiAction =
   | GatewayRegexGuardrailAction
   | GatewayExternalGuardrailAction;
 
-function hasNoControlChars(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if (code < 0x20 || code === 0x7f) return false;
-  }
-  return true;
-}
-
 export const GatewayGuardrailRedactionLabelSchema = z
   .string()
   .trim()
@@ -289,8 +281,8 @@ export const GatewayGuardrailRedactionLabelSchema = z
     GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
     `Replacement label must be at most ${GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH} characters`,
   )
-  .refine(
-    hasNoControlChars,
+  .regex(
+    /^[^\p{Cc}]*$/u,
     "Replacement label cannot contain control characters or line breaks",
   );
 
