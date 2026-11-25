@@ -317,7 +317,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 
 /// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
 /// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
-/// so ClickHouse filters on `events_core.metadata_names` via `idx_metadata_names`
+/// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
 /// without reading `metadata_values` or parsing JSON.
 fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     let mut metadata = Map::new();
