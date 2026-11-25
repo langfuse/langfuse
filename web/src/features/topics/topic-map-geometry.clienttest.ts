@@ -493,12 +493,10 @@ describe("background group labels", () => {
         ),
         // A larger Unassigned cohort centred on the largest topic.
         ...Array.from({ length: 60 }, (_, i) =>
-          point(
-            `outlier-${i}`,
-            Math.cos(i) * 80,
-            Math.sin(i) * 40,
-            { topicId: null, outcome: "outlier" },
-          ),
+          point(`outlier-${i}`, Math.cos(i) * 80, Math.sin(i) * 40, {
+            topicId: null,
+            outcome: "outlier",
+          }),
         ),
       ]),
       manyTopics,
@@ -524,9 +522,7 @@ describe("background group labels", () => {
             expect(overlaps(label.rect, other.rect)).toBe(false);
       }
     }
-    expect(visibleAt({ ...fit, zoom: 4 }).length).toBeGreaterThan(
-      atFit.length,
-    );
+    expect(visibleAt({ ...fit, zoom: 4 }).length).toBeGreaterThan(atFit.length);
   });
 
   it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
