@@ -220,6 +220,15 @@ export function normalizeMessage(
     fallbackRole;
 
   const parts = normalizeMessageContent(value, nestedContent, parserContext);
+  // Result objects (AI SDK, Mastra) carry the answer under `text`.
+  if (
+    parts.length === 0 &&
+    isMessageLike(value) &&
+    typeof value.text === "string" &&
+    value.text.length > 0
+  ) {
+    parts.push(...normalizeMediaPartsFromString(value.text));
+  }
   applySiblingFields(value, parts, parserContext);
   role = coerceRole(role, value, parts);
 
