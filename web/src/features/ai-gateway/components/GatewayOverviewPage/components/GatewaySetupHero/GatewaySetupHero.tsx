@@ -36,7 +36,11 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
             what it cost.
           </p>
           <div className="pt-3">
-            <Button text="Setup guide" href={GATEWAY_SETUP.docsUrl} />
+            <Button
+              variant="outline"
+              text="Setup guide"
+              href={GATEWAY_SETUP.docsUrl}
+            />
           </div>
           <p className="sr-only">
             {connectedLabels.length > 0
