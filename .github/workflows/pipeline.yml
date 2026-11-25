@@ -1222,23 +1222,21 @@ jobs:
     # and the tests run in the container (scripts/ci/fips-tests.sh).
     # Compatibility signal; not part of the required merge gate.
     timeout-minutes: 45
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.suite == 'web' && 'blacksmith-16vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     needs:
       - pre-job
+      - llm-connections-filter
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-fips (${{ matrix.suite }})
     env:
-      VITEST_MAX_WORKERS: ${{ matrix.max-workers }}
+      VITEST_MAX_WORKERS: ${{ matrix.suite == 'web' && '12' || '4' }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - suite: web
-            runner: blacksmith-16vcpu-ubuntu-2404
-            max-workers: "12"
-          - suite: worker
-            runner: blacksmith-8vcpu-ubuntu-2404
-            max-workers: "4"
+        # The worker suite follows tests-worker's changed-file selection. Per-suite
+        # settings are derived from matrix.suite above rather than an include
+        # list, because an include entry for a dropped suite would add it back.
+        suite: ${{ fromJSON(needs.llm-connections-filter.outputs.worker == 'true' && '["web","worker"]' || '["web"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1285,8 +1283,10 @@ jobs:
           bash scripts/ci/install-golang-migrate.sh
           which migrate
       - name: Load default env
+        env:
+          SUITE: ${{ matrix.suite }}
         run: |
-          if [ "${{ matrix.suite }}" = "web" ]; then
+          if [ "$SUITE" = "web" ]; then
             bash scripts/ci/write-web-test-env.sh .env.dev.example .env
             cp .env .env.runtime
             echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=true" >> .env.runtime
@@ -1306,11 +1306,12 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
           docker compose -f docker-compose.dev.yml ps
           pnpm run db:migrate
-          if [ "${{ matrix.suite }}" = "worker" ]; then
+          if [ "$SUITE" = "worker" ]; then
             pnpm --filter=shared run db:seed
           fi
           pnpm --filter=shared ch:up
         env:
+          SUITE: ${{ matrix.suite }}
           POSTGRES_VERSION: 15
           # The worker's code-eval tests need the extra floci container.
           COMPOSE_PROFILES: ${{ matrix.suite == 'worker' && 'worker-tests' || '' }}
