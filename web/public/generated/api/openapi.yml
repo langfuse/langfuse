@@ -12081,17 +12081,18 @@ components:
       title: DecisionModelBooleanCriteria
       type: object
       description: >-
-        Optional criteria for the `true` and `false` answers of a `boolean`
-        question.
+        Optional descriptions of the two answers of a `boolean` question. The
+        answer is always `true` or `false`; these descriptions only tell the
+        model when each one applies.
       properties:
         'true':
           $ref: '#/components/schemas/DecisionModelEntry'
           nullable: true
-          description: When the answer is true.
+          description: Description of when the statement is true.
         'false':
           $ref: '#/components/schemas/DecisionModelEntry'
           nullable: true
-          description: When the answer is false.
+          description: Description of when the statement is false.
     DecisionModelChoiceQuestion:
       title: DecisionModelChoiceQuestion
       type: object
@@ -12171,7 +12172,9 @@ components:
         criteria:
           $ref: '#/components/schemas/DecisionModelBooleanCriteria'
           nullable: true
-          description: Optional criteria for the true and false answers.
+          description: >-
+            Optional descriptions of when the statement is true and when it is
+            false.
       required:
         - id
         - scoreName
