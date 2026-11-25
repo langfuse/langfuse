@@ -214,7 +214,7 @@ export class ClickhouseWriter {
 
     // Helper function to safely truncate string fields
     const truncateField = (value: string | null | undefined): string | null => {
-      if (!value) return value || null;
+      if (value == null) return null;
       if (value.length > maxFieldSize) {
         return (
           // Keep the first 500KB and append a truncation message
