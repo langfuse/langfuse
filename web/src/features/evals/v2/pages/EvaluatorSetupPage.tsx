@@ -643,6 +643,13 @@ export function EvaluatorSetupPage(
       const { name, description } = metadata;
       const offerTraceRule = (evaluator: { id: string }) => {
         if (state.targetObject !== TopicsTargetObject) return false;
+        // Evaluators opened on Trace messages already have trace rules.
+        if (
+          props.mode === "edit" &&
+          props.initialTargetObject === TopicsTargetObject
+        ) {
+          return false;
+        }
         setSavedTraceEvaluator({
           id: evaluator.id,
           name,

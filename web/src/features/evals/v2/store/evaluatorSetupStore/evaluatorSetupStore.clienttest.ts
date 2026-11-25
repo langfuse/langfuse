@@ -140,6 +140,15 @@ describe("createEvaluatorSetupStore", () => {
       mode: "edit",
     });
     expect(withoutTarget.getState().targetObject).toBe(EvalTargetObject.EVENT);
+
+    store.getState().actions.applyDefinition(definition);
+    expect(store.getState().variableFields).toEqual({
+      threads: {
+        selectedColumnId: TRACE_TRANSCRIPT_EVAL_COLUMN,
+        jsonSelector: "$[1].messages",
+      },
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
   });
 
   it("initializes an existing code evaluator", () => {

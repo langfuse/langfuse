@@ -589,6 +589,10 @@ export function createEvaluatorSetupStore({
                   model: definition.model,
                 }
               : null;
+          const variableFields =
+            state.targetObject === TopicsTargetObject
+              ? buildInitialTraceVariableFields(definition)
+              : buildInitialVariableFields(definition);
 
           if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
             const questions = questionsToDrafts(definition.questions);
@@ -597,7 +601,7 @@ export function createEvaluatorSetupStore({
               questions,
               expandedQuestionId: questions[0]?.id ?? null,
               stateKeys: buildInitialStateKeys(definition),
-              variableFields: buildInitialVariableFields(definition),
+              variableFields,
               activeMapping: null,
               modelMode: "custom",
               selectedModel,
@@ -613,7 +617,7 @@ export function createEvaluatorSetupStore({
               safeRandomUUID(),
             ),
             scoreOutput: toScoreOutputFormState(definition.outputDefinition),
-            variableFields: buildInitialVariableFields(definition),
+            variableFields,
             activeMapping: null,
             modelMode: selectedModel ? "custom" : "default",
             selectedModel,
