@@ -325,16 +325,22 @@ describe("events dispatch consumer", () => {
     expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
   });
 
-  it("enqueues Topics but no trace evals for a trace without a transcript", async () => {
-    streamRows(["full", "empty"], ["empty"]);
+  it("skips trace evals for a trace without a transcript, still enqueueing Topics", async () => {
+    streamRows(["full", "empty", "judge-only"], ["empty", "judge-only"]);
 
-    await eventsDispatchQueueProcessor(
+    const result = await eventsDispatchQueueProcessor(
       job([
         { traceId: "full", revision: "r1", ruleIds: ["rule", "judge"] },
         { traceId: "empty", revision: "r2", ruleIds: ["rule", "judge"] },
+        { traceId: "judge-only", revision: "r3", ruleIds: ["judge"] },
       ]),
     );
 
+    expect(result).toEqual({ enqueued: 2, skipped: 1 });
+    expect(inputStorage.put.mock.calls.map(([{ traceId }]) => traceId)).toEqual(
+      ["full", "empty"],
+    );
+    expect(inputStorage.put.mock.calls[1][1].transcript).toBeNull();
     expect(
       topicsTraceAdd.mock.calls.map(([, { payload }]) => payload.traceId),
     ).toEqual(["full", "empty"]);

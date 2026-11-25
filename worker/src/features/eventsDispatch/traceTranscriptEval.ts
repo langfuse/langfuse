@@ -7,7 +7,6 @@ import {
   createW3CTraceId,
   isTraceEvalsProjectEnabled,
   logger,
-  type Transcript,
   type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 
@@ -80,10 +79,9 @@ function buildTraceTranscriptEvalJob(params: {
 export async function enqueueTraceTranscriptEvals(
   reference: TraceTranscriptReference,
   ruleIds: string[],
-  context: { transcriptS3Path: string; transcript: Transcript | null },
+  context: { transcriptS3Path: string },
 ): Promise<void> {
-  if (!context.transcript || !isTraceEvalsProjectEnabled(reference.projectId))
-    return;
+  if (!isTraceEvalsProjectEnabled(reference.projectId)) return;
   const assignments = await loadTranscriptEvalAssignments(
     reference.projectId,
     ruleIds,

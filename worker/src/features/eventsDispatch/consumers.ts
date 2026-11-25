@@ -9,7 +9,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueJobs,
   TopicsTraceQueue,
-  type Transcript,
   type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 import {
@@ -22,7 +21,6 @@ export const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 /** A queue that runs per-trace work from the stored transcript; it resolves its rule's definitions itself. */
 type EventsDispatchEnqueueContext = {
   transcriptS3Path: string;
-  transcript: Transcript | null;
   /** The snapshot that seeded the trace, when it came from one. */
   batchActionId?: string;
 };
@@ -30,6 +28,7 @@ type EventsDispatchEnqueueContext = {
 type EventsDispatchConsumer = {
   name: string;
   evaluatorTypes: readonly EvalTemplateType[];
+  requiresTranscript: boolean;
   enqueue: (
     reference: TraceTranscriptReference,
     ruleIds: string[],
@@ -40,6 +39,8 @@ type EventsDispatchConsumer = {
 const TOPICS_CONSUMER: EventsDispatchConsumer = {
   name: "topics",
   evaluatorTypes: [EvalTemplateType.FACET],
+  // Marks its facets insufficient_input from the null-transcript envelope.
+  requiresTranscript: false,
   enqueue: async (reference, ruleIds, { transcriptS3Path, batchActionId }) => {
     const queue = TopicsTraceQueue.getInstance({
       shardingKey: `${reference.projectId}-${reference.traceId}`,
@@ -73,6 +74,7 @@ const CONSUMERS: EventsDispatchConsumer[] = [
   {
     name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
     evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
+    requiresTranscript: true,
     enqueue: enqueueTraceTranscriptEvals,
   },
 ];
