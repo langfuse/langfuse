@@ -20,6 +20,7 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { env as workerEnv } from "../../env";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
   charsPerToken,
@@ -323,7 +324,11 @@ async function summarizeTraceFacets(params: {
     return undefined;
   }
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
-  metrics.summaryInputCharacters("text", text.length);
+  metrics.summaryInputCharacters(
+    "text",
+    text.length,
+    text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
+  );
   metrics.summaryInputEstimatedTokens(
     Math.ceil(text.length / charsPerToken(models.summary.model)),
   );
