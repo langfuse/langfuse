@@ -507,21 +507,27 @@ describe("Topics naming boundary", () => {
             : /returned no usable structured output/,
         ),
       });
-      expect(state.onCost).toHaveBeenCalledExactlyOnceWith({
-        naming_input: 0.025,
-        total: 0.02,
-      });
+      // Empty structured output is asked once more; a content filter is not.
+      const attempts = reason === "invalid_output" ? 2 : 1;
+      expect(state.call).toHaveBeenCalledTimes(attempts);
+      expect(state.onCost).toHaveBeenCalledTimes(attempts);
+      for (const [cost] of state.onCost.mock.calls)
+        expect(cost).toEqual({
+          naming_input: 0.025,
+          total: 0.02,
+        });
       expect((failure as Error).message).not.toMatch(/credentials|secret/);
-      expect(logger.warn).toHaveBeenCalledOnce();
-      const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
-      expect(message).toBe("Topics model request failed");
-      expect(fields).toMatchObject({
-        ...response,
-        "langfuse.topics.error.reason": reason,
-        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
-      });
-      expect(state.spanAttributes).toHaveBeenCalledWith(fields);
-      expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      expect(logger.warn).toHaveBeenCalledTimes(attempts);
+      for (const [message, fields] of vi.mocked(logger.warn).mock.calls) {
+        expect(message).toBe("Topics model request failed");
+        expect(fields).toMatchObject({
+          ...response,
+          "langfuse.topics.error.reason": reason,
+          "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+        });
+        expect(state.spanAttributes).toHaveBeenCalledWith(fields);
+        expect(JSON.stringify(fields)).not.toMatch(/secret/);
+      }
       expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
         /secret/,
       );
@@ -542,6 +548,85 @@ describe("Topics naming boundary", () => {
       );
     },
   );
+
+  it("asks once more when naming returns an empty structured object", async () => {
+    const emptyNaming = '{"name":"","description":"","evidenceSummaryIds":[]}';
+    const rejection = Object.assign(
+      new Error("No object generated: response did not match schema."),
+      {
+        name: "AI_NoObjectGeneratedError",
+        text: emptyNaming,
+        finishReason: "stop",
+        usage: { inputTokens: 100, outputTokens: 28 },
+      },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "stop",
+            "langfuse.topics.response.raw_finish_reason": "end_turn",
+            "langfuse.topics.response.text_characters": emptyNaming.length,
+            "langfuse.topics.response.reasoning_part_count": 0,
+            "langfuse.topics.response.output_tokens": 28,
+          }
+        : undefined,
+    );
+    state.call
+      .mockImplementationOnce(async ({ onFailedResponseUsage }) => {
+        await onFailedResponseUsage({
+          usageDetails: { input: 100, output: 28 },
+          providedCostDetails: {},
+        });
+        throw rejection;
+      })
+      .mockResolvedValueOnce({
+        output: {
+          name: "Invoice assistance",
+          description: "Invoice requests.",
+          evidenceSummaryIds: ["m1"],
+        },
+        usage: { inputTokens: 100, outputTokens: 30 },
+        usageDetails: { input: 100, output: 30 },
+        providedCostDetails: {},
+      });
+
+    const result = await nameTopicGroup(topicsModels(), evidence);
+
+    expect(result.output).toEqual({
+      name: "Invoice assistance",
+      description: "Invoice requests.",
+      evidenceSummaryIds: ["m1"],
+    });
+    expect(state.call).toHaveBeenCalledTimes(2);
+    const [failedCost, successCost] = state.onCost.mock.calls.map(
+      ([cost]) => cost,
+    );
+    expect(failedCost).toMatchObject({
+      naming_input: 0.0001,
+      naming_output: 0.00014,
+    });
+    expect(failedCost.total).toBeCloseTo(0.00024, 10);
+    expect(successCost).toEqual({
+      naming_input: 0.0001,
+      naming_output: 0.00015,
+      total: 0.00025,
+    });
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Topics model request failed",
+      expect.objectContaining({
+        "langfuse.topics.error.reason": "invalid_output",
+        "langfuse.topics.error.type": "AI_NoObjectGeneratedError",
+        "langfuse.topics.response.text_characters": 52,
+        "langfuse.topics.response.output_tokens": 28,
+        "langfuse.topics.response.reasoning_part_count": 0,
+      }),
+    );
+    expect(tokenCalls()).toEqual([
+      ["langfuse.topics.tokens", 100, { stage: "naming", direction: "input" }],
+      ["langfuse.topics.tokens", 30, { stage: "naming", direction: "output" }],
+    ]);
+  });
 
   it.each([
     [{}, "ok"],

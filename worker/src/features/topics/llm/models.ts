@@ -189,6 +189,14 @@ async function topicModelCall<T>(
             );
             continue;
           }
+          // Native structured output drops length constraints, so a completed
+          // naming response can be an empty object. Ask once more.
+          if (
+            stage === "naming" &&
+            failure.reason === "invalid_output" &&
+            attempt < 1
+          )
+            continue;
           throw failure;
         }
       }
