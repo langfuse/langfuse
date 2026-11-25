@@ -11,6 +11,7 @@ import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
+  type EvalWrites,
 } from "../evaluation/scheduleEvals";
 import {
   isTraceDispatchSampled,
@@ -27,7 +28,12 @@ import { isEventsDispatchEnabled } from "../eventsDispatch/config";
 type ProcessOtelEventsParams = {
   processor: OtelIngestionProcessor;
   resourceSpans: Parameters<OtelIngestionProcessor["processToEvent"]>[0];
-  ingestionService: IngestionService;
+  ingestionService: Pick<
+    IngestionService,
+    "createEventRecord" | "writeEventRecord"
+  >;
+  /** Called once per batch, and only when a rule needs scheduling. */
+  evalWrites: () => EvalWrites;
   projectId: string;
   fileKey: string;
   shouldWriteToEventsTable: boolean;
@@ -49,6 +55,7 @@ export async function processOtelEvents({
   processor,
   resourceSpans,
   ingestionService,
+  evalWrites,
   projectId,
   fileKey,
   shouldWriteToEventsTable,
@@ -112,7 +119,7 @@ export async function processOtelEvents({
   }
 
   const schedulerDeps = needsScheduler
-    ? createEvalSchedulerDeps(projectId, rules)
+    ? createEvalSchedulerDeps(projectId, rules, evalWrites())
     : null;
 
   await Promise.all(
