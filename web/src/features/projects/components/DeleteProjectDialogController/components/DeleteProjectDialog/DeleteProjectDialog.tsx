@@ -5,14 +5,8 @@ import * as z from "zod";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { Input } from "@/src/components/design-system/Input/Input";
 
 type DeleteProjectForm = {
   name: string;
@@ -54,35 +48,37 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
         },
       ]}
     >
-      <Form {...form}>
-        <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
-          <Dialog.Body>
-            {props.gatewayOrganizationName ? (
-              <Banner variant="warning" title="This turns off the AI Gateway">
-                {`This project receives the AI Gateway traces of ${props.gatewayOrganizationName}. Deleting it turns off the AI Gateway for the organization until you select a new ingestion project.`}
-              </Banner>
-            ) : null}
-            <p>
-              Deletion takes time and scales with project size. For very large
-              projects, it can take multiple days. If deletion is slower than
-              you expect, please reach out to support.
-            </p>
-            <p>{`To confirm, type "${props.confirmMessage}" in the input box`}</p>
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input placeholder={props.confirmMessage} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Dialog.Body>
-        </form>
-      </Form>
+      <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
+        <Dialog.Body>
+          {props.gatewayOrganizationName ? (
+            <Banner variant="warning" title="This turns off the AI Gateway">
+              {`This project receives the AI Gateway traces of ${props.gatewayOrganizationName}. Deleting it turns off the AI Gateway for the organization until you select a new ingestion project.`}
+            </Banner>
+          ) : null}
+          <p>
+            Deletion takes time and scales with project size. For very large
+            projects, it can take multiple days. If deletion is slower than you
+            expect, please reach out to support.
+          </p>
+          <p>{`To confirm, type "${props.confirmMessage}" in the input box`}</p>
+          <FormField control={form.control} name="name" label="Project name">
+            {(field) => (
+              <Input
+                placeholder={props.confirmMessage}
+                id={field.id}
+                name={field.name}
+                value={field.value}
+                onChange={(event) => field.onChange(event.target.value)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+                aria-describedby={field.inputDescribedById}
+                aria-invalid={Boolean(field.error)}
+                error={Boolean(field.error)}
+              />
+            )}
+          </FormField>
+        </Dialog.Body>
+      </form>
     </Dialog>
   );
 }
