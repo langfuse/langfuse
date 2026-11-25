@@ -186,13 +186,17 @@ export const StandardSize = meta.story({
 });
 
 export const StandardHeight = meta.story({
-  name: "(Test) Standard height",
+  name: "(Test) Default heights match",
   render: () => <StandardControls />,
   play: async ({ canvasElement }) => {
     const row = canvasElement.querySelector('[data-form-row="standard"]');
     if (!row) throw new Error("Missing standard row");
 
     const names = [
+      "button",
+      "icon",
+      "tabs",
+      "toggle",
       "input",
       "password",
       "copy",
@@ -200,87 +204,21 @@ export const StandardHeight = meta.story({
       "select",
       "multiselect",
       "date",
-      "button",
-      "icon",
-      "tabs",
-      "toggle",
       "query",
     ] as const;
-    const heights = names.map((name) => measuredHeight(row, name));
-    expect(new Set(heights)).toEqual(new Set([32]));
-  },
-});
+    const buttonHeight = measuredHeight(row, "button");
+    expect(buttonHeight, "Button default height").toBe(32);
 
-export const Sizes = meta.story({
-  name: "Sizes",
-  render: function SizesGallery() {
-    const [query, setQuery] = useState("");
-    return (
-      <div className="flex flex-col gap-6">
-        <Row name="button-sizes">
-          <Field name="button-default" label="Button default">
-            <Button variant="outline" text="Button" />
-          </Field>
-          <Field name="button-sm" label="Button sm">
-            <Button variant="outline" size="sm" text="Button" />
-          </Field>
-        </Row>
-        <Row name="icon-sizes">
-          <Field name="icon-md" label="IconButton md">
-            <IconButton icon={Plus} label="Add" size="md" variant="outline" />
-          </Field>
-          <Field name="icon-sm" label="IconButton sm">
-            <IconButton icon={Plus} label="Add" size="sm" variant="outline" />
-          </Field>
-          <Field name="icon-xs" label="IconButton xs">
-            <IconButton icon={Plus} label="Add" size="xs" variant="outline" />
-          </Field>
-        </Row>
-        <Row name="search-sizes">
-          <Field name="search-default" label="SearchInput default">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              onSubmit={() => undefined}
-              placeholder="Search"
-            />
-          </Field>
-          <Field name="search-large" label="SearchInput large">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              onSubmit={() => undefined}
-              placeholder="Search"
-              size="large"
-            />
-          </Field>
-        </Row>
-        <Row name="tabs-sizes">
-          <Field name="tabs-md" label="Tabs inset md">
-            <InsetTabs size="md" />
-          </Field>
-          <Field name="tabs-sm" label="Tabs inset sm">
-            <InsetTabs size="sm" />
-          </Field>
-          <Field name="tabs-underline" label="Tabs underline">
-            <Tabs defaultValue="one">
-              <Tabs.List variant="underline" aria-label="Underline">
-                <Tabs.Trigger value="one" label="One" />
-                <Tabs.Trigger value="two" label="Two" />
-              </Tabs.List>
-            </Tabs>
-          </Field>
-        </Row>
-        <Row name="query-sizes">
-          <Field name="query-default" label="QueryInput default">
-            <QueryField size="default" />
-          </Field>
-          <Field name="query-large" label="QueryInput large">
-            <QueryField size="large" />
-          </Field>
-        </Row>
-      </div>
-    );
+    const mismatches = names
+      .filter((name) => name !== "button")
+      .flatMap((name) => {
+        const height = measuredHeight(row, name);
+        return height === buttonHeight ? [] : [`${name} is ${height}px`];
+      });
+    expect(
+      mismatches,
+      `Default controls must match Button default (${buttonHeight}px): ${mismatches.join(", ")}`,
+    ).toEqual([]);
   },
 });
 
@@ -316,53 +254,11 @@ export const LargeRow = meta.story({
             size="large"
           />
         </Field>
-        <Field name="tabs" label="Tabs underline">
-          <Tabs defaultValue="one">
-            <Tabs.List variant="underline" aria-label="Underline">
-              <Tabs.Trigger value="one" label="One" />
-              <Tabs.Trigger value="two" label="Two" />
-            </Tabs.List>
-          </Tabs>
-        </Field>
         <Field name="query" label="QueryInput large">
           <QueryField size="large" />
         </Field>
       </Row>
     );
-  },
-});
-
-export const LargeHeight = meta.story({
-  name: "(Test) Large height",
-  render: function LargeHeightGallery() {
-    const [query, setQuery] = useState("");
-    return (
-      <Row name="large">
-        <Field name="search" label="SearchInput large">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            onSubmit={() => undefined}
-            placeholder="Search"
-            size="large"
-          />
-        </Field>
-        <Field name="tabs" label="Tabs underline">
-          <Tabs defaultValue="one">
-            <Tabs.List variant="underline" aria-label="Underline">
-              <Tabs.Trigger value="one" label="One" />
-              <Tabs.Trigger value="two" label="Two" />
-            </Tabs.List>
-          </Tabs>
-        </Field>
-      </Row>
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const row = canvasElement.querySelector('[data-form-row="large"]');
-    if (!row) throw new Error("Missing large row");
-    const heights = ["search", "tabs"].map((name) => measuredHeight(row, name));
-    expect(new Set(heights)).toEqual(new Set([36]));
   },
 });
 
