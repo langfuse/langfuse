@@ -20,7 +20,7 @@ import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { type RouteGroup } from "@/src/components/layouts/routes";
-import { ExternalLink, Grid2X2 } from "@langfuse/icons";
+import { SquareArrowOutUpRight, Grid2X2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { VERSION } from "@/src/constants/VERSION";
 import {
@@ -577,7 +577,7 @@ const DemoBadge = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <ExternalLink size="base" />
+                <SquareArrowOutUpRight size="base" />
                 <span>Use demo app</span>
               </Link>
             </SidebarMenuButton>

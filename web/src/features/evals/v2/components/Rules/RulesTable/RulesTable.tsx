@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   Copy,
-  ExternalLink,
+  SquareArrowOutUpRight,
   MoreVertical,
   Pencil,
   Trash2,
@@ -424,7 +424,8 @@ function RulesTableContent({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink size="base" __rawClassName="ml-1" />
+                View traces{" "}
+                <SquareArrowOutUpRight size="base" __rawClassName="ml-1" />
               </Button>
               <DropdownMenu
                 placement="bottom-end"
