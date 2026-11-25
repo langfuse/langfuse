@@ -174,7 +174,7 @@ export const buildDashboardStoryDefinition = (
           presence.flatMap((q) => q.filters),
         ),
       ],
-      "NUMBER",
+      "PIVOT_TABLE",
     ),
   );
   chart("latency_overlay", 8, 0, recipeFor("home-generation-latency"));
@@ -184,7 +184,7 @@ export const buildDashboardStoryDefinition = (
     6,
     config(
       "Observation error rate",
-      "Error observations divided by all observations. Open Data to inspect the numerator and denominator.",
+      "Error observations divided by all observations. Open the formula in the editor to see its numerator and denominator.",
       [
         {
           ...query(
@@ -240,15 +240,22 @@ export const buildDashboardStoryDefinition = (
           generations,
         ),
         query(
-          "percentiles",
-          "Latency",
-          [metric("p50", "latency", "p50"), metric("p90", "latency", "p90")],
+          "median",
+          "p50",
+          [metric("p50", "latency", "p50")],
+          [],
+          generations,
+        ),
+        query(
+          "tail",
+          "p90",
+          [metric("p90", "latency", "p90")],
           [],
           generations,
         ),
       ],
       "NUMBER",
-      { unit: "milliseconds" },
+      { unit: "milliseconds", activeQueryIds: ["low"] },
     ),
   );
   chart(
@@ -325,7 +332,7 @@ export const buildDashboardStoryDefinition = (
           "observation",
         ),
       ],
-      "NUMBER",
+      "PIVOT_TABLE",
     ),
   );
   text(

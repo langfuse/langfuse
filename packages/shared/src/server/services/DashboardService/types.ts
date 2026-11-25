@@ -1,7 +1,7 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilterList } from "../../../";
-import { StudioWidgetConfigSchema } from "../../../domain/dashboard-studio";
+import { StudioSavedWidgetConfigSchema } from "../../../domain/dashboard-studio-tabs";
 import {
   persistedWidgetViewToQueryView,
   type views,
@@ -124,7 +124,7 @@ const DashboardDefinitionQueryWidgetSchema = z.object({
   id: z.string(),
   /** A report can compare one or more saved queries with the referenced preset placement. */
   compareWith: z.string().optional(),
-  config: StudioWidgetConfigSchema,
+  config: StudioSavedWidgetConfigSchema,
   x: z.number().int().gte(0),
   y: z.number().int().gte(0),
   x_size: z.number().int().positive(),

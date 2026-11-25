@@ -4,6 +4,7 @@ import Link from "next/link";
 import { hashKey } from "@tanstack/react-query";
 import {
   DashboardDefinitionSchema,
+  normalizeStudioWidget,
   type DashboardDomain,
 } from "@langfuse/shared";
 import { ChevronRightIcon, PlusIcon, TypeIcon } from "@langfuse/icons";
@@ -188,19 +189,28 @@ function ReportNotebook({
       section: id,
       card: undefined,
       cell: undefined,
+      tab: undefined,
       editor: undefined,
     });
     sectionHeading.current?.scrollIntoView({ block: "start" });
   };
-  const openChart = (cell: ReportQuery) => {
+  const openChart = (cell: ReportQuery, tabId?: string) => {
     setFailure("");
     track("report_open_editor", {
       sectionIndex,
       editorMode:
-        cell.config.executionMode === "current" ? "multi-query" : "future",
+        normalizeStudioWidget(cell.config).tabs[0]!.chart.executionMode ===
+        "current"
+          ? "multi-query"
+          : "future",
       widgetKind: "query",
     });
-    routeState({ section: section.id, cell: cell.id, editor: undefined });
+    routeState({
+      section: section.id,
+      cell: cell.id,
+      tab: tabId,
+      editor: undefined,
+    });
   };
   const addChart = () => {
     const config = createStudioWidget();
@@ -223,7 +233,7 @@ function ReportNotebook({
   const closeChart = () => {
     setNewChart(undefined);
     setFailure("");
-    routeState({ cell: undefined, editor: undefined }, true);
+    routeState({ cell: undefined, tab: undefined, editor: undefined }, true);
   };
   const editNote = (cell: ReportNote, isNew = false) => {
     track("report_edit_note", { sectionIndex, widgetKind: "text" });
@@ -284,7 +294,12 @@ function ReportNotebook({
           s.heading?.id === draft.id || s.cells.some((c) => c.id === draft.id),
       );
       await routeState(
-        { section: savedSection?.id, cell: undefined, editor: undefined },
+        {
+          section: savedSection?.id,
+          cell: undefined,
+          tab: undefined,
+          editor: undefined,
+        },
         true,
       );
     } catch (error) {
@@ -342,6 +357,11 @@ function ReportNotebook({
             )}
             <ReportChartSession
               key={editing.id}
+              initialTabId={
+                typeof router.query.tab === "string"
+                  ? router.query.tab
+                  : undefined
+              }
               initialMode={readWidgetEditorMode(router.query.editor)}
               cell={editing}
               isNew={!stored}
@@ -475,9 +495,7 @@ function ReportNotebook({
                     track("view_changed", { widgetKind: "preset" });
                     routeState({ card: id }, true);
                   }}
-                  onEditChart={
-                    canEdit && !note ? (cell) => openChart(cell) : undefined
-                  }
+                  onEditChart={canEdit && !note ? openChart : undefined}
                   onEditNote={canEdit && !note ? editNote : undefined}
                   editingNoteId={note?.id}
                   noteEditor={noteEditor}

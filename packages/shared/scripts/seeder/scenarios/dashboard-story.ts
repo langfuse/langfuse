@@ -1,3 +1,6 @@
+import { normalizeStudioWidget } from "../../../src/domain/dashboard-studio-tabs";
+import type { DashboardDefinition } from "../../../src/server/services/DashboardService/types";
+import { findOrCreateProjectMembership } from "../../../src/features/memberships/projectMembershipRepository";
 import { prisma } from "../../../src/db";
 import { z } from "zod";
 import { rangeToString } from "../../../src/utils/dateRanges";
@@ -34,6 +37,15 @@ const names = [
   "Code review",
 ];
 
+const tabbed = (document: DashboardDefinition): DashboardDefinition => ({
+  ...document,
+  widgets: document.widgets.map((widget) =>
+    widget.type === "query"
+      ? { ...widget, config: normalizeStudioWidget(widget.config) }
+      : widget,
+  ),
+});
+
 async function saveLearningReport(
   projectId: string,
   prefix: string,
@@ -66,7 +78,7 @@ async function saveLearningReport(
       name: learningReportTitle,
       description:
         "A field guide to traces, observations, scores and analytical queries, with worked examples you can run.",
-      definition,
+      definition: tabbed(definition),
       filters: [],
     },
   });
@@ -496,10 +508,13 @@ export const dashboardStoryScenario: ScenarioDefinition = {
       where: { projectId: ctx.projectId },
       select: { orgMembershipId: true, userId: true, role: true },
     });
-    await prisma.projectMembership.createMany({
-      data: sourceMemberships.map((member) => ({ ...member, projectId })),
-      skipDuplicates: true,
-    });
+    for (const member of sourceMemberships) {
+      await findOrCreateProjectMembership(prisma, {
+        ...member,
+        projectId,
+        orgId: source.orgId,
+      });
+    }
     await prisma.traceSession.createMany({
       data: Array.from({ length: 40 }, (_, i) => ({
         id: `${ctx.idPrefix}-session-${i}`,
@@ -795,12 +810,12 @@ export const dashboardStoryScenario: ScenarioDefinition = {
         projectId,
         name: "Dashboard capabilities",
         description: `Dashboard examples with synthetic observations. Full ${days}-day fixture; ${observationCount} observations.`,
-        definition,
+        definition: tabbed(definition),
         filters: [],
       },
       update: {
         name: "Dashboard capabilities",
-        definition,
+        definition: tabbed(definition),
         description: `Dashboard examples with synthetic observations. Full ${days}-day fixture; ${observationCount} observations.`,
       },
     });
@@ -811,7 +826,7 @@ export const dashboardStoryScenario: ScenarioDefinition = {
         projectId,
         name: "An investigation into LLM operations",
         description: `Dashboard research notebook · ${observationCount.toLocaleString("en-US")} synthetic observations over ${days} days`,
-        definition: report,
+        definition: tabbed(report),
         filters: [],
       },
       update: {},

@@ -34,7 +34,7 @@ export const legacyReport: Record<
     before:
       "Combines score counts, numeric or boolean means, and counts equal to zero or one into one table, grouped by score name, source and data type. A headline totals the score counts. The current implementation is not inherently limited to trace-attached scores; trace filters can introduce a related-event restriction.",
     recipe:
-      "Use separate named views for numeric count and mean, boolean count and true share, false and true counts, and categorical counts by value. Keep score name and source in every definition. Use All score targets unless an attachment filter is intentional.",
+      "Use separate chart tabs for numeric count and mean, boolean count and true share, false and true counts, and categorical counts by value. Keep score name and source in every definition. Use All score targets unless an attachment filter is intentional.",
     status: "review",
     note: "The deployed score views support these aggregates and filtered counts. The starter does not recreate the single merged table, its all-score headline, or numeric zero/one columns; those need an explicit composition decision. Meaningless categorical averages and zero/one columns are deliberately omitted. The explicit attachment-target selector is a POC query extension, not a prerequisite for the unrestricted score queries.",
   },
@@ -44,9 +44,9 @@ export const legacyReport: Record<
     before:
       "The current card shows observation counts per time bucket, split by level, with an additive count headline. Older saved versions also offer a trace-count tab. The current read path hides that trace tab.",
     recipe:
-      "Use a bars-over-time view with Count observations grouped by Level. Add a second named query for distinct Trace ID without a breakdown. Select the active query as a view and compute its headline across the full period.",
+      "Create an Observations by level tab with a line chart of observation counts grouped by Level. Add a Distinct traces tab with a line chart of distinct Trace ID per bucket. Give each chart its own full-period headline.",
     status: "changed",
-    note: "Both count queries are already expressible. The extra distinct-trace view is an addition to the current card, not recovered current behavior. The POC supplies multi-query view selection and independent summary requests. A trace can span buckets, so summing bucket-level distinct counts must not produce its full-period headline.",
+    note: "Both count queries are already expressible. The extra distinct-trace view is an addition to the current card, not recovered current behavior. Each tab runs its own query and full-period summary. A trace can span buckets, so summing bucket-level distinct counts must not produce its full-period headline.",
   },
   "home-model-usage": {
     question:
@@ -54,7 +54,7 @@ export const legacyReport: Record<
     before:
       "Offers four views: cost by model, cost by cost-map key, usage by model, and usage by usage-map key. All use generation-like observations and the selected models; initially the first ten available models are selected. Headlines cover that selected population.",
     recipe:
-      "Create four named queries for Sum total cost by Model, Sum cost by type by Cost type, Sum total tokens by Model, and Sum usage by type by Usage type. Apply the same Type and Model filters to each. Bind the category views' headlines to total cost or total tokens.",
+      "Create four line-chart tabs for total cost by model, cost by cost type, total tokens by model, and usage by usage type. Apply the same Type and Model filters to each. Bind the category views' headlines to total cost or total tokens.",
     status: "changed",
     note: "All four views use existing aggregates. This report saves ten explicit models across all four queries. Select the same ten in the Home card for a comparison. Hiding a legend series only changes the display. Cost and token totals come from separate whole-population aggregates.",
   },
@@ -63,7 +63,7 @@ export const legacyReport: Record<
     before:
       "Offers cost and trace-count views, each ranked to 20 users. Cost includes only generation-like observations; the current trace view counts distinct trace IDs. Both headlines sum the returned top-20 groups rather than querying a full-population total.",
     recipe:
-      "Use horizontal bars grouped by User ID, with named Cost and Distinct traces queries. Add the generation-like Type filter to the Cost query to retain its original scope. Leave the trace query's population independent and request full-period summaries.",
+      "Use horizontal bars grouped by User ID, in separate Cost and Distinct traces tabs. Add the generation-like Type filter to the Cost query to retain its original scope. Leave the trace query's population independent and request full-period summaries.",
     status: "changed",
     note: "The deployed sums and distinct counts are sufficient. The saved cost query applies the generation-like filter. The recipe shows up to 25 users and queries a full-period total. A viewer can therefore see a larger headline than the old top-20 subtotal. Agree on that change before migrating existing cards.",
   },
@@ -109,7 +109,7 @@ export const legacyReport: Record<
     before:
       "Queries generation-like observations by model and time with p50, p75, p90, p95 and p99. A model selector initially chooses ten models, and percentile tabs show one percentile at a time. Empty latency buckets are gaps.",
     recipe:
-      "Choose Observations, filter to the generation-like types and the intended models, and group by Model in a line chart. Save five views, one for each of p50, p75, p90, p95 and p99. Switch the percentile above the plot. Each view groups by model within a time bucket.",
+      "Choose Observations, filter to the generation-like types and the intended models, and group by Model in a line chart. Save five tabs, one for each of p50, p75, p90, p95 and p99. Switch the percentile above the plot. Each tab groups by model within a time bucket.",
     status: "changed",
     note: "The report saves ten explicit models and all five percentile choices. Home initially selects ten models from the project. Match the selected models before comparing. Check tail estimates across repeated executions before replacing an existing chart.",
   },

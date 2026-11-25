@@ -24,7 +24,7 @@ export function notebookExample(
   id: string,
 ): StudioWidgetConfig {
   const cell = definition.widgets.find((w) => w.id === id);
-  if (cell?.type !== "query")
+  if (cell?.type !== "query" || cell.config.version !== 1)
     throw new Error(`Missing dashboard example ${id}`);
   return cell.config;
 }

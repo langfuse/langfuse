@@ -32,6 +32,7 @@ export const StudioMetricSchema = z
   .object({
     id: identifier,
     label: z.string().max(200).optional(),
+    hidden: z.boolean().optional(),
     measure: z.string().min(1).max(100),
     aggregation: metricAggregations,
     percentile: z.number().positive().lt(100).optional(),

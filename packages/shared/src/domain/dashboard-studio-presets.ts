@@ -171,7 +171,7 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
       query("observations", "Observations by level", [count], ["level"]),
       query("traces", "Distinct traces", [metric("traces", "traceId", "uniq")]),
     ],
-    "BAR_TIME_SERIES",
+    "LINE_TIME_SERIES",
     { timeSeries: true, showHeadline: true, activeQueryIds: ["observations"] },
   ),
   "home-model-usage": config(
@@ -217,7 +217,7 @@ const recipes: Record<HomeDashboardPresetId, StudioWidgetConfig> = {
         generations,
       ),
     ],
-    "AREA_TIME_SERIES",
+    "LINE_TIME_SERIES",
     { timeSeries: true, showHeadline: true, activeQueryIds: ["cost_by_model"] },
   ),
   "home-users": config(

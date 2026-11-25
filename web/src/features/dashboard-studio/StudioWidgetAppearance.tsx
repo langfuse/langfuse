@@ -7,16 +7,13 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { StudioChartTypePicker } from "./StudioChartTypePicker";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 
 export function StudioWidgetAppearance({
   config,
   experimental = true,
-  series,
   onChange,
   onChartTypeChange,
   onOpenChartType,
-  onHiddenSeriesChange,
   onOpenSettings,
 }: StudioWidgetAppearanceProps) {
   const headlineMetrics = config.queries
@@ -151,52 +148,6 @@ export function StudioWidgetAppearance({
                     </label>
                   ) : null}
                 </div>
-                {series.length ? (
-                  <details className="border-t pt-3">
-                    <summary className="cursor-pointer text-xs font-bold">
-                      Displayed series ·{" "}
-                      {
-                        series.filter(
-                          (item) =>
-                            !config.display.hiddenSeriesIds?.includes(item.id),
-                        ).length
-                      }{" "}
-                      of {series.length}
-                    </summary>
-                    <div className="flex flex-col gap-2 pt-3">
-                      <MultiSelectTagInput
-                        noCapture
-                        aria-label="Displayed series"
-                        placeholder="No series displayed"
-                        searchPlaceholder="Search series"
-                        emptyMessage="No matching series"
-                        selectAllLabel="Select all"
-                        options={series.map((item) => ({
-                          value: item.id,
-                          label: item.label,
-                        }))}
-                        value={series
-                          .filter(
-                            (item) =>
-                              !config.display.hiddenSeriesIds?.includes(
-                                item.id,
-                              ),
-                          )
-                          .map((item) => item.id)}
-                        onValueChange={(ids) =>
-                          onHiddenSeriesChange(
-                            series
-                              .filter((item) => !ids.includes(item.id))
-                              .map((item) => item.id),
-                          )
-                        }
-                      />
-                      <p className="text-muted-foreground text-xs">
-                        Saved with this widget. Legend clicks are temporary.
-                      </p>
-                    </div>
-                  </details>
-                ) : null}
                 <details className="border-t pt-3">
                   <summary className="cursor-pointer text-xs font-bold">
                     Advanced
@@ -298,10 +249,8 @@ export function StudioWidgetAppearance({
 type StudioWidgetAppearanceProps = {
   experimental?: boolean;
   config: StudioWidgetConfig;
-  series: { id: string; label: string }[];
   onChange: (config: StudioWidgetConfig) => void;
   onChartTypeChange: (type: StudioWidgetConfig["display"]["chartType"]) => void;
   onOpenChartType?: () => void;
-  onHiddenSeriesChange: (ids: string[]) => void;
   onOpenSettings: () => void;
 };

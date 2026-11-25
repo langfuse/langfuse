@@ -38,12 +38,13 @@ export function StudioPlacementCard({
   readPath: ResolvedReadPath;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
-  onEdit?: () => void;
+  onEdit?: (tabId?: string) => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
   onCopy?: () => void;
   onContentHeightChange?: (placementId: string, height: number) => void;
 }) {
+  const activeTab = useRef<string | undefined>(undefined);
   const [copyStatus, setCopyStatus] = useState("Copy widget");
   const textContentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -85,7 +86,7 @@ export function StudioPlacementCard({
             id: "edit",
             label: "Edit widget",
             icon: PencilIcon,
-            onClick: onEdit,
+            onClick: () => onEdit(activeTab.current),
           },
         ]
       : []),
@@ -116,6 +117,9 @@ export function StudioPlacementCard({
       <StudioQueryWidget
         projectId={projectId}
         config={placement.config}
+        onTabChange={(id) => {
+          activeTab.current = id;
+        }}
         readPath={readPath}
         dateRange={dateRange}
         filterState={filterState}

@@ -1,6 +1,13 @@
 import { type ComponentProps, useState } from "react";
 import { EllipsisVertical } from "@langfuse/icons";
-import { type StudioWidgetConfig } from "@langfuse/shared";
+import {
+  normalizeStudioWidget,
+  type StudioSavedWidgetConfig,
+  type StudioWidgetConfig,
+} from "@langfuse/shared";
+import { StudioTabControls } from "./StudioTabControls";
+import { splitStudioChart } from "./splitStudioChart";
+import { createStudioWidget } from "./catalog";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -29,11 +36,11 @@ type EditorPane =
   | { type: "classic"; config: StudioWidgetConfig; openedFromChart: boolean }
   | { type: "plan" };
 
-export function WidgetVisionEditor({
+function ChartTabEditor({
   initialMode = "multi-query",
   initialValue,
   ...props
-}: WidgetVisionEditorProps) {
+}: LeafEditorProps) {
   const readableVersion = props.readPath === "v4" ? "v2" : "v1";
   const [initialConfig] = useState(() => ({
     ...initialValue,
@@ -192,8 +199,10 @@ function WidgetEditorOptions({
   );
 }
 
-type WidgetVisionEditorProps = Pick<
+type LeafEditorProps = Pick<
   ComponentProps<typeof StudioWidgetEditor>,
+  | "renderTabControls"
+  | "onSplit"
   | "initialValue"
   | "isNew"
   | "dashboardName"
@@ -207,3 +216,108 @@ type WidgetVisionEditorProps = Pick<
 > & {
   initialMode?: WidgetVisionEditorMode;
 };
+
+type WidgetVisionEditorProps = Omit<
+  LeafEditorProps,
+  "initialValue" | "onApply" | "renderTabControls" | "onSplit"
+> & {
+  initialValue: StudioSavedWidgetConfig;
+  initialTabId?: string;
+  onApply: (widget: StudioSavedWidgetConfig) => void;
+};
+
+export function WidgetVisionEditor({
+  initialValue,
+  initialTabId,
+  onApply,
+  ...props
+}: WidgetVisionEditorProps) {
+  const [widget, setWidget] = useState(() =>
+    normalizeStudioWidget(initialValue),
+  );
+  const [id, setId] = useState(
+    () =>
+      widget.tabs.find((tab) => tab.id === initialTabId)?.id ??
+      widget.tabs[0]!.id,
+  );
+  const tab = widget.tabs.find((t) => t.id === id)!;
+  const track = useDashboardStudioCapture(props.readPath === "v4");
+  const withChanges = (chart: StudioWidgetConfig) => ({
+    ...widget,
+    title: widget.tabs.length === 1 ? chart.title : widget.title,
+    tabs: widget.tabs.map((t) => (t.id === id ? { ...t, chart } : t)),
+  });
+  const append = (chart: StudioWidgetConfig, next: StudioWidgetConfig) => {
+    const tabId = crypto.randomUUID();
+    const draft = withChanges(chart);
+    setWidget({ ...draft, tabs: [...draft.tabs, { id: tabId, chart: next }] });
+    setId(tabId);
+    track("configuration_changed", {
+      scope: "widget",
+      target: "chart",
+      selectedCount: draft.tabs.length + 1,
+    });
+  };
+  return (
+    <ChartTabEditor
+      key={id}
+      {...props}
+      initialValue={tab.chart}
+      onApply={(chart) => onApply(withChanges(chart))}
+      onSplit={
+        widget.tabs.length < 16
+          ? (chart, unit, visible) => {
+              const split = splitStudioChart(chart, unit, visible);
+              if (split) append(split.remaining, split.moved);
+            }
+          : undefined
+      }
+      renderTabControls={(chart, invalid) => (
+        <StudioTabControls
+          widget={widget}
+          chart={chart}
+          id={id}
+          invalid={invalid}
+          onTitle={(title) => setWidget((current) => ({ ...current, title }))}
+          onSelect={(next) => {
+            setWidget(withChanges(chart));
+            setId(next);
+            track("view_changed", { scope: "widget", target: "chart" });
+          }}
+          onAdd={() =>
+            append(chart, {
+              ...createStudioWidget(),
+              executionMode: chart.executionMode,
+              title: "New tab",
+            })
+          }
+          onDuplicate={() =>
+            append(chart, {
+              ...structuredClone(chart),
+              title: `${chart.title.slice(0, 195)} copy`,
+            })
+          }
+          onFirst={() => {
+            const draft = withChanges(chart);
+            const first = draft.tabs.find((t) => t.id === id)!;
+            setWidget({
+              ...draft,
+              tabs: [first, ...draft.tabs.filter((t) => t.id !== id)],
+            });
+          }}
+          onRemove={() => {
+            const remaining = widget.tabs.filter((t) => t.id !== id);
+            if (!remaining.length) return;
+            setWidget({ ...widget, tabs: remaining });
+            setId(remaining[0]!.id);
+            track("configuration_changed", {
+              scope: "widget",
+              target: "chart",
+              selectedCount: remaining.length,
+            });
+          }}
+        />
+      )}
+    />
+  );
+}

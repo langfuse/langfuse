@@ -164,7 +164,7 @@ export function buildDashboardResearchReport(
     "quality_trend",
     current(
       "How has average quality changed?",
-      "Each point averages the 0–1 evaluations in that bucket. Hover or open Data to see how many contributed.",
+      "Each point averages the 0–1 evaluations in that bucket. Hover a point to see how many evaluations contributed.",
       [quality],
       "LINE_TIME_SERIES",
     ),
@@ -181,7 +181,7 @@ export function buildDashboardResearchReport(
   note(
     "score_reading",
     "Interpreting the last point",
-    "This fixture includes evaluations that arrive after the original request. The last bucket is partial. A late run can raise its mean and increase its sample count, even when the application itself is unchanged. Open **Data** to read a bucket. For a quality alert, choose the evaluation window and minimum sample count together.",
+    "This fixture includes evaluations that arrive after the original request. The last bucket is partial. A late run can raise its mean and increase its sample count, even when the application itself is unchanged. Hover a point to read its bucket. For a quality alert, choose the evaluation window and minimum sample count together.",
   );
   chart(
     "acceptance",
@@ -242,7 +242,7 @@ export function buildDashboardResearchReport(
       x_size: 6,
     });
     for (const [j, item] of replacements.entries()) {
-      if (item.type !== "query") continue;
+      if (item.type !== "query" || item.config.version !== 1) continue;
       // A boolean has two possible values, so two filtered counts can reproduce the fixed bins.
       const config =
         presetId === "home-score-analytics" && j === 2

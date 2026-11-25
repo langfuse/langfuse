@@ -11,7 +11,7 @@ import { InlineEditText } from "@/src/components/design-system/InlineEditText/In
 import { cn } from "@/src/utils/tailwind";
 import { formatDateRange } from "@/src/utils/date-range-utils";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useStudioQueryView } from "./useStudioQueryView";
+
 import { StudioCalculationPreview } from "./StudioCalculationPreview";
 import { StudioWidgetPreview } from "./StudioWidgetPreview";
 import { useStudioWidgetResult } from "./useStudioWidgetResult";
@@ -94,6 +94,8 @@ export function StudioWidgetEditor({
   active = true,
   applyContext = "dashboard",
   renderEditorOptions,
+  renderTabControls,
+  onSplit,
 }: StudioWidgetEditorProps) {
   const [config, setConfig] = useState(initialValue);
   const [preview, setPreview] = useState(initialValue);
@@ -117,28 +119,17 @@ export function StudioWidgetEditor({
     : null;
   const previewPending = hasStudioQueryChanges(config, preview);
   const renderConfig = getStudioRenderConfig(preview, config);
-  const { displayed, picker, resetView } = useStudioQueryView(
-    renderConfig,
-    "editor",
-    setExpandedId,
-  );
+  const displayed = renderConfig;
   const context = { projectId, readPath, dateRange, filterState };
-  const defaultResult = useStudioWidgetResult(preview, {
+  const runtime = useStudioWidgetResult(preview, {
     ...context,
     enabled: active,
   });
-  const viewingAlternate = displayed !== renderConfig;
-  const alternateResult = useStudioWidgetResult(displayed, {
-    ...context,
-    enabled: active && viewingAlternate,
-  });
-  const runtime = viewingAlternate ? alternateResult : defaultResult;
-  // A temporary series selection can never validate a different saved default.
-  const previewApplyBlockReason =
-    getStudioApplyBlockReason(config, preview, defaultResult.result) ??
-    (viewingAlternate
-      ? getStudioApplyBlockReason(preview, preview, runtime.result)
-      : null);
+  const previewApplyBlockReason = getStudioApplyBlockReason(
+    config,
+    preview,
+    runtime.result,
+  );
   const prepared = prepareStudioChart(runtime.result.data, displayed);
   const environmentOverrides = filterState.some(
     (filter) => filter.column === "environment",
@@ -193,7 +184,12 @@ export function StudioWidgetEditor({
     scoreDefinitionReason ??
     (capabilityValidation.valid ? formulaError : capabilityValidation.reason) ??
     (schema.success ? null : schema.error.issues[0]?.message);
-  const applyBlockReason = message ?? previewApplyBlockReason;
+  const mixedUnits =
+    prepared.hasIncompatibleUnits && config.display.chartType !== "PIVOT_TABLE";
+  const applyBlockReason =
+    message ??
+    previewApplyBlockReason ??
+    (mixedUnits ? "Move the series to separate tabs or choose a table." : null);
   // Coalesce edits before committing a valid query shape to the request scheduler.
   useEffect(() => {
     if (!active || !previewPending || message) return;
@@ -217,7 +213,6 @@ export function StudioWidgetEditor({
     <StudioWidgetAppearance
       config={config}
       experimental={!currentCapabilities}
-      series={prepared.availableSeries}
       onOpenChartType={() =>
         track("view_changed", {
           ...metadata,
@@ -260,22 +255,6 @@ export function StudioWidgetEditor({
           scope: "display",
         });
       }}
-      onHiddenSeriesChange={(hiddenSeriesIds) => {
-        setConfig((current) => ({
-          ...current,
-          display: {
-            ...current.display,
-            hiddenSeriesIds: [
-              ...(current.display.hiddenSeriesIds ?? []).filter(
-                (id) =>
-                  !prepared.availableSeries.some((series) => series.id === id),
-              ),
-              ...hiddenSeriesIds,
-            ],
-          },
-        }));
-        track("configuration_changed", { ...metadata, scope: "display" });
-      }}
     />
   );
   const updateCalculations = (
@@ -286,7 +265,7 @@ export function StudioWidgetEditor({
     if (
       !filterError &&
       !scoreDefinitionReason &&
-      defaultResult.result.data?.status === "complete" &&
+      runtime.result.data?.status === "complete" &&
       canPreviewStudioFormulasLocally(next, preview, queryVersion)
     ) {
       setPreview(next);
@@ -310,22 +289,7 @@ export function StudioWidgetEditor({
           return current.includes(id) ? current : [...current, id];
         })
       }
-      onDefaultQueryIdsChange={(activeQueryIds) => {
-        resetView();
-        setConfig((current) => ({
-          ...current,
-          display: { ...current.display, activeQueryIds },
-        }));
-        track("configuration_changed", {
-          ...metadata,
-          controlId: "series",
-          target: "configuration_data",
-          scope: "widget",
-          selectedCount: activeQueryIds?.length ?? config.queries.length,
-        });
-      }}
       onSeriesVisibilityChange={(visibility, interaction) => {
-        resetView();
         setConfig((current) =>
           applyStudioSeriesVisibility(current, visibility),
         );
@@ -465,19 +429,14 @@ export function StudioWidgetEditor({
   const hasCalculation = displayed.expressions.some(
     (expression) => !expression.hidden,
   );
-  const panelCount = prepared.unitPanels.length;
+
   const failed = (result: typeof runtime.result) =>
     result.isError ||
     result.data?.status === "partial" ||
     result.data?.status === "error";
-  const failedDefault = failed(defaultResult.result);
-  const failedAlternate = viewingAlternate && failed(runtime.result);
   const updating =
     !message &&
-    (previewPending ||
-      runtime.result.isPending ||
-      runtime.result.isFetching ||
-      defaultResult.result.isFetching);
+    (previewPending || runtime.result.isPending || runtime.result.isFetching);
   return (
     <section
       aria-label="Widget editor"
@@ -515,6 +474,7 @@ export function StudioWidgetEditor({
           />
         </div>
       </header>
+      {renderTabControls?.(config, Boolean(applyBlockReason))}
       {message ? (
         <p
           role="alert"
@@ -577,7 +537,7 @@ export function StudioWidgetEditor({
             </div>
             {appearance}
           </div>
-          {!message && !updating && (failedDefault || failedAlternate) ? (
+          {!message && !updating && failed(runtime.result) ? (
             <div
               role="status"
               className="text-muted-foreground mb-2 flex items-center gap-2 text-xs"
@@ -588,18 +548,36 @@ export function StudioWidgetEditor({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  if (failedDefault) defaultResult.result.refetch();
-                  if (failedAlternate) runtime.result.refetch();
+                  runtime.result.refetch();
                 }}
               />
             </div>
           ) : null}
+          {prepared.hasIncompatibleUnits &&
+            config.display.chartType !== "PIVOT_TABLE" &&
+            onSplit && (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {[
+                  ...new Set(
+                    prepared.visibleSeries.map(
+                      (series) => series.unit ?? "number",
+                    ),
+                  ),
+                ].map((unit) => (
+                  <Button
+                    key={unit}
+                    text={`Move ${unit} to a new tab`}
+                    variant="outline"
+                    size="sm"
+                    disabled={Boolean(message || updating)}
+                    onClick={() =>
+                      onSplit(config, unit, prepared.visibleSeries)
+                    }
+                  />
+                ))}
+              </div>
+            )}
           <div
-            style={
-              panelCount > 1
-                ? { minHeight: `${7 + panelCount * 13}rem` }
-                : undefined
-            }
             className={cn(
               "flex min-w-0 flex-col overflow-hidden",
               hasCalculation
@@ -611,7 +589,12 @@ export function StudioWidgetEditor({
               config={displayed}
               runtime={runtime}
               prepared={prepared}
-              queryView={picker}
+              onHiddenSeriesChange={(hiddenSeriesIds) =>
+                setConfig({
+                  ...config,
+                  display: { ...config.display, hiddenSeriesIds },
+                })
+              }
             />
           </div>
           {hasCalculation && runtime.result.data?.status === "complete" ? (
@@ -632,6 +615,15 @@ export function StudioWidgetEditor({
 }
 
 type StudioWidgetEditorProps = {
+  renderTabControls?: (
+    config: StudioWidgetConfig,
+    invalid: boolean,
+  ) => ReactNode;
+  onSplit?: (
+    config: StudioWidgetConfig,
+    unit: string,
+    visible: ReturnType<typeof prepareStudioChart>["visibleSeries"],
+  ) => void;
   renderEditorOptions?: (
     config: StudioWidgetConfig,
     onChange: (next: StudioWidgetConfig) => void,

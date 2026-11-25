@@ -210,6 +210,7 @@ export function prepareStudioChart(
     );
     return (
       !query?.hidden &&
+      !query?.metrics.find((metric) => metric.id === series.metricId)?.hidden &&
       !expression?.hidden &&
       (Boolean(expression) ||
         !config.display.activeQueryIds?.length ||
@@ -547,7 +548,7 @@ export function prepareStudioChart(
         type: "empty",
         message: "A big number needs one full-period metric",
         description:
-          "Show one metric with a full-period summary and run preview, or choose a table. All executed values remain available in Data.",
+          "Show one metric with a full-period summary or choose a table.",
       };
     if (
       config.display.chartType === "HISTOGRAM" &&
@@ -557,7 +558,7 @@ export function prepareStudioChart(
         type: "empty",
         message: "A histogram needs a distribution",
         description:
-          "Choose the histogram aggregation for a metric and run preview, or choose a bar or line chart for these values. All executed values remain available in Data.",
+          "Choose the histogram aggregation for a metric or choose a bar or line chart.",
       };
     return undefined;
   })();
@@ -583,6 +584,11 @@ export function prepareStudioChart(
     summaries,
     visibleSeries,
     availableSeries,
+    legendSeries: availableSeries.map(({ id, label }) => ({
+      id,
+      label,
+      color: palette.get(id)!.color,
+    })),
     headline,
     headlineSuppressed,
     hasIncompatibleUnits,

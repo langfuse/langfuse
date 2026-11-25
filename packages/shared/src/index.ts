@@ -472,3 +472,4 @@ export type { PagerDutyActionConfigWithSecrets } from "./domain/automations";
 export type { SafePagerDutyActionConfig } from "./domain/automations";
 export { isPagerDutyActionConfig } from "./domain/automations";
 export * from "./domain/dashboard-studio";
+export * from "./domain/dashboard-studio-tabs";

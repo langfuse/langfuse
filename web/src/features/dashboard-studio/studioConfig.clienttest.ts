@@ -1,4 +1,5 @@
 import { type StudioQuery, StudioWidgetConfigSchema } from "@langfuse/shared";
+import { splitStudioChart } from "./splitStudioChart";
 import { createStudioWidget } from "./catalog";
 import {
   getStudioEditorExecutionMode,
@@ -104,4 +105,76 @@ describe("studio execution version", () => {
       ).toBe("v2");
     },
   );
+});
+
+describe("independent chart tabs", () => {
+  it("restores each selectable query while keeping compared series and calculations in one chart", async () => {
+    const {
+      normalizeStudioWidget,
+      getStudioPresetReplacement,
+      StudioSavedWidgetConfigSchema,
+    } = await import("@langfuse/shared");
+    const [usage] = getStudioPresetReplacement("home-model-usage");
+    const tabs = normalizeStudioWidget(usage!);
+    expect(
+      tabs.tabs.map((tab) => tab.chart.queries.map((query) => query.id)),
+    ).toEqual([
+      ["cost_by_model"],
+      ["cost_by_type"],
+      ["usage_by_model"],
+      ["usage_by_type"],
+    ]);
+    const comparison = {
+      ...usage!,
+      display: { ...usage!.display, activeQueryIds: undefined },
+      expressions: [
+        {
+          id: "share",
+          label: "Share",
+          formula: "cost_by_model.cost / cost_by_type.cost",
+        },
+      ],
+    };
+    expect(normalizeStudioWidget(comparison).tabs).toHaveLength(1);
+    expect(
+      normalizeStudioWidget(comparison).tabs[0]!.chart.expressions,
+    ).toEqual(comparison.expressions);
+    expect(
+      normalizeStudioWidget(StudioSavedWidgetConfigSchema.parse(tabs)),
+    ).toEqual(tabs);
+  });
+
+  it("carries the hidden operands of a moved formula and drops unrelated metrics", () => {
+    const config = createStudioWidget();
+    const query = config.queries[0]!;
+    config.queries = [query, { ...query, id: "b" }, { ...query, id: "c" }];
+    config.expressions = [
+      {
+        id: "share",
+        label: "Share",
+        formula: "a.count / b.count",
+        unit: "percent",
+      },
+    ];
+    const visible = ["a", "b", "c", "share"].map((id) => ({
+      id,
+      label: id,
+      unit: id === "share" ? "percent" : "count",
+      queryId: id,
+      metricId: "count",
+      dimensions: {},
+      aggregation: "count",
+    }));
+    const split = splitStudioChart(config, "percent", visible)!;
+    expect(split.remaining.expressions).toHaveLength(0);
+    expect(split.remaining.queries.map((q) => q.id)).toEqual(["a", "b", "c"]);
+    expect(split.moved.expressions).toEqual(config.expressions);
+    expect(
+      split.moved.queries.map((q) => [q.id, q.metrics[0]!.hidden]),
+    ).toEqual([
+      ["a", true],
+      ["b", true],
+    ]);
+    expect(StudioWidgetConfigSchema.safeParse(split.moved).success).toBe(true);
+  });
 });

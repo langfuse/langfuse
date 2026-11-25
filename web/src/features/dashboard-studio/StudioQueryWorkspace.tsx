@@ -6,7 +6,6 @@ import {
 import { useState } from "react";
 import { PlusIcon, BracesIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { StudioInlineSelect } from "./StudioInlineSelect";
 import { formatFilterPreview } from "@/src/components/table/table-view-presets/lib/viewPreview";
 import { readableField } from "./catalog";
 import { StudioSeriesEditor } from "./StudioSeriesEditor";
@@ -31,7 +30,6 @@ export function StudioQueryWorkspace({
   environmentOverrides,
   invalidQueryIds,
   onFilterValidityChange,
-  onDefaultQueryIdsChange,
   onQueryChange,
   onQueryRemove,
   onQueryDuplicate,
@@ -47,13 +45,6 @@ export function StudioQueryWorkspace({
     id: string;
     previous: StudioSeriesVisibility;
   } | null>(null);
-  const activeIds = config.display.activeQueryIds;
-  const visibleQueries = config.queries.filter((query) => !query.hidden);
-  const defaultView = (() => {
-    if (activeIds?.length === 1) return `query:${activeIds[0]}`;
-    if (activeIds?.length) return "configured";
-    return "all";
-  })();
   return (
     <section
       aria-label="Query workspace"
@@ -90,38 +81,6 @@ export function StudioQueryWorkspace({
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-2 pb-6">
-        {visibleQueries.length > 1 ? (
-          <label className="mb-2 flex min-w-0 items-center gap-2 px-1 text-xs">
-            <span className="text-muted-foreground shrink-0">Default view</span>
-            <div className="w-40 min-w-0">
-              <StudioInlineSelect
-                label="Default view"
-                placeholder="All series"
-                value={defaultView}
-                options={[
-                  ...(defaultView === "configured"
-                    ? [{ value: "configured", label: "Selected queries" }]
-                    : []),
-                  { value: "all", label: "All series" },
-                  ...config.queries
-                    .filter(
-                      (query) => !query.hidden || activeIds?.includes(query.id),
-                    )
-                    .map((query) => ({
-                      value: `query:${query.id}`,
-                      label: query.label || query.id,
-                    })),
-                ]}
-                onValueChange={(value) => {
-                  if (value === defaultView) return;
-                  onDefaultQueryIdsChange(
-                    value === "all" ? undefined : [value.slice(6)],
-                  );
-                }}
-              />
-            </div>
-          </label>
-        ) : null}
         {filterState.length ? (
           <div
             className="ph-no-capture text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
@@ -233,7 +192,6 @@ type StudioQueryWorkspaceProps = {
   environmentOverrides: string[];
   invalidQueryIds: string[];
   onFilterValidityChange: (id: string, valid: boolean) => void;
-  onDefaultQueryIdsChange: (ids: string[] | undefined) => void;
   onQueryChange: (id: string, query: StudioQuery) => void;
   onQueryRemove: (id: string) => void;
   onQueryDuplicate: (query: StudioQuery) => void;

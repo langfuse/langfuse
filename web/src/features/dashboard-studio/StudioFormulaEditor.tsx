@@ -237,7 +237,7 @@ export function StudioFormulaEditor({
               onClick={onIsolationChange}
             />
             <span className="text-muted-foreground text-xs">
-              Inputs stay available in Data.
+              The formula keeps its source queries.
             </span>
           </div>
         ) : null}

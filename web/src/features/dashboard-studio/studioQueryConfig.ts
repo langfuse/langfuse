@@ -1,8 +1,10 @@
 import { hashKey } from "@tanstack/react-query";
 import { type StudioResult, type StudioWidgetConfig } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { studioFormulaReferences } from "@/src/features/dashboard/lib/studioExpressions";
-import { validateCurrentStudioConfig } from "./currentStudioExecution";
+import {
+  prepareStudioExpressions,
+  validateCurrentStudioConfig,
+} from "./currentStudioExecution";
 
 export function getStudioApplyBlockReason(
   draft: StudioWidgetConfig,
@@ -88,6 +90,26 @@ export function toStudioQueryConfig(
   };
 }
 
+/** Only sources and their execution scope belong in an experimental HTTP request. */
+export function toStudioSourceRequest(
+  config: StudioWidgetConfig,
+  required: Set<string> | undefined,
+): StudioWidgetConfig {
+  return {
+    ...config,
+    expressions: [],
+    display: {
+      ...config.display,
+      activeQueryIds:
+        config.display.activeQueryIds && required
+          ? config.queries
+              .filter((source) => required.has(source.id))
+              .map((source) => source.id)
+          : config.display.activeQueryIds,
+    },
+  };
+}
+
 export function hasStudioQueryChanges(
   draft: StudioWidgetConfig,
   lastRun: StudioWidgetConfig,
@@ -98,35 +120,28 @@ export function hasStudioQueryChanges(
   );
 }
 
-/** Current-mode arithmetic can reuse the loaded source rows without submitting a new query. */
+/** Widget arithmetic can reuse the loaded source rows without submitting a new query. */
 export function canPreviewStudioFormulasLocally(
   draft: StudioWidgetConfig,
   lastRun: StudioWidgetConfig,
   version: ViewVersion,
 ) {
   if (
-    draft.executionMode !== "current" ||
     hasStudioQueryChanges(
       { ...draft, expressions: lastRun.expressions },
       lastRun,
     ) ||
-    !validateCurrentStudioConfig(draft, version).valid
+    (draft.executionMode === "current" &&
+      !validateCurrentStudioConfig(draft, version).valid)
   )
     return false;
-  const requested = new Set(
-    lastRun.display.activeQueryIds?.length
-      ? lastRun.display.activeQueryIds
-      : lastRun.queries.map((query) => query.id),
-  );
-  const sourceIds = (config: StudioWidgetConfig) =>
-    config.expressions.flatMap((expression) =>
-      studioFormulaReferences(expression.formula).flatMap((ref) => {
-        const [query, metric] = ref.split(".");
-        return metric ? [query!] : [];
-      }),
-    );
-  for (const id of sourceIds(lastRun)) requested.add(id);
-  return sourceIds(draft).every((id) => requested.has(id));
+  try {
+    const previous = prepareStudioExpressions(lastRun, version).required;
+    const next = prepareStudioExpressions(draft, version).required;
+    return [...next].every((id) => previous.has(id));
+  } catch {
+    return false;
+  }
 }
 
 /** Keep unrun data definitions frozen while applying current presentation intent. */

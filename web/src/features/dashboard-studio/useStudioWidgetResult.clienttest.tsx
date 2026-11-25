@@ -104,3 +104,106 @@ it("executes current mode only through production queries, preserves empty means
     fetch.mockRestore();
   }
 });
+
+it("previews experimental chained formulas and period totals locally using a single source-only HTTP request", async () => {
+  const config = createStudioWidget();
+  config.executionMode = "prototype";
+  config.queries[0]!.metrics = [
+    { id: "latency", measure: "latency", aggregation: "p95", percentile: 97 },
+  ];
+  const row = {
+    seriesId: "a.latency",
+    queryId: "a",
+    metricId: "latency",
+    dimensions: {},
+    dimension: null,
+    label: "latency",
+    time: null,
+    value: 5,
+  };
+  const diagnostic = {
+    queryId: "a",
+    status: "complete",
+    durationMs: 12,
+    queryCount: 2,
+    resultRows: 1,
+    rowsRead: 105,
+  };
+  const payload = {
+    result: {
+      data: {
+        json: {
+          status: "complete",
+          rows: [row],
+          series: [],
+          summaries: [{ ...row, value: 10 }],
+          warnings: ["source warning"],
+          diagnostics: [diagnostic],
+        },
+      },
+    },
+  };
+  const requests: string[] = [];
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, options) => {
+      const url = new URL(String(input), "http://localhost");
+      requests.push(decodeURIComponent(url.toString()) + (options?.body ?? ""));
+      return new Response(
+        JSON.stringify(url.searchParams.has("batch") ? [payload] : payload),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    });
+  const Page = api.withTRPC(() => {
+    const [factor, setFactor] = useState(2);
+    const { result } = useStudioWidgetResult(
+      {
+        ...config,
+        expressions: [
+          {
+            id: "scale",
+            label: "Scaled latency",
+            formula: `a.latency * ${factor}`,
+          },
+          { id: "double", label: "Double", formula: "scale * 2" },
+        ],
+      },
+      {
+        projectId: "formula-project",
+        readPath: "v4",
+        dateRange: { from: new Date("2026-11-01"), to: new Date("2026-11-03") },
+        filterState: [],
+      },
+    );
+    const value = result.data?.rows.find((row) => row.queryId === "double");
+    const total = result.data?.summaries.find(
+      (row) => row.queryId === "double",
+    );
+    return (
+      <>
+        <p>
+          {[
+            value?.value,
+            total?.value,
+            result.data?.diagnostics[0]?.rowsRead,
+            result.data?.warnings[0],
+          ].join(" / ")}
+        </p>
+        <button onClick={() => setFactor(3)}>Change arithmetic</button>
+      </>
+    );
+  });
+  try {
+    render(<Page />);
+    await screen.findByText("20 / 40 / 105 / source warning");
+    fireEvent.click(screen.getByRole("button", { name: "Change arithmetic" }));
+    await screen.findByText("30 / 60 / 105 / source warning");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toContain("dashboardStudio.execute");
+    expect(requests[0]).not.toContain("a.latency *");
+    expect(requests[0]).toContain('"expressions":[]');
+    expect(requests[0]).toContain('"percentile":97');
+  } finally {
+    fetch.mockRestore();
+  }
+});

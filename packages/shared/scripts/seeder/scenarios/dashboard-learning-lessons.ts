@@ -37,7 +37,7 @@ Stored scores → attachment IDs   → evaluation badges
 
 **What counts as a root?** The shared root predicate accepts an empty parent ID **or** \`is_app_root = true\`. An application root may have an external parent. Counting root observations and counting distinct trace IDs are therefore different definitions. Migrated data can also include a synthetic trace span.
 
-Open **View this trace** beside the live result. Use the tree to identify the root and its children. In the chart’s **Data** tab each type/name group has one observation. The shared trace ID is what lets the three rows describe one request.`,
+Open **View this trace** beside the live result. Use the tree to identify the root and its children. Each type/name group in the chart has one observation. The shared trace ID is what lets the three rows describe one request.`,
       },
       {
         title: `Choose the population before choosing the aggregation`,
@@ -214,7 +214,7 @@ The POC requests a separate ungrouped result for a period headline when needed. 
 | Error count / observation count with denominator 0 | No defined rate |
 | Failed or incomplete query | Unknown result |
 
-The query engine can fill empty time buckets with aggregate defaults. The adapter also asks for sample counts where needed so an empty mean does not become a plausible zero. The Data tab retains nulls. A chart with no measured numeric values shows an empty state.
+The query engine can fill empty time buckets with aggregate defaults. The adapter also asks for sample counts where needed so an empty mean does not become a plausible zero. Missing means retain a null value. A chart with no measured numeric values shows an empty state.
 
 The error-rate example divides aligned counts and formats the resulting fraction as a percentage. Store \`0.02\` and format it as **2%**. Multiplying by 100 and also using percent formatting produces the wrong answer. Missing operands and zero denominators stay undefined.`,
       },

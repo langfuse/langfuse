@@ -124,7 +124,7 @@ export function DashboardGrid({
   ) => void;
   /** Duplicate a preset card next to it (editable dashboards only). */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
-  onEditStudioPlacement?: (placement: StudioPlacement) => void;
+  onEditStudioPlacement?: (placement: StudioPlacement, tabId?: string) => void;
   onDuplicateStudioPlacement?: (placement: StudioPlacement) => void;
 }) {
   const studioCapability = useDashboardStudioEnabled(projectId);
@@ -246,8 +246,9 @@ export function DashboardGrid({
           }
           onEdit={
             canChange
-              ? () => {
-                  if (onEditStudioPlacement) onEditStudioPlacement(widget);
+              ? (tabId) => {
+                  if (onEditStudioPlacement)
+                    onEditStudioPlacement(widget, tabId);
                   else
                     Router.push(
                       buildDashboardEditorHref({
@@ -258,6 +259,7 @@ export function DashboardGrid({
                           ? `${dateRange.from.getTime()}-${dateRange.to.getTime()}`
                           : undefined,
                         editId: widget.id,
+                        tabId,
                       }),
                     );
                 }

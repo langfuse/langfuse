@@ -103,6 +103,94 @@ function targetFilters(source: Source): FilterState {
   );
 }
 
+/** Infer formula grain and units without restricting source queries to current-mode capabilities. */
+export function prepareStudioExpressions(
+  config: StudioWidgetConfig,
+  version: ViewVersion,
+  mode = config.executionMode ?? "prototype",
+) {
+  const units = new Map<string, string | undefined>();
+  const dimensionsByRef = new Map<string, string[]>();
+  const sourceViews = new Map<string, string>();
+  const aggregations = new Map<string, string>();
+  const timeSeries =
+    config.display.timeSeries ??
+    config.display.chartType.endsWith("TIME_SERIES");
+  for (const source of config.queries) {
+    const declaration = getViewDeclaration(source.view, version);
+    const dimensions = [
+      ...new Set([
+        ...source.dimensions.map((dimension) => dimension.field),
+        ...source.metrics.flatMap(
+          (metric) =>
+            declaration.measures[metric.measure]?.requiresDimension ?? [],
+        ),
+      ]),
+    ];
+    for (const metric of source.metrics) {
+      const ref = `${source.id}.${metric.id}`;
+      let unit = metricUnit(source.view, metric, version);
+      if (mode !== "current") {
+        if (metric.aggregation === "uniq")
+          unit = declaration.measures[metric.measure]?.unit ?? "count";
+        if (
+          metric.aggregation === "histogram" ||
+          (metric.aggregation === "count" && metric.measure === "count")
+        )
+          unit = declaration.measures.count?.unit ?? "count";
+      }
+      units.set(ref, unit);
+      dimensionsByRef.set(ref, dimensions);
+      sourceViews.set(ref, source.view);
+      aggregations.set(ref, metric.aggregation);
+    }
+  }
+  const active = config.display.activeQueryIds;
+  const useAll = active === undefined || (mode === "current" && !active.length);
+  const required = new Set(
+    useAll ? config.queries.map((source) => source.id) : active,
+  );
+  for (const expression of config.expressions) {
+    const refs = studioFormulaReferences(expression.formula);
+    if (!refs.length || refs.some((ref) => !units.has(ref)))
+      throw new Error(
+        "Expressions must reference a query metric or an earlier expression.",
+      );
+    const shapes = new Set(
+      refs.map((ref) =>
+        JSON.stringify([...(dimensionsByRef.get(ref) ?? [])].sort()),
+      ),
+    );
+    if (shapes.size > 1)
+      throw new Error(
+        "Formula inputs must have matching breakdown dimensions.",
+      );
+    const dimensions = dimensionsByRef.get(refs[0]!)!;
+    if (dimensions.length && !timeSeries)
+      throw new Error(
+        "Grouped formulas need a shared domain before top-N truncation. Use a time series or ungrouped inputs.",
+      );
+    const views = new Set(refs.map((ref) => sourceViews.get(ref)));
+    if (dimensions.length && views.size > 1)
+      throw new Error(
+        "Grouped formula inputs must use the same entity source.",
+      );
+    if (refs.some((ref) => aggregations.get(ref) === "histogram"))
+      throw new Error("Histogram bins cannot be scalar formula inputs.");
+    const value = evaluateStudioFormula(
+      expression.formula,
+      new Map(refs.map((ref) => [ref, { value: 1, unit: units.get(ref) }])),
+    );
+    units.set(expression.id, value.unit);
+    dimensionsByRef.set(expression.id, dimensions);
+    sourceViews.set(expression.id, [...views][0]!);
+    aggregations.set(expression.id, "expression");
+    for (const ref of refs)
+      if (ref.includes(".")) required.add(ref.split(".")[0]!);
+  }
+  return { config, units, dimensions: dimensionsByRef, required };
+}
+
 /** Uses the production query contract at origin/main a6f9a82068; no prototype metric parameters. */
 export function createCurrentStudioPlan(
   config: StudioWidgetConfig,
@@ -125,16 +213,19 @@ export function createCurrentStudioPlan(
     throw new Error(
       "Histogram distributions over time need separate bucket domains. Use a single-period histogram in current mode.",
     );
+  const expressionPlan = prepareStudioExpressions(
+    config,
+    context.version,
+    "current",
+  );
   const plan: CurrentStudioPlan = {
     config,
     version: context.version,
     requests: [],
     warnings: [],
-    units: new Map(),
-    dimensions: new Map(),
+    units: expressionPlan.units,
+    dimensions: expressionPlan.dimensions,
   };
-  const sourceViews = new Map<string, string>();
-  const aggregations = new Map<string, string>();
   for (const source of config.queries) {
     if (!source.metrics.length)
       throw new Error("Choose at least one metric for each source query.");
@@ -186,11 +277,6 @@ export function createCurrentStudioPlan(
         throw new Error(
           "Histogram measures require a histogram chart; histogram charts require histogram measures.",
         );
-      const ref = `${source.id}.${metric.id}`;
-      plan.units.set(ref, metricUnit(source.view, metric, context.version));
-      plan.dimensions.set(ref, dimensions);
-      sourceViews.set(ref, source.view);
-      aggregations.set(ref, metric.aggregation);
     }
     const global = mapLegacyUiTableFilterToView(source.view, context.filters);
     if (global.length !== context.filters.length)
@@ -347,51 +433,7 @@ export function createCurrentStudioPlan(
       }
     }
   }
-  const required = new Set(
-    config.display.activeQueryIds?.length
-      ? config.display.activeQueryIds
-      : config.queries.map((source) => source.id),
-  );
-  for (const expression of config.expressions) {
-    const refs = studioFormulaReferences(expression.formula);
-    if (!refs.length || refs.some((ref) => !plan.units.has(ref)))
-      throw new Error(
-        "Expressions must reference a query metric or an earlier expression.",
-      );
-    const shapes = new Set(
-      refs.map((ref) =>
-        JSON.stringify([...(plan.dimensions.get(ref) ?? [])].sort()),
-      ),
-    );
-    if (shapes.size > 1)
-      throw new Error(
-        "Formula inputs must have matching breakdown dimensions.",
-      );
-    const dimensions = plan.dimensions.get(refs[0]!)!;
-    if (dimensions.length && !timeSeries)
-      throw new Error(
-        "Grouped formulas need a shared domain before top-N truncation. Use a time series or ungrouped inputs.",
-      );
-    const views = new Set(refs.map((ref) => sourceViews.get(ref)));
-    if (dimensions.length && views.size > 1)
-      throw new Error(
-        "Grouped formula inputs must use the same entity source.",
-      );
-    if (refs.some((ref) => aggregations.get(ref) === "histogram"))
-      throw new Error("Histogram bins cannot be scalar formula inputs.");
-    const value = evaluateStudioFormula(
-      expression.formula,
-      new Map(
-        refs.map((ref) => [ref, { value: 1, unit: plan.units.get(ref) }]),
-      ),
-    );
-    plan.units.set(expression.id, value.unit);
-    plan.dimensions.set(expression.id, dimensions);
-    sourceViews.set(expression.id, [...views][0]!);
-    aggregations.set(expression.id, "expression");
-    for (const ref of refs)
-      if (ref.includes(".")) required.add(ref.split(".")[0]!);
-  }
+  const required = expressionPlan.required;
   plan.requests = plan.requests.filter((request) =>
     required.has(request.sourceId),
   );
@@ -576,6 +618,24 @@ export function normalizeCurrentStudioResults(
       ...(failed.has(source.id) ? { error: "The query failed." } : {}),
     });
   }
+  result.series = [...series.values()];
+  if (failed.size) result.status = successful.size ? "partial" : "error";
+  return applyStudioExpressions(plan, result);
+}
+
+/** Apply arithmetic to measured rows and independently queried period totals without mutating cached data. */
+export function applyStudioExpressions(
+  plan: Pick<CurrentStudioPlan, "config" | "units">,
+  raw: StudioResult,
+): StudioResult {
+  if (!plan.config.expressions.length) return raw;
+  const result = { ...raw, rows: [...raw.rows], summaries: [...raw.summaries] };
+  const series = new Map(raw.series.map((item) => [item.id, item]));
+  const successful = new Set(
+    raw.diagnostics
+      .filter((d) => d.status === "complete")
+      .map((d) => d.queryId),
+  );
   const compute = (destination: StudioRow[], summary: boolean) => {
     const byRef = new Map<string, StudioRow[]>();
     for (const row of destination) {
@@ -619,10 +679,7 @@ export function normalizeCurrentStudioResults(
                 (metric) => `${source.id}.${metric.id}` === ref,
               )?.aggregation === "count";
             context.values.set(ref, {
-              value:
-                count && successful.has(source!.id) && !failed.has(source!.id)
-                  ? 0
-                  : null,
+              value: count && successful.has(source!.id) ? 0 : null,
               unit: plan.units.get(ref),
             });
           }
@@ -631,24 +688,31 @@ export function normalizeCurrentStudioResults(
           context.row.dimension === null
             ? expression.id
             : `${expression.id}:${JSON.stringify(context.row.dimensions)}`;
+        const label = context.row.dimension
+          ? `${expression.label} · ${context.row.dimension}`
+          : expression.label;
         const row = {
           seriesId: id,
           queryId: expression.id,
           metricId: expression.id,
-          label: expression.label,
+          label,
           dimensions: context.row.dimensions,
           dimension: context.row.dimension,
           time: context.row.time,
           value: value.value,
         };
-        append(destination, row);
+        if (result.rows.length + result.summaries.length >= 100_000)
+          throw new Error(
+            "This widget exceeds the 100,000 result-cell limit. Narrow its range or breakdown.",
+          );
+        destination.push(row);
         output.push(row);
         if (!summary)
           series.set(id, {
             id,
             queryId: expression.id,
             metricId: expression.id,
-            label: expression.label,
+            label,
             dimensions: row.dimensions,
             aggregation: "expression",
             unit: expression.unit ?? value.unit,
@@ -661,6 +725,5 @@ export function normalizeCurrentStudioResults(
   compute(result.rows, false);
   compute(result.summaries, true);
   result.series = [...series.values()];
-  if (failed.size) result.status = successful.size ? "partial" : "error";
   return result;
 }

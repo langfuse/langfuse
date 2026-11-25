@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PencilIcon } from "@langfuse/icons";
 import {
+  normalizeStudioWidget,
   type DashboardDomain,
   type FilterState,
   type HomeDashboardPresetId,
@@ -66,10 +67,13 @@ function QueryOutput({
 }: {
   cell: ReportQuery;
   context: OutputContext;
-  onEdit?: (cell: ReportQuery) => void;
+  onEdit?: (cell: ReportQuery, tabId?: string) => void;
 }) {
-  const current = cell.config.executionMode === "current";
-  const inputs = cell.config.queries.length;
+  const { tabs } = normalizeStudioWidget(cell.config);
+  const [activeId, setActiveId] = useState<string>();
+  const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0]!;
+  const current = activeTab.chart.executionMode === "current";
+  const inputs = activeTab.chart.queries.length;
   return (
     <figure className="min-w-0">
       <div className="h-[32rem] min-w-0 sm:h-[24rem]">
@@ -79,6 +83,7 @@ function QueryOutput({
           dateRange={context.dateRange}
           filterState={context.filterState}
           config={cell.config}
+          onTabChange={setActiveId}
         />
       </div>
       <figcaption className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 px-1 pt-2 text-xs">
@@ -92,7 +97,7 @@ function QueryOutput({
             variant="ghost"
             icon={PencilIcon}
             text="Edit chart"
-            onClick={() => onEdit(cell)}
+            onClick={() => onEdit(cell, activeTab.id)}
           />
         )}
       </figcaption>
@@ -120,7 +125,7 @@ function ReportComparisons({
 }: {
   pairs: Comparison[];
   context: OutputContext;
-  onEdit?: (cell: ReportQuery) => void;
+  onEdit?: (cell: ReportQuery, tabId?: string) => void;
   selected?: string;
   onSelect: (id: string) => void;
 }) {
@@ -223,7 +228,7 @@ export function ReportCells({
 }: {
   cells: ReportPlacement[];
   context: OutputContext;
-  onEditChart?: (cell: ReportQuery) => void;
+  onEditChart?: (cell: ReportQuery, tabId?: string) => void;
   onEditNote?: (cell: ReportNote) => void;
   editingNoteId?: string;
   noteEditor?: React.ReactNode;

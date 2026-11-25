@@ -6,6 +6,7 @@ import {
   DashboardDefinitionSchema,
   type DashboardDefinition,
   type DashboardDomain,
+  normalizeStudioWidget,
   type StudioWidgetConfig,
   type HomeDashboardPresetId,
   type FilterState,
@@ -173,6 +174,9 @@ function StudioWorkspace({
   );
   const isDirty =
     documentDirty || JSON.stringify(filters) !== JSON.stringify(savedFilters);
+  const [editorTabId, setEditorTabId] = useState<string | undefined>(() =>
+    typeof router.query.tab === "string" ? router.query.tab : undefined,
+  );
   const [editor, setEditor] = useState<StudioPlacement | null>(() => {
     const initial = initialDashboard.definition.widgets.find(
       (item) => item.id === router.query.edit,
@@ -230,7 +234,8 @@ function StudioWorkspace({
     x_size: 6,
     y_size: 5,
   });
-  const openEditor = (placement: StudioPlacement) => {
+  const openEditor = (placement: StudioPlacement, tabId?: string) => {
+    setEditorTabId(tabId);
     setEditor(placement);
     setMessage(null);
     track("editor_opened", { widgetKind: placement.type });
@@ -302,7 +307,7 @@ function StudioWorkspace({
         id: index === 0 && anchor ? anchor.id : crypto.randomUUID(),
         ...position,
         ...size,
-        config,
+        config: normalizeStudioWidget(config),
       });
     }
     store.getState().actions.replace({
@@ -336,6 +341,7 @@ function StudioWorkspace({
                   ? router.query.editor
                   : undefined,
               )}
+              initialTabId={editorTabId}
               initialValue={editor.config}
               isNew={!definition.widgets.some((item) => item.id === editor.id)}
               dashboardName={initialDashboard.name}

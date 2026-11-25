@@ -207,7 +207,7 @@ export function buildDashboardLearningReport({
   note(
     "score_readout",
     "A mean and its evidence",
-    "Hover a point on the trend. Its evaluation count comes back with its mean. In **Data**, both appear on the same row. In the recorded August 21–November 19, 2026 example, the week of November 9 averaged 0.586 across 234 evaluations. The partial week of November 16 averaged 0.869 across 642. Late scores contribute to that final population. Your selected dates and project determine which evaluations appear in the chart. To interpret a rise in the mean, first establish which operations were evaluated each week.",
+    "Hover a point on the trend. Its evaluation count comes back with its mean. The chart shows both values for the selected bucket. In the recorded August 21–November 19, 2026 example, the week of November 9 averaged 0.586 across 234 evaluations. The partial week of November 16 averaged 0.869 across 642. Late scores contribute to that final population. Your selected dates and project determine which evaluations appear in the chart. To interpret a rise in the mean, first establish which operations were evaluated each week.",
   );
   note(
     "observe_score_clock",
@@ -237,7 +237,7 @@ export function buildDashboardLearningReport({
     ...workloadCost,
     title: "Three populations, three requests",
     description:
-      "Open Inspect to count the source requests. Result rows and underlying rows read measure different things.",
+      "In the editor, count the independent source queries in this chart. Result rows and underlying rows read measure different things.",
   });
   notes("performance", 2);
   note(
@@ -284,8 +284,8 @@ export function buildDashboardLearningReport({
   chart("p10", example("custom_percentile"));
   note(
     "percentile_sql",
-    "Check the percentile in Inspect",
-    "Choose **Inspect → Generated queries** on the generation chart. The argument in `quantile(0.1)` selects the 10th percentile of the matching durations. The prototype keeps the base metric’s output column name, so the SQL can give this result the alias `p50_latency`. The editor and chart label it p10 using the requested parameter. The proposed contract needs a stable identity and a visible label for each distinct metric.",
+    "Read the percentile in SQL",
+    "The generation chart computes p10 using the SQL aggregate `quantile(0.1)(latency)`. The argument in `quantile(0.1)` selects the 10th percentile of the matching durations. The prototype keeps the base metric’s output column name, so the SQL can give this result the alias `p50_latency`. The editor and chart label it p10 using the requested parameter. The proposed contract needs a stable identity and a visible label for each distinct metric.",
   );
   chart("threshold_bands", example("fixed_bands"));
   note(

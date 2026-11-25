@@ -26,29 +26,32 @@ function initial() {
 }
 
 describe("widget execution and live presentation", () => {
-  it("recalculates valid formulas only over sources already requested by the last preview", () => {
-    const saved = initial();
-    saved.executionMode = "current";
-    saved.queries.push({
-      ...structuredClone(saved.queries[0]!),
-      id: "b",
-      label: "Second",
-    });
-    saved.display.activeQueryIds = ["a"];
-    const edited = structuredClone(saved);
-    edited.expressions[0]!.formula = "a.count / 2";
-    expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(true);
-    edited.expressions[0]!.formula = "a.count / b.count";
-    expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
-    delete saved.display.activeQueryIds;
-    delete edited.display.activeQueryIds;
-    expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(true);
-    edited.queries[0]!.dimensions = [{ field: "level" }];
-    expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
-    edited.queries[0]!.dimensions = [];
-    edited.expressions[0]!.formula = "a.count /";
-    expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
-  });
+  it.each(["current", "prototype"] as const)(
+    "recalculates valid %s formulas only over sources already requested by the last preview",
+    (mode) => {
+      const saved = initial();
+      saved.executionMode = mode;
+      saved.queries.push({
+        ...structuredClone(saved.queries[0]!),
+        id: "b",
+        label: "Second",
+      });
+      saved.display.activeQueryIds = ["a"];
+      const edited = structuredClone(saved);
+      edited.expressions[0]!.formula = "a.count / 2";
+      expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(true);
+      edited.expressions[0]!.formula = "a.count / b.count";
+      expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
+      delete saved.display.activeQueryIds;
+      delete edited.display.activeQueryIds;
+      expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(true);
+      edited.queries[0]!.dimensions = [{ field: "level" }];
+      expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
+      edited.queries[0]!.dimensions = [];
+      edited.expressions[0]!.formula = "a.count /";
+      expect(canPreviewStudioFormulasLocally(edited, saved, "v2")).toBe(false);
+    },
+  );
 
   it("applies only a current complete preview, including empty data and cached presentation edits", () => {
     const lastRun = initial();
