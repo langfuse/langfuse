@@ -16,6 +16,7 @@
 ## High-Signal Entry Points
 
 - Main exports: `src/index.ts`
+- Dashboard block formats live in `src/features/dashboards/`. Normalize multi-query charts for display or editing; API reads and round-trips preserve their stored configuration version.
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
 - CloudWatch metrics: `recordGauge` batches values; windowed measurements can

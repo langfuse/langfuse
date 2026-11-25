@@ -1,41 +1,47 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  multiQueryConfigSchema,
-  type MultiQueryConfig,
+  multiQueryConfigV2Schema,
+  multiQueryTabSchema,
+  normalizeMultiQueryConfig,
+  multiQueryTabAsChart,
+  type MultiQueryConfigV2,
+  type MultiQueryTab,
+  type SavedMultiQueryConfig,
 } from "@langfuse/shared/dashboards";
 import {
   PlusIcon,
-  TrashIcon,
   PauseIcon,
   PlayIcon,
   RefreshCw,
+  EllipsisVertical,
 } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  buildMultiQueryPlan,
-  createMultiQueryConfig,
-  type MultiQuerySource,
-} from "./multiQueryModel";
-import { MultiQueryResultView } from "./MultiQueryResultView";
-import { formatDateRange } from "@/src/utils/date-range-utils";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { formatDateRange } from "@/src/utils/date-range-utils";
+import { buildMultiQueryPlan, createMultiQueryConfig } from "./multiQueryModel";
+import { MultiQueryResultView } from "./MultiQueryResultView";
 import { ChartTypePicker } from "./ChartTypePicker";
-import { MultiQuerySourceEditor } from "./MultiQuerySourceEditor";
+import { MultiQueryTabSources } from "./MultiQueryTabSources";
+import {
+  createEditorTab,
+  nextEditorId,
+  incompatibleTabUnits,
+  splitMultiQueryTabByUnit,
+  unitName,
+} from "./multiQueryTabEditing";
 import {
   useMultiQueryWidget,
   type MultiQueryWidgetContext,
 } from "./useMultiQueryWidget";
 
-const resolveChart = zodResolver(multiQueryConfigSchema);
+const noInvalidSources: ReadonlySet<string> = new Set();
 
 export function MultiQueryEditor({
   initial,
@@ -48,70 +54,98 @@ export function MultiQueryEditor({
   savePending = false,
   saveError,
 }: MultiQueryWidgetContext & {
-  initial: MultiQueryConfig | undefined;
-  onSave: (config: MultiQueryConfig) => void | Promise<void>;
+  initial: SavedMultiQueryConfig | undefined;
+  onSave: (config: MultiQueryConfigV2) => void | Promise<void>;
   onCancel: () => void;
   savePending?: boolean;
   saveError?: string;
 }) {
-  const {
-    watch,
-    register,
-    setValue,
-    handleSubmit,
-    setError,
-    formState: { errors },
-  } = useForm<MultiQueryConfig>({
-    defaultValues: initial ?? createMultiQueryConfig(),
-    resolver: (values, context, options) =>
-      resolveChart(values, context, { ...options }),
+  const [initialDraft] = useState(() =>
+    normalizeMultiQueryConfig(initial ?? createMultiQueryConfig()),
+  );
+  const { watch, setValue } = useForm<MultiQueryConfigV2>({
+    defaultValues: initialDraft,
   });
   const config = watch();
+  const [tabId, setTabId] = useState(config.tabs[0]!.id);
+  const [visited, setVisited] = useState<ReadonlySet<string>>(
+    () => new Set([tabId]),
+  );
+  const [invalidFilters, setInvalidFilters] = useState<
+    Record<string, ReadonlySet<string>>
+  >({});
+  const [unverified, setUnverified] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [enabled, setEnabled] = useState(true);
-  const [invalidSourceIds, setInvalidSourceIds] = useState<string[]>([]);
-  const incompleteSources = config.queries.filter((source) =>
-    invalidSourceIds.includes(source.id),
-  );
-  const [editing, setEditing] = useState(config.queries[0]!.id);
-  const [mobileTab, setMobileTab] = useState("series");
+  const [mobileArea, setMobileArea] = useState("series");
+  const [submitError, setSubmitError] = useState("");
   const capture = usePostHogClientCapture();
+  const active = config.tabs.find((t) => t.id === tabId) ?? config.tabs[0]!;
   const context = { projectId, dateRange, filterState, readPath };
+  const activeFiltersComplete = !invalidFilters[active.id]?.size;
   const runtime = useMultiQueryWidget(
-    config,
+    active,
     context,
-    enabled && incompleteSources.length === 0,
+    enabled && activeFiltersComplete,
   );
-  const parsed = multiQueryConfigSchema.safeParse(config);
-  const definitionError: string | null = (() => {
-    try {
-      if (parsed.success)
-        buildMultiQueryPlan(config, {
+  const plotUnits = incompatibleTabUnits(active, readPath);
+  const schema = multiQueryConfigV2Schema.safeParse(config);
+  const firstInvalidTab = config.tabs.find((t) => invalidFilters[t.id]?.size);
+  const schemaIssue = !schema.success ? schema.error.issues[0] : undefined;
+  const schemaTab =
+    schemaIssue?.path[0] === "tabs" && typeof schemaIssue.path[1] === "number"
+      ? config.tabs[schemaIssue.path[1]]
+      : undefined;
+  const mixedTab = config.tabs.find(
+    (t) => incompatibleTabUnits(t, readPath).length > 1,
+  );
+  const checkedTab =
+    enabled &&
+    activeFiltersComplete &&
+    !runtime.validationError &&
+    runtime.result.status === "complete";
+  const inactivePending = config.tabs.find(
+    (t) => t.id !== active.id && unverified.has(t.id),
+  );
+  const definitionError = (() => {
+    if (!schema.success) return;
+    for (const tab of config.tabs) {
+      try {
+        buildMultiQueryPlan(multiQueryTabAsChart(tab), {
           ...context,
-          dateRange: dateRange ?? {
-            from: new Date("2026-01-01T00:00:00Z"),
-            to: new Date("2026-01-02T00:00:00Z"),
-          },
+          dateRange: runtime.dateRange,
         });
-    } catch (error) {
-      return error instanceof Error
-        ? error.message
-        : "Check the series configuration";
+      } catch (error) {
+        return {
+          tab,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Check the series configuration",
+        };
+      }
     }
-    return null;
   })();
   const error =
-    saveError ??
-    errors.root?.save?.message ??
-    (!parsed.success
-      ? parsed.error.issues[0]?.message
-      : (definitionError ?? runtime.validationError));
+    saveError ||
+    submitError ||
+    (firstInvalidTab
+      ? "Finish or remove the incomplete filter."
+      : (schemaIssue?.message ??
+        definitionError?.message ??
+        runtime.validationError));
+  const errorTab = firstInvalidTab ?? schemaTab ?? definitionError?.tab;
+  const reviewTab = [errorTab, mixedTab, inactivePending].find(
+    (tab) => tab && tab.id !== active.id,
+  );
   const canSave =
-    incompleteSources.length === 0 &&
-    parsed.success &&
+    checkedTab &&
+    schema.success &&
+    !firstInvalidTab &&
     !definitionError &&
-    !runtime.validationError &&
-    runtime.result.status === "complete" &&
-    enabled &&
+    !mixedTab &&
+    !inactivePending &&
     !savePending;
   const track = (action: string, count?: number) =>
     capture("dashboard:block_interaction", {
@@ -120,334 +154,234 @@ export function MultiQueryEditor({
       count,
       isV4: readPath === "v4",
     });
-  const nextId = (prefix: string, existing: { id: string }[]) => {
-    let index = 1;
-    while (existing.some((item) => item.id === `${prefix}${index}`)) index++;
-    return `${prefix}${index}`;
-  };
-  const updateQueries = (queries: MultiQuerySource[]) => {
-    setInvalidSourceIds((current) =>
-      current.filter((id) => queries.some((query) => query.id === id)),
+  const changeTab = (tab: MultiQueryTab) =>
+    setValue(
+      "tabs",
+      config.tabs.map((t) => (t.id === tab.id ? tab : t)),
     );
-    const views = config.views
-      ?.map((view) => ({
-        ...view,
-        queryIds: view.queryIds.filter((id) =>
-          queries.some((query) => query.id === id),
-        ),
-      }))
-      .filter((view) => view.queryIds.length > 0);
-    setValue("queries", queries);
-    setValue("views", views);
-    if (!views?.some((view) => view.id === config.defaultViewId)) {
-      setValue("defaultViewId", undefined);
+  const select = (id: string) => {
+    const savedTab =
+      initial && initialDraft.tabs.find((t) => t.id === active.id);
+    const unchanged =
+      savedTab && JSON.stringify(savedTab) === JSON.stringify(active);
+    setUnverified((prev) => {
+      const next = new Set(prev);
+      if (checkedTab || unchanged) next.delete(active.id);
+      else next.add(active.id);
+      return next;
+    });
+    setTabId(id);
+    setVisited((prev) => new Set([...prev, id]));
+    track("multi_query_tab_selected");
+  };
+  const add = (duplicate = false) => {
+    const id = nextEditorId("tab", config.tabs);
+    const tab = duplicate
+      ? {
+          ...structuredClone(active),
+          id,
+          label: (active.label + " copy").slice(0, 200),
+        }
+      : createEditorTab(id, "Tab " + (config.tabs.length + 1));
+    setValue("tabs", [...config.tabs, tab]);
+    select(id);
+    track(
+      duplicate ? "multi_query_tab_duplicated" : "multi_query_tab_added",
+      config.tabs.length + 1,
+    );
+  };
+  const remove = () => {
+    const tabs = config.tabs.filter((t) => t.id !== active.id);
+    select(tabs[Math.max(0, config.tabs.indexOf(active) - 1)]!.id);
+    setValue("tabs", tabs);
+    setInvalidFilters((prev) => ({ ...prev, [active.id]: noInvalidSources }));
+    track("multi_query_tab_removed", tabs.length);
+  };
+  const move = (unit: string) => {
+    const id = nextEditorId("tab", config.tabs);
+    const [original, moved] = splitMultiQueryTabByUnit(
+      active,
+      unit,
+      readPath,
+      id,
+    );
+    setValue(
+      "tabs",
+      config.tabs.flatMap((t) =>
+        t.id === active.id ? [original, moved] : [t],
+      ),
+    );
+    select(id);
+    track("multi_query_series_moved_to_tab");
+  };
+  const changeInvalid = (tabId: string, sourceId: string, invalid: boolean) => {
+    setInvalidFilters((prev) => {
+      const previous = prev[tabId] ?? noInvalidSources;
+      if (previous.has(sourceId) === invalid) return prev;
+      const next = new Set(previous);
+      if (invalid) next.add(sourceId);
+      else next.delete(sourceId);
+      return { ...prev, [tabId]: next };
+    });
+  };
+  const save = async () => {
+    if (!canSave || !schema.success) return;
+    try {
+      setSubmitError("");
+      await onSave(schema.data);
+    } catch {
+      setSubmitError("The chart could not be saved. Try again.");
     }
   };
-  const save = handleSubmit(async (validated) => {
-    if (!canSave) return;
-    try {
-      await onSave(validated);
-    } catch {
-      setError("root.save", {
-        type: "server",
-        message:
-          "The chart could not be saved. Try again, or reload if someone else changed the dashboard.",
-      });
-    }
-  });
-  const previewContent = enabled ? (
-    <MultiQueryResultView config={config} runtime={runtime} />
-  ) : (
-    <VisualizationFrame
-      content={{
-        type: "empty",
-        message: "Preview paused",
-        description: "Resume to load the latest series before saving.",
-      }}
-    />
-  );
   return (
     <div className="ph-no-capture flex h-[min(75vh,54rem)] min-h-80 min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        {config.tabs.length > 1 && (
+          <div className="min-w-0 flex-1">
+            <Tabs value={active.id} onValueChange={select}>
+              <Tabs.List
+                variant="underline"
+                overflow="menu"
+                aria-label="Widget tabs"
+              >
+                {config.tabs.map((t) => (
+                  <Tabs.Trigger
+                    key={t.id}
+                    value={t.id}
+                    label={t.label || "Untitled tab"}
+                  />
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </div>
+        )}
+        <Button
+          text="Add tab"
+          size="sm"
+          variant="ghost"
+          icon={PlusIcon}
+          disabled={config.tabs.length >= 9}
+          onClick={() => add()}
+        />
+        <DropdownMenu
+          noCapture
+          ariaLabel="Tab actions"
+          items={[
+            {
+              id: "duplicate",
+              type: "item",
+              title: "Duplicate tab",
+              disabled:
+                config.tabs.length >= 9 || !activeFiltersComplete
+                  ? {
+                      reason:
+                        config.tabs.length >= 9
+                          ? "This widget has nine tabs."
+                          : "Finish the series filters before duplicating this tab.",
+                    }
+                  : undefined,
+              onClick: () => add(true),
+            },
+            ...(config.tabs.length > 1
+              ? [
+                  {
+                    id: "first",
+                    type: "item" as const,
+                    title: "Make first tab",
+                    disabled:
+                      config.tabs[0]!.id === active.id
+                        ? { reason: "This tab already opens first." }
+                        : undefined,
+                    onClick: () => {
+                      setValue("tabs", [
+                        active,
+                        ...config.tabs.filter((t) => t.id !== active.id),
+                      ]);
+                      track("multi_query_tab_reordered");
+                    },
+                  },
+                  {
+                    id: "remove",
+                    type: "item" as const,
+                    title: "Remove tab",
+                    onClick: remove,
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {({ getTriggerProps }) => (
+            <IconButton
+              {...getTriggerProps()}
+              label="Tab actions"
+              icon={EllipsisVertical}
+              size="sm"
+            />
+          )}
+        </DropdownMenu>
+      </div>
       <div className="md:hidden">
-        <Tabs value={mobileTab} onValueChange={setMobileTab}>
+        <Tabs value={mobileArea} onValueChange={setMobileArea}>
           <Tabs.List variant="inset" size="sm" aria-label="Chart editor areas">
             <Tabs.Trigger value="series" label="Series" />
             <Tabs.Trigger value="preview" label="Preview" />
           </Tabs.List>
         </Tabs>
       </div>
-      <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[minmax(17rem,22rem)_minmax(0,1fr)]">
         <div
-          className={`${mobileTab === "series" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-3 overflow-y-auto md:flex`}
+          className={`${mobileArea === "series" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-3 overflow-y-auto md:flex`}
         >
           <label className="flex flex-col gap-1 text-xs">
-            Title
+            Widget title
             <Input
               aria-label="Chart title"
-              {...register("title")}
               value={config.title}
               maxLength={200}
+              onChange={(e) => setValue("title", e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs">
-            Description
-            <Input
-              aria-label="Chart description"
-              {...register("description")}
-              value={config.description}
-              maxLength={10000}
-            />
-          </label>
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">
-              Series · {config.queries.length}/5
-            </h3>
-            {config.queries.length < 5 ? (
-              <Button
-                text="Add series"
-                icon={PlusIcon}
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const id = nextId("series_", config.queries);
-                  updateQueries([
-                    ...config.queries,
-                    {
-                      ...createMultiQueryConfig().queries[0]!,
-                      id,
-                      label: `Series ${String.fromCharCode(65 + config.queries.length)}`,
-                    },
-                  ]);
-                  setEditing(id);
-                  track("multi_query_series_added", config.queries.length + 1);
-                }}
-              />
-            ) : null}
-          </div>
-          {config.queries.map((source, index) => (
-            <MultiQuerySourceEditor
-              key={source.id}
-              source={source}
-              index={index}
-              context={context}
-              expanded={source.id === editing}
-              hasInvalidFilters={invalidSourceIds.includes(source.id)}
-              onHasInvalidFiltersChange={(invalid) => {
-                setInvalidSourceIds((current) => {
-                  if (!invalid) return current.filter((id) => id !== source.id);
-                  if (current.includes(source.id)) return current;
-                  return [...current, source.id];
-                });
-              }}
-              onExpandedChange={() =>
-                setEditing(editing === source.id ? "" : source.id)
-              }
-              onChange={(next) =>
-                updateQueries(
-                  config.queries.map((query) =>
-                    query.id === source.id ? next : query,
-                  ),
-                )
-              }
-              onDuplicate={
-                config.queries.length < 5
-                  ? () => {
-                      const id = nextId("series_", config.queries);
-                      updateQueries([
-                        ...config.queries,
-                        {
-                          ...structuredClone(source),
-                          id,
-                          label: `${source.label} copy`,
-                        },
-                      ]);
-                      setEditing(id);
-                      track(
-                        "multi_query_series_duplicated",
-                        config.queries.length + 1,
-                      );
-                    }
-                  : undefined
-              }
-              onRemove={
-                config.queries.length > 1
-                  ? () => {
-                      updateQueries(
-                        config.queries.filter(
-                          (query) => query.id !== source.id,
-                        ),
-                      );
-                      track(
-                        "multi_query_series_removed",
-                        config.queries.length - 1,
-                      );
-                    }
-                  : undefined
-              }
-            />
-          ))}
-          <details className="rounded border p-3 text-xs">
-            <summary className="cursor-pointer font-medium">
-              Saved views
+          <details
+            className="text-xs"
+            open={config.description ? true : undefined}
+          >
+            <summary className="text-muted-foreground cursor-pointer">
+              Description
             </summary>
-            <div className="flex flex-col gap-3 pt-3">
-              <p className="text-muted-foreground">
-                Let viewers switch between named sets of series.
-              </p>
-              {(config.views ?? []).map((view, viewIndex) => (
-                <div
-                  key={view.id}
-                  className="flex flex-col gap-2 rounded border p-2"
-                >
-                  <div className="flex min-w-0 items-center gap-1">
-                    <div className="min-w-0 flex-1">
-                      <Input
-                        aria-label="View name"
-                        value={view.label}
-                        onChange={(event) =>
-                          setValue(
-                            `views.${viewIndex}.label`,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </div>
-                    <IconButton
-                      label="Remove view"
-                      icon={TrashIcon}
-                      size="sm"
-                      onClick={() => {
-                        setValue(
-                          "views",
-                          config.views?.filter((item) => item.id !== view.id),
-                        );
-                        if (config.defaultViewId === view.id)
-                          setValue("defaultViewId", undefined);
-                        track("multi_query_view_removed");
-                      }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1" aria-label="View series">
-                    {config.queries.map((query) => (
-                      <label
-                        key={query.id}
-                        className="flex min-w-0 items-center gap-2 text-xs"
-                      >
-                        <Checkbox
-                          checked={view.queryIds.includes(query.id)}
-                          onCheckedChange={(checked) => {
-                            const queryIds = checked
-                              ? [...view.queryIds, query.id]
-                              : view.queryIds.filter((id) => id !== query.id);
-                            setValue(`views.${viewIndex}.queryIds`, queryIds);
-                            track(
-                              "multi_query_view_series_changed",
-                              queryIds.length,
-                            );
-                          }}
-                        />
-                        <span className="min-w-0 break-words">
-                          {query.label || query.id}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
+            <div className="pt-2">
+              <Input
+                aria-label="Chart description"
+                value={config.description}
+                maxLength={10000}
+                onChange={(e) => setValue("description", e.target.value)}
+              />
+            </div>
+          </details>
+          {config.tabs
+            .filter((t) => visited.has(t.id))
+            .map((t) => (
+              <div key={t.id} hidden={active.id !== t.id}>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <MultiQueryTabSources
+                    tab={t}
+                    context={context}
+                    onChange={changeTab}
+                    invalidSources={invalidFilters[t.id] ?? noInvalidSources}
+                    onInvalidChange={(sourceId, invalid) =>
+                      changeInvalid(t.id, sourceId, invalid)
+                    }
+                    track={track}
+                    multipleTabs={config.tabs.length > 1}
+                  />
                 </div>
-              ))}
-              {(config.views?.length ?? 0) < 8 ? (
-                <Button
-                  text="Add view"
-                  icon={PlusIcon}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const view = {
-                      id: nextId("view_", config.views ?? []),
-                      label: `View ${(config.views?.length ?? 0) + 1}`,
-                      queryIds: config.queries.map((query) => query.id),
-                    };
-                    setValue("views", [...(config.views ?? []), view]);
-                    track("multi_query_view_added");
-                  }}
-                />
-              ) : null}
-              {config.views?.length ? (
-                <SelectInput
-                  noCapture
-                  aria-label="Default view"
-                  placeholder="All series"
-                  value={config.defaultViewId ?? "all"}
-                  options={[
-                    { value: "all", label: "All series" },
-                    ...config.views.map((view) => ({
-                      value: view.id,
-                      label: view.label || "Unnamed view",
-                    })),
-                  ]}
-                  onValueChange={(value) => {
-                    setValue(
-                      "defaultViewId",
-                      value === "all" ? undefined : value,
-                    );
-                    runtime.selectView(undefined);
-                    track("multi_query_default_view_changed");
-                  }}
-                />
-              ) : null}
-            </div>
-          </details>
-          <details className="rounded border p-3 text-xs">
-            <summary className="cursor-pointer font-medium">
-              Display options
-            </summary>
-            <div className="flex flex-col gap-3 pt-3">
-              <label className="flex items-center justify-between gap-2">
-                Rows per series
-                <Input
-                  aria-label="Rows per series"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={config.display.rowLimit ?? 100}
-                  onChange={(event) =>
-                    setValue("display.rowLimit", Number(event.target.value))
-                  }
-                />
-              </label>
-              <label className="flex items-center justify-between gap-2">
-                Histogram bins
-                <Input
-                  aria-label="Histogram bins"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={config.display.bins ?? 10}
-                  onChange={(event) =>
-                    setValue("display.bins", Number(event.target.value))
-                  }
-                />
-              </label>
-              <SelectInput
-                aria-label="Legend"
-                placeholder="Show legend"
-                value={config.display.legend === false ? "hidden" : "visible"}
-                options={[
-                  { value: "visible", label: "Show legend" },
-                  { value: "hidden", label: "Hide legend" },
-                ]}
-                onValueChange={(value) => {
-                  setValue("display.legend", value === "visible");
-                  track("multi_query_legend_visibility_changed");
-                }}
-              />
-            </div>
-          </details>
+              </div>
+            ))}
         </div>
         <div
-          className={`${mobileTab === "preview" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-2 [--multi-query-plot-height:clamp(16rem,38vh,30rem)] md:flex`}
+          className={`${mobileArea === "preview" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-2 [--multi-query-plot-height:clamp(16rem,38vh,30rem)] md:flex`}
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-col gap-1">
+            <div className="min-w-0">
               <h3 className="text-sm font-bold">Live preview</h3>
               <p className="text-muted-foreground text-xs">
                 {formatDateRange(runtime.dateRange.from, runtime.dateRange.to)}
@@ -457,7 +391,7 @@ export function MultiQueryEditor({
                   <summary className="cursor-pointer">
                     Dashboard filters ({filterState.length})
                   </summary>
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1">
                     <InlineFilterState
                       filterState={filterState}
                       className="m-0"
@@ -468,17 +402,19 @@ export function MultiQueryEditor({
             </div>
             <div className="flex items-center gap-1">
               <ChartTypePicker
-                value={config.display.chartType}
+                value={active.display.chartType}
                 onOpenChartType={() => track("multi_query_chart_type_opened")}
                 onValueChange={(chartType) => {
-                  setValue("display.chartType", chartType);
+                  changeTab({
+                    ...active,
+                    display: { ...active.display, chartType },
+                  });
                   track("multi_query_chart_type_changed");
                 }}
               />
-              <Button
-                text={enabled ? "Pause" : "Resume"}
+              <IconButton
+                label={enabled ? "Pause preview" : "Resume preview"}
                 icon={enabled ? PauseIcon : PlayIcon}
-                variant="ghost"
                 size="sm"
                 onClick={() => {
                   setEnabled(!enabled);
@@ -489,10 +425,9 @@ export function MultiQueryEditor({
                   );
                 }}
               />
-              <Button
-                text="Refresh"
+              <IconButton
+                label="Refresh preview"
                 icon={RefreshCw}
-                variant="ghost"
                 size="sm"
                 disabled={!enabled}
                 onClick={() => {
@@ -502,26 +437,66 @@ export function MultiQueryEditor({
               />
             </div>
           </div>
-          {incompleteSources.length > 0 ? (
+          {(!activeFiltersComplete || !enabled) && (
             <VisualizationFrame
               content={{
                 type: "empty",
-                message: "Complete the series filters",
-                description:
-                  "An incomplete filter has not been applied. Finish it or remove it before previewing or saving.",
+                message: !enabled
+                  ? "Preview paused"
+                  : "Complete the series filters",
               }}
             />
-          ) : (
-            previewContent
+          )}
+          {activeFiltersComplete && enabled && plotUnits.length > 1 && (
+            <div className="flex min-h-40 flex-1 flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm font-bold">
+                These series use different units
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {plotUnits.map(unitName).join(" · ")}. Move a unit to its own
+                chart, or choose Table to see the values together.
+              </p>
+              {plotUnits.map((unit) => (
+                <Button
+                  key={unit}
+                  text={"Move " + unitName(unit) + " to new tab"}
+                  variant="secondary"
+                  size="sm"
+                  disabled={
+                    config.tabs.length >= 9 ||
+                    !multiQueryTabSchema.safeParse(active).success
+                  }
+                  onClick={() => move(unit)}
+                />
+              ))}
+            </div>
+          )}
+          {activeFiltersComplete && enabled && !plotUnits.length && (
+            <MultiQueryResultView
+              key={active.id}
+              config={runtime.config}
+              runtime={runtime}
+            />
           )}
         </div>
       </div>
-      {error ? (
-        <p role="alert" className="text-destructive shrink-0 text-sm">
-          {error}
-        </p>
-      ) : null}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t pt-3">
+      <div className="flex shrink-0 items-center gap-2 border-t pt-3">
+        <div className="mr-auto min-w-0 text-xs">
+          {error && (
+            <p className="text-destructive" role="alert">
+              {errorTab && config.tabs.length > 1 ? errorTab.label + " · " : ""}
+              {error}
+            </p>
+          )}
+          {reviewTab && (
+            <Button
+              text={"Review " + reviewTab.label}
+              size="sm"
+              variant="ghost"
+              onClick={() => select(reviewTab.id)}
+            />
+          )}
+        </div>
         <Button
           text="Cancel"
           variant="secondary"

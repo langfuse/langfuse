@@ -1,4 +1,3 @@
-import { type ChartLegendInteraction } from "@/src/components/design-system/charts/LineChart/LineChart";
 import { type MultiQueryConfig } from "@langfuse/shared";
 import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
@@ -11,8 +10,15 @@ import { type MultiQuerySeries, type MultiQueryValue } from "./multiQueryModel";
 
 export const multiQueryFormatter =
   (unit: string | undefined): MetricFormatterFunction =>
-  (value, options) =>
-    formatMetric(value, { ...options, unit: parseMetricUnit(unit) });
+  (value, options) => {
+    const formatted = formatMetric(value, {
+      ...options,
+      unit: parseMetricUnit(unit),
+    });
+    return unit === "percent"
+      ? { ...formatted, suffix: (formatted.suffix ?? "") + "%" }
+      : formatted;
+  };
 const formatMultiQueryValue = (
   value: number | null,
   unit: string | undefined,
@@ -26,7 +32,6 @@ export function prepareMultiQueryUnitVisualization(
   series: MultiQuerySeries[],
   rows: MultiQueryValue[],
   prepared: { visualization: Visualization; confirmation?: Visualization },
-  onAfterLegendInteraction?: (action: ChartLegendInteraction) => void,
 ): Visualization {
   const unit = series[0]?.unit;
   if (config.display.chartType === "NUMBER") {
@@ -67,16 +72,7 @@ export function prepareMultiQueryUnitVisualization(
   )
     return {
       ...content,
-      ...(content.legend &&
-      content.legend.visibility !== "hidden" &&
-      onAfterLegendInteraction
-        ? {
-            legend: {
-              ...content.legend,
-              onAfterInteraction: onAfterLegendInteraction,
-            },
-          }
-        : {}),
+      legend: { visibility: "hidden" },
       series: content.series.map((item) => {
         const original = byId.get(item.id);
         return original
@@ -136,6 +132,7 @@ export function prepareMultiQueryUnitVisualization(
                 {
                   label: byId.get(row.seriesId)?.label ?? row.queryLabel,
                   value: row.value,
+                  color: byId.get(row.seriesId)?.fillColor,
                 },
               ]
             : [],

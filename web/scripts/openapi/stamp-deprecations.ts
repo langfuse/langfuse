@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { isMap, isScalar, parse, parseDocument, Scalar } from "yaml";
 
-import { type DeprecatedOperation } from "./fern-deprecations";
+import {
+  type DeprecatedOperation,
+  type FernTypeConstraint,
+} from "./fern-deprecations";
 
 /** Fold width used by `fern export`. */
 const LINE_WIDTH = 80;
@@ -14,20 +17,21 @@ const LINE_WIDTH = 80;
  */
 const RESOLVE_OPTIONS = { maxAliasCount: -1 };
 
-/** Carry explicit Fern object constraints through exports that omit them. */
-export function stampClosedObjects(source: string, objectPaths: string[][]) {
+/** Carry explicit Fern type constraints through exports that omit them. */
+export function stampTypeConstraints(
+  source: string,
+  constraints: FernTypeConstraint[],
+) {
   const document = parseDocument(source);
   if (document.errors.length > 0) {
     throw new Error(document.errors.map((error) => error.message).join("\n"));
   }
-  for (const objectPath of objectPaths) {
-    const object = document.getIn(objectPath, true);
+  for (const { path, key, value } of constraints) {
+    const object = document.getIn(path, true);
     if (!isMap(object)) {
-      throw new Error(
-        `OpenAPI schema does not contain object ${objectPath.join("/")}`,
-      );
+      throw new Error(`OpenAPI schema does not contain type ${path.join("/")}`);
     }
-    object.set("additionalProperties", false);
+    object.set(key, value);
   }
   return document.toString({ lineWidth: LINE_WIDTH });
 }

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   CopyPlusIcon,
+  EyeIcon,
+  EyeOff,
   PlusIcon,
   TrashIcon,
   ChevronDown,
@@ -24,8 +26,11 @@ import { type MultiQueryWidgetContext } from "./useMultiQueryWidget";
 import {
   readableMultiQueryField,
   multiQueryMetricLabel,
-  type MultiQuerySource,
 } from "./multiQueryModel";
+
+import { type MultiQueryTab } from "@langfuse/shared/dashboards";
+
+type MultiQuerySource = MultiQueryTab["queries"][number];
 
 export function MultiQuerySourceEditor({
   source,
@@ -87,7 +92,7 @@ export function MultiQuerySourceEditor({
     track("multi_query_metric_changed", metrics.length);
   };
   return (
-    <section className="ph-no-capture bg-background rounded-lg border">
+    <section className="ph-no-capture bg-background rounded-md">
       <div className="flex min-w-0 items-center gap-1 p-2">
         <IconButton
           label={`${expanded ? "Collapse" : "Expand"} series ${String.fromCharCode(65 + index)}`}
@@ -117,6 +122,18 @@ export function MultiQuerySourceEditor({
             Incomplete filter
           </span>
         ) : null}
+        <IconButton
+          label={
+            source.hidden ? "Show series on chart" : "Hide series from chart"
+          }
+          icon={source.hidden ? EyeOff : EyeIcon}
+          aria-pressed={!source.hidden}
+          size="sm"
+          onClick={() => {
+            onChange({ ...source, hidden: !source.hidden || undefined });
+            track("multi_query_series_visibility_changed");
+          }}
+        />
         {onDuplicate ? (
           <IconButton
             label="Duplicate series"
@@ -141,7 +158,7 @@ export function MultiQuerySourceEditor({
             ? ` · By ${source.dimensions.map((dimension) => readableMultiQueryField(dimension.field)).join(", ")}`
             : ""}
           {source.filters.length > 0
-            ? ` · ${source.filters.length} filters`
+            ? ` · ${source.filters.length} filter${source.filters.length === 1 ? "" : "s"}`
             : ""}
         </p>
       ) : null}
@@ -229,6 +246,28 @@ export function MultiQuerySourceEditor({
                       }
                     />
                   </div>
+                  {source.metrics.length > 1 && (
+                    <IconButton
+                      label={
+                        metric.hidden
+                          ? "Show metric on chart"
+                          : "Hide metric from chart"
+                      }
+                      icon={metric.hidden ? EyeOff : EyeIcon}
+                      aria-pressed={!metric.hidden}
+                      size="sm"
+                      onClick={() => {
+                        updateMetrics(
+                          source.metrics.map((item) =>
+                            item.id === metric.id
+                              ? { ...item, hidden: !metric.hidden || undefined }
+                              : item,
+                          ),
+                        );
+                        track("multi_query_metric_visibility_changed");
+                      }}
+                    />
+                  )}
                   {source.metrics.length > 1 ? (
                     <IconButton
                       label="Remove metric"

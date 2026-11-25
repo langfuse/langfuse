@@ -15,6 +15,7 @@ import {
 } from "@/src/components/design-system/charts/constants";
 
 export type PieChartDatum = {
+  color?: string;
   label: string;
   value: number;
 };
@@ -159,7 +160,7 @@ function PieChartContent({
             index,
             path,
             activePath,
-            color: colorScale(slice.data.id),
+            color: slice.data.color ?? colorScale(slice.data.id),
           },
         ];
       });

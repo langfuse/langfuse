@@ -1,9 +1,9 @@
 # Multi-query dashboard charts
 
-`MultiQueryEditor` owns an editable definition and automatically previews valid ordinary queries. `MultiQueryChart` is the dashboard renderer; both use `useMultiQueryWidget` and the same result view.
+A widget starts with one chart. Add a tab to put another chart in the same dashboard slot. Each tab owns its series, formulas, filters, units, and chart type. The first tab opens by default. The dashboard only shows a tab bar when there are at least two tabs.
 
-`multiQueryModel` validates and builds at most five independent production queries, preserves filter/version semantics, and normalizes exact returned values. A companion count distinguishes empty buckets from measured zero, including groups with an unknown key. Absent groups display zero for counts, distinct counts and sums. Averages and percentiles retain gaps. Explicit nulls remain null in the chart and Data view. `useMultiQueryResults` gives each source a fixed scheduler slot, production cache policy and existing streaming/cancellation transport.
+`MultiQueryEditor` owns the tab drafts. `MultiQueryChart` selects the reader's active tab. Both use `useMultiQueryWidget` and the same result renderer. `SeriesLegend` toggles plotted series and reveals its full list on hover, focus or tap when the series do not fit. Search is available in crowded legends. The chart scales to the visible data and keeps the remaining series names first. The reader’s selection stays with its tab while the dashboard is open. It does not change saved settings or formula inputs.
 
-Saved views choose subsets of the configured sources. Compatible units share charts; different units have separate labeled panels. The row limit applies to each source independently. Two ungrouped counts each contribute a bar even with one row per source. Data keeps raw values and source identities. No formulas or alternative query backend are used.
+`multiQueryModel` builds up to five ordinary analytics queries for the active tab. `useMultiQueryResults` gives each source a scheduler slot and reuses its cached results. A dashboard date or filter change applies to the active tab and to subsequent tabs when opened. Formula edits and legend toggles use the returned values in memory. Missing values and zero denominators produce gaps in the formula result.
 
-A single plot has a definite 16rem height. An editor can set `--multi-query-plot-height` on its preview container to provide a larger viewport; faceted unit panels keep their compact height and scroll in small cards.
+Version 2 stores ordered tabs. The reader interprets saved version 1 configurations on open. Saving a change in the editor writes version 2. The dashboard document keeps its existing version and projection for classic clients.

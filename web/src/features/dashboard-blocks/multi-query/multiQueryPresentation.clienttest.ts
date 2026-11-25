@@ -7,7 +7,17 @@ import {
   type MultiQuerySeries,
   type MultiQueryValue,
 } from "./multiQueryModel";
-import { prepareMultiQueryUnitVisualization } from "./multiQueryPresentation";
+import {
+  multiQueryFormatter,
+  prepareMultiQueryUnitVisualization,
+} from "./multiQueryPresentation";
+import { toFullMetricString } from "@/src/features/widgets/chart-library/utils";
+
+it("renders calculated percentage points once, including a measured zero", () => {
+  const format = multiQueryFormatter("percent");
+  expect(toFullMetricString(format(12.5, { style: "full" }))).toBe("12.5%");
+  expect(toFullMetricString(format(0, { style: "compact" }))).toBe("0%");
+});
 
 describe("multi-query value presentation", () => {
   it("shows an empty score mean as no measured value while keeping a genuine zero", () => {

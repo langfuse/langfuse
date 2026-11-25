@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-  getFernClosedObjects,
+  getFernTypeConstraints,
   getFernDeprecatedOperations,
   getFernDeprecatedProperties,
 } from "./fern-deprecations";
-import { stampClosedObjects, stampDeprecations } from "./stamp-deprecations";
+import { stampTypeConstraints, stampDeprecations } from "./stamp-deprecations";
 import { stampUnionVariantTitles } from "./stamp-union-variant-titles";
 
 const webDirectory = process.cwd();
@@ -25,10 +25,10 @@ const openApiPath = path.resolve(
 
 const deprecatedOperations = getFernDeprecatedOperations(definitionDirectory);
 const deprecatedProperties = getFernDeprecatedProperties(definitionDirectory);
-const closedObjects = getFernClosedObjects(definitionDirectory);
+const typeConstraints = getFernTypeConstraints(definitionDirectory);
 const openApiSource = fs.readFileSync(openApiPath, "utf8");
 const deprecatedSource = stampDeprecations(
-  stampClosedObjects(openApiSource, closedObjects),
+  stampTypeConstraints(openApiSource, typeConstraints),
   deprecatedOperations,
   deprecatedProperties,
 );
@@ -45,5 +45,5 @@ console.log(
 );
 console.log(`Titled ${stamped} anonymous OpenAPI union variants for Scalar.`);
 console.log(
-  `Synced ${closedObjects.length} closed OpenAPI objects from Fern definitions.`,
+  `Synced ${typeConstraints.length} OpenAPI type constraints from Fern definitions.`,
 );

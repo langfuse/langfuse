@@ -1,17 +1,11 @@
 import { prepareMultiQueryTimeSeriesData } from "./multiQueryTimeSeries";
-import { type ChartLegendInteraction } from "@/src/components/design-system/charts/LineChart/LineChart";
+import { SeriesLegend } from "./SeriesLegend";
 import {
   multiQueryFormatter,
   prepareMultiQueryUnitVisualization,
 } from "./multiQueryPresentation";
 import { useState } from "react";
 import { type MultiQueryConfig } from "@langfuse/shared";
-import { GripVerticalIcon, MoreVerticalIcon } from "@langfuse/icons";
-import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
   VisualizationFrame,
@@ -25,6 +19,7 @@ import { type MultiQuerySeries, type MultiQueryValue } from "./multiQueryModel";
 
 const unitLabel = (unit: string | undefined) =>
   ({
+    percent: "Percent",
     USD: "US dollars",
     milliseconds: "Duration",
     integer: "Count",
@@ -38,27 +33,31 @@ const unitLabel = (unit: string | undefined) =>
   "Value";
 type MultiQueryRuntime = ReturnType<typeof useMultiQueryWidget>;
 
-const legendActions = {
-  toggle: "multi_query_legend_toggled",
-  select_all: "multi_query_legend_selected_all",
-  clear_all: "multi_query_legend_cleared_all",
-} satisfies Record<ChartLegendInteraction, string>;
-
 export function MultiQueryResultView({
   config,
   runtime,
-  actions,
 }: {
   config: MultiQueryConfig;
   runtime: MultiQueryRuntime;
-  actions?: DataCardActions;
 }) {
-  const [tab, setTab] = useState("chart");
+  const hidden = runtime.hiddenSeries;
   const [page, setPage] = useState({ pageIndex: 0, pageSize: 50 });
   const capture = usePostHogClientCapture();
   const result = runtime.result;
-  const groups = [...new Set(result.series.map((series) => series.unit))];
-  const activeConfig = runtime.config;
+  const showTable = config.display.chartType === "PIVOT_TABLE";
+  const canToggle =
+    !showTable &&
+    config.display.chartType !== "NUMBER" &&
+    config.display.chartType !== "HISTOGRAM" &&
+    config.display.legend !== false &&
+    result.series.length > 0;
+  const visibleSeries = canToggle
+    ? result.series.filter((item) => !hidden.has(item.id))
+    : result.series;
+  const visibleValues = canToggle
+    ? result.values.filter((row) => !hidden.has(row.seriesId))
+    : result.values;
+  const groups = new Set(visibleSeries.map((item) => item.unit));
   const pageIndex = Math.min(
     page.pageIndex,
     Math.max(0, Math.ceil(result.values.length / page.pageSize) - 1),
@@ -67,8 +66,7 @@ export function MultiQueryResultView({
     capture("dashboard:block_interaction", {
       blockKind: "multiQuery",
       action,
-      isV4:
-        runtime.plan?.queries.some((query) => query.version === "v2") ?? false,
+      isV4: runtime.isV4,
     });
   const data: Visualization = {
     type: "table",
@@ -110,8 +108,6 @@ export function MultiQueryResultView({
         ],
       })),
   };
-  const showTable =
-    tab === "data" || activeConfig.display.chartType === "PIVOT_TABLE";
   const failure =
     runtime.validationError ??
     (result.status === "error"
@@ -124,6 +120,12 @@ export function MultiQueryResultView({
       return { type: "error", message: failure, onRetry: runtime.refresh };
     if (result.pending && result.values.length === 0)
       return { type: "loading", progress: { type: "spinner" } };
+    if (!runtime.hasVisibleMetrics)
+      return {
+        type: "empty",
+        message: "No series selected for display",
+        description: "Show a series or a formula in the chart editor.",
+      };
     if (showTable) return data;
     if (result.values.length === 0)
       return {
@@ -131,34 +133,39 @@ export function MultiQueryResultView({
         message: "No matching data",
         description: "Try a wider date range or different series filters.",
       };
-    if (!result.values.some((row) => row.value !== null))
+    if (visibleSeries.length === 0 && result.series.length > 0)
+      return {
+        type: "empty",
+        message: "All series hidden",
+        description: "Select a series in the legend to show it.",
+      };
+    if (groups.size > 1)
+      return {
+        type: "empty",
+        message: "These series use different units",
+        description:
+          "Move a series to its own tab in the editor, or choose a table to see the values together.",
+      };
+    if (!visibleValues.some((row) => row.value !== null))
       return {
         type: "empty",
         message: "No measured value",
-        description:
-          "The queries returned no measured values. Data retains empty buckets and evaluation counts.",
+        description: "Try a different time range or check the series filters.",
       };
     if (
-      activeConfig.display.chartType === "NUMBER" &&
-      (result.series.length !== 1 || result.values.length !== 1)
+      config.display.chartType === "NUMBER" &&
+      (visibleSeries.length !== 1 || visibleValues.length !== 1)
     )
       return {
         type: "empty",
         message: "A big number needs one ungrouped metric",
         description:
-          "Choose a view with one metric, remove its grouping, or select a table.",
-      };
-    if (activeConfig.display.chartType === "PIE" && groups.length > 1)
-      return {
-        type: "empty",
-        message: "A pie chart needs a common unit",
-        description:
-          "Choose a view with compatible series, or select a bar, line or table.",
+          "Plot a single metric without a breakdown, or choose a table.",
       };
     if (
-      activeConfig.display.chartType === "HISTOGRAM" &&
-      (result.series.length !== 1 ||
-        result.series.some((series) => series.aggregation !== "histogram"))
+      config.display.chartType === "HISTOGRAM" &&
+      (visibleSeries.length !== 1 ||
+        visibleSeries.some((series) => series.aggregation !== "histogram"))
     )
       return {
         type: "empty",
@@ -169,103 +176,10 @@ export function MultiQueryResultView({
     return undefined;
   })();
   return (
-    <section
-      className="ph-no-capture group bg-background relative flex h-full min-h-0 flex-col rounded-lg border"
+    <div
+      className="ph-no-capture flex min-h-0 flex-1 flex-col"
       aria-label={config.title}
     >
-      <div className="flex shrink-0 flex-col gap-2 p-4 pb-2">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <h3
-            className="min-w-0 truncate text-base font-bold"
-            title={config.title}
-          >
-            {config.title}
-          </h3>
-          {actions ? (
-            <div className="flex shrink-0 items-center gap-1">
-              {actions.draggable ? (
-                <GripVerticalIcon
-                  size="base"
-                  __rawClassName="drag-handle hidden cursor-grab active:cursor-grabbing lg:block"
-                />
-              ) : null}
-              {actions.buttons?.map((action) => (
-                <IconButton
-                  key={action.id}
-                  label={action.label}
-                  icon={action.icon}
-                  onClick={action.onClick}
-                  disabled={action.disabled}
-                  size="sm"
-                />
-              ))}
-              {actions.menu && actions.menu.length > 0 ? (
-                <DropdownMenu
-                  noCapture
-                  items={actions.menu}
-                  ariaLabel="Chart actions"
-                >
-                  {({ getTriggerProps }) => (
-                    <IconButton
-                      {...getTriggerProps()}
-                      label="Chart actions"
-                      icon={MoreVerticalIcon}
-                      size="sm"
-                    />
-                  )}
-                </DropdownMenu>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-        {config.description ? (
-          <p className="text-muted-foreground line-clamp-2 text-sm">
-            {config.description}
-          </p>
-        ) : null}
-        {config.views && config.views.length > 0 ? (
-          <SelectInput
-            noCapture
-            aria-label="Chart view"
-            placeholder="All series"
-            value={runtime.viewId}
-            options={[
-              { value: "all", label: "All series" },
-              ...config.views.map((view) => ({
-                value: view.id,
-                label: view.label,
-              })),
-            ]}
-            onValueChange={(value) => {
-              runtime.selectView(value);
-              captureView("multi_query_view_changed");
-            }}
-          />
-        ) : null}
-        <Tabs
-          value={tab}
-          onValueChange={(value) => {
-            setTab(value);
-            captureView(
-              value === "data"
-                ? "multi_query_data_opened"
-                : "multi_query_chart_opened",
-            );
-          }}
-        >
-          <Tabs.List variant="underline" aria-label="Chart result views">
-            <Tabs.Trigger
-              value="chart"
-              label={
-                activeConfig.display.chartType === "PIVOT_TABLE"
-                  ? "Table"
-                  : "Chart"
-              }
-            />
-            <Tabs.Trigger value="data" label="Data" />
-          </Tabs.List>
-        </Tabs>
-      </div>
       {result.failures.length > 0 && result.status !== "error" ? (
         <div
           role="alert"
@@ -301,22 +215,30 @@ export function MultiQueryResultView({
         {content ? (
           <VisualizationFrame content={content} />
         ) : (
-          groups.map((unit) => (
-            <MultiQueryUnitChart
-              key={unit ?? "number"}
-              config={activeConfig}
-              unit={unit}
-              series={result.series.filter((series) => series.unit === unit)}
-              values={result.values}
-              bucketTimes={result.bucketTimes}
-              label={groups.length > 1 ? unitLabel(unit) : undefined}
-              onAfterLegendInteraction={(action) =>
-                captureView(legendActions[action])
-              }
-            />
-          ))
+          <MultiQueryUnitChart
+            config={config}
+            unit={visibleSeries[0]?.unit}
+            series={visibleSeries}
+            values={visibleValues}
+            bucketTimes={result.bucketTimes}
+          />
         )}
       </div>
+      {!content && config.display.chartType === "NUMBER" && (
+        <p className="text-muted-foreground px-4 pb-2 text-center text-sm">
+          {visibleSeries[0]?.label}
+        </p>
+      )}
+      {canToggle && (
+        <SeriesLegend
+          series={result.series}
+          hidden={hidden}
+          onToggle={(id) => {
+            runtime.toggleSeries(id);
+            captureView("multi_query_legend_toggled");
+          }}
+        />
+      )}
       {showTable && result.values.length > 0 ? (
         <PaginationBar
           mode="offset"
@@ -326,7 +248,7 @@ export function MultiQueryResultView({
           pageSizeOptions={[25, 50, 100]}
         />
       ) : null}
-    </section>
+    </div>
   );
 }
 
@@ -336,16 +258,12 @@ function MultiQueryUnitChart({
   series,
   values,
   bucketTimes,
-  label,
-  onAfterLegendInteraction,
 }: {
   config: MultiQueryConfig;
   unit: string | undefined;
   series: MultiQuerySeries[];
   values: MultiQueryValue[];
   bucketTimes: string[];
-  label: string | undefined;
-  onAfterLegendInteraction: (action: ChartLegendInteraction) => void;
 }) {
   const ids = new Set(series.map((series) => series.id));
   const rows = values.filter((row) => ids.has(row.seriesId));
@@ -371,8 +289,7 @@ function MultiQueryUnitChart({
     config: colors,
     metricFormatter: multiQueryFormatter(unit),
     missingValue: chartData.missingValue,
-    legendPosition: config.display.legend === false ? "none" : "below",
-    legendInteraction: "toggle",
+    legendPosition: "none",
     zeroBaseline: true,
     colorBarsByCategory: true,
     rowLimit: data.length,
@@ -382,15 +299,9 @@ function MultiQueryUnitChart({
     series,
     rows,
     prepared,
-    onAfterLegendInteraction,
   );
   return (
     <div className="flex h-64 min-h-64 min-w-0 shrink-0 flex-col gap-1 only:h-[var(--multi-query-plot-height,16rem)] only:min-h-[var(--multi-query-plot-height,16rem)]">
-      {label ? (
-        <h4 className="text-muted-foreground shrink-0 text-xs font-medium">
-          {label}
-        </h4>
-      ) : null}
       <VisualizationFrame content={content} />
     </div>
   );

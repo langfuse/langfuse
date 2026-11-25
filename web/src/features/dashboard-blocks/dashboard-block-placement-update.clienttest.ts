@@ -3,7 +3,7 @@ import { type SavedDashboardBlock } from "@langfuse/shared";
 import { createDashboardBlockPlacementUpdate } from "./dashboard-block-placement-update";
 
 it("moves only a valid saved snapshot while preserving its config and revision", () => {
-  const block: SavedDashboardBlock = {
+  const block = {
     id: "123e4567-e89b-12d3-a456-426614174000",
     kind: "multiQuery",
     revision: 7,
@@ -24,7 +24,7 @@ it("moves only a valid saved snapshot while preserving its config and revision",
       ],
       display: { chartType: "VERTICAL_BAR" },
     },
-  };
+  } satisfies SavedDashboardBlock;
   const payload = createDashboardBlockPlacementUpdate(block, "next-row");
   expect(payload).toEqual({
     op: "upsert",

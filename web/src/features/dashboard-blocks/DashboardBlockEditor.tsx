@@ -1,7 +1,8 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { type FilterState, type MultiQueryConfig } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
+import { type SavedMultiQueryConfig } from "@langfuse/shared/dashboards";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { useSaveDashboardBlock } from "./useDashboardBlockMutations";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -61,7 +62,7 @@ export function DashboardBlockEditor({
           kind: "markdown";
           config: { version: 1; title: string; content: string };
         }
-      | { kind: "multiQuery"; config: MultiQueryConfig },
+      | { kind: "multiQuery"; config: SavedMultiQueryConfig },
   ) => {
     if (!canEdit || mutation.isPending) return;
     mutation.mutate({

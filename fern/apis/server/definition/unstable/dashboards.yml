@@ -364,10 +364,19 @@ types:
         type: string
         docs: Markdown content, at most 100000 characters.
   DashboardMultiQueryConfig:
+    discriminated: false
+    union:
+      - DashboardMultiQueryConfigV1
+      - DashboardMultiQueryConfigV2
+  DashboardMultiQueryFormatV1:
+    type: integer
+    docs: Legacy single-chart configuration. The format version is 1.
+    validation:
+      min: 1
+      max: 1
+  DashboardMultiQueryConfigV1:
     properties:
-      version:
-        type: integer
-        docs: Configuration version. Currently 1.
+      version: DashboardMultiQueryFormatV1
       title:
         type: string
         docs: Between 1 and 200 characters.
@@ -384,6 +393,60 @@ types:
       defaultViewId:
         type: optional<string>
         docs: Id of an existing named view.
+  DashboardMultiQueryFormatV2:
+    type: integer
+    docs: Independent tab configurations. The format version is 2.
+    validation:
+      min: 2
+      max: 2
+  DashboardMultiQueryConfigV2:
+    properties:
+      version: DashboardMultiQueryFormatV2
+      title: string
+      description: string
+      tabs:
+        type: list<DashboardMultiQueryTab>
+        docs: One to nine ordered tabs with unique IDs. The first tab is shown by default.
+  DashboardMultiQueryTab:
+    properties:
+      id: string
+      label: string
+      queries:
+        type: list<DashboardMultiQueryTabSource>
+        docs: Between one and five independent source queries.
+      display: DashboardMultiQueryDisplay
+      formulas:
+        type: optional<list<DashboardMultiQueryFormula>>
+        docs: Up to five calculations over metrics in this tab.
+  DashboardMultiQueryFormula:
+    properties:
+      id: string
+      label: string
+      expression:
+        type: string
+        docs: Arithmetic on queryId.metricId references from this tab, numeric literals, and parentheses. Null or missing operands and division by zero have no value.
+      format: DashboardMultiQueryFormulaFormat
+      hidden: optional<boolean>
+  DashboardMultiQueryFormulaFormat:
+    enum:
+      - number
+      - percent
+  DashboardMultiQueryTabSource:
+    properties:
+      id: string
+      label: string
+      view: dashboardWidgets.DashboardWidgetViewWithLegacy
+      metrics: list<DashboardMultiQueryTabMetric>
+      dimensions: list<dashboardWidgets.DashboardWidgetDimension>
+      filters: list<dashboardWidgets.DashboardWidgetFilter>
+      orderBy: optional<nullable<list<DashboardMultiQueryOrder>>>
+      hidden:
+        type: optional<boolean>
+        docs: Keep the source available for formulas without plotting its metrics.
+  DashboardMultiQueryTabMetric:
+    extends: DashboardMultiQueryMetric
+    properties:
+      hidden: optional<boolean>
   DashboardMultiQuerySource:
     properties:
       id:

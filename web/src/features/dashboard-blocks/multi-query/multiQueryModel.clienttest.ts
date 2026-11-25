@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { type MultiQueryConfig } from "@langfuse/shared";
 import {
+  normalizeMultiQueryConfig,
+  multiQueryTabSchema,
+} from "@langfuse/shared/dashboards";
+import { applyMultiQueryFormulas } from "./multiQueryFormulas";
+import {
   buildMultiQueryPlan,
   normalizeMultiQueryResults,
   resolveMultiQueryView,
@@ -38,6 +43,147 @@ const context = {
 };
 
 describe("multi-query ordinary query composition", () => {
+  it("keeps a comparison together and converts a saved default view to an independent first tab", () => {
+    const views = [
+      { id: "abc", label: "Has abc", queryIds: ["a"] },
+      { id: "bbc", label: "Has bbc", queryIds: ["b"] },
+    ];
+    const comparison = normalizeMultiQueryConfig({ ...config, views });
+    expect(
+      comparison.tabs.map((tab) => tab.queries.map((query) => query.id)),
+    ).toEqual([["a", "b"]]);
+    const custom = normalizeMultiQueryConfig({
+      ...config,
+      views: [
+        { id: "customers", label: "Paying customers", queryIds: ["a"] },
+        { id: "both", label: "All traffic", queryIds: ["a", "b"] },
+      ],
+    });
+    expect(custom.tabs.map((tab) => tab.id)).toEqual([
+      "chart",
+      "customers",
+      "both",
+    ]);
+    const migrated = normalizeMultiQueryConfig({
+      ...config,
+      views,
+      defaultViewId: "bbc",
+    });
+    expect(migrated.tabs[0]).toMatchObject({
+      id: "bbc",
+      queries: [{ id: "b" }],
+    });
+    expect(
+      migrated.tabs.flatMap((tab) => tab.queries.map((query) => query.id)),
+    ).toContain("a");
+  });
+
+  it("preserves the query and its top-group ranking when upgrading mixed-unit panels", () => {
+    const source = {
+      ...config.queries[0]!,
+      metrics: [
+        { id: "cost", measure: "totalCost", aggregation: "sum" as const },
+        { id: "tokens", measure: "totalTokens", aggregation: "sum" as const },
+      ],
+      orderBy: [{ field: "sum_totalCost", direction: "desc" as const }],
+    };
+    const { tabs } = normalizeMultiQueryConfig({
+      ...config,
+      queries: [source],
+    });
+    expect(
+      tabs.map((t) =>
+        t.queries[0]!.metrics.filter((m) => !m.hidden).map((m) => m.id),
+      ),
+    ).toEqual([["cost"], ["tokens"]]);
+    expect(tabs.map((t) => t.queries[0]!.orderBy)).toEqual([
+      source.orderBy,
+      source.orderBy,
+    ]);
+    const tab = tabs[0]!;
+    for (const expression of ["a.cost + a.tokens", "outside.cost / a.cost"]) {
+      const parsed = multiQueryTabSchema.safeParse({
+        ...tab,
+        formulas: [
+          { id: "invalid", label: "Invalid", expression, format: "number" },
+        ],
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
+  it("aligns hidden formula operands by bucket and breakdown, retaining null for missing or zero denominators", () => {
+    const {
+      tabs: [base],
+    } = normalizeMultiQueryConfig(config);
+    const tab = {
+      ...base!,
+      queries: base!.queries.map((q) => ({
+        ...q,
+        hidden: true,
+        dimensions: [{ field: "name" }],
+      })),
+      formulas: [
+        {
+          id: "rate",
+          label: "Error rate",
+          expression: "a.count / b.count",
+          format: "percent" as const,
+        },
+      ],
+    };
+    const plan = buildMultiQueryPlan(
+      {
+        ...config,
+        display: { chartType: "LINE_TIME_SERIES" },
+        queries: tab.queries,
+      },
+      context,
+    );
+    const result = normalizeMultiQueryResults(plan, [
+      {
+        data: [
+          { name: "a", time_dimension: "day1", count_count: 2 },
+          { name: "b", time_dimension: "day1", count_count: 7 },
+          { name: "a", time_dimension: "day2", count_count: 2 },
+        ],
+        isPending: false,
+        isError: false,
+        error: null,
+      },
+      {
+        data: [
+          { name: "b", time_dimension: "day1", count_count: 0 },
+          { name: "a", time_dimension: "day1", count_count: 8 },
+        ],
+        isPending: false,
+        isError: false,
+        error: null,
+      },
+    ]);
+    const computed = applyMultiQueryFormulas(tab, result);
+    expect(
+      computed.values.map((v) => [v.time, v.dimensions.name, v.value, v.unit]),
+    ).toEqual([
+      ["day1", "a", 25, "percent"],
+      ["day1", "b", null, "percent"],
+      ["day2", "a", null, "percent"],
+    ]);
+    const emptyDenominator = applyMultiQueryFormulas(
+      {
+        ...tab,
+        formulas: tab.formulas.map((f) => ({ ...f, format: "number" })),
+      },
+      { ...result, values: result.values.filter((row) => row.queryId === "a") },
+    );
+    expect(emptyDenominator.values.map((row) => [row.value, row.unit])).toEqual(
+      [
+        [null, undefined],
+        [null, undefined],
+        [null, undefined],
+      ],
+    );
+  });
+
   it("switches named execution subsets without invalidating the other saved views and falls back after deletion", () => {
     const named = {
       ...config,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { multiQueryConfigSchema } from "./multiQuery";
+import { savedMultiQueryConfigSchema } from "./multiQuery";
 
 export const dashboardMarkdownConfigVersion = 1;
 
@@ -12,7 +12,10 @@ export const dashboardMarkdownConfigSchema = z.object({
 });
 
 export const dashboardBlockContentSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("multiQuery"), config: multiQueryConfigSchema }),
+  z.object({
+    kind: z.literal("multiQuery"),
+    config: savedMultiQueryConfigSchema,
+  }),
   z.object({
     kind: z.literal("markdown"),
     config: dashboardMarkdownConfigSchema,

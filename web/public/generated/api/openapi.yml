@@ -15878,11 +15878,21 @@ components:
         - content
     unstableDashboardMultiQueryConfig:
       title: unstableDashboardMultiQueryConfig
+      oneOf:
+        - $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV1'
+        - $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV2'
+    unstableDashboardMultiQueryFormatV1:
+      title: unstableDashboardMultiQueryFormatV1
+      type: integer
+      description: Legacy single-chart configuration. The format version is 1.
+      enum:
+        - 1
+    unstableDashboardMultiQueryConfigV1:
+      title: unstableDashboardMultiQueryConfigV1
       type: object
       properties:
         version:
-          type: integer
-          description: Configuration version. Currently 1.
+          $ref: '#/components/schemas/unstableDashboardMultiQueryFormatV1'
         title:
           type: string
           description: Between 1 and 200 characters.
@@ -15912,6 +15922,137 @@ components:
         - description
         - queries
         - display
+    unstableDashboardMultiQueryFormatV2:
+      title: unstableDashboardMultiQueryFormatV2
+      type: integer
+      description: Independent tab configurations. The format version is 2.
+      enum:
+        - 2
+    unstableDashboardMultiQueryConfigV2:
+      title: unstableDashboardMultiQueryConfigV2
+      type: object
+      properties:
+        version:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryFormatV2'
+        title:
+          type: string
+        description:
+          type: string
+        tabs:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTab'
+          description: >-
+            One to nine ordered tabs with unique IDs. The first tab is shown by
+            default.
+      required:
+        - version
+        - title
+        - description
+        - tabs
+    unstableDashboardMultiQueryTab:
+      title: unstableDashboardMultiQueryTab
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        queries:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabSource'
+          description: Between one and five independent source queries.
+        display:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryDisplay'
+        formulas:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryFormula'
+          nullable: true
+          description: Up to five calculations over metrics in this tab.
+      required:
+        - id
+        - label
+        - queries
+        - display
+    unstableDashboardMultiQueryFormula:
+      title: unstableDashboardMultiQueryFormula
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        expression:
+          type: string
+          description: >-
+            Arithmetic on queryId.metricId references from this tab, numeric
+            literals, and parentheses. Null or missing operands and division by
+            zero have no value.
+        format:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryFormulaFormat'
+        hidden:
+          type: boolean
+          nullable: true
+      required:
+        - id
+        - label
+        - expression
+        - format
+    unstableDashboardMultiQueryFormulaFormat:
+      title: unstableDashboardMultiQueryFormulaFormat
+      type: string
+      enum:
+        - number
+        - percent
+    unstableDashboardMultiQueryTabSource:
+      title: unstableDashboardMultiQueryTabSource
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryTabMetric'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        orderBy:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardMultiQueryOrder'
+          nullable: true
+        hidden:
+          type: boolean
+          nullable: true
+          description: Keep the source available for formulas without plotting its metrics.
+      required:
+        - id
+        - label
+        - view
+        - metrics
+        - dimensions
+        - filters
+    unstableDashboardMultiQueryTabMetric:
+      title: unstableDashboardMultiQueryTabMetric
+      type: object
+      properties:
+        hidden:
+          type: boolean
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboardMultiQueryMetric'
     unstableDashboardMultiQuerySource:
       title: unstableDashboardMultiQuerySource
       type: object

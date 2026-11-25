@@ -4,7 +4,7 @@ import path from "node:path";
 import { parse } from "yaml";
 
 import {
-  getFernClosedObjects,
+  getFernTypeConstraints,
   getFernDeprecatedOperations,
   getFernDeprecatedProperties,
   type DeprecatedOperation,
@@ -12,7 +12,7 @@ import {
 import {
   deprecationNotice,
   stampDeprecations,
-  stampClosedObjects,
+  stampTypeConstraints,
 } from "../../../../scripts/openapi/stamp-deprecations";
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
@@ -113,6 +113,19 @@ function withDefinition(
 }
 
 describe("OpenAPI deprecations", () => {
+  it("distinguishes numeric chart formats in the published OpenAPI schema", () => {
+    const { schemas } = parseSpec(
+      fs.readFileSync(openApiPath, "utf8"),
+    ).components;
+    for (const version of [1, 2]) {
+      expect(
+        schemas[`unstableDashboardMultiQueryFormatV${version}`],
+      ).toMatchObject({
+        type: "integer",
+        enum: [version],
+      });
+    }
+  });
   it("finds deprecated named-type and inline-request properties", () => {
     withDefinition(
       {
@@ -175,9 +188,9 @@ service:
         const nested = getFernDeprecatedProperties(directory).filter(
           (property) => property[2] === "unstableDefinition",
         );
-        const closed = stampClosedObjects(
+        const closed = stampTypeConstraints(
           source,
-          getFernClosedObjects(directory),
+          getFernTypeConstraints(directory),
         );
         const stamped = stampDeprecations(closed, [], nested);
         expect(

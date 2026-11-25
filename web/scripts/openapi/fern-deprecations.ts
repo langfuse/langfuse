@@ -13,7 +13,13 @@ type FernDefinition = {
   "base-path"?: string;
   types?: Record<
     string,
-    string | { properties?: FernProperties; "extra-properties"?: boolean }
+    | string
+    | {
+        properties?: FernProperties;
+        "extra-properties"?: boolean;
+        type?: string;
+        validation?: { min?: number; max?: number };
+      }
   >;
   service?: {
     "base-path"?: string;
@@ -169,8 +175,14 @@ export function getFernDeprecatedProperties(
   });
 }
 
-/** Explicitly closed Fern objects must stay closed in the exported OpenAPI schema. */
-export function getFernClosedObjects(definitionDirectory: string): string[][] {
+export type FernTypeConstraint =
+  | { path: string[]; key: "additionalProperties"; value: false }
+  | { path: string[]; key: "enum"; value: number[] };
+
+/** The Fern exporter omits closed objects and bounds on integer aliases. */
+export function getFernTypeConstraints(
+  definitionDirectory: string,
+): FernTypeConstraint[] {
   return listYamlFiles(definitionDirectory).flatMap((definitionPath) => {
     const definition = parse(
       fs.readFileSync(definitionPath, "utf8"),
@@ -179,10 +191,22 @@ export function getFernClosedObjects(definitionDirectory: string): string[][] {
       .relative(definitionDirectory, path.dirname(definitionPath))
       .split(path.sep)
       .join("");
-    return Object.entries(definition.types ?? {}).flatMap(([name, type]) =>
-      typeof type === "object" && type["extra-properties"] === false
-        ? [["components", "schemas", `${namespace}${name}`]]
-        : [],
+    return Object.entries(definition.types ?? {}).flatMap<FernTypeConstraint>(
+      ([name, type]) => {
+        if (typeof type !== "object") return [];
+        const path = ["components", "schemas", `${namespace}${name}`];
+        if (type["extra-properties"] === false)
+          return [{ path, key: "additionalProperties", value: false }];
+        const fixed = type.validation?.min;
+        if (
+          type.type === "integer" &&
+          fixed !== undefined &&
+          Number.isInteger(fixed) &&
+          fixed === type.validation?.max
+        )
+          return [{ path, key: "enum", value: [fixed] }];
+        return [];
+      },
     );
   });
 }

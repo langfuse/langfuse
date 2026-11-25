@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { type FilterState, type MultiQueryConfig } from "@langfuse/shared";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type FilterState } from "@langfuse/shared";
 import {
-  buildMultiQueryPlan,
-  resolveMultiQueryView,
-  type MultiQueryPlan,
-} from "./multiQueryModel";
+  multiQueryTabAsChart,
+  type MultiQueryTab,
+} from "@langfuse/shared/dashboards";
+import { applyMultiQueryFormulas } from "./multiQueryFormulas";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import { buildMultiQueryPlan, type MultiQueryPlan } from "./multiQueryModel";
 import { useMultiQueryResults } from "./useMultiQueryResults";
+
+const noHiddenSeries: ReadonlySet<string> = new Set();
 
 export type MultiQueryWidgetContext = {
   projectId: string;
@@ -16,7 +19,7 @@ export type MultiQueryWidgetContext = {
 };
 
 export function useMultiQueryWidget(
-  config: MultiQueryConfig,
+  tab: MultiQueryTab,
   context: MultiQueryWidgetContext,
   enabled: boolean,
 ) {
@@ -25,41 +28,47 @@ export function useMultiQueryWidget(
     to: new Date(),
   }));
   const dateRange = context.dateRange ?? fallbackRange;
-  const [selectedView, selectView] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(0);
-  const view = resolveMultiQueryView(config, selectedView);
-  const active = {
-    ...config,
-    queries: config.queries.filter((query) => view.queryIds.includes(query.id)),
-    views: undefined,
-    defaultViewId: undefined,
-  };
+  const [hiddenByTab, setHiddenByTab] = useState<
+    Record<string, ReadonlySet<string>>
+  >({});
+  const config = multiQueryTabAsChart(tab);
   let plan: MultiQueryPlan | undefined;
   let validationError: string | null = null;
   try {
-    plan = buildMultiQueryPlan(
-      config,
-      { ...context, dateRange },
-      view.queryIds,
-    );
+    plan = buildMultiQueryPlan(config, { ...context, dateRange });
   } catch (error) {
     validationError =
       error instanceof Error ? error.message : "Check the chart configuration";
   }
-  const result = useMultiQueryResults(plan, {
+  const rawResult = useMultiQueryResults(plan, {
     projectId: context.projectId,
     readPath: context.readPath,
     refreshKey,
     enabled: enabled && !validationError,
   });
+  const result = applyMultiQueryFormulas(tab, rawResult, context.readPath);
+  const hasVisibleMetrics =
+    tab.queries.some(
+      (source) =>
+        !source.hidden && source.metrics.some((metric) => !metric.hidden),
+    ) || Boolean(tab.formulas?.some((formula) => !formula.hidden));
   return {
+    hiddenSeries: hiddenByTab[tab.id] ?? noHiddenSeries,
+    toggleSeries: (id: string) => {
+      setHiddenByTab((previous) => {
+        const next = new Set(previous[tab.id]);
+        if (!next.delete(id)) next.add(id);
+        return { ...previous, [tab.id]: next };
+      });
+    },
+    hasVisibleMetrics,
+    isV4: context.readPath === "v4",
     dateRange,
     plan,
     validationError,
     result,
-    config: active,
-    viewId: view.viewId,
-    selectView,
+    config,
     refresh: () => setRefreshKey((key) => key + 1),
   };
 }

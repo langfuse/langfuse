@@ -86,6 +86,37 @@ describe("unstable dashboard API", () => {
         ],
       },
     };
+    const tabbedChart = {
+      ...chart,
+      id: randomUUID(),
+      config: {
+        version: 2,
+        title: "Volume and share",
+        description: "",
+        tabs: [
+          {
+            id: "volume",
+            label: "Count",
+            queries: chart.config.queries,
+            display: chart.config.display,
+          },
+          {
+            id: "share",
+            label: "Share",
+            queries: chart.config.queries.map((q) => ({ ...q, hidden: true })),
+            display: chart.config.display,
+            formulas: [
+              {
+                id: "share",
+                label: "Share",
+                expression: "a.count / a.count",
+                format: "percent",
+              },
+            ],
+          },
+        ],
+      },
+    };
     const opaque = {
       ...note,
       id: randomUUID(),
@@ -100,7 +131,7 @@ describe("unstable dashboard API", () => {
           definition: {
             version: "1",
             widgets: [storedPlacement],
-            blocks: [storedPlacement, note, chart, opaque],
+            blocks: [storedPlacement, note, chart, tabbedChart, opaque],
           },
         },
       });
@@ -115,7 +146,7 @@ describe("unstable dashboard API", () => {
       const expected = {
         version: "1",
         widgets: [placement],
-        blocks: [placement, note, chart],
+        blocks: [placement, note, chart, tabbedChart],
       };
       expect(read.body.definition).toEqual(expected);
       const listed = await makeZodVerifiedAPICall(
@@ -140,25 +171,29 @@ describe("unstable dashboard API", () => {
         path,
         {
           name: "Expanded chart",
-          definition: { version: "1", blocks: [moved, note, chart] },
+          definition: {
+            version: "1",
+            blocks: [moved, note, chart, tabbedChart],
+          },
         },
         auth,
       );
       expect(accepted.body.definition).toEqual({
         version: "1",
         widgets: [moved],
-        blocks: [moved, note, chart],
+        blocks: [moved, note, chart, tabbedChart],
       });
 
       for (const blocks of [
-        [moved, chart],
-        [moved, note, chart, { ...note, id: randomUUID() }],
+        [moved, chart, tabbedChart],
+        [moved, note, chart, tabbedChart, { ...note, id: randomUUID() }],
         [
           moved,
           { ...note, config: { ...note.config, content: "Replacement" } },
           chart,
+          tabbedChart,
         ],
-        [moved, chart, note],
+        [moved, chart, note, tabbedChart],
       ]) {
         const rejected = await makeAPICall(
           "PATCH",
@@ -231,6 +266,7 @@ describe("unstable dashboard API", () => {
               config: { ...note.config, title: "Revised" },
             },
             chart,
+            tabbedChart,
           ],
         },
       });
