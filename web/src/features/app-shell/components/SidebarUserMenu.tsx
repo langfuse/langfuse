@@ -44,6 +44,8 @@ export function SidebarUserMenu({
     store,
     "account",
   );
+  // The phone menu spans the screen, so its submenus open over it instead of beside it.
+  const submenuSideOffset = side === "top" ? -208 : undefined;
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       {children({ Trigger: DropdownMenuTrigger })}
@@ -75,10 +77,13 @@ export function SidebarUserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <VersionSubmenu state={versionState} />
+        <VersionSubmenu
+          state={versionState}
+          submenuSideOffset={submenuSideOffset}
+        />
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <UserMenuItems items={items} />
+          <UserMenuItems items={items} submenuSideOffset={submenuSideOffset} />
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

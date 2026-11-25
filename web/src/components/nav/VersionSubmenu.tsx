@@ -15,9 +15,12 @@ import {
 export function VersionSubmenu({
   state,
   version,
+  submenuSideOffset,
 }: {
   state: SidebarVersionState;
   version?: string;
+  /** Negative values pull the submenu over its parent, for menus as wide as the screen. */
+  submenuSideOffset?: number;
 }) {
   const details = describeVersionState(state, version);
   const statusDot = getVersionStatusDot(details);
@@ -29,7 +32,7 @@ export function VersionSubmenu({
           {statusDot && <VersionAttentionDot {...statusDot} />}
         </span>
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent>
+      <DropdownMenuSubContent sideOffset={submenuSideOffset}>
         <VersionMenuItems state={state} details={details} />
       </DropdownMenuSubContent>
     </DropdownMenuSub>
