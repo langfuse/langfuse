@@ -58,7 +58,8 @@ type DialogProps = {
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
-  title: string | React.ReactElement;
+  /** An interactive title keeps the dialog's accessible name separate from its control. */
+  title: string | { label: string; control: React.ReactElement };
   onCloseAutoFocus?: React.ComponentProps<
     typeof DialogPrimitive.Content
   >["onCloseAutoFocus"];
@@ -87,6 +88,7 @@ function DialogRoot({
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
     React.useState<HTMLDivElement | null>(null);
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   // Radix auto-focuses only on open; a dialog that swaps to a close-only
   // footer while open (e.g. after a submit) would otherwise drop focus to the
@@ -130,6 +132,11 @@ function DialogRoot({
             return;
           }
 
+          if (typeof title !== "string") {
+            event.preventDefault();
+            headingRef.current?.focus();
+            return;
+          }
           if (text === undefined) return;
 
           let safeActionButton: HTMLButtonElement | null = null;
@@ -178,8 +185,13 @@ function DialogRoot({
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
           <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
             <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
+              <DialogPrimitive.Title
+                ref={headingRef}
+                tabIndex={typeof title === "string" ? undefined : -1}
+                aria-label={typeof title === "string" ? undefined : title.label}
+                className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight outline-none"
+              >
+                {typeof title === "string" ? title : title.control}
               </DialogPrimitive.Title>
               {requireExplicitClose ? null : (
                 <DialogPrimitive.Close

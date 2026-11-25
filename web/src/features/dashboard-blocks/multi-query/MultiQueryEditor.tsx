@@ -610,41 +610,44 @@ export function MultiQueryEditor({
   );
   return (
     <Dialog
-      title={
-        <DialogController
-          renderDialog={({ closeDialog }) => (
-            <WidgetNameDialog
-              title="Rename widget"
-              fieldLabel="Widget name"
-              initialName={config.title}
-              submitLabel="Rename"
-              onClose={closeDialog}
-              returnFocus={() => widgetTitle.current?.focus()}
-              onConfirm={(name) => {
-                if (name === config.title) return;
-                setValue("title", name);
-                track("multi_query_widget_renamed");
-              }}
-            />
-          )}
-        >
-          {({ openDialog }) => (
-            <button
-              type="button"
-              ref={widgetTitle}
-              onClick={() => openDialog()}
-              aria-label={`Rename widget, ${config.title}`}
-              disabled={savePending}
-              className="hover:bg-accent focus-visible:ring-ring inline-flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
-            >
-              <span className="truncate" title={config.title}>
-                {config.title}
-              </span>
-              <PencilIcon size="sm" color="muted" aria-hidden />
-            </button>
-          )}
-        </DialogController>
-      }
+      title={{
+        label: config.title,
+        control: (
+          <DialogController
+            renderDialog={({ closeDialog }) => (
+              <WidgetNameDialog
+                title="Rename widget"
+                fieldLabel="Widget name"
+                initialName={config.title}
+                submitLabel="Rename"
+                onClose={closeDialog}
+                returnFocus={() => widgetTitle.current?.focus()}
+                onConfirm={(name) => {
+                  if (name === config.title) return;
+                  setValue("title", name);
+                  track("multi_query_widget_renamed");
+                }}
+              />
+            )}
+          >
+            {({ openDialog }) => (
+              <button
+                type="button"
+                ref={widgetTitle}
+                onClick={() => openDialog()}
+                aria-label={`Rename widget, ${config.title}`}
+                disabled={savePending}
+                className="hover:bg-accent focus-visible:ring-ring inline-flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
+              >
+                <span className="truncate" title={config.title}>
+                  {config.title}
+                </span>
+                <PencilIcon size="sm" color="muted" aria-hidden />
+              </button>
+            )}
+          </DialogController>
+        ),
+      }}
       size="xxl"
       noCapture
       requireExplicitClose={savePending}
