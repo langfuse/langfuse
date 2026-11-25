@@ -6,11 +6,7 @@ import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
   type InAppAgentLangfuseMcpToolName,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import {
-  bootstrapMcpFeatures,
-  type McpToolName,
-} from "@/src/features/mcp/server/bootstrap";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { MCP_TOOLS, type McpToolName } from "@/src/features/mcp/server/tools";
 import { skillsFeature } from "@/src/features/mcp/server/skills";
 
 describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
@@ -21,9 +17,10 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     for (const { definition } of skillsFeature.tools.filter(
       ({ definition }) => definition.annotations?.readOnlyHint === true,
     )) {
-      expect(toolRegistry.getTool(definition.name)?.definition).toEqual(
-        definition,
-      );
+      expect(
+        MCP_TOOLS.find((tool) => tool.definition.name === definition.name)
+          ?.definition,
+      ).toEqual(definition);
       expect(definition.action).toBe("skills:read");
       expect(definition.annotations?.readOnlyHint).toBe(true);
       expect([...policy.available]).toContain(definition.name);
@@ -60,7 +57,9 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       expect(getInAppAgentMcpAllowedToolNames(viewerPolicy)).not.toContain(
         toolName,
       );
-      const definition = toolRegistry.getTool(toolName)?.definition;
+      const definition = MCP_TOOLS.find(
+        (tool) => tool.definition.name === toolName,
+      )?.definition;
       expect(definition?.action).toBe("skills:CUD");
       expect(definition?.annotations?.destructiveHint).toBe(true);
       expect(definition?.annotations?.readOnlyHint).not.toBe(true);
@@ -76,13 +75,11 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
   });
 
   it("classifies every Langfuse MCP tool exactly once", () => {
-    expect(bootstrapMcpFeatures).toBeTypeOf("function");
     expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
 
-    const registeredToolNames = toolRegistry
-      .getFeatures()
-      .flatMap((feature) => feature.tools.map((tool) => tool.definition.name))
-      .sort();
+    const registeredToolNames = MCP_TOOLS.map(
+      (tool) => tool.definition.name,
+    ).sort();
     const classifiedToolNames = Object.keys(
       IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
     ).sort();

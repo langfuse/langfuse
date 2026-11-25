@@ -14,7 +14,6 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
-import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { topicsFeature } from "@/src/features/mcp/server/topics";
 import { authenticator } from "@/src/features/apiKey/authenticator";
