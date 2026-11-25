@@ -4,11 +4,13 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getEventsDispatchEventStream,
   QueueJobs,
+  recordIncrement,
   redis,
   type QueueName,
   type TQueueJobTypes,
   type TraceTranscriptStorage,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 import { getTraceDispatchShard } from "../../features/traceDispatch/traceReadiness";
 import {
@@ -23,6 +25,7 @@ const inputStorage = vi.hoisted(() => ({
   get: vi.fn<TraceTranscriptStorage["get"]>(),
 }));
 const topicsTraceAdd = vi.hoisted(() => vi.fn());
+const judgeAdd = vi.hoisted(() => vi.fn());
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -37,22 +40,35 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     recordDistribution: vi.fn(),
     createTraceTranscriptStorage: () => inputStorage,
     TopicsTraceQueue: { getInstance: () => ({ add: topicsTraceAdd }) },
+    LLMAsJudgeExecutionQueue: { getInstance: () => ({ add: judgeAdd }) },
+    isTraceEvalsProjectEnabled: () => true,
   };
 });
 
-// "rule" runs a Topics facet; recorded IDs without a stored rule are dropped.
+// "rule" runs a Topics facet, "judge" a trace judge; recorded IDs without a stored rule are dropped.
 vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/db")>()),
   prisma: {
     evaluationRule: {
       findMany: vi.fn(async () => [
         { id: "rule", assignments: [{ evaluator: { type: "FACET" } }] },
+        {
+          id: "judge",
+          assignments: [{ evaluator: { type: "LLM_AS_JUDGE" } }],
+        },
       ]),
     },
     evaluationRuleEvaluatorAssignment: {
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async () => [
+        {
+          id: "assignment",
+          evaluatorId: "evaluator",
+          evaluationRule: { id: "judge", delay: null },
+        },
+      ]),
     },
     jobExecution: {
+      upsert: vi.fn(async () => ({})),
       createMany: vi.fn(async () => ({ count: 0 })),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
@@ -95,7 +111,7 @@ async function recordAndAcknowledge(traceIds: string[], acknowledge = true) {
   return revisions;
 }
 
-function streamRows(traceIds: string[]) {
+function streamRows(traceIds: string[], withoutMessages: string[] = []) {
   vi.mocked(getEventsDispatchEventStream).mockImplementation(
     async function* () {
       for (const traceId of traceIds)
@@ -110,7 +126,9 @@ function streamRows(traceIds: string[]) {
           event_ts: "2026-11-05 00:00:00.000000",
           type: "GENERATION",
           name: "generation",
-          input: JSON.stringify([{ role: "user", content: "hello" }]),
+          input: withoutMessages.includes(traceId)
+            ? ""
+            : JSON.stringify([{ role: "user", content: "hello" }]),
           output: "",
           metadata: {},
           level: "DEFAULT",
@@ -200,6 +218,35 @@ describe("events dispatch consumer", () => {
     expect(due).toBeLessThanOrEqual(Date.now() + 5 * MINUTE_MS + 1_000);
   });
 
+  it("counts a job's traces as lost only when its last attempt fails", async () => {
+    const revisions = await recordAndAcknowledge(["first", "second"]);
+    vi.mocked(getEventsDispatchEventStream).mockImplementation(() => {
+      throw new Error("read failed");
+    });
+    const attempt = (attemptsMade: number) =>
+      Object.assign(
+        job(
+          [...revisions].map(([traceId, revision]) => ({ traceId, revision })),
+        ),
+        { attemptsMade, opts: { attempts: 2 } },
+      );
+    const lost = [
+      "langfuse.events_dispatch.trace_outcomes",
+      2,
+      { outcome: "lost", reason: "job_failed" },
+    ];
+
+    await expect(eventsDispatchQueueProcessor(attempt(0))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(...lost);
+
+    await expect(eventsDispatchQueueProcessor(attempt(1))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(...lost);
+  });
+
   it("keeps newer activity's revision and drops a trace after its last retry", async () => {
     const revisions = await recordAndAcknowledge(["newer", "exhausted"]);
     // New spans arrive for one trace while its job runs.
@@ -276,5 +323,30 @@ describe("events dispatch consumer", () => {
     expect(inputStorage.put).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
+  });
+
+  it("skips trace evals for a trace without a transcript, still enqueueing Topics", async () => {
+    streamRows(["full", "empty", "judge-only"], ["empty", "judge-only"]);
+
+    const result = await eventsDispatchQueueProcessor(
+      job([
+        { traceId: "full", revision: "r1", ruleIds: ["rule", "judge"] },
+        { traceId: "empty", revision: "r2", ruleIds: ["rule", "judge"] },
+        { traceId: "judge-only", revision: "r3", ruleIds: ["judge"] },
+      ]),
+    );
+
+    expect(result).toEqual({ enqueued: 2, skipped: 1 });
+    expect(inputStorage.put.mock.calls.map(([{ traceId }]) => traceId)).toEqual(
+      ["full", "empty"],
+    );
+    expect(inputStorage.put.mock.calls[1][1].transcript).toBeNull();
+    expect(
+      topicsTraceAdd.mock.calls.map(([, { payload }]) => payload.traceId),
+    ).toEqual(["full", "empty"]);
+    expect(
+      judgeAdd.mock.calls.map(([, { payload }]) => payload.traceId),
+    ).toEqual(["full"]);
+    expect(prisma.jobExecution.upsert).toHaveBeenCalledTimes(1);
   });
 });

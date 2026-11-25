@@ -73,23 +73,40 @@ export const TRACE_TRANSCRIPT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 
 let storage: StorageService | undefined;
 
+/** Shared by `put` and the test-on-trace path so both measure the same envelope against the same limit. */
+export function serializeTraceTranscriptInputs({
+  transcript,
+  executionIssues,
+  traceContext,
+}: TraceTranscriptData): {
+  json: string;
+  jsonLength: number;
+  tooLarge: boolean;
+} {
+  const inputs: TraceTranscriptV1 = {
+    schemaVersion: 1,
+    transcript: transcript === null ? null : toStoredTranscriptV1(transcript),
+    executionIssues: toStoredExecutionIssuesV1(executionIssues),
+    traceContext,
+  };
+  const json = JSON.stringify(inputs);
+  const jsonLength = json.length;
+  return {
+    json,
+    jsonLength,
+    tooLarge: jsonLength > TRACE_TRANSCRIPT_MAX_CHARACTERS,
+  };
+}
+
 /** Storage dependencies share one lazily initialized provider client. */
 export function createTraceTranscriptStorage(): TraceTranscriptStorage {
   return {
-    async put(reference, { transcript, executionIssues, traceContext }) {
-      const inputs: TraceTranscriptV1 = {
-        schemaVersion: 1,
-        transcript:
-          transcript === null ? null : toStoredTranscriptV1(transcript),
-        executionIssues: toStoredExecutionIssuesV1(executionIssues),
-        traceContext,
-      };
-      const json = JSON.stringify(inputs);
-      const jsonLength = json.length;
-      const key = getTraceTranscriptKey(reference);
-      if (jsonLength > TRACE_TRANSCRIPT_MAX_CHARACTERS)
-        return { outcome: "too_large", jsonLength };
+    async put(reference, inputs) {
+      const { json, jsonLength, tooLarge } =
+        serializeTraceTranscriptInputs(inputs);
+      if (tooLarge) return { outcome: "too_large", jsonLength };
 
+      const key = getTraceTranscriptKey(reference);
       await getStorage().uploadFile({
         fileName: key,
         fileType: "application/json",

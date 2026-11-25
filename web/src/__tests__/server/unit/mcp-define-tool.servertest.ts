@@ -155,6 +155,27 @@ describe("defineTool", () => {
     expect(tool.inputSchema.type).toBe("object");
   });
 
+  it("publishes annotations as given, including hints set to false", () => {
+    const schema = z.object({});
+    const annotations = {
+      title: "Closed world tool",
+      idempotentHint: true,
+      openWorldHint: false,
+    };
+
+    const [tool] = defineTool({
+      name: "closedWorldTool",
+      description: "",
+      action: __dangerouslySkipAuthz,
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+      annotations,
+    });
+
+    expect(tool.annotations).toEqual(annotations);
+  });
+
   it("allows plain object fields named like JSON Schema combinators", () => {
     const schema = z.object({
       anyOf: z.string(),

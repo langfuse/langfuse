@@ -180,6 +180,7 @@ const toValueList = (options: SidebarFilterOptions[string]): string[] | null =>
  *
  * @param params - Filter context including column type, existing filter, selected and available values
  * @returns Object with finalOperator and finalValues to apply
+ * @internal
  */
 export function resolveCheckboxOperator(params: {
   colType: string | undefined;
@@ -303,6 +304,7 @@ export function categoricalFilterEditingReason(
 /**
  * Applies a checkbox/boolean facet selection to the state. Returns `current`
  * unchanged when the column is unknown or its options are not enumerable.
+ * @internal
  */
 export function applySelection(
   ctx: SidebarFilterActionContext,

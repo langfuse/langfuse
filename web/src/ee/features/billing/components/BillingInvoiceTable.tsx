@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
-import { Download, ExternalLink } from "@langfuse/icons";
+import { Download, SquareArrowOutUpRight } from "@langfuse/icons";
 
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -106,7 +106,7 @@ export function BillingInvoiceTable({
               id: "view",
               type: "item" as const,
               title: "View",
-              icon: ExternalLink,
+              icon: SquareArrowOutUpRight,
               href: invoice.hostedInvoiceUrl,
               linkTarget: "_blank" as const,
             },
@@ -131,7 +131,7 @@ export function BillingInvoiceTable({
   return (
     <div className="space-y-2 pt-4">
       <h3 className="font-bold">Invoice History</h3>
-      <SettingsTable
+      <TableCard
         tableName="billing-invoices"
         columns={columns}
         actions={actions}

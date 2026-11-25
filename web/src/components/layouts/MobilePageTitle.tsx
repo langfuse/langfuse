@@ -104,7 +104,7 @@ export const MobilePageTitle = ({
             stays in the title attribute (and the ⋯ menu's Copy row). */}
           <h1
             title={title}
-            className="text-primary min-w-0 truncate text-base leading-tight font-bold"
+            className="ph-no-capture text-primary min-w-0 truncate text-base leading-tight font-bold"
           >
             {titleTooltip ? (
               <CustomTooltip

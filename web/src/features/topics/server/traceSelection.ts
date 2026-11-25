@@ -74,12 +74,9 @@ async function setupMatching(
   );
 }
 
-// The wizard's lowest sampling rate.
-const SETUP_MIN_SAMPLING = 0.01;
-
 /**
  * Finished traces over 7 and 30 days that the rule's filter selects. The 30-day
- * scan is skipped once 7 days fill the backfill at the lowest sampling rate, so
+ * scan is skipped once 7 days fill the backfill, so
  * busy projects read 7 days; then `finished30d` is a lower bound.
  */
 export async function countTopicSetupTraces(input: {
@@ -106,9 +103,7 @@ export async function countTopicSetupTraces(input: {
   };
   const finished7d = await count(7);
   const finished30d =
-    finished7d * SETUP_MIN_SAMPLING >= TOPIC_SETUP_BACKFILL_LIMIT
-      ? finished7d
-      : await count(30);
+    finished7d >= TOPIC_SETUP_BACKFILL_LIMIT ? finished7d : await count(30);
   return { finished7d, finished30d };
 }
 

@@ -14,6 +14,11 @@ import {
   numericRowText,
   parseNumericEntryValue,
 } from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  operatorSelectValue,
+  parseOperatorSelectValue,
+  textAndNumericOperatorOptions,
+} from "@/src/features/filters/lib/numeric-operator-select";
 import { Plus, X } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type {
@@ -110,44 +115,23 @@ const STRING_OPERATOR_OPTIONS = Object.entries(STRING_OPERATOR_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
 
-// Numeric rows of a string facet share its operator select, so their option
-// values carry a prefix: a numeric `=` row (from a URL) must not read as the
-// text `equals`.
-const NUMERIC_OPTION_PREFIX = "number:";
 type NumericOperator = keyof typeof NUMERIC_OPERATOR_LABELS;
 
-// Metadata equality is the text `equals`: unquoted values cannot tell `2`
-// from `"2"`, so no numeric `=` is offered.
-const STRING_AND_NUMERIC_OPERATOR_OPTIONS = [
-  ...STRING_OPERATOR_OPTIONS,
-  ...Object.entries(NUMERIC_OPERATOR_LABELS)
-    .filter(([value]) => value !== "=")
-    .map(([value, label]) => ({
-      value: `${NUMERIC_OPTION_PREFIX}${value}`,
-      label,
-    })),
-];
-
-/** The string facet operators `filter`'s row offers. */
+/** @internal */
 export const stringRowOperatorOptions = (
   filter: StringKeyValueFilterEntry,
   numericValues: boolean,
-) => {
-  if (!numericValues) return STRING_OPERATOR_OPTIONS;
-  // A numeric `=` written outside the facet (URL) still shows as itself.
-  return filter.valueType === "number" && filter.operator === "="
-    ? [
-        ...STRING_AND_NUMERIC_OPERATOR_OPTIONS,
-        { value: `${NUMERIC_OPTION_PREFIX}=`, label: "equals (number)" },
-      ]
-    : STRING_AND_NUMERIC_OPERATOR_OPTIONS;
-};
+) =>
+  numericValues
+    ? textAndNumericOperatorOptions(
+        STRING_OPERATOR_OPTIONS,
+        NUMERIC_OPERATOR_OPTIONS,
+        filter.valueType === "number" && filter.operator === "=",
+      )
+    : STRING_OPERATOR_OPTIONS;
 
-/** The operator select value of a string facet row. */
 const stringRowOperatorValue = (filter: StringKeyValueFilterEntry): string =>
-  filter.valueType === "number"
-    ? `${NUMERIC_OPTION_PREFIX}${filter.operator}`
-    : filter.operator;
+  operatorSelectValue(filter.valueType === "number", filter.operator);
 
 /**
  * The row fields a string facet's operator select value sets, e.g.
@@ -158,17 +142,15 @@ const stringRowOperatorValue = (filter: StringKeyValueFilterEntry): string =>
 const stringRowOperatorUpdate = (
   value: string,
 ): Partial<StringKeyValueFilterEntry> => {
-  if (value.startsWith(NUMERIC_OPTION_PREFIX)) {
-    return {
-      valueType: "number",
-      operator: value.slice(NUMERIC_OPTION_PREFIX.length) as NumericOperator,
-    };
+  const { numeric, operator } = parseOperatorSelectValue(value);
+  if (numeric) {
+    return { valueType: "number", operator: operator as NumericOperator };
   }
-  const operator = value as StringOperator;
+  const stringOperator = operator as StringOperator;
   return {
     valueType: undefined,
-    operator,
-    ...(isStringPresenceOperator(operator) ? { value: "" } : {}),
+    operator: stringOperator,
+    ...(isStringPresenceOperator(stringOperator) ? { value: "" } : {}),
   };
 };
 const BOOLEAN_VALUE_OPTIONS = [

@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   CircleDollarSign,
   KeyRound,
   ShieldCheck,
@@ -7,24 +6,18 @@ import {
 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  GatewaySetupSwitchboard,
-  type GatewaySetupSwitchboardProps,
-} from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
-import { GATEWAY_TRAFFIC_SOURCES } from "@/src/features/ai-gateway/constants/gatewayTrafficSources";
 
 export type GatewayAnalyticsNoKeysEmptyStateProps = {
   gatewayKeysHref: string;
   docsHref: string;
-  providers: GatewaySetupSwitchboardProps["providers"];
 };
 
 /** Overview before any gateway key exists: what to do next and what the gateway adds. */
 export function GatewayAnalyticsNoKeysEmptyState({
   gatewayKeysHref,
   docsHref,
-  providers,
 }: GatewayAnalyticsNoKeysEmptyStateProps) {
   return (
     <GatewayPlaceholder.Frame
@@ -32,22 +25,10 @@ export function GatewayAnalyticsNoKeysEmptyState({
       description="Cost and usage show up here once requests go through the AI Gateway. Add a gateway key, then point your LLM client at the gateway."
     >
       <GatewayPlaceholder.Actions>
+        <Button variant="outline" text="Read the docs" href={docsHref} />
         <Button text="Add gateway key" icon={KeyRound} href={gatewayKeysHref} />
-        <Button
-          variant="outline"
-          text="Read the docs"
-          icon={BookOpen}
-          href={docsHref}
-        />
       </GatewayPlaceholder.Actions>
-      <GatewayPlaceholder.Diagram>
-        <div className="mx-auto aspect-[440/200] w-full max-w-xl">
-          <GatewaySetupSwitchboard
-            providers={providers}
-            sources={GATEWAY_TRAFFIC_SOURCES}
-          />
-        </div>
-      </GatewayPlaceholder.Diagram>
+      <GatewayTrafficDiagram />
       <GatewayPlaceholder.Benefits>
         <GatewayPlaceholder.Benefit
           icon={KeyRound}

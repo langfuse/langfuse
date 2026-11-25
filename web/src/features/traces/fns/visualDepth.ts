@@ -34,6 +34,7 @@ export const TREE_VISUAL_DEPTH: VisualDepthConfig = {
 };
 
 /** Timeline gutter: 14px/level rails, narrow resizable pane (160-560px). */
+/** @internal */
 export const GUTTER_VISUAL_DEPTH: VisualDepthConfig = {
   indentPx: 14,
   reservedPx: 120,

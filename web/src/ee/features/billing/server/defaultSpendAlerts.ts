@@ -15,6 +15,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 type PlanWithoutSpendAlerts =
   | "oss"
   | "cloud:hobby"
+  | "cloud:enterprise-trial"
   | "self-hosted:pro"
   | "self-hosted:enterprise"
   | "self-hosted:gov";

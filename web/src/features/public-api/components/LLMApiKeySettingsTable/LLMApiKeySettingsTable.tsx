@@ -9,9 +9,9 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import type { LlmApiKeyListItem } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
@@ -136,7 +136,7 @@ export function LLMApiKeySettingsTable({
     [deleteAction, updateAction],
   );
 
-  const toolbarActions: SettingsTableProps<LLMApiKeySettingsTableRow>["toolbarActions"] =
+  const toolbarActions: TableCardProps<LLMApiKeySettingsTableRow>["toolbarActions"] =
     createAction.hasAccess
       ? [
           {
@@ -150,7 +150,7 @@ export function LLMApiKeySettingsTable({
       : undefined;
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={tableName}
       columns={columns}
       actions={actions}

@@ -61,9 +61,8 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
-  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>

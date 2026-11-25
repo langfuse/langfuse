@@ -36,10 +36,14 @@ export function GatewayAnalyticsDashboard({
     [timeRange],
   );
   const fetchQuery = useGatewayAnalyticsFetchQuery(organizationId);
-  const { labels, isPending: labelsPending } =
-    useGatewayAnalyticsLabels(organizationId);
+  const {
+    labels,
+    apiKeyOwnerById,
+    isPending: labelsPending,
+  } = useGatewayAnalyticsLabels(organizationId);
   const { filters } = useGatewayAnalyticsFilters({
     labels,
+    apiKeyOwnerById,
     canFilterByUser: canManageGateway,
   });
 

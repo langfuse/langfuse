@@ -1,4 +1,4 @@
-import { BookOpen, Bot, Plus, UserRound } from "@langfuse/icons";
+import { Bot, Plus, UserRound } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
@@ -19,13 +19,12 @@ export function GatewayApiKeysEmptyState({
       description="Create a gateway key to send requests through the AI Gateway from Claude Code, Codex, or your own code."
     >
       <GatewayPlaceholder.Actions>
-        <Button text="Create gateway key" icon={Plus} onClick={onCreateKey} />
         <Button
           variant="outline"
           text="How gateway keys work"
-          icon={BookOpen}
           href={GATEWAY_API_KEYS_DOCS_URL}
         />
+        <Button text="Create gateway key" icon={Plus} onClick={onCreateKey} />
       </GatewayPlaceholder.Actions>
       <GatewayPlaceholder.Diagram>
         <div className="mx-auto aspect-[470/160] w-full max-w-lg">

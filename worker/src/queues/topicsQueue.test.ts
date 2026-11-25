@@ -1,16 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UnrecoverableError } from "bullmq";
 
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   refit: vi.fn(),
-  enabled: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueJobs: { Topics: "topics", TopicsRuleRefit: "topics-rule-refit" },
-}));
-vi.mock("@langfuse/shared/topics/server", () => ({
-  isTopicsProjectEnabled: mocks.enabled,
 }));
 vi.mock("../features/topics/processTopicsExecution", () => ({
   processTopicUpdateExecution: mocks.update,
@@ -35,21 +30,9 @@ const refitJob = {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.enabled.mockReturnValue(true);
 });
 
 describe("Topics update queue", () => {
-  it("rejects jobs of projects outside the allowlist before processing", async () => {
-    mocks.enabled.mockReturnValue(false);
-    for (const job of [updateJob, refitJob])
-      await expect(topicsUpdateQueueProcessor(job)).rejects.toBeInstanceOf(
-        UnrecoverableError,
-      );
-    expect(mocks.enabled).toHaveBeenCalledWith("project");
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.refit).not.toHaveBeenCalled();
-  });
-
   it("routes snapshot fits and rule refits to their own handlers", async () => {
     await topicsUpdateQueueProcessor(updateJob);
     expect(mocks.update).toHaveBeenCalledExactlyOnceWith({

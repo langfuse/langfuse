@@ -7,9 +7,7 @@ const mocks = vi.hoisted(() => ({
   env: { NEXTAUTH_URL: "https://cloud.langfuse.com" },
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   auditLog: vi.fn(),
-  traceCounts: vi.fn(),
-  observationCounts: vi.fn(),
-  scoreCounts: vi.fn(),
+  billableUnitCounts: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
@@ -25,9 +23,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...actual,
     logger: mocks.logger,
-    getTraceCountsByProjectInCreationInterval: mocks.traceCounts,
-    getObservationCountsByProjectInCreationInterval: mocks.observationCounts,
-    getScoreCountsByProjectInCreationInterval: mocks.scoreCounts,
+    getBillableUnitCountsByProjectAndBucket: mocks.billableUnitCounts,
   };
 });
 
@@ -807,15 +803,38 @@ describe("chbBillingService", () => {
         { id: "project-1" },
         { id: "project-2" },
       ]);
-      mocks.traceCounts.mockResolvedValue([
-        { projectId: "project-1", count: 10 },
-      ]);
-      mocks.observationCounts.mockResolvedValue([
-        { projectId: "project-1", count: 100 },
-        { projectId: "project-2", count: 50 },
-      ]);
-      mocks.scoreCounts.mockResolvedValue([
-        { projectId: "project-2", count: 5 },
+      const day = (date: string) => new Date(`2026-10-${date}T00:00:00Z`);
+      mocks.billableUnitCounts.mockResolvedValue([
+        {
+          bucket: day("01"),
+          projectId: "project-1",
+          eventType: "trace",
+          count: 10,
+        },
+        {
+          bucket: day("01"),
+          projectId: "project-1",
+          eventType: "observation",
+          count: 60,
+        },
+        {
+          bucket: day("05"),
+          projectId: "project-1",
+          eventType: "observation",
+          count: 40,
+        },
+        {
+          bucket: day("05"),
+          projectId: "project-2",
+          eventType: "observation",
+          count: 50,
+        },
+        {
+          bucket: day("06"),
+          projectId: "project-2",
+          eventType: "score",
+          count: 5,
+        },
       ]);
 
       const usage = await service().getUsage(ORG_ID);
@@ -833,14 +852,12 @@ describe("chbBillingService", () => {
       expect(projectFindMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { orgId: ORG_ID, deletedAt: null } }),
       );
-      const interval = {
-        start: new Date("2026-10-01T00:00:00Z"),
-        end: new Date("2026-10-06T12:00:00Z"),
+      expect(mocks.billableUnitCounts).toHaveBeenCalledWith({
         projectIds: ["project-1", "project-2"],
-      };
-      expect(mocks.traceCounts).toHaveBeenCalledWith(interval);
-      expect(mocks.observationCounts).toHaveBeenCalledWith(interval);
-      expect(mocks.scoreCounts).toHaveBeenCalledWith(interval);
+        from: new Date("2026-10-01T00:00:00Z"),
+        to: new Date("2026-10-06T12:00:00Z"),
+        granularity: "day",
+      });
     });
 
     it("falls back to the cached cycle counter without an attached plan", async () => {
@@ -849,7 +866,7 @@ describe("chbBillingService", () => {
       const usage = await service().getUsage(ORG_ID);
 
       expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
-      expect(mocks.traceCounts).not.toHaveBeenCalled();
+      expect(mocks.billableUnitCounts).not.toHaveBeenCalled();
       expect(usage.usageCount).toBe(4_200);
       expect(usage.usageType).toBe("units");
       expect(usage.billingPeriod.start.getUTCDate()).toBe(15);

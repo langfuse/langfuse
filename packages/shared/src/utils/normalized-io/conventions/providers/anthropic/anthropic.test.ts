@@ -7,7 +7,7 @@ import {
   anthropicMessagesRichContentFixture,
   capturedTraceFixtures,
   documentedToolResultFixtures,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("Anthropic normalized I/O", () => {
   it.each([

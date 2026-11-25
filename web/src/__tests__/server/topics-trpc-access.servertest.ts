@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   DEFAULT_TOPIC_FACETS,
   topicEmbeddingConfigSchema,
@@ -11,9 +9,10 @@ import {
 import {
   createTopicExecution,
   createTopicFacet,
-  createTopicRun,
-  writeTopicSummaries,
+  getTopicRule,
   getTopicsModels,
+  writeTopicRuleSetup,
+  writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 // Only the LLM transport is faked, to see which connection a test call used.
 const generateTopicText = vi.hoisted(() =>
@@ -27,6 +26,7 @@ vi.mock("@langfuse/shared/src/server/topics/text", () => ({
 }));
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { topicsProject as topicsFixture } from "@/src/__tests__/fixtures/topics";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -37,7 +37,7 @@ function caller(userId: string, memberships: [string, string, Role][]) {
   const session = createSession({
     user: {
       id: userId,
-      featureFlags: testFeatureFlags({ langfuseTopics: true }),
+      featureFlags: testFeatureFlags(),
     },
     organizations: memberships.map(([orgId, projectId, role]) => ({
       id: orgId,
@@ -67,9 +67,10 @@ function llmConnection(
   });
 }
 
-/** A project with a project-level LLM connection, configured models, a custom facet, a run and an execution. */
+/** The shared Topics fixture plus a project LLM connection, configured models and a billed snapshot. */
 async function topicsProject(userId: string) {
-  const { projectId, orgId } = await createOrgProjectAndApiKey();
+  const base = await topicsFixture();
+  const { projectId } = base;
   const llmKey = await llmConnection({ projectId });
   await prisma.topicConfig.create({
     data: {
@@ -84,34 +85,46 @@ async function topicsProject(userId: string) {
       clusteringModel: "clustering-model",
     },
   });
-  const facet = await createTopicFacet({
+  const execution = await createTopicExecution(
+    {
+      projectId,
+      requestId: randomUUID(),
+      operation: "update",
+      facets: [{ facetId: base.facetId, version: 1 }],
+      timeRange: {
+        from: new Date(Date.now() - 86_400_000),
+        to: new Date(),
+      },
+      exploratory: false,
+      embeddingConfig: topicEmbeddingConfigSchema.parse({}),
+      analysis: { label: "Snapshot", filter: [], seed: "seed" },
+    },
+    undefined,
+    userId,
+  );
+  // The snapshot's cost, on its own facet so the fixture trace stays base.facetId's only row.
+  const costFacet = await createTopicFacet({
     projectId,
-    name: `Facet ${randomUUID()}`,
+    name: `Cost facet ${randomUUID()}`,
     description: "",
     prompt: "Summarize the trace.",
   });
-  const run = await createTopicRun({
-    projectId,
-    facetId: facet.id,
-    facetVersion: 1,
-    config: {},
-  });
-  const traceId = randomUUID();
+  const now = new Date().toISOString();
   await writeTopicSummaries([
     {
       projectId,
-      facetId: facet.id,
+      facetId: costFacet.id,
       facetVersion: 1,
-      traceId,
+      traceId: randomUUID(),
       sessionId: null,
-      triggerType: "rule",
+      triggerType: "snapshot",
       ruleIds: [],
-      executionId: null,
+      executionId: execution.id,
       environment: "production",
       traceName: "assistant",
-      unitStartTime: new Date().toISOString(),
+      unitStartTime: now,
       state: "complete",
-      summary: "Private summary",
+      summary: "Billed summary",
       embedding: [1, 0],
       transcriptId: "test",
       transcriptVersion: "test",
@@ -121,44 +134,33 @@ async function topicsProject(userId: string) {
       providedUsageDetails: {},
       usageDetails: {},
       providedCostDetails: {},
-      costDetails: {},
-      processedAt: new Date().toISOString(),
+      costDetails: { total: 0.25 },
+      processedAt: now,
       metadata: {},
     },
   ]);
-  const execution = await createTopicExecution(
-    {
-      projectId,
-      requestId: randomUUID(),
-      operation: "update",
-      facets: [{ facetId: facet.id, version: 1 }],
-      timeRange: {
-        from: new Date(Date.now() - 86_400_000),
-        to: new Date(),
-      },
-      exploratory: false,
-      embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-    },
-    undefined,
-    userId,
-  );
   return {
-    projectId,
-    orgId,
+    ...base,
     llmKeyId: llmKey.id,
-    facetId: facet.id,
-    runId: run.id,
+    llmProvider: llmKey.provider,
     executionId: execution.id,
-    traceId,
   };
 }
 
+/** Every `topics.*` procedure name, optionally of one type. */
+function topicsProcedures(type?: "query" | "mutation") {
+  const procedures = appRouter._def.procedures as unknown as Record<
+    string,
+    { _def: { type: string } }
+  >;
+  return Object.entries(procedures).flatMap(([path, procedure]) =>
+    path.startsWith("topics.") && (!type || procedure._def.type === type)
+      ? [path.slice("topics.".length)]
+      : [],
+  );
+}
+
 describe("Topics tRPC access", () => {
-  const original = {
-    enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    projectIds: sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-    region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
   let userId: string;
   let a: Awaited<ReturnType<typeof topicsProject>>;
   let b: Awaited<ReturnType<typeof topicsProject>>;
@@ -171,19 +173,6 @@ describe("Topics tRPC access", () => {
     ).id;
     a = await topicsProject(userId);
     b = await topicsProject(userId);
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
-      a.projectId,
-      b.projectId,
-    ];
-  });
-
-  afterAll(() => {
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS =
-      original.projectIds;
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 
   it("lets VIEWER read but rejects every write without changing state", async () => {
@@ -194,21 +183,13 @@ describe("Topics tRPC access", () => {
     });
 
     await expect(viewer.facets({ projectId })).resolves.toHaveLength(before);
-    // Every Topics mutation, so a new one cannot skip topics:CUD. Inputs carry
-    // only projectId: the check must run before any handler work.
-    const procedures = appRouter._def.procedures as unknown as Record<
-      string,
-      { _def: { type: string } }
-    >;
-    const mutations = Object.entries(procedures).flatMap(([path, procedure]) =>
-      path.startsWith("topics.") && procedure._def.type === "mutation"
-        ? [path.slice("topics.".length)]
-        : [],
-    );
+    // Every Topics mutation, so a new one cannot skip topics:CUD, plus the one query
+    // that needs it. Inputs carry only projectId: the check must run before any handler work.
+    const mutations = topicsProcedures("mutation");
     expect(mutations).toEqual(
       expect.arrayContaining(["saveRule", "startAnalysis", "startRuleSetup"]),
     );
-    for (const name of mutations)
+    for (const name of [...mutations, "costEstimate"])
       await expect(
         (viewer as unknown as Record<string, (input: unknown) => unknown>)[
           name
@@ -233,78 +214,277 @@ describe("Topics tRPC access", () => {
     ).resolves.toMatchObject({ projectId });
   });
 
-  it("rejects another project's resources even when the caller administers both", async () => {
+  it("rejects another project's ids on every procedure, even when the caller administers both", async () => {
     const admin = caller(userId, [
       [a.orgId, a.projectId, "ADMIN"],
       [b.orgId, b.projectId, "ADMIN"],
     ]);
     const projectId = a.projectId;
-
-    // Positive control: the same ids resolve within their own project.
-    await expect(
-      admin.execution({ projectId: b.projectId, executionId: b.executionId }),
-    ).resolves.toMatchObject({ id: b.executionId });
-    const ownTraces = await admin.traces({
-      projectId: b.projectId,
-      facetId: b.facetId,
-    });
-    expect(ownTraces.rows.map((row) => row.traceId)).toEqual([b.traceId]);
-    await expect(
-      admin.traces({ projectId, facetId: b.facetId }),
-    ).resolves.toMatchObject({ rows: [] });
-    expect(
-      JSON.stringify(await admin.currentResults({ projectId })),
-    ).not.toContain(b.facetId);
-
-    await expect(
-      admin.execution({ projectId, executionId: b.executionId }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(
-      admin.retry({ projectId, executionId: b.executionId }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(
-      admin.map({ projectId, runId: b.runId }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(
-      admin.saveFacet({
-        projectId,
-        facetId: b.facetId,
-        name: "Hijacked",
-        prompt: "Leak the other project's traces.",
-      }),
-    ).rejects.toThrow("Facet not found in this project.");
-    await expect(
-      admin.saveRule({
-        projectId,
-        name: "Foreign rule",
-        filter: [],
-        facetIds: [b.facetId],
-      }),
-    ).rejects.toThrow("Select facets from this project.");
-    const foreignSlice = {
-      projectId,
+    const notFound = { code: "NOT_FOUND" };
+    const ruleNotInProject = {
+      code: "NOT_FOUND",
+      message: "Topic rule not found in this project.",
+    };
+    const bTrace = { traceId: b.traceId, timestamp: new Date() };
+    const bSlice = {
       filter: [],
       timeRange: { from: new Date(Date.now() - 86_400_000), to: new Date() },
       facets: [{ facetId: b.facetId, version: 1 }],
     };
-    await expect(admin.previewAnalysis(foreignSlice)).rejects.toThrow(
-      "Facet version not found in this project.",
-    );
-    await expect(
-      admin.startAnalysis({ ...foreignSlice, label: "Foreign facet" }),
-    ).rejects.toThrow("Facet version not found in this project.");
+    const bFacetName = (
+      await prisma.evaluator.findUniqueOrThrow({ where: { id: b.facetId } })
+    ).name;
+    await writeTopicRuleSetup({
+      projectId: b.projectId,
+      ruleId: b.ruleId,
+      phase: "selecting",
+      startedAt: new Date().toISOString(),
+      deadlineAt: new Date(Date.now() + 3_600_000).toISOString(),
+      days: null,
+      seededCount: 0,
+      error: null,
+      facets: [],
+    });
+    const bRuleBefore = await getTopicRule(b.projectId, b.ruleId);
+    const aConfigBefore = await prisma.topicConfig.findUniqueOrThrow({
+      where: { projectId },
+    });
+    const bRunsBefore = await prisma.topicClusteringRun.count({
+      where: { projectId: b.projectId },
+    });
 
-    // Project B is untouched.
+    // Positive controls: B's ids resolve in B, so the denials below are not vacuous.
+    const own = { projectId: b.projectId };
+    await expect(
+      admin.execution({ ...own, executionId: b.executionId }),
+    ).resolves.toMatchObject({ id: b.executionId });
+    await expect(
+      admin.analysisResults({ ...own, executionId: b.executionId }),
+    ).resolves.toMatchObject({ execution: { id: b.executionId } });
+    expect(
+      (await admin.traces({ ...own, facetId: b.facetId })).rows.map(
+        (row) => row.traceId,
+      ),
+    ).toEqual([b.traceId]);
+    expect(
+      JSON.stringify(await admin.forTrace({ ...own, ...bTrace })),
+    ).toContain(b.facetId);
+    expect(
+      JSON.stringify(await admin.forTraces({ ...own, traces: [bTrace] })),
+    ).toContain(b.traceId);
+    await expect(
+      admin.stripeMap({ ...own, facet: bFacetName }),
+    ).resolves.not.toBeNull();
+    await expect(
+      admin.executionCosts({ ...own, executionIds: [b.executionId] }),
+    ).resolves.toEqual({ [b.executionId]: 0.25 });
+    await expect(
+      admin.ruleSetupStatus({ ...own, ruleId: b.ruleId }),
+    ).resolves.toMatchObject({ ruleId: b.ruleId });
+
+    // One entry per procedure whose input can name a resource: project A with B's ids.
+    const foreignIdCases: Record<string, () => Promise<unknown>> = {
+      currentResults: async () => {
+        expect(
+          JSON.stringify(await admin.currentResults({ projectId })),
+        ).not.toContain(b.facetId);
+        await expect(
+          admin.currentResults({ projectId, ruleId: b.ruleId }),
+        ).rejects.toMatchObject(ruleNotInProject);
+      },
+      traces: async () => {
+        await expect(
+          admin.traces({ projectId, facetId: b.facetId }),
+        ).resolves.toMatchObject({ rows: [] });
+        await expect(
+          admin.traces({ projectId, facetId: a.facetId, ruleId: b.ruleId }),
+        ).rejects.toMatchObject(ruleNotInProject);
+        await expect(
+          admin.traces({
+            projectId,
+            facetId: a.facetId,
+            analysisId: b.executionId,
+          }),
+        ).rejects.toMatchObject(notFound);
+      },
+      forTraces: async () =>
+        expect(
+          JSON.stringify(
+            await admin.forTraces({ projectId, traces: [bTrace] }),
+          ),
+        ).not.toContain(b.traceId),
+      forTrace: async () =>
+        expect(
+          JSON.stringify(await admin.forTrace({ projectId, ...bTrace })),
+        ).not.toContain(b.facetId),
+      stripeMap: () =>
+        expect(
+          admin.stripeMap({ projectId, facet: bFacetName }),
+        ).resolves.toBeNull(),
+      analysisResults: () =>
+        expect(
+          admin.analysisResults({ projectId, executionId: b.executionId }),
+        ).rejects.toMatchObject(notFound),
+      previewAnalysis: () =>
+        expect(admin.previewAnalysis({ projectId, ...bSlice })).rejects.toThrow(
+          "Facet version not found in this project.",
+        ),
+      startAnalysis: () =>
+        expect(
+          admin.startAnalysis({ projectId, ...bSlice, label: "Foreign facet" }),
+        ).rejects.toThrow("Facet version not found in this project."),
+      saveFacet: () =>
+        expect(
+          admin.saveFacet({
+            projectId,
+            facetId: b.facetId,
+            name: "Hijacked",
+            prompt: "Leak the other project's traces.",
+          }),
+        ).rejects.toThrow("Facet not found in this project."),
+      saveRule: async () => {
+        await expect(
+          admin.saveRule({
+            projectId,
+            name: "Foreign facet",
+            filter: [],
+            facetIds: [b.facetId],
+          }),
+        ).rejects.toThrow("Select facets from this project.");
+        await expect(
+          admin.saveRule({
+            projectId,
+            id: b.ruleId,
+            name: "Hijacked",
+            filter: [],
+            facetIds: [a.facetId],
+          }),
+        ).rejects.toMatchObject(ruleNotInProject);
+      },
+      setRuleEnabled: () =>
+        expect(
+          admin.setRuleEnabled({ projectId, id: b.ruleId, enabled: false }),
+        ).rejects.toMatchObject(ruleNotInProject),
+      saveSetup: () =>
+        expect(
+          admin.saveSetup({
+            projectId,
+            summary: { provider: a.llmProvider, model: "summary-model" },
+            embedding: null,
+            embeddingDimensions: 1024,
+            clustering: null,
+            ruleId: b.ruleId,
+            facets: DEFAULT_TOPIC_FACETS.map(({ name }) => ({
+              name,
+              enabled: true,
+            })),
+            filter: [],
+            traceIdleMs: 600_000,
+          }),
+        ).rejects.toMatchObject(ruleNotInProject),
+      setAutomaticProcessing: () =>
+        expect(
+          admin.setAutomaticProcessing({
+            projectId,
+            enabled: false,
+            ruleId: b.ruleId,
+            sampling: 0.5,
+          }),
+        ).rejects.toMatchObject(ruleNotInProject),
+      execution: () =>
+        expect(
+          admin.execution({ projectId, executionId: b.executionId }),
+        ).rejects.toMatchObject(notFound),
+      executionCosts: () =>
+        expect(
+          admin.executionCosts({ projectId, executionIds: [b.executionId] }),
+        ).resolves.toEqual({}),
+      executionCostBreakdown: () =>
+        expect(
+          admin.executionCostBreakdown({
+            projectId,
+            executionIds: [b.executionId],
+          }),
+        ).resolves.toEqual({
+          [b.executionId]: { summaries: null, naming: null },
+        }),
+      retry: () =>
+        expect(
+          admin.retry({ projectId, executionId: b.executionId }),
+        ).rejects.toMatchObject(notFound),
+      startCostEstimate: () =>
+        expect(
+          admin.startCostEstimate({
+            projectId,
+            filter: [],
+            facetIds: [b.facetId],
+          }),
+        ).rejects.toMatchObject(notFound),
+      costEstimate: () =>
+        expect(
+          admin.costEstimate({ projectId, filter: [], facetIds: [b.facetId] }),
+        ).rejects.toMatchObject(notFound),
+      startRuleSetup: () =>
+        expect(
+          admin.startRuleSetup({ projectId, ruleId: b.ruleId }),
+        ).rejects.toMatchObject(notFound),
+      refreshRuleMap: () =>
+        expect(
+          admin.refreshRuleMap({ projectId, ruleId: b.ruleId }),
+        ).rejects.toMatchObject(notFound),
+      ruleSetupStatus: () =>
+        expect(
+          admin.ruleSetupStatus({ projectId, ruleId: b.ruleId }),
+        ).resolves.toBeNull(),
+      map: () =>
+        expect(admin.map({ projectId, runId: b.runId })).rejects.toMatchObject(
+          notFound,
+        ),
+      mapMatches: () =>
+        expect(
+          admin.mapMatches({ projectId, runId: b.runId, filter: [] }),
+        ).rejects.toMatchObject(notFound),
+    };
+    // Inputs that name nothing outside the project itself.
+    const projectOnly = [
+      "filterOptions",
+      "maps",
+      "facets",
+      "previewTraces",
+      "modelSettings",
+      "hasCurrentEmbeddings",
+      "tracingReadinessSettings",
+      "executions",
+      "setupTraceCounts",
+      "setupTraceNames",
+      "ruleMapCosts",
+      // Resolves LLM providers in the project; see the connection test below.
+      "testModelSettings",
+    ];
+    // A new procedure must join one of the two lists.
+    expect([...Object.keys(foreignIdCases), ...projectOnly].sort()).toEqual(
+      topicsProcedures().sort(),
+    );
+    for (const run of Object.values(foreignIdCases)) await run();
+
+    // Neither project changed.
+    expect(await getTopicRule(b.projectId, b.ruleId)).toEqual(bRuleBefore);
     expect(
       await prisma.evaluatorVersion.count({
         where: { evaluatorId: b.facetId },
       }),
     ).toBe(1);
     expect(
-      await prisma.evaluator.count({
-        where: { projectId: a.projectId, name: "Hijacked" },
-      }),
+      await prisma.evaluator.count({ where: { projectId, name: "Hijacked" } }),
     ).toBe(0);
+    expect(
+      await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
+    ).toEqual(aConfigBefore);
+    expect(
+      await prisma.topicClusteringRun.count({
+        where: { projectId: b.projectId },
+      }),
+    ).toBe(bRunsBefore);
   });
 
   it("rejects a one-off scan filter that a live scan could not save", async () => {

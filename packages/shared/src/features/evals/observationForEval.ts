@@ -4,6 +4,10 @@ import { type EventRecordBaseType } from "../../server/repositories/definitions"
 import { ObservationLevel } from "../../domain/observations";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { parseJsonIfString } from "../../utils/json";
+import {
+  evalFilterFields,
+  type ObservationEvalFilterColumnInternal,
+} from "./filterFields";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -72,6 +76,36 @@ export const observationForEvalSchema = z.object({
 });
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
+
+/**
+ * Fields that evaluation rule filters and job identifiers read: every field a
+ * filter definition names, plus the identifiers. Payloads are excluded, so
+ * rules can be matched before an observation is loaded in full.
+ */
+const observationEvalFilterFieldKeys = Object.fromEntries(
+  [
+    "span_id",
+    "trace_id",
+    "project_id",
+    ...Object.values(evalFilterFields).map((field) => field.internal),
+  ].map((field) => [field, true]),
+) as Record<
+  ObservationEvalFilterColumnInternal | "span_id" | "trace_id" | "project_id",
+  true
+>;
+
+export const observationEvalFilterFieldsSchema = observationForEvalSchema.pick(
+  observationEvalFilterFieldKeys,
+);
+
+export type ObservationEvalFilterFields = z.infer<
+  typeof observationEvalFilterFieldsSchema
+>;
+
+/** The fields of an observation that its filter fields do not carry. */
+const observationEvalRemainingFieldsSchema = observationForEvalSchema.omit(
+  observationEvalFilterFieldKeys,
+);
 
 /**
  * Self-contained tool call shape handed to evaluators. Rebuilt from the
@@ -161,21 +195,81 @@ export function convertEventRecordToObservationForEval(
     record.metadata_names,
     record.metadata_values,
   );
-  const experimentItemMetadata =
-    record.experiment_item_metadata_names.length > 0
-      ? zipFirstOccurrenceWins(
-          record.experiment_item_metadata_names,
-          record.experiment_item_metadata_values,
-        )
-      : undefined;
-
   const toolCallNames = record.tool_call_names ?? [];
   return observationForEvalSchema.parse({
     ...record,
     metadata,
-    experiment_item_metadata: experimentItemMetadata,
+    experiment_item_metadata: experimentItemMetadataOf(record),
     tool_call_count: toolCallNames.length,
   });
+}
+
+function experimentItemMetadataOf(
+  record: Pick<
+    EventRecordBaseType,
+    "experiment_item_metadata_names" | "experiment_item_metadata_values"
+  >,
+) {
+  return record.experiment_item_metadata_names.length > 0
+    ? zipFirstOccurrenceWins(
+        record.experiment_item_metadata_names,
+        record.experiment_item_metadata_values,
+      )
+    : undefined;
+}
+
+/** Event record columns that a filter field is built from, where the names differ. */
+const recordColumnsOfFilterField: Partial<Record<string, string[]>> = {
+  metadata: ["metadata_names", "metadata_values"],
+  tool_call_count: ["tool_call_names"],
+};
+
+/**
+ * Event record columns that hold the filter fields. The native OTEL path
+ * returns these columns for every event and the rest of a row on demand.
+ */
+export const observationEvalFilterRecordColumns: string[] = [
+  ...new Set(
+    Object.keys(observationEvalFilterFieldKeys).flatMap(
+      (field) => recordColumnsOfFilterField[field] ?? [field],
+    ),
+  ),
+];
+
+export function convertEventRecordToObservationEvalFilterFields(
+  record: Pick<
+    EventRecordBaseType,
+    "metadata_names" | "metadata_values" | "tool_call_names"
+  >,
+): ObservationEvalFilterFields {
+  return observationEvalFilterFieldsSchema.parse({
+    ...record,
+    metadata: metadataArraysToRecord(
+      record.metadata_names,
+      record.metadata_values,
+    ),
+    tool_call_count: (record.tool_call_names ?? []).length,
+  });
+}
+
+/**
+ * Complete validated filter fields into a full observation from the rest of the
+ * event record, so the filter fields are not validated a second time.
+ */
+export function completeObservationForEval(
+  filterFields: ObservationEvalFilterFields,
+  record: Pick<
+    EventRecordBaseType,
+    "experiment_item_metadata_names" | "experiment_item_metadata_values"
+  >,
+): ObservationForEval {
+  return {
+    ...filterFields,
+    ...observationEvalRemainingFieldsSchema.parse({
+      ...record,
+      experiment_item_metadata: experimentItemMetadataOf(record),
+    }),
+  };
 }
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<

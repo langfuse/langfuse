@@ -15,6 +15,7 @@ import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
+/** @internal */
 export type TraceExportSession = {
   user: {
     email: string;
@@ -29,6 +30,7 @@ export type TraceExportSession = {
 
 export type TraceExportAccessSession = TraceExportSession | null;
 
+/** @internal */
 export class TraceDownloadTooLargeError extends BaseError {
   constructor(description = "Observations in trace are too large") {
     super("TraceDownloadTooLargeError", 422, description, true);

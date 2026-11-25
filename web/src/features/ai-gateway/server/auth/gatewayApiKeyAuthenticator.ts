@@ -25,6 +25,7 @@ import {
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
@@ -52,6 +53,7 @@ type GatewayApiKeyAuthenticatorConfig = {
 
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
+  private readonly guardrails: GatewayGuardrailService;
   private readonly cache: GatewayResolveCache;
   private readonly modelRoutingService = new GatewayModelRoutingService();
 
@@ -60,6 +62,7 @@ export class GatewayApiKeyAuthenticator {
     config: GatewayApiKeyAuthenticatorConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
+    this.guardrails = new GatewayGuardrailService(prisma);
     this.cache = config.resolveCache ?? new GatewayResolveCache();
   }
 
@@ -172,6 +175,18 @@ export class GatewayApiKeyAuthenticator {
     const cloudConfig = organization.cloudConfig
       ? CloudConfigSchema.safeParse(organization.cloudConfig).data
       : undefined;
+    // Needs the key's organization and user, so it follows the key lookup, but
+    // runs alongside the permission check rather than after it.
+    const [guardrails] = await Promise.all([
+      this.guardrails.resolveForKey({
+        organizationId,
+        apiKeyId: row.id,
+        userId: row.userId,
+      }),
+      // Any organization key may call the gateway when its roles grant
+      // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
+      assertCanInvokeGateway(this.prisma, row, organizationId),
+    ]);
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
@@ -212,6 +227,7 @@ export class GatewayApiKeyAuthenticator {
           )
           .map((limit) => toResolveSpendLimit(limit, "organization")),
       ],
+      guardrails,
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
@@ -225,10 +241,6 @@ export class GatewayApiKeyAuthenticator {
           GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
-
-    // Any organization key may call the gateway when its roles grant
-    // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
-    await assertCanInvokeGateway(this.prisma, row, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,

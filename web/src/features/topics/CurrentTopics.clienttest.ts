@@ -1,10 +1,10 @@
-import { createElement, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { type ComponentProps, createElement, type ReactNode } from "react";
+import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { decodeFiltersGeneric } from "@langfuse/shared";
 import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
-import { __test } from "./CurrentTopics";
+import { __test, CurrentTopics } from "./CurrentTopics";
 import {
   type Facet,
   type TopicTraceQuery,
@@ -13,9 +13,19 @@ import {
   useTracesWithSelection,
 } from "./facet-topics";
 
-const { fetchResults, resetTraces } = vi.hoisted(() => ({
+const { fetchResults, resetTraces, capture } = vi.hoisted(() => ({
   fetchResults: vi.fn(),
   resetTraces: vi.fn(),
+  capture: vi.fn(),
+}));
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => capture,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -254,4 +264,33 @@ describe("Open in Tracing", () => {
     expect(until).toBe(to.getTime());
     expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
   });
+});
+
+it("counts a map view only once the selected map's own results arrived", () => {
+  const facets = [{ facetId: "intent", topics: [{ id: "billing" }] }];
+  // No selected facet, so only the map-level capture runs.
+  const props = (isPlaceholderData: boolean) =>
+    ({
+      projectId: "project",
+      scope: { ruleId: "rule" },
+      result: {
+        data: { facets },
+        isLoading: false,
+        error: null,
+        isPlaceholderData,
+      },
+      selectedFacetId: undefined,
+      view: "treemap",
+    }) as unknown as ComponentProps<typeof CurrentTopics>;
+
+  // A map switch still shows the previous map's results.
+  const view = render(createElement(CurrentTopics, props(true)));
+  expect(capture).not.toHaveBeenCalled();
+
+  view.rerender(createElement(CurrentTopics, props(false)));
+  expect(capture).toHaveBeenCalledTimes(1);
+  expect(capture).toHaveBeenCalledWith(
+    "topics:map_viewed",
+    expect.objectContaining({ mapKind: "rule", topicCount: 1, facetCount: 1 }),
+  );
 });

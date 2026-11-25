@@ -21,7 +21,12 @@ import {
   type EvalTemplate,
   getCodeEvalVariableMapping,
 } from "@langfuse/shared";
-import { ExternalLink, ListTree, Play, RotateCcw } from "@langfuse/icons";
+import {
+  SquareArrowOutUpRight,
+  ListTree,
+  Play,
+  RotateCcw,
+} from "@langfuse/icons";
 import Link from "next/link";
 import { useMemo } from "react";
 import { showToast } from "@/src/features/notifications/showToast";
@@ -125,7 +130,7 @@ export function CodeEvalTestRunCard({
                   rel="noopener noreferrer"
                 >
                   Source code
-                  <ExternalLink
+                  <SquareArrowOutUpRight
                     size="base"
                     color="default"
                     __rawClassName="ml-1"
@@ -139,7 +144,7 @@ export function CodeEvalTestRunCard({
                 title="Only user-managed templates can be edited"
               >
                 Source code
-                <ExternalLink
+                <SquareArrowOutUpRight
                   size="base"
                   color="default"
                   __rawClassName="ml-1"

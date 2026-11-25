@@ -176,9 +176,25 @@ export function mapValues<V>(
   return functionCall("mapValues", [map]);
 }
 
+/** ClickHouse `mapContains(map, key)`: the map has an entry for `key`. */
+export function mapContains(
+  map: Expression<Record<string, unknown>>,
+  key: Expression<string>,
+): ChExpression<SqlBool> {
+  return functionCall("mapContains", [map, key]);
+}
+
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
+}
+
+/**
+ * ClickHouse `uniqCombined(value)`, an approximate distinct count with a
+ * fixed-size state, more accurate than `uniq` and exact for small counts.
+ */
+export function uniqCombined(value: Expression<unknown>): ChExpression<number> {
+  return aggregate("uniqCombined", [value]);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */
@@ -682,6 +698,14 @@ export function uniqIf(
   return aggregate("uniqIf", [value, condition]);
 }
 
+/** ClickHouse `uniqCombinedIf(value, condition)`, see {@link uniqCombined}. */
+export function uniqCombinedIf(
+  value: Expression<unknown>,
+  condition: Expression<SqlBool>,
+): ChExpression<number> {
+  return aggregate("uniqCombinedIf", [value, condition]);
+}
+
 /** ClickHouse `avgIf(value, condition)`. */
 export function avgIf(
   value: Expression<number>,
@@ -865,6 +889,17 @@ export function byteLength(
 /** ClickHouse `xxHash32(expression)`. */
 export function xxHash32(expression: Expression<string>): ChExpression<number> {
   return functionCall("xxHash32", [expression]);
+}
+
+/**
+ * ClickHouse `cityHash64(first, ...rest)`: one UInt64 hash over all
+ * arguments, e.g. a seeded sampling order `cityHash64(trace_id, {seed})`.
+ */
+export function cityHash64(
+  first: Expression<unknown>,
+  ...rest: Expression<unknown>[]
+): ChExpression<number> {
+  return functionCall("cityHash64", [first, ...rest]);
 }
 
 /** ClickHouse `toJSONString(expression)`. */

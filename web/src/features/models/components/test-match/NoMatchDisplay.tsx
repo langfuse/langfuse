@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { AlertCircle } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 type NoMatchDisplayProps = {
   modelName: string;
@@ -14,28 +8,16 @@ export type { NoMatchDisplayProps };
 
 export function NoMatchDisplay({ modelName }: NoMatchDisplayProps) {
   return (
-    <Card className="border-destructive/50 bg-destructive/5">
-      <CardHeader>
-        <CardTitle className="text-destructive flex items-center gap-2 text-base">
-          <AlertCircle size="lg" />
-          No Match Found
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm">
-          No model configuration matches &quot;{modelName}&quot; in this
-          project.
-        </p>
-
-        <div>
-          <p className="mb-2 text-sm font-bold">Suggestions:</p>
-          <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-            <li>Check your model name spelling</li>
-            <li>View existing models and their match patterns</li>
-            <li>Create a new model definition</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+    <Banner variant="error" title="No match found">
+      <p>
+        No model configuration matches &quot;{modelName}&quot; in this project.
+      </p>
+      <p className="mt-2">Suggestions:</p>
+      <ul className="list-inside list-disc">
+        <li>Check your model name spelling</li>
+        <li>View existing models and their match patterns</li>
+        <li>Create a new model definition</li>
+      </ul>
+    </Banner>
   );
 }

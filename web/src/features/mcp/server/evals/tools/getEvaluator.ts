@@ -36,5 +36,5 @@ export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

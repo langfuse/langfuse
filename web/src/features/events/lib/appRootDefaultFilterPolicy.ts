@@ -1,6 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
 
+/** @internal */
 export const APP_ROOT_OBSERVATION_FILTER = {
   column: "isRootObservation",
   type: "boolean",

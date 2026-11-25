@@ -11,9 +11,9 @@ import {
   buildEvalExecutionData,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
-import { extractTranscriptEvalVariables } from "../../eventsDispatch/traceTranscriptEval";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
+  extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
@@ -53,6 +53,7 @@ import { type ObservationForEval } from "./types";
 /**
  * Dependencies for processing observation evals.
  * Allows S3 operations to be injected for testability.
+ * @internal
  */
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;
