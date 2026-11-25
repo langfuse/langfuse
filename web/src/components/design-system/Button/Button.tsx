@@ -1,5 +1,5 @@
 import { cva } from "class-variance-authority";
-import { ExternalLink, type IconComponent } from "@langfuse/icons";
+import { SquareArrowOutUpRight, type IconComponent } from "@langfuse/icons";
 import Link from "next/link";
 import {
   type ButtonHTMLAttributes,
@@ -122,13 +122,7 @@ export function Button(props: ButtonProps) {
         >
           {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
-          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
-          <ExternalLink
-            size="sm"
-            color={iconColor}
-            aria-hidden
-            __rawClassName="-translate-y-px"
-          />
+          <SquareArrowOutUpRight color={iconColor} aria-hidden />
         </a>
       );
     }
