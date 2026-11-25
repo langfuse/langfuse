@@ -19,7 +19,9 @@ use quick_cache::{
     sync::{Cache, GuardResult},
 };
 use regex_automata::{
-    Input, MatchKind, PatternSet, meta, nfa::thompson::WhichCaptures, util::syntax,
+    MatchKind, meta,
+    nfa::thompson::WhichCaptures,
+    util::{captures::Captures, syntax},
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
@@ -527,13 +529,15 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
 struct PendingRedactionText {
     raw_range: Range<usize>,
     text: String,
-    local_redact_slots: Vec<usize>,
+    has_local_redact: bool,
 }
 
 /// Result of the CPU-bound local pass: regex matches, local redaction edits,
 /// and the last turn's text/fields when external guardrails also run.
 struct LocalScan {
     active_indices: Vec<usize>,
+    compiled: Option<Arc<Compiled>>,
+    regex_active_slots: Vec<usize>,
     matched: Vec<bool>,
     local_fail_closed: Vec<bool>,
     unreadable: bool,
@@ -620,14 +624,11 @@ impl LocalScan {
         let redactions = if self.unreadable || self.any_blocking(guardrails, &fail_closed_redact) {
             Vec::new()
         } else if !self.pending_redaction_texts.is_empty() {
-            build_combined_redactions(
+            self.build_combined_redactions(
                 guardrails,
-                &self.active_indices,
-                &self.pending_redaction_texts,
                 external_outcomes,
                 &mut fail_closed_redact,
                 budget,
-                &mut self.redaction_reservations,
             )?
         } else {
             self.local_redactions
@@ -722,6 +723,8 @@ fn scan_local(
     if active_indices.is_empty() {
         return Ok(LocalScan {
             active_indices,
+            compiled: None,
+            regex_active_slots: Vec::new(),
             matched: Vec::new(),
             local_fail_closed: Vec::new(),
             unreadable: false,
@@ -731,7 +734,7 @@ fn scan_local(
             redaction_reservations: Vec::new(),
         });
     }
-    let regex_slots: Vec<(usize, &[String])> = active_indices
+    let mut regex_slots: Vec<(usize, &[String])> = active_indices
         .iter()
         .enumerate()
         .filter_map(|(slot, &index)| {
@@ -739,6 +742,16 @@ fn scan_local(
             Some((slot, patterns))
         })
         .collect();
+    // Put `block` rules ahead of `redact`/`log` so `LeftmostFirst` tie-breaking
+    // favors blocking when two rules match at the exact same starting byte.
+    regex_slots.sort_by_key(|&(slot, _)| {
+        usize::from(
+            active_indices
+                .get(slot)
+                .and_then(|&index| guardrails.get(index))
+                .is_none_or(|guardrail| guardrail.action != GuardrailAction::Block),
+        )
+    });
     let has_external = active_indices
         .iter()
         .any(|&index| guardrails.get(index).is_some_and(Guardrail::is_external));
@@ -778,8 +791,7 @@ struct ScanState<'g, 'b> {
     budget: Option<&'b Arc<Semaphore>>,
     budget_exhausted: bool,
     regex_matched: Vec<bool>,
-    leaf_matched: Vec<bool>,
-    found: Vec<PatternSet>,
+    caps: Vec<Captures>,
     span_scratch: Vec<RedactionSpan<'g>>,
     turn_text: String,
     pending_redaction_texts: Vec<PendingRedactionText>,
@@ -803,11 +815,11 @@ impl<'g, 'b> ScanState<'g, 'b> {
         has_external_enforce: bool,
         budget: Option<&'b Arc<Semaphore>>,
     ) -> Self {
-        let found = compiled.as_ref().map_or_else(Vec::new, |compiled| {
+        let caps = compiled.as_ref().map_or_else(Vec::new, |compiled| {
             compiled
                 .matchers
                 .iter()
-                .map(|matcher| PatternSet::new(matcher.regex.pattern_len()))
+                .map(|matcher| matcher.regex.create_captures())
                 .collect()
         });
         let regex_len = regex_slots.len();
@@ -823,8 +835,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
             budget,
             budget_exhausted: false,
             regex_matched: vec![false; regex_len],
-            leaf_matched: vec![false; regex_len],
-            found,
+            caps,
             span_scratch: Vec::new(),
             turn_text: String::new(),
             pending_redaction_texts: Vec::new(),
@@ -847,37 +858,61 @@ impl<'g, 'b> ScanState<'g, 'b> {
             if self.budget_exhausted {
                 return;
             }
-            self.leaf_matched.fill(false);
+            self.span_scratch.clear();
+            let mut has_local_redact = false;
             if let Some(compiled) = compiled {
-                record_leaf_matches(
-                    &compiled.matchers,
-                    &mut self.found,
-                    &mut self.leaf_matched,
-                    leaf.text,
-                );
-                for (overall, &matched) in self.regex_matched.iter_mut().zip(&self.leaf_matched) {
-                    *overall |= matched;
+                for (matcher, caps) in compiled.matchers.iter().zip(&mut self.caps) {
+                    redact::for_each_match(
+                        &matcher.regex,
+                        caps,
+                        leaf.text,
+                        |pattern, start, end| {
+                            let Some(&owner) = matcher.owners.get(pattern.as_usize()) else {
+                                return;
+                            };
+                            if let Some(entry) = self.regex_matched.get_mut(owner) {
+                                *entry = true;
+                            }
+                            let Some(&(active_slot, _)) = regex_slots.get(owner) else {
+                                return;
+                            };
+                            let Some(guardrail) = active_indices
+                                .get(active_slot)
+                                .and_then(|&index| guardrails.get(index))
+                            else {
+                                return;
+                            };
+                            if guardrail.action != GuardrailAction::Redact {
+                                return;
+                            }
+                            has_local_redact = true;
+                            if has_external_enforce {
+                                return;
+                            }
+                            if start < end {
+                                self.span_scratch.push(RedactionSpan {
+                                    start,
+                                    end,
+                                    priority: active_slot,
+                                    label: guardrail.redaction_label(),
+                                });
+                            } else if let Some(flag) = self.local_fail_closed.get_mut(active_slot) {
+                                *flag = true;
+                            }
+                        },
+                    );
                 }
             }
-            let matched_redact_slots = matched_local_redact_slots(
-                guardrails,
-                active_indices,
-                regex_slots,
-                &self.leaf_matched,
-            );
             if has_external_enforce {
                 push_pending_redaction_text(
                     body,
                     leaf,
-                    matched_redact_slots,
+                    has_local_redact,
                     &mut self.pending_redaction_texts,
                 );
                 return;
             }
             if apply_local_leaf_redaction(
-                guardrails,
-                active_indices,
-                &matched_redact_slots,
                 body,
                 leaf,
                 &mut self.span_scratch,
@@ -919,13 +954,20 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 }
             }
         }
-        for ((slot, _), is_match) in self.regex_slots.into_iter().zip(self.regex_matched) {
-            if is_match && let Some(entry) = matched.get_mut(slot) {
+        let regex_active_slots: Vec<usize> = self
+            .regex_slots
+            .iter()
+            .map(|&(active_slot, _)| active_slot)
+            .collect();
+        for (&active_slot, is_match) in regex_active_slots.iter().zip(self.regex_matched) {
+            if is_match && let Some(entry) = matched.get_mut(active_slot) {
                 *entry = true;
             }
         }
         Ok(LocalScan {
             active_indices: self.active_indices,
+            compiled: self.compiled,
+            regex_active_slots,
             matched,
             local_fail_closed: self.local_fail_closed,
             unreadable,
@@ -940,7 +982,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
 fn push_pending_redaction_text(
     body: &[u8],
     leaf: text::TextLeaf<'_>,
-    local_redact_slots: Vec<usize>,
+    has_local_redact: bool,
     pending: &mut Vec<PendingRedactionText>,
 ) {
     if !leaf.text.is_empty()
@@ -949,7 +991,7 @@ fn push_pending_redaction_text(
         pending.push(PendingRedactionText {
             raw_range: range,
             text: leaf.text.to_owned(),
-            local_redact_slots,
+            has_local_redact,
         });
     }
 }
@@ -976,43 +1018,24 @@ fn reserve_redaction_bytes(
     Ok(())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "internal helper keeping scan_local concise while reusing span_scratch across leaves"
-)]
-fn apply_local_leaf_redaction<'a>(
-    guardrails: &'a [Guardrail],
-    active_indices: &[usize],
-    matched_redact_slots: &[usize],
+fn apply_local_leaf_redaction(
     body: &[u8],
     leaf: text::TextLeaf<'_>,
-    span_scratch: &mut Vec<RedactionSpan<'a>>,
+    span_scratch: &mut Vec<RedactionSpan<'_>>,
     local_redactions: &mut Vec<BodyEdit>,
     local_fail_closed: &mut [bool],
     budget: Option<&Arc<Semaphore>>,
     reservations: &mut Vec<MemoryReservation>,
 ) -> Result<(), ResolutionError> {
-    if matched_redact_slots.is_empty() {
+    if span_scratch.is_empty() {
         return Ok(());
     }
     let Some(range) = raw_range(body, leaf.raw) else {
-        mark_fail_closed(matched_redact_slots, local_fail_closed);
+        mark_spans_fail_closed(span_scratch, local_fail_closed);
         return Ok(());
     };
-    span_scratch.clear();
-    let all_covered = collect_local_redact_spans(
-        guardrails,
-        active_indices,
-        matched_redact_slots,
-        leaf.text,
-        span_scratch,
-        Some(local_fail_closed),
-    );
-    if !all_covered {
-        return Ok(());
-    }
     let Some(capacity) = redact::prepare_redactions(leaf.text, span_scratch) else {
-        mark_fail_closed(matched_redact_slots, local_fail_closed);
+        mark_spans_fail_closed(span_scratch, local_fail_closed);
         return Ok(());
     };
     reserve_redaction_bytes(budget, capacity, reservations)?;
@@ -1020,214 +1043,145 @@ fn apply_local_leaf_redaction<'a>(
     if let Ok(replacement) = serde_json::to_vec(&redacted) {
         local_redactions.push(BodyEdit { range, replacement });
     } else {
-        mark_fail_closed(matched_redact_slots, local_fail_closed);
+        mark_spans_fail_closed(span_scratch, local_fail_closed);
     }
     Ok(())
 }
 
-fn mark_fail_closed(slots: &[usize], fail_closed: &mut [bool]) {
-    for &slot in slots {
-        if let Some(flag) = fail_closed.get_mut(slot) {
+fn mark_spans_fail_closed(spans: &[RedactionSpan<'_>], fail_closed: &mut [bool]) {
+    for span in spans {
+        if let Some(flag) = fail_closed.get_mut(span.priority) {
             *flag = true;
         }
     }
 }
 
-fn matched_local_redact_slots(
-    guardrails: &[Guardrail],
-    active_indices: &[usize],
-    regex_slots: &[(usize, &[String])],
-    leaf_matched: &[bool],
-) -> Vec<usize> {
-    let mut slots = Vec::new();
-    for (&(slot, _), &matched) in regex_slots.iter().zip(leaf_matched) {
-        if matched
-            && let Some(guardrail) = active_indices
-                .get(slot)
+impl LocalScan {
+    /// Combines local regex `redact` spans with external provider anonymized
+    /// outputs into per-field [`BodyEdit`] entries. Marks
+    /// `fail_closed_redact[slot] = true` when an external `enforce`
+    /// anonymization cannot be mapped to safe edits.
+    fn build_combined_redactions(
+        &mut self,
+        guardrails: &[Guardrail],
+        external_outcomes: &[(usize, ExternalOutcome)],
+        fail_closed_redact: &mut [bool],
+        budget: Option<&Arc<Semaphore>>,
+    ) -> Result<Vec<BodyEdit>, ResolutionError> {
+        let mut per_text_masked: Vec<Option<String>> =
+            vec![None; self.pending_redaction_texts.len()];
+
+        for (slot, outcome) in external_outcomes {
+            let Some(guardrail) = self
+                .active_indices
+                .get(*slot)
                 .and_then(|&index| guardrails.get(index))
-            && guardrail.action == GuardrailAction::Redact
-        {
-            slots.push(slot);
-        }
-    }
-    slots
-}
-
-/// Collects spans for each guardrail in `slots`. When `fail_closed` is `Some`,
-/// every slot is expected to have matched `text`; any slot that fails to
-/// produce a valid span marks `fail_closed[slot] = true` and returns `false`.
-fn collect_local_redact_spans<'a>(
-    guardrails: &'a [Guardrail],
-    active_indices: &[usize],
-    slots: &[usize],
-    text: &str,
-    out: &mut Vec<RedactionSpan<'a>>,
-    mut fail_closed: Option<&mut [bool]>,
-) -> bool {
-    let mut all_covered = true;
-    for &slot in slots {
-        let Some(guardrail) = active_indices
-            .get(slot)
-            .and_then(|&index| guardrails.get(index))
-        else {
-            continue;
-        };
-        let Some(patterns) = guardrail.regex_patterns() else {
-            continue;
-        };
-        let label = guardrail.redaction_label();
-        let before = out.len();
-        for pattern in patterns {
-            if let Some(regex) = redact::redact_regex(pattern) {
-                redact::find_regex_spans(&regex, text, slot, label, out);
+            else {
+                continue;
+            };
+            if !guardrail.is_external_enforce() {
+                continue;
+            }
+            let ExternalOutcome::Anonymized(outputs) = outcome else {
+                continue;
+            };
+            if !apply_external_outputs(&self.pending_redaction_texts, outputs, &mut per_text_masked)
+            {
+                if let Some(flag) = fail_closed_redact.get_mut(*slot) {
+                    *flag = true;
+                }
+                return Ok(Vec::new());
             }
         }
-        if out.len() == before
-            && let Some(flags) = fail_closed.as_deref_mut()
-        {
-            if let Some(flag) = flags.get_mut(slot) {
-                *flag = true;
+
+        let mut caps: Vec<Captures> = self.compiled.as_deref().map_or_else(Vec::new, |compiled| {
+            compiled
+                .matchers
+                .iter()
+                .map(|matcher| matcher.regex.create_captures())
+                .collect()
+        });
+
+        let mut edits = Vec::new();
+        for (index, item) in self.pending_redaction_texts.iter().enumerate() {
+            let masked_base = per_text_masked.get(index).and_then(Option::as_deref);
+            let base_text = masked_base.unwrap_or(&item.text);
+            let mut spans = Vec::new();
+            if (masked_base.is_some() || item.has_local_redact)
+                && let Some(compiled) = self.compiled.as_deref()
+            {
+                for (matcher, caps) in compiled.matchers.iter().zip(&mut caps) {
+                    redact::for_each_match(
+                        &matcher.regex,
+                        caps,
+                        base_text,
+                        |pattern, start, end| {
+                            let Some(&active_slot) = matcher
+                                .owners
+                                .get(pattern.as_usize())
+                                .and_then(|&owner| self.regex_active_slots.get(owner))
+                            else {
+                                return;
+                            };
+                            let Some(guardrail) = self
+                                .active_indices
+                                .get(active_slot)
+                                .and_then(|&guardrail_index| guardrails.get(guardrail_index))
+                            else {
+                                return;
+                            };
+                            if guardrail.action == GuardrailAction::Redact && start < end {
+                                spans.push(RedactionSpan {
+                                    start,
+                                    end,
+                                    priority: active_slot,
+                                    label: guardrail.redaction_label(),
+                                });
+                            }
+                        },
+                    );
+                }
             }
-            all_covered = false;
-        }
-    }
-    all_covered
-}
-
-enum LeafRedactionError {
-    FailClosed,
-    Busy,
-}
-
-/// Combines local regex `redact` spans with external provider anonymized outputs
-/// into per-field [`BodyEdit`] entries. Marks `fail_closed_redact[slot] = true`
-/// when an external `enforce` anonymization cannot be mapped to safe edits.
-fn build_combined_redactions(
-    guardrails: &[Guardrail],
-    active_indices: &[usize],
-    texts: &[PendingRedactionText],
-    external_outcomes: &[(usize, ExternalOutcome)],
-    fail_closed_redact: &mut [bool],
-    budget: Option<&Arc<Semaphore>>,
-    reservations: &mut Vec<MemoryReservation>,
-) -> Result<Vec<BodyEdit>, ResolutionError> {
-    let mut per_text_masked: Vec<Option<String>> = vec![None; texts.len()];
-
-    for (slot, outcome) in external_outcomes {
-        let Some(guardrail) = active_indices
-            .get(*slot)
-            .and_then(|&index| guardrails.get(index))
-        else {
-            continue;
-        };
-        if !guardrail.is_external_enforce() {
-            continue;
-        }
-        let ExternalOutcome::Anonymized(outputs) = outcome else {
-            continue;
-        };
-        if !apply_external_outputs(texts, outputs, &mut per_text_masked) {
-            if let Some(flag) = fail_closed_redact.get_mut(*slot) {
-                *flag = true;
+            if masked_base.is_none() && item.has_local_redact && spans.is_empty() {
+                for &active_slot in &self.regex_active_slots {
+                    if self
+                        .active_indices
+                        .get(active_slot)
+                        .and_then(|&guardrail_index| guardrails.get(guardrail_index))
+                        .is_some_and(|guardrail| guardrail.action == GuardrailAction::Redact)
+                        && let Some(flag) = fail_closed_redact.get_mut(active_slot)
+                    {
+                        *flag = true;
+                    }
+                }
+                return Ok(Vec::new());
             }
-            return Ok(Vec::new());
+
+            if let Some(capacity) = redact::prepare_redactions(base_text, &mut spans) {
+                reserve_redaction_bytes(budget, capacity, &mut self.redaction_reservations)?;
+                let redacted = redact::splice_merged_spans(base_text, &spans, capacity);
+                let Ok(replacement) = serde_json::to_vec(&redacted) else {
+                    mark_spans_fail_closed(&spans, fail_closed_redact);
+                    return Ok(Vec::new());
+                };
+                edits.push(BodyEdit {
+                    range: item.raw_range.clone(),
+                    replacement,
+                });
+            } else if masked_base.is_some() {
+                reserve_redaction_bytes(budget, base_text.len(), &mut self.redaction_reservations)?;
+                let Ok(replacement) = serde_json::to_vec(base_text) else {
+                    fail_closed_redact.fill(true);
+                    return Ok(Vec::new());
+                };
+                edits.push(BodyEdit {
+                    range: item.raw_range.clone(),
+                    replacement,
+                });
+            }
         }
+        Ok(edits)
     }
-
-    let all_local_redact_slots: Vec<usize> = active_indices
-        .iter()
-        .enumerate()
-        .filter_map(|(slot, &index)| {
-            let guardrail = guardrails.get(index)?;
-            (guardrail.action == GuardrailAction::Redact && guardrail.regex_patterns().is_some())
-                .then_some(slot)
-        })
-        .collect();
-
-    let mut edits = Vec::new();
-    for (index, item) in texts.iter().enumerate() {
-        let masked_base = per_text_masked.get(index).and_then(Option::as_deref);
-        match redact_pending_text(
-            guardrails,
-            active_indices,
-            &all_local_redact_slots,
-            item,
-            masked_base,
-            fail_closed_redact,
-            budget,
-            reservations,
-        ) {
-            Ok(Some(edit)) => edits.push(edit),
-            Ok(None) => {}
-            Err(LeafRedactionError::FailClosed) => return Ok(Vec::new()),
-            Err(LeafRedactionError::Busy) => return Err(ResolutionError::Busy),
-        }
-    }
-    Ok(edits)
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "internal helper factoring per-field external+local redaction out of build_combined_redactions"
-)]
-fn redact_pending_text(
-    guardrails: &[Guardrail],
-    active_indices: &[usize],
-    all_local_redact_slots: &[usize],
-    item: &PendingRedactionText,
-    masked_base: Option<&str>,
-    fail_closed_redact: &mut [bool],
-    budget: Option<&Arc<Semaphore>>,
-    reservations: &mut Vec<MemoryReservation>,
-) -> Result<Option<BodyEdit>, LeafRedactionError> {
-    let base_text = masked_base.unwrap_or(&item.text);
-    let mut spans = Vec::new();
-    if masked_base.is_some() {
-        // Re-run local regex redactions against the anonymized base so both
-        // provider anonymization and local regex redaction apply together.
-        collect_local_redact_spans(
-            guardrails,
-            active_indices,
-            all_local_redact_slots,
-            base_text,
-            &mut spans,
-            None,
-        );
-    } else if !item.local_redact_slots.is_empty()
-        && !collect_local_redact_spans(
-            guardrails,
-            active_indices,
-            &item.local_redact_slots,
-            base_text,
-            &mut spans,
-            Some(fail_closed_redact),
-        )
-    {
-        return Err(LeafRedactionError::FailClosed);
-    }
-
-    if let Some(capacity) = redact::prepare_redactions(base_text, &mut spans) {
-        reserve_redaction_bytes(budget, capacity, reservations)
-            .map_err(|_| LeafRedactionError::Busy)?;
-        let redacted = redact::splice_merged_spans(base_text, &spans, capacity);
-        let replacement =
-            serde_json::to_vec(&redacted).map_err(|_| LeafRedactionError::FailClosed)?;
-        return Ok(Some(BodyEdit {
-            range: item.raw_range.clone(),
-            replacement,
-        }));
-    }
-    if masked_base.is_some() {
-        reserve_redaction_bytes(budget, base_text.len(), reservations)
-            .map_err(|_| LeafRedactionError::Busy)?;
-        let replacement =
-            serde_json::to_vec(base_text).map_err(|_| LeafRedactionError::FailClosed)?;
-        return Ok(Some(BodyEdit {
-            range: item.raw_range.clone(),
-            replacement,
-        }));
-    }
-    Ok(None)
 }
 
 fn apply_external_outputs(
@@ -1297,30 +1251,6 @@ fn merge_masked_outputs<'a>(
     changed
 }
 
-/// Marks the guardrails whose patterns match `text`.
-fn record_leaf_matches(
-    matchers: &[Matcher],
-    found: &mut [PatternSet],
-    matched: &mut [bool],
-    text: &str,
-) {
-    for (matcher, found) in matchers.iter().zip(found) {
-        found.clear();
-        matcher
-            .regex
-            .which_overlapping_matches(&Input::new(text.as_bytes()), found);
-        for pattern in found.iter() {
-            if let Some(owner) = matcher
-                .owners
-                .get(pattern.as_usize())
-                .and_then(|owner| matched.get_mut(*owner))
-            {
-                *owner = true;
-            }
-        }
-    }
-}
-
 fn compiled(active: &[(usize, &[String])]) -> Arc<Compiled> {
     let key: GuardrailPatterns = active
         .iter()
@@ -1369,14 +1299,15 @@ fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
 
 /// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
 /// even when the text holds non-ASCII; `None` when a pattern does not compile.
-/// Configured like `regex::bytes::RegexSet`: every pattern that matches is reported.
+/// Uses `LeftmostFirst` with captures enabled so detection and `redact` span
+/// extraction share one compiled cache and run in a single pass.
 fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
     let regex = meta::Builder::new()
         .configure(
             meta::Config::new()
-                .match_kind(MatchKind::All)
+                .match_kind(MatchKind::LeftmostFirst)
                 .utf8_empty(false)
-                .which_captures(WhichCaptures::None),
+                .which_captures(WhichCaptures::All),
         )
         .syntax(syntax::Config::new().unicode(false).utf8(false))
         .build_many(
@@ -1608,12 +1539,13 @@ mod tests {
     }
 
     #[test]
-    fn redacts_overlapping_and_adjacent_matches_across_guardrails() {
-        let body = r#"{"messages":[{"role":"user","content":"123-45-6789a@example.com secret-token-12345678"}]}"#;
+    fn redacts_leftmost_first_and_adjacent_matches_across_guardrails() {
+        let body =
+            r#"{"messages":[{"role":"user","content":"123-45-6789a@example.com secret-token"}]}"#;
         let outcome = check_request(
             &[
                 redact_guardrail("first", "[FIRST]", &[r"123-45-6789", r"secret-token"]),
-                redact_guardrail("overlap", "[OVERLAP]", &[r"45-6789", r"token-12345678"]),
+                redact_guardrail("overlap", "[OVERLAP]", &[r"123-45", r"45-6789"]),
                 redact_guardrail("email", "[EMAIL]", &[r"a@example\.com"]),
             ],
             ApiFormat::OpenAiChatCompletions,

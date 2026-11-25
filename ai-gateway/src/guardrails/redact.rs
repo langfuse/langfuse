@@ -3,17 +3,9 @@
 //! Spans are collected as UTF-8 byte ranges, sorted and merged in place when
 //! overlapping, then spliced into one preallocated output buffer in a single
 //! pass so no intermediate per-match string copies occur.
-use std::{
-    ops::Range,
-    sync::{Arc, LazyLock},
-    time::Duration,
-};
+use std::ops::Range;
 
-use quick_cache::{
-    Weighter,
-    sync::{Cache, GuardResult},
-};
-use regex_automata::{Input, MatchKind, meta, nfa::thompson::WhichCaptures, util::syntax};
+use regex_automata::{Input, PatternID, meta, util::captures::Captures};
 
 pub(crate) const DEFAULT_REDACTION_LABEL: &str = "[REDACTED]";
 
@@ -64,57 +56,6 @@ pub(crate) fn splice_bytes(source: &[u8], edits: &mut [(Range<usize>, &[u8])]) -
     Some(rewritten)
 }
 
-#[derive(Clone)]
-struct RedactRegexWeight;
-
-impl Weighter<String, Option<Arc<meta::Regex>>> for RedactRegexWeight {
-    fn weight(&self, pattern: &String, compiled: &Option<Arc<meta::Regex>>) -> u64 {
-        let regex_bytes = compiled.as_ref().map_or(0, |regex| regex.memory_usage());
-        u64::try_from(pattern.len().saturating_add(regex_bytes))
-            .unwrap_or(u64::MAX)
-            .max(1)
-    }
-}
-
-/// Bounded cache of capture-capable regexes used only when a `redact` guardrail
-/// actually matches a leaf. `block` and `log` rules never populate this cache.
-const MAX_REDACT_REGEX_BYTES: u64 = 16 * 1024 * 1024;
-
-static REDACT_REGEXES: LazyLock<Cache<String, Option<Arc<meta::Regex>>, RedactRegexWeight>> =
-    LazyLock::new(|| Cache::with_weighter(1024, MAX_REDACT_REGEX_BYTES, RedactRegexWeight));
-
-/// Compiles or fetches a UTF-8 boundary-safe, capture-enabled regex for
-/// locating redaction spans.
-pub(crate) fn redact_regex(pattern: &str) -> Option<Arc<meta::Regex>> {
-    match REDACT_REGEXES.get_value_or_guard(pattern, Some(Duration::ZERO)) {
-        GuardResult::Value(compiled) => compiled,
-        GuardResult::Guard(guard) => {
-            let compiled = compile_redact_regex(pattern);
-            let _ = guard.insert(compiled.clone());
-            compiled
-        }
-        GuardResult::Timeout => compile_redact_regex(pattern),
-    }
-}
-
-fn compile_redact_regex(pattern: &str) -> Option<Arc<meta::Regex>> {
-    // Match the fast detection pass (`unicode(false).utf8(false)`) so negated
-    // ASCII boundary classes like `[^A-Za-z0-9_]` compile identically; span
-    // bounds are aligned to UTF-8 char boundaries before slicing.
-    meta::Builder::new()
-        .configure(
-            meta::Config::new()
-                .match_kind(MatchKind::LeftmostFirst)
-                .utf8_empty(false)
-                .which_captures(WhichCaptures::All),
-        )
-        .syntax(syntax::Config::new().unicode(false).utf8(false))
-        .build(pattern)
-        .inspect_err(|error| tracing::warn!(%error, "redact guardrail pattern failed to compile"))
-        .ok()
-        .map(Arc::new)
-}
-
 fn floor_char_boundary(text: &str, mut index: usize) -> usize {
     index = index.min(text.len());
     while index > 0 && !text.is_char_boundary(index) {
@@ -131,40 +72,33 @@ fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
     index
 }
 
-/// Appends every non-empty match span of `regex` in `text` to `out`.
+/// Walks every non-overlapping `LeftmostFirst` match of `regex` in `text`,
+/// passing `(pattern_id, start, end)` aligned to UTF-8 char boundaries.
 ///
 /// Patterns that use capture group 1 to exclude surrounding boundary characters
-/// (such as keyword lists, custom secret prefixes, and compressed IPv6) redact
+/// (such as keyword lists, custom secret prefixes, and compressed IPv6) report
 /// only group 1 and resume right after it so adjacent tokens still match.
-pub(crate) fn find_regex_spans<'a>(
+pub(crate) fn for_each_match(
     regex: &meta::Regex,
+    caps: &mut Captures,
     text: &str,
-    priority: usize,
-    label: &'a str,
-    out: &mut Vec<RedactionSpan<'a>>,
+    mut on_match: impl FnMut(PatternID, usize, usize),
 ) {
-    let mut caps = regex.create_captures();
     let mut pos = 0usize;
     while pos <= text.len() {
         let input = Input::new(text.as_bytes()).range(pos..text.len());
-        regex.captures(input, &mut caps);
+        regex.captures(input, caps);
         let Some(full) = caps.get_match() else {
             break;
         };
+        let pattern = full.pattern();
         let (raw_start, raw_end) = match caps.get_group(1) {
             Some(group1) => (group1.start, group1.end),
             None => (full.start(), full.end()),
         };
         let start = floor_char_boundary(text, raw_start);
         let end = ceil_char_boundary(text, raw_end);
-        if start < end {
-            out.push(RedactionSpan {
-                start,
-                end,
-                priority,
-                label,
-            });
-        }
+        on_match(pattern, start, end);
         if raw_end > pos {
             pos = raw_end;
         } else if pos < text.len() {
@@ -279,6 +213,40 @@ fn merge_spans(spans: &mut Vec<RedactionSpan<'_>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use regex_automata::{MatchKind, nfa::thompson::WhichCaptures, util::syntax};
+
+    fn compile_test_regex(pattern: &str) -> meta::Regex {
+        meta::Builder::new()
+            .configure(
+                meta::Config::new()
+                    .match_kind(MatchKind::LeftmostFirst)
+                    .utf8_empty(false)
+                    .which_captures(WhichCaptures::All),
+            )
+            .syntax(syntax::Config::new().unicode(false).utf8(false))
+            .build(pattern)
+            .unwrap()
+    }
+
+    fn collect_test_spans<'a>(
+        regex: &meta::Regex,
+        text: &str,
+        label: &'a str,
+    ) -> Vec<RedactionSpan<'a>> {
+        let mut caps = regex.create_captures();
+        let mut spans = Vec::new();
+        for_each_match(regex, &mut caps, text, |_, start, end| {
+            if start < end {
+                spans.push(RedactionSpan {
+                    start,
+                    end,
+                    priority: 0,
+                    label,
+                });
+            }
+        });
+        spans
+    }
 
     fn span(start: usize, end: usize, priority: usize, label: &str) -> RedactionSpan<'_> {
         RedactionSpan {
@@ -334,10 +302,9 @@ mod tests {
     #[test]
     fn capture_group_1_preserves_surrounding_boundaries_and_catches_adjacent_words() {
         let pattern = r"(?:^|[^A-Za-z0-9_])((?:[Ff][Oo][Oo]|[Bb][Aa][Rr]))(?:$|[^A-Za-z0-9_])";
-        let regex = redact_regex(pattern).unwrap();
+        let regex = compile_test_regex(pattern);
         let text = "foo bar,foo! café foo日本語bar";
-        let mut spans = Vec::new();
-        find_regex_spans(&regex, text, 0, "[WORD]", &mut spans);
+        let mut spans = collect_test_spans(&regex, text, "[WORD]");
         assert_eq!(
             apply_redactions(text, &mut spans).as_deref(),
             Some("[WORD] [WORD],[WORD]! café [WORD]日本語[WORD]")
@@ -347,10 +314,9 @@ mod tests {
     #[test]
     fn regex_with_multibyte_utf8_never_splits_codepoints() {
         let pattern = r"(?:^|[^A-Za-z0-9_-])(acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
-        let regex = redact_regex(pattern).unwrap();
+        let regex = compile_test_regex(pattern);
         let text = "鍵acme_1234567890abcdef🔑";
-        let mut spans = Vec::new();
-        find_regex_spans(&regex, text, 0, "[KEY]", &mut spans);
+        let mut spans = collect_test_spans(&regex, text, "[KEY]");
         assert_eq!(
             apply_redactions(text, &mut spans).as_deref(),
             Some("鍵[KEY]🔑")
@@ -360,12 +326,11 @@ mod tests {
     #[test]
     fn private_key_pattern_redacts_multiline_and_json_escaped_pem_blocks_linearly() {
         let pattern = r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?";
-        let regex = redact_regex(pattern).unwrap();
+        let regex = compile_test_regex(pattern);
 
         // Real newlines with encrypted PEM headers.
         let text = "before\n-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,AABB\n\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----\nafter";
-        let mut spans = Vec::new();
-        find_regex_spans(&regex, text, 0, "[KEY]", &mut spans);
+        let mut spans = collect_test_spans(&regex, text, "[KEY]");
         assert_eq!(
             apply_redactions(text, &mut spans).as_deref(),
             Some("before\n[KEY]\nafter")
@@ -373,8 +338,7 @@ mod tests {
 
         // Literal `\n` escapes as pasted from service-account JSON or `.env`.
         let escaped = r#"{"private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADAN\n-----END PRIVATE KEY-----\n"}"#;
-        let mut spans = Vec::new();
-        find_regex_spans(&regex, escaped, 0, "[KEY]", &mut spans);
+        let mut spans = collect_test_spans(&regex, escaped, "[KEY]");
         assert_eq!(
             apply_redactions(escaped, &mut spans).as_deref(),
             Some(r#"{"private_key":"[KEY]\n"}"#)
@@ -382,8 +346,7 @@ mod tests {
 
         // Repeated BEGIN headers without END stay linear time and match each header.
         let repeated = "-----BEGIN PRIVATE KEY-----\n".repeat(200);
-        let mut spans = Vec::new();
-        find_regex_spans(&regex, &repeated, 0, "[KEY]", &mut spans);
+        let spans = collect_test_spans(&regex, &repeated, "[KEY]");
         assert_eq!(spans.len(), 200);
     }
 
