@@ -1,5 +1,9 @@
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
+  processingHooksFor,
+  type OtelWriteTarget,
+} from "../otel-ingestion/processingHooks";
+import {
   resolveExtractedMedia,
   restoreInlineMedia,
 } from "./resolveExtractedMedia";
@@ -14,9 +18,9 @@ import {
   type OtelMediaPayload,
   type OtelMediaTarget,
   type OtelMediaWritePath,
-  uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import { MediaAssociationOrigin } from "@langfuse/shared";
+import { uploadOtelMedia } from "./uploadHooks";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
@@ -55,6 +59,7 @@ export async function processOtelEventMedia(params: {
   mediaPrefix: string;
   inputByteLength?: number;
   processMedia?: typeof processOtelMedia;
+  writeTarget?: OtelWriteTarget;
 }): Promise<OtelMediaPresence | undefined> {
   const {
     targets,
@@ -65,6 +70,7 @@ export async function processOtelEventMedia(params: {
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
+  const writeTarget = params.writeTarget ?? "primary";
   const mediaPath =
     params.mediaPath ?? (params.earlyBatch ? "early" : "reference");
 
@@ -97,11 +103,15 @@ export async function processOtelEventMedia(params: {
             mediaPath,
             mediaBucket,
             mediaPrefix,
-            uploadMedia: (uploadParams) =>
-              uploadMediaForTrace({
-                ...uploadParams,
-                origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-              }),
+            uploadMedia: ({ contentBytes, ...destination }) =>
+              uploadOtelMedia(
+                writeTarget,
+                {
+                  ...destination,
+                  origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+                },
+                contentBytes,
+              ),
           });
 
           if (params.earlyBatch) {
@@ -112,6 +122,7 @@ export async function processOtelEventMedia(params: {
               mediaBucket,
               mediaPrefix,
               writePath,
+              target: writeTarget,
             });
             result.uploaded += early.uploaded;
             result.reused += early.reused;
@@ -189,6 +200,7 @@ export async function processOtelEventMedia(params: {
       "OTEL media processing failed; continuing ingestion with original span values",
       { projectId, fileKey, error },
     );
+    processingHooksFor(writeTarget)?.onFailure?.("media_processing");
     return "unknown";
   }
 }

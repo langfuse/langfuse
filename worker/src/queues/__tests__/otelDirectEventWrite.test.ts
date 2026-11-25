@@ -256,12 +256,10 @@ describe("native Rust trace activity", () => {
       }),
       dispose: vi.fn().mockResolvedValue(undefined),
     };
-    vi.spyOn(ClickhouseWriter, "getNativeInstance").mockReturnValue({
-      addToQueue,
-    } as unknown as ClickhouseWriter);
-
     try {
       await processNative({
+        writes: "primary",
+        getWriter: () => ({ addToQueue }),
         batch: {
           process: vi.fn().mockResolvedValue({
             batch: processing,
@@ -387,6 +385,8 @@ describe("native Rust trace activity", () => {
         traceIds: [],
       });
       const replay = processNative({
+        writes: "primary",
+        getWriter: () => ({ addToQueue: vi.fn() }),
         batch: {
           process: processBatch,
         } as never,

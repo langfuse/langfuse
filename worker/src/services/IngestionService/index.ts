@@ -72,6 +72,7 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
 import { applyObservationFieldOverflow } from "../../features/observation-field-overflow/processObservationFieldOverflow";
+import type { OtelWriteTarget } from "../../features/otel-ingestion/processingHooks";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -487,9 +488,10 @@ export class IngestionService {
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
+    target: OtelWriteTarget = "primary",
   ): Promise<EventRecordInsertType> {
     const { event_bytes: _eventBytes, ...persistedRecord } =
-      await applyObservationFieldOverflow(eventRecord);
+      await applyObservationFieldOverflow(eventRecord, target);
 
     const recordToInsert = clickhouseComputesEventBytes()
       ? persistedRecord

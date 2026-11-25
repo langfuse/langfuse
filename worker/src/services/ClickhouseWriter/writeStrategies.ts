@@ -21,7 +21,9 @@ export type ClickhouseWriteStrategy<Row> = {
     params: {
       table: string;
       records: Row[];
-      clickhouse_settings: { log_comment: string };
+      clickhouse_settings: { log_comment: string } & Parameters<
+        ClickhouseClientType["exec"]
+      >[0]["clickhouse_settings"];
     },
   ): Promise<void>;
   prepare?<R extends Row>(table: TableName, row: R): R;
@@ -34,7 +36,8 @@ export type ClickhouseWriteStrategy<Row> = {
 };
 
 export type ClickhouseWriteStrategyFactory<Row> = {
-  readonly format: "json" | "native";
+  readonly format: string;
+  readonly destinationTable?: string;
   create(): ClickhouseWriteStrategy<Row>;
 };
 

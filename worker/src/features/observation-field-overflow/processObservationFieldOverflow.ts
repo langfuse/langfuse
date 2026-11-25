@@ -4,7 +4,6 @@ import {
   logger,
   recordDistribution,
   recordIncrement,
-  uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 import {
   MediaAssociationOrigin,
@@ -13,6 +12,8 @@ import {
 } from "@langfuse/shared";
 
 import { env } from "../../env";
+import { uploadOtelMedia } from "../otel-media/uploadHooks";
+import type { OtelWriteTarget } from "../otel-ingestion/processingHooks";
 
 const OBSERVATION_FIELD_OVERFLOW_UPLOAD_BATCH_SIZE = 3;
 
@@ -34,6 +35,7 @@ type OverflowResult = {
 
 export async function applyObservationFieldOverflow(
   eventRecord: EventRecordInsertType,
+  target: OtelWriteTarget = "primary",
 ): Promise<EventRecordInsertType> {
   if (env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED !== "true") {
     return eventRecord;
@@ -62,6 +64,7 @@ export async function applyObservationFieldOverflow(
             eventRecord,
             candidates,
             mediaBucket,
+            target,
           );
 
           span.setAttributes({
@@ -141,6 +144,7 @@ async function uploadOverflowCandidates(
   eventRecord: EventRecordInsertType,
   candidates: OverflowCandidate[],
   mediaBucket: string,
+  target: OtelWriteTarget,
 ): Promise<OverflowResult[]> {
   const overflowResults: OverflowResult[] = [];
 
@@ -156,7 +160,7 @@ async function uploadOverflowCandidates(
     );
     const settledBatch = await Promise.allSettled(
       batch.map((candidate) =>
-        uploadOverflowCandidate(eventRecord, candidate, mediaBucket),
+        uploadOverflowCandidate(eventRecord, candidate, mediaBucket, target),
       ),
     );
 
@@ -205,20 +209,23 @@ async function uploadOverflowCandidate(
   eventRecord: EventRecordInsertType,
   candidate: OverflowCandidate,
   mediaBucket: string,
+  target: OtelWriteTarget,
 ): Promise<OverflowResult> {
   const { field, value, originalBytes } = candidate;
-
-  const uploadResult = await uploadMediaForTrace({
-    projectId: eventRecord.project_id,
-    traceId: eventRecord.trace_id,
-    observationId: eventRecord.span_id,
-    field,
-    contentType: MediaContentType.TXT,
-    contentBytes: Buffer.from(value, "utf8"),
-    mediaBucket,
-    mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-    origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
-  }).catch((error) => {
+  const uploadResult = await uploadOtelMedia(
+    target,
+    {
+      projectId: eventRecord.project_id,
+      traceId: eventRecord.trace_id,
+      observationId: eventRecord.span_id,
+      field,
+      contentType: MediaContentType.TXT,
+      origin: MediaAssociationOrigin.INGESTION_FIELD_OVERFLOW,
+      mediaBucket,
+      mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+    },
+    value,
+  ).catch((error) => {
     logger.warn(
       "Oversized observation field upload failed; persisting original field",
       {
@@ -241,7 +248,6 @@ async function uploadOverflowCandidate(
       0,
       metricTags,
     );
-
     return null;
   });
   if (!uploadResult) {
@@ -256,12 +262,12 @@ async function uploadOverflowCandidate(
   const mediaReference =
     `@@@langfuseMedia:type=text/plain|id=${uploadResult.mediaId}` +
     `|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`;
-  const metricTags = { field, outcome: uploadResult.outcome };
   const bytesRemoved = Math.max(
     originalBytes - Buffer.byteLength(mediaReference, "utf8"),
     0,
   );
 
+  const metricTags = { field, outcome: uploadResult.outcome };
   recordIncrement(
     "langfuse.ingestion.observation_field_overflow",
     1,

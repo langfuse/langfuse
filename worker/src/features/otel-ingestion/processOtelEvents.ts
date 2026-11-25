@@ -23,6 +23,7 @@ import {
 } from "../otel-media/processOtelMedia";
 import type { IngestionService } from "../../services/IngestionService";
 import { isEventsDispatchEnabled } from "../eventsDispatch/config";
+import { processingHooksFor, type OtelWriteTarget } from "./processingHooks";
 
 type ProcessOtelEventsParams = {
   processor: OtelIngestionProcessor;
@@ -34,6 +35,7 @@ type ProcessOtelEventsParams = {
   earlyBatch?: EarlyOtelBatch;
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
+  otelShadowScope?: OtelWriteTarget;
 };
 
 /**
@@ -55,7 +57,9 @@ export async function processOtelEvents({
   earlyBatch,
   mediaPath,
   inputByteLength,
+  otelShadowScope: writes = "primary",
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
+  const hooks = processingHooksFor(writes);
   // Evals and direct event writes share the enriched trace attributes.
   const eventInputs = processor.processToEvent(resourceSpans);
   if (eventInputs.length === 0) {
@@ -73,6 +77,7 @@ export async function processOtelEvents({
   const rules = await fetchEvalRules(projectId, {
     includeTraceTranscriptRules,
   }).catch((error) => {
+    hooks?.onFailure?.("eval_rules");
     traceException(error);
     logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
     return { observationRules: [], traceTranscriptRules: [] };
@@ -108,11 +113,12 @@ export async function processOtelEvents({
       fileKey,
       mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
       mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+      writeTarget: writes,
     });
   }
 
   const schedulerDeps = needsScheduler
-    ? createEvalSchedulerDeps(projectId, rules)
+    ? createEvalSchedulerDeps(projectId, rules, writes)
     : null;
 
   await Promise.all(
@@ -126,6 +132,7 @@ export async function processOtelEvents({
           fileKey,
         );
       } catch (error) {
+        hooks?.onFailure?.("lookup");
         traceException(error);
         logger.error(
           `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
@@ -167,8 +174,15 @@ export async function processOtelEvents({
       // Step 3: Write to events table (independent of eval scheduling)
       if (shouldWriteToEventsTable) {
         try {
-          const persistedRecord =
-            await ingestionService.writeEventRecord(eventRecord);
+          const persistedRecord = await ingestionService.writeEventRecord(
+            eventRecord,
+            writes,
+          );
+          hooks?.onRowEnqueued?.({
+            traceId: persistedRecord.trace_id,
+            spanId: persistedRecord.span_id,
+            startTime: persistedRecord.start_time,
+          });
           // Record activity only after the event writer accepts the span.
           if (traceActivity && schedulerDeps && matchedRuleIds !== undefined) {
             schedulerDeps.collectTraceActivity({
@@ -180,6 +194,7 @@ export async function processOtelEvents({
             });
           }
         } catch (error) {
+          hooks?.onFailure?.("row_write");
           traceException(error);
           logger.error(
             `Failed to write event record for ${eventInput.spanId}`,

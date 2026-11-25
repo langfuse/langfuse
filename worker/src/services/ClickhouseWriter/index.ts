@@ -118,10 +118,9 @@ export class ClickhouseWriter<
   ): ClickhouseWriter<NativeWriterPayloadMap> {
     let instance = ClickhouseWriter.nativeInstance;
     if (!instance) {
-      instance = new ClickhouseWriter<NativeWriterPayloadMap>(
+      instance = ClickhouseWriter.createNativeWriter(
         client,
         nativeWriteStrategyFactory,
-        TableName.EventsFull,
       );
       ClickhouseWriter.nativeInstance = instance;
     } else if (client) {
@@ -130,7 +129,19 @@ export class ClickhouseWriter<
     return instance;
   }
 
-  /** Stop every writer instance created in this process. */
+  /** An independent writer owns its buffer and timer. Its caller must shut it down. */
+  public static createNativeWriter(
+    client: ClickhouseClientType | undefined,
+    strategy: ClickhouseWriteStrategyFactory<PreparedEvent>,
+  ) {
+    return new ClickhouseWriter<NativeWriterPayloadMap>(
+      client,
+      strategy,
+      TableName.EventsFull,
+    );
+  }
+
+  /** Stop the process-wide writers. */
   public static async shutdownAll(): Promise<void> {
     await Promise.all([
       ClickhouseWriter.instance?.shutdown(),
@@ -282,6 +293,7 @@ export class ClickhouseWriter<
   private async flush<T extends TableName>(tableName: T, fullQueue = false) {
     const entityQueue = this.queue[tableName];
     if (entityQueue.length === 0) return;
+    const destinationTable = this.strategyFactory.destinationTable ?? tableName;
 
     let queueItems = entityQueue.splice(
       0,
@@ -301,7 +313,7 @@ export class ClickhouseWriter<
         "langfuse.queue.clickhouse_writer.time_distribution",
         waitTime,
         {
-          entity_type: tableName,
+          entity_type: destinationTable,
           type: "wait",
           attempt: item.requeued ? "retry" : "first",
           format: this.strategyFactory.format,
@@ -313,7 +325,7 @@ export class ClickhouseWriter<
     const currentSpan = getCurrentSpan();
     if (currentSpan) {
       currentSpan.setAttributes({
-        [`${tableName}-length`]: queueItems.length,
+        [`${destinationTable}-length`]: queueItems.length,
       });
     }
 
@@ -331,7 +343,7 @@ export class ClickhouseWriter<
       await backOff(
         async () =>
           this.writeToClickhouse({
-            table: tableName,
+            table: destinationTable,
             records: recordsToWrite,
             strategy: writeStrategy,
           }),
@@ -447,7 +459,7 @@ export class ClickhouseWriter<
         "langfuse.queue.clickhouse_writer.time_distribution",
         processingTime,
         {
-          entity_type: tableName,
+          entity_type: destinationTable,
           type: "processing",
           format: this.strategyFactory.format,
           unit: "milliseconds",
@@ -464,7 +476,7 @@ export class ClickhouseWriter<
         {
           format: this.strategyFactory.format,
           unit: "records",
-          entityType: tableName,
+          entityType: destinationTable,
         },
       );
     } catch (err) {
@@ -473,7 +485,7 @@ export class ClickhouseWriter<
         err,
       );
 
-      this.logRejectedRow(tableName, err, queueItems, writeStrategy);
+      this.logRejectedRow(destinationTable, err, queueItems, writeStrategy);
 
       // Re-add the records to the queue with incremented attempts
       const reason = classifyJobFailure(err);
@@ -489,6 +501,7 @@ export class ClickhouseWriter<
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error", 1, {
+            entity_type: destinationTable,
             format: this.strategyFactory.format,
             reason,
           });
@@ -501,7 +514,7 @@ export class ClickhouseWriter<
           "langfuse.queue.clickhouse_writer.rows_dropped",
           droppedCount,
           {
-            entity_type: tableName,
+            entity_type: destinationTable,
             format: this.strategyFactory.format,
             reason,
           },
@@ -512,7 +525,7 @@ export class ClickhouseWriter<
           .map((item) => writeStrategy.droppedId(item.data));
 
         this.logger.error(
-          `${this.logPrefix}ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+          `${this.logPrefix}ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${destinationTable} record(s)`,
           { droppedIds },
         );
       }
@@ -521,7 +534,7 @@ export class ClickhouseWriter<
 
   /** Log the row a ClickHouse parse error names, so its S3 event file can be found. */
   private logRejectedRow<T extends TableName>(
-    tableName: T,
+    destination: string,
     err: unknown,
     queueItems: ClickhouseWriterQueueItem<PayloadMap[T]>[],
     strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>,
@@ -529,7 +542,7 @@ export class ClickhouseWriter<
     const row = queueItems[failedRowNumber(err) - 1]?.data;
     if (!row) return;
     this.logger.error(
-      `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${tableName} row`,
+      `${this.logPrefix}ClickhouseWriter: ClickHouse rejected ${destination} row`,
       {
         ...strategy.droppedId(row),
         blobStorageFilePath:
@@ -570,7 +583,7 @@ export class ClickhouseWriter<
   }
 
   private async writeToClickhouse<T extends TableName>(params: {
-    table: T;
+    table: string;
     records: PayloadMap[T][];
     strategy: ClickhouseWriteStrategy<PayloadMap[TableName]>;
   }): Promise<void> {
@@ -586,6 +599,9 @@ export class ClickhouseWriter<
             route: "clickhouse-writer",
             projectId: MULTI_PROJECT_LOG_COMMENT_PROJECT_ID,
           }),
+          ...(this.strategyFactory.destinationTable !== undefined
+            ? { log_queries: 0 }
+            : {}),
         },
       })
       .catch((err) => {

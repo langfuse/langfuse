@@ -250,6 +250,7 @@ describe("IngestionService unit tests", () => {
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
+      "primary",
     );
     expect(eventRecord.input).toBe("original input");
     expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);

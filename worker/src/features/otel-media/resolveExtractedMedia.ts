@@ -1,3 +1,7 @@
+import {
+  processingHooksFor,
+  type OtelWriteTarget,
+} from "../otel-ingestion/processingHooks";
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import pLimit from "p-limit";
 import {
@@ -10,13 +14,11 @@ import {
 import {
   logger,
   mediaDispatchConcurrency,
-  otelMediaUploads,
   recordDistribution,
   recordIncrement,
   type OtelMediaTarget,
   type OtelMediaWritePath,
   linkMediaToTraceOrObservation,
-  uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -24,14 +26,15 @@ import {
   rewriteMediaValues,
   type MediaRegistry,
 } from "./mediaReferenceText";
+import {
+  writeOtelMedia,
+  type OtelMediaUploadResult,
+  uploadOtelMedia,
+} from "./uploadHooks";
 
 const MEDIA_PAGE_SIZE = 4_096;
 
-export type CachedMediaUpload = {
-  mediaId: string;
-  outcome: "uploaded" | "reused";
-  byteLength: number;
-};
+export type CachedMediaUpload = OtelMediaUploadResult;
 
 // Retain descriptor metadata and completed upload results for the batch's lifetime.
 // Decoded bodies and restored source strings stay local to each processing call.
@@ -83,6 +86,7 @@ async function batchMedia(batch: EarlyOtelBatch): Promise<MediaRegistry> {
  * body reader and destination link; cache hits never retain or decode the body.
  */
 export async function uploadExtractedMediaOnce(params: {
+  target: OtelWriteTarget;
   batch: EarlyOtelBatch;
   projectId: string;
   traceId: string;
@@ -96,6 +100,7 @@ export async function uploadExtractedMediaOnce(params: {
   loadBody: () => Promise<Buffer>;
 }): Promise<CachedMediaUpload> {
   const {
+    target,
     batch,
     projectId,
     traceId,
@@ -114,6 +119,16 @@ export async function uploadExtractedMediaOnce(params: {
     sha256Hash,
     contentType,
   ].join("\u0000");
+
+  const association = {
+    projectId,
+    traceId,
+    observationId,
+    field,
+    origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+  } as const;
+  const identity = { ...association, contentType, sha256Hash };
+
   const cache =
     mediaUploadCache.get(batch) ??
     new Map<string, Promise<CachedMediaUpload>>();
@@ -122,37 +137,19 @@ export async function uploadExtractedMediaOnce(params: {
   const cached = cache.get(key);
   if (cached) {
     const result = await cached;
-    await linkMediaToTraceOrObservation({
-      projectId,
-      traceId,
-      observationId,
-      mediaId: result.mediaId,
-      field,
-      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    return writeOtelMedia(target, "media_association", identity, async () => {
+      await linkMediaToTraceOrObservation({
+        ...association,
+        mediaId: result.mediaId,
+      });
+      return { ...result, outcome: "reused" };
     });
-    return { ...result, outcome: "reused" };
   }
 
-  const uploadPromise = otelMediaUploads.run(
-    params.byteLengthUpperBound,
-    async (): Promise<CachedMediaUpload> => {
-      const contentBytes = await loadBody();
-      return {
-        ...(await uploadMediaForTrace({
-          projectId,
-          traceId,
-          observationId,
-          field,
-          contentType,
-          contentBytes,
-          sha256Hash,
-          mediaBucket,
-          mediaPrefix,
-          origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
-        })),
-        byteLength: contentBytes.length,
-      };
-    },
+  const uploadPromise = uploadOtelMedia(
+    target,
+    { ...association, contentType, mediaBucket, mediaPrefix },
+    { sha256Hash, byteLengthUpperBound: params.byteLengthUpperBound, loadBody },
   );
   cache.set(key, uploadPromise);
   try {
@@ -200,9 +197,11 @@ export async function resolveExtractedMedia(params: {
   mediaBucket: string;
   mediaPrefix: string;
   writePath: OtelMediaWritePath;
+  target?: OtelWriteTarget;
 }) {
   const { batch, targets, projectId, mediaBucket, mediaPrefix, writePath } =
     params;
+  const writeTarget = params.target ?? "primary";
   const stats = {
     uploaded: 0,
     reused: 0,
@@ -227,6 +226,7 @@ export async function resolveExtractedMedia(params: {
       if (!isMediaContentType(contentType))
         throw new Error("unsupported extracted media type");
       const result = await uploadExtractedMediaOnce({
+        target: writeTarget,
         batch,
         projectId,
         mediaBucket,
@@ -253,6 +253,7 @@ export async function resolveExtractedMedia(params: {
       );
       stats.bytesRemoved += bytesRemoved;
       recordExtractedMediaUpload(
+        writeTarget,
         result.outcome,
         entry.kind,
         writePath,
@@ -262,7 +263,7 @@ export async function resolveExtractedMedia(params: {
       return replacement;
     } catch (error) {
       stats.failed++;
-      recordExtractedMediaUpload("failed", entry.kind, writePath);
+      recordExtractedMediaUpload(writeTarget, "failed", entry.kind, writePath);
       logger.warn(
         "Extracted OTEL media upload failed; keeping the original inline value",
         {
@@ -294,12 +295,14 @@ export async function resolveExtractedMedia(params: {
 
 /** Record outcomes for media discovered by the native extractor. */
 export function recordExtractedMediaUpload(
+  target: OtelWriteTarget,
   outcome: "uploaded" | "reused" | "failed",
   kind: string,
   writePath: OtelMediaWritePath,
   byteLength?: number,
   bytesRemoved = 0,
 ): void {
+  if (processingHooksFor(target)?.recordIngestionMetrics === false) return;
   const tags = {
     outcome,
     media_kind: kind,

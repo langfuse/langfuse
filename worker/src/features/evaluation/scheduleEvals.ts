@@ -18,9 +18,17 @@ import {
   recordTraceActivity,
   type TraceSpanActivity,
 } from "../traceDispatch/traceRuleRecording";
+import {
+  processingHooksFor,
+  type OtelWriteTarget,
+} from "../otel-ingestion/processingHooks";
 
 /** Prepare rules and own the trace-activity buffer for one ingestion batch. */
-export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
+export function createEvalSchedulerDeps(
+  projectId: string,
+  rules: EvalRules,
+  target: OtelWriteTarget = "primary",
+) {
   // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
   const traceTranscriptRules = prepareTraceDispatchRules(
@@ -28,6 +36,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
     rules.traceTranscriptRules,
   ).catch((error) => {
     // Recording-only failures must not mark ingestion as failed.
+    processingHooksFor(target)?.onFailure?.("trace_rule_prepare");
     logger.warn("Failed to prepare trace transcript rules", {
       projectId,
       error,
@@ -35,8 +44,14 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
     return [];
   });
 
+  const realObservationDeps = createObservationEvalSchedulerDeps();
+  const observationDeps =
+    target === "primary"
+      ? realObservationDeps
+      : target.scheduling.observationWrites(realObservationDeps);
   return {
-    ...createObservationEvalSchedulerDeps(),
+    ...observationDeps,
+    writeTarget: target,
     traceTranscriptRules,
     collectTraceActivity: (activity: TraceSpanActivity): void => {
       traceActivity.push(activity);
@@ -46,23 +61,30 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
       const startedAt = performance.now();
       let outcome = "success";
       try {
-        await recordTraceActivity(projectId, traceActivity);
+        const recordActivity =
+          target === "primary"
+            ? recordTraceActivity
+            : target.scheduling.recordTraceActivity;
+        await recordActivity(projectId, traceActivity);
         traceActivity.length = 0;
       } catch (error) {
         outcome = "error";
+        processingHooksFor(target)?.onFailure?.("trace-flush");
         logger.warn("Failed to record trace rule selections", {
           projectId,
           error,
         });
       } finally {
-        recordIncrement("langfuse.trace_dispatch.recording_batches", 1, {
-          outcome,
-        });
-        recordDistribution(
-          "langfuse.trace_dispatch.recording_duration_ms",
-          performance.now() - startedAt,
-          { outcome, unit: "milliseconds" },
-        );
+        if (processingHooksFor(target)?.recordIngestionMetrics !== false) {
+          recordIncrement("langfuse.trace_dispatch.recording_batches", 1, {
+            outcome,
+          });
+          recordDistribution(
+            "langfuse.trace_dispatch.recording_duration_ms",
+            performance.now() - startedAt,
+            { outcome, unit: "milliseconds" },
+          );
+        }
       }
     },
   };
@@ -125,7 +147,12 @@ export async function scheduleEvals({
       });
     }
   } catch (error) {
-    reportSchedulingFailure(error, rules, buildFailureContext());
+    reportSchedulingFailure(
+      error,
+      rules,
+      buildFailureContext(),
+      schedulerDeps.writeTarget,
+    );
   }
   return matchedRuleIds;
 }
@@ -137,6 +164,9 @@ async function matchTranscriptRules(
   try {
     return await scheduleTraceTranscriptEvals(params);
   } catch (error) {
+    processingHooksFor(params.schedulerDeps.writeTarget)?.onFailure?.(
+      "trace_rule_match",
+    );
     logger.warn("Failed to match trace transcript rules", {
       error,
       ...buildFailureContext(),
@@ -148,11 +178,14 @@ function reportSchedulingFailure(
   error: unknown,
   rules: EvalRules,
   context: SchedulingFailureContext,
+  target: OtelWriteTarget,
 ): void {
   if (rules.observationRules.length > 0) {
+    processingHooksFor(target)?.onFailure?.("observation_eval_schedule");
     traceException(error);
     logger.error("Failed to schedule observation evals", { error, ...context });
   } else {
+    processingHooksFor(target)?.onFailure?.("observation_normalize");
     logger.warn("Failed to normalize observation for trace transcript rules", {
       error,
       ...context,

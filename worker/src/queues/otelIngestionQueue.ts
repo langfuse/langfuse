@@ -939,6 +939,8 @@ export const otelIngestionQueueProcessorBuilder = (
       if (retainNativeBatch && earlyBatch && shouldWriteToEventsTable) {
         const directMediaPresence = await processRustOtelEvents({
           batch: earlyBatch,
+          writes: "primary",
+          getWriter: ClickhouseWriter.getNativeInstance,
           context: {
             projectId,
             fileKey,

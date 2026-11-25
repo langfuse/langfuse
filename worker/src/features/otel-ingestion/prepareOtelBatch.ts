@@ -42,8 +42,16 @@ export async function prepareOtelBatch(params: {
   extractMedia: boolean;
   /** Keep JSON in Rust for native normalization, including media-free input. */
   retainNativeBatch?: boolean;
+  /** Temporary OTEL shadow replay hook. Copy the accepted bytes before media extraction. */
+  onShadowReplayInput?: (bytes: Buffer) => void;
 }): Promise<PreparedInput> {
-  const { bytes, extractMedia, retainNativeBatch = false, ...context } = params;
+  const {
+    bytes,
+    extractMedia,
+    retainNativeBatch = false,
+    onShadowReplayInput,
+    ...context
+  } = params;
   const startedAt = performance.now();
   let outcome: "native" | "unchanged" | "masking_drop" | "error" = "error";
   let codepath: "inline_check" | "uv_dispatch" | "disabled" = "disabled";
@@ -51,6 +59,7 @@ export async function prepareOtelBatch(params: {
   let maskedInput: ValidatedOtelJson | undefined;
   try {
     if (!isIngestionMaskingEnabled()) {
+      onShadowReplayInput?.(bytes);
       if (retainNativeBatch) {
         codepath = "uv_dispatch";
         const batch = await measureOtelMainThread(
@@ -141,6 +150,7 @@ export async function prepareOtelBatch(params: {
     } else {
       await originalInput.dispose();
     }
+    onShadowReplayInput?.(masking.data.bytes);
     const batch = await masking.data.validated.extract(extractMedia);
     outcome = "native";
     return {

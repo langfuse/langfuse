@@ -659,6 +659,7 @@ describe("processOtelEventMedia", () => {
       throw new Error("media registry should not be read");
     });
     const result = await uploadExtractedMediaOnce({
+      target: "primary",
       batch,
       projectId: "project-id",
       traceId: "trace-id",
