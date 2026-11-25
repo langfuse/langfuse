@@ -565,6 +565,40 @@ describe("generateTopicText", () => {
     },
   );
 
+  it("records why InvokeModel output could not be parsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            { finish_reason: "stop", message: { content: '{"summary": "Acc' } },
+          ],
+          usage: {
+            prompt_tokens: 50,
+            completion_tokens: 40,
+            total_tokens: 90,
+            completion_tokens_details: { reasoning_tokens: 30 },
+          },
+        }),
+      ),
+    );
+    const error = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(getTopicTextResponseMetadata(error)).toEqual({
+      "langfuse.topics.response.finish_reason": "stop",
+      "langfuse.topics.response.text_characters": 16,
+      "langfuse.topics.response.max_output_tokens": 256,
+      "langfuse.topics.response.output_tokens": 40,
+      "langfuse.topics.response.reasoning_tokens": 30,
+    });
+  });
+
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
     vi.stubGlobal(
       "fetch",

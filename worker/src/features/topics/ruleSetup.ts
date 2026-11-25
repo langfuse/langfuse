@@ -90,20 +90,26 @@ export async function tickTopicRuleSetup(
 ): Promise<boolean> {
   const setup = await readTopicRuleSetup(projectId, ruleId);
   if (!setup || !isTopicRuleSetupActive(setup)) return false;
+  let failure: SetupFailure | undefined;
   try {
     const context = await setupContext(setup);
     if (setup.phase === "selecting") await selectAndSeed(setup, context, now);
     if (setup.phase === "summarizing")
       await fitSettledFacets(setup, context, now);
-    if (setup.phase === "fitting") await followFits(setup, now);
+    if (setup.phase === "fitting") failure = await followFits(setup, now);
     else if (setup.phase === "summarizing") await followRuns(setup);
     setup.failedTicks = 0;
     if (setup.phase !== "failed") setup.error = null;
   } catch (error) {
     setup.failedTicks = (setup.failedTicks ?? 0) + 1;
     setup.error = error instanceof Error ? error.message : String(error);
-    if (error instanceof SetupStopped || setup.failedTicks >= MAX_FAILED_TICKS)
+    if (
+      error instanceof SetupStopped ||
+      setup.failedTicks >= MAX_FAILED_TICKS
+    ) {
       setup.phase = "failed";
+      failure = error instanceof SetupStopped ? "stopped" : "tick_errors";
+    }
     logger.warn("Topics rule setup tick failed", {
       projectId,
       ruleId,
@@ -113,13 +119,29 @@ export async function tickTopicRuleSetup(
   }
   await writeTopicRuleSetup(setup);
   const active = isTopicRuleSetupActive(setup);
-  if (!active) recordOutcome(setup, now);
+  if (!active) recordOutcome(setup, now, failure);
   return active;
 }
 
-function recordOutcome(setup: TopicRuleSetup, now: Date) {
+type SetupFailure = "stopped" | "tick_errors" | "fit_failed" | "timeout";
+
+function recordOutcome(
+  setup: TopicRuleSetup,
+  now: Date,
+  failure: SetupFailure | undefined,
+) {
   const durationMs = now.getTime() - Date.parse(setup.startedAt);
-  recordIncrement("langfuse.topics.rule_setups", 1, { outcome: setup.phase });
+  // A done setup can still leave facets without a map when their fits were skipped or failed.
+  const built = setup.facets.filter(
+    (facet) => facet.runStatus === "completed",
+  ).length;
+  const maps =
+    built === 0 ? "none" : built === setup.facets.length ? "all" : "partial";
+  recordIncrement("langfuse.topics.rule_setups", 1, {
+    outcome: setup.phase,
+    maps,
+    ...(failure && { reason: failure }),
+  });
   recordDistribution("langfuse.topics.rule_setup_duration_ms", durationMs, {
     outcome: setup.phase,
   });
@@ -127,6 +149,8 @@ function recordOutcome(setup: TopicRuleSetup, now: Date) {
     projectId: setup.projectId,
     ruleId: setup.ruleId,
     outcome: setup.phase,
+    maps,
+    reason: failure,
     error: setup.error,
     durationMs,
     days: setup.days,
@@ -407,7 +431,10 @@ async function followRuns(setup: TopicRuleSetup) {
  * Done once every fit finished. Failed only when no fit completed and one
  * failed; skipped fits had too few traces, which a retry cannot change.
  */
-async function followFits(setup: TopicRuleSetup, now: Date) {
+async function followFits(
+  setup: TopicRuleSetup,
+  now: Date,
+): Promise<SetupFailure | undefined> {
   const runs = await followRuns(setup);
   const fits = setup.facets.filter((facet) => facet.runId);
   if (fits.every((facet) => isFinished(facet.runStatus))) {
@@ -417,9 +444,12 @@ async function followFits(setup: TopicRuleSetup, now: Date) {
       setup.error =
         runs.get(failed.runId!)?.error ??
         "The first topics could not be built.";
-    } else setup.phase = "done";
+      return "fit_failed";
+    }
+    setup.phase = "done";
   } else if (now.getTime() - Date.parse(setup.startedAt) > MAX_SETUP_MS) {
     setup.phase = "failed";
     setup.error = "The first topics did not finish in time.";
+    return "timeout";
   }
 }

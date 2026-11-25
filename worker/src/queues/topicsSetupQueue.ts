@@ -9,6 +9,7 @@ import {
 } from "../features/topics/ruleSetup";
 import { tickTopicSnapshotSetup } from "../features/topics/snapshotSetup";
 import { runTopicCostEstimate } from "../features/topics/costEstimate";
+import { withTopicsOrg } from "../features/topics/orgContext";
 
 /** The job is only the clock; the rule's setup record, the snapshot's execution, or the estimate record holds the state. */
 export const topicsSetupQueueProcessor: Processor<
@@ -17,17 +18,16 @@ export const topicsSetupQueueProcessor: Processor<
   const { payload } = job.data;
   // Cost estimates run once; they never reschedule.
   if ("estimateKey" in payload) {
-    await runTopicCostEstimate(
-      payload.projectId,
-      payload.estimateKey,
-      job.data.id,
+    await withTopicsOrg(payload.projectId, () =>
+      runTopicCostEstimate(payload.projectId, payload.estimateKey, job.data.id),
     );
     return;
   }
-  const active =
+  const active = await withTopicsOrg(payload.projectId, () =>
     "executionId" in payload
-      ? await tickTopicSnapshotSetup(payload.projectId, payload.executionId)
-      : await tickTopicRuleSetup(payload.projectId, payload.ruleId);
+      ? tickTopicSnapshotSetup(payload.projectId, payload.executionId)
+      : tickTopicRuleSetup(payload.projectId, payload.ruleId),
+  );
   if (!active) return;
   await job.moveToDelayed(Date.now() + TOPIC_RULE_SETUP_TICK_MS, token);
   throw new DelayedError();

@@ -359,6 +359,10 @@ function responseAttributes(
     ...(step.usage.outputTokens !== undefined && {
       "langfuse.topics.response.output_tokens": step.usage.outputTokens,
     }),
+    ...(step.usage.outputTokenDetails?.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens":
+        step.usage.outputTokenDetails.reasoningTokens,
+    }),
   };
 }
 
@@ -608,12 +612,22 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(
-    result,
-    hasOpenAIRefusal(json)
-      ? { "langfuse.topics.response.finish_reason": "content-filter" }
-      : undefined,
-  );
+  const finishReason = json.choices?.[0]?.finish_reason ?? "";
+  recordResponse(result, {
+    "langfuse.topics.response.finish_reason": hasOpenAIRefusal(json)
+      ? "content-filter"
+      : RAW_FINISH_REASONS.has(finishReason)
+        ? finishReason
+        : "other",
+    "langfuse.topics.response.text_characters": message?.content?.length ?? 0,
+    "langfuse.topics.response.max_output_tokens": params.maxOutputTokens,
+    ...(result.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": result.usage.outputTokens,
+    }),
+    ...(result.usage.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens": result.usage.reasoningTokens,
+    }),
+  });
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(
