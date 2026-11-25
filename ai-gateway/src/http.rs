@@ -283,7 +283,8 @@ async fn relay(
                 model_range: request_body.model_range,
                 stream_options: request_body.stream_options,
                 streaming: request_body.streaming,
-                reservation: reservation.map(|r| Box::new(r) as _),
+                reservation: reservation
+                    .map(|r| -> crate::providers::BodyReservation { Box::new(r) }),
                 parse_growth,
             },
             route,
