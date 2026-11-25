@@ -94,6 +94,42 @@ describe("ResizeContainer", () => {
     );
   });
 
+  it("restarts the settle timer on each width change", () => {
+    const view = renderContainer();
+
+    measuredWidth = 500;
+    act(() => notifyResize());
+    act(() => animationFrame?.(0));
+    expect(view.getByText("400")).toBeInTheDocument();
+    expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
+      "1.25",
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    measuredWidth = 600;
+    act(() => notifyResize());
+    act(() => animationFrame?.(0));
+    expect(view.getByText("400")).toBeInTheDocument();
+    expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
+      "1.5",
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(199);
+    });
+    expect(view.getByText("400")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(view.getByText("600")).toBeInTheDocument();
+    expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
+      "",
+    );
+  });
+
   it("ignores a resize that does not change the width", () => {
     const view = renderContainer();
 
