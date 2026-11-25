@@ -95,7 +95,7 @@ export function SelectControl({
             type="button"
             aria-label={clear.label}
             disabled={disabled || clear.disabled}
-            className="focus-visible:ring-ring pointer-events-auto absolute -inset-1 flex items-center justify-center rounded-sm focus-visible:ring-2 focus-visible:outline-hidden enabled:hover:bg-accent disabled:cursor-not-allowed"
+            className="focus-visible:ring-ring enabled:hover:bg-accent pointer-events-auto absolute -inset-1 flex items-center justify-center rounded-sm focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed"
             onPointerDown={(event) => {
               event.stopPropagation();
             }}
