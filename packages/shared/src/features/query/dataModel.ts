@@ -1024,8 +1024,8 @@ const createScoreTableRelations = (
     };
   }
 
-  // `QueryBuilder.buildScores` builds these joins on the query AST; the
-  // strings below describe them.
+  // The score views compile their joins on the query AST (scoresQuery.ts);
+  // these strings only describe them.
   return {
     // Trace attributes are spread over spans in v4, so the join reads one
     // aggregated row per trace (see eventsTraceAttributes).
