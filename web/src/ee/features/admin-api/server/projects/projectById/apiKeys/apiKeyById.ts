@@ -44,7 +44,10 @@ export async function handleDeleteApiKey(
           resourceType: "apiKey",
           resourceId: apiKey.id,
           action: "delete",
-          before: apiKey,
+          before: {
+            metadata: apiKey.gatewayAssociation?.metadata,
+            apiKey: apiKey,
+          },
           orgId: orgId,
           projectId: projectId,
           orgRole: "ADMIN",

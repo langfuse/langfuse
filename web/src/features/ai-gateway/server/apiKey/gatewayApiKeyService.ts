@@ -225,7 +225,10 @@ export class GatewayApiKeyService {
             resourceType: "apiKey",
             resourceId: deletedApiKey.id,
             action: "delete",
-            before: { metadata: association.metadata, apiKey: deletedApiKey },
+            before: {
+              metadata: deletedApiKey.gatewayAssociation?.metadata,
+              apiKey: deletedApiKey,
+            },
           },
           tx,
         );

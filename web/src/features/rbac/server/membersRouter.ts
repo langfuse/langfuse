@@ -36,7 +36,6 @@ import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 import { deleteApiKeys } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   deleteOrgMembership,
@@ -152,10 +151,6 @@ export const membersRouter = createTRPCRouter({
             orgId: input.orgId,
             userId: orgMembership.userId,
           });
-          const gatewayMetadata = await findGatewayKeyMetadata(tx, {
-            orgId: input.orgId,
-            userId: orgMembership.userId,
-          });
           const revokedKeys = await deleteApiKeys(tx, {
             orgId: input.orgId,
             userId: orgMembership.userId,
@@ -167,7 +162,10 @@ export const membersRouter = createTRPCRouter({
                 resourceType: "apiKey",
                 resourceId: apiKey.id,
                 action: "delete",
-                before: { metadata: gatewayMetadata.get(apiKey.id), apiKey },
+                before: {
+                  metadata: apiKey.gatewayAssociation?.metadata,
+                  apiKey,
+                },
                 after: { reason: "user_unbound", userId: orgMembership.userId },
               },
               tx,

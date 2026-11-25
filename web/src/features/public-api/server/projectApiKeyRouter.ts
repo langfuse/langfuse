@@ -184,7 +184,10 @@ export const projectApiKeysRouter = createTRPCRouter({
               resourceType: "apiKey",
               resourceId: deletedApiKey.id,
               action: "delete",
-              before: deletedApiKey,
+              before: {
+                metadata: deletedApiKey.gatewayAssociation?.metadata,
+                apiKey: deletedApiKey,
+              },
             },
             tx,
           );

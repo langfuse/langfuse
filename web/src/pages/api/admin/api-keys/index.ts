@@ -140,7 +140,10 @@ async function deleteProjectApiKeys(projectIds: string[]) {
               resourceType: "apiKey",
               resourceId: apiKey.id,
               action: "delete",
-              before: apiKey,
+              before: {
+                metadata: apiKey.gatewayAssociation?.metadata,
+                apiKey: apiKey,
+              },
             },
             tx,
           );

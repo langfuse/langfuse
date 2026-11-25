@@ -7,7 +7,6 @@ import {
   updateOrgMembership,
 } from "@langfuse/shared/memberships";
 import { evictUserGatewayResolveCache } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { findGatewayKeyMetadata } from "@/src/features/ai-gateway/server/apiKey/findGatewayKeyMetadata";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import {
   invalidateCachedApiKeys,
@@ -285,10 +284,6 @@ async function deprovisionOrReject(
         from: membership.role,
       });
       await deleteOrgMembership(tx, { orgId, userId });
-      const gatewayMetadata = await findGatewayKeyMetadata(tx, {
-        orgId,
-        userId,
-      });
       const revokedKeys = await deleteApiKeys(tx, {
         orgId,
         userId,
@@ -301,7 +296,7 @@ async function deprovisionOrReject(
             resourceType: "apiKey",
             resourceId: apiKey.id,
             action: "delete",
-            before: { metadata: gatewayMetadata.get(apiKey.id), apiKey },
+            before: { metadata: apiKey.gatewayAssociation?.metadata, apiKey },
             after: { reason: "user_unbound", userId },
           },
           tx,

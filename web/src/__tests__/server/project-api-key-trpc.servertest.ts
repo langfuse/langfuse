@@ -383,9 +383,9 @@ describe("project API keys trpc", () => {
       const audit = await prisma.auditLog.findFirstOrThrow({
         where: { resourceType: "apiKey", resourceId: key.id, action: "delete" },
       });
-      const before = JSON.parse(audit.before!);
-      expect(before.fastHashedSecretKey).toBe(fastHashedSecretKey);
-      expect(before).not.toHaveProperty("hashedSecretKey");
+      const { apiKey } = JSON.parse(audit.before!);
+      expect(apiKey.fastHashedSecretKey).toBe(fastHashedSecretKey);
+      expect(apiKey).not.toHaveProperty("hashedSecretKey");
     });
 
     it("keeps a deleted key rejected when a request that read it before the delete caches it afterwards", async () => {

@@ -23,7 +23,7 @@ import { withTransaction } from "../utils/withTransaction";
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
-/** deletedApiKeySelect is every api key column an audit record may hold; hashedSecretKey stays out */
+/** deletedApiKeySelect is every api key field an audit record may hold; hashedSecretKey stays out */
 const deletedApiKeySelect = {
   id: true,
   publicKey: true,
@@ -40,6 +40,7 @@ const deletedApiKeySelect = {
   lastUsedAt: true,
   createdByUserId: true,
   createdByApiKeyId: true,
+  gatewayAssociation: { select: { metadata: true } },
 } satisfies Prisma.ApiKeySelect;
 
 export function getDisplaySecretKey(secretKey: string) {
