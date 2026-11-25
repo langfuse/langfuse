@@ -20,6 +20,7 @@ import { createTagTableColumn } from "@/src/components/design-system/table/colum
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
@@ -929,15 +930,13 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       variant: "avatar",
-      emptyValue: "",
+      emptyValue: "Unknown user",
+      nullValue: EMPTY_VALUE_PLACEHOLDER,
       getUser: (author) => {
-        if (!author) return undefined;
+        if (!author?.userId) return undefined;
 
-        const { userId, name, image } = author;
-        return {
-          type: "user",
-          user: { id: userId, name, image },
-        };
+        const { name, image } = author;
+        return { type: "user", user: { name, image } };
       },
     }),
     createLinkTableColumn<ScoresTableRow>({
