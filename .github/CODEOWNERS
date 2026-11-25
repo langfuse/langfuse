@@ -4,6 +4,7 @@
 # Design system
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
+/web/.storybook/fixtures/**
 
 # Linting
 /packages/config-oxlint/ @bezbac
