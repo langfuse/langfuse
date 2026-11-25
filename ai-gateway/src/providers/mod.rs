@@ -210,6 +210,43 @@ impl ProviderTransport {
         .await
     }
 
+    async fn start_capture(
+        &self,
+        route: Route,
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        body: &Bytes,
+        reservation: Option<BodyReservation>,
+        correlation: &mut RequestCorrelation,
+    ) -> Result<(ExecutionCapture, Option<BodyReservation>), ProviderError> {
+        if !route.captures_generation() {
+            return Ok((ExecutionCapture::unobserved(), reservation));
+        }
+        let body_for_capture = body.clone();
+        let parse_bytes = if body_for_capture.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body_for_capture.len()
+        } else {
+            0
+        };
+        // Hold the body reservation inside the parse job so cancellation
+        // cannot free memory budget while the blocking worker still holds it.
+        let (input, reservation) = self
+            .cpu
+            .run(CpuJob::ParseRequest, parse_bytes, move || {
+                (RequestInput::from_body(&body_for_capture), reservation)
+            })
+            .await
+            .ok_or(ProviderError::Configuration)?;
+        let mut capture =
+            ExecutionCapture::for_request(route.api_format(), context, headers, input);
+        if let Some(telemetry) = &self.telemetry
+            && context.ingestion_mode() != IngestionMode::None
+        {
+            capture.deliver_to(telemetry.clone(), context, headers, correlation);
+        }
+        Ok((capture, reservation))
+    }
+
     pub(crate) async fn forward_route(
         &self,
         mut permit: RequestPermit,
@@ -232,30 +269,9 @@ impl ProviderTransport {
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
-        let mut capture = if route.captures_generation() {
-            let body_for_capture = body.clone();
-            let parse_bytes = if body_for_capture.len() <= MAX_INPUT_CAPTURE_BYTES {
-                body_for_capture.len()
-            } else {
-                0
-            };
-            let input = self
-                .cpu
-                .run(CpuJob::ParseRequest, parse_bytes, move || {
-                    RequestInput::from_body(&body_for_capture)
-                })
-                .await
-                .unwrap_or_else(|| RequestInput::from_body(&body));
-            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, input);
-            if let Some(telemetry) = &self.telemetry
-                && context.ingestion_mode() != IngestionMode::None
-            {
-                capture.deliver_to(telemetry.clone(), &context, headers, correlation);
-            }
-            capture
-        } else {
-            ExecutionCapture::unobserved()
-        };
+        let (mut capture, reservation) = self
+            .start_capture(route, &context, headers, &body, reservation, correlation)
+            .await?;
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = upstream_body(
             route,

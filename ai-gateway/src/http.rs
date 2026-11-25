@@ -253,19 +253,26 @@ async fn relay(
         .await
         .map_err(InferenceHttpError::Resolution)?;
     let request_body = parsed?;
+    let mut reservation = Some(reservation);
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route,
             &parts.headers,
             &request_body,
+            &mut reservation,
             correlation,
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
     let parse_growth = permit
         .charges_spend()
-        .then(|| reservation.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES));
+        .then(|| {
+            reservation
+                .as_ref()
+                .map(|r| r.deferred(MAX_RESPONSE_PARSE_BYTES - MAX_OUTPUT_CAPTURE_BYTES))
+        })
+        .flatten();
     inference
         .forward(
             permit,
@@ -276,7 +283,7 @@ async fn relay(
                 model_range: request_body.model_range,
                 stream_options: request_body.stream_options,
                 streaming: request_body.streaming,
-                reservation: Some(Box::new(reservation)),
+                reservation: reservation.map(|r| Box::new(r) as _),
                 parse_growth,
             },
             route,
@@ -394,7 +401,7 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
     }
 }
 
-/// Validates the JSON body and locates the model, stream flag, stream_options,
+/// Validates the JSON body and locates the model, stream flag, `stream_options`,
 /// and conversation members scanned by guardrails.
 fn parse_request_body(
     bytes: Bytes,

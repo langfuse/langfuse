@@ -350,6 +350,7 @@ impl InferenceService {
         route: Route,
         headers: &HeaderMap,
         request: &ParsedRequest,
+        reservation: &mut Option<MemoryReservation>,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let api_format = route.api_format();
@@ -406,8 +407,17 @@ impl InferenceService {
                 {
                     Ok(spend_limits) => spend_limits,
                     Err(error) => {
-                        self.refuse(&context, route, headers, request, correlation, &error, &[])
-                            .await;
+                        self.refuse(
+                            &context,
+                            route,
+                            headers,
+                            request,
+                            reservation.take(),
+                            correlation,
+                            &error,
+                            &[],
+                        )
+                        .await;
                         return Err(error);
                     }
                 }
@@ -425,6 +435,7 @@ impl InferenceService {
                     route,
                     headers,
                     request,
+                    reservation.take(),
                     correlation,
                     &error,
                     &findings,
@@ -452,6 +463,7 @@ impl InferenceService {
         route: Route,
         headers: &HeaderMap,
         request: &ParsedRequest,
+        reservation: Option<MemoryReservation>,
         correlation: &mut RequestCorrelation,
         error: &ResolutionError,
         guardrails: &[Finding],
@@ -475,13 +487,18 @@ impl InferenceService {
         } else {
             0
         };
-        let input = self
+        // Hold the body reservation inside the parse job so cancellation
+        // cannot free memory budget while the blocking worker still holds it.
+        let Some((input, _reservation)) = self
             .cpu
             .run(CpuJob::ParseRequest, parse_bytes, move || {
-                RequestInput::from_body(&body)
+                let input = RequestInput::from_body(&body);
+                (input, reservation)
             })
             .await
-            .unwrap_or_else(|| RequestInput::from_body(request.body()));
+        else {
+            return;
+        };
         let api_format = context.connection().api_format();
         let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
         capture.deliver_to(telemetry.clone(), context, headers, correlation);
