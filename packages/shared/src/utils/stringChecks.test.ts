@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  extractVariables,
+  isValidVariableName,
   normalizeBlobStorageRegion,
   truncate,
 } from "./stringChecks";
@@ -91,5 +93,38 @@ describe("truncate", () => {
 
   it("leaves BMP (non-astral) strings such as CJK unaffected", () => {
     expect(truncate("你好世界你好世界", 5)).toBe("你好世界你...");
+  });
+});
+
+describe("isValidVariableName", () => {
+  it("accepts a name that starts with a letter and then uses digits or underscores", () => {
+    expect(isValidVariableName("team_1")).toBe(true);
+    expect(isValidVariableName("n_suggestions")).toBe(true);
+    expect(isValidVariableName("team2")).toBe(true);
+  });
+
+  it("accepts unicode letters", () => {
+    expect(isValidVariableName("équipe_un")).toBe(true);
+  });
+
+  it("rejects a name that starts with a digit", () => {
+    expect(isValidVariableName("1team")).toBe(false);
+  });
+
+  it("rejects spaces and hyphens", () => {
+    expect(isValidVariableName("team 1")).toBe(false);
+    expect(isValidVariableName("team-1")).toBe(false);
+  });
+});
+
+describe("extractVariables", () => {
+  it("returns each distinct variable name once, in order of appearance", () => {
+    expect(
+      extractVariables("Hi {{name}}, again {{name}}, for {{team_1}}"),
+    ).toEqual(["name", "team_1"]);
+  });
+
+  it("drops names that the validator rejects", () => {
+    expect(extractVariables("{{1bad}} {{good}}")).toEqual(["good"]);
   });
 });
