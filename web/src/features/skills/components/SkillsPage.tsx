@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   BarChart4,
   ChevronDown,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Download,
   FileCode2,
   GitBranch,
@@ -197,7 +197,7 @@ function SkillsHeaderActions({
             type: "item",
             id: "api",
             title: "API",
-            icon: ExternalLink,
+            icon: SquareArrowOutUpRight,
             href: "https://api.reference.langfuse.com/#tag/skills",
             linkTarget: "_blank",
           },

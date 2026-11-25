@@ -8,6 +8,7 @@ import { seriesFillColor } from "@/src/features/widgets/chart-library/seriesColo
  * about which bar is which. Past the limit we colour every bar alike and leave
  * identity to the tooltip, rather than shipping a legend that lies.
  * (ARCHITECTURE.md V6: colour is identity, and the palette is bounded.)
+ * @internal
  */
 export const CATEGORY_COLOR_LIMIT = 8;
 

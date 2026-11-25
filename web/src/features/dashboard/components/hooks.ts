@@ -178,6 +178,7 @@ export function fillMissingValuesAndTransform(
   return result;
 }
 
+/** @internal */
 export const isEmptyTimeSeries = ({
   data,
   isNullValueAllowed = false,

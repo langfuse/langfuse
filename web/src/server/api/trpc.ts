@@ -44,6 +44,7 @@ type CreateContextOptions = {
  * - tRPC's `createSSGHelpers`, where we don't have req/res
  *
  * @see https://create.t3.gg/en/usage/trpc#-serverapitrpcts
+ * @internal
  */
 export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
@@ -357,6 +358,7 @@ export const authenticatedProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);
 
+/** @internal */
 export const protectedProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);

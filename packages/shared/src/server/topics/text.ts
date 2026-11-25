@@ -27,6 +27,8 @@ import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWri
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
+/** Output floor when Topics cannot turn reasoning off; common models cap output at or above it. */
+export const TOPICS_REASONING_OUTPUT_TOKENS = 4_096;
 
 // Error identity and lifetime are preserved, including for frozen SDK errors.
 const responseMetadataByError = new WeakMap<
@@ -64,8 +66,19 @@ const RAW_FINISH_REASONS = new Set([
  * use InvokeModel at the same regional endpoint and model ID.
  */
 export async function generateTopicText<T>(
-  params: TopicTextParams<T>,
+  requested: TopicTextParams<T>,
 ): Promise<TopicTextResult & TopicTextUsageDetails> {
+  // Reasoning we cannot turn off spends output tokens before the JSON starts.
+  const params =
+    topicReasoning(requested.model) === undefined
+      ? {
+          ...requested,
+          maxOutputTokens: Math.max(
+            requested.maxOutputTokens,
+            TOPICS_REASONING_OUTPUT_TOKENS,
+          ),
+        }
+      : requested;
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
   let responseMetadata: TopicTextResponseMetadata | undefined;
@@ -306,7 +319,7 @@ async function generateWithConnection<T>(
       ? { providerOptions: { openai: { forceReasoning: true } } }
       : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
-    maxRetries: 2,
+    maxRetries: params.maxRetries ?? 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
     // Retain wire refusal markers in memory; diagnostics only expose their classification.
     include: { responseBody: true },
@@ -359,7 +372,19 @@ function responseAttributes(
     ...(step.usage.outputTokens !== undefined && {
       "langfuse.topics.response.output_tokens": step.usage.outputTokens,
     }),
+    ...(step.usage.outputTokenDetails?.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens":
+        step.usage.outputTokenDetails.reasoningTokens,
+    }),
   };
+}
+
+function invokeFinishReason(json: {
+  choices?: { finish_reason?: string }[];
+}): string {
+  if (hasOpenAIRefusal(json)) return "content-filter";
+  const reason = json.choices?.[0]?.finish_reason ?? "";
+  return RAW_FINISH_REASONS.has(reason) ? reason : "other";
 }
 
 /** Inspect wire markers only; generated text and exception messages are not signals. */
@@ -608,12 +633,17 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  recordResponse(
-    result,
-    hasOpenAIRefusal(json)
-      ? { "langfuse.topics.response.finish_reason": "content-filter" }
-      : undefined,
-  );
+  recordResponse(result, {
+    "langfuse.topics.response.finish_reason": invokeFinishReason(json),
+    "langfuse.topics.response.text_characters": message?.content?.length ?? 0,
+    "langfuse.topics.response.max_output_tokens": params.maxOutputTokens,
+    ...(result.usage.outputTokens !== undefined && {
+      "langfuse.topics.response.output_tokens": result.usage.outputTokens,
+    }),
+    ...(result.usage.reasoningTokens !== undefined && {
+      "langfuse.topics.response.reasoning_tokens": result.usage.reasoningTokens,
+    }),
+  });
 
   if (!message?.content || json.choices?.[0]?.finish_reason === "length")
     throw Object.assign(
@@ -658,6 +688,8 @@ type TopicTextParams<T> = {
   schema: z.ZodType<T>;
   maxOutputTokens: number;
   timeoutMs?: number;
+  /** AI SDK retries of 429 and 5xx responses; callers with their own backoff pass 0. */
+  maxRetries?: number;
   trace?: TraceSinkParams;
   /** A provider may report usage before its response fails structured-output validation. */
   onFailedResponseUsage?: (usage: TopicTextUsageDetails) => Promise<void>;

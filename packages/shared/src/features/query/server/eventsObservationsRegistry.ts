@@ -216,6 +216,7 @@ function templateMeasure<A extends Record<string, TemplateAggregate>>(entry: {
  * value, and the caller wraps the whole measure in the requested aggregation
  * (`QueryBuilder.translateAggregation` for the string version); `two` applies
  * the slot's aggregate from `aggs` in the inner select.
+ * @internal
  */
 export function aggregationSlot<A extends Record<string, TemplateAggregate>>(
   aggs: A,
@@ -323,6 +324,7 @@ const scalarDimension = (value: Read<unknown>): ScalarDimension => ({
 });
 
 /** Dimensions of the v2 observations view, keyed by name, in view order. */
+/** @internal */
 export const EVENTS_OBSERVATIONS_DIMENSIONS = {
   id: stringDimension((eb) => eb.ref("e.span_id")),
   evaluatorId: nullableStringDimension((eb) =>
@@ -526,6 +528,7 @@ export function eventsObservationsFilterLowering(
  * view's strings read `usage_details`, `cost_details` and `total_cost`
  * unqualified; the entries qualify them with `e`, since the compiler rejects
  * a bare column in a SELECT that also joins `scores`.
+ * @internal
  */
 export const EVENTS_OBSERVATIONS_MEASURES = {
   count: templateMeasure({

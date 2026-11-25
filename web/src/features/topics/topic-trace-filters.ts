@@ -278,6 +278,7 @@ export function topicTraceQuery(
   return query;
 }
 
+/** @internal */
 export function getTopicAssignment(outcome: string) {
   if (
     outcome === "assigned" ||

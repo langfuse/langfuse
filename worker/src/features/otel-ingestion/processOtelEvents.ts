@@ -147,8 +147,11 @@ export async function processOtelEvents({
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () =>
-              convertEventRecordToObservationForEval(eventRecord),
+            parseObservation: () => {
+              const observation =
+                convertEventRecordToObservationForEval(eventRecord);
+              return { observation, loadSnapshot: () => observation };
+            },
             environment: eventRecord.environment,
             traceActivity,
             rules,

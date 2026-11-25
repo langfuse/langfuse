@@ -93,6 +93,7 @@ export interface TextSegment {
   isHighlight: boolean;
 }
 
+/** @internal */
 export function highlightText(
   text: string,
   highlightStart?: number,

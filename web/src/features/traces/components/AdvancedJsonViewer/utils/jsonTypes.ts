@@ -143,6 +143,7 @@ export function safeStringify(value: unknown, indent = 2): string {
 /**
  * Count total number of descendants (all nested children) in a value
  * Used for calculating absolute line numbers when nodes are collapsed
+ * @internal
  */
 export function countAllDescendants(value: unknown): number {
   if (!isExpandable(value)) {

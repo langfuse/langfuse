@@ -1,5 +1,6 @@
 import { type EvalTemplateType } from "@prisma/client";
 
+import { toEvalVariables } from "../../server/transcript/eval-threads";
 import { EvalTemplateTypeEnum } from "./types";
 import { extractValueFromObject } from "./utilities";
 
@@ -18,46 +19,6 @@ export function isTraceTranscriptEvalType(type: EvalTemplateType) {
   return (TRACE_TRANSCRIPT_EVAL_TYPES as readonly EvalTemplateType[]).includes(
     type,
   );
-}
-
-type MappingMessage = {
-  id?: string;
-  role: unknown;
-  senderName?: string;
-  parts: unknown;
-  finishReason?: unknown;
-  source?: unknown;
-};
-
-type StoredThread = {
-  conversationHistory?: MappingMessage[];
-  currentTurn?: { messages?: MappingMessage[] };
-};
-
-function messageForMapping(message: MappingMessage) {
-  return {
-    ...(message.id === undefined ? {} : { id: message.id }),
-    role: message.role,
-    ...(message.senderName === undefined
-      ? {}
-      : { senderName: message.senderName }),
-    parts: message.parts,
-    ...(message.finishReason === undefined
-      ? {}
-      : { finishReason: message.finishReason }),
-    ...(message.source === undefined ? {} : { source: message.source }),
-  };
-}
-
-/** The shape variable paths resolve against: one `messages` list per thread, history first, no provenance. */
-export function projectTranscriptThreadsForMapping(threads: unknown) {
-  if (!Array.isArray(threads)) return threads;
-  return (threads as StoredThread[]).map((thread) => ({
-    messages: [
-      ...(thread.conversationHistory ?? []),
-      ...(thread.currentTurn?.messages ?? []),
-    ].map(messageForMapping),
-  }));
 }
 
 type TranscriptEvalVariableMapping = {
@@ -92,7 +53,7 @@ export function extractTranscriptEvalVariables(
       error: "Transcript evaluation only reads the threads column.",
     };
   }
-  const projected = projectTranscriptThreadsForMapping(threads);
+  const projected = toEvalVariables(threads);
   return {
     ok: true,
     variables: variableMapping.map((mapping) => ({

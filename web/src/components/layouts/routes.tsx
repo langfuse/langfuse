@@ -25,6 +25,7 @@ import {
   Box,
   Gauge,
   KeyRound,
+  ShieldCheck,
 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { type ReactNode } from "react";
@@ -129,6 +130,11 @@ export const ROUTES: Route[] = [
         icon: Home,
       },
       {
+        title: "Gateway keys",
+        slug: GATEWAY_PAGE_SLUGS.apiKeys,
+        icon: KeyRound,
+      },
+      {
         title: "Connections & Models",
         slug: GATEWAY_PAGE_SLUGS.models,
         icon: Box,
@@ -139,9 +145,9 @@ export const ROUTES: Route[] = [
         icon: Gauge,
       },
       {
-        title: "Gateway keys",
-        slug: GATEWAY_PAGE_SLUGS.apiKeys,
-        icon: KeyRound,
+        title: "Guardrails",
+        slug: GATEWAY_PAGE_SLUGS.guardrails,
+        icon: ShieldCheck,
       },
     ] as const
   ).map(({ title, slug, icon }): Route => ({

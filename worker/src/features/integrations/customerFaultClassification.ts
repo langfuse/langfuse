@@ -191,6 +191,7 @@ export function classifyCustomerFault(
   return undefined;
 }
 
+/** @internal */
 export function isCustomerFaultError(error: unknown): boolean {
   return classifyCustomerFault(error) !== undefined;
 }

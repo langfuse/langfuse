@@ -244,9 +244,10 @@ export function ModelFormDialogContent({
                 <FormItem>
                   <FormLabel>Model Name</FormLabel>
                   <FormDescription>
-                    The name of the model. This will be used to reference the
-                    model in the API. You can track price changes of models by
-                    using the same name and match pattern.
+                    Shown on matched generations and used to reference the model
+                    in the API. The match pattern, not the name, decides which
+                    model applies. Keep the name and match pattern to track
+                    price changes.
                   </FormDescription>
                   <FormControl>
                     <Input
@@ -283,10 +284,11 @@ export function ModelFormDialogContent({
                 <FormItem>
                   <FormLabel>Match pattern</FormLabel>
                   <FormDescription>
-                    Regular expression (Postgres syntax) to match ingested
-                    generations (model attribute) to this model definition. For
-                    an exact, case-insensitive match to a model name, use the
-                    expression: (?i)^(modelname)$
+                    Regular expression (Postgres syntax) matched against the
+                    model name of ingested generations. If several models match,
+                    project models win over organization models, then Langfuse
+                    defaults. For an exact, case-insensitive match, use
+                    (?i)^(modelname)$
                   </FormDescription>
                   <FormControl>
                     <Input {...field} />

@@ -7,6 +7,7 @@ import { type NextApiRequest } from "next";
  * the route names the endpoint rather than the entity and stays bounded.
  * Static routes need no entry. `withMiddlewares.servertest.ts` keeps this
  * list in sync with `web/src/pages/api`.
+ * @internal
  */
 export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/annotation-queues/[queueId]",

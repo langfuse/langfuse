@@ -43,6 +43,7 @@ const METRIC_PREFIX = `langfuse.${RUNNER_NAME}`;
 const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
 
+/** @internal */
 export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   traces: "timestamp",
   observations: "start_time",

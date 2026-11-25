@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LangfuseNotFoundError, type FilterState } from "@langfuse/shared";
 
 const mocks = vi.hoisted(() => ({
-  isTopicsProjectEnabled: vi.fn(),
   listTopicFacets: vi.fn(),
   listTopicRules: vi.fn(),
   getPublishedTopicRun: vi.fn(),
@@ -29,7 +28,6 @@ import {
   getPublicTopicFacet,
   listPublicTopicAssignments,
   listPublicTopicFacets,
-  listPublicTopicRules,
   listPublicTopics,
   listPublicTopicSummaries,
 } from "@/src/features/topics/server/publicApi";
@@ -128,7 +126,6 @@ const assignment = (
 describe("unstable Topics public API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.isTopicsProjectEnabled.mockReturnValue(true);
     mocks.listTopicFacets.mockResolvedValue([
       facet("issues", "Issues"),
       facet("custom", "Custom Facet", false),
@@ -192,44 +189,6 @@ describe("unstable Topics public API", () => {
             : [],
       })),
     );
-  });
-
-  it("returns not found for projects without Topics before reading anything", async () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    const calls = [
-      listPublicTopicFacets({ projectId, page: 1, limit: 50 }),
-      getPublicTopicFacet({ projectId, facetId: "issues" }),
-      listPublicTopics({
-        projectId,
-        orderBy: "traceCount.desc",
-        page: 1,
-        limit: 50,
-      }),
-      getPublicTopic({ projectId, topicId: "timeouts" }),
-      listPublicTopicRules({ projectId, page: 1, limit: 50 }),
-      listPublicTopicSummaries({
-        projectId,
-        plan: null,
-        truncateSummaries: false,
-        orderBy: "timestamp.desc",
-        limit: 50,
-      }),
-      listPublicTopicAssignments({
-        projectId,
-        plan: null,
-        orderBy: "timestamp.desc",
-        limit: 50,
-      }),
-    ];
-    for (const call of calls)
-      await expect(call).rejects.toThrow(
-        new LangfuseNotFoundError("Topics is not available for this project."),
-      );
-    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
-    expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
-    expect(mocks.listTopicRules).not.toHaveBeenCalled();
-    expect(readers.listCurrentTopicSummaries).not.toHaveBeenCalled();
-    expect(readers.listCurrentTopicAssignments).not.toHaveBeenCalled();
   });
 
   it("lists active facets by default and filters case-insensitively", async () => {

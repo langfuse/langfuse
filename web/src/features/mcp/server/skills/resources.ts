@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import { LANGFUSE_SKILLS } from "@repo/langfuse-skills";
 import type { createMcpServer } from "../mcpServer";
+import {
+  resourceNotFound,
+  resourceResultCache,
+} from "../../core/resource-results";
 
 const skills = LANGFUSE_SKILLS.map(({ uri, frontmatter, resources }) => ({
   uri,
@@ -23,18 +27,6 @@ const resources = LANGFUSE_SKILLS.flatMap((skill) =>
 const listParams = z.object({ cursor: z.string().optional() }).optional();
 const getParams = z.object({ uri: z.string() });
 
-const cache = {
-  resultType: "complete",
-  ttlMs: 0,
-  cacheScope: "private",
-} as const;
-
-const notFound = () =>
-  new ProtocolError(
-    ProtocolErrorCode.InvalidParams,
-    "Unknown skill or resource",
-  );
-
 export function registerSkillResources(
   server: ReturnType<typeof createMcpServer>,
 ) {
@@ -45,7 +37,7 @@ export function registerSkillResources(
         "Invalid skills cursor",
       );
     }
-    return { ...cache, skills };
+    return { ...resourceResultCache, skills };
   };
 
   server.setRequestHandler(
@@ -58,30 +50,21 @@ export function registerSkillResources(
     { params: getParams },
     async (params) => {
       const official = skills.find((skill) => skill.uri === params.uri);
-      if (!official) throw notFound();
-      return { ...cache, skill: official };
+      if (!official) throw resourceNotFound();
+      return { ...resourceResultCache, skill: official };
     },
   );
-  server.setRequestHandler("resources/list", async (request) => {
-    const result = list(request.params?.cursor);
-    return {
-      ...cache,
-      resources: result.skills.map((skill) => ({
-        uri: skill.uri,
-        name: skill.frontmatter.name,
-        description: skill.frontmatter.description,
-        mimeType: "text/markdown",
-      })),
-    };
-  });
-  server.setRequestHandler("resources/templates/list", async () => ({
-    ...cache,
-    resourceTemplates: [],
-  }));
-  server.setRequestHandler("resources/read", async (request) => {
-    const uri = request.params.uri;
-    const resource = resources.find((file) => file.uri === uri);
-    if (!resource) throw notFound();
-    return { ...cache, contents: [resource] };
-  });
 }
+
+/** Skill files listed as MCP resources. */
+export const listSkillResources = () =>
+  skills.map((skill) => ({
+    uri: skill.uri,
+    name: skill.frontmatter.name,
+    description: skill.frontmatter.description,
+    mimeType: "text/markdown",
+  }));
+
+/** Contents of one skill file, or undefined when the URI is not a skill file. */
+export const readSkillResource = (uri: string) =>
+  resources.find((file) => file.uri === uri);

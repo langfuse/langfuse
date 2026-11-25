@@ -157,5 +157,5 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

@@ -156,6 +156,7 @@ export class EvaluatorService {
     orderBy?: EvaluatorListOrderBy;
     search?: string;
     filter?: FilterState;
+    includeTraceTranscriptAssignments?: boolean;
   }) {
     const page = await repository.listEvaluators({
       prisma: this.prisma,

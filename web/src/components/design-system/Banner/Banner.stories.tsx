@@ -1,6 +1,8 @@
 import React from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
+import { Settings } from "@langfuse/icons";
+
 import preview from "../../../../.storybook/preview";
 import { Banner } from "./Banner";
 
@@ -62,6 +64,49 @@ export const WithLink = meta.story({
       "Credits are applied to a paid subscription. Choose a plan in the billing settings, then come back to this page to redeem your coupon.",
     actions: [{ text: "Open billing settings", href: "#" }],
   },
+});
+
+export const ShortMessageWithAction = meta.story({
+  args: {
+    children: "2 nested threads are hidden.",
+    actions: [{ text: "Show nested threads", onClick: fn() }],
+  },
+});
+
+export const LinkActions = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => (
+    <div className="grid w-[600px] gap-4">
+      <Banner
+        title="In-app link"
+        actions={[{ text: "Open billing settings", href: "#" }]}
+      >
+        Stays in the same tab, so it has no icon.
+      </Banner>
+      <Banner
+        title="External link"
+        actions={[{ text: "Read the docs", href: "https://langfuse.com/docs" }]}
+      >
+        Opens a new tab. Banner adds the icon.
+      </Banner>
+      <Banner
+        title="External link with an icon passed"
+        actions={[
+          {
+            text: "Read the docs",
+            href: "https://langfuse.com/docs",
+            icon: Settings,
+          },
+        ]}
+      >
+        The external link icon replaces the passed icon.
+      </Banner>
+    </div>
+  ),
 });
 
 export const Dismissible = meta.story({

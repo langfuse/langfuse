@@ -25,7 +25,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { getOrganizationFeaturePreviewDefaults } from "@/src/features/feature-flags/fns/getOrganizationFeaturePreviewDefaults";
 import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { parseFlags } from "@/src/features/feature-flags/server/parseFlags";
+import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
