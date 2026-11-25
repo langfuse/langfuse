@@ -52,7 +52,7 @@ import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
 } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useEvaluatorPromptSample } from "@/src/features/evals/v2/hooks/useEvaluatorPromptSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
@@ -74,7 +74,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
+  const sampleObject = useEvaluatorPromptSample({ projectId, store });
   return <PromptEditorContent store={store} sampleObject={sampleObject} />;
 }
 
