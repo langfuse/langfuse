@@ -303,11 +303,18 @@ types:
       Optional descriptions of the two answers of a `boolean` question. The answer is always `true` or `false`; these descriptions only tell the model when each one applies.
     properties:
       "true":
-        type: optional<nullable<DecisionModelEntry>>
-        docs: Description of when the statement is true.
+        type: optional<nullable<DecisionModelBooleanCriterion>>
+        docs: When the statement is true.
       "false":
-        type: optional<nullable<DecisionModelEntry>>
-        docs: Description of when the statement is false.
+        type: optional<nullable<DecisionModelBooleanCriterion>>
+        docs: When the statement is false.
+
+  DecisionModelBooleanCriterion:
+    docs: One answer of a `boolean` question.
+    properties:
+      description:
+        type: DecisionModelEntry
+        docs: Description of when this answer applies.
 
   DecisionModelChoiceQuestion:
     docs: Pick one of a fixed list of options. Produces a categorical score.

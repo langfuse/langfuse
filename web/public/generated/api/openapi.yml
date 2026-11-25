@@ -12086,13 +12086,23 @@ components:
         model when each one applies.
       properties:
         'true':
-          $ref: '#/components/schemas/DecisionModelEntry'
+          $ref: '#/components/schemas/DecisionModelBooleanCriterion'
           nullable: true
-          description: Description of when the statement is true.
+          description: When the statement is true.
         'false':
-          $ref: '#/components/schemas/DecisionModelEntry'
+          $ref: '#/components/schemas/DecisionModelBooleanCriterion'
           nullable: true
-          description: Description of when the statement is false.
+          description: When the statement is false.
+    DecisionModelBooleanCriterion:
+      title: DecisionModelBooleanCriterion
+      type: object
+      description: One answer of a `boolean` question.
+      properties:
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: Description of when this answer applies.
+      required:
+        - description
     DecisionModelChoiceQuestion:
       title: DecisionModelChoiceQuestion
       type: object

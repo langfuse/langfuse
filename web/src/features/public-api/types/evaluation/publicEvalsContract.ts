@@ -2,6 +2,7 @@ import {
   arrayOptionsFilter,
   categoryOptionsFilter,
   DecisionModelChoiceQuestionSchema,
+  DecisionModelEntrySchema,
   DecisionModelNoulQuestionSchema,
   DecisionModelQuestionsSchema,
   DecisionModelQuestionType,
@@ -192,6 +193,10 @@ export const DecisionModelStateMappingInput = z.union([
 
 const PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE = "boolean";
 
+const PublicDecisionModelBooleanCriterion = z.object({
+  description: DecisionModelEntrySchema,
+});
+
 export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
   DecisionModelChoiceQuestionSchema.omit({ options: true }).extend({
     criteria: DecisionModelChoiceQuestionSchema.shape.options,
@@ -201,6 +206,12 @@ export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
   }),
   DecisionModelNoulQuestionSchema.extend({
     type: z.literal(PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE),
+    criteria: z
+      .object({
+        true: PublicDecisionModelBooleanCriterion.nullish(),
+        false: PublicDecisionModelBooleanCriterion.nullish(),
+      })
+      .nullish(),
   }),
 ]);
 type PublicDecisionModelQuestionType = z.infer<
@@ -219,8 +230,17 @@ export function toInternalDecisionModelQuestion(
       const { criteria, ...rest } = question;
       return { ...rest, levels: criteria };
     }
-    case PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE:
-      return { ...question, type: DecisionModelQuestionType.NOUL };
+    case PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE: {
+      const { criteria } = question;
+      return {
+        ...question,
+        type: DecisionModelQuestionType.NOUL,
+        criteria: criteria && {
+          true: criteria.true && criteria.true.description,
+          false: criteria.false && criteria.false.description,
+        },
+      };
+    }
   }
 }
 
@@ -236,8 +256,23 @@ export function toPublicDecisionModelQuestion(
       const { levels, ...rest } = question;
       return { ...rest, criteria: levels };
     }
-    case DecisionModelQuestionType.NOUL:
-      return { ...question, type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE };
+    case DecisionModelQuestionType.NOUL: {
+      const { criteria } = question;
+      return {
+        ...question,
+        type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE,
+        criteria: criteria && {
+          true:
+            criteria.true == null
+              ? criteria.true
+              : { description: criteria.true },
+          false:
+            criteria.false == null
+              ? criteria.false
+              : { description: criteria.false },
+        },
+      };
+    }
   }
 }
 

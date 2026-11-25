@@ -261,6 +261,10 @@ describe("stable evaluators public API", () => {
         type: "boolean",
         scoreName: "helpful",
         instructions: { goal: "Does the answer resolve the question?" },
+        criteria: {
+          true: { description: "The answer resolves the question." },
+          false: { description: { reason: "unresolved" } },
+        },
       },
     ];
 
@@ -292,6 +296,21 @@ describe("stable evaluators public API", () => {
       ],
       modelConfig: { provider: "typesafe", model: "jev-1" },
     });
+    const stored = await prisma.evaluatorVersion.findFirstOrThrow({
+      where: { evaluatorId: created.body.id },
+      select: { questions: true },
+    });
+    expect(stored.questions).toMatchObject([
+      { id: "tone", type: "choice", options: questions[0].criteria },
+      {
+        id: "helpful",
+        type: "noul",
+        criteria: {
+          true: "The answer resolves the question.",
+          false: { reason: "unresolved" },
+        },
+      },
+    ]);
 
     const replaced = await makeZodVerifiedAPICall(
       Evaluator,
