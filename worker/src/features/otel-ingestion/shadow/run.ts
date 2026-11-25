@@ -59,6 +59,15 @@ const newRecorded = (): Recorded => ({
   mediaUploads: 0,
 });
 
+type DirectStep = Parameters<typeof processOtelEvents>[0];
+
+type TypeScriptRun = {
+  recorded: Recorded;
+  /** The failure class; absent when the direct step completed. */
+  error?: string;
+  processMs: number;
+};
+
 type RustRun = {
   /** Where the Rust run stopped; absent when it completed. */
   failedAt?: "prepare" | "process";
@@ -94,55 +103,63 @@ export function isOtelShadowSampled(
  * and the two are compared. The Rust run writes rows to events_native_test and
  * performs no other write.
  */
-export async function withOtelShadow(
-  sample: Sample,
-  direct: Parameters<typeof processOtelEvents>[0],
-) {
-  const typeScript = newRecorded();
+export async function withOtelShadow(sample: Sample, direct: DirectStep) {
+  const recorded = newRecorded();
   const startedAt = performance.now();
-  let typeScriptError: string | undefined;
+  let error: string | undefined;
   try {
-    return await processOtelEvents({
-      ...direct,
-      ingestionService: {
-        createEventRecord: (...args) =>
-          direct.ingestionService.createEventRecord(...args),
-        writeEventRecord: async (...args) => {
-          const row = await direct.ingestionService.writeEventRecord(...args);
-          typeScript.rows.push({
-            traceId: row.trace_id,
-            spanId: row.span_id,
-            startTime: row.start_time,
-          });
-          return row;
-        },
-      },
-      evalWrites: () => recordEvalWrites(typeScript, direct.evalWrites()),
-    });
-  } catch (error) {
-    typeScriptError = errorClass(error);
-    throw error;
+    return await processOtelEvents(recordTypeScriptWrites(direct, recorded));
+  } catch (failure) {
+    error = errorClass(failure);
+    throw failure;
   } finally {
-    const typeScriptMs = performance.now() - startedAt;
-    if (rustRuns >= MAX_RUST_RUNS) {
-      recordIncrement(`${METRIC_PREFIX}batch`, 1, { result: "skipped" });
-    } else {
-      rustRuns++;
-      const rust = newRecorded();
-      runRust(sample, rust)
-        .then((run) =>
-          report(sample, typeScript, rust, run, typeScriptError, typeScriptMs),
-        )
-        .finally(() => rustRuns--)
-        .catch((error) =>
-          logger.warn("OTEL shadow comparison failed", {
-            projectId: sample.context.projectId,
-            fileKey: sample.context.fileKey,
-            error: errorClass(error),
-          }),
-        );
-    }
+    const processMs = performance.now() - startedAt;
+    startRustComparison(sample, { recorded, error, processMs });
   }
+}
+
+/** The direct step with its event and evaluation writes recorded as they happen. */
+function recordTypeScriptWrites(
+  direct: DirectStep,
+  recorded: Recorded,
+): DirectStep {
+  return {
+    ...direct,
+    ingestionService: {
+      createEventRecord: (...args) =>
+        direct.ingestionService.createEventRecord(...args),
+      writeEventRecord: async (...args) => {
+        const row = await direct.ingestionService.writeEventRecord(...args);
+        recorded.rows.push({
+          traceId: row.trace_id,
+          spanId: row.span_id,
+          startTime: row.start_time,
+        });
+        return row;
+      },
+    },
+    evalWrites: () => recordEvalWrites(recorded, direct.evalWrites()),
+  };
+}
+
+/** Start the Rust run and its comparison in the background, unless too many are going. */
+function startRustComparison(sample: Sample, typeScript: TypeScriptRun): void {
+  if (rustRuns >= MAX_RUST_RUNS) {
+    recordIncrement(`${METRIC_PREFIX}batch`, 1, { result: "skipped" });
+    return;
+  }
+  rustRuns++;
+  const recorded = newRecorded();
+  runRust(sample, recorded)
+    .then((run) => report(sample, typeScript, recorded, run))
+    .finally(() => rustRuns--)
+    .catch((failure) =>
+      logger.warn("OTEL shadow comparison failed", {
+        projectId: sample.context.projectId,
+        fileKey: sample.context.fileKey,
+        error: errorClass(failure),
+      }),
+    );
 }
 
 /** Record a key per evaluation write, then let `next` perform or skip it. */
@@ -300,51 +317,32 @@ function batchResult(typeScriptOk: boolean, rustOk: boolean): string {
   return rustOk ? "ts_failed" : "both_failed";
 }
 
-function report(
+/** How the evaluation writes of the two sides differ. */
+function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
+  return {
+    onlyTypeScript: unmatched(typeScript.evalWrites, rust.evalWrites),
+    onlyRust: unmatched(rust.evalWrites, typeScript.evalWrites),
+    snapshotFields: changedSnapshotFields(typeScript.snapshots, rust.snapshots),
+  };
+}
+
+function recordDurations(
   sample: Sample,
-  typeScript: Recorded,
+  typeScript: TypeScriptRun,
   rust: Recorded,
   run: RustRun,
-  typeScriptError: string | undefined,
-  typeScriptMs: number,
+  writeMode: string,
 ): void {
-  const { projectId, fileKey } = sample.context;
-  const typeScriptOk = typeScriptError === undefined;
-  const rustOk = run.failedAt === undefined;
-  const bothOk = typeScriptOk && rustOk;
-  // A failed side stopped part-way, so its writes say nothing about parity.
-  const [onlyTypeScript, onlyRust, snapshotFields] = bothOk
-    ? [
-        unmatched(typeScript.evalWrites, rust.evalWrites),
-        unmatched(rust.evalWrites, typeScript.evalWrites),
-        changedSnapshotFields(typeScript.snapshots, rust.snapshots),
-      ]
-    : [[], [], []];
-  const evalWritesMatch = onlyTypeScript.length + onlyRust.length === 0;
-  const result = batchResult(typeScriptOk, rustOk);
-  const parity = (same: boolean) => {
-    if (!bothOk) return "unchecked";
-    return same ? "match" : "different";
-  };
-  const write_mode = v4WritesToLegacyTables(env) ? "dual" : "events_only";
-
-  recordIncrement(`${METRIC_PREFIX}batch`, 1, {
-    result,
-    ts_error: typeScriptError ?? "none",
-    rust_error: run.error ?? "none",
-    rust_stage: run.failedAt ?? "none",
-    eval_writes: parity(evalWritesMatch),
-    eval_snapshots: parity(snapshotFields.length === 0),
-    write_mode,
-  });
-
   // Only TypeScript performs real uploads and evaluation writes, so durations
   // compare like for like on batches without any.
-  const side_effects =
-    typeScript.evalWrites.length + rust.evalWrites.length + rust.mediaUploads
+  const sideEffects =
+    typeScript.recorded.evalWrites.length +
+      rust.evalWrites.length +
+      rust.mediaUploads >
+    0
       ? "some"
       : "none";
-  const duration = (
+  const record = (
     implementation: "ts" | "rust",
     phase: "prepare" | "process",
     ms: number | undefined,
@@ -353,40 +351,76 @@ function report(
     recordDistribution(`${METRIC_PREFIX}duration_ms`, ms, {
       implementation,
       phase,
-      side_effects,
-      write_mode,
+      side_effects: sideEffects,
+      write_mode: writeMode,
     });
   };
-  if (typeScriptOk) {
-    duration("ts", "prepare", sample.typeScriptPreparationMs);
-    duration("ts", "process", typeScriptMs);
+  if (typeScript.error === undefined) {
+    record("ts", "prepare", sample.typeScriptPreparationMs);
+    record("ts", "process", typeScript.processMs);
   }
-  if (rustOk) {
-    duration("rust", "prepare", run.prepareMs);
-    duration("rust", "process", run.processMs);
+  if (run.failedAt === undefined) {
+    record("rust", "prepare", run.prepareMs);
+    record("rust", "process", run.processMs);
   }
+}
 
-  if (!bothOk || !evalWritesMatch || snapshotFields.length > 0) {
+function report(
+  sample: Sample,
+  typeScript: TypeScriptRun,
+  rust: Recorded,
+  run: RustRun,
+): void {
+  const { projectId, fileKey } = sample.context;
+  const bothOk = typeScript.error === undefined && run.failedAt === undefined;
+  // A failed side stopped part-way, so its writes say nothing about parity.
+  const evalWrites = bothOk
+    ? compareEvalWrites(typeScript.recorded, rust)
+    : { onlyTypeScript: [], onlyRust: [], snapshotFields: [] };
+  const evalWritesMatch =
+    evalWrites.onlyTypeScript.length + evalWrites.onlyRust.length === 0;
+  const snapshotsMatch = evalWrites.snapshotFields.length === 0;
+  const parity = (same: boolean) => {
+    if (!bothOk) return "unchecked";
+    return same ? "match" : "different";
+  };
+  const result = batchResult(
+    typeScript.error === undefined,
+    run.failedAt === undefined,
+  );
+  const writeMode = v4WritesToLegacyTables(env) ? "dual" : "events_only";
+
+  recordIncrement(`${METRIC_PREFIX}batch`, 1, {
+    result,
+    ts_error: typeScript.error ?? "none",
+    rust_error: run.error ?? "none",
+    rust_stage: run.failedAt ?? "none",
+    eval_writes: parity(evalWritesMatch),
+    eval_snapshots: parity(snapshotsMatch),
+    write_mode: writeMode,
+  });
+  recordDurations(sample, typeScript, rust, run, writeMode);
+
+  if (!bothOk || !evalWritesMatch || !snapshotsMatch) {
     logger.warn("OTEL shadow batch differs", {
       projectId,
       fileKey,
       result,
-      typeScriptError,
+      typeScriptError: typeScript.error,
       rustError: run.error,
       rustStage: run.failedAt,
-      typeScriptRows: typeScript.rows.length,
+      typeScriptRows: typeScript.recorded.rows.length,
       rustRows: rust.rows.length,
-      evalWritesOnlyTypeScript: onlyTypeScript.slice(0, 5),
-      evalWritesOnlyRust: onlyRust.slice(0, 5),
-      evalSnapshotFields: snapshotFields,
+      evalWritesOnlyTypeScript: evalWrites.onlyTypeScript.slice(0, 5),
+      evalWritesOnlyRust: evalWrites.onlyRust.slice(0, 5),
+      evalSnapshotFields: evalWrites.snapshotFields,
     });
   }
   if (bothOk) {
     queueRowVerification({
       projectId,
       fileKey,
-      inputBytes: sample.input.byteLength,
-      rows: typeScript.rows.concat(rust.rows),
+      rows: typeScript.recorded.rows.concat(rust.rows),
     });
   }
 }

@@ -14,74 +14,140 @@ export type ShadowRowKey = {
   startTime: string;
 };
 
+/** What identifies a stored row: project, trace, span and start time. */
+type RowId = [
+  projectId: string,
+  traceId: string,
+  spanId: string,
+  startTime: string,
+];
+
 /** One sampled batch waiting for its rows to be compared. */
 type Sample = {
   projectId: string;
   fileKey: string;
-  inputBytes: number;
-  /** (trace id, start minute) pairs: the primary key prefix of the rows to read. */
-  keys: [traceId: string, startMinute: string][];
-  /** Spans under those keys. */
-  spans: number;
+  rows: RowId[];
   queuedAt: number;
 };
 
 const METRIC = "langfuse.ingestion.otel.shadow.rows";
 /** Both writers flush on an interval, so rows are read once they had time to land. */
 const SETTLE_MS = 20_000;
-/** Read once this much sampled input has settled, or once the oldest sample is this old. */
-const FLUSH_INPUT_BYTES = 64 * 1024 * 1024;
-const MAX_AGE_MS = 60_000;
-const MAX_BYTES_TO_READ = 1024 * 1024 * 1024;
 /**
- * Each key reads at least one events_full granule, up to 64 MiB, so a read
- * takes this many keys and a file contributes only a few of them. Spans
- * outside that budget count as unverified.
+ * Row ids and file names travel as form fields, which ClickHouse caps at
+ * 128 KiB each (http_max_field_value_size). A read carries a few fields of
+ * row ids: about 3,500 rows of OTEL-sized ids.
  */
-const KEYS_PER_READ = 8;
-const KEYS_PER_FILE = 2;
-const MAX_PENDING_SAMPLES = 1_000;
+const FIELD_BYTES = 100_000;
+const ID_FIELDS_PER_READ = 4;
+const READ_TIMEOUT_S = 60;
+/** Samples queue while reads fall behind; beyond this they count as unverified. */
+const MAX_PENDING_ROWS = 100_000;
 
 const pending: Sample[] = [];
+let pendingRows = 0;
+
+/** The start time as ClickHouse stores it: UTC with six fractional digits. */
+function storedStartTime(startTime: string): string | undefined {
+  const match =
+    /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z?$/.exec(startTime);
+  return match
+    ? `${match[1]} ${match[2]}.${(match[3] ?? "").padEnd(6, "0").slice(0, 6)}`
+    : undefined;
+}
 
 /** Queue the rows both implementations wrote for one batch. */
 export function queueRowVerification(sample: {
   projectId: string;
   fileKey: string;
-  inputBytes: number;
   rows: ShadowRowKey[];
 }): void {
-  const keys = new Map<string, Sample["keys"][number]>();
-  const spans = new Set<string>();
-  const spansToRead = new Set<string>();
+  const rows = new Map<string, RowId>();
+  let unreadable = 0;
   for (const { traceId, spanId, startTime } of sample.rows) {
-    const span = `${traceId}\u0000${spanId}`;
-    spans.add(span);
-    // The writers spell UTC start times differently; the minute is all the key needs.
-    const minute = /^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d)/.exec(startTime);
-    if (!minute) continue;
-    const startMinute = `${minute[1]} ${minute[2]}:00`;
-    const key = `${traceId}\u0000${startMinute}`;
-    if (keys.size < KEYS_PER_FILE || keys.has(key)) {
-      keys.set(key, [traceId, startMinute]);
-      spansToRead.add(span);
+    const stored = storedStartTime(startTime);
+    if (stored === undefined) {
+      unreadable++;
+      continue;
     }
+    rows.set(`${traceId}\u0000${spanId}\u0000${stored}`, [
+      sample.projectId,
+      traceId,
+      spanId,
+      stored,
+    ]);
   }
-  if (pending.length >= MAX_PENDING_SAMPLES) spansToRead.clear();
-  if (spans.size > spansToRead.size) {
-    recordIncrement(METRIC, spans.size - spansToRead.size, {
-      outcome: "unverified",
-    });
+  const fits = pendingRows + rows.size <= MAX_PENDING_ROWS;
+  const unverified = unreadable + (fits ? 0 : rows.size);
+  if (unverified > 0) {
+    recordIncrement(METRIC, unverified, { outcome: "unverified" });
   }
-  if (spansToRead.size === 0) return;
+  if (!fits || rows.size === 0) return;
+  pendingRows += rows.size;
   pending.push({
     projectId: sample.projectId,
     fileKey: sample.fileKey,
-    inputBytes: sample.inputBytes,
-    keys: [...keys.values()],
-    spans: spansToRead.size,
+    rows: [...rows.values()],
     queuedAt: Date.now(),
   });
+}
+
+/** Take the samples whose rows had time to land, one per file. */
+function takeSettled(now: number): Sample[] {
+  const unsettled = pending.findIndex((s) => now - s.queuedAt < SETTLE_MS);
+  const due = pending.splice(0, unsettled < 0 ? pending.length : unsettled);
+  pendingRows -= due.reduce((sum, { rows }) => sum + rows.length, 0);
+  // A retried job queues its file again; one comparison covers it.
+  return [...new Map(due.map((sample) => [sample.fileKey, sample])).values()];
+}
+
+/**
+ * Rows of several files that one query reads. Each row id leads with the
+ * 1-based position of its file, so a row matches only in its own file.
+ */
+type Read = {
+  idFields: [filePosition: number, ...RowId][][];
+  fileKeys: string[];
+};
+
+/** The samples' rows in reads whose form fields stay within their size limit. */
+function readsOf(samples: Sample[]): Read[] {
+  const reads: Read[] = [];
+  let read: Read = { idFields: [[]], fileKeys: [] };
+  let idBytes = 0;
+  let fileBytes = 0;
+  for (const { fileKey, rows } of samples) {
+    const fileSize = Buffer.byteLength(fileKey) + 4;
+    for (const id of rows) {
+      // Quotes, commas, brackets and the file position around the values.
+      const idSize = Buffer.byteLength(id.join("")) + 24;
+      const isNewFile = () => read.fileKeys.at(-1) !== fileKey;
+      const idFieldFull = idBytes > 0 && idBytes + idSize > FIELD_BYTES;
+      const readFull =
+        (idFieldFull && read.idFields.length === ID_FIELDS_PER_READ) ||
+        (isNewFile() && fileBytes + fileSize > FIELD_BYTES);
+      if (readFull) {
+        reads.push(read);
+        read = { idFields: [[]], fileKeys: [] };
+        idBytes = 0;
+        fileBytes = 0;
+      } else if (idFieldFull) {
+        read.idFields.push([]);
+        idBytes = 0;
+      }
+      if (isNewFile()) {
+        read.fileKeys.push(fileKey);
+        fileBytes += fileSize;
+      }
+      read.idFields[read.idFields.length - 1].push([
+        read.fileKeys.length,
+        ...id,
+      ]);
+      idBytes += idSize;
+    }
+  }
+  if (read.fileKeys.length > 0) reads.push(read);
+  return reads;
 }
 
 // Maps hold the same entries in a different order on each side.
@@ -92,35 +158,44 @@ const sortedMaps = PreparedEvent.columns()
 // The write-time clocks always differ, and event_bytes follows from the other columns.
 const comparedColumns = `* EXCEPT (created_at, updated_at, event_ts, event_bytes) REPLACE (${sortedMaps})`;
 
-// tuple() keeps column names only while the select list renames none of them.
+// tuple() names its elements after the columns only with
+// enable_named_columns_in_function_tuple, and while no alias in this select
+// list reuses a compared column's name.
 const side = (name: "ts" | "rust", table: string) => `
-    SELECT '${name}' AS side, blob_storage_file_path AS file, trace_id, span_id, event_ts,
+    SELECT '${name}' AS side, blob_storage_file_path AS file,
+      trace_id, span_id, start_time, event_ts,
       mapFromArrays(
         tupleNames(tuple(${comparedColumns})),
         [${comparedColumns} APPLY (x -> sipHash64(tuple(x)))]
       ) AS hashes
     FROM ${table}
     WHERE (project_id, toStartOfMinute(start_time), xxHash32(trace_id)) IN
-        (SELECT k.1, toStartOfMinute(k.3), xxHash32(k.2) FROM (SELECT arrayJoin(keys) AS k))
-      AND blob_storage_file_path IN {files: Array(String)}`;
+        (SELECT id.2, toStartOfMinute(id.5), xxHash32(id.3) FROM (SELECT arrayJoin(ids) AS id))
+      AND (indexOf({files: Array(String)}, blob_storage_file_path), project_id, trace_id, span_id, start_time) IN ids`;
 
 /**
- * One row per sampled file. Both tables are read by primary key, the rows of a
- * span are paired, and only counts, column names and span ids come back.
+ * Reads the given rows of many files from both tables in one pass and returns
+ * one row per file: counts, column names and span ids. A row has a counterpart
+ * only under the same file, trace, span and start time, so `different` always
+ * means that the two sides stored different values for the same row.
  */
-const QUERY = `
-WITH {keys: Array(Tuple(String, String, DateTime64(6, 'UTC')))} AS keys
+const query = (idFields: number) => `
+WITH arrayConcat(${Array.from(
+  { length: idFields },
+  (_, field) =>
+    `{ids${field}: Array(Tuple(UInt64, String, String, String, DateTime64(6, 'UTC')))}`,
+).join(", ")}) AS ids
 SELECT
   file,
-  count() AS spans,
-  countIf(ts_rows = 0) AS missing_ts,
-  countIf(rust_rows = 0) AS missing_rust,
-  countIf(notEmpty(changed)) AS different,
-  groupUniqArrayArray(changed) AS changed_columns,
-  groupArrayIf(3)(span_id, ts_rows = 0 OR rust_rows = 0 OR notEmpty(changed)) AS example_span_ids
+  toUInt32(count()) AS found,
+  toUInt32(countIf(ts_rows = 0)) AS missing_ts,
+  toUInt32(countIf(rust_rows = 0)) AS missing_rust,
+  toUInt32(countIf(notEmpty(changed))) AS different,
+  groupUniqArrayArray(changed) AS changedColumns,
+  groupArrayIf(3)(span_id, ts_rows = 0 OR rust_rows = 0 OR notEmpty(changed)) AS exampleSpanIds
 FROM (
   SELECT
-    file, trace_id, span_id,
+    file, trace_id, span_id, start_time,
     countIf(side = 'ts') AS ts_rows,
     countIf(side = 'rust') AS rust_rows,
     argMaxIf(hashes, event_ts, side = 'ts') AS ts,
@@ -130,91 +205,136 @@ FROM (
   FROM (${side("ts", "events_full")}
     UNION ALL${side("rust", "events_native_test")}
   )
-  GROUP BY file, trace_id, span_id
+  GROUP BY file, trace_id, span_id, start_time
 )
 GROUP BY file`;
 
-type FileComparison = {
+/** Counts are UInt32 in the query: JSON carries those as numbers, UInt64 as strings. */
+type Comparison = {
   file: string;
-  spans: string;
-  missing_ts: string;
-  missing_rust: string;
-  different: string;
-  changed_columns: string[];
-  example_span_ids: string[];
+  found: number;
+  missing_ts: number;
+  missing_rust: number;
+  different: number;
+  changedColumns: string[];
+  exampleSpanIds: string[];
+  readError?: string;
 };
 
-async function verify(samples: Sample[]): Promise<void> {
-  const byFile = new Map(samples.map((sample) => [sample.fileKey, sample]));
-  let rows: FileComparison[];
+const nothingFound = (file: string): Comparison => ({
+  file,
+  found: 0,
+  missing_ts: 0,
+  missing_rust: 0,
+  different: 0,
+  changedColumns: [],
+  exampleSpanIds: [],
+});
+
+/** Run one read. A failed read answers for each of its files with the failure class. */
+async function compare({ idFields, fileKeys }: Read): Promise<Comparison[]> {
   try {
-    rows = await queryClickhouse<FileComparison>({
-      query: QUERY,
+    return await queryClickhouse<Comparison>({
+      query: query(idFields.length),
       params: {
-        keys: samples.flatMap(({ projectId, keys }) =>
-          keys.map((key) => new TupleParam([projectId, ...key])),
+        ...Object.fromEntries(
+          idFields.map((ids, field) => [
+            `ids${field}`,
+            ids.map((id) => new TupleParam(id)),
+          ]),
         ),
-        files: [...byFile.keys()],
+        files: fileKeys,
       },
       useMultipartParamsAuto: true,
       // Read where the rows were written, before replicas catch up.
       preferredClickhouseService: "ReadWrite",
+      // The client waits longer than the server limit, so that limit is what ends a slow read.
+      clickhouseConfigs: { request_timeout: (READ_TIMEOUT_S + 10) * 1000 },
       clickhouseSettings: {
         enable_named_columns_in_function_tuple: 1,
+        // Columns ClickHouse derives follow from the compared ones.
+        asterisk_include_alias_columns: 0,
+        asterisk_include_materialized_columns: 0,
         max_threads: 2,
-        max_execution_time: 10,
-        max_bytes_to_read: String(MAX_BYTES_TO_READ),
+        max_execution_time: READ_TIMEOUT_S,
+        timeout_overflow_mode: "throw",
       },
     });
   } catch (error) {
-    recordIncrement(
-      METRIC,
-      samples.reduce((sum, { spans }) => sum + spans, 0),
-      { outcome: "read_error" },
-    );
-    logger.warn("OTEL shadow row verification failed", {
-      files: samples.length,
-      error: classifyJobFailure(error),
-    });
-    return;
-  }
-
-  const found = new Map(rows.map((row) => [row.file, row]));
-  for (const { projectId, fileKey, spans } of byFile.values()) {
-    const row = found.get(fileKey);
-    const read = Number(row?.spans ?? 0);
-    const counts = {
-      different: Number(row?.different ?? 0),
-      missing_ts: Number(row?.missing_ts ?? 0),
-      missing_rust: Number(row?.missing_rust ?? 0),
-      // In neither table at the read.
-      not_found: Math.max(0, spans - read),
-    };
-    const unmatched = Object.values(counts).reduce((sum, n) => sum + n, 0);
-    const matched = read + counts.not_found - unmatched;
-    for (const [outcome, count] of Object.entries({ ...counts, matched })) {
-      if (count > 0) recordIncrement(METRIC, count, { outcome });
-    }
-    for (const column of row?.changed_columns ?? []) {
-      recordIncrement(`${METRIC}.changed_column`, 1, { column });
-    }
-    if (unmatched > 0) {
-      logger.warn("OTEL shadow rows differ", {
-        projectId,
-        fileKey,
-        spans: read,
-        ...counts,
-        changedColumns: row?.changed_columns,
-        exampleSpanIds: row?.example_span_ids,
-      });
-    }
+    const readError = classifyJobFailure(error);
+    return fileKeys.map((file) => ({ ...nothingFound(file), readError }));
   }
 }
 
-/** Compares the rows of sampled batches in the background, a few files per read. */
+/** Sum what the reads found for each file. */
+function totalsByFile(found: Comparison[]): Map<string, Comparison> {
+  const totals = new Map<string, Comparison>();
+  for (const read of found) {
+    const total = totals.get(read.file) ?? nothingFound(read.file);
+    totals.set(read.file, {
+      file: read.file,
+      found: total.found + read.found,
+      missing_ts: total.missing_ts + read.missing_ts,
+      missing_rust: total.missing_rust + read.missing_rust,
+      different: total.different + read.different,
+      changedColumns: total.changedColumns.concat(read.changedColumns),
+      exampleSpanIds: total.exampleSpanIds.concat(read.exampleSpanIds),
+      readError: total.readError ?? read.readError,
+    });
+  }
+  return totals;
+}
+
+function reportFile(
+  { projectId, fileKey, rows }: Sample,
+  total: Comparison,
+): void {
+  const unread = rows.length - total.found;
+  const counts = {
+    different: total.different,
+    missing_ts: total.missing_ts,
+    missing_rust: total.missing_rust,
+    // Rows in neither table at the read.
+    not_found: total.readError === undefined ? unread : 0,
+    read_error: total.readError === undefined ? 0 : unread,
+  };
+  const unmatched = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  const matched = rows.length - unmatched;
+  for (const [outcome, count] of Object.entries({ ...counts, matched })) {
+    if (count > 0) recordIncrement(METRIC, count, { outcome });
+  }
+  const changedColumns = [...new Set(total.changedColumns)];
+  for (const column of changedColumns) {
+    recordIncrement(`${METRIC}.changed_column`, 1, { column });
+  }
+  if (unmatched > 0) {
+    logger.warn("OTEL shadow rows differ", {
+      projectId,
+      fileKey,
+      rows: rows.length,
+      ...counts,
+      readError: total.readError,
+      changedColumns,
+      exampleSpanIds: total.exampleSpanIds.slice(0, 3),
+    });
+  }
+}
+
+/**
+ * Compares the rows of sampled batches in the background. It reads the rows of
+ * many batches with one query and runs one query at a time.
+ */
 export class OtelShadowRowVerifier extends PeriodicRunner {
+  private stopped = false;
+
   constructor() {
     super("otel_shadow_row_verifier");
+  }
+
+  /** Samples not yet reported are dropped: the clients they read through close next. */
+  public override stop(): void {
+    this.stopped = true;
+    super.stop();
   }
 
   protected get name(): string {
@@ -226,32 +346,18 @@ export class OtelShadowRowVerifier extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
-    const now = Date.now();
-    const unsettled = pending.findIndex((s) => now - s.queuedAt < SETTLE_MS);
-    const settled = pending.slice(0, unsettled < 0 ? undefined : unsettled);
-    const inputBytes = settled.reduce((sum, s) => sum + s.inputBytes, 0);
-    if (
-      settled.length === 0 ||
-      (inputBytes < FLUSH_INPUT_BYTES && now - settled[0].queuedAt < MAX_AGE_MS)
-    ) {
-      return;
+    const settled = takeSettled(Date.now());
+    const found: Comparison[] = [];
+    for (const read of readsOf(settled)) {
+      if (this.stopped) return;
+      found.push(...(await compare(read)));
     }
-    pending.splice(0, settled.length);
-
-    // One bounded read per flush; the remaining samples are not compared.
-    const read: Sample[] = [];
-    let keys = 0;
-    let unverified = 0;
+    const totals = totalsByFile(found);
     for (const sample of settled) {
-      if (keys + sample.keys.length > KEYS_PER_READ) {
-        unverified += sample.spans;
-        continue;
-      }
-      read.push(sample);
-      keys += sample.keys.length;
+      reportFile(
+        sample,
+        totals.get(sample.fileKey) ?? nothingFound(sample.fileKey),
+      );
     }
-    if (unverified > 0)
-      recordIncrement(METRIC, unverified, { outcome: "unverified" });
-    await verify(read);
   }
 }

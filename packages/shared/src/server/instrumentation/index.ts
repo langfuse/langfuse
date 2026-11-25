@@ -356,9 +356,10 @@ const SHADOW_RUN_CONTEXT_KEY = opentelemetry.createContextKey(
 
 /**
  * A context for work that repeats production processing for comparison.
- * Metrics recorded under it get the `shadow.` prefix, so production series do
- * not include them. The prefix follows a context value, which request headers
- * and queue jobs cannot set; the baggage entry only marks log lines and spans.
+ * Metrics recorded under it are named `langfuse.shadow.*`, so production
+ * series do not include them. The name follows a context value, which request
+ * headers and queue jobs cannot set; the baggage entry only marks log lines
+ * and spans.
  */
 export const shadowRunContext = (
   name: string,
@@ -376,7 +377,7 @@ export const shadowRunContext = (
 
 const metricName = (stat: string): string =>
   opentelemetry.context.active().getValue(SHADOW_RUN_CONTEXT_KEY) === true
-    ? `shadow.${stat}`
+    ? `langfuse.shadow.${stat.replace(/^langfuse\./, "")}`
     : stat;
 
 export const recordGauge = (
