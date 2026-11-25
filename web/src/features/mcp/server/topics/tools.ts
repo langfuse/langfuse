@@ -81,7 +81,7 @@ export const [listTopicFacetsTool, handleListTopicFacets] = defineTool({
           listPublicTopicFacets({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicsTool, handleListTopics] = defineTool({
@@ -113,7 +113,7 @@ export const [listTopicsTool, handleListTopics] = defineTool({
           listPublicTopics({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicRulesTool, handleListTopicRules] = defineTool({
@@ -141,7 +141,7 @@ export const [listTopicRulesTool, handleListTopicRules] = defineTool({
           listPublicTopicRules({ projectId: context.projectId, ...input }),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 const resultListBaseFields = {
@@ -215,7 +215,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
         return result;
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
 
 export const [listTopicAssignmentsTool, handleListTopicAssignments] =
@@ -255,5 +255,5 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
           return result;
         },
       }),
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });

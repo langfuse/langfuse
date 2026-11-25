@@ -285,5 +285,5 @@ export const [listObservationsTool, handleListObservations] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

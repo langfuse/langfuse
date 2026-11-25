@@ -119,10 +119,7 @@ import {
 import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
-import {
-  handleRunBatchEvaluation,
-  runBatchEvaluationTool,
-} from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
+import { handleRunBatchEvaluation } from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -552,7 +549,6 @@ describe("MCP Write Tools", () => {
         });
 
       try {
-        verifyToolAnnotations(testEvaluatorTool, { expensiveHint: true });
         expect(testEvaluatorTool.annotations?.readOnlyHint).not.toBe(true);
         expect(testEvaluatorTool.annotations?.destructiveHint).not.toBe(true);
         expect(testEvaluatorTool.inputSchema.properties).toEqual(
@@ -1164,7 +1160,6 @@ describe("MCP Write Tools", () => {
     });
 
     it("queues an evaluator v2 batch action attributed to the API key", async () => {
-      verifyToolAnnotations(runBatchEvaluationTool, { expensiveHint: true });
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
       const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);

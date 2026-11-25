@@ -58,5 +58,5 @@ export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
         };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

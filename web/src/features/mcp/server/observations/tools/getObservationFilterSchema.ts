@@ -120,5 +120,5 @@ export const [
       columns,
     };
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

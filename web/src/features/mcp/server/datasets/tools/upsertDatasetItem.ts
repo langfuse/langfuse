@@ -40,5 +40,5 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
         };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

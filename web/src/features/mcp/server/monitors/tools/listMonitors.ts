@@ -73,5 +73,5 @@ export const [listMonitorsTool, handleListMonitors] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

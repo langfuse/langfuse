@@ -37,5 +37,5 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
