@@ -15,7 +15,11 @@ use regex_automata::{
     nfa::thompson::{self, pikevm::PikeVM},
 };
 #[cfg(feature = "gateway")]
-use regex_automata::{PatternSet, meta, nfa::thompson::WhichCaptures, util::pool::Pool};
+use regex_automata::{
+    PatternSet, meta,
+    nfa::thompson::{WhichCaptures, pikevm},
+    util::pool::Pool,
+};
 use regex_syntax::{
     ast::{
         self, Ast, ClassAscii, ClassAsciiKind, ClassPerlKind, ClassSet, ClassSetItem, Flag,
@@ -599,6 +603,7 @@ fn build_preview_hybrid(hir: &Hir, max_bytes: u32) -> Option<hybrid_regex::Regex
         .ok()?;
     let fwd_dfa_config = hybrid_dfa::Config::new()
         .cache_capacity(PREVIEW_DFA_CACHE_CAPACITY)
+        .skip_cache_capacity_check(true)
         .minimum_cache_clear_count(Some(2))
         .minimum_bytes_per_state(Some(10));
     let rev_dfa_config = fwd_dfa_config
@@ -722,7 +727,9 @@ fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSp
 }
 
 #[cfg(feature = "gateway")]
-const GATEWAY_DFA_CACHE_CAPACITY: usize = 256 * 1024;
+const GATEWAY_DFA_CACHE_MIN_CAPACITY: usize = 256 * 1024;
+#[cfg(feature = "gateway")]
+const GATEWAY_DFA_CACHE_MAX_CAPACITY: usize = 2 * 1024 * 1024;
 #[cfg(feature = "gateway")]
 const MAX_GATEWAY_PIKEVM_STEPS: usize = 2_000_000;
 
@@ -761,8 +768,8 @@ impl CompiledRuleSet {
 
     pub fn is_match(&self, haystack: &str) -> bool {
         let mut found = PatternSet::new(self.pattern_len());
-        self.which_overlapping_matches(&Input::new(haystack.as_bytes()), &mut found);
-        !found.is_empty()
+        let outcome = self.which_overlapping_matches(&Input::new(haystack.as_bytes()), &mut found);
+        outcome == ScanOutcome::BudgetExceeded || !found.is_empty()
     }
 
     pub fn which_overlapping_matches(
@@ -786,6 +793,7 @@ impl CompiledRuleSet {
         if self.nfa_states.saturating_mul(haystack_len) > MAX_GATEWAY_PIKEVM_STEPS {
             return ScanOutcome::BudgetExceeded;
         }
+        found.clear();
         let mut pikevm_cache = self.pikevm_caches.get();
         self.pikevm
             .which_overlapping_matches(&mut pikevm_cache, input, found);
@@ -813,17 +821,25 @@ pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<CompiledRuleSet, Str
         .build_many_from_hir(&refs)
         .map_err(|error| describe(&error))?;
     let nfa_states = nfa.states().len().max(1);
+    let cache_capacity = nfa_states.saturating_mul(32).clamp(
+        GATEWAY_DFA_CACHE_MIN_CAPACITY,
+        GATEWAY_DFA_CACHE_MAX_CAPACITY,
+    );
     let dfa = hybrid_dfa::Builder::new()
         .configure(
             hybrid_dfa::Config::new()
                 .match_kind(MatchKind::All)
-                .cache_capacity(GATEWAY_DFA_CACHE_CAPACITY)
+                .cache_capacity(cache_capacity)
+                .skip_cache_capacity_check(true)
                 .minimum_cache_clear_count(Some(2))
                 .minimum_bytes_per_state(Some(10)),
         )
         .build_from_nfa(nfa.clone())
         .map_err(|error| describe(&error))?;
-    let pikevm = PikeVM::new_from_nfa(nfa).map_err(|error| describe(&error))?;
+    let pikevm = pikevm::Builder::new()
+        .configure(pikevm::Config::new().match_kind(MatchKind::All))
+        .build_from_nfa(nfa)
+        .map_err(|error| describe(&error))?;
     let memory_bytes = dfa.memory_usage() + pikevm.get_nfa().memory_usage();
 
     let dfa_for_pool = dfa.clone();
@@ -1119,5 +1135,27 @@ mod tests {
             explosive.which_overlapping_matches(&Input::new(&hay), &mut explosive_found),
             ScanOutcome::BudgetExceeded
         );
+
+        // PikeVM fallback uses MatchKind::All so every matching pattern is reported,
+        // not only the first leftmost match.
+        let mut pikevm_found = PatternSet::new(regex.pattern_len());
+        let mut pikevm_cache = regex.pikevm_caches.get();
+        regex.pikevm.which_overlapping_matches(
+            &mut pikevm_cache,
+            &Input::new(b"mail a@b.com then ssn 078-05-1120"),
+            &mut pikevm_found,
+        );
+        let pikevm_hits: Vec<usize> = pikevm_found.iter().map(|id| id.as_usize()).collect();
+        assert_eq!(pikevm_hits, vec![0, 1]);
+
+        // Combined sets near the 512 KiB org limit compile without failing the DFA
+        // cache-capacity check.
+        let large_patterns: Vec<String> = (0..400)
+            .map(|i| format!(r"\bword_{i:04}_token\b"))
+            .collect();
+        let report = validate(&large_patterns, 512 * 1024);
+        assert!(report.ok);
+        let large_set = compile_set(&large_patterns).unwrap();
+        assert!(large_set.is_match("contains word_0399_token here"));
     }
 }
