@@ -17,3 +17,30 @@ export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
  */
 export const AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY =
   "langfuse.gateway.api_key.owner.user_id";
+
+/**
+ * Trace-list filters used by the AI Gateway "Show traces" action. These keys
+ * are written on the generation observation; they must also be merged onto the
+ * trace so a traces.metadata filter can find generations that ran under a
+ * caller-propagated parent span.
+ */
+export const AI_GATEWAY_TRACE_ATTRIBUTION_METADATA_KEYS = [
+  AI_GATEWAY_KEY_ID_METADATA_KEY,
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+] as const;
+
+export function pickGatewayTraceAttributionMetadata(
+  metadata: Record<string, unknown> | undefined | null,
+): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  if (!metadata) {
+    return picked;
+  }
+  for (const key of AI_GATEWAY_TRACE_ATTRIBUTION_METADATA_KEYS) {
+    const value = metadata[key];
+    if (value !== undefined && value !== null && value !== "") {
+      picked[key] = value;
+    }
+  }
+  return picked;
+}

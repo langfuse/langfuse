@@ -46,6 +46,8 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
 
+import { pickGatewayTraceAttributionMetadata } from "../../features/ai-gateway/constants";
+
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
@@ -222,6 +224,8 @@ interface CreateTraceEventParams {
   hasTraceUpdates: boolean;
   parentObservationId: string | null;
   span: any;
+  /** Trusted gateway key/user ids to merge onto the trace record. */
+  gatewayAttribution: Record<string, unknown>;
 }
 
 interface CreateObservationEventParams {
@@ -1040,9 +1044,22 @@ export class OtelIngestionProcessor {
       String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
 
     const hasTraceUpdates = this.hasTraceUpdates(attributes);
+    // Only trust attribution from uploads authorized by a gateway ingestion
+    // grant. The instrumentation scope name is caller-controlled.
+    const gatewayAttribution = isAiGatewayIngestionApiKey(this.publicKey)
+      ? pickGatewayTraceAttributionMetadata(spanAttributeMetadata)
+      : {};
 
-    // Handle trace creation logic with internal seen traces management
-    if (isRootSpan || hasTraceUpdates || !this.seenTraces.has(traceId)) {
+    // Handle trace creation logic with internal seen traces management.
+    // Child gateway generations must still emit a trace update so "Show traces"
+    // can filter traces.metadata by api_key.id / owner.user_id. Those keys
+    // otherwise stay only on the observation when the caller sent traceparent.
+    if (
+      isRootSpan ||
+      hasTraceUpdates ||
+      !this.seenTraces.has(traceId) ||
+      Object.keys(gatewayAttribution).length > 0
+    ) {
       const traceEvent = this.createTraceEvent({
         traceId,
         startTimeISO,
@@ -1058,6 +1075,7 @@ export class OtelIngestionProcessor {
         hasTraceUpdates,
         parentObservationId,
         span,
+        gatewayAttribution,
       });
       events.push(traceEvent);
 
@@ -1100,6 +1118,7 @@ export class OtelIngestionProcessor {
       isRootSpan,
       hasTraceUpdates,
       span,
+      gatewayAttribution,
     } = params;
 
     // Create shallow trace for new traces without root span or trace updates
@@ -1214,9 +1233,23 @@ export class OtelIngestionProcessor {
       };
     }
 
+    if (Object.keys(gatewayAttribution).length > 0) {
+      const existingMetadata =
+        typeof trace.metadata === "object" && trace.metadata !== null
+          ? trace.metadata
+          : {};
+      trace = {
+        ...trace,
+        metadata: {
+          ...existingMetadata,
+          ...gatewayAttribution,
+        } as TraceEventType["body"]["metadata"],
+      };
+    }
+
     if (isRootSpan) {
       this.traceEventCounts.rootSpanClosed += 1;
-    } else if (hasTraceUpdates) {
+    } else if (hasTraceUpdates || Object.keys(gatewayAttribution).length > 0) {
       this.traceEventCounts.traceUpdated += 1;
     } else {
       this.traceEventCounts.shallow += 1;
