@@ -2,8 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { FilterState } from "@langfuse/shared";
 import {
   DEFAULT_TOPIC_RULE_NAME,
+  TOPICS_MODEL_SLOTS,
   topicRuleFilterError,
   type TopicRule,
+  type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -28,7 +30,6 @@ import {
   topicProviderGroups,
   topicSetupMapName,
   type TopicSetupConnection,
-  type TopicSetupDraft,
   type TopicSetupQuestion,
 } from "./topic-setup-flow";
 
@@ -168,6 +169,10 @@ function TopicSetupSession({
   );
   const mapName = topicSetupMapName(draft);
   const [error, setError] = useState<string | null>(null);
+  // Failed model checks per slot, kept until that slot's model changes.
+  const [slotErrors, setSlotErrors] = useState<
+    Partial<Record<TopicsModelSlotName, string>>
+  >({});
   const [pending, setPending] = useState(false);
   const changeFilter = (filter: FilterState) =>
     setDraft((current) => ({ ...current, filter }));
@@ -223,8 +228,12 @@ function TopicSetupSession({
       projectId,
       ...resolveModels(),
     });
-    const messages = Object.values(errors).filter(Boolean);
-    if (messages.length > 0) throw new Error(messages.join(" "));
+    const failedSlots = TOPICS_MODEL_SLOTS.filter((slot) => errors[slot]);
+    setSlotErrors(errors);
+    if (failedSlots.length > 0) {
+      capture("topics:setup_flow_error", { step: "questions", failedSlots });
+      return false;
+    }
     capture("topics:setup_flow_step_completed", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
@@ -232,6 +241,7 @@ function TopicSetupSession({
       followsRecommendation: followsTopicRecommendations(draft),
       waitMinutes: draft.waitMinutes,
     });
+    return true;
   }
 
   /** Stores the models, the rule (facets and filter) and the idle time together. */
@@ -296,13 +306,18 @@ function TopicSetupSession({
     closeDialog();
   }
 
+  function changeModel(slot: TopicsModelSlotName, model: JudgeModel) {
+    setDraft((current) => ({ ...current, [slot]: model }));
+    setSlotErrors((current) => ({ ...current, [slot]: undefined }));
+  }
+
   async function handleNext() {
     if (pending) return;
     setPending(true);
     setError(null);
     try {
       if (draft.step === "questions") {
-        await checkModels();
+        if (!(await checkModels())) return;
         setDraft((current) => ({ ...current, step: "traces" }));
         return;
       }
@@ -318,7 +333,7 @@ function TopicSetupSession({
       }
       await startAnalyzing();
     } catch (cause) {
-      capture("topics:setup_flow_error", { step: draft.step });
+      capture("topics:setup_flow_error", { step: draft.step, failedSlots: [] });
       setError(
         cause instanceof Error ? cause.message : "Could not save Topics.",
       );
@@ -333,6 +348,7 @@ function TopicSetupSession({
       busy={pending}
       canWrite={canWrite}
       error={error}
+      slotErrors={slotErrors}
       questions={draft.questions}
       summary={draft.summary}
       embedding={draft.embedding}
@@ -379,9 +395,9 @@ function TopicSetupSession({
           questions: setQuestionEnabled(current.questions, name, enabled),
         }))
       }
-      onSummaryChange={(model) => updateModel(setDraft, "summary", model)}
-      onEmbeddingChange={(model) => updateModel(setDraft, "embedding", model)}
-      onClusteringChange={(model) => updateModel(setDraft, "clustering", model)}
+      onSummaryChange={(model) => changeModel("summary", model)}
+      onEmbeddingChange={(model) => changeModel("embedding", model)}
+      onClusteringChange={(model) => changeModel("clustering", model)}
       onConfigureProviders={() => {
         window.open(connectionSettingsUrl, "_blank", "noopener,noreferrer");
       }}
@@ -436,12 +452,4 @@ function setQuestionEnabled(
   return questions.map((question) =>
     question.name === name ? { ...question, enabled } : question,
   );
-}
-
-function updateModel(
-  setDraft: (update: (current: TopicSetupDraft) => TopicSetupDraft) => void,
-  slot: "summary" | "embedding" | "clustering",
-  model: JudgeModel,
-) {
-  setDraft((current) => ({ ...current, [slot]: model }));
 }

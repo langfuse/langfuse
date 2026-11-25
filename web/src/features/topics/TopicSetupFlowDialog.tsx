@@ -88,6 +88,8 @@ export type TopicSetupFlowDialogProps = {
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
+  /** Failed model test per slot, listed below the model rows. */
+  slotErrors?: Partial<Record<"summary" | "embedding" | "clustering", string>>;
   onAdvancedOpenChange: (open: boolean) => void;
   onBack: () => void;
   onClusteringChange: (model: JudgeModel) => void;
@@ -133,6 +135,7 @@ export function TopicSetupFlowDialog({
   embedding,
   embeddingProviderGroups,
   error,
+  slotErrors = {},
   onAdvancedOpenChange,
   onBack,
   onClusteringChange,
@@ -287,6 +290,18 @@ export function TopicSetupFlowDialog({
                       );
                     })}
                   </div>
+                )}
+                {MODEL_ROWS.map((row) =>
+                  slotErrors[row.slot] ? (
+                    <p
+                      key={row.slot}
+                      role="alert"
+                      className="text-destructive text-sm"
+                    >
+                      <span className="font-bold">{row.label}:</span>{" "}
+                      {slotErrors[row.slot]}
+                    </p>
+                  ) : null,
                 )}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
