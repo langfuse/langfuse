@@ -73,3 +73,6 @@ export const scalarDimensions = <B>() => ({
     filter: { kind: "scalar", value },
   }),
 });
+
+/** Level of a dashboard query: `two` has an inner aggregating select. */
+export type QueryLevel = "single" | "two";
