@@ -3,6 +3,8 @@ import {
   useAppShellSidebar,
   useAppShellSidebarActions,
 } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
+import { cn } from "@/src/utils/tailwind";
+import motion from "./sidebarMotion.module.css";
 
 /**
  * Desktop-only edge control. Sits on the sidebar's right border and toggles
@@ -27,7 +29,11 @@ export function SidebarBorderToggle() {
         });
         setExpanded(!isExpanded);
       }}
-      className={`hover:after:bg-sidebar-border absolute inset-y-0 right-0 hidden w-4 translate-x-1/2 border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:content-[''] md:flex ${isExpanded ? "cursor-w-resize" : "cursor-e-resize"}`}
+      className={cn(
+        motion.rail,
+        "hidden md:block",
+        isExpanded ? "cursor-w-resize" : "cursor-e-resize",
+      )}
     />
   );
 }
