@@ -171,7 +171,7 @@ function dispatchTrace(
         );
         dispatched = context
           ? jobs
-          : jobs.filter(({ consumer }) => !consumer.requiresTranscript);
+          : jobs.filter(({ consumer }) => consumer.enqueueWhenTranscriptNull);
         if (dispatched.length === 0)
           return finish({ outcome: "skipped", reason: "no_transcript" });
         stored = await inputStorage.put(reference, {
