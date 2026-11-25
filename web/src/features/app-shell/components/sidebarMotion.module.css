@@ -106,6 +106,19 @@
 
 .account {
   block-size: 3rem;
+  gap: 0.25rem;
+  transition:
+    block-size var(--sidebar-motion-duration, 0ms)
+      var(--sidebar-motion-ease, ease),
+    background-color 150ms ease;
+}
+
+.account[data-surface="collapsed"] {
+  block-size: 2rem;
+}
+
+.account .identity {
+  inline-size: calc(var(--sidebar-expanded-width, 12.75rem) - 5rem);
 }
 
 .version {
