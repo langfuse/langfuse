@@ -51,7 +51,6 @@ const tabsListVariants = cva(
     },
     compoundVariants: [
       { look: "inset", size: "sm", class: "h-6" },
-      // `md` shares the h-8 of default Button, Input and IconButton `md`.
       { look: "inset", size: "md", class: "h-8" },
       { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
       {
