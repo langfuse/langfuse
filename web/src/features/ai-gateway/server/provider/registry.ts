@@ -86,6 +86,9 @@ const GatewayResolveGuardrailActionSchema = z.enum([
   "redact",
   "enforce",
 ]);
+export type GatewayResolveGuardrailAction = z.infer<
+  typeof GatewayResolveGuardrailActionSchema
+>;
 
 const GatewayRegexResolveGuardrailSchema = z
   .object({

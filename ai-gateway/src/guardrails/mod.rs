@@ -1107,53 +1107,11 @@ impl LocalScan {
             let masked_base = per_text_masked.get(index).and_then(Option::as_deref);
             let base_text = masked_base.unwrap_or(&item.text);
             let mut spans = Vec::new();
-            if (masked_base.is_some() || item.has_local_redact)
-                && let Some(compiled) = self.compiled.as_deref()
-            {
-                for (matcher, caps) in compiled.matchers.iter().zip(&mut caps) {
-                    redact::for_each_match(
-                        &matcher.regex,
-                        caps,
-                        base_text,
-                        |pattern, start, end| {
-                            let Some(&active_slot) = matcher
-                                .owners
-                                .get(pattern.as_usize())
-                                .and_then(|&owner| self.regex_active_slots.get(owner))
-                            else {
-                                return;
-                            };
-                            let Some(guardrail) = self
-                                .active_indices
-                                .get(active_slot)
-                                .and_then(|&guardrail_index| guardrails.get(guardrail_index))
-                            else {
-                                return;
-                            };
-                            if guardrail.action == GuardrailAction::Redact && start < end {
-                                spans.push(RedactionSpan {
-                                    start,
-                                    end,
-                                    priority: active_slot,
-                                    label: guardrail.redaction_label(),
-                                });
-                            }
-                        },
-                    );
-                }
+            if masked_base.is_some() || item.has_local_redact {
+                self.collect_compiled_redact_spans(guardrails, base_text, &mut caps, &mut spans);
             }
             if masked_base.is_none() && item.has_local_redact && spans.is_empty() {
-                for &active_slot in &self.regex_active_slots {
-                    if self
-                        .active_indices
-                        .get(active_slot)
-                        .and_then(|&guardrail_index| guardrails.get(guardrail_index))
-                        .is_some_and(|guardrail| guardrail.action == GuardrailAction::Redact)
-                        && let Some(flag) = fail_closed_redact.get_mut(active_slot)
-                    {
-                        *flag = true;
-                    }
-                }
+                self.mark_local_redact_fail_closed(guardrails, fail_closed_redact);
                 return Ok(Vec::new());
             }
 
@@ -1181,6 +1139,62 @@ impl LocalScan {
             }
         }
         Ok(edits)
+    }
+
+    fn collect_compiled_redact_spans<'g>(
+        &self,
+        guardrails: &'g [Guardrail],
+        text: &str,
+        caps: &mut [Captures],
+        spans: &mut Vec<RedactionSpan<'g>>,
+    ) {
+        let Some(compiled) = self.compiled.as_deref() else {
+            return;
+        };
+        for (matcher, caps) in compiled.matchers.iter().zip(caps) {
+            redact::for_each_match(&matcher.regex, caps, text, |pattern, start, end| {
+                let Some(&active_slot) = matcher
+                    .owners
+                    .get(pattern.as_usize())
+                    .and_then(|&owner| self.regex_active_slots.get(owner))
+                else {
+                    return;
+                };
+                let Some(guardrail) = self
+                    .active_indices
+                    .get(active_slot)
+                    .and_then(|&guardrail_index| guardrails.get(guardrail_index))
+                else {
+                    return;
+                };
+                if guardrail.action == GuardrailAction::Redact && start < end {
+                    spans.push(RedactionSpan {
+                        start,
+                        end,
+                        priority: active_slot,
+                        label: guardrail.redaction_label(),
+                    });
+                }
+            });
+        }
+    }
+
+    fn mark_local_redact_fail_closed(
+        &self,
+        guardrails: &[Guardrail],
+        fail_closed_redact: &mut [bool],
+    ) {
+        for &active_slot in &self.regex_active_slots {
+            if self
+                .active_indices
+                .get(active_slot)
+                .and_then(|&guardrail_index| guardrails.get(guardrail_index))
+                .is_some_and(|guardrail| guardrail.action == GuardrailAction::Redact)
+                && let Some(flag) = fail_closed_redact.get_mut(active_slot)
+            {
+                *flag = true;
+            }
+        }
     }
 }
 

@@ -36,7 +36,10 @@ import {
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
 import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
-import type { GatewayCachedGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
+import type {
+  GatewayCachedGuardrails,
+  GatewayResolveGuardrailAction,
+} from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
@@ -55,6 +58,16 @@ import {
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
+
+const RESOLVE_GUARDRAIL_ACTION = {
+  BLOCK: "block",
+  LOG: "log",
+  REDACT: "redact",
+  ENFORCE: "enforce",
+} as const satisfies Record<
+  GatewayGuardrailRecord["action"],
+  GatewayResolveGuardrailAction
+>;
 
 const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
   organizationRoleAccessRights[role].includes(GATEWAY_USER_SCOPE),
@@ -90,7 +103,7 @@ export class GatewayGuardrailService {
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
-      const action = toResolveGuardrailAction(guardrail.action);
+      const action = RESOLVE_GUARDRAIL_ACTION[guardrail.action];
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -922,23 +935,6 @@ async function assertOrgSizeLimit(
     throw new InvalidRequestError(
       "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail and try again.",
     );
-  }
-}
-
-function toResolveGuardrailAction(
-  action: GatewayGuardrailRecord["action"],
-): "block" | "log" | "redact" | "enforce" {
-  switch (action) {
-    case "BLOCK":
-      return "block";
-    case "LOG":
-      return "log";
-    case "REDACT":
-      return "redact";
-    case "ENFORCE":
-      return "enforce";
-    default:
-      return assertUnreachable(action);
   }
 }
 
