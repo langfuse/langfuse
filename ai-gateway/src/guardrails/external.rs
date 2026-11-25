@@ -108,7 +108,7 @@ impl ExternalGuardrailClient {
         .await
     }
 
-    async fn evaluate_one(
+    pub(crate) async fn evaluate_one(
         &self,
         guardrail: &Guardrail,
         payloads: &ExternalPayloads,

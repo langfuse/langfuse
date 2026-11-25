@@ -2475,6 +2475,105 @@ async fn bedrock_enforce_guardrails_anonymize_or_block_and_fail_closed() {
 }
 
 #[tokio::test]
+async fn multiple_enforcing_bedrock_guardrails_chain_sequentially_and_short_circuit_on_block() {
+    let guardrails = serde_json::json!([
+        {
+            "id": "g-email",
+            "name": "Bedrock email",
+            "type": "bedrock",
+            "action": "enforce",
+            "patterns": [],
+            "guardrail_id": "emailguard",
+            "guardrail_version": "1",
+            "region": "us-east-1",
+            "api_key": "bedrock-token"
+        },
+        {
+            "id": "g-phone",
+            "name": "Bedrock phone",
+            "type": "bedrock",
+            "action": "enforce",
+            "patterns": [],
+            "guardrail_id": "phoneguard",
+            "guardrail_version": "1",
+            "region": "us-east-1",
+            "api_key": "bedrock-token"
+        }
+    ]);
+
+    // 1. Second Bedrock guardrail receives the first guardrail's anonymized text.
+    let bedrock = FakeServer::start(|request| async move {
+        let path = request.uri().path().to_owned();
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(request.into_body(), 4096).await.unwrap()).unwrap();
+        let text = body["content"][0]["text"]["text"].as_str().unwrap();
+        let response_body = if path.contains("emailguard") {
+            assert_eq!(text, "mail alice@example.com or call 555-0199");
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"mail {EMAIL} or call 555-0199"}]}"#
+        } else {
+            assert_eq!(text, "mail {EMAIL} or call 555-0199");
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"mail {EMAIL} or call {PHONE}"}]}"#
+        };
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(response_body))
+            .unwrap()
+    })
+    .await;
+    let mut harness = start_redact_harness(guardrails.clone(), Some(&bedrock)).await;
+    let response = harness
+        .gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": "mail alice@example.com or call 555-0199"
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response.bytes().await.unwrap();
+    let forwarded = harness.upstream_rx.try_recv().unwrap();
+    assert_eq!(forwarded["input"], "mail {EMAIL} or call {PHONE}");
+
+    // 2. When the first enforcing Bedrock guardrail blocks, the second is skipped.
+    let blocking_bedrock = FakeServer::start(|request| async move {
+        assert!(request.uri().path().contains("emailguard"));
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Blocked."}],"assessments":[{"topicPolicy":{"topics":[{"name":"blocked","action":"BLOCKED","detected":true}]}}]}"#,
+            ))
+            .unwrap()
+    })
+    .await;
+    let harness = start_redact_harness(guardrails, Some(&blocking_bedrock)).await;
+    let response = harness
+        .gateway
+        .post()
+        .bearer_auth("gateway-key")
+        .body(
+            serde_json::json!({
+                "model": "Production key:gpt-4.1",
+                "input": "blocked topic"
+            })
+            .to_string(),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(blocking_bedrock.calls(), 1);
+    assert_eq!(harness.provider.calls(), 0);
+}
+
+#[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let web = FakeServer::start(|_| async {

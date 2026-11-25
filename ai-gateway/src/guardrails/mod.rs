@@ -107,7 +107,13 @@ impl Guardrails {
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
                         let started = std::time::Instant::now();
-                        let local = scan_local(&guardrails, &body, &scanned, &turn, Some(&budget));
+                        let local = apply_local_guardrails(
+                            &guardrails,
+                            &body,
+                            &scanned,
+                            &turn,
+                            Some(&budget),
+                        );
                         (local, started.elapsed())
                     }
                 })
@@ -153,7 +159,7 @@ impl Guardrails {
     async fn evaluate_external(
         &self,
         targets: &[(usize, &Guardrail)],
-        local: &mut LocalScan,
+        local: &mut LocalEvaluation,
         turn_text_reservation: &mut Option<MemoryReservation>,
         turn_bytes: usize,
         organization_id: &str,
@@ -163,24 +169,51 @@ impl Guardrails {
             drop(turn_text_reservation.take());
             return Ok((Vec::new(), Duration::ZERO));
         }
-        let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
+        let (enforcing, observing): (Vec<_>, Vec<_>) = targets
+            .iter()
+            .copied()
+            .partition(|(_, guardrail)| guardrail.is_external_enforce());
+        if enforcing.is_empty() {
+            return self
+                .evaluate_observing_only(
+                    &observing,
+                    local,
+                    turn_text_reservation,
+                    turn_bytes,
+                    organization_id,
+                )
+                .await;
+        }
+        self.evaluate_enforcing_then_observing(
+            &enforcing,
+            &observing,
+            &mut local.external_blocks,
+            organization_id,
+        )
+        .await
+    }
+
+    async fn evaluate_observing_only(
+        &self,
+        observing: &[(usize, &Guardrail)],
+        local: &mut LocalEvaluation,
+        turn_text_reservation: &mut Option<MemoryReservation>,
+        turn_bytes: usize,
+        organization_id: &str,
+    ) -> Result<(Vec<(usize, ExternalOutcome)>, Duration), ResolutionError> {
+        let guardrails: Vec<&Guardrail> =
+            observing.iter().map(|(_, guardrail)| *guardrail).collect();
         // Reserve for the serialized provider payload while the prompt text is
-        // still live. When no external `enforce` rule needs the text blocks
-        // after I/O, drop `turn_text` and its reservation before awaiting I/O.
+        // still live, then drop `turn_text` and its reservation before awaiting I/O.
         let payload_reservation = MemoryReservation::from_budget(
             &self.memory_budget,
             turn_bytes.saturating_add(64),
             "guardrails",
         )?;
-        let payloads = if local.external_blocks.is_empty() {
-            let turn_text = local.take_turn_text();
-            let payloads = ExternalPayloads::for_guardrails(&guardrails, &[turn_text.as_str()]);
-            drop(turn_text);
-            drop(turn_text_reservation.take());
-            payloads
-        } else {
-            serialize_external_blocks(&guardrails, &local.external_blocks)
-        };
+        let turn_text = local.take_turn_text();
+        let payloads = ExternalPayloads::for_guardrails(&guardrails, &[turn_text.as_str()]);
+        drop(turn_text);
+        drop(turn_text_reservation.take());
         let started = std::time::Instant::now();
         let results = self
             .external
@@ -188,12 +221,81 @@ impl Guardrails {
             .await;
         let elapsed = started.elapsed();
         drop(payload_reservation);
-        let outcomes = targets
+        let outcomes = observing
             .iter()
             .zip(results)
-            .map(|((slot, _), outcome)| (*slot, outcome))
+            .map(|(&(slot, _), outcome)| (slot, outcome))
             .collect();
         Ok((outcomes, elapsed))
+    }
+
+    /// Runs enforcing external guardrails sequentially so each sees the prior
+    /// guardrail's anonymized text and blocks short-circuit the rest, then runs
+    /// any observing (`log`/`block`) external guardrails concurrently.
+    async fn evaluate_enforcing_then_observing(
+        &self,
+        enforcing: &[(usize, &Guardrail)],
+        observing: &[(usize, &Guardrail)],
+        blocks: &mut [ExternalBlock],
+        organization_id: &str,
+    ) -> Result<(Vec<(usize, ExternalOutcome)>, Duration), ResolutionError> {
+        let started = std::time::Instant::now();
+        let mut outcomes = Vec::with_capacity(enforcing.len() + observing.len());
+        let mut blocked = false;
+        for &(slot, guardrail) in enforcing {
+            let block_bytes: usize = blocks.iter().map(|block| block.text.len()).sum();
+            let payload_reservation = MemoryReservation::from_budget(
+                &self.memory_budget,
+                block_bytes.saturating_add(64),
+                "guardrails",
+            )?;
+            let payloads = serialize_external_blocks(&[guardrail], blocks);
+            let outcome = self
+                .external
+                .evaluate_one(guardrail, &payloads, organization_id)
+                .await;
+            drop(payload_reservation);
+            match outcome {
+                ExternalOutcome::None => outcomes.push((slot, ExternalOutcome::None)),
+                ExternalOutcome::Blocked | ExternalOutcome::Failed => {
+                    outcomes.push((slot, outcome));
+                    blocked = true;
+                    break;
+                }
+                ExternalOutcome::Anonymized(outputs) => {
+                    if apply_anonymized_outputs(blocks, &outputs) {
+                        outcomes.push((slot, ExternalOutcome::Anonymized(Vec::new())));
+                    } else {
+                        outcomes.push((slot, ExternalOutcome::Blocked));
+                        blocked = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if !blocked && !observing.is_empty() {
+            let guardrails: Vec<&Guardrail> =
+                observing.iter().map(|(_, guardrail)| *guardrail).collect();
+            let block_bytes: usize = blocks.iter().map(|block| block.text.len()).sum();
+            let payload_reservation = MemoryReservation::from_budget(
+                &self.memory_budget,
+                block_bytes.saturating_add(64),
+                "guardrails",
+            )?;
+            let payloads = serialize_external_blocks(&guardrails, blocks);
+            let results = self
+                .external
+                .evaluate_many(&guardrails, &payloads, organization_id)
+                .await;
+            drop(payload_reservation);
+            outcomes.extend(
+                observing
+                    .iter()
+                    .zip(results)
+                    .map(|(&(slot, _), outcome)| (slot, outcome)),
+            );
+        }
+        Ok((outcomes, started.elapsed()))
     }
 
     #[cfg(test)]
@@ -504,16 +606,17 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
 }
 
 /// One non-empty JSON string field sent to an enforcing external guardrail
-/// (after any local regex redaction) so anonymized outputs can be spliced back
-/// into the request body.
+/// (after any local regex redaction) so anonymized outputs can be chained across
+/// providers and spliced back into the request body.
 struct ExternalBlock {
     raw_range: Range<usize>,
     text: String,
+    modified: bool,
 }
 
 /// Result of the CPU-bound local pass: regex matches, local redaction edits,
 /// and the last turn's text/blocks when external guardrails also run.
-struct LocalScan {
+struct LocalEvaluation {
     active_indices: Vec<usize>,
     matched: Vec<bool>,
     local_fail_closed: Vec<bool>,
@@ -524,7 +627,7 @@ struct LocalScan {
     redaction_reservations: Vec<MemoryReservation>,
 }
 
-impl LocalScan {
+impl LocalEvaluation {
     fn is_unreadable(&self) -> bool {
         self.unreadable
     }
@@ -591,10 +694,10 @@ impl LocalScan {
     }
 }
 
-/// Combines local regex scan results and external guardrail outcomes into the
-/// final [`Outcome`], preserving guardrail resolution order.
+/// Combines local regex evaluation results and external guardrail outcomes into
+/// the final [`Outcome`], preserving guardrail resolution order.
 fn finalize_outcome(
-    mut local: LocalScan,
+    mut local: LocalEvaluation,
     guardrails: &[Guardrail],
     external_outcomes: &[(usize, ExternalOutcome)],
     budget: Option<&Arc<Semaphore>>,
@@ -677,26 +780,27 @@ fn finalize_outcome(
     })
 }
 
-/// Runs the local regex guardrails against `turn` and, when any active external
-/// guardrail is present, collects the last turn's text/fields in the same pass.
+/// Runs the local regex guardrails against `turn` (applying local redactions
+/// immediately) and, when any active external guardrail is present, collects the
+/// last turn's text/blocks in the same pass.
 /// Regex guardrails fail open on invalid regexes: a regex whose patterns do not
 /// compile matches nothing. Fail-closed guardrails always match (blocking
 /// `block`, `redact`, and `enforce` rules). An unreadable turn matches every
 /// active guardrail (blocking `block`, `redact`, and `enforce` rules).
-fn scan_local(
+fn apply_local_guardrails(
     guardrails: &[Guardrail],
     body: &[u8],
     scanned: &ScannedMembers,
     turn: &Result<LastTurn, Unreadable>,
     budget: Option<&Arc<Semaphore>>,
-) -> Result<LocalScan, ResolutionError> {
+) -> Result<LocalEvaluation, ResolutionError> {
     let active_indices: Vec<usize> = guardrails
         .iter()
         .enumerate()
         .filter_map(|(index, guardrail)| guardrail.is_active().then_some(index))
         .collect();
     if active_indices.is_empty() {
-        return Ok(LocalScan {
+        return Ok(LocalEvaluation {
             active_indices,
             matched: Vec::new(),
             local_fail_closed: Vec::new(),
@@ -735,7 +839,7 @@ fn scan_local(
     });
 
     let compiled = (!regex_slots.is_empty()).then(|| compiled(&regex_slots));
-    let mut state = ScanState::new(
+    let mut state = LocalEvalState::new(
         guardrails,
         active_indices,
         regex_slots,
@@ -753,7 +857,7 @@ fn scan_local(
     state.finish(unreadable)
 }
 
-struct ScanState<'g, 'b> {
+struct LocalEvalState<'g, 'b> {
     guardrails: &'g [Guardrail],
     active_indices: Vec<usize>,
     regex_slots: Vec<(usize, &'g [String])>,
@@ -773,10 +877,10 @@ struct ScanState<'g, 'b> {
     local_fail_closed: Vec<bool>,
 }
 
-impl<'g, 'b> ScanState<'g, 'b> {
+impl<'g, 'b> LocalEvalState<'g, 'b> {
     #[expect(
         clippy::too_many_arguments,
-        reason = "groups scan inputs and reusable scratch buffers for scan_local"
+        reason = "groups inputs and reusable scratch buffers for apply_local_guardrails"
     )]
     fn new(
         guardrails: &'g [Guardrail],
@@ -888,6 +992,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
                     self.external_blocks.push(ExternalBlock {
                         raw_range: range,
                         text: redacted.unwrap_or_else(|| leaf.text.to_owned()),
+                        modified: false,
                     });
                 }
             } else if has_external && !text_for_external.is_empty() {
@@ -900,7 +1005,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
         .is_err()
     }
 
-    fn finish(mut self, unreadable: bool) -> Result<LocalScan, ResolutionError> {
+    fn finish(mut self, unreadable: bool) -> Result<LocalEvaluation, ResolutionError> {
         if self.budget_exhausted {
             return Err(ResolutionError::Busy);
         }
@@ -923,7 +1028,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 *entry = true;
             }
         }
-        Ok(LocalScan {
+        Ok(LocalEvaluation {
             active_indices: self.active_indices,
             matched,
             local_fail_closed: self.local_fail_closed,
@@ -997,10 +1102,10 @@ fn mark_spans_fail_closed(spans: &[RedactionSpan<'_>], fail_closed: &mut [bool])
     }
 }
 
-impl LocalScan {
-    /// Applies anonymized outputs returned by enforcing external guardrails
-    /// onto `self.local_redactions`. Marks `fail_closed_redact[slot] = true`
-    /// when an external anonymization cannot be mapped to safe edits.
+impl LocalEvaluation {
+    /// Applies any remaining anonymized outputs sequentially onto
+    /// `self.external_blocks` and emits updated [`BodyEdit`] entries for every
+    /// externally modified block.
     fn apply_external_anonymizations(
         &mut self,
         guardrails: &[Guardrail],
@@ -1008,8 +1113,6 @@ impl LocalScan {
         fail_closed_redact: &mut [bool],
         budget: Option<&Arc<Semaphore>>,
     ) -> Result<(), ResolutionError> {
-        let mut per_block_masked: Vec<Option<String>> = vec![None; self.external_blocks.len()];
-
         for (slot, outcome) in external_outcomes {
             let Some(guardrail) = self
                 .active_indices
@@ -1024,7 +1127,8 @@ impl LocalScan {
             let ExternalOutcome::Anonymized(outputs) = outcome else {
                 continue;
             };
-            if !apply_external_outputs(&self.external_blocks, outputs, &mut per_block_masked) {
+            if !outputs.is_empty() && !apply_anonymized_outputs(&mut self.external_blocks, outputs)
+            {
                 if let Some(flag) = fail_closed_redact.get_mut(*slot) {
                     *flag = true;
                 }
@@ -1032,12 +1136,12 @@ impl LocalScan {
             }
         }
 
-        for (block, masked) in self.external_blocks.iter().zip(per_block_masked) {
-            let Some(masked) = masked else {
+        for block in &self.external_blocks {
+            if !block.modified {
                 continue;
-            };
-            reserve_redaction_bytes(budget, masked.len(), &mut self.redaction_reservations)?;
-            let Ok(replacement) = serde_json::to_vec(&masked) else {
+            }
+            reserve_redaction_bytes(budget, block.text.len(), &mut self.redaction_reservations)?;
+            let Ok(replacement) = serde_json::to_vec(&block.text) else {
                 fail_closed_redact.fill(true);
                 return Ok(());
             };
@@ -1058,16 +1162,15 @@ impl LocalScan {
     }
 }
 
-fn apply_external_outputs(
-    blocks: &[ExternalBlock],
-    outputs: &[String],
-    per_block_masked: &mut [Option<String>],
-) -> bool {
+/// Applies one enforcing external guardrail's anonymized `outputs` in place onto
+/// `blocks`. Returns `false` if the outputs cannot be mapped 1:1 onto `blocks`
+/// or left every block unchanged despite `GUARDRAIL_INTERVENED`.
+fn apply_anonymized_outputs(blocks: &mut [ExternalBlock], outputs: &[String]) -> bool {
     if outputs.is_empty() {
         return false;
     }
     if outputs.len() == blocks.len() {
-        return merge_masked_outputs(blocks, outputs.iter().map(String::as_str), per_block_masked);
+        return update_blocks_in_place(blocks, outputs.iter().map(String::as_str));
     }
     // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
     // Partition the joined output by each block's line count so multiline
@@ -1083,7 +1186,7 @@ fn apply_external_outputs(
         if lines.len() == expected_lines {
             let mut cursor = 0usize;
             let mut reconstructed = Vec::with_capacity(blocks.len());
-            for block in blocks {
+            for block in &*blocks {
                 let count = block.text.bytes().filter(|&b| b == b'\n').count() + 1;
                 let Some(slice) = lines.get(cursor..cursor + count) else {
                     return false;
@@ -1091,35 +1194,24 @@ fn apply_external_outputs(
                 reconstructed.push(slice.join("\n"));
                 cursor += count;
             }
-            return merge_masked_outputs(
-                blocks,
-                reconstructed.iter().map(String::as_str),
-                per_block_masked,
-            );
+            return update_blocks_in_place(blocks, reconstructed.iter().map(String::as_str));
         }
     }
     false
 }
 
-/// Applies per-block masked outputs without overwriting a conflicting masked
-/// output from an earlier external guardrail (fails closed if two independent
-/// provider outputs disagree on the same field).
-fn merge_masked_outputs<'a>(
-    blocks: &[ExternalBlock],
+fn update_blocks_in_place<'a>(
+    blocks: &mut [ExternalBlock],
     outputs: impl Iterator<Item = &'a str>,
-    per_block_masked: &mut [Option<String>],
 ) -> bool {
     let mut changed = false;
-    for ((block, output), slot) in blocks.iter().zip(outputs).zip(per_block_masked.iter_mut()) {
+    for (block, output) in blocks.iter_mut().zip(outputs) {
         if output == block.text {
             continue;
         }
-        if let Some(existing) = slot.as_deref()
-            && existing != output
-        {
-            return false;
-        }
-        *slot = Some(output.to_owned());
+        block.text.clear();
+        block.text.push_str(output);
+        block.modified = true;
         changed = true;
     }
     changed
@@ -1261,7 +1353,7 @@ mod tests {
         body: &[u8],
         scanned: &ScannedMembers,
     ) -> Outcome {
-        let local = scan_local(
+        let local = apply_local_guardrails(
             guardrails,
             body,
             scanned,
@@ -1514,7 +1606,7 @@ mod tests {
 
         // 1. Local regex redaction runs before Bedrock, so Bedrock receives the
         //    already-redacted block and its anonymized output composes cleanly.
-        let local = scan_local(
+        let local = apply_local_guardrails(
             &guardrails,
             body.as_bytes(),
             &members,
@@ -1557,7 +1649,7 @@ mod tests {
 
         // 2. Blocked and Failed outcomes block the request and record action Block.
         for external in [ExternalOutcome::Blocked, ExternalOutcome::Failed] {
-            let local = scan_local(
+            let local = apply_local_guardrails(
                 &guardrails,
                 body.as_bytes(),
                 &members,
@@ -1573,13 +1665,13 @@ mod tests {
     }
 
     #[test]
-    fn bedrock_enforce_handles_joined_multiline_outputs_and_conflicting_outputs() {
+    fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
         let guardrails = [bedrock_enforce_guardrail("br")];
         let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
         let members = scanned(body, &["messages"]);
 
         // 1. Joined single-block output maps back across multiline fields by line count.
-        let local = scan_local(
+        let local = apply_local_guardrails(
             &guardrails,
             body.as_bytes(),
             &members,
@@ -1606,7 +1698,7 @@ mod tests {
         assert_eq!(content[0]["text"], "line 1\ncall {PHONE}");
         assert_eq!(content[1]["text"], "line 3\nline 4");
 
-        // 2. Two enforcing Bedrock guardrails returning conflicting outputs fail closed.
+        // 2. Two enforcing Bedrock guardrails chain sequentially, composing both masks.
         let single =
             r#"{"messages":[{"role":"user","content":"mail alice@example.com or call 555-0199"}]}"#;
         let single_members = scanned(single, &["messages"]);
@@ -1614,7 +1706,7 @@ mod tests {
             bedrock_enforce_guardrail("br-email"),
             bedrock_enforce_guardrail("br-phone"),
         ];
-        let local = scan_local(
+        let local = apply_local_guardrails(
             &pair,
             single.as_bytes(),
             &single_members,
@@ -1636,19 +1728,20 @@ mod tests {
                 ),
                 (
                     1,
-                    ExternalOutcome::Anonymized(vec![
-                        "mail alice@example.com or call {PHONE}".into(),
-                    ]),
+                    ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call {PHONE}".into()]),
                 ),
             ],
             None,
         )
         .unwrap();
-        let blocking = outcome
-            .blocking()
-            .expect("expected conflicting outputs to block");
-        assert_eq!(blocking.id, "br-phone");
-        assert_eq!(blocking.action, GuardrailAction::Block);
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(single, &edits)).unwrap();
+        assert_eq!(
+            rewritten["messages"][0]["content"],
+            "mail {EMAIL} or call {PHONE}"
+        );
     }
 
     #[test]
@@ -1683,7 +1776,7 @@ mod tests {
         let long_label = "[REDACTED_EMAIL_ADDRESS_LONGER_THAN_MATCH_1234567890]";
         let guardrails = [redact_guardrail("email", long_label, &[EMAIL])];
         let tight_budget = Arc::new(Semaphore::new(64));
-        let result = scan_local(
+        let result = apply_local_guardrails(
             &guardrails,
             body.as_bytes(),
             &members,
