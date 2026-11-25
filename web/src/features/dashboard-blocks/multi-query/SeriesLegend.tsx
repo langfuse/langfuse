@@ -18,6 +18,7 @@ export function SeriesLegend({
   onToggle: (id: string) => void;
 }) {
   const overflowButton = useRef<HTMLButtonElement>(null);
+  const expandedLegend = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const hasHover = useMediaQuery({ query: "(hover: hover)" });
@@ -63,9 +64,12 @@ export function SeriesLegend({
       }}
       placement="top"
       interaction={hasHover ? "hover" : "click"}
+      initialFocus={!hasHover && searchable ? expandedLegend : undefined}
       openDelay={120}
       content={
         <div
+          ref={expandedLegend}
+          tabIndex={-1}
           role="group"
           aria-label="All chart series"
           className="ph-no-capture flex max-h-72 w-64 flex-col gap-1 p-1"
