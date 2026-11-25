@@ -262,7 +262,9 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::guardrails::{Guardrail, GuardrailAction, GuardrailKind, external::ExternalPayloads};
+    use crate::guardrails::{
+        Guardrail, GuardrailAction, GuardrailKind, external::ExternalPayloads,
+    };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
 
