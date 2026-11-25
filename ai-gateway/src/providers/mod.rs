@@ -210,6 +210,10 @@ impl ProviderTransport {
         .await
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "forwards execution capture inputs from forward_route"
+    )]
     async fn start_capture(
         &self,
         route: Route,
@@ -217,6 +221,7 @@ impl ProviderTransport {
         headers: &HeaderMap,
         body: &Bytes,
         reservation: Option<BodyReservation>,
+        charges_spend: bool,
         correlation: &mut RequestCorrelation,
     ) -> Result<(ExecutionCapture, Option<BodyReservation>), ProviderError> {
         if !route.captures_generation() {
@@ -226,7 +231,9 @@ impl ProviderTransport {
             .telemetry
             .as_ref()
             .filter(|_| context.ingestion_mode() != IngestionMode::None);
-        let (input, reservation) = if delivery.is_some() {
+        // Spend recording also reads request `model_parameters` (e.g. `service_tier`)
+        // to match pricing tiers even when `IngestionMode::None` skips telemetry delivery.
+        let (input, reservation) = if delivery.is_some() || charges_spend {
             RequestInput::parse_on_cpu(&self.cpu, body.clone(), reservation)
                 .await
                 .ok_or(ProviderError::Configuration)?
@@ -264,7 +271,15 @@ impl ProviderTransport {
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
         let (mut capture, reservation) = self
-            .start_capture(route, &context, headers, &body, reservation, correlation)
+            .start_capture(
+                route,
+                &context,
+                headers,
+                &body,
+                reservation,
+                permit.charges_spend(),
+                correlation,
+            )
             .await?;
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = upstream_body(
