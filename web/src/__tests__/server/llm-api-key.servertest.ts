@@ -23,7 +23,11 @@ import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRo
 import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
+import {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  LangfuseConflictError,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import {
@@ -36,6 +40,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
 import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { LlmConnectionRepository } from "@/src/features/llm-api-key/server/llmConnectionRepository";
 import {
   createOrgProjectAndApiKey,
   DefaultEvalModelService,
@@ -338,6 +343,98 @@ describe("llmApiKey.all RPC", () => {
     );
     expect(llmApiKey.displaySecretKey).toBe("...1234");
     expect(llmApiKey.config).toEqual({ region: "us-east-1" });
+  });
+
+  it("rejects a models-only Bedrock update when the config changed after it was read", async () => {
+    const profileArn =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const otherModel = "us.anthropic.claude-sonnet-4-6";
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn, otherModel],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        customModelConfig: { [otherModel]: { modelFamily: "anthropic" } },
+      },
+    });
+    const { id } = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "bedrock" },
+    });
+
+    class ConcurrentlyChangedRepository extends LlmConnectionRepository {
+      override async findById(
+        params: Parameters<LlmConnectionRepository["findById"]>[0],
+      ) {
+        const connection = await super.findById(params);
+        await prisma.llmApiKeys.update({
+          where: { id },
+          data: { config: { region: "eu-west-1" } },
+        });
+        return connection;
+      }
+    }
+
+    await expect(
+      new LlmConnectionService(new ConcurrentlyChangedRepository()).update({
+        owner: { type: "project", projectId, organizationId: orgId },
+        input: {
+          id,
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          customModels: [profileArn],
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+    await expect(
+      prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id },
+        select: { config: true },
+      }),
+    ).resolves.toEqual({ config: { region: "eu-west-1" } });
+  });
+
+  it("keeps Bedrock Anthropic model flags only for remaining custom models", async () => {
+    const profileArn =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const otherModel = "us.anthropic.claude-sonnet-4-6";
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn, otherModel],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        customModelConfig: {
+          [profileArn]: { modelFamily: "anthropic" },
+          [otherModel]: { modelFamily: "anthropic" },
+        },
+      },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "bedrock" },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn],
+      withDefaultModels: false,
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({ projectId });
+    expect(llmApiKeys[0].config).toEqual({
+      region: "us-east-1",
+      customModelConfig: { [profileArn]: { modelFamily: "anthropic" } },
+    });
   });
 
   it("should reject creating a Bedrock key with invalid secret key JSON", async () => {
