@@ -253,13 +253,8 @@ export const GATEWAY_REGEX_GUARDRAIL_ACTIONS = [
   "LOG",
 ] as const;
 
-export const GatewayRegexGuardrailActionSchema = z.enum(
-  GATEWAY_REGEX_GUARDRAIL_ACTIONS,
-);
-
-export type GatewayRegexGuardrailAction = z.infer<
-  typeof GatewayRegexGuardrailActionSchema
->;
+export type GatewayRegexGuardrailAction =
+  (typeof GATEWAY_REGEX_GUARDRAIL_ACTIONS)[number];
 
 /** Actions available for external guardrails (e.g. AWS Bedrock), where the
  * provider decides block vs anonymize and Langfuse either enforces or logs. */

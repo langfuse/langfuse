@@ -21,7 +21,6 @@ import {
   GatewayGuardrailPresetSchema,
   GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailSecretPrefixesSchema,
-  GatewayRegexGuardrailActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -51,10 +50,8 @@ const commonWriteFields = {
   assignments: assignmentsInput,
 };
 
-const regexWriteFields = {
+const regexRuleFields = {
   type: z.literal("REGEX"),
-  action: GatewayRegexGuardrailActionSchema,
-  redactionLabel: z.string().optional(),
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
   secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
   containsWords: GatewayGuardrailContainsListSchema.default([]),
@@ -72,71 +69,41 @@ const hasGuardrailRule = (value: {
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
   "Configure at least one pattern, prefix, or keyword to detect";
 
-function refineGuardrailWriteInput(
-  value: {
-    type: "REGEX" | "BEDROCK";
-    action: "BLOCK" | "LOG" | "REDACT" | "ENFORCE";
-    redactionLabel?: string;
-    presets?: unknown[];
-    secretPrefixes?: unknown[];
-    containsWords?: unknown[];
-  },
-  ctx: z.RefinementCtx,
-) {
-  if (
-    value.type === "REGEX" &&
-    !hasGuardrailRule({
-      presets: value.presets ?? [],
-      secretPrefixes: value.secretPrefixes ?? [],
-      containsWords: value.containsWords ?? [],
-    })
-  ) {
-    ctx.addIssue({
-      code: "custom",
-      message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
-    });
-  }
-  if (
-    value.type === "REGEX" &&
-    value.action === "REDACT" &&
-    value.redactionLabel !== undefined
-  ) {
-    const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
-      value.redactionLabel,
-    );
-    if (!labelResult.success) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["redactionLabel"],
-        message:
-          labelResult.error.issues[0]?.message ??
-          "Enter a valid replacement label",
-      });
-    }
-  }
-}
-
-const createGuardrailInput = z
-  .discriminatedUnion("type", [
-    organizationInput.extend(commonWriteFields).extend(regexWriteFields),
-    organizationInput.extend(commonWriteFields).extend({
-      type: z.literal("BEDROCK"),
-      action: GatewayExternalGuardrailActionSchema,
-      bedrock: GatewayBedrockGuardrailCreateInputSchema,
+const regexWriteSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.literal("REDACT"),
+      redactionLabel: GatewayGuardrailRedactionLabelSchema.optional(),
+    }),
+    z.object({
+      ...commonWriteFields,
+      ...regexRuleFields,
+      action: z.enum(["BLOCK", "LOG"]),
     }),
   ])
-  .superRefine(refineGuardrailWriteInput);
+  .refine(hasGuardrailRule, GUARDRAIL_RULE_REQUIRED_MESSAGE);
 
-const updateGuardrailInput = z
-  .discriminatedUnion("type", [
-    guardrailIdInput.extend(commonWriteFields).extend(regexWriteFields),
-    guardrailIdInput.extend(commonWriteFields).extend({
-      type: z.literal("BEDROCK"),
-      action: GatewayExternalGuardrailActionSchema,
-      bedrock: GatewayBedrockGuardrailUpdateInputSchema,
-    }),
-  ])
-  .superRefine(refineGuardrailWriteInput);
+const createGuardrailInput = z.union([
+  organizationInput.and(regexWriteSchema),
+  organizationInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: GatewayExternalGuardrailActionSchema,
+    bedrock: GatewayBedrockGuardrailCreateInputSchema,
+  }),
+]);
+
+const updateGuardrailInput = z.union([
+  guardrailIdInput.and(regexWriteSchema),
+  guardrailIdInput.extend({
+    ...commonWriteFields,
+    type: z.literal("BEDROCK"),
+    action: GatewayExternalGuardrailActionSchema,
+    bedrock: GatewayBedrockGuardrailUpdateInputSchema,
+  }),
+]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -316,7 +283,8 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
-        redactionLabel: input.redactionLabel,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
@@ -351,7 +319,8 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
-        redactionLabel: input.redactionLabel,
+        redactionLabel:
+          input.action === "REDACT" ? input.redactionLabel : undefined,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,

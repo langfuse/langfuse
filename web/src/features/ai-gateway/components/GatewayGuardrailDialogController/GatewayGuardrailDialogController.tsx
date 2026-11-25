@@ -155,8 +155,7 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action === "ENFORCE" ? "BLOCK" : values.action,
-                  redactionLabel: values.redactionLabel,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -180,8 +179,7 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action === "ENFORCE" ? "BLOCK" : values.action,
-                  redactionLabel: values.redactionLabel,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -370,6 +368,20 @@ function GuardrailDialogContent({
       onSubmit={onSubmitForm}
     />
   );
+}
+
+function toRegexActionInput(
+  values: Pick<GatewayGuardrailFormValues, "action" | "redactionLabel">,
+) {
+  if (values.action === "REDACT") {
+    return {
+      action: "REDACT" as const,
+      redactionLabel: values.redactionLabel,
+    };
+  }
+  return {
+    action: values.action === "LOG" ? ("LOG" as const) : ("BLOCK" as const),
+  };
 }
 
 function resolveEditableAction(
