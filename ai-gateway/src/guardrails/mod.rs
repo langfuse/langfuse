@@ -234,8 +234,8 @@ impl Guardrail {
             }
             GuardrailKind::Bedrock(config) => {
                 crate::resolution::bedrock::is_aws_region(&config.region)
-                    && crate::resolution::bedrock::is_guardrail_id(&config.guardrail_id)
-                    && crate::resolution::bedrock::is_guardrail_version(&config.guardrail_version)
+                    && !config.guardrail_id.trim().is_empty()
+                    && !config.guardrail_version.trim().is_empty()
                     && crate::resolution::valid_token(config.api_key.expose_secret())
             }
         }
