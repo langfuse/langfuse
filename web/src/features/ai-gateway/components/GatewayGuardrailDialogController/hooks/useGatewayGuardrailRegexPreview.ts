@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { keepPreviousData } from "@tanstack/react-query";
 
 import type { CustomRegexPreviewControl } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
 import {
@@ -48,7 +47,6 @@ export function useGatewayGuardrailRegexPreview(params: {
     },
     {
       enabled: canQuery,
-      placeholderData: keepPreviousData,
       retry: false,
     },
   );
