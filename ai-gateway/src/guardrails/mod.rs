@@ -1389,9 +1389,7 @@ fn collect_external_match_spans<'a>(
                 item_covered = true;
             }
         }
-        if !item_covered
-            && let Some(needle) = item.matched_text.as_deref()
-        {
+        if !item_covered && let Some(needle) = item.matched_text.as_deref() {
             for (leaf, spans) in leaves.iter().zip(staged.iter_mut()) {
                 let before = spans.len();
                 redact::find_literal_spans(&leaf.text, needle, priority, label, spans);

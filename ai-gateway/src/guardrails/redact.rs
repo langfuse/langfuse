@@ -163,7 +163,10 @@ pub(crate) fn find_literal_spans<'a>(
         return;
     }
     let check_start = needle.chars().next().is_some_and(char::is_alphanumeric);
-    let check_end = needle.chars().next_back().is_some_and(char::is_alphanumeric);
+    let check_end = needle
+        .chars()
+        .next_back()
+        .is_some_and(char::is_alphanumeric);
     for (start, _) in text.match_indices(needle) {
         let end = start.saturating_add(needle.len());
         if end > text.len() {
