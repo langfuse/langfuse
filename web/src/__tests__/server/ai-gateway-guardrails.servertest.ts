@@ -1074,8 +1074,32 @@ describe("aiGateway guardrails tRPC", () => {
       text: sampleText,
     });
     expect(invalidPreview.valid).toBe(false);
-    expect(invalidPreview.error).toBeTruthy();
+    expect(invalidPreview.errorCode).toBe("unicode_not_allowed");
+    expect(invalidPreview.error).toContain("external guardrail provider");
     expect(invalidPreview.matches).toEqual([]);
+
+    const lookaroundPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`foo(?=bar)`,
+        text: sampleText,
+      });
+    expect(lookaroundPreview.valid).toBe(false);
+    expect(lookaroundPreview.errorCode).toBe("unsupported_lookaround");
+    expect(lookaroundPreview.error).toContain("Look-ahead and look-behind");
+    expect(lookaroundPreview.error).toContain("external guardrail provider");
+    expect(lookaroundPreview.error).not.toContain("error:");
+
+    const syntaxPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: "(unclosed",
+      text: sampleText,
+    });
+    expect(syntaxPreview.valid).toBe(false);
+    expect(syntaxPreview.errorCode).toBe("syntax_error");
+    expect(syntaxPreview.error).toBe(
+      "Invalid regular expression: Unclosed group.",
+    );
 
     const oversizedPreview =
       await ownerCaller.aiGateway.guardrails.previewRegex({
@@ -1084,6 +1108,7 @@ describe("aiGateway guardrails tRPC", () => {
         text: sampleText,
       });
     expect(oversizedPreview.valid).toBe(false);
+    expect(oversizedPreview.errorCode).toBe("size_limit_exceeded");
     expect(oversizedPreview.error).toContain("128 KiB");
     expect(oversizedPreview.error).toContain("external guardrail provider");
 

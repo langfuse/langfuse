@@ -11,7 +11,7 @@ export interface MatchSpan {
 /**
  * Machine-readable reason a guardrail pattern or rule set failed validation.
  */
-export type ValidationErrorCode = "empty_pattern" | "matches_empty_string" | "unicode_not_allowed" | "syntax_error" | "size_limit_exceeded";
+export type ValidationErrorCode = "empty_pattern" | "matches_empty_string" | "unicode_not_allowed" | "unsupported_lookaround" | "unsupported_backreference" | "syntax_error" | "size_limit_exceeded";
 
 /**
  * Result of validating a pattern and matching it against sample text.

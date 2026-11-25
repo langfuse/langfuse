@@ -31,6 +31,8 @@ pub enum ValidationErrorCode {
     EmptyPattern,
     MatchesEmptyString,
     UnicodeNotAllowed,
+    UnsupportedLookaround,
+    UnsupportedBackreference,
     SyntaxError,
     SizeLimitExceeded,
 }
@@ -154,7 +156,7 @@ impl AsciiNormalizer {
             }
             Ast::ClassUnicode(_) => Err(ValidationError::new(
                 ValidationErrorCode::UnicodeNotAllowed,
-                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only",
+                r"Unicode character classes (\p{..}) are not supported; rules use ASCII mode.",
             )),
             Ast::ClassPerl(perl) => {
                 let span = perl.span;
@@ -229,7 +231,7 @@ impl AsciiNormalizer {
             }
             ClassSetItem::Unicode(_) => Err(ValidationError::new(
                 ValidationErrorCode::UnicodeNotAllowed,
-                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only",
+                r"Unicode character classes (\p{..}) are not supported; rules use ASCII mode.",
             )),
             ClassSetItem::Perl(perl) => {
                 *item = ClassSetItem::Ascii(perl_to_ascii(perl));
@@ -259,7 +261,7 @@ fn filter_flags(
             FlagsItemKind::Flag(Flag::Unicode) if !negated => {
                 return Err(ValidationError::new(
                     ValidationErrorCode::UnicodeNotAllowed,
-                    "the `u` flag is not allowed: rules are ASCII-only",
+                    "The `u` flag is not supported; rules use ASCII mode.",
                 ));
             }
             FlagsItemKind::Flag(Flag::Unicode) => {}
@@ -369,8 +371,19 @@ fn parse_to_hir(pattern: &str) -> Result<Hir, ValidationError> {
     let mut ast = ast::parse::ParserBuilder::new()
         .build()
         .parse(pattern)
-        .map_err(|error| {
-            ValidationError::new(ValidationErrorCode::SyntaxError, describe(&error))
+        .map_err(|error| match error.kind() {
+            ast::ErrorKind::UnsupportedLookAround => ValidationError::new(
+                ValidationErrorCode::UnsupportedLookaround,
+                "Look-ahead and look-behind are not supported.",
+            ),
+            ast::ErrorKind::UnsupportedBackreference => ValidationError::new(
+                ValidationErrorCode::UnsupportedBackreference,
+                "Backreferences are not supported.",
+            ),
+            kind => ValidationError::new(
+                ValidationErrorCode::SyntaxError,
+                sentence_case(&kind.to_string()),
+            ),
         })?;
     let mut normalizer = AsciiNormalizer {
         case_insensitive: false,
@@ -381,7 +394,12 @@ fn parse_to_hir(pattern: &str) -> Result<Hir, ValidationError> {
         .utf8(true)
         .build()
         .translate(pattern, &ast)
-        .map_err(|error| ValidationError::new(ValidationErrorCode::SyntaxError, describe(&error)))
+        .map_err(|error| {
+            ValidationError::new(
+                ValidationErrorCode::SyntaxError,
+                sentence_case(&error.kind().to_string()),
+            )
+        })
 }
 
 fn compile_bounded_nfa(
@@ -403,39 +421,58 @@ fn compile_bounded_nfa(
     if bytes > max_bytes {
         return Err(ValidationError::new(
             ValidationErrorCode::SizeLimitExceeded,
-            format!("compiled size {bytes} bytes exceeds limit of {max_bytes}"),
+            format!("Compiled size {bytes} bytes exceeds limit of {max_bytes}."),
         ));
     }
     Ok((nfa, bytes))
 }
 
-/// The most specific message in an error's source chain, on one line.
+/// The most specific message in an error's source chain, formatted as one sentence.
 fn describe(error: &dyn std::error::Error) -> String {
     let mut innermost = error;
     while let Some(source) = innermost.source() {
         innermost = source;
     }
     let text = innermost.to_string();
-    text.lines()
+    let line = text
+        .lines()
         .rev()
         .find(|line| !line.trim().is_empty())
         .unwrap_or(&text)
-        .trim()
-        .to_owned()
+        .trim();
+    let stripped = line.strip_prefix("error:").unwrap_or(line);
+    sentence_case(stripped)
+}
+
+fn sentence_case(text: &str) -> String {
+    let trimmed = text.trim();
+    let mut chars = trimmed.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let mut out = String::with_capacity(trimmed.len() + 1);
+    for ch in first.to_uppercase() {
+        out.push(ch);
+    }
+    out.push_str(chars.as_str());
+    if !out.ends_with('.') {
+        out.push('.');
+    }
+    out
 }
 
 fn check_pattern(pattern: &str) -> Result<Hir, ValidationError> {
     if pattern.is_empty() {
         return Err(ValidationError::new(
             ValidationErrorCode::EmptyPattern,
-            "pattern is empty",
+            "Pattern is empty.",
         ));
     }
     let hir = parse_to_hir(pattern)?;
     if hir.properties().minimum_len() == Some(0) {
         return Err(ValidationError::new(
             ValidationErrorCode::MatchesEmptyString,
-            "pattern matches the empty string",
+            "Pattern matches the empty string.",
         ));
     }
     Ok(hir)
@@ -676,9 +713,10 @@ mod tests {
             (r"[\p{L}]+", ValidationErrorCode::UnicodeNotAllowed),
             (r"(?u:\w)+", ValidationErrorCode::UnicodeNotAllowed),
             (r"(?iu)abc", ValidationErrorCode::UnicodeNotAllowed),
-            (r"foo(?=bar)", ValidationErrorCode::SyntaxError),
-            (r"(?<=x)y", ValidationErrorCode::SyntaxError),
-            (r"(a)\1", ValidationErrorCode::SyntaxError),
+            (r"foo(?=bar)", ValidationErrorCode::UnsupportedLookaround),
+            (r"(?<=x)y", ValidationErrorCode::UnsupportedLookaround),
+            (r"(a)\1", ValidationErrorCode::UnsupportedBackreference),
+            ("(unclosed", ValidationErrorCode::SyntaxError),
             ("", ValidationErrorCode::EmptyPattern),
             ("(?i)", ValidationErrorCode::MatchesEmptyString),
             ("()", ValidationErrorCode::MatchesEmptyString),

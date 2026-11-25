@@ -1,6 +1,7 @@
 import {
   preview as previewRegexRule,
   validate as validateRegexRules,
+  type ValidationError,
 } from "@langfuse/ai-gateway-guardrail-rules";
 import {
   InvalidRequestError,
@@ -29,6 +30,9 @@ import {
   GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
@@ -292,6 +296,7 @@ export class GatewayGuardrailService {
         valid: false,
         error:
           parsed.error.issues[0]?.message ?? "Enter a valid regular expression",
+        errorCode: undefined,
         matches: [],
       };
     }
@@ -303,15 +308,16 @@ export class GatewayGuardrailService {
     if (!result.valid) {
       return {
         valid: false,
-        error:
-          result.error?.code === "size_limit_exceeded"
-            ? GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE
-            : (result.error?.message ?? "Enter a valid regular expression"),
+        error: result.error
+          ? formatRegexValidationError(result.error)
+          : "Enter a valid regular expression.",
+        errorCode: result.error?.code,
         matches: [],
       };
     }
     return {
       valid: true,
+      errorCode: undefined,
       matches: result.matches,
     };
   }
@@ -920,6 +926,27 @@ function normalizeGuardrailConfig(input: {
   };
 }
 
+function formatRegexValidationError(error: ValidationError): string {
+  switch (error.code) {
+    case "empty_pattern":
+      return "Enter a regular expression.";
+    case "matches_empty_string":
+      return "Pattern cannot match empty text (for example `x?` or `\\d*`). Require at least one character.";
+    case "unicode_not_allowed":
+      return GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE;
+    case "unsupported_lookaround":
+      return GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE;
+    case "unsupported_backreference":
+      return GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE;
+    case "size_limit_exceeded":
+      return GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE;
+    case "syntax_error":
+      return `Invalid regular expression: ${error.message}`;
+    default:
+      return assertUnreachable(error.code);
+  }
+}
+
 function validateGuardrailPatterns(config: {
   presets: string[];
   secretPrefixes?: string[];
@@ -932,9 +959,9 @@ function validateGuardrailPatterns(config: {
     const error =
       report.rules.find((rule) => rule.error)?.error ?? report.set_error;
     throw new InvalidRequestError(
-      !error || error.code === "size_limit_exceeded"
-        ? GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE
-        : error.message,
+      error
+        ? formatRegexValidationError(error)
+        : GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
     );
   }
   return patterns;

@@ -27,7 +27,9 @@ test("wasm32 accepts valid ASCII and UTF-8-safe rules and rejects invalid ones w
   for (const [pattern, expectedCode] of [
     [String.raw`\p{L}+`, "unicode_not_allowed"],
     [String.raw`(?u:\w)+`, "unicode_not_allowed"],
-    [String.raw`foo(?=bar)`, "syntax_error"],
+    [String.raw`foo(?=bar)`, "unsupported_lookaround"],
+    [String.raw`(a)\1`, "unsupported_backreference"],
+    ["(unclosed", "syntax_error"],
     ["x?", "matches_empty_string"],
     ["", "empty_pattern"],
   ]) {

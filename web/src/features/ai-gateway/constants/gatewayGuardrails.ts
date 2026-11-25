@@ -29,6 +29,13 @@ export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES =
 export const GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE = `This guardrail exceeds the ${GATEWAY_GUARDRAIL_MAX_RULE_KIB} KiB compiled size limit. Simplify the pattern, use an external guardrail provider, or contact support if you need more capacity.`;
 export const GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE = `Your organization's guardrails exceed the ${GATEWAY_GUARDRAIL_MAX_ORG_KIB} KiB combined size limit. Simplify or remove an existing guardrail, use an external guardrail provider, or contact support if you need more capacity.`;
 
+export const GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE =
+  "Look-ahead and look-behind are not supported in built-in regex guardrails. Rewrite the pattern without look-around, or use an external guardrail provider.";
+export const GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE =
+  "Backreferences are not supported in built-in regex guardrails. Rewrite the pattern without backreferences, or use an external guardrail provider.";
+export const GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE =
+  "Unicode classes (\\p{..}) and the u flag are not supported in built-in regex guardrails. Use ASCII patterns, or use an external guardrail provider.";
+
 export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   GatewayGuardrailAction,
   string

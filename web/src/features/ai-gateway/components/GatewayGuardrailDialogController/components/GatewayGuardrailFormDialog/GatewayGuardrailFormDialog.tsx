@@ -22,7 +22,10 @@ import {
   AsyncMultiSelectTagInput,
   type MultiSelectTagOption,
 } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
-import { Banner } from "@/src/components/design-system/Banner/Banner";
+import {
+  Banner,
+  type BannerAction,
+} from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -51,6 +54,7 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
+import { GATEWAY_GUARDRAILS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import {
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
@@ -63,6 +67,9 @@ import {
   GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
@@ -260,6 +267,7 @@ export type ExternalGuardrailTestControl = {
 type CustomRegexPreviewResult = {
   valid: boolean;
   error?: string;
+  errorCode?: string;
   matches: Array<{ start: number; end: number }>;
 };
 
@@ -377,6 +385,10 @@ export function GatewayGuardrailFormDialog({
     activeCustomRegexPreview && !activeCustomRegexPreview.valid
       ? (activeCustomRegexPreview.error ?? "Invalid regular expression")
       : undefined;
+  const customRegexServerErrorCode =
+    activeCustomRegexPreview && !activeCustomRegexPreview.valid
+      ? activeCustomRegexPreview.errorCode
+      : undefined;
   const customRegexMatches =
     activeCustomRegexPreview?.valid &&
     customRegexPreview?.text ===
@@ -483,6 +495,26 @@ export function GatewayGuardrailFormDialog({
   const handleRuleSizeContactSupport = () => {
     onContactSupport?.("rule_size");
   };
+  const showBannerDocsLink = isExternalGuardrailAlternativeError(errorMessage);
+  const bannerActions: BannerAction[] = [
+    ...(limitFeedbackReason && onContactSupport
+      ? [
+          {
+            text: "Share feedback with support",
+            icon: LifeBuoy,
+            onClick: handleBannerContactSupport,
+          },
+        ]
+      : []),
+    ...(showBannerDocsLink
+      ? [
+          {
+            text: "Guardrails docs",
+            href: GATEWAY_GUARDRAILS_DOCS_URL,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <DialogPrimitive.Portal container={container}>
@@ -574,6 +606,7 @@ export function GatewayGuardrailFormDialog({
                     containsEntryCount={parsedContains.length}
                     customRegexLength={customRegex.length}
                     customRegexErrorMessage={customRegexServerError}
+                    customRegexErrorCode={customRegexServerErrorCode}
                     hasSavedApiKey={hasSavedApiKey}
                     presetErrorMessage={
                       form.formState.errors.presets?.message ??
@@ -654,15 +687,7 @@ export function GatewayGuardrailFormDialog({
                       variant="error"
                       title="Guardrail could not be saved"
                       actions={
-                        limitFeedbackReason && onContactSupport
-                          ? [
-                              {
-                                text: "Share feedback with support",
-                                icon: LifeBuoy,
-                                onClick: handleBannerContactSupport,
-                              },
-                            ]
-                          : undefined
+                        bannerActions.length > 0 ? bannerActions : undefined
                       }
                     >
                       {errorMessage}
@@ -752,6 +777,7 @@ type TemplateRuleFieldsProps = {
   containsEntryCount: number;
   customRegexLength: number;
   customRegexErrorMessage?: string;
+  customRegexErrorCode?: string;
   hasSavedApiKey: boolean;
   presetErrorMessage?: string;
   onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
@@ -769,6 +795,7 @@ function TemplateRuleFields({
   containsEntryCount,
   customRegexLength,
   customRegexErrorMessage,
+  customRegexErrorCode,
   hasSavedApiKey,
   presetErrorMessage,
   onPresetsChange,
@@ -816,6 +843,9 @@ function TemplateRuleFields({
             onBlur={field.onBlur}
             charCount={customRegexLength}
             errorMessage={fieldState.error?.message ?? customRegexErrorMessage}
+            errorCode={
+              fieldState.error?.message ? undefined : customRegexErrorCode
+            }
             onContactSupport={onContactSupport}
           />
         )}
@@ -1256,6 +1286,26 @@ function getLimitFeedbackReason(
   }
 }
 
+function isExternalGuardrailAlternativeError(
+  errorMessage: string | null,
+): boolean {
+  return (
+    errorMessage === GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE ||
+    errorMessage ===
+      GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE ||
+    errorMessage === GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE ||
+    errorMessage === GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE ||
+    errorMessage === GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE
+  );
+}
+
+const REGEX_DOCS_LINK_ERROR_CODES = new Set([
+  "unsupported_lookaround",
+  "unsupported_backreference",
+  "unicode_not_allowed",
+  "size_limit_exceeded",
+]);
+
 function noop() {
   // Runs on is locked to Input in this release.
 }
@@ -1266,6 +1316,7 @@ type CustomRegexFieldProps = {
   onBlur: () => void;
   charCount: number;
   errorMessage?: string;
+  errorCode?: string;
   onContactSupport?: () => void;
 };
 
@@ -1275,6 +1326,7 @@ function CustomRegexField({
   onBlur,
   charCount,
   errorMessage,
+  errorCode,
   onContactSupport,
 }: CustomRegexFieldProps) {
   const inputId = useId();
@@ -1283,7 +1335,11 @@ function CustomRegexField({
   };
   const showSupportLink =
     Boolean(onContactSupport) &&
-    errorMessage === GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE;
+    (errorCode === "size_limit_exceeded" ||
+      errorMessage === GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE);
+  const showDocsLink =
+    (errorCode !== undefined && REGEX_DOCS_LINK_ERROR_CODES.has(errorCode)) ||
+    isExternalGuardrailAlternativeError(errorMessage ?? null);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -1296,7 +1352,7 @@ function CustomRegexField({
             content={
               <span>
                 Rust regex syntax in ASCII mode (up to{" "}
-                {GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} chars). Lookaround,
+                {GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} chars). Look-around,
                 backreferences, and Unicode classes (\p{"{..}"}) are not
                 supported.
               </span>
@@ -1335,9 +1391,27 @@ function CustomRegexField({
       {errorMessage ? (
         <p className="text-destructive text-sm">
           {errorMessage}
-          {showSupportLink ? (
+          {showDocsLink ? (
             <>
               {" "}
+              <a
+                href={GATEWAY_GUARDRAILS_DOCS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-destructive inline-flex items-center gap-1 underline underline-offset-2 hover:opacity-80"
+              >
+                Read docs
+                <SquareArrowOutUpRight
+                  size="sm"
+                  color="inherit"
+                  aria-hidden="true"
+                />
+              </a>
+            </>
+          ) : null}
+          {showSupportLink ? (
+            <>
+              {showDocsLink ? " · " : " "}
               <button
                 type="button"
                 onClick={onContactSupport}
