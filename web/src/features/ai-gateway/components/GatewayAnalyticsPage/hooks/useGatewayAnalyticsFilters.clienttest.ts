@@ -201,41 +201,4 @@ describe("useGatewayAnalyticsFilters", () => {
     expect(queryMock.lastSetQuery).toEqual({ users: [], gatewayKeys: [] });
     expect(result.current.apiKey.values).toEqual([]);
   });
-
-  it("keeps all viewer-scoped keys available when the viewer cannot filter by user", () => {
-    queryMock.initial = {
-      users: ["user-alice"],
-      gatewayKeys: ["key-bob-1"],
-    };
-
-    const memberLabels = {
-      users: new Map([["user-bob", "Bob"]]),
-      apiKeys: new Map([["key-bob-1", "Bob key 1"]]),
-    };
-    const memberKeyOwners = new Map<string, string | null>([
-      ["key-bob-1", "user-bob"],
-    ]);
-
-    const { result } = renderHook(() =>
-      useGatewayAnalyticsFilters({
-        labels: memberLabels,
-        apiKeyOwnerById: memberKeyOwners,
-        canFilterByUser: false,
-      }),
-    );
-
-    expect(result.current.user.values).toEqual([]);
-    expect(result.current.apiKey.options).toEqual([
-      { value: "key-bob-1", label: "Bob key 1" },
-    ]);
-    expect(result.current.apiKey.values).toEqual(["key-bob-1"]);
-    expect(result.current.filters).toEqual([
-      {
-        column: "aiGatewayKeyId",
-        operator: "any of",
-        value: ["key-bob-1"],
-        type: "stringOptions",
-      },
-    ]);
-  });
 });

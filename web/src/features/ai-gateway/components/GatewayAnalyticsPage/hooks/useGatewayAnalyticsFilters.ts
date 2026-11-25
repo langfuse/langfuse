@@ -55,21 +55,10 @@ export function useGatewayAnalyticsFilters({
     user: {
       values: userIds,
       options: userOptions,
-      onValueChange: (values: string[]) => {
-        const nextGatewayKeys = filterMatchingGatewayKeys(
-          apiKeyIds,
-          values,
-          apiKeyOwnerById,
-        );
-        const gatewayKeysChanged =
-          nextGatewayKeys.length !== rawApiKeyIds.length ||
-          nextGatewayKeys.some((id, index) => id !== rawApiKeyIds[index]);
+      onValueChange: (values: string[]) =>
         setQuery(
-          gatewayKeysChanged
-            ? { users: values, gatewayKeys: nextGatewayKeys }
-            : { users: values },
-        );
-      },
+          nextUserQuery(values, apiKeyIds, rawApiKeyIds, apiKeyOwnerById),
+        ),
     },
     apiKey: {
       values: apiKeyIds,
@@ -106,6 +95,25 @@ function toApiKeyOptions(
     }
   }
   return options;
+}
+
+function nextUserQuery(
+  users: string[],
+  apiKeyIds: string[],
+  rawApiKeyIds: readonly string[],
+  apiKeyOwnerById: ReadonlyMap<string, string | null>,
+) {
+  const nextGatewayKeys = filterMatchingGatewayKeys(
+    apiKeyIds,
+    users,
+    apiKeyOwnerById,
+  );
+  const gatewayKeysChanged =
+    nextGatewayKeys.length !== rawApiKeyIds.length ||
+    nextGatewayKeys.some((id, index) => id !== rawApiKeyIds[index]);
+  return gatewayKeysChanged
+    ? { users, gatewayKeys: nextGatewayKeys }
+    : { users };
 }
 
 /**
