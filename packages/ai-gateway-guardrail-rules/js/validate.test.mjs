@@ -73,7 +73,9 @@ test("wasm32 preview returns UTF-16 match spans and typed validation errors", ()
   assert.equal(alt.valid, true);
   assert.equal(alt.truncated, false);
   assert.deepEqual(
-    alt.matches.map(({ start, end }) => "prefix api_key suffix".slice(start, end)),
+    alt.matches.map(({ start, end }) =>
+      "prefix api_key suffix".slice(start, end),
+    ),
     ["api_key"],
   );
 
