@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { type FilterOption } from "@langfuse/shared";
 
@@ -197,6 +197,92 @@ describe("MultiSelect", () => {
       );
 
       expect(input).toHaveValue("abc");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps an edited custom value in place among other missing values", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      render(
+        <ControlledMultiSelect
+          initialValues={["first", "second"]}
+          options={[]}
+          onValueChange={onValueChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+
+      fireEvent.change(input, { target: { value: "edited" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(onValueChange).toHaveBeenLastCalledWith(["edited", "second"]);
+      expect(input).toHaveValue("edited");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the remaining custom value after the edited one is unchecked", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      render(
+        <ControlledMultiSelect
+          initialValues={["first", "second"]}
+          options={[]}
+          onValueChange={onValueChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+      fireEvent.change(input, { target: { value: "edited" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      const customRow = input.closest('[role="option"]');
+      if (!customRow) throw new Error("custom value row not found");
+      fireEvent.click(customRow);
+
+      expect(onValueChange).toHaveBeenLastCalledWith(["second"]);
+      expect(input).toHaveValue("second");
+      expect(optionRowsWithText("second")).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("follows a committed custom value when the caller selects it again later", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      const view = (values: string[]) => (
+        <MultiSelect
+          values={values}
+          options={[]}
+          onValueChange={onValueChange}
+          isCustomSelectEnabled
+        />
+      );
+      const { rerender } = render(view(["a"]));
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+      fireEvent.change(input, { target: { value: "ab" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      rerender(view(["ab"]));
+      rerender(view(["other"]));
+      rerender(view(["ab"]));
+
+      expect(input).toHaveValue("ab");
     } finally {
       vi.useRealTimers();
     }

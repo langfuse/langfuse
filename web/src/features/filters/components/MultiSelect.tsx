@@ -85,13 +85,13 @@ export function MultiSelect({
   const [syncedFreeTextInput, setSyncedFreeTextInput] = useState(freeTextInput);
   if (freeTextInput !== syncedFreeTextInput) {
     // Follow custom values the caller sets, but not the echo of one this
-    // component committed or one arriving while the user is still typing.
+    // component committed (skipped once) or one arriving while the user is
+    // still typing.
     setSyncedFreeTextInput(freeTextInput);
     if (freeTextInput !== undefined) {
-      if (
-        freeTextInput !== committedFreeText.current &&
-        !debounceTimeout.current
-      ) {
+      if (freeTextInput === committedFreeText.current) {
+        committedFreeText.current = undefined;
+      } else if (!debounceTimeout.current) {
         setFreeText(freeTextInput);
       }
     } else if (optionValues.has(freeText)) {
@@ -154,10 +154,11 @@ export function MultiSelect({
 
     if (!!freeTextInput) {
       committedFreeText.current = value;
-      selectedValues.delete(freeTextInput);
-      selectedValues.add(value);
-      selectedValues.delete("");
-      const filterValues = Array.from(selectedValues);
+      // Replace the custom value in place, so it stays the first value
+      // missing from the options and keeps the custom value row.
+      const filterValues = Array.from(
+        new Set(values.map((v) => (v === freeTextInput ? value : v))),
+      ).filter((v) => v !== "");
       onValueChange(filterValues.length ? filterValues : []);
     }
   };
