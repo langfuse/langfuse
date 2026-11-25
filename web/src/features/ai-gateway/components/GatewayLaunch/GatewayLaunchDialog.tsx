@@ -16,7 +16,7 @@ const copy = {
     title: "Introducing Langfuse AI Gateway",
     lead: "Route Claude Code, Codex, OpenCode, and your own apps through Langfuse. Each call becomes a full trace, along with who made it and what it cost.",
     points: [
-      "Use one key for Anthropic and OpenAI",
+      "Use one key across all providers",
       "Track spend by person, team, and key",
       "Approve and remove models for entire company",
       "Record full traces, not just token counts",
@@ -24,8 +24,8 @@ const copy = {
   },
   member: {
     title: "Get your own AI Gateway key",
-    lead: "Access Anthropic and OpenAI models with a single key you create yourself.",
-    points: ["Create your own keys", "One key for Anthropic and OpenAI models"],
+    lead: "Access models across all connected providers with a single key you create yourself.",
+    points: ["Create your own keys", "One key across all connected providers"],
   },
 };
 
