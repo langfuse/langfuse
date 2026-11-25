@@ -1077,6 +1077,16 @@ describe("aiGateway guardrails tRPC", () => {
     expect(invalidPreview.error).toBeTruthy();
     expect(invalidPreview.matches).toEqual([]);
 
+    const oversizedPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`\w{1,1500}`,
+        text: sampleText,
+      });
+    expect(oversizedPreview.valid).toBe(false);
+    expect(oversizedPreview.error).toContain("128 KiB");
+    expect(oversizedPreview.error).toContain("external guardrail provider");
+
     // Creates, updates, and resolves a valid custom regex (including `.`, `\S`, and negated classes)
     const created = await ownerCaller.aiGateway.guardrails.create({
       orgId,

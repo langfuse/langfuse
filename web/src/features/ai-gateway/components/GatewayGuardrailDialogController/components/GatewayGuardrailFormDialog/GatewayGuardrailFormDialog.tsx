@@ -60,8 +60,11 @@ import {
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
@@ -283,7 +286,7 @@ export type GatewayGuardrailFormDialogProps = {
   isSubmitting: boolean;
   errorMessage: string | null;
   onBack?: () => void;
-  onContactSupport?: () => void;
+  onContactSupport?: (reason?: GatewayGuardrailsLimitFeedbackReason) => void;
   onSubmit: (values: GatewayGuardrailFormValues) => void;
 };
 
@@ -473,9 +476,13 @@ export function GatewayGuardrailFormDialog({
     event.preventDefault();
   };
 
-  const showLimitSupportAction =
-    Boolean(onContactSupport) &&
-    errorMessage === GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE;
+  const limitFeedbackReason = getLimitFeedbackReason(errorMessage);
+  const handleBannerContactSupport = () => {
+    if (limitFeedbackReason) onContactSupport?.(limitFeedbackReason);
+  };
+  const handleRuleSizeContactSupport = () => {
+    onContactSupport?.("rule_size");
+  };
 
   return (
     <DialogPrimitive.Portal container={container}>
@@ -575,6 +582,11 @@ export function GatewayGuardrailFormDialog({
                     onPresetsChange={handlePresetsChange}
                     onSecretPrefixesChange={handleSecretPrefixesChange}
                     onCustomRegexChange={handleCustomRegexChange}
+                    onContactSupport={
+                      onContactSupport
+                        ? handleRuleSizeContactSupport
+                        : undefined
+                    }
                   />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -642,12 +654,12 @@ export function GatewayGuardrailFormDialog({
                       variant="error"
                       title="Guardrail could not be saved"
                       actions={
-                        showLimitSupportAction && onContactSupport
+                        limitFeedbackReason && onContactSupport
                           ? [
                               {
                                 text: "Share feedback with support",
                                 icon: LifeBuoy,
-                                onClick: onContactSupport,
+                                onClick: handleBannerContactSupport,
                               },
                             ]
                           : undefined
@@ -745,6 +757,7 @@ type TemplateRuleFieldsProps = {
   onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
   onSecretPrefixesChange: (prefixes: string[]) => void;
   onCustomRegexChange: (pattern: string) => void;
+  onContactSupport?: () => void;
 };
 
 function TemplateRuleFields({
@@ -761,6 +774,7 @@ function TemplateRuleFields({
   onPresetsChange,
   onSecretPrefixesChange,
   onCustomRegexChange,
+  onContactSupport,
 }: TemplateRuleFieldsProps) {
   if (templateKind === "bedrock") {
     return (
@@ -802,6 +816,7 @@ function TemplateRuleFields({
             onBlur={field.onBlur}
             charCount={customRegexLength}
             errorMessage={fieldState.error?.message ?? customRegexErrorMessage}
+            onContactSupport={onContactSupport}
           />
         )}
       />
@@ -1226,6 +1241,21 @@ function ContainsWordListField({
   );
 }
 
+function getLimitFeedbackReason(
+  errorMessage: string | null,
+): GatewayGuardrailsLimitFeedbackReason | null {
+  switch (errorMessage) {
+    case GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE:
+      return "count";
+    case GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE:
+      return "rule_size";
+    case GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE:
+      return "org_size";
+    default:
+      return null;
+  }
+}
+
 function noop() {
   // Runs on is locked to Input in this release.
 }
@@ -1236,6 +1266,7 @@ type CustomRegexFieldProps = {
   onBlur: () => void;
   charCount: number;
   errorMessage?: string;
+  onContactSupport?: () => void;
 };
 
 function CustomRegexField({
@@ -1244,11 +1275,15 @@ function CustomRegexField({
   onBlur,
   charCount,
   errorMessage,
+  onContactSupport,
 }: CustomRegexFieldProps) {
   const inputId = useId();
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.target.value);
   };
+  const showSupportLink =
+    Boolean(onContactSupport) &&
+    errorMessage === GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -1298,7 +1333,21 @@ function CustomRegexField({
         )}
       />
       {errorMessage ? (
-        <p className="text-destructive text-sm">{errorMessage}</p>
+        <p className="text-destructive text-sm">
+          {errorMessage}
+          {showSupportLink ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={onContactSupport}
+                className="text-destructive underline underline-offset-2 hover:opacity-80"
+              >
+                Contact support
+              </button>
+            </>
+          ) : null}
+        </p>
       ) : null}
     </div>
   );

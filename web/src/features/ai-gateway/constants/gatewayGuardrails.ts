@@ -21,6 +21,10 @@ export const GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH = 4_000;
 
 export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES = 128 * 1024;
 export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES = 512 * 1024;
+export const GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE =
+  "This guardrail exceeds the 128 KiB compiled size limit. Simplify the pattern, use an external guardrail provider, or contact support if you need more capacity.";
+export const GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE =
+  "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail, use an external guardrail provider, or contact support if you need more capacity.";
 
 export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   GatewayGuardrailAction,

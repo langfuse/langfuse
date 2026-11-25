@@ -3,19 +3,33 @@ import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiA
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 
-/** Opens the support drawer prefilled as feedback about the per-org guardrail limit. */
+export type GatewayGuardrailsLimitFeedbackReason =
+  | "count"
+  | "rule_size"
+  | "org_size";
+
+const FEEDBACK_MESSAGES: Record<GatewayGuardrailsLimitFeedbackReason, string> =
+  {
+    count: `We reached the limit of ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} AI Gateway guardrails and would love to share why we need more:\n\n`,
+    rule_size:
+      "We reached the 128 KiB compiled size limit for an AI Gateway regex guardrail and would love to share our use case:\n\n",
+    org_size:
+      "We reached the 512 KiB combined compiled size limit for AI Gateway guardrails and would love to share why we need more capacity:\n\n",
+  };
+
+/** Opens the support drawer prefilled as feedback about a guardrail limit. */
 export function useOpenGuardrailsLimitFeedback() {
   const { openWithMode } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
 
-  return () => {
+  return (reason: GatewayGuardrailsLimitFeedbackReason = "count") => {
     setAiAgentOpen(false);
     setMigrationPanelOpen(false);
     openWithMode("form", {
       messageType: "Feedback",
       topic: "Platform",
-      message: `We reached the limit of ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} AI Gateway guardrails and would love to share why we need more:\n\n`,
+      message: FEEDBACK_MESSAGES[reason],
     });
   };
 }

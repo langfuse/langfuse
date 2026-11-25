@@ -26,7 +26,9 @@ import {
   GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
   GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
@@ -293,11 +295,22 @@ export class GatewayGuardrailService {
         matches: [],
       };
     }
-    return previewRegexRule(
+    const result = previewRegexRule(
       parsed.data,
       params.text.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
       GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
     );
+    if (
+      !result.valid &&
+      result.error &&
+      isCompiledSizeLimitError(result.error)
+    ) {
+      return {
+        ...result,
+        error: GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+      };
+    }
+    return result;
   }
 
   async create(
@@ -904,6 +917,14 @@ function normalizeGuardrailConfig(input: {
   };
 }
 
+function isCompiledSizeLimitError(error: string): boolean {
+  return (
+    error.includes("exceeded limit of") ||
+    error.includes("over the limit of") ||
+    error.includes("too large to compile")
+  );
+}
+
 function validateGuardrailPatterns(config: {
   presets: string[];
   secretPrefixes?: string[];
@@ -916,11 +937,12 @@ function validateGuardrailPatterns(config: {
     max_set_bytes: GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
   });
   if (!report.ok) {
-    const ruleError = report.rules.find((rule) => rule.error)?.error;
+    const rawError =
+      report.rules.find((rule) => rule.error)?.error ?? report.set_error;
     throw new InvalidRequestError(
-      ruleError ??
-        report.set_error ??
-        "This guardrail exceeds the 128 KiB compiled size limit. Remove some entries or patterns and try again.",
+      !rawError || isCompiledSizeLimitError(rawError)
+        ? GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE
+        : rawError,
     );
   }
   return patterns;
@@ -963,7 +985,7 @@ async function assertOrgSizeLimit(
   }
   if (!report.ok) {
     throw new InvalidRequestError(
-      "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail and try again.",
+      GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
     );
   }
 }

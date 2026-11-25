@@ -23,7 +23,10 @@ import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components
 import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
-import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
+import {
+  useOpenGuardrailsLimitFeedback,
+  type GatewayGuardrailsLimitFeedbackReason,
+} from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
@@ -113,10 +116,12 @@ export function GatewayGuardrailDialogController({
           bulkTargets: bulkTargetsMutation,
         });
 
-        const handleContactSupport = () => {
+        const handleContactSupport = (
+          reason: GatewayGuardrailsLimitFeedbackReason = "count",
+        ) => {
           closeDialog();
           resetMutations();
-          openLimitFeedback();
+          openLimitFeedback(reason);
         };
 
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
@@ -257,7 +262,7 @@ type GuardrailDialogContentProps = {
   errorMessage: string | null;
   externalTest: ExternalGuardrailTestControl;
   onClearError: () => void;
-  onContactSupport: () => void;
+  onContactSupport: (reason?: GatewayGuardrailsLimitFeedbackReason) => void;
   onSubmitForm: (values: GatewayGuardrailFormValues) => void;
   onSubmitBulkTargets: (targets: AsyncAutocompleteOption[]) => void;
 };
@@ -371,6 +376,7 @@ function GuardrailDialogContent({
       targetPicker={targetPicker}
       isSubmitting={isSubmitting}
       errorMessage={errorMessage}
+      onContactSupport={onContactSupport}
       onSubmit={onSubmitForm}
     />
   );
