@@ -302,6 +302,9 @@ async function processEvent(
     traceId,
     reason,
     error: failure instanceof Error ? failure.message : String(failure),
+    ...(failure instanceof TopicInputTooLarge && {
+      characters: failure.characters,
+    }),
   });
   if (isRejectedConnection(failure)) {
     settingsCache.delete(projectId);

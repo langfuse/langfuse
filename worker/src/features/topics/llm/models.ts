@@ -99,6 +99,15 @@ async function priceTopicUsage(
 /** The rendered transcript exceeds the character limit; no model call was made. */
 export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
+
+  constructor(
+    readonly characters: number,
+    limit: number,
+  ) {
+    super(
+      `The rendered trace transcript is ${characters} characters, above the ${limit}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+    );
+  }
 }
 
 type TopicCallMetadata = Record<string, unknown> & {
@@ -401,7 +410,8 @@ export async function summarizeTopicTraceFacets(
   );
   if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
-      `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+      text.length,
+      workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
     );
   return structuredCall(
     system,

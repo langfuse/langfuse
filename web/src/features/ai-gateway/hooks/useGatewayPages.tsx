@@ -12,6 +12,8 @@ import { GatewayIngestionHeaderAction } from "@/src/features/ai-gateway/componen
 import { GatewayOverviewPage } from "@/src/features/ai-gateway/components/GatewayOverviewPage/GatewayOverviewPage";
 import { GatewayBudgetsPage } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/GatewayBudgetsPage";
 import { GatewayBudgetsHeaderActions } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayBudgetsHeaderActions/GatewayBudgetsHeaderActions";
+import { GatewayGuardrailsHeaderActions } from "@/src/features/ai-gateway/components/GatewayGuardrailsHeaderActions/GatewayGuardrailsHeaderActions";
+import { GatewayGuardrailsPage } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/GatewayGuardrailsPage";
 import { buildGatewayBudgetsTabs } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/buildGatewayBudgetsTabs";
 import { useGatewayBudgetsTab } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useGatewayBudgetsTab";
 import { buildGatewayModelsTabs } from "@/src/features/ai-gateway/components/GatewayModelsPage/fns/buildGatewayModelsTabs";
@@ -46,6 +48,8 @@ type GatewayPageEntry = {
   actionsLeft?: ReactNode;
   /** Rendered on the right of the page title row. */
   actions?: ReactNode;
+  /** Rendered inline in the mobile header instead of folding into an overflow popover. */
+  mobileActions?: ReactNode;
   help?: { description: string; href?: string };
   show: boolean;
   /** Set when the page needs the gateway set up first. */
@@ -242,6 +246,40 @@ export function useGatewayPages(): GatewayPageEntry[] {
       scrollable: true,
       hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
       show: visible[GATEWAY_PAGE_SLUGS.budgets],
+      disabledReason,
+    },
+    {
+      title: "Guardrails",
+      slug: GATEWAY_PAGE_SLUGS.guardrails,
+      cmdKKeywords: [
+        "gateway",
+        "guardrails",
+        "pii",
+        "secrets",
+        "block",
+        "log",
+        "safety",
+      ],
+      content: access.showNotDeployedNotice ? (
+        <GatewayNotDeployedNotice />
+      ) : (
+        <GatewayGuardrailsPage organizationId={organization.id} />
+      ),
+      actions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayGuardrailsHeaderActions organizationId={organization.id} />
+        ) : undefined,
+      mobileActions:
+        access.canManageGateway &&
+        !access.showNotDeployedNotice &&
+        !showsNotSetUpNotice ? (
+          <GatewayGuardrailsHeaderActions organizationId={organization.id} />
+        ) : undefined,
+      scrollable: true,
+      hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.guardrails],
       disabledReason,
     },
   ];
