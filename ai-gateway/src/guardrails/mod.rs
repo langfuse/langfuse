@@ -229,9 +229,9 @@ impl Guardrail {
 
     pub(crate) fn is_valid_from_resolve(&self) -> bool {
         match &self.kind {
-            GuardrailKind::Regex { .. }
-            | GuardrailKind::FailClosed
-            | GuardrailKind::Unknown => true,
+            GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
+                true
+            }
             GuardrailKind::Bedrock(config) => {
                 crate::resolution::bedrock::is_aws_region(&config.region)
                     && crate::resolution::bedrock::is_guardrail_id(&config.guardrail_id)
