@@ -128,7 +128,7 @@ describe("MultiSelect", () => {
     expect(within(dialog).getByText("Deselect All")).toBeInTheDocument();
   });
 
-  it("clears the custom input row once loaded options include a pre-selected value", () => {
+  it("clears the custom input row once loaded options include a preselected value", () => {
     const onValueChange = vi.fn();
     const { rerender } = render(
       <MultiSelect
