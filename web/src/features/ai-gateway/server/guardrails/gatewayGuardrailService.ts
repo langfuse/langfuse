@@ -138,6 +138,10 @@ export class GatewayGuardrailService {
           ];
         }
         case "BEDROCK": {
+          const bedrockAction =
+            guardrail.action === "LOG"
+              ? ("log" as const)
+              : ("enforce" as const);
           const config = GatewayBedrockGuardrailConfigSchema.safeParse(
             guardrail.config,
           );
@@ -154,7 +158,7 @@ export class GatewayGuardrailService {
                 id: guardrail.id,
                 name: guardrail.name,
                 type: "fail_closed" as const,
-                action,
+                action: bedrockAction,
                 patterns: [] as [],
               },
             ];
@@ -164,7 +168,7 @@ export class GatewayGuardrailService {
               id: guardrail.id,
               name: guardrail.name,
               type: "bedrock" as const,
-              action,
+              action: bedrockAction,
               guardrail_id: config.data.guardrailId,
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,

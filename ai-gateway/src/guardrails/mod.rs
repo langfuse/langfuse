@@ -19,7 +19,7 @@ use quick_cache::{
     sync::{Cache, GuardResult},
 };
 use regex_automata::{
-    MatchKind, meta,
+    Input, MatchKind, PatternID, meta,
     nfa::thompson::WhichCaptures,
     util::{captures::Captures, syntax},
 };
@@ -134,26 +134,28 @@ impl Guardrails {
                 drop(turn_text_reservation);
                 Vec::new()
             };
-            let (outcome, finalizing) = if local.has_pending_redactions() {
-                self.cpu
-                    .run(CpuJob::ScanGuardrails, bytes, {
-                        let guardrails = Arc::clone(&guardrails);
-                        let budget = Arc::clone(&self.memory_budget);
-                        move || {
-                            let started = std::time::Instant::now();
-                            let outcome =
-                                local.into_outcome(&guardrails, &external_outcomes, Some(&budget));
-                            (outcome, started.elapsed())
-                        }
-                    })
-                    .await
-                    .ok_or(ResolutionError::Busy)?
+            let finalize_bytes = if external_outcomes
+                .iter()
+                .any(|(_, outcome)| matches!(outcome, ExternalOutcome::Anonymized(_)))
+            {
+                bytes
             } else {
-                let started = std::time::Instant::now();
-                let outcome =
-                    local.into_outcome(&guardrails, &external_outcomes, Some(&self.memory_budget));
-                (outcome, started.elapsed())
+                0
             };
+            let (outcome, finalizing) = self
+                .cpu
+                .run(CpuJob::ScanGuardrails, finalize_bytes, {
+                    let guardrails = Arc::clone(&guardrails);
+                    let budget = Arc::clone(&self.memory_budget);
+                    move || {
+                        let started = std::time::Instant::now();
+                        let outcome =
+                            local.into_outcome(&guardrails, &external_outcomes, Some(&budget));
+                        (outcome, started.elapsed())
+                    }
+                })
+                .await
+                .ok_or(ResolutionError::Busy)?;
             total_duration += finalizing;
             let outcome = outcome?;
             crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
@@ -180,17 +182,16 @@ impl Guardrails {
             return Ok((Vec::new(), Duration::ZERO));
         }
         let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
-        let has_pending_redactions = local.has_pending_redactions();
         // Reserve for the serialized provider payload while the prompt text is
-        // still live. When no external `enforce` rule needs the original text
-        // fields after I/O, drop `turn_text` and its reservation before awaiting I/O.
+        // still live. When no external `enforce` rule needs the text blocks
+        // after I/O, drop `turn_text` and its reservation before awaiting I/O.
         let payload_reservation = MemoryReservation::from_budget(
             &self.memory_budget,
             turn_bytes.saturating_add(64),
             "guardrails",
         )?;
-        let payloads = if has_pending_redactions {
-            serialize_pending_redaction_texts(&guardrails, &local.pending_redaction_texts)
+        let payloads = if !local.external_blocks.is_empty() {
+            serialize_external_blocks(&guardrails, &local.external_blocks)
         } else {
             let turn_text = local.take_turn_text();
             let payloads = ExternalPayloads::for_guardrails(&guardrails, &[turn_text.as_str()]);
@@ -225,21 +226,21 @@ impl Guardrails {
     }
 }
 
-fn serialize_pending_redaction_texts(
+fn serialize_external_blocks(
     guardrails: &[&Guardrail],
-    texts: &[PendingRedactionText],
+    blocks: &[ExternalBlock],
 ) -> ExternalPayloads {
-    if texts.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
-        let blocks: Vec<&str> = texts.iter().map(|item| item.text.as_str()).collect();
-        return ExternalPayloads::for_guardrails(guardrails, &blocks);
+    if blocks.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
+        let texts: Vec<&str> = blocks.iter().map(|block| block.text.as_str()).collect();
+        return ExternalPayloads::for_guardrails(guardrails, &texts);
     }
-    let total = texts.iter().map(|item| item.text.len() + 1).sum();
+    let total = blocks.iter().map(|block| block.text.len() + 1).sum();
     let mut joined = String::with_capacity(total);
-    for item in texts {
+    for block in blocks {
         if !joined.is_empty() {
             joined.push('\n');
         }
-        joined.push_str(&item.text);
+        joined.push_str(&block.text);
     }
     ExternalPayloads::for_guardrails(guardrails, &[joined.as_str()])
 }
@@ -524,25 +525,23 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
     (end <= body.len()).then_some(start..end)
 }
 
-/// One non-empty JSON string field retained when an external `enforce`
-/// guardrail may return anonymized text that must be spliced back into the body.
-struct PendingRedactionText {
+/// One non-empty JSON string field sent to an enforcing external guardrail
+/// (after any local regex redaction) so anonymized outputs can be spliced back
+/// into the request body.
+struct ExternalBlock {
     raw_range: Range<usize>,
     text: String,
-    has_local_redact: bool,
 }
 
 /// Result of the CPU-bound local pass: regex matches, local redaction edits,
-/// and the last turn's text/fields when external guardrails also run.
+/// and the last turn's text/blocks when external guardrails also run.
 struct LocalScan {
     active_indices: Vec<usize>,
-    compiled: Option<Arc<Compiled>>,
-    regex_active_slots: Vec<usize>,
     matched: Vec<bool>,
     local_fail_closed: Vec<bool>,
     unreadable: bool,
     turn_text: String,
-    pending_redaction_texts: Vec<PendingRedactionText>,
+    external_blocks: Vec<ExternalBlock>,
     local_redactions: Vec<BodyEdit>,
     redaction_reservations: Vec<MemoryReservation>,
 }
@@ -553,11 +552,7 @@ impl LocalScan {
     }
 
     fn has_external_input(&self) -> bool {
-        !self.turn_text.is_empty() || !self.pending_redaction_texts.is_empty()
-    }
-
-    fn has_pending_redactions(&self) -> bool {
-        !self.pending_redaction_texts.is_empty()
+        !self.turn_text.is_empty() || !self.external_blocks.is_empty()
     }
 
     fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
@@ -623,14 +618,15 @@ impl LocalScan {
 
         let redactions = if self.unreadable || self.any_blocking(guardrails, &fail_closed_redact) {
             Vec::new()
-        } else if !self.pending_redaction_texts.is_empty() {
-            self.build_combined_redactions(
-                guardrails,
-                external_outcomes,
-                &mut fail_closed_redact,
-                budget,
-            )?
         } else {
+            if !self.external_blocks.is_empty() {
+                self.apply_external_anonymizations(
+                    guardrails,
+                    external_outcomes,
+                    &mut fail_closed_redact,
+                    budget,
+                )?;
+            }
             self.local_redactions
         };
 
@@ -723,13 +719,11 @@ fn scan_local(
     if active_indices.is_empty() {
         return Ok(LocalScan {
             active_indices,
-            compiled: None,
-            regex_active_slots: Vec::new(),
             matched: Vec::new(),
             local_fail_closed: Vec::new(),
             unreadable: false,
             turn_text: String::new(),
-            pending_redaction_texts: Vec::new(),
+            external_blocks: Vec::new(),
             local_redactions: Vec::new(),
             redaction_reservations: Vec::new(),
         });
@@ -794,7 +788,7 @@ struct ScanState<'g, 'b> {
     caps: Vec<Captures>,
     span_scratch: Vec<RedactionSpan<'g>>,
     turn_text: String,
-    pending_redaction_texts: Vec<PendingRedactionText>,
+    external_blocks: Vec<ExternalBlock>,
     local_redactions: Vec<BodyEdit>,
     redaction_reservations: Vec<MemoryReservation>,
     local_fail_closed: Vec<bool>,
@@ -838,7 +832,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
             caps,
             span_scratch: Vec::new(),
             turn_text: String::new(),
-            pending_redaction_texts: Vec::new(),
+            external_blocks: Vec::new(),
             local_redactions: Vec::new(),
             redaction_reservations: Vec::new(),
             local_fail_closed: vec![false; active_len],
@@ -859,60 +853,41 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 return;
             }
             self.span_scratch.clear();
-            let mut has_local_redact = false;
             if let Some(compiled) = compiled {
                 for (matcher, caps) in compiled.matchers.iter().zip(&mut self.caps) {
-                    redact::for_each_match(
-                        &matcher.regex,
-                        caps,
-                        leaf.text,
-                        |pattern, start, end| {
-                            let Some(&owner) = matcher.owners.get(pattern.as_usize()) else {
-                                return;
-                            };
-                            if let Some(entry) = self.regex_matched.get_mut(owner) {
-                                *entry = true;
-                            }
-                            let Some(&(active_slot, _)) = regex_slots.get(owner) else {
-                                return;
-                            };
-                            let Some(guardrail) = active_indices
-                                .get(active_slot)
-                                .and_then(|&index| guardrails.get(index))
-                            else {
-                                return;
-                            };
-                            if guardrail.action != GuardrailAction::Redact {
-                                return;
-                            }
-                            has_local_redact = true;
-                            if has_external_enforce {
-                                return;
-                            }
-                            if start < end {
-                                self.span_scratch.push(RedactionSpan {
-                                    start,
-                                    end,
-                                    priority: active_slot,
-                                    label: guardrail.redaction_label(),
-                                });
-                            } else if let Some(flag) = self.local_fail_closed.get_mut(active_slot) {
-                                *flag = true;
-                            }
-                        },
-                    );
+                    for_each_match(&matcher.regex, caps, leaf.text, |pattern, start, end| {
+                        let Some(&owner) = matcher.owners.get(pattern.as_usize()) else {
+                            return;
+                        };
+                        if let Some(entry) = self.regex_matched.get_mut(owner) {
+                            *entry = true;
+                        }
+                        let Some(&(active_slot, _)) = regex_slots.get(owner) else {
+                            return;
+                        };
+                        let Some(guardrail) = active_indices
+                            .get(active_slot)
+                            .and_then(|&index| guardrails.get(index))
+                        else {
+                            return;
+                        };
+                        if guardrail.action != GuardrailAction::Redact {
+                            return;
+                        }
+                        if start < end {
+                            self.span_scratch.push(RedactionSpan {
+                                start,
+                                end,
+                                priority: active_slot,
+                                label: guardrail.redaction_label(),
+                            });
+                        } else if let Some(flag) = self.local_fail_closed.get_mut(active_slot) {
+                            *flag = true;
+                        }
+                    });
                 }
             }
-            if has_external_enforce {
-                push_pending_redaction_text(
-                    body,
-                    leaf,
-                    has_local_redact,
-                    &mut self.pending_redaction_texts,
-                );
-                return;
-            }
-            if apply_local_leaf_redaction(
+            let Ok(redacted) = apply_local_leaf_redaction(
                 body,
                 leaf,
                 &mut self.span_scratch,
@@ -920,17 +895,27 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 &mut self.local_fail_closed,
                 budget,
                 &mut self.redaction_reservations,
-            )
-            .is_err()
-            {
+            ) else {
                 self.budget_exhausted = true;
                 return;
-            }
-            if has_external && !leaf.text.is_empty() {
+            };
+            // Send locally redacted text to external guardrails so local secrets
+            // never leave the gateway and Bedrock anonymizations compose cleanly.
+            let text_for_external = redacted.as_deref().unwrap_or(leaf.text);
+            if has_external_enforce {
+                if !text_for_external.is_empty()
+                    && let Some(range) = raw_range(body, leaf.raw)
+                {
+                    self.external_blocks.push(ExternalBlock {
+                        raw_range: range,
+                        text: redacted.unwrap_or_else(|| leaf.text.to_owned()),
+                    });
+                }
+            } else if has_external && !text_for_external.is_empty() {
                 if !self.turn_text.is_empty() {
                     self.turn_text.push('\n');
                 }
-                self.turn_text.push_str(leaf.text);
+                self.turn_text.push_str(text_for_external);
             }
         })
         .is_err()
@@ -954,45 +939,21 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 }
             }
         }
-        let regex_active_slots: Vec<usize> = self
-            .regex_slots
-            .iter()
-            .map(|&(active_slot, _)| active_slot)
-            .collect();
-        for (&active_slot, is_match) in regex_active_slots.iter().zip(self.regex_matched) {
+        for ((active_slot, _), is_match) in self.regex_slots.into_iter().zip(self.regex_matched) {
             if is_match && let Some(entry) = matched.get_mut(active_slot) {
                 *entry = true;
             }
         }
         Ok(LocalScan {
             active_indices: self.active_indices,
-            compiled: self.compiled,
-            regex_active_slots,
             matched,
             local_fail_closed: self.local_fail_closed,
             unreadable,
             turn_text: self.turn_text,
-            pending_redaction_texts: self.pending_redaction_texts,
+            external_blocks: self.external_blocks,
             local_redactions: self.local_redactions,
             redaction_reservations: self.redaction_reservations,
         })
-    }
-}
-
-fn push_pending_redaction_text(
-    body: &[u8],
-    leaf: text::TextLeaf<'_>,
-    has_local_redact: bool,
-    pending: &mut Vec<PendingRedactionText>,
-) {
-    if !leaf.text.is_empty()
-        && let Some(range) = raw_range(body, leaf.raw)
-    {
-        pending.push(PendingRedactionText {
-            raw_range: range,
-            text: leaf.text.to_owned(),
-            has_local_redact,
-        });
     }
 }
 
@@ -1026,26 +987,27 @@ fn apply_local_leaf_redaction(
     local_fail_closed: &mut [bool],
     budget: Option<&Arc<Semaphore>>,
     reservations: &mut Vec<MemoryReservation>,
-) -> Result<(), ResolutionError> {
+) -> Result<Option<String>, ResolutionError> {
     if span_scratch.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let Some(range) = raw_range(body, leaf.raw) else {
         mark_spans_fail_closed(span_scratch, local_fail_closed);
-        return Ok(());
+        return Ok(None);
     };
     let Some(capacity) = redact::prepare_redactions(leaf.text, span_scratch) else {
         mark_spans_fail_closed(span_scratch, local_fail_closed);
-        return Ok(());
+        return Ok(None);
     };
     reserve_redaction_bytes(budget, capacity, reservations)?;
     let redacted = redact::splice_merged_spans(leaf.text, span_scratch, capacity);
     if let Ok(replacement) = serde_json::to_vec(&redacted) {
         local_redactions.push(BodyEdit { range, replacement });
+        Ok(Some(redacted))
     } else {
         mark_spans_fail_closed(span_scratch, local_fail_closed);
+        Ok(None)
     }
-    Ok(())
 }
 
 fn mark_spans_fail_closed(spans: &[RedactionSpan<'_>], fail_closed: &mut [bool]) {
@@ -1057,19 +1019,17 @@ fn mark_spans_fail_closed(spans: &[RedactionSpan<'_>], fail_closed: &mut [bool])
 }
 
 impl LocalScan {
-    /// Combines local regex `redact` spans with external provider anonymized
-    /// outputs into per-field [`BodyEdit`] entries. Marks
-    /// `fail_closed_redact[slot] = true` when an external `enforce`
-    /// anonymization cannot be mapped to safe edits.
-    fn build_combined_redactions(
+    /// Applies anonymized outputs returned by enforcing external guardrails
+    /// onto `self.local_redactions`. Marks `fail_closed_redact[slot] = true`
+    /// when an external anonymization cannot be mapped to safe edits.
+    fn apply_external_anonymizations(
         &mut self,
         guardrails: &[Guardrail],
         external_outcomes: &[(usize, ExternalOutcome)],
         fail_closed_redact: &mut [bool],
         budget: Option<&Arc<Semaphore>>,
-    ) -> Result<Vec<BodyEdit>, ResolutionError> {
-        let mut per_text_masked: Vec<Option<String>> =
-            vec![None; self.pending_redaction_texts.len()];
+    ) -> Result<(), ResolutionError> {
+        let mut per_block_masked: Vec<Option<String>> = vec![None; self.external_blocks.len()];
 
         for (slot, outcome) in external_outcomes {
             let Some(guardrail) = self
@@ -1085,146 +1045,67 @@ impl LocalScan {
             let ExternalOutcome::Anonymized(outputs) = outcome else {
                 continue;
             };
-            if !apply_external_outputs(&self.pending_redaction_texts, outputs, &mut per_text_masked)
-            {
+            if !apply_external_outputs(&self.external_blocks, outputs, &mut per_block_masked) {
                 if let Some(flag) = fail_closed_redact.get_mut(*slot) {
                     *flag = true;
                 }
-                return Ok(Vec::new());
+                return Ok(());
             }
         }
 
-        let mut caps: Vec<Captures> = self.compiled.as_deref().map_or_else(Vec::new, |compiled| {
-            compiled
-                .matchers
-                .iter()
-                .map(|matcher| matcher.regex.create_captures())
-                .collect()
-        });
-
-        let mut edits = Vec::new();
-        for (index, item) in self.pending_redaction_texts.iter().enumerate() {
-            let masked_base = per_text_masked.get(index).and_then(Option::as_deref);
-            let base_text = masked_base.unwrap_or(&item.text);
-            let mut spans = Vec::new();
-            if masked_base.is_some() || item.has_local_redact {
-                self.collect_compiled_redact_spans(guardrails, base_text, &mut caps, &mut spans);
-            }
-            if masked_base.is_none() && item.has_local_redact && spans.is_empty() {
-                self.mark_local_redact_fail_closed(guardrails, fail_closed_redact);
-                return Ok(Vec::new());
-            }
-
-            if let Some(capacity) = redact::prepare_redactions(base_text, &mut spans) {
-                reserve_redaction_bytes(budget, capacity, &mut self.redaction_reservations)?;
-                let redacted = redact::splice_merged_spans(base_text, &spans, capacity);
-                let Ok(replacement) = serde_json::to_vec(&redacted) else {
-                    mark_spans_fail_closed(&spans, fail_closed_redact);
-                    return Ok(Vec::new());
-                };
-                edits.push(BodyEdit {
-                    range: item.raw_range.clone(),
-                    replacement,
-                });
-            } else if masked_base.is_some() {
-                reserve_redaction_bytes(budget, base_text.len(), &mut self.redaction_reservations)?;
-                let Ok(replacement) = serde_json::to_vec(base_text) else {
-                    fail_closed_redact.fill(true);
-                    return Ok(Vec::new());
-                };
-                edits.push(BodyEdit {
-                    range: item.raw_range.clone(),
-                    replacement,
-                });
-            }
-        }
-        Ok(edits)
-    }
-
-    fn collect_compiled_redact_spans<'g>(
-        &self,
-        guardrails: &'g [Guardrail],
-        text: &str,
-        caps: &mut [Captures],
-        spans: &mut Vec<RedactionSpan<'g>>,
-    ) {
-        let Some(compiled) = self.compiled.as_deref() else {
-            return;
-        };
-        for (matcher, caps) in compiled.matchers.iter().zip(caps) {
-            redact::for_each_match(&matcher.regex, caps, text, |pattern, start, end| {
-                let Some(&active_slot) = matcher
-                    .owners
-                    .get(pattern.as_usize())
-                    .and_then(|&owner| self.regex_active_slots.get(owner))
-                else {
-                    return;
-                };
-                let Some(guardrail) = self
-                    .active_indices
-                    .get(active_slot)
-                    .and_then(|&guardrail_index| guardrails.get(guardrail_index))
-                else {
-                    return;
-                };
-                if guardrail.action == GuardrailAction::Redact && start < end {
-                    spans.push(RedactionSpan {
-                        start,
-                        end,
-                        priority: active_slot,
-                        label: guardrail.redaction_label(),
-                    });
-                }
-            });
-        }
-    }
-
-    fn mark_local_redact_fail_closed(
-        &self,
-        guardrails: &[Guardrail],
-        fail_closed_redact: &mut [bool],
-    ) {
-        for &active_slot in &self.regex_active_slots {
-            if self
-                .active_indices
-                .get(active_slot)
-                .and_then(|&guardrail_index| guardrails.get(guardrail_index))
-                .is_some_and(|guardrail| guardrail.action == GuardrailAction::Redact)
-                && let Some(flag) = fail_closed_redact.get_mut(active_slot)
+        for (block, masked) in self.external_blocks.iter().zip(per_block_masked) {
+            let Some(masked) = masked else {
+                continue;
+            };
+            reserve_redaction_bytes(budget, masked.len(), &mut self.redaction_reservations)?;
+            let Ok(replacement) = serde_json::to_vec(&masked) else {
+                fail_closed_redact.fill(true);
+                return Ok(());
+            };
+            if let Some(existing) = self
+                .local_redactions
+                .iter_mut()
+                .find(|edit| edit.range == block.raw_range)
             {
-                *flag = true;
+                existing.replacement = replacement;
+            } else {
+                self.local_redactions.push(BodyEdit {
+                    range: block.raw_range.clone(),
+                    replacement,
+                });
             }
         }
+        Ok(())
     }
 }
 
 fn apply_external_outputs(
-    texts: &[PendingRedactionText],
+    blocks: &[ExternalBlock],
     outputs: &[String],
-    per_text_masked: &mut [Option<String>],
+    per_block_masked: &mut [Option<String>],
 ) -> bool {
     if outputs.is_empty() {
         return false;
     }
-    if outputs.len() == texts.len() {
-        return merge_masked_outputs(texts, outputs.iter().map(String::as_str), per_text_masked);
+    if outputs.len() == blocks.len() {
+        return merge_masked_outputs(blocks, outputs.iter().map(String::as_str), per_block_masked);
     }
     // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
-    // Partition the joined output by each original text's line count so multiline
+    // Partition the joined output by each block's line count so multiline
     // fields still map back 1:1 when anonymization preserves line structure.
     if outputs.len() == 1
         && let Some(single) = outputs.first()
     {
         let lines: Vec<&str> = single.split('\n').collect();
-        let expected_lines: usize = texts
+        let expected_lines: usize = blocks
             .iter()
-            .map(|item| item.text.bytes().filter(|&b| b == b'\n').count() + 1)
+            .map(|block| block.text.bytes().filter(|&b| b == b'\n').count() + 1)
             .sum();
         if lines.len() == expected_lines {
             let mut cursor = 0usize;
-            let mut reconstructed = Vec::with_capacity(texts.len());
-            for item in texts {
-                let count = item.text.bytes().filter(|&b| b == b'\n').count() + 1;
+            let mut reconstructed = Vec::with_capacity(blocks.len());
+            for block in blocks {
+                let count = block.text.bytes().filter(|&b| b == b'\n').count() + 1;
                 let Some(slice) = lines.get(cursor..cursor + count) else {
                     return false;
                 };
@@ -1232,26 +1113,26 @@ fn apply_external_outputs(
                 cursor += count;
             }
             return merge_masked_outputs(
-                texts,
+                blocks,
                 reconstructed.iter().map(String::as_str),
-                per_text_masked,
+                per_block_masked,
             );
         }
     }
     false
 }
 
-/// Applies per-field masked outputs without overwriting a conflicting masked
+/// Applies per-block masked outputs without overwriting a conflicting masked
 /// output from an earlier external guardrail (fails closed if two independent
 /// provider outputs disagree on the same field).
 fn merge_masked_outputs<'a>(
-    texts: &[PendingRedactionText],
+    blocks: &[ExternalBlock],
     outputs: impl Iterator<Item = &'a str>,
-    per_text_masked: &mut [Option<String>],
+    per_block_masked: &mut [Option<String>],
 ) -> bool {
     let mut changed = false;
-    for ((item, output), slot) in texts.iter().zip(outputs).zip(per_text_masked.iter_mut()) {
-        if output == item.text {
+    for ((block, output), slot) in blocks.iter().zip(outputs).zip(per_block_masked.iter_mut()) {
+        if output == block.text {
             continue;
         }
         if let Some(existing) = slot.as_deref()
@@ -1336,6 +1217,59 @@ fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
         regex,
         owners: patterns.iter().map(|(owner, _)| *owner).collect(),
     })
+}
+
+fn floor_char_boundary(text: &str, mut index: usize) -> usize {
+    index = index.min(text.len());
+    while index > 0 && !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
+    index = index.min(text.len());
+    while index < text.len() && !text.is_char_boundary(index) {
+        index += 1;
+    }
+    index
+}
+
+/// Walks every non-overlapping `LeftmostFirst` match of `regex` in `text`,
+/// passing `(pattern_id, start, end)` aligned to UTF-8 char boundaries.
+///
+/// Patterns that use capture group 1 to exclude surrounding boundary characters
+/// (such as keyword lists, custom secret prefixes, and compressed IPv6) report
+/// only group 1 and resume right after it so adjacent tokens still match.
+fn for_each_match(
+    regex: &meta::Regex,
+    caps: &mut Captures,
+    text: &str,
+    mut on_match: impl FnMut(PatternID, usize, usize),
+) {
+    let mut pos = 0usize;
+    while pos <= text.len() {
+        let input = Input::new(text.as_bytes()).range(pos..text.len());
+        regex.captures(input, caps);
+        let Some(full) = caps.get_match() else {
+            break;
+        };
+        let pattern = full.pattern();
+        let (raw_start, raw_end) = match caps.get_group(1) {
+            Some(group1) => (group1.start, group1.end),
+            None => (full.start(), full.end()),
+        };
+        let start = floor_char_boundary(text, raw_start);
+        let end = ceil_char_boundary(text, raw_end);
+        on_match(pattern, start, end);
+        if raw_end > pos {
+            pos = raw_end;
+        } else if pos < text.len() {
+            pos = ceil_char_boundary(text, pos.saturating_add(1));
+        } else {
+            break;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1600,7 +1534,8 @@ mod tests {
             redact_guardrail("email", "[EMAIL]", &[EMAIL]),
         ];
 
-        // 1. Anonymized outputs apply per block and compose with local regex redaction.
+        // 1. Local regex redaction runs before Bedrock, so Bedrock receives the
+        //    already-redacted block and its anonymized output composes cleanly.
         let local = scan_local(
             &guardrails,
             body.as_bytes(),
@@ -1609,6 +1544,12 @@ mod tests {
             None,
         )
         .unwrap();
+        let block_texts: Vec<&str> = local
+            .external_blocks
+            .iter()
+            .map(|block| block.text.as_str())
+            .collect();
+        assert_eq!(block_texts, ["Hi Alice, call 555-0199", "mail [EMAIL]"]);
         let outcome = local
             .into_outcome(
                 &guardrails,
@@ -1616,7 +1557,7 @@ mod tests {
                     0,
                     ExternalOutcome::Anonymized(vec![
                         "Hi {NAME}, call {PHONE}".into(),
-                        "mail bob@example.com".into(),
+                        "mail [EMAIL]".into(),
                     ]),
                 )],
                 None,
@@ -1776,5 +1717,75 @@ mod tests {
             Some(&tight_budget),
         );
         assert!(matches!(result, Err(ResolutionError::Busy)));
+    }
+
+    fn collect_pattern_spans<'a>(
+        pattern: &str,
+        text: &str,
+        label: &'a str,
+    ) -> Vec<RedactionSpan<'a>> {
+        let pattern = pattern.to_owned();
+        let compiled = matcher(&[(0, &pattern)]).unwrap();
+        let mut caps = compiled.regex.create_captures();
+        let mut spans = Vec::new();
+        for_each_match(&compiled.regex, &mut caps, text, |_, start, end| {
+            if start < end {
+                spans.push(RedactionSpan {
+                    start,
+                    end,
+                    priority: 0,
+                    label,
+                });
+            }
+        });
+        spans
+    }
+
+    #[test]
+    fn capture_group_1_preserves_surrounding_boundaries_and_catches_adjacent_words() {
+        let pattern = r"(?:^|[^A-Za-z0-9_])((?:[Ff][Oo][Oo]|[Bb][Aa][Rr]))(?:$|[^A-Za-z0-9_])";
+        let text = "foo bar,foo! café foo日本語bar";
+        let mut spans = collect_pattern_spans(pattern, text, "[WORD]");
+        assert_eq!(
+            redact::apply_redactions(text, &mut spans).as_deref(),
+            Some("[WORD] [WORD],[WORD]! café [WORD]日本語[WORD]")
+        );
+    }
+
+    #[test]
+    fn regex_with_multibyte_utf8_never_splits_codepoints() {
+        let pattern = r"(?:^|[^A-Za-z0-9_-])(acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
+        let text = "鍵acme_1234567890abcdef🔑";
+        let mut spans = collect_pattern_spans(pattern, text, "[KEY]");
+        assert_eq!(
+            redact::apply_redactions(text, &mut spans).as_deref(),
+            Some("鍵[KEY]🔑")
+        );
+    }
+
+    #[test]
+    fn private_key_pattern_redacts_multiline_and_json_escaped_pem_blocks_linearly() {
+        let pattern = r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?";
+
+        // Real newlines with encrypted PEM headers.
+        let text = "before\n-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,AABB\n\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----\nafter";
+        let mut spans = collect_pattern_spans(pattern, text, "[KEY]");
+        assert_eq!(
+            redact::apply_redactions(text, &mut spans).as_deref(),
+            Some("before\n[KEY]\nafter")
+        );
+
+        // Literal `\n` escapes as pasted from service-account JSON or `.env`.
+        let escaped = r#"{"private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADAN\n-----END PRIVATE KEY-----\n"}"#;
+        let mut spans = collect_pattern_spans(pattern, escaped, "[KEY]");
+        assert_eq!(
+            redact::apply_redactions(escaped, &mut spans).as_deref(),
+            Some(r#"{"private_key":"[KEY]\n"}"#)
+        );
+
+        // Repeated BEGIN headers without END stay linear time and match each header.
+        let repeated = "-----BEGIN PRIVATE KEY-----\n".repeat(200);
+        let spans = collect_pattern_spans(pattern, &repeated, "[KEY]");
+        assert_eq!(spans.len(), 200);
     }
 }

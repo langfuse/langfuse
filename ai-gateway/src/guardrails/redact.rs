@@ -5,8 +5,6 @@
 //! pass so no intermediate per-match string copies occur.
 use std::ops::Range;
 
-use regex_automata::{Input, PatternID, meta, util::captures::Captures};
-
 pub(crate) const DEFAULT_REDACTION_LABEL: &str = "[REDACTED]";
 
 /// A matched UTF-8 byte range inside one text leaf and the replacement label
@@ -54,59 +52,6 @@ pub(crate) fn splice_bytes(source: &[u8], edits: &mut [(Range<usize>, &[u8])]) -
     let suffix = source.get(copied..)?;
     rewritten.extend_from_slice(suffix);
     Some(rewritten)
-}
-
-fn floor_char_boundary(text: &str, mut index: usize) -> usize {
-    index = index.min(text.len());
-    while index > 0 && !text.is_char_boundary(index) {
-        index -= 1;
-    }
-    index
-}
-
-fn ceil_char_boundary(text: &str, mut index: usize) -> usize {
-    index = index.min(text.len());
-    while index < text.len() && !text.is_char_boundary(index) {
-        index += 1;
-    }
-    index
-}
-
-/// Walks every non-overlapping `LeftmostFirst` match of `regex` in `text`,
-/// passing `(pattern_id, start, end)` aligned to UTF-8 char boundaries.
-///
-/// Patterns that use capture group 1 to exclude surrounding boundary characters
-/// (such as keyword lists, custom secret prefixes, and compressed IPv6) report
-/// only group 1 and resume right after it so adjacent tokens still match.
-pub(crate) fn for_each_match(
-    regex: &meta::Regex,
-    caps: &mut Captures,
-    text: &str,
-    mut on_match: impl FnMut(PatternID, usize, usize),
-) {
-    let mut pos = 0usize;
-    while pos <= text.len() {
-        let input = Input::new(text.as_bytes()).range(pos..text.len());
-        regex.captures(input, caps);
-        let Some(full) = caps.get_match() else {
-            break;
-        };
-        let pattern = full.pattern();
-        let (raw_start, raw_end) = match caps.get_group(1) {
-            Some(group1) => (group1.start, group1.end),
-            None => (full.start(), full.end()),
-        };
-        let start = floor_char_boundary(text, raw_start);
-        let end = ceil_char_boundary(text, raw_end);
-        on_match(pattern, start, end);
-        if raw_end > pos {
-            pos = raw_end;
-        } else if pos < text.len() {
-            pos = ceil_char_boundary(text, pos.saturating_add(1));
-        } else {
-            break;
-        }
-    }
 }
 
 /// Sorts and merges overlapping spans in place and returns the exact output
@@ -213,40 +158,6 @@ fn merge_spans(spans: &mut Vec<RedactionSpan<'_>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use regex_automata::{MatchKind, nfa::thompson::WhichCaptures, util::syntax};
-
-    fn compile_test_regex(pattern: &str) -> meta::Regex {
-        meta::Builder::new()
-            .configure(
-                meta::Config::new()
-                    .match_kind(MatchKind::LeftmostFirst)
-                    .utf8_empty(false)
-                    .which_captures(WhichCaptures::All),
-            )
-            .syntax(syntax::Config::new().unicode(false).utf8(false))
-            .build(pattern)
-            .unwrap()
-    }
-
-    fn collect_test_spans<'a>(
-        regex: &meta::Regex,
-        text: &str,
-        label: &'a str,
-    ) -> Vec<RedactionSpan<'a>> {
-        let mut caps = regex.create_captures();
-        let mut spans = Vec::new();
-        for_each_match(regex, &mut caps, text, |_, start, end| {
-            if start < end {
-                spans.push(RedactionSpan {
-                    start,
-                    end,
-                    priority: 0,
-                    label,
-                });
-            }
-        });
-        spans
-    }
 
     fn span(start: usize, end: usize, priority: usize, label: &str) -> RedactionSpan<'_> {
         RedactionSpan {
@@ -297,57 +208,6 @@ mod tests {
             apply_redactions(text, &mut spans).as_deref(),
             Some("é🚀[SECRET]日")
         );
-    }
-
-    #[test]
-    fn capture_group_1_preserves_surrounding_boundaries_and_catches_adjacent_words() {
-        let pattern = r"(?:^|[^A-Za-z0-9_])((?:[Ff][Oo][Oo]|[Bb][Aa][Rr]))(?:$|[^A-Za-z0-9_])";
-        let regex = compile_test_regex(pattern);
-        let text = "foo bar,foo! café foo日本語bar";
-        let mut spans = collect_test_spans(&regex, text, "[WORD]");
-        assert_eq!(
-            apply_redactions(text, &mut spans).as_deref(),
-            Some("[WORD] [WORD],[WORD]! café [WORD]日本語[WORD]")
-        );
-    }
-
-    #[test]
-    fn regex_with_multibyte_utf8_never_splits_codepoints() {
-        let pattern = r"(?:^|[^A-Za-z0-9_-])(acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
-        let regex = compile_test_regex(pattern);
-        let text = "鍵acme_1234567890abcdef🔑";
-        let mut spans = collect_test_spans(&regex, text, "[KEY]");
-        assert_eq!(
-            apply_redactions(text, &mut spans).as_deref(),
-            Some("鍵[KEY]🔑")
-        );
-    }
-
-    #[test]
-    fn private_key_pattern_redacts_multiline_and_json_escaped_pem_blocks_linearly() {
-        let pattern = r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:(?:\s|\\[nr])+(?:[A-Za-z0-9+/=:, \t\r\n\\]|-[A-Za-z0-9])*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?";
-        let regex = compile_test_regex(pattern);
-
-        // Real newlines with encrypted PEM headers.
-        let text = "before\n-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,AABB\n\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----\nafter";
-        let mut spans = collect_test_spans(&regex, text, "[KEY]");
-        assert_eq!(
-            apply_redactions(text, &mut spans).as_deref(),
-            Some("before\n[KEY]\nafter")
-        );
-
-        // Literal `\n` escapes as pasted from service-account JSON or `.env`.
-        let escaped = r#"{"private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADAN\n-----END PRIVATE KEY-----\n"}"#;
-        let mut spans = collect_test_spans(&regex, escaped, "[KEY]");
-        assert_eq!(
-            apply_redactions(escaped, &mut spans).as_deref(),
-            Some(r#"{"private_key":"[KEY]\n"}"#)
-        );
-
-        // Repeated BEGIN headers without END stay linear time and match each header.
-        let repeated = "-----BEGIN PRIVATE KEY-----\n".repeat(200);
-        let spans = collect_test_spans(&regex, &repeated, "[KEY]");
-        assert_eq!(spans.len(), 200);
     }
 
     #[test]
