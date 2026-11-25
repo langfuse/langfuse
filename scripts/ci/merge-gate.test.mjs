@@ -79,9 +79,15 @@ test("changed-file selection permits only explicit exclusions", () => {
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
   needs["tests-worker"] = { result: "skipped" };
+  needs["tests-ai-gateway"] = { result: "skipped" };
   const selection = {
     result: "success",
-    outputs: { llm_connections: "false", ai_gateway: "false", worker: "false" },
+    outputs: {
+      llm_connections: "false",
+      ai_gateway: "false",
+      worker: "false",
+      ai_gateway_crate: "false",
+    },
   };
   needs["llm-connections-filter"] = selection;
   for (const event of ["pull_request", "merge_group", "push"]) {
@@ -90,7 +96,12 @@ test("changed-file selection permits only explicit exclusions", () => {
       [],
       event,
     );
-    for (const output of ["llm_connections", "ai_gateway", "worker"]) {
+    for (const output of [
+      "llm_connections",
+      "ai_gateway",
+      "worker",
+      "ai_gateway_crate",
+    ]) {
       for (const changed of ["true", undefined]) {
         selection.outputs[output] = changed;
         assert.notEqual(evaluateGate({ event, needs }).length, 0);
@@ -109,6 +120,7 @@ test("changed-file selection permits only explicit exclusions", () => {
       "test-worker-llm-connections",
       "test-ai-gateway-e2e",
       "tests-worker",
+      "tests-ai-gateway",
     ]) {
       for (const result of ["failure", "cancelled", undefined]) {
         if (result) needs[job] = { result };
