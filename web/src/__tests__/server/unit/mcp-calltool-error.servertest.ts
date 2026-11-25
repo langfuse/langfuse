@@ -10,6 +10,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   ClickHouseResourceError,
   getProductBaseUrl,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -21,6 +22,12 @@ import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
+import type * as SharedServer from "@langfuse/shared/src/server";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof SharedServer>()),
+  recordIncrement: vi.fn(),
+}));
 
 vi.mock("@/src/features/mcp/server/registry", () => ({
   toolRegistry: { getEnabledTool: vi.fn() },
@@ -233,6 +240,44 @@ describe("MCP skill resources", () => {
           },
         ]);
       }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("counts reads by known URI and never tags a caller-sent URI", async () => {
+    const server = createMcpServer(context);
+    const client = new Client({ name: "skill-test", version: "1.0.0" });
+    const [serverTransport, clientTransport] =
+      InMemoryTransport.createLinkedPair();
+    const skillUri = LANGFUSE_SKILLS[0]!.resources[0]!.uri;
+    vi.mocked(recordIncrement).mockClear();
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      await client.request(
+        { method: "resources/read", params: { uri: skillUri } },
+        z.object({ contents: z.array(z.unknown()) }),
+      );
+      await expect(
+        client.request(
+          { method: "resources/read", params: { uri: "skill://made/up" } },
+          z.object({ contents: z.array(z.unknown()) }),
+        ),
+      ).rejects.toThrow();
+      expect(vi.mocked(recordIncrement).mock.calls).toEqual([
+        [
+          "langfuse.mcp.resource_read",
+          1,
+          { kind: "skill", uri: skillUri, outcome: "success" },
+        ],
+        [
+          "langfuse.mcp.resource_read",
+          1,
+          { kind: "unknown", uri: "unknown", outcome: "not_found" },
+        ],
+      ]);
     } finally {
       await client.close();
       await server.close();

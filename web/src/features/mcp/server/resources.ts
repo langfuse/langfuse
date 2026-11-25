@@ -1,4 +1,5 @@
 import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import type { createMcpServer } from "./mcpServer";
 import {
   resourceNotFound,
@@ -34,7 +35,17 @@ export function registerResources(server: ReturnType<typeof createMcpServer>) {
   }));
   server.setRequestHandler("resources/read", async (request) => {
     const uri = request.params.uri;
-    const resource = (await readAppResource(uri)) ?? readSkillResource(uri);
+    const appResource = await readAppResource(uri);
+    const resource = appResource ?? readSkillResource(uri);
+    // Only known URIs become tag values: the set is bounded by the bundled
+    // skills and MCP Apps, whereas a caller can send any string.
+    recordIncrement(
+      "langfuse.mcp.resource_read",
+      1,
+      resource
+        ? { kind: appResource ? "app" : "skill", uri, outcome: "success" }
+        : { kind: "unknown", uri: "unknown", outcome: "not_found" },
+    );
     if (!resource) throw resourceNotFound();
     return { ...resourceResultCache, contents: [resource] };
   });
