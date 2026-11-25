@@ -55,6 +55,7 @@ export function DashboardBlockCard({
   const editable = canEdit && capabilities[block.kind];
   const sourcePreset =
     block.kind === "multiQuery" ? block.sourcePreset : undefined;
+  const canRemove = !editOnly && canEdit && (editable || Boolean(sourcePreset));
   const duplicate = useSaveDashboardBlock({
     projectId,
     dashboardId,
@@ -118,6 +119,7 @@ export function DashboardBlockCard({
       onBeforeClose={() => !update.isPending}
       renderDialog={({ state, closeDialog }) => {
         const restoring = state === "restore";
+        const canConfirm = restoring ? editable : canRemove;
         const removalDescription = sourcePreset
           ? "This removes the widget and its original Home card from this dashboard."
           : "The widget will be removed from this dashboard.";
@@ -129,10 +131,10 @@ export function DashboardBlockCard({
               {
                 label: restoring ? "Restore Home card" : "Remove",
                 variant: "destructive",
-                disabled: !editable,
+                disabled: !canConfirm,
                 loading: update.isPending,
                 onClick: () => {
-                  if (!editable || update.isPending) return;
+                  if (!canConfirm || update.isPending) return;
                   update.mutate(
                     {
                       projectId,
@@ -244,7 +246,7 @@ export function DashboardBlockCard({
                 removeAction,
               ],
             }
-          : canEdit && sourcePreset && !editOnly
+          : canRemove
             ? { draggable, menu: [removeAction] }
             : draggable
               ? { draggable }
