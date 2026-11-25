@@ -8,6 +8,7 @@ describe("ResizeContainer", () => {
   let animationFrame: FrameRequestCallback | null = null;
   let measuredWidth = 400;
   let measuredScrollHeight = 240;
+  let clock = 0;
   const disconnect = vi.fn();
 
   afterEach(() => {
@@ -16,10 +17,12 @@ describe("ResizeContainer", () => {
     vi.restoreAllMocks();
     measuredWidth = 400;
     measuredScrollHeight = 240;
+    clock = 0;
   });
 
   function renderContainer() {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
       () => measuredWidth,
     );
@@ -132,25 +135,63 @@ describe("ResizeContainer", () => {
     );
   });
 
-  it("ignores a resize that does not change the width", () => {
+  it("does not restart the settle timer when the width is unchanged", () => {
     const view = renderContainer();
 
-    measuredScrollHeight = 900;
+    measuredWidth = 500;
     act(() => notifyResize());
-    act(() => animationFrame?.(0));
     act(() => {
-      vi.advanceTimersByTime(200);
+      clock += 150;
+      vi.advanceTimersByTime(150);
+    });
+    act(() => notifyResize());
+    act(() => {
+      clock += 50;
+      vi.advanceTimersByTime(50);
     });
 
-    expect(view.getByText("400")).toBeInTheDocument();
+    expect(view.getByText("500")).toBeInTheDocument();
+  });
+
+  it("commits even when the width keeps changing past the settle cap", () => {
+    const view = renderContainer();
+
+    for (let step = 0; step < 6; step++) {
+      measuredWidth = step % 2 === 0 ? 415 : 430;
+      act(() => notifyResize());
+      act(() => animationFrame?.(0));
+      expect(view.getByText("400")).toBeInTheDocument();
+      act(() => {
+        clock += 100;
+        vi.advanceTimersByTime(100);
+      });
+    }
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(view.getByText(String(measuredWidth))).toBeInTheDocument();
     expect(containerOf(view).style.getPropertyValue("--lf-content-scale")).toBe(
       "",
     );
   });
 
-  it("disconnects the observer on unmount", () => {
+  it("clears a painted scale on unmount and does not commit afterwards", () => {
     const view = renderContainer();
+    measuredWidth = 500;
+    act(() => notifyResize());
+    act(() => animationFrame?.(0));
+    const container = containerOf(view);
+    expect(container.style.getPropertyValue("--lf-content-scale")).toBe("1.25");
+
     view.unmount();
-    expect(disconnect).toHaveBeenCalled();
+    expect(container.style.getPropertyValue("--lf-content-scale")).toBe("");
+    expect(container.style.overflow).toBe("");
+
+    act(() => {
+      clock += 200;
+      vi.advanceTimersByTime(200);
+    });
+    expect(container.style.getPropertyValue("--lf-content-scale")).toBe("");
   });
 });

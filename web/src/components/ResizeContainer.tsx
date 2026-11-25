@@ -48,6 +48,8 @@ function useScaledElementWidth(settleMs: number) {
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
     let committedWidth = 0;
     let lastObservedWidth = -1;
+    let gestureStartedAt = -1;
+    const maxWaitMs = settleMs * 3;
 
     const measure = () => Math.round(container.clientWidth);
 
@@ -77,7 +79,19 @@ function useScaledElementWidth(settleMs: number) {
     const publish = (next: number) => {
       committedWidth = next;
       lastObservedWidth = next;
+      gestureStartedAt = -1;
       setWidth((current) => (current === next ? current : next));
+    };
+
+    const finishGesture = () => {
+      gestureStartedAt = -1;
+      if (frame !== 0) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      const settled = measure();
+      if (settled !== committedWidth) publish(settled);
+      else paintScale();
     };
 
     const schedule = () => {
@@ -85,16 +99,13 @@ function useScaledElementWidth(settleMs: number) {
       if (live === lastObservedWidth) return;
       lastObservedWidth = live;
       if (frame === 0) frame = requestAnimationFrame(paintScale);
+      if (gestureStartedAt < 0) gestureStartedAt = performance.now();
+      const remaining = Math.max(
+        0,
+        maxWaitMs - (performance.now() - gestureStartedAt),
+      );
       clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        if (frame !== 0) {
-          cancelAnimationFrame(frame);
-          frame = 0;
-        }
-        const settled = measure();
-        if (settled !== committedWidth) publish(settled);
-        else paintScale();
-      }, settleMs);
+      settleTimer = setTimeout(finishGesture, Math.min(settleMs, remaining));
     };
 
     publish(measure());
