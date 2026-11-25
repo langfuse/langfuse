@@ -6,7 +6,6 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import "@/src/features/mcp/server/bootstrap";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import type { ServerContext } from "@/src/features/mcp/types";
 import { createMcpTestSetup } from "./mcp-helpers";

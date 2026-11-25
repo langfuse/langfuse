@@ -139,7 +139,6 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import {

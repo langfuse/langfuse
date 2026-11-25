@@ -53,6 +53,8 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
 MCP requests are limited to 4.5 MB and 50,000 object members/array elements combined.
 
+Each feature module (`server/<feature>/index.ts`) lists its tools; `MCP_FEATURES` in `server/tools.ts` lists the features the server offers.
+
 ### Stateless Design
 
 The Langfuse MCP server uses a **stateless per-request architecture**:

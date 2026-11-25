@@ -17,6 +17,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import type { RegisteredTool } from "@/src/features/mcp/server/tools";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 
 /**
@@ -292,6 +293,18 @@ export function verifyToolAnnotations(
   if (expectedAnnotations.expensiveHint !== undefined) {
     expect(annotations.expensiveHint).toBe(expectedAnnotations.expensiveHint);
   }
+}
+
+/** The tool with this name, when the context may list and call it. */
+export async function findCallableTool(
+  name: string,
+  context: ServerContext,
+): Promise<RegisteredTool | undefined> {
+  // Imported on use: the tool list loads every feature module.
+  const { canCallTool, getEnabledTool } =
+    await import("@/src/features/mcp/server/tools");
+  const tool = await getEnabledTool(name, context);
+  return tool && canCallTool(tool, context) ? tool : undefined;
 }
 
 /**
