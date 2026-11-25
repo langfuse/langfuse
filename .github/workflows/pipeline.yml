@@ -140,8 +140,9 @@ jobs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
       topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
       ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
-      # Tags and manual runs test the worker regardless of the diff.
+      # Tags and manual runs test the worker and gateway crate regardless of the diff.
       worker: ${{ steps.range.outputs.run_all == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || steps.filter.outputs.worker }}
+      ai_gateway_crate: ${{ steps.range.outputs.run_all == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || steps.filter.outputs.ai_gateway_crate }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -175,7 +176,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - llm-connections-filter
+    # Runs only when the crate's inputs change: see the ai_gateway_crate filter
+    # in ci-paths.yml.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.ai_gateway_crate == 'true' }}
     defaults:
       run:
         working-directory: ai-gateway

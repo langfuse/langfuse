@@ -43,6 +43,15 @@ topics_llm:
 worker:
   - "!web/**"
 
+# The gateway's Rust checks, image build and smoke test. The crate reads nothing
+# outside ai-gateway/ except the root deny.toml, which cargo-deny finds by
+# searching parent directories.
+ai_gateway_crate:
+  - ai-gateway/**
+  - deny.toml
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+
 # Gateway Rust service, control-plane/feature code, RBAC/API-key auth it depends on, and e2e suite.
 ai_gateway:
   - ai-gateway/src/**
