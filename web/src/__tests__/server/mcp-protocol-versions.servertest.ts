@@ -74,7 +74,7 @@ describe("MCP protocol versions", () => {
         expect(client.getProtocolEra()).toBe(era);
         expect(client.getNegotiatedProtocolVersion()).toBe(version);
         expect(client.getServerCapabilities()?.extensions).toEqual({
-          "io.modelcontextprotocol/skills": {},
+          "io.modelcontextprotocol/skills": { directoryRead: true },
           "io.modelcontextprotocol/ui": {},
         });
 

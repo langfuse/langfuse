@@ -8,11 +8,26 @@
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { toNodeHandler } from "@modelcontextprotocol/node";
-import { createMcpHandler } from "@modelcontextprotocol/server";
+import {
+  CLIENT_CAPABILITIES_META_KEY,
+  createMcpHandler,
+  type ClientCapabilities,
+} from "@modelcontextprotocol/server";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import { createMcpServer } from "./mcpServer";
-import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
+import { recordResourceRead } from "./resources";
+
+/** Capabilities a 2026-07-28 request declares in its `_meta` envelope. */
+const declaredClientCapabilities = (
+  body: unknown,
+): ClientCapabilities | undefined =>
+  (
+    body as
+      | { params?: { _meta?: Record<string, ClientCapabilities | undefined> } }
+      | undefined
+  )?.params?._meta?.[CLIENT_CAPABILITIES_META_KEY];
 
 /**
  * Handle an authenticated MCP request.
@@ -40,10 +55,13 @@ export async function handleMcpRequest(
       span?.setAttribute("mcp.protocol.version", protocolVersion);
     }
 
+    const clientCapabilities = declaredClientCapabilities(req.body);
+    recordResourceRead(req.body, clientCapabilities);
+
     const handler = createMcpHandler(
       ({ era }) => {
         span?.setAttribute("mcp.protocol.era", era);
-        return createMcpServer(context);
+        return createMcpServer(context, clientCapabilities);
       },
       {
         onerror: (error) => {

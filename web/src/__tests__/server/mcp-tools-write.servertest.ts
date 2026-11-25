@@ -1592,7 +1592,7 @@ describe("MCP Write Tools", () => {
         select: { id: true },
       });
 
-      const server = createMcpServer({
+      const server = await createMcpServer({
         ...setup.context,
         apiKeyId: viewerKeyId,
         publicKey: viewerKey.publicKey,

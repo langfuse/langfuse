@@ -4,10 +4,7 @@ import {
   RESOURCE_MIME_TYPE,
   RESOURCE_URI_META_KEY,
 } from "@modelcontextprotocol/ext-apps/server";
-import {
-  CLIENT_CAPABILITIES_META_KEY,
-  type ClientCapabilities,
-} from "@modelcontextprotocol/server";
+import type { ClientCapabilities } from "@modelcontextprotocol/server";
 
 /**
  * MCP Apps support (https://github.com/modelcontextprotocol/ext-apps).
@@ -30,18 +27,12 @@ export const MCP_APPS_EXTENSION = { [EXTENSION_ID]: {} };
  * that declared capabilities without the MCP Apps extension is known not to
  * render apps; others keep app tools, which also answer in text.
  */
-export const clientMayRenderApps = (ctx: { mcpReq: { envelope?: object } }) => {
-  const capabilities = (
-    ctx.mcpReq.envelope as
-      | Record<string, ClientCapabilities | undefined>
-      | undefined
-  )?.[CLIENT_CAPABILITIES_META_KEY];
-  return (
-    capabilities === undefined ||
-    (getUiCapability(capabilities)?.mimeTypes?.includes(RESOURCE_MIME_TYPE) ??
-      false)
-  );
-};
+export const clientMayRenderApps = (
+  capabilities: ClientCapabilities | undefined,
+) =>
+  capabilities === undefined ||
+  (getUiCapability(capabilities)?.mimeTypes?.includes(RESOURCE_MIME_TYPE) ??
+    false);
 
 /** Whether a tool definition renders its results with a `ui://` resource. */
 export const isAppTool = (definition: {
