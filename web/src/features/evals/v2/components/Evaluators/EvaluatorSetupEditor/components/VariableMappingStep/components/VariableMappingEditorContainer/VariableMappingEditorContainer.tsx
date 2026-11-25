@@ -15,6 +15,7 @@ import {
 } from "@/src/features/evals/v2/contexts/EvalVariableSourceColumnsProvider";
 import { previewOpenAIDecisionQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useEvaluatorTraceSample } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
@@ -55,19 +56,27 @@ export function VariableMappingEditorContainer({
       actions: state.actions,
     })),
   );
-  const mappings = useMemo(
-    () =>
-      state.type === "DECISION_MODEL"
-        ? buildDecisionModelStateFields({
-            stateKeys: state.stateKeys,
-            variableFields: state.variableFields,
-          })
-        : buildEvaluatorVariableMappings({
-            promptMessages: state.promptMessages,
-            variableFields: state.variableFields,
-          }),
-    [state.type, state.stateKeys, state.promptMessages, state.variableFields],
-  );
+  const mappings = useMemo(() => {
+    const variableFields = variableFieldsForTarget(
+      state.targetObject,
+      state.variableFields,
+    );
+    return state.type === "DECISION_MODEL"
+      ? buildDecisionModelStateFields({
+          stateKeys: state.stateKeys,
+          variableFields,
+        })
+      : buildEvaluatorVariableMappings({
+          promptMessages: state.promptMessages,
+          variableFields,
+        });
+  }, [
+    state.type,
+    state.stateKeys,
+    state.promptMessages,
+    state.variableFields,
+    state.targetObject,
+  ]);
   const fallbackDecisionModel = useFallbackDecisionModel(
     projectId,
     state.type === "DECISION_MODEL",

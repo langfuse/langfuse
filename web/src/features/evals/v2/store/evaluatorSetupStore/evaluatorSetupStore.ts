@@ -211,6 +211,7 @@ export function createEvaluatorSetupStore({
   initialEvaluator,
   initialSampleFilter,
   initialType,
+  initialTargetObject,
   defaultModel = null,
 }: {
   initialEvaluator: {
@@ -220,6 +221,7 @@ export function createEvaluatorSetupStore({
   } | null;
   initialSampleFilter?: FilterState;
   initialType?: EditableEvaluatorType;
+  initialTargetObject?: EvaluatorTargetObject;
   defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
@@ -243,6 +245,11 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "LLM_AS_JUDGE" ||
     initialDefinition?.type === "DECISION_MODEL";
   const initialQuestions = buildInitialQuestions(initialDefinition);
+  const targetObject =
+    initialTargetObject === TopicsTargetObject &&
+    isTraceTranscriptEvalType(type)
+      ? TopicsTargetObject
+      : EvalTargetObject.EVENT;
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
@@ -286,7 +293,7 @@ export function createEvaluatorSetupStore({
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
-    targetObject: EvalTargetObject.EVENT,
+    targetObject,
     traceSampleFilter: [],
     promptPreviewEnabled: false,
     testPanelOpen: true,
