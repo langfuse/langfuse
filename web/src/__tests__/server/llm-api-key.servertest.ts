@@ -1077,6 +1077,55 @@ describe("llmApiKey.all RPC", () => {
     expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
   });
 
+  it("should not send a stored non-OpenAI secret key to OpenAI when listing models", async () => {
+    const anthropicConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("sk-ant-stored"),
+        displaySecretKey: "...ored",
+      },
+    });
+
+    const result = await caller.llmApiKey.listModelsUpdate({
+      id: anthropicConnection.id,
+      projectId,
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Adapter cannot be changed",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("should not test a stored secret key with another adapter", async () => {
+    const anthropicConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("sk-ant-stored"),
+        displaySecretKey: "...ored",
+      },
+    });
+
+    const result = await caller.llmApiKey.testUpdate({
+      id: anthropicConnection.id,
+      projectId,
+      provider: "anthropic",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Adapter cannot be changed",
+    });
+    expect(mockGenerateLLMText).not.toHaveBeenCalled();
+  });
+
   it("should block testUpdate when the base URL changes without a new secret key", async () => {
     await caller.llmApiKey.create({
       projectId,

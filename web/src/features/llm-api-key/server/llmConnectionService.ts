@@ -524,7 +524,7 @@ type ListModelsInput = Pick<
 /** What an edit form sends to reuse the stored secret key and headers. */
 type StoredCredentialsInput = Pick<
   LlmConnectionUpdateInput,
-  "id" | "secretKey" | "baseURL" | "extraHeaders"
+  "id" | "adapter" | "secretKey" | "baseURL" | "extraHeaders"
 >;
 
 async function listLlmConnectionModels(
@@ -1018,9 +1018,10 @@ export class LlmConnectionService {
 
   async listModelsForUpdate(params: {
     owner: LlmConnectionOwner;
-    input: Pick<ListModelsInput, "adapter"> & StoredCredentialsInput;
+    input: StoredCredentialsInput;
   }): Promise<ListModelsResult> {
     try {
+      // Resolving checked that the adapter matches the stored connection.
       const { credentials } = await this.resolveStoredCredentials(params);
       return listLlmConnectionModels({
         ...credentials,
@@ -1046,6 +1047,11 @@ export class LlmConnectionService {
     });
     if (!existingKey) {
       throw new LangfuseNotFoundError("LLM connection not found");
+    }
+    // The stored secret belongs to the stored adapter. With another adapter it
+    // would reach that provider's default endpoint, e.g. an Anthropic key sent to OpenAI.
+    if (params.input.adapter !== existingKey.adapter) {
+      throw new InvalidRequestError("Adapter cannot be changed");
     }
 
     const hasNewSecretKey = Boolean(params.input.secretKey);
