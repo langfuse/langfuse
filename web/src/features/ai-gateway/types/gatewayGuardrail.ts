@@ -135,6 +135,69 @@ export const PRINTABLE_ASCII_NO_WHITESPACE_REGEX = /^[\x21-\x7E]+$/;
 /** Printable ASCII including spaces (0x20-0x7E). */
 export const PRINTABLE_ASCII_TEXT_REGEX = /^[\x20-\x7E]+$/;
 
+// Matches AWS Bedrock ApplyGuardrail URI parameter constraints and GatewayBedrockConfigSchema.
+const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
+const BEDROCK_API_KEY_MAX_LENGTH = 8192;
+const BEDROCK_GUARDRAIL_ID_REGEX =
+  /^(?:[a-z0-9]+|arn:aws(?:-[a-z0-9-]+)?:bedrock:[a-z0-9-]{1,20}:[0-9]{12}:guardrail\/[a-z0-9]+)$/;
+const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
+const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
+
+export const GatewayBedrockGuardrailConfigSchema = z.object({
+  guardrailId: z
+    .string()
+    .trim()
+    .min(1, "Enter a Bedrock guardrail ID or ARN")
+    .max(
+      BEDROCK_GUARDRAIL_ID_MAX_LENGTH,
+      `Guardrail ID must be at most ${BEDROCK_GUARDRAIL_ID_MAX_LENGTH} characters`,
+    )
+    .regex(
+      BEDROCK_GUARDRAIL_ID_REGEX,
+      "Enter a valid Bedrock guardrail ID (lowercase alphanumeric) or ARN",
+    ),
+  guardrailVersion: z
+    .string()
+    .trim()
+    .min(1, "Enter a guardrail version")
+    .regex(
+      BEDROCK_GUARDRAIL_VERSION_REGEX,
+      "Enter a version number (e.g. 1) or DRAFT",
+    ),
+  region: z
+    .string()
+    .trim()
+    .min(1, "Select an AWS region")
+    .regex(BEDROCK_AWS_REGION_REGEX, "Select a valid AWS region"),
+});
+
+export type GatewayBedrockGuardrailConfig = z.infer<
+  typeof GatewayBedrockGuardrailConfigSchema
+>;
+
+export const GatewayBedrockGuardrailApiKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a Bedrock API key")
+  .max(
+    BEDROCK_API_KEY_MAX_LENGTH,
+    `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
+    "Bedrock API key must be printable ASCII with no whitespace",
+  );
+
+export const GatewayBedrockGuardrailCreateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema,
+  });
+
+export const GatewayBedrockGuardrailUpdateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema.optional(),
+  });
+
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
   .min(

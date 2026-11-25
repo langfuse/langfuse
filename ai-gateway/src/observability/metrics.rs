@@ -87,13 +87,13 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
             .f64_counter("gateway.spend.usd")
             .with_unit("USD")
             .build(),
-        // A scan runs at roughly 0.5 GB/s, so tens of microseconds to tens of milliseconds.
+        // Regex scans take microseconds to milliseconds; external guardrail calls default to 3 s.
         guardrails: meter
             .f64_histogram("gateway.guardrails.duration")
             .with_unit("s")
             .with_boundaries(vec![
                 0.000_01, 0.000_025, 0.000_05, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
-                0.025, 0.05, 0.1, 0.25, 1.0,
+                0.025, 0.05, 0.1, 0.25, 1.0, 2.5, 5.0,
             ])
             .build(),
     }

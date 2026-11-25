@@ -5,7 +5,9 @@ import { cn } from "@/src/utils/tailwind";
 import {
   ConnectionTestDetails,
   type ConnectionTestFailure,
-} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
+} from "@/src/features/ai-gateway/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
+
+export type { ConnectionTestFailure };
 
 const STATUS_DISPLAY = {
   pending: {

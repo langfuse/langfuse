@@ -71,6 +71,7 @@ function StoryGuardrailFormDialog(
 const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES[0]!;
 const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[1]!;
 const containsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[2]!;
+const bedrockTemplate = GATEWAY_GUARDRAIL_TEMPLATES[3]!;
 
 const meta = preview.meta({
   component: StoryGuardrailFormDialog,
@@ -136,6 +137,61 @@ export const CreateKeywordBlocklist = meta.story({
     isSubmitting: false,
     errorMessage: null,
     onBack: fn(),
+  },
+});
+
+export const CreateBedrock = meta.story({
+  args: {
+    title: bedrockTemplate.name,
+    submitLabel: "Test and save",
+    templateKind: "bedrock",
+    availablePresets: [],
+    externalTest: {
+      isPending: false,
+      outcome: null,
+      onTest: fn(),
+    },
+    initialValues: {
+      name: bedrockTemplate.name,
+      presets: [],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "BLOCK",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+    onBack: fn(),
+  },
+});
+
+export const EditBedrock = meta.story({
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Test and save",
+    templateKind: "bedrock",
+    availablePresets: [],
+    hasSavedApiKey: true,
+    externalTest: {
+      isPending: false,
+      outcome: { status: "success" },
+      onTest: fn(),
+    },
+    initialValues: {
+      name: "Bedrock content filter",
+      presets: [],
+      secretPrefixes: [],
+      containsWords: [],
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+      },
+      action: "BLOCK",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
   },
 });
 
