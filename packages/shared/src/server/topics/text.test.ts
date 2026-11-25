@@ -8,7 +8,11 @@ import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText, getTopicTextResponseMetadata } from "./text";
+import {
+  generateTopicText,
+  getTopicTextResponseMetadata,
+  TOPICS_REASONING_OUTPUT_TOKENS,
+} from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -594,6 +598,7 @@ describe("generateTopicText", () => {
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
     ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", "none", true],
     ["https://gateway.example/openai/v1", "Prod:gpt-5-mini", "minimal", true],
+    ["https://maas.example/compatible-mode/v1", "qwen4-max", undefined, false],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
@@ -658,7 +663,10 @@ describe("generateTopicText", () => {
       expect(body.max_completion_tokens).toBe(
         completionTokens ? 256 : undefined,
       );
-      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      // Without a known reasoning setting, the model's own reasoning gets headroom.
+      expect(body.max_tokens).toBe(
+        completionTokens ? undefined : TOPICS_REASONING_OUTPUT_TOKENS,
+      );
       expect(body.reasoning_effort).toBe(reasoning);
       expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({
