@@ -39,11 +39,11 @@ impl ExternalPayloads {
 /// Pooled HTTPS client shared across all external guardrail providers.
 #[derive(Clone)]
 pub(crate) struct ExternalGuardrailClient {
-    client: ClientWithMiddleware,
-    policy: Arc<OutboundPolicy>,
-    timeout: Duration,
+    pub(super) http: ClientWithMiddleware,
+    pub(super) policy: Arc<OutboundPolicy>,
+    pub(super) timeout: Duration,
     #[cfg(test)]
-    origin_override: Option<String>,
+    pub(super) origin_override: Option<String>,
 }
 
 impl ExternalGuardrailClient {
@@ -63,7 +63,7 @@ impl ExternalGuardrailClient {
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {
-            client: crate::observability::instrument_client(client, "guardrail.external"),
+            http: crate::observability::instrument_client(client, "guardrail.external"),
             policy: Arc::new(policy),
             timeout,
             #[cfg(test)]
@@ -107,21 +107,7 @@ impl ExternalGuardrailClient {
                     );
                     return true;
                 };
-                #[cfg(test)]
-                let origin_override = self.origin_override.as_deref();
-                #[cfg(not(test))]
-                let origin_override: Option<&str> = None;
-                bedrock::evaluate_one(
-                    &self.client,
-                    &self.policy,
-                    self.timeout,
-                    origin_override,
-                    &guardrail.id,
-                    config,
-                    payload,
-                    organization_id,
-                )
-                .await
+                bedrock::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
             }
             GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
                 false

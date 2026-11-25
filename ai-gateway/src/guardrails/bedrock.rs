@@ -1,19 +1,18 @@
 //! AWS Bedrock `ApplyGuardrail` adapter authenticated with a Bedrock API key
 //! (`Authorization: Bearer`). All errors and timeouts fail closed (treated as a
 //! guardrail match) so unscreened prompts never bypass a configured guardrail.
-use std::{fmt, fmt::Write as _, time::Duration};
+use std::{fmt, fmt::Write as _};
 
 use axum::body::Bytes;
 use reqwest::{
     StatusCode, Url,
     header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
-use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::providers::OutboundPolicy;
+use crate::guardrails::external::ExternalGuardrailClient;
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
@@ -51,22 +50,20 @@ pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
     .map(Bytes::from)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "internal provider adapter called solely by ExternalGuardrailClient"
-)]
 pub(crate) async fn evaluate_one(
-    client: &ClientWithMiddleware,
-    policy: &OutboundPolicy,
-    timeout: Duration,
-    origin_override: Option<&str>,
+    client: &ExternalGuardrailClient,
     langfuse_guardrail_id: &str,
     config: &BedrockGuardrail,
     payload: Bytes,
     organization_id: &str,
 ) -> bool {
-    let origin =
-        origin_override.map_or_else(|| bedrock_runtime_origin(&config.region), str::to_owned);
+    #[cfg(test)]
+    let origin = client
+        .origin_override
+        .clone()
+        .unwrap_or_else(|| bedrock_runtime_origin(&config.region));
+    #[cfg(not(test))]
+    let origin = bedrock_runtime_origin(&config.region);
     let Ok(url) = apply_url(&origin, config) else {
         tracing::warn!(
             guardrail_id = langfuse_guardrail_id,
@@ -77,7 +74,7 @@ pub(crate) async fn evaluate_one(
         );
         return true;
     };
-    if policy.check_allowed_host(&url).is_err() {
+    if client.policy.check_allowed_host(&url).is_err() {
         tracing::warn!(
             guardrail_id = langfuse_guardrail_id,
             organization_id,
@@ -102,6 +99,7 @@ pub(crate) async fn evaluate_one(
     authorization.set_sensitive(true);
 
     let request = client
+        .http
         .post(url)
         .with_extension(DisableOtelPropagation)
         .header(AUTHORIZATION, authorization)
@@ -110,7 +108,7 @@ pub(crate) async fn evaluate_one(
         .header(ACCEPT_ENCODING, "identity")
         .body(payload);
 
-    match tokio::time::timeout(timeout, send_and_parse(request)).await {
+    match tokio::time::timeout(client.timeout, send_and_parse(request)).await {
         Ok(Ok(intervened)) => intervened,
         Ok(Err(failure)) => {
             tracing::warn!(
@@ -261,11 +259,10 @@ fn percent_encode_path_segment(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
-    use crate::guardrails::{
-        Guardrail, GuardrailAction, GuardrailKind,
-        external::{ExternalGuardrailClient, ExternalPayloads},
-    };
+    use crate::guardrails::{Guardrail, GuardrailAction, GuardrailKind, external::ExternalPayloads};
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
 
