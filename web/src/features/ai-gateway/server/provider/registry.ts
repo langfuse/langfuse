@@ -67,15 +67,34 @@ export const GatewayResolveSpendLimitsSchema = z.array(
   z
     .object({
       id: z.string(),
-      // Resolve returns only the limits that apply to the request.
-      scope: z.enum(["api_key", "user"]),
+      // Resolve returns only the limits that apply to the request. A gateway
+      // older than `organization` rejects it, so deploy the gateway first.
+      scope: z.enum(["api_key", "user", "organization"]),
       interval: z.enum(["daily", "weekly", "monthly", "total"]),
       limit_usd: z.number(),
       // Unix milliseconds; part of the gateway's usage counter key.
       counting_started_at: z.number().int().nonnegative(),
+      // Usage percentages that trigger email alerts, in ascending order.
+      alert_thresholds: z.array(z.number().int().min(1).max(100)),
     })
     .strict(),
 );
+
+/** Also the cached shape: every guardrail assigned to the key, its user or its organization. */
+export const GatewayResolveGuardrailsSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      action: z.enum(["block", "log"]),
+      // Regex patterns; the guardrail matches when any of them does.
+      patterns: z.array(z.string()),
+    })
+    .strict(),
+);
+export type GatewayResolveGuardrails = z.infer<
+  typeof GatewayResolveGuardrailsSchema
+>;
 
 export const GatewayResolveResponseSchema = z
   .object({
@@ -129,6 +148,9 @@ export const GatewayResolveResponseSchema = z
       .nullable(),
     // Empty in "none" mode, where spend is not recorded.
     spend_limits: GatewayResolveSpendLimitsSchema,
+    // Checked by the gateway in every ingestion mode. A gateway without
+    // guardrail support ignores this field, so deploy the gateway first.
+    guardrails: GatewayResolveGuardrailsSchema,
     // Prices of the model the request is priced with; null without spend
     // limits or when no model in the ingestion project matches.
     pricing: z

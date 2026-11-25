@@ -5,6 +5,13 @@
 export const AI_GATEWAY_SERVICE_NAME = "langfuse-ai-gateway";
 
 /**
+ * Metadata key holding the gateway API key that produced the observation. The
+ * gateway always overwrites `langfuse.gateway.*` metadata, so callers cannot
+ * set it.
+ */
+export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
+
+/**
  * Metadata key holding the user a gateway API key is bound to. The gateway
  * always overwrites `langfuse.gateway.*` metadata, so callers cannot set it.
  */

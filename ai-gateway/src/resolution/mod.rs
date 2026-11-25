@@ -24,7 +24,7 @@ const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const SPEND_LIMIT_ALERTS_PATH: &str = "/api/internal/ai-gateway/v1/spend-limit-alerts";
 
-/// A limit a request reached, identified as resolve returned it.
+/// A limit threshold a request reached, identified as resolve returned it.
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReachedSpendLimit<'a> {
@@ -33,6 +33,9 @@ pub(crate) struct ReachedSpendLimit<'a> {
     pub counting_started_at: i64,
     /// Unix milliseconds.
     pub window_start: i64,
+    /// Omitted for 100% so an older Web that rejects unknown fields still accepts exceeded alerts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold_percent: Option<u8>,
 }
 /// Unauthenticated, and without query params it skips the database checks.
 pub(crate) const HEALTH_PATH: &str = "/api/public/health";
@@ -643,6 +646,9 @@ pub enum ResolutionError {
     /// The key has spend limits, but Langfuse has no price for the model.
     #[error("spend limit cannot price the model")]
     SpendLimitUnpricedModel,
+    /// A `block` guardrail matched the request; holds the caller-facing message.
+    #[error("blocked by a guardrail")]
+    GuardrailBlocked(std::sync::Arc<str>),
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

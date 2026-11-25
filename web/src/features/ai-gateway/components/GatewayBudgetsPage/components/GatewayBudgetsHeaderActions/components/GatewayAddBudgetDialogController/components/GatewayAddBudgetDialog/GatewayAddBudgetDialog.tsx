@@ -1,9 +1,9 @@
 import { type ComponentProps, useId } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
@@ -13,6 +13,7 @@ import {
   type GatewaySpendTab,
 } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/constants/gatewaySpendTabs";
 import { GATEWAY_SPEND_BUDGET_MAX_SUBJECTS } from "@/src/features/ai-gateway/constants/gatewaySpendBudgetIntervalOptions";
+import { createDefaultGatewaySpendBudget } from "@/src/features/ai-gateway/fns/spendLimits/createDefaultGatewaySpendBudget";
 import { toGatewaySpendLimit } from "@/src/features/ai-gateway/fns/gatewaySpendBudgetFormValue";
 import { requiredGatewaySpendBudgetFormSchema } from "@/src/features/ai-gateway/types/gatewaySpendBudgetFormSchema";
 import type { GatewaySpendLimit } from "@/src/features/ai-gateway/types/gatewaySpendLimit";
@@ -29,7 +30,7 @@ const targetLabels = {
     field: "Users",
     placeholder: "Select users",
     description:
-      "Each user gets their own budget, which caps all of their gateway keys in addition to each key's own budget.",
+      "Applies a separate total budget to each user across all their keys.",
   },
 } as const satisfies Record<GatewaySpendTab, Record<string, string>>;
 
@@ -56,6 +57,8 @@ type TargetPicker = {
 type GatewayAddBudgetDialogProps = {
   targetType: GatewaySpendTab;
   targetPicker: TargetPicker;
+  /** The keys or users the form starts with. */
+  initialTargets: GatewayAddBudgetFormValues["targets"];
   /** Why a budget cannot be added; undefined when it can. */
   unavailableReason?: string;
   errorMessage: string | null;
@@ -70,17 +73,21 @@ type GatewayAddBudgetDialogProps = {
 export function GatewayAddBudgetDialog({
   targetType,
   targetPicker,
+  initialTargets,
   unavailableReason,
   errorMessage,
   isSubmitting,
   onSubmit,
 }: GatewayAddBudgetDialogProps) {
   const formId = useId();
+  const targetsId = useId();
+  const targetsDescriptionId = useId();
+  const targetsErrorId = useId();
   const form = useForm<GatewayAddBudgetFormValues>({
     resolver: zodResolver(gatewayAddBudgetFormSchema),
     defaultValues: {
-      targets: [],
-      spendBudget: { interval: "MONTHLY", limitUsd: "" },
+      targets: initialTargets,
+      spendBudget: createDefaultGatewaySpendBudget(),
     },
     mode: "onChange",
   });
@@ -115,44 +122,79 @@ export function GatewayAddBudgetDialog({
           actions={[]}
           onSubmit={form.handleSubmit(handleValidSubmit)}
         >
-          <Form.Field
+          <Controller
             control={form.control}
             name="targets"
-            label={labels.field}
-            description={labels.description}
-          >
-            {(field) => (
-              <AsyncMultiSelectTagInput
-                id={field.id}
-                value={field.value}
-                onValueChange={field.onChange}
-                options={targetPicker.options}
-                placeholder={labels.placeholder}
-                search={{
-                  placeholder: "Search…",
-                  value: targetPicker.search,
-                  onValueChange: targetPicker.onSearchChange,
-                }}
-                loading={
-                  targetPicker.isLoading ? { message: "Loading…" } : undefined
-                }
-                emptyMessage="No matches."
-                disabled={unavailableReason !== undefined}
-                error={!!field.error}
-                aria-invalid={!!field.error}
-              />
-            )}
-          </Form.Field>
+            render={({ field, fieldState }) => {
+              const targetError = fieldState.error?.message;
+              const describedBy = [
+                targetError ? targetsErrorId : undefined,
+                targetsDescriptionId,
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor={targetsId}
+                      className="text-sm leading-none font-bold"
+                    >
+                      {labels.field}
+                    </label>
+                    <p
+                      id={targetsDescriptionId}
+                      className="text-muted-foreground text-sm"
+                    >
+                      {labels.description}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <AsyncMultiSelectTagInput
+                      id={targetsId}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      options={targetPicker.options}
+                      placeholder={labels.placeholder}
+                      search={{
+                        placeholder: "Search…",
+                        value: targetPicker.search,
+                        onValueChange: targetPicker.onSearchChange,
+                      }}
+                      loading={
+                        targetPicker.isLoading
+                          ? { message: "Loading…" }
+                          : undefined
+                      }
+                      emptyMessage="No matches."
+                      disabled={unavailableReason !== undefined}
+                      error={!!fieldState.error}
+                      aria-describedby={describedBy}
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {targetError ? (
+                      <p
+                        id={targetsErrorId}
+                        className="text-destructive text-sm"
+                      >
+                        {targetError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            }}
+          />
           <GatewaySpendBudgetField.Inputs
             subject={GATEWAY_SPEND_TABS[targetType].subject}
             control={form.control}
             disabledReason={unavailableReason}
           />
           {errorMessage !== null ? (
-            <Alert variant="destructive">
-              <Alert.Title>Budgets could not be added</Alert.Title>
-              <Alert.Description>{errorMessage}</Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Budgets could not be added">
+              {errorMessage}
+            </Banner>
           ) : null}
         </Form>
       </Dialog.Body>

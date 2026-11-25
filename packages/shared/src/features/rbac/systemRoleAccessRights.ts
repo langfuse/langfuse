@@ -188,7 +188,14 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       name: "AI Gateway",
       description: "Route model requests through the AI Gateway.",
       policies: [allow("organization", ["gateway:read", "gateway:invoke"])],
-      tags: ["principal:user", "principal:apiKey"],
+      tags: ["principal:user"],
+    },
+    AI_GATEWAY_INFERENCE: {
+      id: "AI_GATEWAY_INFERENCE",
+      name: "AI Gateway inference",
+      description: "Route model requests through the AI Gateway.",
+      policies: [allow("organization", ["gateway:invoke"])],
+      tags: ["principal:apiKey"],
     },
   };
 

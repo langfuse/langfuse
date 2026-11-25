@@ -17,8 +17,9 @@ export function TraceTopicsCell({
   const topics = useTraceTopicsForRows(projectId, rows);
   // Several rules can each assign the facet a topic.
   const topic = topics?.[traceId ?? ""]
-    ?.filter((item) => item.facet === facet)
-    .map((item) => item.topic)
+    ?.flatMap((item) =>
+      item.facet === facet && item.topic !== null ? [item.topic] : [],
+    )
     .join(", ");
   return (
     <span className="ph-no-capture block truncate" title={topic}>

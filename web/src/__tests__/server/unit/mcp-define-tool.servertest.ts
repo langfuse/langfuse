@@ -35,7 +35,11 @@ describe("defineTool", () => {
     ]) {
       expect(pattern.test(timestamp)).toBe(true);
       await run({ timestamp }, context);
-      expect(handler).toHaveBeenLastCalledWith({ timestamp }, context);
+      expect(handler).toHaveBeenLastCalledWith(
+        { timestamp },
+        context,
+        undefined,
+      );
     }
     expect(property.pattern.length).toBeLessThan(100);
     expect(pattern.test("2024-02-29T06:15")).toBe(false);
@@ -166,7 +170,7 @@ describe("defineTool", () => {
         run(invalid as Parameters<typeof run>[0], context),
       ).rejects.toThrow(z.ZodError);
     }
-    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context);
+    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context, undefined);
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {

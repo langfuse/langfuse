@@ -1,5 +1,4 @@
 import { Queue } from "bullmq";
-import { env } from "../../env";
 import { QueueName, type TQueueJobTypes } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
@@ -10,7 +9,6 @@ export class EventsDispatchQueue {
   > | null = null;
 
   public static getInstance() {
-    if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
     if (this.instance) return this.instance;
     const options = createBullMQQueueOptionsWithRedis(QueueName.EventsDispatch);
     if (!options) return null;

@@ -67,8 +67,11 @@ export class DefaultEvalModelService {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
+      // The cause keeps the provider error, e.g. its status code, for callers
+      // that tell a rejected key apart from an unknown model.
       throw new ForbiddenError(
         `Model configuration not valid for evaluation. ${message}`,
+        { cause: err },
       );
     }
 

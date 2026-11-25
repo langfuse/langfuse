@@ -200,6 +200,72 @@ describe("BatchProjectMediaCleaner", () => {
     expect(await getMediaCount(projectId)).toBe(0);
   });
 
+  it("drains claimed dataset media per batch and sweeps orphan links once at the end", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { deletedAt: new Date() },
+    });
+
+    const media = [];
+    for (let i = 0; i < 5; i++) {
+      const m = await createTestMedia(projectId);
+      media.push(m);
+      await prisma.traceMedia.create({
+        data: {
+          projectId,
+          mediaId: m.id,
+          traceId: randomUUID(),
+          field: "input",
+        },
+      });
+      await prisma.datasetItemMedia.create({
+        data: {
+          projectId,
+          mediaId: m.id,
+          datasetId: randomUUID(),
+          datasetItemId: randomUUID(),
+          datasetItemValidFrom: new Date(),
+          field: "input",
+          jsonPath: "$",
+          referenceString: `@@@langfuseMedia:id=${m.id}@@@`,
+        },
+      });
+    }
+    const orphanMediaId = randomUUID();
+    await prisma.traceMedia.create({
+      data: {
+        projectId,
+        mediaId: orphanMediaId,
+        traceId: randomUUID(),
+        field: "input",
+      },
+    });
+
+    vi.mocked(getDeletedProjectWithMedia).mockResolvedValue(projectId);
+    const linkMediaIds = async () =>
+      new Set(
+        [
+          ...(await prisma.traceMedia.findMany({ where: { projectId } })),
+          ...(await prisma.datasetItemMedia.findMany({ where: { projectId } })),
+        ].map((row) => row.mediaId),
+      );
+
+    await new BatchProjectMediaCleaner().processBatch();
+    expect(await getMediaCount(projectId)).toBe(2);
+    const remaining = await prisma.media.findMany({ where: { projectId } });
+    expect(await linkMediaIds()).toEqual(
+      new Set([...remaining.map((m) => m.id), orphanMediaId]),
+    );
+
+    await new BatchProjectMediaCleaner().processBatch();
+    expect(await getMediaCount(projectId)).toBe(0);
+    expect(await linkMediaIds()).toEqual(new Set());
+    expect(
+      mockDeleteFiles.mock.calls.flatMap((call) => call[0] as string[]).sort(),
+    ).toEqual(media.map((m) => m.bucketPath).sort());
+  });
+
   it("should preserve PG records when S3 deletion fails", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     await prisma.project.update({

@@ -3,7 +3,11 @@ import {
   TOPICS_MAX_SELECTION_RANGE_MS,
 } from "@langfuse/shared/topics";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { topicRuleFreshness, type TopicRuleMap } from "./topic-maps";
+import {
+  topicNextRefitLabel,
+  topicRuleFreshness,
+  type TopicRuleMap,
+} from "./topic-maps";
 
 const WINDOW_DAYS = Math.round(TOPICS_MAX_SELECTION_RANGE_MS / 86_400_000);
 const COOLDOWN_MINUTES = Math.round(TOPIC_RULE_REFRESH_COOLDOWN_MS / 60_000);
@@ -29,13 +33,17 @@ export function TopicRefreshMapDialogView({
       <Dialog.Body>
         <p>
           Reclusters this map&apos;s topics from the last {WINDOW_DAYS} days of
-          matching traces now, instead of at the next nightly update.
+          matching traces now, instead of at the next scheduled nightly update
+          {rule.enabled !== false && rule.lastRefitAt
+            ? ` ${topicNextRefitLabel(rule.lastRefitAt, now)}`
+            : ""}
+          .
         </p>
         <ul className="flex list-disc flex-col gap-1 pl-5">
           <li>Topics may be renamed, merged or split.</li>
           <li>
-            Naming runs on your clustering model from Topics settings, so it
-            uses tokens on that LLM connection.
+            This refresh reuses saved summaries and embeddings. Only naming
+            topics uses your clustering model.
           </li>
           <li>You can refresh this map again in {COOLDOWN_MINUTES} minutes.</li>
         </ul>

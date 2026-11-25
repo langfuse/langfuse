@@ -119,7 +119,7 @@ const ensureGatewayKeys = async (params: {
         await createApiKey(prisma, {
           tenant: OrganizationId(params.organizationId),
           scope: UserId(userId),
-          role: SystemRoleId("AI_GATEWAY"),
+          role: SystemRoleId("AI_GATEWAY_INFERENCE"),
           createdBy: UserId(userId),
           name: `Seeded team key ${i}`,
           predefinedKeys: {
@@ -163,7 +163,7 @@ const ensureServiceKey = async (params: {
       await createApiKey(prisma, {
         tenant: OrganizationId(params.organizationId),
         scope: OrganizationId(params.organizationId),
-        role: SystemRoleId("AI_GATEWAY"),
+        role: SystemRoleId("AI_GATEWAY_INFERENCE"),
         createdBy: "system",
         name: "Seeded service key",
         predefinedKeys: {

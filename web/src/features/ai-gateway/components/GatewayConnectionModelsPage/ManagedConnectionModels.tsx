@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ModelListingDeniedAlert } from "@/src/features/ai-gateway/components/ModelListingDeniedAlert/ModelListingDeniedAlert";
 import { GatewayLoadError } from "@/src/features/ai-gateway/components/GatewayLoadError/GatewayLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
@@ -83,13 +83,10 @@ function ConnectionModelsContent({
     return (
       <>
         {filters}
-        <Alert variant="destructive">
-          <Alert.Title>Models could not be loaded</Alert.Title>
-          <Alert.Description>
-            The provider returned a model discovery error. Refresh the provider
-            before changing model access.
-          </Alert.Description>
-        </Alert>
+        <Banner variant="error" title="Models could not be loaded">
+          The provider returned a model discovery error. Refresh the provider
+          before changing model access.
+        </Banner>
       </>
     );
   }

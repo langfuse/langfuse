@@ -12,9 +12,13 @@ import {
   type AccessAuditRecorder,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
-import type { Tool } from "@modelcontextprotocol/server";
+import type {
+  Tool,
+  ServerContext as McpRequestContext,
+} from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
+import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
 
 /**
  * Tool handler function type
@@ -22,6 +26,8 @@ import type { ServerContext } from "../types";
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
+  /** The SDK's context of the tools/call request; absent in direct calls. */
+  mcpRequest?: McpRequestContext,
 ) => Promise<unknown>;
 
 type StringKeys<T> = {
@@ -65,6 +71,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 
   /** Hint: This tool is expensive to run (slow, rate-limited) */
   expensiveHint?: boolean;
+
+  /** Renders results with an MCP App UI resource in hosts that support it. */
+  ui?: McpAppToolUi;
 }
 
 /** Options of a tool whose reads are recorded as audit access events. */
@@ -100,6 +109,7 @@ export interface ToolDefinition<TName extends string = string> {
     destructiveHint?: boolean;
     expensiveHint?: boolean;
   };
+  _meta?: ReturnType<typeof toMcpAppToolMeta>;
 }
 
 type JsonSchemaObject = Record<string, unknown>;
@@ -194,6 +204,7 @@ export function defineTool<TInput, const TName extends string>(
     readOnlyHint,
     destructiveHint,
     expensiveHint,
+    ui,
   } = options;
 
   // Convert base Zod schema to JSON Schema using Zod v4's native method
@@ -231,6 +242,7 @@ export function defineTool<TInput, const TName extends string>(
     description,
     action,
     inputSchema: jsonSchemaObject,
+    ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
 
   // Advertise every hint that is set, including explicit `false`: clients
@@ -250,11 +262,13 @@ export function defineTool<TInput, const TName extends string>(
   const wrappedHandler: ToolHandler<TInput> = async (
     rawInput: unknown,
     context: ServerContext,
+    mcpRequest?: McpRequestContext,
   ) => {
     // Validate input with the full schema (including refinements)
     const validatedInput = inputSchema.parse(rawInput);
+
     if (!("accessAudit" in options)) {
-      return await options.handler(validatedInput, context);
+      return await options.handler(validatedInput, context, mcpRequest);
     }
 
     const { audit, toRead } = collectAccessRead(options.accessAudit);

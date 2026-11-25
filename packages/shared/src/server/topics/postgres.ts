@@ -1,6 +1,7 @@
 import { JobConfigState, prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
+  DEFAULT_TOPIC_RULE_NAME,
   TOPICS_MAX_RULES,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
@@ -14,10 +15,12 @@ import {
 import { isEqual } from "lodash";
 import {
   getTopicDefinitions,
+  normalizeTopicDefinitionCosts,
   getTopicNames,
   writeTopicDefinitions,
 } from "./clickhouse";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { topicRuleWhere } from "./processing-gate";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
@@ -209,7 +212,7 @@ export async function setTopicRuleEnabled(
     data: { status: enabled ? "ACTIVE" : "INACTIVE" },
   });
   if (!updated.count)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   await invalidateProjectEvalConfigCaches(projectId);
   return (await getTopicRule(projectId, id))!;
 }
@@ -301,13 +304,13 @@ export async function writeTopicRule(
     ? rules.find((rule) => rule.id === input.id)
     : (input.firstRule && rules[0]) || undefined;
   if (input.id && !existing)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   if (!existing && rules.length >= TOPICS_MAX_RULES)
     throw new InvalidRequestError(
       `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,
     );
   const ruleId = existing?.id;
-  const name = input.name?.trim() || existing?.name || "All traces";
+  const name = input.name?.trim() || existing?.name || DEFAULT_TOPIC_RULE_NAME;
   // A write without sampling or a filter keeps the rule's stored rate and filter.
   const config = topicRuleSettingsSchema.parse({
     ...input,
@@ -531,9 +534,8 @@ export async function getPublishedTopicMaps(
   projectId: string,
   facetIds: string[],
 ) {
-  const unique = (await getCurrentTopicMapRows(projectId, facetIds)).map(
-    ({ run }) => run,
-  );
+  const current = await getCurrentTopicMapRows(projectId, facetIds);
+  const unique = current.map(({ run }) => run);
   const ids = unique.flatMap((run) => run.topicVersionIds);
   // Only names and ids: these reads run on every tracing request with topics.
   const names = new Map(
@@ -544,11 +546,34 @@ export async function getPublishedTopicMaps(
   );
   return {
     runIds: unique.map(({ id }) => id),
-    maps: unique.map((run) => ({
+    ruleIds: [
+      ...new Set(current.flatMap(({ ruleId }) => (ruleId ? [ruleId] : []))),
+    ],
+    maps: current.map(({ ruleId, run }) => ({
       facetId: run.facetId,
+      runId: run.id,
+      ruleId,
       topics: run.topicVersionIds.flatMap((id) => names.get(id) ?? []),
     })),
   };
+}
+
+/** Every completed run of the rules, outside analyses: a pending or failed refit's assignments never show. */
+export async function getCompletedTopicRuleRunIds(
+  projectId: string,
+  ruleIds: string[],
+): Promise<string[]> {
+  if (!ruleIds.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: {
+      projectId,
+      ruleId: { in: ruleIds },
+      status: "completed",
+      config: { path: ["analysis"], equals: Prisma.DbNull },
+    },
+    select: { id: true },
+  });
+  return runs.map(({ id }) => id);
 }
 
 export async function createTopicRun(input: {
@@ -630,17 +655,6 @@ export async function getTopicRuleMap(
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
-function sameTopicDefinition(
-  stored: TopicDefinition | undefined,
-  candidate: TopicDefinition,
-): boolean {
-  if (!stored || !sameTopicGeometry(stored, candidate)) return false;
-  return isEqual(
-    { ...stored, centroid: candidate.centroid, radius: candidate.radius },
-    candidate,
-  );
-}
-
 export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   const stored = await prisma.topicClusteringRun.findFirst({
     where: { projectId: run.projectId, id: run.id },
@@ -691,7 +705,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       throw new Error("Invalid topic definition.");
     const existing = saved.get(topic.topicVersionId);
     if (existing) {
-      if (!sameTopicDefinition(existing, topic))
+      if (definitionDifferences(existing, topic).length > 0)
         throw new Error("Topic definitions cannot change.");
     } else {
       if (topic.createdByRunId !== run.id)
@@ -747,15 +761,13 @@ function assertDefinitionsReadBack(
   missing: TopicDefinition[],
   saved: Map<string, TopicDefinition>,
 ): void {
-  const mismatched = missing.filter(
-    (topic) => !sameTopicDefinition(saved.get(topic.topicVersionId), topic),
-  );
-  if (mismatched.length === 0) return;
-  const differences = new Set(
-    mismatched.flatMap((topic) =>
+  const mismatched = missing
+    .map((topic) =>
       definitionDifferences(saved.get(topic.topicVersionId), topic),
-    ),
-  );
+    )
+    .filter((fields) => fields.length > 0);
+  if (mismatched.length === 0) return;
+  const differences = new Set(mismatched.flat());
   throw new TopicDefinitionReadbackError(
     `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
   );
@@ -780,6 +792,14 @@ function definitionDifferences(
     );
   const differences = sameTopicGeometry(stored, candidate) ? [] : ["geometry"];
   const fields = new Set([...Object.keys(stored), ...Object.keys(candidate)]);
+  if (
+    fields.delete("costDetails") &&
+    !isEqual(
+      stored.costDetails ?? {},
+      normalizeTopicDefinitionCosts(candidate.costDetails),
+    )
+  )
+    differences.push("costDetails");
   for (const field of fields) {
     if (field === "centroid" || field === "radius" || field === "metadata")
       continue;

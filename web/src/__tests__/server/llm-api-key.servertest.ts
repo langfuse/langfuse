@@ -19,7 +19,6 @@ vi.mock(
   }),
 );
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
@@ -43,6 +42,10 @@ import {
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
+import {
+  createSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/session-factory";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
 
@@ -55,24 +58,15 @@ describe("llmApiKey.all RPC", () => {
   const createCallerForProjectRole = (
     projectRole: "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const limitedSession: Session = {
-      ...session,
-      user: {
-        ...session.user!,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            role: "MEMBER",
-            projects: [
-              {
-                ...session.user!.organizations[0].projects[0],
-                role: projectRole,
-              },
-            ],
-          },
-        ],
-      },
-    };
+    const limitedSession = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "MEMBER",
+          projects: [{ id: projectId, role: projectRole, retentionDays: null }],
+        },
+      ],
+    });
 
     const limitedCtx = createInnerTRPCContext({
       session: limitedSession,
@@ -89,40 +83,15 @@ describe("llmApiKey.all RPC", () => {
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
-    session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        name: "Demo User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
@@ -1070,14 +1039,21 @@ describe("llmApiKey.all RPC", () => {
       customModels: ["eu.anthropic.claude-sonnet-4-6"],
       config: { region: "eu-central-1" },
     });
-    const callerWithPlan = (plan: "cloud:hobby" | "cloud:enterprise") => {
-      const planSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [{ ...session.user!.organizations[0], plan }],
-        },
-      };
+    const callerWithPlan = (
+      plan: "cloud:hobby" | "cloud:enterprise",
+      organization: Partial<TestOrganization> = {},
+    ) => {
+      const planSession = createSession({
+        organizations: [
+          {
+            id: orgId,
+            role: "OWNER",
+            projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+            ...organization,
+            plan,
+          },
+        ],
+      });
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: planSession, headers: {} }),
         prisma,
@@ -1221,6 +1197,120 @@ describe("llmApiKey.all RPC", () => {
         where: { organizationId: orgId, provider: "bedrock-role" },
       });
       expect(decrypt(stored.externalId!)).toBe(externalId);
+    });
+
+    describe("bedrockExternalId access", () => {
+      const storedExternalId = `lf-${"a".repeat(32)}`;
+      const createRoleConnection = (
+        owner: { projectId: string } | { organizationId: string },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            provider: "bedrock-role",
+            adapter: LLMAdapter.Bedrock,
+            secretKey: encrypt(roleSecret),
+            displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+            externalId: encrypt(storedExternalId),
+          },
+        });
+
+      it("does not return another project's external ID", async () => {
+        const connection = await createRoleConnection({ projectId });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [
+            { id: tenantB.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId = await callerB.llmApiKey.bedrockExternalId({
+          projectId: tenantB.projectId,
+          nonce,
+        });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId: tenantB.projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires llmApiKeys:create within the project", async () => {
+        const member = callerWithPlan("cloud:enterprise", {
+          role: "MEMBER",
+          projects: [{ id: projectId, role: "MEMBER", retentionDays: null }],
+        });
+
+        await expect(
+          member.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
+      });
+
+      it("does not return another organization's external ID", async () => {
+        const connection = await createRoleConnection({
+          organizationId: orgId,
+        });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId =
+          await callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+          });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires organizationLlmApiKeys:CUD within the organization", async () => {
+        const member = callerWithPlan("cloud:enterprise", { role: "MEMBER" });
+
+        await expect(
+          member.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message:
+            "Forbidden, user does not have access to this resource or action",
+        });
+      });
     });
   });
 

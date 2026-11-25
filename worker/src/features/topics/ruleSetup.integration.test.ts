@@ -22,7 +22,7 @@ import {
   writeTopicSummaries,
   type TopicRuleSetup,
 } from "@langfuse/shared/topics/server";
-import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
+import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { tickTopicRuleSetup } from "./ruleSetup";
 
 // Queue handoffs and model settings are not under test; seeding has its own dispatch test.
@@ -30,9 +30,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicRuleRefit: vi.fn(),
   getEnabledTopicsModels: vi.fn(),
-  isTopicsProjectEnabled: () => true,
 }));
-vi.mock("../traceBatching/traceRuleRecording", () => ({
+vi.mock("../traceDispatch/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),
 }));
 
@@ -162,7 +161,9 @@ describe("Topics rule setup", () => {
         facetVersion: 1,
         traceId,
         sessionId: null,
-        triggerType: "automatic" as const,
+        triggerType: "rule" as const,
+        ruleIds: [],
+        executionId: null,
         environment: "default",
         traceName: "trace",
         unitStartTime: start.toISOString(),
@@ -171,6 +172,7 @@ describe("Topics rule setup", () => {
         embedding: Array<number>(DIMENSIONS).fill(1),
         transcriptId: "transcript",
         transcriptVersion: "v1",
+        transcriptBytes: 0,
         summaryModel: "summary",
         embeddingModel: "embed",
         providedUsageDetails: {},

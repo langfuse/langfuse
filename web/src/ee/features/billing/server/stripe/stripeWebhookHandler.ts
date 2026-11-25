@@ -1,3 +1,4 @@
+/* oxlint-disable eqeqeq -- subscription item arity checks mirror Stripe webhook edge cases */
 /* eslint-disable no-nested-ternary */
 import {
   getOrgIdFromStripeClientReference,
@@ -680,10 +681,7 @@ export async function handleSubscriptionChanged(
     await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,
@@ -730,10 +728,7 @@ export async function handleSubscriptionChanged(
     await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
 
     auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,

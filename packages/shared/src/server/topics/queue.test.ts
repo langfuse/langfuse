@@ -20,7 +20,6 @@ vi.mock("../redis/redis", () => ({
   createBullMQQueueOptionsWithRedis: () => null,
 }));
 vi.mock("../logger", () => ({ logger: { error: vi.fn() } }));
-vi.mock("./config", () => ({ isTopicsEnabled: () => true }));
 
 const execution = (
   operation: "process" | "update" = "update",

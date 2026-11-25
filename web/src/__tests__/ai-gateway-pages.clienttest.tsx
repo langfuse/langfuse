@@ -69,14 +69,7 @@ const organization = {
 };
 
 describe("useGatewayPages", () => {
-  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-
-  afterEach(() => {
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
-  });
-
   beforeEach(() => {
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
     window.sessionStorage.clear();
     vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
       organization,
@@ -132,20 +125,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
-    ]);
-  });
-
-  it("hides Budgets outside PR previews and staging", () => {
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-    grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
-
-    expect(visiblePages()).toEqual([
-      ["index", false],
-      ["models", false],
-      ["api-keys", false],
     ]);
   });
 
@@ -162,7 +144,7 @@ describe("useGatewayPages", () => {
     expect(models?.tabsProps).toBeDefined();
   });
 
-  it("disables Models, Budgets and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Gateway keys, Models and Budgets for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -171,9 +153,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", true],
       ["models", true],
       ["budgets", true],
-      ["api-keys", true],
     ]);
   });
 
@@ -223,9 +205,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
     ]);
   });
 
@@ -277,9 +259,9 @@ describe("useGatewayPages", () => {
     grantScopesOf(Role.MEMBER);
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
+      "api-keys",
       "models",
       "budgets",
-      "api-keys",
     ]);
   });
 });

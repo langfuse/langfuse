@@ -140,7 +140,7 @@ Oversized filters use session storage and survive same-tab refreshes; the plain 
 
 Keyboard arrows move normally through the key and focus the value control at its boundary; Enter/Space open the picker. Copying a focused value control copies only its complete value source. In the picker, Down from search enters the values and Up/Down move between visible checkboxes; Space toggles a value. Only/All actions remain reachable with Tab. Rows keep their current order while focused so selection changes cannot unmount the active control. Escape returns to the current value control, or the editor if the compact control no longer exists. `SearchComposer` owns the current picker condition so its trigger state and focus destination track edits.
 
-The collection is a display projection over complete source, not another filter state. Design-system components handle opaque source atoms; field, target, and matching semantics stay in the feature adapter. Hover previews measure their content and stay inside the visual viewport. Unknown-field diagnostics carry a typed code so retaining values during key editing does not depend on diagnostic wording.
+The collection is a display projection over complete source, not another filter state. Design-system components handle opaque source atoms; field, target, and matching semantics stay in the feature adapter. Hover previews measure their content and stay inside the visual viewport. A collection preview lists the selected values under the field name and an edit control. Hover does not open the picker: the control and the value token do, so moving the pointer across the bar does not steal focus or request values. Unknown-field diagnostics carry a typed code so retaining values during key editing does not depend on diagnostic wording.
 
 The sidebar edits one membership condition or its supported text mode. Compound conditions, presence checks, and unsupported text operators remain visible and clearable there, with a condition count directing edits to the existing bar. Sidebar actions refuse to replace those conditions with a partial checkbox interpretation; a collection popup can still edit its own condition independently. Loaded options are not the universe: checking every loaded value preserves a finite positive selection, while an explicit reset clears it. Unchecking the last positive selection resets the facet rather than materializing exclusions for every loaded value. Managed-environment defaults and explicit enable-all overrides retain their own policy.
 
@@ -447,7 +447,7 @@ setters so a commit can change the scope and the phrase together. Views with
 1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
    `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
    47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
-   `options → observed values`, `unit`). But feed it the columns the _facet
+   `options → observed values`, `unit`). A short static `stringOptions` or `arrayOptions` list with no separate display label is a closed enum: the bar also suggests `field:value` when typed text matches one of those values, before facet options have loaded. But feed it the columns the _facet
    sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
    `ColumnDefinition[]`. A view's column list also carries internals the sidebar
    deliberately never offers — a duplicate (`usage` = `totalTokens`), a column

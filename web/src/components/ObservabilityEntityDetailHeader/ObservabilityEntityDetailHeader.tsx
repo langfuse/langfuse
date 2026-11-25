@@ -28,7 +28,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { CorrectionBadge } from "@/src/features/traces/components/CorrectionBadge";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -93,6 +93,8 @@ export type HeaderMetric = {
       | {
           type: "details";
           text: string;
+          /** Renders the trigger as a coloured `Badge` instead of a `Metric`. */
+          color?: React.ComponentProps<typeof Badge>["color"];
           title: string;
           href: string;
           linkText: string;
@@ -202,7 +204,7 @@ export function ObservabilityEntityDetailHeader({
   const content = (
     <div
       className={cn(
-        "flex min-w-0 px-4 pt-0 pb-2",
+        "flex min-h-8 min-w-0 items-center px-4 pt-0 pb-2",
         !isLoading && stale.className,
       )}
       inert={!isLoading && stale.inert}
@@ -744,9 +746,18 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
           </div>
         }
       >
-        {({ getTriggerProps }) => (
-          <Metric {...getTriggerProps()} interactive value={metric.text} />
-        )}
+        {({ getTriggerProps }) =>
+          metric.color ? (
+            <Badge
+              {...getTriggerProps()}
+              interactive
+              text={metric.text}
+              color={metric.color}
+            />
+          ) : (
+            <Metric {...getTriggerProps()} interactive value={metric.text} />
+          )
+        }
       </HoverCard>
     );
   return assertUnreachable(metric);
@@ -767,7 +778,7 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
     ...values.filter((metric) => metric.overflowOnly),
   ];
   return (
-    <SingleLineOverflowList
+    <OverflowList
       spacing="comfortable"
       items={inlineMetrics}
       additionalOverflowCount={remainingMetrics.length}
@@ -777,8 +788,8 @@ function EntityMetrics({ metrics }: { metrics: readonly HeaderMetric[] }) {
         metric.type === "correction" ||
         (metric.type === "value" && metric.color === "filled")
       }
-      renderItem={(metric) => (
-        <span data-entity-metric="true" className="inline-flex min-w-0">
+      renderItem={(metric, { getItemProps }) => (
+        <span {...getItemProps()} data-entity-metric="true">
           <MetricChip metric={metric} />
         </span>
       )}

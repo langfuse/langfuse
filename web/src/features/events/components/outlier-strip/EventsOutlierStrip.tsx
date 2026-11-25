@@ -21,6 +21,10 @@ import {
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  TopicStripe,
+  type TopicStripeProps,
+} from "@/src/features/topics/trace/TopicStripe";
+import {
   estimateYLabelWidthPx,
   OutlierBarStrip,
   type OutlierStripDrillTrigger,
@@ -165,6 +169,7 @@ export function EventsOutlierStrip({
   toTimestamp,
   searchIgnored = false,
   onSelectRange,
+  topicStripe,
 }: {
   projectId: string;
   filterState: FilterState;
@@ -173,6 +178,8 @@ export function EventsOutlierStrip({
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
+  /** Topic shares shown at the end of the header row. */
+  topicStripe?: TopicStripeProps | null;
 }) {
   const capture = usePostHogClientCapture();
   const [wrapperRef, size] = useElementSize<HTMLDivElement>();
@@ -417,6 +424,11 @@ export function EventsOutlierStrip({
             )}
           </AggDropdownController>
         )}
+        {topicStripe && (
+          <div className="ml-auto w-80 min-w-0 -translate-y-px">
+            <TopicStripe {...topicStripe} />
+          </div>
+        )}
       </MetricStripHeaderRow>
     </div>
   );
@@ -439,11 +451,11 @@ export function EventsOutlierStrip({
       stale={queryResult.isPlaceholderData && queryResult.isFetching}
       header={header}
       // Ready height (header + plot + time labels), so loading doesn't jump.
-      contentHeightClass="h-22.25"
+      contentHeightClass="h-22.75"
     >
       {!canApplyFilters ? (
         <OutlierBarStrip
-          className="mt-2 mr-2 ml-6"
+          className="mt-2.5 mr-2 ml-6"
           dense={[]}
           maxValue={0}
           ticks={[]}
@@ -454,7 +466,7 @@ export function EventsOutlierStrip({
         />
       ) : (
         <OutlierBarStrip
-          className={cn("mt-2 mr-2", yGutter.className)}
+          className={cn("mt-2.5 mr-2", yGutter.className)}
           dense={series.dense}
           maxValue={series.maxValue}
           ticks={series.ticks}

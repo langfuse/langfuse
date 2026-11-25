@@ -40,6 +40,9 @@ macro_rules! restore_field {
 }
 
 macro_rules! apply_attribute {
+    ($row:ident, $field:ident, $attributes:ident, text [$($key:expr),*]) => {
+        $row.$field = $attributes.text(stringify!($field), &[$($key),*]);
+    };
     ($row:ident, $field:ident, $attributes:ident, $method:ident [$($key:expr),*]) => {
         $row.$field = $attributes.$method(&[$($key),*]);
     };
@@ -57,6 +60,20 @@ macro_rules! define_row_types {
                 $(#[serde(rename = $name)])?
                 pub(crate) $field: logical_type!($ty $(, $logical_ty)?),
             )*
+        }
+
+        impl PreparedEventRow {
+            pub(crate) fn retained_bytes(&self) -> usize {
+                std::mem::size_of::<Self>() $(+
+                    crate::native_memory::retained_size(&self.$field))*
+            }
+        }
+
+        impl crate::native_memory::RetainedSize for OtelStorageRow {
+            fn retained_bytes(&self) -> usize {
+                0 $(+
+                    crate::native_memory::retained_size(&self.$field))*
+            }
         }
     };
 }
@@ -118,56 +135,6 @@ macro_rules! impl_otel_row {
     };
 }
 
-macro_rules! compat_read {
-    ($object:ident, $metadata:ident, metadata_names $($rest:tt)*) => {
-        $metadata.take_names()
-    };
-    ($object:ident, $metadata:ident, metadata_values $($rest:tt)*) => {
-        $metadata.take_values()
-    };
-    (
-        $object:ident,
-        $metadata:ident,
-        $field:ident $(as $name:literal)? $(logical($logical_ty:ty))?
-        $(otel($method:ident [$($key:expr),*]))?
-        $(media($media:ident))? $(default($default:ident))?
-        : $ty:ty => $policy:expr
-    ) => {
-        crate::native_js::from_js_field::<$ty>(
-            $object,
-            column_name!($field $(as $name)?),
-            $policy,
-            &$metadata,
-        )?
-    };
-}
-
-macro_rules! impl_js_compat {
-    ($(
-        $field:ident $(as $name:literal)? $(logical($logical_ty:ty))?
-        $(otel($method:ident [$($key:expr),*]))?
-        $(media($media:ident))? $(default($default:ident))?
-        : $ty:ty => $policy:expr
-    ),* $(,)?) => {
-        impl PreparedEventRow {
-            pub(crate) fn from_js_fields(
-                object: Object<'_>,
-                mut metadata: crate::native_js::MetadataValues,
-            ) -> Result<Self, String> {
-                $(let $field = compat_read!(
-                    object,
-                    metadata,
-                    $field $(as $name)? $(logical($logical_ty))?
-                        $(otel($method [$($key),*]))?
-                        $(media($media))? $(default($default))?
-                        : $ty => $policy
-                );)*
-                Ok(Self { $($field,)* })
-            }
-        }
-    };
-}
-
 macro_rules! clickhouse_table_schema {
     ($(
         $field:ident $(as $name:literal)? $(logical($logical_ty:ty))?
@@ -177,11 +144,6 @@ macro_rules! clickhouse_table_schema {
     ),* $(,)?) => {
         define_row_types! { $($field $(as $name)? $(logical($logical_ty))?: $ty,)* }
         impl_prepared_row! { $($field $(as $name)?: $ty => $policy,)* }
-        impl_js_compat! {
-            $($field $(as $name)? $(logical($logical_ty))?
-                $(otel($method [$($key),*]))?
-                $(media($media))? $(default($default))?: $ty => $policy,)*
-        }
         impl_otel_row! {
             $($field $(as $name)? $(otel($method [$($key),*]))?
                 $(media($media))? $(default($default))?: $ty => $policy,)*

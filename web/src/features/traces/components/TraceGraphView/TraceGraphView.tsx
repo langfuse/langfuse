@@ -22,6 +22,7 @@ export function TraceGraphView() {
     selectedNodeId,
     setSelectedNodeId,
     selectNode,
+    selectionLocked,
   } = useSelection();
   const { agentGraphData, isLoading } = useTraceGraphData();
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
@@ -81,7 +82,9 @@ export function TraceGraphView() {
     <TraceGraphViewComponent
       selectedObservationId={selectedNodeId}
       defaultObservationId={defaultObservationId}
-      onSelectedObservationChange={handleSelectedObservationChange}
+      onSelectedObservationChange={
+        selectionLocked ? undefined : handleSelectedObservationChange
+      }
       agentGraphData={agentGraphData}
       viewMode={graphViewMode}
       onViewModeChange={handleViewModeChange}

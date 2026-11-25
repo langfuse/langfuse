@@ -12,14 +12,14 @@ vi.mock("next-auth/react", () => ({
 
 const mockSession = ({
   aiGateway,
-  langfuseTopics = false,
+  traceTranscriptEvals = false,
   email,
   enableExperimentalFeatures = false,
   internalFeatures,
   unifiedTraceSessionView = false,
 }: {
   aiGateway: boolean;
-  langfuseTopics?: boolean;
+  traceTranscriptEvals?: boolean;
   email?: string;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
@@ -32,14 +32,14 @@ const mockSession = ({
         email,
         featureFlags: testFeatureFlags({
           aiGateway: false,
-          langfuseTopics,
+          traceTranscriptEvals,
           unifiedTraceSessionView,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: testFeatureFlags({ aiGateway, langfuseTopics }),
+            featureFlags: testFeatureFlags({ aiGateway, traceTranscriptEvals }),
             projects: [],
           },
         ],
@@ -50,12 +50,12 @@ const mockSession = ({
 
 describe("useIsFeatureEnabled", () => {
   it.each([false, true])(
-    "requires explicit unified trace/session opt-in (%s), independent of internal access",
+    "honors unified trace/session opt-in (%s), independent of internal access",
     (unifiedTraceSessionView) => {
       mockSession({
         aiGateway: false,
         email: "staff@clickhouse.com",
-        enableExperimentalFeatures: true,
+        enableExperimentalFeatures: false,
         internalFeatures: true,
         unifiedTraceSessionView,
       });
@@ -71,6 +71,17 @@ describe("useIsFeatureEnabled", () => {
       expect(result.current).toBe(unifiedTraceSessionView);
     },
   );
+  it("enables the unified preview on experimental deployments", () => {
+    mockSession({
+      aiGateway: false,
+      enableExperimentalFeatures: true,
+      unifiedTraceSessionView: false,
+    });
+    const { result } = renderHook(() =>
+      useIsFeatureEnabled("unifiedTraceSessionView"),
+    );
+    expect(result.current).toBe(true);
+  });
   it("honors preview preferences for internal users while preserving the deployment override", () => {
     mockSession({ aiGateway: false, email: "staff@clickhouse.com" });
     const { result, rerender } = renderHook(() =>
@@ -129,12 +140,12 @@ describe("useIsFeatureEnabled", () => {
     const { result } = renderHook(() => ({
       internal: useInternalFeaturesEnabled(),
       aiGateway: useIsFeatureEnabled("aiGateway"),
-      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      traceTranscriptEvals: useIsFeatureEnabled("traceTranscriptEvals"),
     }));
     expect(result.current).toEqual({
       internal: expected,
       aiGateway: false,
-      langfuseTopics: false,
+      traceTranscriptEvals: false,
     });
   });
 
@@ -146,12 +157,18 @@ describe("useIsFeatureEnabled", () => {
     });
     const { result, rerender } = renderHook(() => ({
       aiGateway: useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      traceTranscriptEvals: useIsFeatureEnabled("traceTranscriptEvals"),
     }));
-    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: false });
+    expect(result.current).toEqual({
+      aiGateway: false,
+      traceTranscriptEvals: false,
+    });
 
-    mockSession({ aiGateway: true, langfuseTopics: true });
+    mockSession({ aiGateway: true, traceTranscriptEvals: true });
     rerender();
-    expect(result.current).toEqual({ aiGateway: true, langfuseTopics: true });
+    expect(result.current).toEqual({
+      aiGateway: true,
+      traceTranscriptEvals: true,
+    });
   });
 });

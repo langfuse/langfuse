@@ -72,7 +72,7 @@ const levelBarColors: Record<string, string> = {
   DEFAULT: "bg-accent-dark-green",
   DEBUG: "bg-muted-foreground/40",
   WARNING: "bg-dark-yellow",
-  ERROR: "bg-dark-red",
+  ERROR: "bg-destructive",
 };
 
 /** Renders the colored status bar for a level facet option (renderIcon). */

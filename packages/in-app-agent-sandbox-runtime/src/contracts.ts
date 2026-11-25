@@ -26,10 +26,21 @@ const EditSandboxOperationSchema = z.object({
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 
+// Matches the worker's bash tool limit. Checked here too so the sandbox never
+// arms a timer of arbitrary length; Node also clamps delays above 2^31-1 to 1ms.
+export const MAX_BASH_TIMEOUT_MS = 120_000;
+
 const BashSandboxOperationSchema = z.object({
   operation: z.literal("bash"),
   command: z.string(),
-  timeoutMs: z.number().finite().optional(),
+  // Default at the boundary so `runCommand` always arms a finite kill timer,
+  // even when a caller omits the field. Explicit caller values are preserved.
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_BASH_TIMEOUT_MS)
+    .default(MAX_BASH_TIMEOUT_MS),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
 });
 

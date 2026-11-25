@@ -16,6 +16,7 @@ import {
   Server,
   ProtocolError,
   ProtocolErrorCode,
+  isInputRequiredResult,
 } from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
@@ -24,6 +25,13 @@ import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { registerSkillResources } from "./skills/resources";
+import { registerResources } from "./resources";
+import {
+  clientMayRenderApps,
+  isAppTool,
+  isAppToolResult,
+  MCP_APPS_EXTENSION,
+} from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 
@@ -76,17 +84,27 @@ export function createMcpServer(context: ServerContext): Server {
       capabilities: {
         tools: {},
         resources: {},
-        extensions: { "io.modelcontextprotocol/skills": {} },
+        extensions: {
+          "io.modelcontextprotocol/skills": {},
+          ...MCP_APPS_EXTENSION,
+        },
       },
       instructions: getMcpServerInstructions(),
+      // 2025-era requests get JSON responses, which cannot carry the SDK's
+      // server-to-client prompts, so tools never ask for input there.
+      inputRequired: { legacyShim: false },
     },
   );
 
   registerSkillResources(server);
+  registerResources(server);
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler("tools/list", async () => {
-    const tools = await toolRegistry.getToolDefinitions(context);
+  server.setRequestHandler("tools/list", async (_request, ctx) => {
+    const definitions = await toolRegistry.getToolDefinitions(context);
+    const tools = clientMayRenderApps(ctx)
+      ? definitions
+      : definitions.filter((definition) => !isAppTool(definition));
 
     logger.debug("MCP ListTools", {
       projectId: context.projectId,
@@ -98,7 +116,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler("tools/call", async (request) => {
+  server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -131,8 +149,17 @@ export function createMcpServer(context: ServerContext): Server {
     });
     try {
       const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context),
+        registeredTool.handler(args, context, ctx),
       );
+
+      if (isInputRequiredResult(result)) return result;
+
+      if (isAppToolResult(result)) {
+        return {
+          content: [{ type: "text", text: result.text }],
+          _meta: result.meta,
+        };
+      }
 
       return {
         content: [

@@ -1,14 +1,13 @@
 import { ZodError } from "zod";
 import {
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   logger,
   recordIncrement,
   type TopicsTraceEventType,
-  type TraceBatchInputData,
+  type TraceTranscriptData,
 } from "@langfuse/shared/src/server";
 import {
   getEnabledTopicsModels,
-  isTopicsProjectEnabled,
   readTopicExecutionSummary,
   isValidTopicSummary,
   listTopicFacets,
@@ -24,7 +23,8 @@ import type {
 } from "@langfuse/shared/topics";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
-import { TopicInputTooLarge } from "./models";
+import { topicFailureOwner } from "./metrics";
+import { TopicInputTooLarge } from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -36,7 +36,7 @@ import {
   type TopicsFailedStage,
 } from "./summarizeAssembledTrace";
 
-const inputStorage = createTraceBatchInputStorage();
+const inputStorage = createTraceTranscriptStorage();
 
 export type TopicsTraceOutcome =
   | { outcome: "disabled" | "stale" | "summarized" }
@@ -144,15 +144,9 @@ function pendingFacetIds(facets: TopicFacet[], rows: TopicSummary[]): string[] {
 /** Unreadable objects are retried; a stored object that does not parse never will. */
 async function readInputs(
   event: TopicsTraceEventType,
-): Promise<TraceBatchInputData | null> {
+): Promise<TraceTranscriptData | null> {
   try {
-    return await (event.transcriptS3Path
-      ? inputStorage.get(event.transcriptS3Path)
-      : inputStorage.legacyGet({
-          projectId: event.projectId,
-          traceId: event.traceId,
-          revision: event.revision,
-        }));
+    return await inputStorage.get(event.transcriptS3Path);
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof ZodError) {
       logger.warn("Stored Topics trace input is invalid", {
@@ -219,6 +213,7 @@ async function assignSummaries(
           embeddingConfig,
           summaries: [row],
           run,
+          ruleId: rule.id,
           origin: "online",
           assignedAt,
         }))
@@ -255,7 +250,6 @@ async function processEvent(
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
-  if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
   const settings = await projectSettings(projectId);
   const models = settings.models;
   if (!models) return { outcome: "disabled" };
@@ -284,7 +278,9 @@ async function processEvent(
       executionIssues: inputs.executionIssues,
       models,
       facets,
+      revision: event.revision,
       attempt: deps.attempt ? "retry" : "first",
+      rules,
       executionId: event.batchActionId,
     });
     if (result.outcome === "disabled") return { outcome: "disabled" };
@@ -346,7 +342,9 @@ export async function processTopicsTrace(
     source: "trace_queue",
     outcome: result.outcome,
     attempt: deps.attempt ? "retry" : "first",
-    ...(result.outcome === "failed" ? { reason: result.reason } : {}),
+    ...(result.outcome === "failed"
+      ? { reason: result.reason, owner: topicFailureOwner(result.reason) }
+      : {}),
     ...("failedStage" in result && result.failedStage
       ? { failed_stage: result.failedStage }
       : {}),

@@ -6,6 +6,10 @@ const inputVariants = cva(
   "placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed",
   {
     variants: {
+      noCapture: {
+        true: "ph-no-capture",
+        false: null,
+      },
       valuePrefixed: {
         true: "h-full min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none outline-hidden focus:ring-0",
         false: null,
@@ -76,6 +80,8 @@ type InputProps = Pick<
 > & {
   allowPasswordManager?: boolean;
   error?: boolean;
+  /** Keeps the input out of session replay. */
+  noCapture?: boolean;
   /** Shaded label and/or decorative icon before the editable value. */
   prefix?: ComponentProps<typeof InputControl>["prefix"];
   /** Uneditable text displayed as part of the value, e.g. https://. */
@@ -92,6 +98,7 @@ export function Input({
   allowPasswordManager,
   error,
   layout = "block",
+  noCapture,
   prefix,
   valuePrefix,
   ref,
@@ -108,7 +115,7 @@ export function Input({
       >
         <input
           {...props}
-          className={inputVariants({ valuePrefixed: false, layout })}
+          className={inputVariants({ valuePrefixed: false, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
           disabled={disabled}
@@ -138,7 +145,7 @@ export function Input({
         </span>
         <input
           {...props}
-          className={inputVariants({ valuePrefixed: true, layout })}
+          className={inputVariants({ valuePrefixed: true, layout, noCapture })}
           {...(!allowPasswordManager && { "data-1p-ignore": true })}
           ref={ref}
           disabled={disabled}

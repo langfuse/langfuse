@@ -5,8 +5,6 @@ import { cn } from "@/src/utils/tailwind";
 import { MarkdownViewController } from "./MarkdownViewController";
 import { MarkdownViewContent } from "./MarkdownViewContent";
 
-export { prependBasePathToInternalHref } from "./MarkdownViewContent";
-
 export function MarkdownView({
   markdown,
   audio,

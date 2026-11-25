@@ -36,10 +36,15 @@ vi.mock("@langfuse/shared/encryption", () => ({
 const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
   const prisma = {
     apiKey: { findFirst },
+    gatewayGuardrail: { findMany: () => Promise.resolve([]) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
-          { systemRole: "AI_GATEWAY", orgId: keyOrgId, projectId: null },
+          {
+            systemRole: "AI_GATEWAY_INFERENCE",
+            orgId: keyOrgId,
+            projectId: null,
+          },
         ]),
     },
   } as unknown as PrismaClient;
@@ -55,7 +60,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
         ...params,
         model: "Production OpenAI:gpt-4o",
       });
-      return service.resolve({ context, apiFormat: params.apiFormat });
+      return service.resolve({
+        context,
+        apiFormat: params.apiFormat,
+        pricing: service.findPricing(context),
+      });
     },
   };
 };
@@ -154,6 +163,7 @@ describe("GatewayResolveService", () => {
         expires_at: expect.any(Number),
       },
       spend_limits: [],
+      guardrails: [],
       pricing: null,
     });
   });

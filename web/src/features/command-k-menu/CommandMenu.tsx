@@ -12,6 +12,8 @@ import {
   useCommandState,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
+import { flushSync } from "react-dom";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import {
   BotMessageSquare,
   ClipboardPen,
@@ -1048,6 +1050,7 @@ function CommandMenuComponent({
   mainNavigation: NavigationItem[];
 }) {
   const { open, setOpen } = useCommandMenu();
+  const navigation = useAppNavigation();
   const capture = usePostHogClientCapture();
   const askLockRef = useRef<string | null>(null);
   const { project } = useQueryProjectOrOrganization();
@@ -1110,6 +1113,9 @@ function CommandMenuComponent({
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (!open) {
+          if (navigation) {
+            flushSync(() => navigation.closeTransientNavigation());
+          }
           capture("cmd_k_menu:opened", {
             source: "cmd_k",
           });
@@ -1121,7 +1127,7 @@ function CommandMenuComponent({
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [capture, clearSearch, setOpen, open]);
+  }, [capture, clearSearch, setOpen, open, navigation]);
 
   const shortcutItems = [
     ...[...pageShortcuts.byNavUrl.values()].flat(),

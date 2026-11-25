@@ -50,7 +50,7 @@ const OBSERVATION_MAX_RANGE_MS = 15 * 24 * 60 * 60 * 1000;
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
 const OBSERVATION_FILTER_DESCRIPTION =
-  "Advanced filters; type is inferred from getObservationFilterSchema columns when omitted.";
+  "Advanced filters; type defaults to the first type getObservationFilterSchema lists for the column. Use key for metadata; numeric metadata comparisons need type numberObject.";
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
@@ -134,7 +134,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
   description: [
     "Find and review observations (generations, spans, events, agent steps, tool calls). Traces consist of observations: to inspect a trace, pass traceId and page through its observations. For counts, sums, percentiles or time series use queryMetrics.",
     "Prefer structured filters (trace, name, type, level, environment) and narrow time ranges; search input/output/metadata content only when needed. Paginated with an opaque cursor.",
-    'For metadata filters, first fetch fields: ["id", "metadata"] to discover keys, then use one in a stringObject filter.',
+    'For metadata filters, first fetch fields: ["id", "metadata"] to discover keys, then use one in a stringObject filter, or a numberObject filter to compare as a number (e.g. {"type":"numberObject","column":"metadata","key":"retries","operator":">","value":3}).',
     "Start with the compact default fields, then use getObservation for full input/output of selected observations.",
     "Every request needs fromStartTime (inclusive) and toStartTime (exclusive) at most 336 elapsed hours (14 days) apart, even when scoped by traceId or id. Split longer ranges into adjacent windows (each toStartTime is the next fromStartTime); reuse timestamps from earlier results to narrow. Pages that project input or output hold at most 50 observations; a larger limit is lowered and the cursor returns the rest.",
   ].join("\n"),

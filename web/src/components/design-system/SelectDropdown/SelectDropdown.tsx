@@ -83,6 +83,7 @@ export function SelectDropdown<V extends string>({
   onValueChange,
   emptyMessage = "No options available.",
   noCapture,
+  customOption,
   children,
   ref,
   ...triggerProps
@@ -93,6 +94,8 @@ export function SelectDropdown<V extends string>({
   emptyMessage?: string;
   /** Keeps the portaled option list out of session replay. */
   noCapture?: boolean;
+  /** A single option after the regular ones, set apart by a separator and without a heading, e.g. "Custom". */
+  customOption?: SelectOption<V>;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
@@ -107,9 +110,10 @@ export function SelectDropdown<V extends string>({
   | "onBlur"
 >) {
   const container = useLayerContainer("popover");
-  const selectedOption = options
-    .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
-    .find((option) => option.value === value);
+  const selectedOption = [
+    ...options.flatMap((node) => (isSelectGroup(node) ? node.options : [node])),
+    ...(customOption ? [customOption] : []),
+  ].find((option) => option.value === value);
   const hasOptions = options.some((node) =>
     isSelectGroup(node) ? node.options.length > 0 : true,
   );
@@ -136,8 +140,7 @@ export function SelectDropdown<V extends string>({
     const item = (
       <InputDropdown.Option highlight="focus">
         <SelectPrimitive.Item value={node.value} disabled={node.disabled}>
-          <InputDropdown.OptionContent
-            type="radio"
+          <InputDropdown.SingleSelectOptionContent
             checked={value === node.value}
             label={
               <SelectPrimitive.ItemText>
@@ -246,6 +249,12 @@ export function SelectDropdown<V extends string>({
                     ),
                   )
                 )}
+                {customOption ? (
+                  <>
+                    <SelectPrimitive.Separator className="bg-border my-2 h-px" />
+                    {renderNode(customOption, false)}
+                  </>
+                ) : null}
               </SelectPrimitive.Viewport>
             </InputDropdown.List>
             <SelectPrimitive.ScrollDownButton

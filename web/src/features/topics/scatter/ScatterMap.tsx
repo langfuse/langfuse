@@ -1,4 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { type RouterOutputs } from "@/src/utils/api";
 import { TopicMapExplorer } from "./TopicMapExplorer";
 import { ScatterMapLoading } from "./ScatterMapLoading";
@@ -18,20 +18,16 @@ export function ScatterMap({
 }: ScatterMapProps) {
   if (query.error)
     return (
-      <Alert variant="destructive" size="sm">
-        <Alert.Description>
-          <p className="break-words">
-            Map could not load: {query.error.message}
-          </p>
-        </Alert.Description>
-      </Alert>
+      <Banner variant="error">
+        <p className="break-words">Map could not load: {query.error.message}</p>
+      </Banner>
     );
   if (!query.data) return <ScatterMapLoading fillContainer={fillContainer} />;
   if (query.data.status !== "ready")
     return (
-      <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+      <Banner>
         {query.data.reason ?? "This map has no saved embedding projection."}
-      </p>
+      </Banner>
     );
   return (
     <TopicMapExplorer

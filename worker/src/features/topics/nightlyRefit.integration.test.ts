@@ -5,7 +5,7 @@ import {
   createTopicFacet,
   createTopicRun,
   enqueueTopicRuleRefit,
-  getEnabledTopicsModels,
+  getAllEnabledTopicsModels,
   saveTopicRule,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
@@ -18,7 +18,7 @@ import { env } from "../../env";
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicRuleRefit: vi.fn(),
-  getEnabledTopicsModels: vi.fn(),
+  getAllEnabledTopicsModels: vi.fn(),
 }));
 
 const DIMENSIONS = 64;
@@ -45,7 +45,9 @@ describe("nightly Topics refits against storage", () => {
     facetVersion: 1,
     traceId: randomUUID(),
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
     environment: "default",
     traceName: "trace",
     unitStartTime,
@@ -54,6 +56,7 @@ describe("nightly Topics refits against storage", () => {
     embedding,
     transcriptId: "transcript",
     transcriptVersion: "v1",
+    transcriptBytes: 0,
     summaryModel: "summary",
     embeddingModel: embeddingConfig.embeddingModel,
     providedUsageDetails: {},
@@ -111,7 +114,7 @@ describe("nightly Topics refits against storage", () => {
       ),
     );
     const schedule = (at: Date) => {
-      vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+      vi.mocked(getAllEnabledTopicsModels).mockResolvedValueOnce(
         new Map([
           [
             projectId,
@@ -120,7 +123,7 @@ describe("nightly Topics refits against storage", () => {
               embedding: { model: "embed", dimensions: DIMENSIONS },
             },
           ],
-        ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+        ]) as Awaited<ReturnType<typeof getAllEnabledTopicsModels>>,
       );
       return scheduleNightlyTopicRefits(at);
     };
@@ -193,13 +196,13 @@ describe("nightly Topics refits against storage", () => {
       where: { id: refresh.id },
       data: { createdAt: new Date(slot.getTime() - 30 * 60_000) },
     });
-    vi.mocked(getEnabledTopicsModels).mockResolvedValueOnce(
+    vi.mocked(getAllEnabledTopicsModels).mockResolvedValueOnce(
       new Map([
         [
           projectId,
           { projectId, embedding: { model: "embed", dimensions: DIMENSIONS } },
         ],
-      ]) as Awaited<ReturnType<typeof getEnabledTopicsModels>>,
+      ]) as Awaited<ReturnType<typeof getAllEnabledTopicsModels>>,
     );
 
     // A later tick of the same slot, more than an hour after the refresh started.

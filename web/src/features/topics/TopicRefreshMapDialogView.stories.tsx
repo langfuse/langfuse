@@ -13,7 +13,7 @@ const meta = preview.meta({
     rule: {
       name: "Halo only",
       enabled: true,
-      lastRefitAt: new Date(now - 3 * 3_600_000).toISOString(),
+      lastRefitAt: new Date(now - 8 * 3_600_000).toISOString(),
     },
     now,
     refreshing: false,

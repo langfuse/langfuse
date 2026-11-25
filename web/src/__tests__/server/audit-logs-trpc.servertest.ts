@@ -9,49 +9,30 @@ import {
   createAuditLogsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 function makeOwnerSession(
   org: { id: string; name: string },
   project: { id: string; name: string },
 ): Session {
-  return {
-    expires: "1",
+  return createSession({
     user: {
       id: "user-test",
-      canCreateOrganizations: true,
       name: "Test User",
       v4BetaEnabled: false,
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:enterprise",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: "OWNER",
-              retentionDays: null,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
       featureFlags: testFeatureFlags({ templateFlag: false }),
     },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:enterprise",
-    },
-  };
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        plan: "cloud:enterprise",
+        projects: [{ id: project.id, retentionDays: null, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:enterprise" },
+  });
 }
 
 const at = (minute: number) =>

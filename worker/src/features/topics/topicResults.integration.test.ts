@@ -3,10 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TopicAssignment, TopicSummary } from "@langfuse/shared/topics";
 import {
   ensureDefaultTopicFacets,
+  selectTopicMapMatches,
+  TRACE_SPAN_MARGIN_MS,
+  topicMatchingTraceIdsQuery,
   writeTopicAssignments,
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  createEvent,
+  createEventsCh,
   getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
@@ -47,7 +52,9 @@ describe("current Topics summaries and assignments", () => {
     facetVersion: 1,
     traceId,
     sessionId: null,
-    triggerType: "manual_poc",
+    triggerType: "rule",
+    ruleIds: [],
+    executionId: null,
     environment: "production",
     traceName: "checkout",
     unitStartTime: `2026-10-0${day}T12:00:00.000Z`,
@@ -56,6 +63,7 @@ describe("current Topics summaries and assignments", () => {
     embedding: [1, ...Array<number>(255).fill(0)],
     transcriptId: "t",
     transcriptVersion: "v",
+    transcriptBytes: 0,
     summaryModel: "test",
     embeddingModel: "test",
     providedUsageDetails: {},
@@ -353,6 +361,87 @@ describe("current Topics summaries and assignments", () => {
     expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
   });
 
+  it("keeps only traces a tracing filter matches in each batch", async () => {
+    await createEventsCh(
+      [
+        [traces.assigned, "2026-10-06T12:00:00.000Z", "session-a"],
+        [traces.outlier, "2026-10-04T12:00:00.000Z", "session-b"],
+      ].map(([traceId, startTime, sessionId]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: sessionId,
+          start_time: new Date(startTime).getTime() * 1000,
+        }),
+      ),
+    );
+    const bySession = (sessionId: string) =>
+      summaries([], {
+        facetIds: [issues],
+        traceFilter: ({ from, to, traceIds: batchTraceIds }) =>
+          topicMatchingTraceIdsQuery(
+            {
+              projectId,
+              filter: [
+                {
+                  column: "sessionId",
+                  type: "string",
+                  operator: "=",
+                  value: sessionId,
+                },
+              ],
+              from,
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds: batchTraceIds,
+            },
+            prisma,
+          ),
+      });
+
+    expect(traceIds(await bySession("session-a"))).toEqual([traces.assigned]);
+    expect(traceIds(await bySession("session-b"))).toEqual([traces.outlier]);
+    expect(traceIds(await bySession("session-none"))).toEqual([]);
+  });
+
+  it("highlights only the map's cohort traces a tracing filter matches", async () => {
+    const sessionId = `map-${randomUUID()}`;
+    await createEventsCh(
+      [
+        [traces.assigned, "2026-10-06T12:00:00.000Z", sessionId],
+        [traces.outlier, "2026-10-04T12:00:00.000Z", `other-${sessionId}`],
+        // Matches, but belongs to another run's map.
+        [traces.unpublished, "2026-10-02T12:00:00.000Z", sessionId],
+      ].map(([traceId, startTime, session]) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: session,
+          start_time: new Date(startTime).getTime() * 1000,
+        }),
+      ),
+    );
+
+    expect(
+      await selectTopicMapMatches(
+        {
+          projectId,
+          runId: publishedRunId,
+          facet: { facetId: issues, version: 1 },
+          timeRange: window,
+          filter: [
+            {
+              column: "sessionId",
+              type: "string",
+              operator: "=",
+              value: sessionId,
+            },
+          ],
+        },
+        prisma,
+      ),
+    ).toEqual([traces.assigned]);
+  });
+
   it("returns short pages with a cursor when the candidate budget runs out", async () => {
     const awaiting: TopicResultCondition[] = [
       {
@@ -427,7 +516,9 @@ describe("current Topics results with several rules sharing a facet", () => {
       facetVersion: 1,
       traceId,
       sessionId: null,
-      triggerType: "manual_poc",
+      triggerType: "rule",
+      ruleIds: [],
+      executionId: null,
       environment: "production",
       traceName: "checkout",
       unitStartTime: `2026-10-0${day}T12:00:00.000Z`,
@@ -436,6 +527,7 @@ describe("current Topics results with several rules sharing a facet", () => {
       embedding: [1, ...Array<number>(255).fill(0)],
       transcriptId: "t",
       transcriptVersion: "v",
+      transcriptBytes: 0,
       summaryModel: "test",
       embeddingModel: "test",
       providedUsageDetails: {},

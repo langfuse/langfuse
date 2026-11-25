@@ -34,6 +34,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createOrgMembership,
+  createProjectMembership,
+} from "@langfuse/shared/memberships";
+import {
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -116,21 +120,18 @@ const createProjectUser = async ({
     },
   });
 
-  const orgMembership = await prisma.organizationMembership.create({
-    data: {
-      orgId,
-      userId: user.id,
-      role: "MEMBER",
-    },
+  const orgMembership = await createOrgMembership(prisma, {
+    orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.create({
-    data: {
-      projectId,
-      userId: user.id,
-      role: "MEMBER",
-      orgMembershipId: orgMembership.id,
-    },
+  await createProjectMembership(prisma, {
+    orgId,
+    projectId,
+    userId: user.id,
+    role: "MEMBER",
+    orgMembershipId: orgMembership.id,
   });
 
   return user;
@@ -170,13 +171,17 @@ describe("MCP public API tools", () => {
     );
   });
 
-  it("exposes the same feature-enabled tools for in-app agent keys", async () => {
+  it("exposes the same feature-enabled tools for in-app agent keys, except MCP Apps", async () => {
     const toolNames = await getToolNames();
     const inAppToolNames = await getToolNames(
       mockServerContext({ inAppAgent: { permissions: "read" } }),
     );
 
-    expect(inAppToolNames.sort()).toEqual(toolNames.sort());
+    // The in-app agent renders no MCP Apps, so the apps feature is off for it.
+    expect(toolNames).toContain("renderWidget");
+    expect(inAppToolNames.sort()).toEqual(
+      toolNames.filter((name) => name !== "renderWidget").sort(),
+    );
   });
 
   it("does not resolve mutating tools for in-app agent keys without a run override", async () => {

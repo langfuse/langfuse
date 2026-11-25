@@ -10,6 +10,7 @@ import {
   filterOperators,
   FTS_MATCH_OPERATOR,
   numberFilter,
+  numberObjectFilter,
   singleFilter,
   stringFilter,
   stringObjectFilter,
@@ -21,6 +22,7 @@ import { z } from "zod";
 import {
   OBSERVATION_MCP_FTS_COLUMNS,
   OBSERVATION_MCP_INDEXED_IO_COLUMNS,
+  OBSERVATION_MCP_NUMERIC_KEY_COLUMNS,
 } from "./tools/getObservationFilterSchema";
 
 const addIssues = (ctx: z.RefinementCtx, issues: z.core.$ZodIssue[]) => {
@@ -98,6 +100,13 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
   number: (column: string, requireType = false) =>
     numberFilter.omit({ type: true, column: true }).extend({
       type: requireType ? z.literal("number") : z.literal("number").optional(),
+      column: z.literal(column),
+    }),
+  numberObject: (column: string, requireType = false) =>
+    numberObjectFilter.omit({ type: true, column: true }).extend({
+      type: requireType
+        ? z.literal("numberObject")
+        : z.literal("numberObject").optional(),
       column: z.literal(column),
     }),
   stringObject: (column: string, requireType = false) => {
@@ -189,7 +198,11 @@ export const ObservationMcpFilterSchema = z.preprocess(
         return;
       }
 
-      const type = OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
+      const type =
+        filter.type === "numberObject" &&
+        OBSERVATION_MCP_NUMERIC_KEY_COLUMNS.has(filter.column)
+          ? "numberObject"
+          : OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
       if (!type || !isObservationMcpFilterType(type)) {
         ctx.addIssue({

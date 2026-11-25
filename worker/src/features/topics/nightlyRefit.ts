@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
   createTopicRun,
   enqueueTopicRuleRefit,
-  getEnabledTopicsModels,
-  getTopicSummaryCounts,
+  getAllEnabledTopicsModels,
+  hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
   listTopicFacets,
@@ -64,13 +63,7 @@ export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  const projects = [
-    ...(
-      await getEnabledTopicsModels(
-        sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-      )
-    ).values(),
-  ]
+  const projects = [...(await getAllEnabledTopicsModels()).values()]
     .map((models) => ({
       projectId: models.projectId,
       embeddingConfig: {
@@ -228,7 +221,7 @@ async function refitRuleFacet({
     ...run,
     config: {
       ...embedding,
-      // The fit loads the newest of the rule's summaries in this window.
+      // The fit loads a stable sample of the rule's summaries in this window.
       timeRange: {
         from: new Date(
           now.getTime() - TOPICS_MAX_SELECTION_RANGE_MS,
@@ -279,13 +272,10 @@ async function hasNewSummaries(
     now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [facet],
-    embeddingConfig,
-    { from: new Date(from), to: now },
-  );
-  return count > 0;
+  return hasCompatibleTopicSummaries(projectId, facet, embeddingConfig, {
+    from: new Date(from),
+    to: now,
+  });
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

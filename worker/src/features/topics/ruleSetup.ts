@@ -17,7 +17,6 @@ import {
   getTopicRun,
   getTopicSetupSummaryCounts,
   isTopicRuleSetupActive,
-  isTopicsProjectEnabled,
   listTopicFacets,
   readTopicRuleSetup,
   readTopicRuleSetupTraces,
@@ -33,8 +32,8 @@ import type {
   TopicRule,
   TopicRun,
 } from "@langfuse/shared/topics";
-import { resolveTraceIdleMs } from "../traceBatching/traceBatchReadiness";
-import { seedTraceDispatch } from "../traceBatching/traceRuleRecording";
+import { resolveTraceIdleMs } from "../traceDispatch/traceReadiness";
+import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { currentRuleMap } from "./nightlyRefit";
 
 export const TOPIC_RULE_SETUP_TICK_MS = 15_000;
@@ -144,8 +143,6 @@ function recordOutcome(setup: TopicRuleSetup, now: Date) {
 }
 
 async function setupContext(setup: TopicRuleSetup): Promise<SetupContext> {
-  if (!isTopicsProjectEnabled(setup.projectId))
-    throw new SetupStopped("Topics is not enabled for this project.");
   const [rule, models] = await Promise.all([
     getTopicRule(setup.projectId, setup.ruleId),
     getEnabledTopicsModels([setup.projectId]),
@@ -229,7 +226,6 @@ async function selectAndSeed(
       idleMs: await resolveTraceIdleMs(projectId),
       now,
       days,
-      sampling: rule.sampling,
       limit: shortfall,
       seed: rule.id,
       matching,
@@ -376,7 +372,7 @@ async function startFit(
       config: {
         embeddingModel: embeddingConfig.embeddingModel,
         dimensions: embeddingConfig.embeddingDimensions,
-        // The fit loads the newest of the rule's summaries in this window.
+        // The fit loads a stable sample of the rule's summaries in this window.
         timeRange: {
           from: fitFrom(setup, now).toISOString(),
           to: now.toISOString(),

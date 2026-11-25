@@ -58,7 +58,6 @@ import {
   sourceAtomForNode,
 } from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
-export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
 type QueryToken = React.ComponentProps<typeof QueryTokens>["tokens"][number];
 
@@ -147,6 +146,154 @@ function positionTokenTooltip({
     maxWidth,
     maxHeight,
   };
+}
+
+function moreValuesLabel(hidden: number): string | null {
+  if (hidden <= 0) return null;
+  const noun = hidden === 1 ? "value" : "values";
+  return `${hidden} more ${noun}`;
+}
+
+function CollectionValueMark({ included }: { included: boolean }) {
+  if (!included) {
+    return (
+      <span
+        aria-hidden
+        className="border-input inline-flex h-3.5 w-3.5 shrink-0 rounded-sm border"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="bg-control-fill text-primary-foreground inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm"
+    >
+      <Check size="sm" />
+    </span>
+  );
+}
+
+function CollectionValuePreview({
+  title,
+  detail,
+  values,
+  included,
+  editable,
+  onEdit,
+}: {
+  title: string;
+  detail: string;
+  values: readonly string[];
+  included: boolean;
+  editable: boolean;
+  onEdit: () => void;
+}) {
+  const shown = values.slice(0, 6);
+  const overflow = moreValuesLabel(values.length - shown.length);
+  return (
+    <div className="min-w-52">
+      <span className="block font-bold">{title}</span>
+      <span className="text-muted-foreground mt-0.5 block font-normal">
+        {detail}
+      </span>
+      <ul className="mt-1 flex flex-col border-t pt-1">
+        {shown.map((value, index) => (
+          <li
+            key={`${index}:${value}`}
+            className="flex h-6 min-w-0 items-center gap-2"
+          >
+            <CollectionValueMark included={included} />
+            <span
+              title=""
+              className={cn(
+                "min-w-0 flex-1 truncate font-mono",
+                value === "" && "text-muted-foreground italic",
+              )}
+            >
+              {value || "(empty)"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {overflow !== null ? (
+        <span className="text-muted-foreground mt-1 block font-normal">
+          {overflow}
+        </span>
+      ) : null}
+      {editable ? (
+        <button
+          type="button"
+          className="text-foreground focus-visible:ring-ring mt-1 block w-full cursor-pointer border-0 bg-transparent p-0 text-left font-sans text-xs font-normal underline focus-visible:ring-2 focus-visible:outline-hidden"
+          onMouseDown={(event) => {
+            // Blurring the editor unmounts this preview before click. Keep focus.
+            event.preventDefault();
+          }}
+          onClick={onEdit}
+        >
+          Edit values
+        </button>
+      ) : (
+        <span className="text-muted-foreground mt-1 block font-normal">
+          Choose a valid field to edit values
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TokenTooltipBody({
+  error,
+  collection,
+  editable,
+  explanation,
+  deactivatedNote,
+  onEdit,
+}: {
+  error: string | null;
+  collection: {
+    previewLabel: string;
+    previewDetail: string;
+    values: readonly string[];
+    selection: "included" | "excluded";
+  } | null;
+  editable: boolean;
+  explanation: { subject: string; predicate: string } | null;
+  deactivatedNote: string | null;
+  onEdit: () => void;
+}) {
+  const note =
+    deactivatedNote === null ? null : (
+      <span className="text-muted-foreground block pt-0.5">
+        {deactivatedNote}
+      </span>
+    );
+  if (error !== null) return error;
+  if (collection !== null) {
+    return (
+      <>
+        <CollectionValuePreview
+          title={collection.previewLabel}
+          detail={collection.previewDetail}
+          values={collection.values}
+          included={collection.selection === "included"}
+          editable={editable}
+          onEdit={onEdit}
+        />
+        {note}
+      </>
+    );
+  }
+  const predicate =
+    explanation !== null && explanation.predicate !== ""
+      ? explanation.predicate
+      : null;
+  return (
+    <>
+      <span className="font-bold">{explanation?.subject}</span>
+      {predicate !== null ? <> {predicate}</> : null}
+      {note}
+    </>
+  );
 }
 
 // IME composition (Korean, Chinese, Japanese) inserts a text node the
@@ -938,7 +1085,10 @@ function QueryInputEditor({
     onEditToken !== undefined && explainTarget?.collection !== undefined;
   const explanation = (() => {
     if (onEditToken !== undefined && explainTarget?.collection !== undefined) {
-      return { subject: explainTarget.collection.previewLabel, predicate: "" };
+      return {
+        subject: explainTarget.collection.previewLabel,
+        predicate: "",
+      };
     }
     return explainTarget?.explanation ?? null;
   })();
@@ -1410,6 +1560,14 @@ function QueryInputEditor({
 
   const explainDeactivatedReason =
     explainTarget === null ? null : explainTarget.inactiveReason;
+  const tooltipCollection =
+    onEditToken !== undefined && explainTarget?.collection !== undefined
+      ? explainTarget.collection
+      : null;
+  const tooltipDeactivatedNote =
+    explainDeactivatedReason === null
+      ? null
+      : notAppliedNote(explainDeactivatedReason);
   // Keyboard/AT path: the caret token's explanation, read through the combobox's
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
@@ -1576,6 +1734,18 @@ function QueryInputEditor({
     };
   }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
+  const editCollection = (token: QueryToken) => {
+    if (onEditToken === undefined) return;
+    const anchor = containerRef.current?.querySelector(
+      `[data-segment-id="${CSS.escape(token.id)}"] [data-query-collection]`,
+    );
+    if (!(anchor instanceof HTMLButtonElement) || anchor.disabled) return;
+    hasInteractedRef.current = true;
+    setAutocompleteOpen(false);
+    setHoveredTokenId(null);
+    onEditToken(token, anchor);
+  };
+
   // Include the visual gap in the collection preview's hover area so the
   // pointer can travel from the token into the portaled content.
   const tokenTooltip =
@@ -1621,42 +1791,16 @@ function QueryInputEditor({
               : "border-border text-popover-foreground",
           )}
         >
-          {errorTarget !== null ? (
-            errorTarget.error
-          ) : (
-            <>
-              <span className="font-bold">{explanation?.subject}</span>
-              {/* A boolean token's phrase IS the whole explanation — no
-                      predicate, so no dangling space before the period. */}
-              {explanation?.predicate !== "" && <> {explanation?.predicate}</>}
-              {onEditToken !== undefined &&
-                explainTarget?.collection !== undefined && (
-                  <div className="mt-1 border-t pt-1">
-                    <ul className="flex flex-col gap-1 font-mono">
-                      {explainTarget.collection.values
-                        .slice(0, 6)
-                        .map((value, index) => (
-                          <li key={index} title="" className="truncate">
-                            {value || "(empty)"}
-                          </li>
-                        ))}
-                    </ul>
-                    <span className="text-muted-foreground mt-1 block">
-                      {explainTarget.collection.values.length > 6 &&
-                        `${explainTarget.collection.values.length - 6} more values. `}
-                      {explainTarget.error !== null
-                        ? "Choose a valid field to edit values"
-                        : "Click to edit"}
-                    </span>
-                  </div>
-                )}
-              {explainDeactivatedReason !== null && (
-                <span className="text-muted-foreground block pt-0.5">
-                  {notAppliedNote(explainDeactivatedReason)}
-                </span>
-              )}
-            </>
-          )}
+          <TokenTooltipBody
+            error={errorTarget?.error ?? null}
+            collection={tooltipCollection}
+            editable={explainTarget?.error === null}
+            explanation={explanation}
+            deactivatedNote={tooltipDeactivatedNote}
+            onEdit={() => {
+              if (explainTarget !== null) editCollection(explainTarget);
+            }}
+          />
         </div>
       </div>
     );

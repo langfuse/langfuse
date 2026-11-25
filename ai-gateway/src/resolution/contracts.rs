@@ -455,6 +455,13 @@ struct ResolutionResponse {
     /// model has no prices.
     #[serde(default)]
     pricing: Option<ModelPricing>,
+    /// Checked in every ingestion mode; absent from Web versions without guardrails.
+    #[serde(default)]
+    guardrails: Vec<crate::guardrails::Guardrail>,
+}
+
+fn default_alert_thresholds() -> Vec<u8> {
+    vec![100]
 }
 
 /// A cap on what a scope spends per UTC calendar window.
@@ -469,6 +476,10 @@ pub(crate) struct SpendLimit {
     /// When the gateway started counting, in Unix milliseconds. Part of the
     /// counter key, so a new counting start begins a new counter.
     pub counting_started_at: i64,
+    /// Usage percentages (e.g. 85, 95, 100) that trigger an email alert.
+    /// Defaults to `[100]` for Web versions that predate warning thresholds.
+    #[serde(default = "default_alert_thresholds")]
+    pub alert_thresholds: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -509,6 +520,9 @@ impl ResolvedRequestContext {
     }
     pub(crate) fn pricing(&self) -> Option<&ModelPricing> {
         self.0.pricing.as_ref()
+    }
+    pub(crate) fn guardrails(&self) -> &[crate::guardrails::Guardrail] {
+        &self.0.guardrails
     }
     /// The project and grant telemetry is delivered with. Resolution guarantees both
     /// in every mode but [`IngestionMode::None`], which never delivers.

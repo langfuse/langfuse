@@ -2,26 +2,26 @@ import { randomUUID } from "node:crypto";
 import { type Job } from "bullmq";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   QueueJobs,
+  recordIncrement,
   redis,
   type QueueName,
   type TQueueJobTypes,
-  type TraceBatchInputStorage,
+  type TraceTranscriptStorage,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { EXPERIMENT_RULE_ID } from "../../features/evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { getTraceBatchShard } from "../../features/traceBatching/traceBatchReadiness";
+import { getTraceDispatchShard } from "../../features/traceDispatch/traceReadiness";
 import {
   ACKNOWLEDGE_RECORDING_SCRIPT,
   getRecordingKeys,
   recordTraceActivity,
-} from "../../features/traceBatching/traceRuleRecording";
+} from "../../features/traceDispatch/traceRuleRecording";
 import { eventsDispatchQueueProcessor } from "../eventsDispatchQueue";
 
 const inputStorage = vi.hoisted(() => ({
-  put: vi.fn<TraceBatchInputStorage["put"]>(),
-  get: vi.fn<TraceBatchInputStorage["get"]>(),
+  put: vi.fn<TraceTranscriptStorage["put"]>(),
+  get: vi.fn<TraceTranscriptStorage["get"]>(),
 }));
 const topicsTraceAdd = vi.hoisted(() => vi.fn());
 
@@ -33,10 +33,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     redis: original.createNewRedisInstance({
       keyPrefix: `events-dispatch-test-${randomUUID()}:`,
     }),
-    getTraceBatchEventStream: vi.fn(),
+    getEventsDispatchEventStream: vi.fn(),
     recordIncrement: vi.fn(),
     recordDistribution: vi.fn(),
-    createTraceBatchInputStorage: () => inputStorage,
+    createTraceTranscriptStorage: () => inputStorage,
     TopicsTraceQueue: { getInstance: () => ({ add: topicsTraceAdd }) },
   };
 });
@@ -63,14 +63,13 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
 const originals = {
   region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   eventsDispatch: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
-  storeAll: env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL,
 };
 const MINUTE_MS = 60_000;
 // Keys share the local Redis, so each run uses its own project.
 const projectId = `project-${randomUUID()}`;
 const member = (traceId: string) => JSON.stringify([projectId, traceId]);
 const keysOf = (traceId: string) =>
-  getRecordingKeys(getTraceBatchShard(member(traceId)));
+  getRecordingKeys(getTraceDispatchShard(member(traceId)));
 const readPending = async (traceId: string) => {
   const value = await redis!.hget(keysOf(traceId).pending, member(traceId));
   return value === null ? null : JSON.parse(value);
@@ -98,29 +97,31 @@ async function recordAndAcknowledge(traceIds: string[], acknowledge = true) {
 }
 
 function streamRows(traceIds: string[]) {
-  vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-    for (const traceId of traceIds)
-      yield {
-        project_id: projectId,
-        trace_id: traceId,
-        session_id: "",
-        environment: "default",
-        span_id: `span-${traceId}`,
-        parent_span_id: null,
-        start_time: "2026-11-05 00:00:00.000000",
-        event_ts: "2026-11-05 00:00:00.000000",
-        type: "GENERATION",
-        name: "generation",
-        input: JSON.stringify([{ role: "user", content: "hello" }]),
-        output: "",
-        metadata: {},
-        level: "DEFAULT",
-        status_message: null,
-        tool_definitions: {},
-        tool_calls: [],
-        tool_call_names: [],
-      };
-  });
+  vi.mocked(getEventsDispatchEventStream).mockImplementation(
+    async function* () {
+      for (const traceId of traceIds)
+        yield {
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: "",
+          environment: "default",
+          span_id: `span-${traceId}`,
+          parent_span_id: null,
+          start_time: "2026-11-05 00:00:00.000000",
+          event_ts: "2026-11-05 00:00:00.000000",
+          type: "GENERATION",
+          name: "generation",
+          input: JSON.stringify([{ role: "user", content: "hello" }]),
+          output: "",
+          metadata: {},
+          level: "DEFAULT",
+          status_message: null,
+          tool_definitions: {},
+          tool_calls: [],
+          tool_call_names: [],
+        };
+    },
+  );
 }
 
 const job = (
@@ -153,7 +154,6 @@ describe("events dispatch consumer", () => {
   beforeEach(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     vi.clearAllMocks();
     inputStorage.put.mockResolvedValue({
       outcome: "stored",
@@ -165,7 +165,6 @@ describe("events dispatch consumer", () => {
   afterAll(async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originals.region;
     env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originals.eventsDispatch;
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = originals.storeAll;
     redis?.disconnect();
   });
 
@@ -200,6 +199,35 @@ describe("events dispatch consumer", () => {
     );
     expect(due).toBeGreaterThanOrEqual(startedAt + 5 * MINUTE_MS - 1_000);
     expect(due).toBeLessThanOrEqual(Date.now() + 5 * MINUTE_MS + 1_000);
+  });
+
+  it("counts a job's traces as lost only when its last attempt fails", async () => {
+    const revisions = await recordAndAcknowledge(["first", "second"]);
+    vi.mocked(getEventsDispatchEventStream).mockImplementation(() => {
+      throw new Error("read failed");
+    });
+    const attempt = (attemptsMade: number) =>
+      Object.assign(
+        job(
+          [...revisions].map(([traceId, revision]) => ({ traceId, revision })),
+        ),
+        { attemptsMade, opts: { attempts: 2 } },
+      );
+    const lost = [
+      "langfuse.events_dispatch.trace_outcomes",
+      2,
+      { outcome: "lost", reason: "job_failed" },
+    ];
+
+    await expect(eventsDispatchQueueProcessor(attempt(0))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).not.toHaveBeenCalledWith(...lost);
+
+    await expect(eventsDispatchQueueProcessor(attempt(1))).rejects.toThrow(
+      "read failed",
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(...lost);
   });
 
   it("keeps newer activity's revision and drops a trace after its last retry", async () => {
@@ -264,54 +292,19 @@ describe("events dispatch consumer", () => {
     expect(restored.revision).not.toBe(revisions.get("early"));
   });
 
-  it("stores traces without consumer rules only in the store-all experiment, still enqueueing Topics where rules apply", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
-    streamRows(["marker", "topics"]);
+  it("skips traces whose recorded rules route to no consumer, still enqueueing Topics where rules apply", async () => {
+    streamRows(["topics"]);
 
     const result = await eventsDispatchQueueProcessor(
       job([
-        {
-          traceId: "marker",
-          revision: "r1",
-          ruleIds: [EXPERIMENT_RULE_ID],
-        },
+        { traceId: "unrouted", revision: "r1", ruleIds: ["deleted-rule"] },
         { traceId: "topics", revision: "r2" },
       ]),
     );
 
-    expect(result).toEqual({ stored: 1, enqueued: 1 });
-    expect(inputStorage.put).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ skipped: 1, enqueued: 1 });
+    expect(inputStorage.put).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
     expect(topicsTraceAdd.mock.calls[0][1].payload.traceId).toBe("topics");
-  });
-
-  it("does not return a failed storage-only trace to Redis, while a failed Topics trace is restored", async () => {
-    env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_EXPERIMENTAL = "true";
-    const revisions = await recordAndAcknowledge(["topics"]);
-    // Bounds without a pending selection, as recorded for experiment-only traces.
-    await recordTraceActivity(projectId, [
-      {
-        traceId: "marker",
-        spanStartTimeISO: new Date(1_000_000).toISOString(),
-        ruleIds: [],
-        serializedEventBytes: 100,
-      },
-    ]);
-    streamRows(["marker", "topics"]);
-    inputStorage.put.mockRejectedValue(new Error("SlowDown"));
-
-    await eventsDispatchQueueProcessor(
-      job([
-        { traceId: "marker", revision: "r1", ruleIds: [EXPERIMENT_RULE_ID] },
-        { traceId: "topics", revision: revisions.get("topics")! },
-      ]),
-    );
-
-    expect(topicsTraceAdd).not.toHaveBeenCalled();
-    expect(await readPending("marker")).toBeNull();
-    expect(await readPending("topics")).toMatchObject({
-      rules: ["rule"],
-      failed_cnt: 1,
-    });
   });
 });
