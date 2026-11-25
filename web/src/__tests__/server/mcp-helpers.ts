@@ -300,7 +300,9 @@ export async function findCallableTool(
   name: string,
   context: ServerContext,
 ): Promise<RegisteredTool | undefined> {
-  // Imported on use: the tool list loads every feature module.
+  // Imported on use: the tool list loads every feature module, which fails in
+  // tests that import these helpers while partially mocking their dependencies
+  // (such as `@langfuse/shared/src/db` in the v4 migration tests).
   const { canCallTool, getEnabledTool } =
     await import("@/src/features/mcp/server/tools");
   const tool = await getEnabledTool(name, context);
