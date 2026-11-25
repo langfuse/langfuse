@@ -146,71 +146,87 @@ describe("Topics cost estimate", () => {
   });
 
   it("records each estimate's duration and its cost per 1,000 traces for the project and org", async () => {
-    const modelId = randomUUID();
-    await prisma.model.create({
+    // Its own project, so its trace never enters another test's sample.
+    const orgId = randomUUID();
+    const projectId = randomUUID();
+    await prisma.organization.create({
       data: {
-        id: modelId,
-        scope: "PROJECT",
-        projectId,
-        modelName: "estimate-priced-model",
-        matchPattern: "estimate-priced-model",
-        unit: "TOKENS",
-        pricingTiers: {
-          create: {
-            name: "Standard",
-            isDefault: true,
-            conditions: [],
-            priority: 0,
-            prices: {
-              createMany: {
-                data: [{ modelId, usageType: "total", price: "0.000002" }],
+        id: orgId,
+        name: "Topics cost estimate metrics test",
+        projects: {
+          create: [{ id: projectId, name: "Cost estimate metrics" }],
+        },
+      },
+    });
+    try {
+      const modelId = randomUUID();
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          scope: "PROJECT",
+          projectId,
+          modelName: "estimate-priced-model",
+          matchPattern: "estimate-priced-model",
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                createMany: {
+                  data: [{ modelId, usageType: "total", price: "0.000002" }],
+                },
               },
             },
           },
         },
-      },
-    });
-    const facet = await createTopicFacet({
-      projectId,
-      name: "Outcome",
-      description: "",
-      prompt: "Describe the outcome.",
-    });
-    const at = new Date(Date.now() - DAY_MS);
-    await createEventsCh([
-      createEvent({
-        project_id: projectId,
-        trace_id: `${projectId}-priced`,
-        start_time: at,
-        event_ts: at,
-        input: "Export my invoices.",
-        output: "",
-      }),
-    ]);
-    const { estimate } = await claimTopicCostEstimate({
-      projectId,
-      filter: [],
-      facets: [{ facetId: facet.id, version: 1 }],
-      summaryModel: "estimate-priced-model",
-      embeddingModel: null,
-    });
-    vi.mocked(recordDistribution).mockClear();
-    await runTopicCostEstimate(projectId, estimate.key, estimate.runId);
+      });
+      const facet = await createTopicFacet({
+        projectId,
+        name: "Outcome",
+        description: "",
+        prompt: "Describe the outcome.",
+      });
+      const at = new Date(Date.now() - DAY_MS);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: `${projectId}-priced`,
+          start_time: at,
+          event_ts: at,
+          input: "Export my invoices.",
+          output: "",
+        }),
+      ]);
+      const { estimate } = await claimTopicCostEstimate({
+        projectId,
+        filter: [],
+        facets: [{ facetId: facet.id, version: 1 }],
+        summaryModel: "estimate-priced-model",
+        embeddingModel: null,
+      });
+      vi.mocked(recordDistribution).mockClear();
+      await runTopicCostEstimate(projectId, estimate.key, estimate.runId);
 
-    const tenant = { projectId, orgId };
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.topics.cost_estimate_duration_ms",
-      expect.any(Number),
-      { ...tenant, outcome: "done", unit: "milliseconds" },
-    );
-    // The same price the estimate dialog shows, scaled to 1,000 traces.
-    const done = await readTopicCostEstimate(projectId, estimate.key);
-    const { perTraceUsd } = await priceTopicCostEstimate(projectId, done!);
-    expect(perTraceUsd).toBeGreaterThan(0);
-    expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.topics.cost_estimate_per_1000_traces_usd",
-      perTraceUsd! * 1000,
-      tenant,
-    );
+      const tenant = { projectId, orgId };
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.topics.cost_estimate_duration_ms",
+        expect.any(Number),
+        { ...tenant, outcome: "done", unit: "milliseconds" },
+      );
+      // The same price the estimate dialog shows, scaled to 1,000 traces.
+      const done = await readTopicCostEstimate(projectId, estimate.key);
+      const { perTraceUsd } = await priceTopicCostEstimate(projectId, done!);
+      expect(perTraceUsd).toBeGreaterThan(0);
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.topics.cost_estimate_per_1000_traces_usd",
+        perTraceUsd! * 1000,
+        tenant,
+      );
+    } finally {
+      await prisma.organization.deleteMany({ where: { id: orgId } });
+    }
   });
 });
