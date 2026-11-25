@@ -83,6 +83,7 @@ export function SelectDropdown<V extends string>({
   emptyMessage = "No options available.",
   noCapture,
   customOption,
+  openState,
   children,
   ref,
   ...triggerProps
@@ -95,6 +96,7 @@ export function SelectDropdown<V extends string>({
   noCapture?: boolean;
   /** A single option after the regular ones, set apart by a separator and without a heading, e.g. "Custom". */
   customOption?: SelectOption<V>;
+  openState: { open: boolean; onOpenChange: (open: boolean) => void };
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
@@ -206,7 +208,12 @@ export function SelectDropdown<V extends string>({
   };
 
   return (
-    <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
+    <SelectPrimitive.Root
+      value={value}
+      onValueChange={onValueChange}
+      open={openState.open}
+      onOpenChange={openState.onOpenChange}
+    >
       <SelectPrimitive.Trigger
         asChild
         ref={ref}

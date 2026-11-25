@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 import {
-  type ColumnDefinition,
   type FilterState,
   type TableViewPresetState,
   TableViewPresetTableName,
@@ -11,6 +10,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import isEqual from "lodash/isEqual";
+import { type FilterBuilderColumn } from "@/src/components/design-system/ControlledFilterBuilderEditor/ControlledFilterBuilderEditor";
 
 import {
   ModernSessionFilterDialogContent,
@@ -44,8 +44,7 @@ type ViewControllers = Pick<
 type ModernSessionFilterControlsProps = {
   projectId: string;
   filterState: FilterState;
-  filterColumns: ColumnDefinition[];
-  filterColumnsWithCustomSelect: string[];
+  filterColumns: FilterBuilderColumn[];
   onChange: (filters: FilterState) => void;
   viewControllers: ViewControllers;
   currentViewState: {
@@ -69,7 +68,6 @@ export function ModernSessionFilterControls({
   projectId,
   filterState,
   filterColumns,
-  filterColumnsWithCustomSelect,
   onChange,
   viewControllers,
   currentViewState,
@@ -299,7 +297,6 @@ export function ModernSessionFilterControls({
             key={viewControllers.filterEditorResetKey}
             initialFilters={filterState}
             filterColumns={filterColumns}
-            filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}
             viewActions={filterDialogViewActions}
             onCancel={() => setFilterDialogOpen(false)}
             onApplyFilters={applyFilters}

@@ -2,12 +2,12 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderDropdown } from "@/src/components/design-system/FilterBuilderDropdown/FilterBuilderDropdown";
+import { useFilterBuilderAnalytics } from "@/src/features/filters/hooks/useFilterBuilderAnalytics";
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React, { useEffect, useRef, useState } from "react";
-import { useDebounce } from "@/src/hooks/useDebounce";
 import type { ScoreColumn } from "@/src/features/scores/types";
 import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { useRouter } from "next/router";
@@ -115,12 +115,20 @@ function RunAggregateHeader({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
 }) {
-  // Debounce updateRunFilters with 500ms delay to prevent immediate table re-renders
-  const debouncedUpdateRunFilters = useDebounce(
-    (runId: string, filters: FilterState) => updateRunFilters(runId, filters),
-    500,
-    false, // Don't execute first call immediately
+  const filters = getFiltersForRun(runId);
+  const onFilterAnalyticsEvent = useFilterBuilderAnalytics(
+    "dataset-runs-compare",
+    false,
   );
+  const scoreColumns = columns.flatMap<
+    React.ComponentProps<typeof FilterBuilderDropdown>["columns"][number]
+  >((column) => {
+    if (column.type === "categoryOptions") return [column];
+    if (column.type === "numberObject" || column.type === "booleanObject") {
+      return [{ ...column, type: column.type }];
+    }
+    return [];
+  });
 
   return (
     <div className="flex w-full flex-row items-center gap-1">
@@ -128,17 +136,14 @@ function RunAggregateHeader({
         {runName}
       </span>
       <div className="flex w-fit shrink-0 gap-1">
-        <PopoverFilterBuilder
-          buttonType="icon"
-          columns={columns}
-          filterState={getFiltersForRun(runId)}
-          onChange={(filters: FilterState) =>
-            debouncedUpdateRunFilters(runId, filters)
-          }
-          // Analytics (LFE-10781): per-run filtering in the dataset-run compare
-          // view — a v3/legacy surface (not the v4 events table).
-          tableName="dataset-runs-compare"
-          isV4={false}
+        <FilterBuilderDropdown
+          variant="icon"
+          label={`Filter ${runName}`}
+          clearLabel={`Clear filters for ${runName}`}
+          columns={scoreColumns}
+          value={filters}
+          onChange={(nextFilters) => updateRunFilters(runId, nextFilters)}
+          onAnalyticsEvent={onFilterAnalyticsEvent}
         />
         <BaselineToggle runId={runId} />
       </div>

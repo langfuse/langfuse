@@ -4,7 +4,10 @@ import preview from "../../../../.storybook/preview";
 import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
 import { SelectDropdown } from "./SelectDropdown";
 
-const meta = preview.meta({ component: SelectDropdown });
+const meta = preview.meta({
+  component: SelectDropdown,
+  args: { openState: { open: false, onOpenChange: fn() } },
+});
 
 export const CompactTrigger = meta.story({
   name: "(Test) Compact trigger",
@@ -31,9 +34,11 @@ export const CompactTrigger = meta.story({
   },
   render: (args) => {
     const [value, setValue] = useState(args.value);
+    const [open, setOpen] = useState(false);
     return (
       <SelectDropdown
         {...args}
+        openState={{ open, onOpenChange: setOpen }}
         value={value}
         onValueChange={(newValue) => {
           setValue(newValue);

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
+import { type FilterBuilderColumn } from "@/src/components/design-system/ControlledFilterBuilderEditor/ControlledFilterBuilderEditor";
 import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -10,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderEditor } from "@/src/components/design-system/FilterBuilderEditor/FilterBuilderEditor";
 
 export type ModernSessionFilterDialogViewActions =
   | { type: "none" }
@@ -28,8 +29,7 @@ export type ModernSessionFilterDialogViewActions =
 
 type ModernSessionFilterDialogContentProps = {
   initialFilters: FilterState;
-  filterColumns: ColumnDefinition[];
-  filterColumnsWithCustomSelect: string[];
+  filterColumns: FilterBuilderColumn[];
   viewActions: ModernSessionFilterDialogViewActions;
   onCancel: () => void;
   onApplyFilters: (filters: FilterState) => void;
@@ -38,7 +38,6 @@ type ModernSessionFilterDialogContentProps = {
 export function ModernSessionFilterDialogContent({
   initialFilters,
   filterColumns,
-  filterColumnsWithCustomSelect,
   viewActions,
   onCancel,
   onApplyFilters,
@@ -51,11 +50,10 @@ export function ModernSessionFilterDialogContent({
         <DialogTitle>Filter observations</DialogTitle>
       </DialogHeader>
       <DialogBody className="overflow-y-auto">
-        <InlineFilterBuilder
+        <FilterBuilderEditor
           columns={filterColumns}
-          filterState={filters}
-          onChange={setFilters}
-          columnsWithCustomSelect={filterColumnsWithCustomSelect}
+          initialFilters={initialFilters}
+          onFiltersChange={setFilters}
         />
       </DialogBody>
       <DialogFooter>

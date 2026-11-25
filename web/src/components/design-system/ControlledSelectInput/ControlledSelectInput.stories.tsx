@@ -2,9 +2,24 @@ import { useState } from "react";
 import { Hash } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { AsyncSelectInput } from "./AsyncSelectInput";
+import { ControlledSelectInput } from "./ControlledSelectInput";
 
-const meta = preview.meta({ component: AsyncSelectInput });
+function ExternalSelectStory(
+  props: Omit<
+    React.ComponentProps<typeof ControlledSelectInput<string>>,
+    "openState"
+  >,
+) {
+  const [open, setOpen] = useState(false);
+  return (
+    <ControlledSelectInput
+      {...props}
+      openState={{ open, onOpenChange: setOpen }}
+    />
+  );
+}
+
+const meta = preview.meta({ component: ExternalSelectStory });
 
 const onSelect = fn();
 
@@ -12,11 +27,13 @@ export const ExternalResults = meta.story({
   name: "(Test) Selected option persists outside external search results",
   render: () => {
     const [search, setSearch] = useState("");
-    const [value, setValue] = useState<
-      React.ComponentProps<typeof AsyncSelectInput>["value"]
-    >({ value: "saved", label: "Saved channel", icon: Hash });
+    const [value, setValue] = useState<ExternalProps["value"]>({
+      value: "saved",
+      label: "Saved channel",
+      icon: Hash,
+    });
     return (
-      <AsyncSelectInput
+      <ExternalSelectStory
         aria-label="Channel"
         value={value}
         onValueChange={(next) => {
@@ -92,7 +109,7 @@ export const CallToActionOption = meta.story({
     <div className="flex flex-col gap-2">
       {(["first", "last"] as const).flatMap((position) =>
         [false, true].map((virtualized) => (
-          <AsyncSelectInput
+          <ExternalSelectStory
             {...args}
             key={`${position}-${virtualized}`}
             aria-label={`${position}-${virtualized}`}

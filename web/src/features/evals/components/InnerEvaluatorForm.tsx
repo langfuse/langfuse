@@ -36,7 +36,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { FilterBuilderEditor } from "@/src/components/design-system/FilterBuilderEditor/FilterBuilderEditor";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -1191,35 +1191,81 @@ export const InnerEvaluatorForm = (props: {
                       );
                     };
 
-                    const hasFilters = field.value && field.value.length > 0;
+                    const customValueColumnIds = (() => {
+                      if (isTraceTarget(target))
+                        return ["traceTags", "traceName"];
+                      if (isEventTarget(target)) {
+                        return ["tags", "name", "calledToolNames"];
+                      }
+                      return [];
+                    })();
+                    const columns = getFilterColumns().map((column) => ({
+                      ...column,
+                      allowCustomValues: customValueColumnIds.includes(
+                        column.id,
+                      ),
+                    }));
+                    const persistColumnId =
+                      !isDatasetTarget(target) && !isTraceTarget(target);
+                    const filters = field.value ?? [];
+                    const hasFilters = filters.length > 0;
+                    const visibleFilters: typeof filters = [];
+                    const unsupportedFilters: typeof filters = [];
+                    for (const filter of filters) {
+                      const column =
+                        columns.find(
+                          ({ id, type }) =>
+                            type === filter.type && id === filter.column,
+                        ) ??
+                        columns.find(
+                          ({ name, aliases, type }) =>
+                            type === filter.type &&
+                            (name === filter.column ||
+                              aliases?.includes(filter.column)),
+                        );
+                      if (column) {
+                        visibleFilters.push({ ...filter, column: column.name });
+                      } else {
+                        unsupportedFilters.push(filter);
+                      }
+                    }
 
                     return (
                       <FormItem>
                         <FormLabel>Filter</FormLabel>
                         <FormControl>
                           <div className="max-w-[500px]">
+                            {unsupportedFilters.length > 0 && (
+                              <p className="text-muted-foreground mb-2 text-xs">
+                                Some saved filters aren’t supported by this
+                                editor and will be kept unchanged.
+                              </p>
+                            )}
                             {props.disabled && !hasFilters ? (
                               <p className="text-muted-foreground text-xs">
                                 All {getTargetDisplayName(target)} will be
                                 evaluated
                               </p>
                             ) : (
-                              <InlineFilterBuilder
+                              <FilterBuilderEditor
                                 key={target}
-                                columnIdentifier={
-                                  isDatasetTarget(target) ||
-                                  isTraceTarget(target)
-                                    ? "name"
-                                    : "id"
-                                }
-                                columns={getFilterColumns()}
-                                filterState={field.value ?? []}
-                                onChange={(
-                                  value: z.infer<
-                                    typeof singleFilterList
-                                  >[number][],
-                                ) => {
-                                  field.onChange(value);
+                                columns={columns}
+                                initialFilters={visibleFilters}
+                                onFiltersChange={(value) => {
+                                  const storedFilters = persistColumnId
+                                    ? value.map((filter) => ({
+                                        ...filter,
+                                        column:
+                                          columns.find(
+                                            ({ name }) =>
+                                              name === filter.column,
+                                          )?.id ?? filter.column,
+                                      }))
+                                    : value;
+                                  field.onChange([
+                                    ...storedFilters,
+                                    ...unsupportedFilters,
+                                  ]);
                                   if (router.query.traceId) {
                                     const { traceId, ...otherParams } =
                                       router.query;
@@ -1234,13 +1280,6 @@ export const InnerEvaluatorForm = (props: {
                                   }
                                 }}
                                 disabled={props.disabled}
-                                columnsWithCustomSelect={
-                                  isTraceTarget(target)
-                                    ? ["traceTags", "traceName"]
-                                    : isEventTarget(target)
-                                      ? ["tags", "name", "calledToolNames"]
-                                      : undefined
-                                }
                                 columnsHiddenUnlessSelected={
                                   isTraceTarget(target)
                                     ? RETIRED_TRACE_FILTER_COLUMNS

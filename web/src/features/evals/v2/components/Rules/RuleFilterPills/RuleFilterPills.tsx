@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { FilterSummary } from "@/src/features/filters/components/FilterSummary";
 import { QueryTokens } from "@/src/components/design-system/QueryTokens/QueryTokens";
 import { deriveQueryTokens } from "@/src/features/search-bar/lib/fns/deriveQueryTokens";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
@@ -80,7 +80,7 @@ export function RuleFilterPills({
                   })}
                 />
               ) : (
-                <InlineFilterState
+                <FilterSummary
                   filterState={query.skippedFilters}
                   className="m-0"
                 />
@@ -124,7 +124,7 @@ export function RuleFilterPills({
             })}
           />
         ) : null}
-        <InlineFilterState filterState={query.skippedFilters} className="m-0" />
+        <FilterSummary filterState={query.skippedFilters} className="m-0" />
         {!hasFilters ? (
           <span className="text-muted-foreground">No filters</span>
         ) : null}
@@ -148,7 +148,7 @@ export function RuleFilterPills({
       getKey={(item) => item.key}
       renderItem={(item, { getItemProps }) => (
         <span {...getItemProps()}>
-          <InlineFilterState filterState={[item.condition]} className="m-0" />
+          <FilterSummary filterState={[item.condition]} className="m-0" />
         </span>
       )}
       renderOverflow={({ overflowItemCount }) => (
@@ -158,7 +158,7 @@ export function RuleFilterPills({
           </TooltipTrigger>
           <TooltipContent className="max-w-96">
             <div className="flex flex-wrap gap-1">
-              <InlineFilterState filterState={filter} className="m-0" />
+              <FilterSummary filterState={filter} className="m-0" />
             </div>
           </TooltipContent>
         </Tooltip>

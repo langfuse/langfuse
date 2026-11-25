@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { RefreshCw, Hash, Lock } from "@langfuse/icons";
-import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
+import { ControlledSelectInput } from "@/src/components/design-system/ControlledSelectInput/ControlledSelectInput";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { type SlackChannel } from "@langfuse/shared/src/server";
@@ -64,6 +64,7 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
   showRefreshButton = true,
 }) => {
   const [searchValue, setSearchValue] = useState("");
+  const [open, setOpen] = useState(false);
   const trimmedSearch = searchValue.trim();
   const effectiveName = trimmedSearch.replace(/^#/, "");
 
@@ -118,7 +119,8 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <AsyncSelectInput
+          <ControlledSelectInput
+            openState={{ open, onOpenChange: setOpen }}
             id={id}
             aria-describedby={describedBy}
             aria-invalid={invalid}

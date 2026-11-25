@@ -79,7 +79,7 @@ export function BaseUrlPicker({
         id={id}
         value={isCustom ? CUSTOM_OPTION : matchedPreset.url}
         options={options}
-        customOption={CUSTOM_URL_OPTION}
+        getAdditionalOption={() => CUSTOM_URL_OPTION}
         onValueChange={handleOptionChange}
         placeholder="Select a base URL"
         noCapture

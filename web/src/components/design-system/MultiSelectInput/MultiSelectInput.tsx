@@ -1,216 +1,81 @@
 "use client";
 
-import * as React from "react";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { Command as CommandPrimitive } from "cmdk";
-import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
-import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
-import { SelectControl } from "../internal/SelectControl/SelectControl";
+import { useState, type Ref } from "react";
+import { defaultFilter } from "cmdk";
+import {
+  ControlledMultiSelectInput,
+  type ControlledMultiSelectInputProps,
+} from "../ControlledMultiSelectInput/ControlledMultiSelectInput";
 
-type MultiSelectOption<V> = {
-  value: V;
-  label: string;
-  secondaryLabel?: string;
-  disabled?: boolean;
-};
-
-type MultiSelectInputProps<V> = {
-  value: V[];
-  options: MultiSelectOption<V>[];
-  onValueChange: (newValue: V[]) => void;
-  placeholder: string;
-  selectedLabel: string;
-  searchPlaceholder: string;
-  emptyMessage: string;
+export function MultiSelectInput<V extends string>({
+  options,
+  value,
+  selectAllLabel,
+  getAdditionalOption,
+  openState,
+  searchState,
+  ...props
+}: Omit<
+  ControlledMultiSelectInputProps<V>,
+  "openState" | "searchState" | "selectAll" | "additionalOption"
+> & {
+  ref?: Ref<HTMLButtonElement>;
+  openState?: ControlledMultiSelectInputProps<V>["openState"];
+  searchState?: ControlledMultiSelectInputProps<V>["searchState"];
   selectAllLabel?: string;
-  error?: boolean;
-  disabled?: boolean;
-} & Pick<
-  React.ComponentPropsWithoutRef<"button">,
-  "id" | "aria-describedby" | "aria-invalid" | "aria-label"
->;
-
-function MultiSelectInputInner<V extends string>(
-  {
-    value,
-    options,
-    onValueChange,
-    placeholder,
-    selectedLabel,
-    searchPlaceholder,
-    emptyMessage,
-    selectAllLabel,
-    error,
-    disabled,
-    ...triggerProps
-  }: MultiSelectInputProps<V>,
-  ref: React.ForwardedRef<HTMLButtonElement>,
-) {
-  const container = useLayerContainer("popover");
-  const [open, setOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
-  const listId = React.useId();
-  const allSelected =
-    options.length > 0 &&
-    options.every((option) => option.disabled || value.includes(option.value));
-
+  getAdditionalOption?: (context: {
+    query: string;
+  }) => ControlledMultiSelectInputProps<V>["additionalOption"];
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const query = (searchState?.value ?? search).trim();
+  const availableOptions = getAdditionalOption
+    ? [
+        ...options,
+        ...value
+          .filter(
+            (selected) => !options.some((option) => option.value === selected),
+          )
+          .map((selected) => ({ value: selected, label: selected })),
+      ]
+    : options;
+  const candidate = getAdditionalOption?.({ query });
+  const additionalOption =
+    candidate &&
+    !availableOptions.some((option) => option.value === candidate.value)
+      ? candidate
+      : undefined;
+  const results = query
+    ? availableOptions
+        .map((option) => ({
+          option,
+          rank: defaultFilter!(option.value.trim(), query, [
+            option.label.trim(),
+          ]),
+        }))
+        .filter(({ rank }) => rank > 0)
+        .sort((a, b) => b.rank - a.rank)
+        .map(({ option }) => option)
+    : availableOptions;
   return (
-    <PopoverPrimitive.Root
-      open={!disabled && open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
-      }}
-    >
-      <SelectControl error={error} disabled={disabled}>
-        <PopoverPrimitive.Trigger
-          ref={ref}
-          type="button"
-          role="combobox"
-          aria-controls={listId}
-          aria-expanded={open}
-          disabled={disabled}
-          {...triggerProps}
-        >
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-left",
-              value.length === 0 && "text-muted-foreground",
-            )}
-            title={value.length > 0 ? selectedLabel : undefined}
-          >
-            {value.length > 0 ? selectedLabel : placeholder}
-          </span>
-        </PopoverPrimitive.Trigger>
-      </SelectControl>
-      <PopoverPrimitive.Portal container={container}>
-        <InputDropdown.Content width="popover-trigger">
-          <PopoverPrimitive.Content
-            align="start"
-            sideOffset={4}
-            onWheel={stopScrollPropagation()}
-            onTouchMove={stopScrollPropagation()}
-          >
-            <InputDropdown.Root>
-              <CommandPrimitive>
-                <InputDropdown.Search>
-                  <CommandPrimitive.Input
-                    placeholder={searchPlaceholder}
-                    value={search}
-                    onValueChange={setSearch}
-                  />
-                </InputDropdown.Search>
-                {selectAllLabel &&
-                  !search.trim() &&
-                  options.some((option) => !option.disabled) && (
-                    <InputDropdown.Option
-                      highlight="focus"
-                      checked={allSelected}
-                    >
-                      <button
-                        type="button"
-                        aria-pressed={allSelected}
-                        onClick={() =>
-                          onValueChange(
-                            allSelected
-                              ? value.filter((selectedValue) =>
-                                  options.every(
-                                    (option) =>
-                                      option.value !== selectedValue ||
-                                      option.disabled,
-                                  ),
-                                )
-                              : [
-                                  ...value,
-                                  ...options
-                                    .filter(
-                                      (option) =>
-                                        !option.disabled &&
-                                        !value.includes(option.value),
-                                    )
-                                    .map((option) => option.value),
-                                ],
-                          )
-                        }
-                      >
-                        <InputDropdown.MultiSelectOptionContent
-                          label={selectAllLabel}
-                          title={selectAllLabel}
-                          checked={allSelected}
-                        />
-                      </button>
-                    </InputDropdown.Option>
-                  )}
-                <InputDropdown.Empty>
-                  <CommandPrimitive.Empty>
-                    {emptyMessage}
-                  </CommandPrimitive.Empty>
-                </InputDropdown.Empty>
-                <InputDropdown.List>
-                  <CommandPrimitive.List id={listId}>
-                    <CommandPrimitive.Group className="text-foreground overflow-hidden">
-                      {options.map((option) => {
-                        const isSelected = value.includes(option.value);
-
-                        return (
-                          <InputDropdown.Option
-                            key={option.value}
-                            highlight="aria-selected"
-                            checked={isSelected}
-                          >
-                            <CommandPrimitive.Item
-                              value={option.value}
-                              keywords={[option.label]}
-                              disabled={option.disabled}
-                              aria-checked={isSelected}
-                              onSelect={() => {
-                                if (isSelected) {
-                                  onValueChange(
-                                    value.filter(
-                                      (selectedValue) =>
-                                        selectedValue !== option.value,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                onValueChange([...value, option.value]);
-                              }}
-                            >
-                              <InputDropdown.MultiSelectOptionContent
-                                label={option.label}
-                                title={option.label}
-                                secondaryLabel={option.secondaryLabel}
-                                checked={isSelected}
-                              />
-                            </CommandPrimitive.Item>
-                          </InputDropdown.Option>
-                        );
-                      })}
-                    </CommandPrimitive.Group>
-                  </CommandPrimitive.List>
-                </InputDropdown.List>
-              </CommandPrimitive>
-            </InputDropdown.Root>
-          </PopoverPrimitive.Content>
-        </InputDropdown.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+    <ControlledMultiSelectInput
+      {...props}
+      value={value}
+      options={results}
+      additionalOption={additionalOption}
+      selectAll={
+        selectAllLabel && !query
+          ? {
+              label: selectAllLabel,
+              values: options
+                .filter((option) => !option.disabled)
+                .map((option) => option.value),
+            }
+          : undefined
+      }
+      openState={openState ?? { open, onOpenChange: setOpen }}
+      searchState={searchState ?? { value: search, onValueChange: setSearch }}
+    />
   );
 }
-
-type MultiSelectInputComponent = {
-  <V extends string>(
-    props: MultiSelectInputProps<V> & React.RefAttributes<HTMLButtonElement>,
-  ): React.ReactElement | null;
-
-  displayName?: string;
-};
-
-export const MultiSelectInput = React.forwardRef(
-  MultiSelectInputInner,
-) as MultiSelectInputComponent;
-
-MultiSelectInput.displayName = "MultiSelectInput";
