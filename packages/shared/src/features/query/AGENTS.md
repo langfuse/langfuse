@@ -2,7 +2,7 @@
 
 The view registry, query DSL and builder behind dashboards, the Metrics API, the MCP metrics tools and monitors (`@langfuse/shared/query`).
 
-**New views compile through the query AST.** Build a new view's SQL with the Kysely builder and `compileClickhouseQuery`, like the v2 observations view. Do not add a view to the SQL-text path (`buildSqlText` in `server/sqlTextQuery.ts`), and do not copy the `sql` strings or `@@AGGn@@` templates of the other views in `dataModel.ts`: those are the legacy builder's input and are being moved off.
+**New views compile through the query AST.** Build a new view's SQL with the Kysely builder and `compileClickhouseQuery`, like the v2 observations view. Do not add a view to the SQL-text path (`buildSqlText`), and do not copy the `sql` strings or `@@AGGn@@` templates of the other views in `dataModel.ts`: those are the legacy builder's input and are being moved off.
 
 ## Layout
 
