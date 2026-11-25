@@ -5,7 +5,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const TOOLTIP_LABEL =
-  "Check this when the model is an Anthropic Claude model but its name does not say so, for example an application inference profile ARN. Langfuse then calls it with Anthropic features, such as native structured output for LLM-as-a-judge evaluators.";
+  "Tick this if the model is Claude but its name doesn't say so, e.g. an inference profile ARN. Without it, LLM-as-a-judge evaluators may fail.";
 
 export type AnthropicModelFamilyCheckboxProps = {
   checked: boolean;
