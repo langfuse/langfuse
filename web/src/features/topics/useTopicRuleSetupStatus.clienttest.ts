@@ -2,7 +2,10 @@ import { createElement, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useTopicRuleSetupStatus } from "./useTopicRuleSetupStatus";
+import {
+  SETUP_STATUS_POLL_MS,
+  useTopicRuleSetupStatus,
+} from "./useTopicRuleSetupStatus";
 
 const { fetchStatus, invalidateMaps, invalidateResults, queries } = vi.hoisted(
   () => ({
@@ -64,11 +67,15 @@ it("refetches maps and results once when a running setup finishes", async () => 
   await act(() => vi.advanceTimersByTimeAsync(0));
   expect(invalidateMaps).not.toHaveBeenCalled();
 
-  await act(() => vi.advanceTimersByTimeAsync(5000));
-  expect(invalidateMaps).toHaveBeenCalledOnce();
-  expect(invalidateResults).toHaveBeenCalledOnce();
+  await act(() => vi.advanceTimersByTimeAsync(SETUP_STATUS_POLL_MS));
+  expect(invalidateMaps).toHaveBeenCalledExactlyOnceWith({
+    projectId: "project",
+  });
+  expect(invalidateResults).toHaveBeenCalledExactlyOnceWith({
+    projectId: "project",
+  });
 
-  await act(() => vi.advanceTimersByTimeAsync(10000));
+  await act(() => vi.advanceTimersByTimeAsync(2 * SETUP_STATUS_POLL_MS));
   expect(view.result.current.data).toEqual(status("done"));
   expect(fetchStatus).toHaveBeenCalledTimes(2);
 });

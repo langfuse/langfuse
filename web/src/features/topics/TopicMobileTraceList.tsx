@@ -30,9 +30,10 @@ export function TopicMobileTraceList({
   const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const selectedRowIndex = rows.findIndex(
-    (row) => row.traceId === selectedTraceId,
-  );
+  // Dimmed rows from the previous topic must not decide which page opens.
+  const selectedRowIndex = traces.isStale
+    ? -1
+    : rows.findIndex((row) => row.traceId === selectedTraceId);
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
     selectedTraceId,

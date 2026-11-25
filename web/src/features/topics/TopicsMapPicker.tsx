@@ -262,8 +262,7 @@ export function TopicsMapPicker({
           </div>
           {/* Too narrow on phones, where a tap selects before the preview could help. */}
           <div className="hidden w-3/5 min-w-0 overflow-y-auto sm:block">
-            {/* At least as tall as a map preview with three top topics, so hovering between entries keeps the popover's height. Set inside the pane so short viewports still scroll it. */}
-            <div className="min-h-89.5 p-4">
+            <div className="p-4">
               {shownRule && (
                 <RulePreview
                   key={shownRule.id}

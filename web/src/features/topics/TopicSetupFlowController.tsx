@@ -245,7 +245,7 @@ function TopicSetupSession({
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
         .length,
-      followsRecommendation: followsTopicRecommendations(draft),
+      followsRecommendation: followsTopicRecommendations(models),
       waitMinutes: draft.waitMinutes,
     });
     return true;

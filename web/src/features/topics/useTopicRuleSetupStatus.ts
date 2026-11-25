@@ -5,6 +5,8 @@ import { topicRuleSetupProgress } from "./topic-setup-flow";
 
 type RuleSetupStatus = RouterOutputs["topics"]["ruleSetupStatus"];
 
+export const SETUP_STATUS_POLL_MS = 5000;
+
 const setupActive = (status: RuleSetupStatus | undefined) =>
   Boolean(status && topicRuleSetupProgress(status).active);
 
@@ -35,6 +37,7 @@ export function useTopicRuleSetupStatus({
       return status;
     },
     enabled: ruleId !== undefined,
-    refetchInterval: (query) => (setupActive(query.state.data) ? 5000 : false),
+    refetchInterval: (query) =>
+      setupActive(query.state.data) ? SETUP_STATUS_POLL_MS : false,
   });
 }
