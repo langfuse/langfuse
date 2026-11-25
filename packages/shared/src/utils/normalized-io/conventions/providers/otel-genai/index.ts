@@ -1,7 +1,13 @@
 import { claimed, dropped, unmatched } from "../..";
 import { asRecord, compact, optionalString } from "../../../core/utils/json";
+import {
+  filePartFromMediaReference,
+  filePartFromUrl,
+  parseMediaReference,
+} from "../../../core/normalize/message-parts/media";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
 import type {
+  FilePart,
   FinishReason,
   NormalizedMessage,
   NormalizedMessagePart,
@@ -20,8 +26,8 @@ import type {
  * OTel GenAI event-stream convention (the semconv vocabulary also emitted by
  * Traceloop/OpenLLMetry and koog-style conversions): this module owns
  * choice-event envelopes, the snake_case `tool_call`/`tool_call_response`
- * types no SDK's own vocabulary claims, and the `gen_ai.tool.definitions`/
- * `llm.tools.N` attribute carriers.
+ * types no SDK's own vocabulary claims, the semconv `blob`/`uri`/`file` media
+ * parts, and the `gen_ai.tool.definitions`/`llm.tools.N` attribute carriers.
  */
 function normalizeOtelGenaiToolResult(
   value: Record<string, unknown>,
@@ -72,6 +78,9 @@ const OTEL_GENAI_PART_HANDLERS = {
       }),
     ),
   tool_call_response: normalizeOtelGenaiToolResult,
+  blob: normalizeOtelGenaiBlob,
+  uri: normalizeOtelGenaiUri,
+  file: normalizeOtelGenaiFile,
 } satisfies Readonly<Record<string, PartHandler>>;
 
 /** GenAI choice events: `{index?, message, finish_reason?}`. */
@@ -147,3 +156,62 @@ export const otelGenaiProvider = {
   },
   collectToolDefinitionSources: otelGenaiToolDefinitionSources,
 } satisfies IOConvention;
+
+/** Semconv `blob` parts: inline base64 `content`, or a media reference token
+ * once ingestion has uploaded the payload. */
+function normalizeOtelGenaiBlob(
+  value: Record<string, unknown>,
+): ConventionResult<NormalizedMessagePart> {
+  const content = optionalString(value.content);
+  if (!content) return unmatched;
+  const reference = parseMediaReference(content);
+  if (reference) return claimed(filePartFromMediaReference(reference));
+  return claimed(
+    compact<FilePart>({
+      type: "file",
+      mediaType:
+        optionalString(value.mime_type) ?? semconvModalityMediaType(value),
+      content: { kind: "base64", data: content },
+    }),
+  );
+}
+
+function normalizeOtelGenaiUri(
+  value: Record<string, unknown>,
+): ConventionResult<NormalizedMessagePart> {
+  const uri = optionalString(value.uri);
+  if (!uri) return unmatched;
+  return claimed(
+    filePartFromUrl(uri, {
+      mediaType: optionalString(value.mime_type),
+      fallbackMediaType: semconvModalityMediaType(value),
+    }),
+  );
+}
+
+/** Semconv `file` parts carry a flat `file_id`. OpenAI chat `file` wrappers
+ * and AI SDK `data`/`url` files on the same type name fall through. */
+function normalizeOtelGenaiFile(
+  value: Record<string, unknown>,
+): ConventionResult<NormalizedMessagePart> {
+  const fileId = optionalString(value.file_id);
+  if (!fileId || asRecord(value.file)) return unmatched;
+  return claimed(
+    compact<FilePart>({
+      type: "file",
+      mediaType:
+        optionalString(value.mime_type) ?? semconvModalityMediaType(value),
+      content: { kind: "reference", id: fileId },
+    }),
+  );
+}
+
+/** Semconv `modality` as a media-type wildcard, for parts without `mime_type`. */
+function semconvModalityMediaType(
+  value: Record<string, unknown>,
+): string | undefined {
+  const modality = optionalString(value.modality);
+  return modality === "image" || modality === "video" || modality === "audio"
+    ? `${modality}/*`
+    : undefined;
+}
