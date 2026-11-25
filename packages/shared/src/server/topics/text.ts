@@ -366,6 +366,14 @@ function responseAttributes(
   };
 }
 
+function invokeFinishReason(json: {
+  choices?: { finish_reason?: string }[];
+}): string {
+  if (hasOpenAIRefusal(json)) return "content-filter";
+  const reason = json.choices?.[0]?.finish_reason ?? "";
+  return RAW_FINISH_REASONS.has(reason) ? reason : "other";
+}
+
 /** Inspect wire markers only; generated text and exception messages are not signals. */
 function hasOpenAIRefusal(body: unknown): boolean {
   if (!isPlainObject(body)) return false;
@@ -612,13 +620,8 @@ async function invokeWithCache(
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
-  const finishReason = json.choices?.[0]?.finish_reason ?? "";
   recordResponse(result, {
-    "langfuse.topics.response.finish_reason": hasOpenAIRefusal(json)
-      ? "content-filter"
-      : RAW_FINISH_REASONS.has(finishReason)
-        ? finishReason
-        : "other",
+    "langfuse.topics.response.finish_reason": invokeFinishReason(json),
     "langfuse.topics.response.text_characters": message?.content?.length ?? 0,
     "langfuse.topics.response.max_output_tokens": params.maxOutputTokens,
     ...(result.usage.outputTokens !== undefined && {

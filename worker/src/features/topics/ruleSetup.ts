@@ -125,6 +125,11 @@ export async function tickTopicRuleSetup(
 
 type SetupFailure = "stopped" | "tick_errors" | "fit_failed" | "timeout";
 
+function builtMaps(built: number, facets: number): "all" | "partial" | "none" {
+  if (built === 0) return "none";
+  return built === facets ? "all" : "partial";
+}
+
 function recordOutcome(
   setup: TopicRuleSetup,
   now: Date,
@@ -135,8 +140,7 @@ function recordOutcome(
   const built = setup.facets.filter(
     (facet) => facet.runStatus === "completed",
   ).length;
-  const maps =
-    built === 0 ? "none" : built === setup.facets.length ? "all" : "partial";
+  const maps = builtMaps(built, setup.facets.length);
   recordIncrement("langfuse.topics.rule_setups", 1, {
     outcome: setup.phase,
     maps,
