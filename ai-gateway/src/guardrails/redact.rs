@@ -149,9 +149,10 @@ pub(crate) fn find_regex_spans<'a>(
 }
 
 /// Appends every non-overlapping occurrence of `needle` in `text` as a span,
-/// enforcing alphanumeric boundaries on any end of `needle` that starts or ends
-/// with an alphanumeric character so short entity/word matches (e.g. `"Al"` or
-/// `"ass"`) do not corrupt unrelated words (`"Algorithm"`, `"class"`).
+/// enforcing ASCII alphanumeric boundaries on any end of `needle` that starts
+/// or ends with an ASCII alphanumeric byte (matching local ASCII `\b` rules so
+/// short matches like `"Al"` or `"ass"` do not corrupt `"Algorithm"`/`"class"`,
+/// while PII adjacent to CJK or other non-ASCII scripts still redacts).
 pub(crate) fn find_literal_spans<'a>(
     text: &str,
     needle: &str,
@@ -162,30 +163,27 @@ pub(crate) fn find_literal_spans<'a>(
     if needle.is_empty() {
         return;
     }
-    let check_start = needle.chars().next().is_some_and(char::is_alphanumeric);
+    let check_start = needle
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_alphanumeric);
     let check_end = needle
-        .chars()
-        .next_back()
-        .is_some_and(char::is_alphanumeric);
+        .as_bytes()
+        .last()
+        .is_some_and(u8::is_ascii_alphanumeric);
+    let bytes = text.as_bytes();
     for (start, _) in text.match_indices(needle) {
         let end = start.saturating_add(needle.len());
         if end > text.len() {
             continue;
         }
         if check_start
-            && text
-                .get(..start)
-                .and_then(|before| before.chars().next_back())
-                .is_some_and(char::is_alphanumeric)
+            && start > 0
+            && bytes.get(start - 1).is_some_and(u8::is_ascii_alphanumeric)
         {
             continue;
         }
-        if check_end
-            && text
-                .get(end..)
-                .and_then(|after| after.chars().next())
-                .is_some_and(char::is_alphanumeric)
-        {
+        if check_end && bytes.get(end).is_some_and(u8::is_ascii_alphanumeric) {
             continue;
         }
         out.push(RedactionSpan {
@@ -406,13 +404,14 @@ mod tests {
 
     #[test]
     fn literal_spans_respect_alphanumeric_word_boundaries() {
-        let text = "Ask Al about the Algorithm and class assistant ass!";
+        let text = "Ask Al about the Algorithm, class assistant ass! 日本語555-0199日本語";
         let mut spans = Vec::new();
         find_literal_spans(text, "Al", 0, "[NAME]", &mut spans);
         find_literal_spans(text, "ass", 1, "[WORD]", &mut spans);
+        find_literal_spans(text, "555-0199", 2, "[PHONE]", &mut spans);
         assert_eq!(
             apply_redactions(text, &mut spans).as_deref(),
-            Some("Ask [NAME] about the Algorithm and class assistant [WORD]!")
+            Some("Ask [NAME] about the Algorithm, class assistant [WORD]! 日本語[PHONE]日本語")
         );
     }
 
