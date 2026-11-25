@@ -1,10 +1,42 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedIO } from "@langfuse/shared/src/utils/normalized-io";
+import {
+  normalizeSpanIO,
+  type NormalizedIO,
+} from "@langfuse/shared/src/utils/normalized-io";
 import { toIOPreview } from "./toIOPreview";
 
 const emptySpan = { input: undefined, output: undefined, metadata: undefined };
 
 describe("toIOPreview", () => {
+  it("renders uploaded Anthropic images as media references, not base64 data URLs", () => {
+    const mediaReference =
+      "@@@langfuseMedia:type=image/png|id=uploaded-image-1|source=bytes@@@";
+    const io = normalizeSpanIO({
+      ...emptySpan,
+      input: {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: mediaReference,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(toIOPreview(io).allMessages[0]?.content).toEqual([
+      { type: "image_url", image_url: { url: mediaReference } },
+    ]);
+  });
+
   it("keeps media reference tokens in the renderer-compatible shape", () => {
     const mediaReference =
       "@@@langfuseMedia:type=image/png|id=file-1|source=bytes@@@";
