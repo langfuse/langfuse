@@ -362,14 +362,14 @@ describe("billable_events materialized views", () => {
       usageDetails: {},
       providedCostDetails: {},
       costDetails: {},
-      processedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       metadata: {},
     };
 
     await writeTopicSummaries([summary]);
     await writeTopicSummaries([
       // A duplicate write of the same summary
-      { ...summary, processedAt: new Date(Date.now() + SECOND).toISOString() },
+      { ...summary, createdAt: new Date(Date.now() + SECOND).toISOString() },
       // The trace joined a session after its first summary
       { ...summary, sessionId: "late-session" },
       { ...summary, facetVersion: 2 },
@@ -378,7 +378,7 @@ describe("billable_events materialized views", () => {
       {
         ...summary,
         facetId: "backfilled",
-        processedAt: new Date(THREE_DAYS_AGO).toISOString(),
+        createdAt: new Date(THREE_DAYS_AGO).toISOString(),
       },
       // A facet with nothing to describe is still usage
       {

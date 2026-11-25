@@ -189,7 +189,7 @@ async function assignSummaries(
   rules: TopicRule[],
 ): Promise<void> {
   const writer = ClickhouseWriter.getInstance();
-  const assignedAt = new Date().toISOString();
+  const createdAt = new Date().toISOString();
   for (const row of rows) {
     if (row.state !== "complete" || row.traceId === null) continue;
     const facet = { facetId: row.facetId, version: row.facetVersion };
@@ -215,7 +215,7 @@ async function assignSummaries(
           run,
           ruleId: rule.id,
           origin: "online",
-          assignedAt,
+          createdAt,
         }))
           writer.addToQueue(
             TableName.TopicAssignments,

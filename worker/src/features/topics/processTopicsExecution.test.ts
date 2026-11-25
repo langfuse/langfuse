@@ -332,7 +332,7 @@ function seedSummaries(
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       };
       state.summaries.set(topicSourceKey(summary), summary);

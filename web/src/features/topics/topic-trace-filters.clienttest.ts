@@ -164,6 +164,8 @@ describe("topic trace filtering", () => {
   it("groups no-topic outcomes and supports assignment exclusions", () => {
     expect(getTopicAssignment("not_applicable")).toBe("no_topic");
     expect(getTopicAssignment("insufficient_input")).toBe("no_topic");
+    expect(getTopicAssignment("empty_input")).toBe("no_topic");
+    expect(getTopicAssignment("input_too_large")).toBe("no_topic");
     expect(
       ids(
         filterTopicTraces(
@@ -222,7 +224,12 @@ describe("topic trace filtering", () => {
       topicIds: { operator: "any of", values: ["billing"] },
       statuses: {
         operator: "any of",
-        values: ["not_applicable", "insufficient_input"],
+        values: [
+          "not_applicable",
+          "insufficient_input",
+          "empty_input",
+          "input_too_large",
+        ],
       },
     });
     expect(
