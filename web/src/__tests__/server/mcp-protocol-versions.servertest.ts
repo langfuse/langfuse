@@ -37,15 +37,22 @@ describe("MCP protocol versions", () => {
   });
 
   it.each([
-    { era: "legacy", version: "2025-11-25", negotiation: undefined },
+    {
+      era: "legacy",
+      version: "2025-11-25",
+      negotiation: undefined,
+      // The SDK's stateless legacy fallback streams every response.
+      contentType: "text/event-stream",
+    },
     {
       era: "modern",
       version: "2026-07-28",
       negotiation: { mode: { pin: "2026-07-28" } },
+      contentType: "application/json",
     },
   ] as const)(
-    "serves $version clients the same tools with JSON responses",
-    async ({ era, version, negotiation }) => {
+    "serves $version clients the same tools as $contentType",
+    async ({ era, version, negotiation, contentType: expectedType }) => {
       const contentTypes: string[] = [];
       const client = new Client(
         { name: "protocol-versions-test", version: "1.0.0" },
@@ -88,7 +95,7 @@ describe("MCP protocol versions", () => {
 
         expect(contentTypes.length).toBeGreaterThan(0);
         for (const contentType of contentTypes) {
-          expect(contentType).toContain("application/json");
+          expect(contentType).toContain(expectedType);
         }
       } finally {
         await client.close();
