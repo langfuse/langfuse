@@ -65,7 +65,7 @@ export function useRuleCostEstimate({
       setState(nextState);
     };
     const currentRequestId = ++requestId.current;
-    const filterSignature = JSON.stringify(filter);
+    const filterSignature = JSON.stringify([targetObject, filter]);
     const filterChanged = previousFilter.current !== filterSignature;
     previousFilter.current = filterSignature;
     const currentEvaluatorIds = new Set(

@@ -117,6 +117,7 @@ export async function getActivationCostEstimates(params: {
     (evaluator) => costsByEvaluatorId.get(evaluator.id) === null,
   );
   if (
+    !isTraceTranscript &&
     params.missingCostMode === "wait" &&
     matchingObservations > 0 &&
     evaluatorsWithoutCost.length > 0
