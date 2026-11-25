@@ -1,4 +1,4 @@
-import { ListTree, Pencil, Trash } from "@langfuse/icons";
+import { ListTree, Pencil, RotateCcw, Trash } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
@@ -68,6 +68,7 @@ export function GatewayApiKeysTable({
   lastUsed,
   spend,
   onEdit,
+  onResetBudget,
   onRevoke,
   onCreateKey,
   ingestionProjectId,
@@ -80,6 +81,7 @@ export function GatewayApiKeysTable({
   lastUsed: GatewayApiKeysLastUsedState;
   spend: GatewayApiKeysSpendState;
   onEdit: (apiKey: GatewayApiKey) => void;
+  onResetBudget: (apiKey: GatewayApiKey) => void;
   onRevoke: (apiKeyId: string) => void;
   onCreateKey: () => void;
   /** Configured ingestion project the user can open; hides "Show traces" when absent. */
@@ -215,6 +217,17 @@ export function GatewayApiKeysTable({
       title: "Edit key",
       icon: Pencil,
       onClick: () => onEdit(row),
+    },
+    {
+      id: "resetBudget",
+      type: "item" as const,
+      title: "Reset budget",
+      icon: RotateCcw,
+      disabled:
+        row.spendLimit || row.defaultSpendLimit
+          ? undefined
+          : { reason: "This key has no budget to reset." },
+      onClick: () => onResetBudget(row),
     },
     ...(ingestionProjectId
       ? [

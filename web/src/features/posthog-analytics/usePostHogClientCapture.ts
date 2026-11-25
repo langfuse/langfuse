@@ -497,6 +497,7 @@ const events = {
     "custom_model_removed",
     "budget_saved",
     "budget_removed",
+    "budget_reset",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],

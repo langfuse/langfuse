@@ -785,6 +785,28 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  /** Zeros the current period's spend for one key or user budget while keeping its limit. */
+  resetSpendLimit: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        scope: gatewaySpendLimitScopeInput,
+        subjectId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireBudgetScopeAccess(ctx.session, input.orgId, input.scope);
+      await new GatewaySpendLimitService(ctx.prisma).resetForSubject({
+        organizationId: input.orgId,
+        usageScope: getGatewayUsageScope({
+          session: ctx.session,
+          orgId: input.orgId,
+        }),
+        scope: input.scope,
+        subjectId: input.subjectId,
+        session: ctx.session,
+      });
+    }),
+
   /** Every key or user matching a search and status, for the spend chart when all of them are selected. */
   listMatchingBudgetSubjects: protectedOrganizationProcedure
     .input(
