@@ -730,7 +730,7 @@ fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSp
 pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String> {
     let hirs: Vec<Hir> = patterns
         .iter()
-        .map(|pattern| parse_to_hir(pattern.as_ref()).map_err(|error| error.message))
+        .map(|pattern| check_pattern(pattern.as_ref()).map_err(|error| error.message))
         .collect::<Result<_, _>>()?;
     meta::Builder::new()
         .configure(
@@ -748,7 +748,7 @@ pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String>
 /// using the same ASCII-only translation as [`validate`].
 #[cfg(feature = "gateway")]
 pub fn compile_captures(pattern: &str) -> Result<meta::Regex, String> {
-    let hir = parse_to_hir(pattern).map_err(|error| error.message)?;
+    let hir = check_pattern(pattern).map_err(|error| error.message)?;
     meta::Builder::new()
         .configure(
             meta::Config::new()
@@ -934,11 +934,15 @@ mod tests {
         assert!(compile_set(std::slice::from_ref(&oversized_rule)).is_ok());
         assert!(compile_captures(&oversized_rule).is_ok());
 
-        // Gateway still rejects Unicode patterns and bad syntax.
+        // Gateway still rejects Unicode patterns, bad syntax, and empty-matching rules.
         assert!(compile_set(&[r"(?u:\w)+"]).is_err());
         assert!(compile_set(&[r"\p{L}+"]).is_err());
         assert!(compile_set(&[r"foo(?=bar)"]).is_err());
+        assert!(compile_set(&[""]).is_err());
+        assert!(compile_set(&["x?"]).is_err());
+        assert!(compile_set(&[".*"]).is_err());
         assert!(compile_captures(r"(?u:\w)+").is_err());
+        assert!(compile_captures("a|").is_err());
     }
 
     #[test]
