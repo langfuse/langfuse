@@ -27,7 +27,7 @@ export function SidebarBorderToggle() {
         });
         setExpanded(!isExpanded);
       }}
-      className="hover:after:bg-sidebar-border absolute inset-y-0 right-0 hidden w-4 translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:content-[''] md:flex"
+      className={`hover:after:bg-sidebar-border absolute inset-y-0 right-0 hidden w-4 translate-x-1/2 border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] after:content-[''] md:flex ${isExpanded ? "cursor-w-resize" : "cursor-e-resize"}`}
     />
   );
 }
