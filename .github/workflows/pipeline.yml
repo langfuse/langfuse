@@ -1090,7 +1090,7 @@ jobs:
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation (!cancelled() lets the condition evaluate despite the
     # skipped dependency). Changes confined to web/ skip the suite: see the
-    # worker filter in .github/ci-paths.yml.
+    # worker filter in ci-paths.yml.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.worker == 'true' }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
