@@ -1,7 +1,8 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
-import type { EarlyOtelBatch } from "@langfuse/native";
+import { PreparedEvent, type EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
+  hasUnstorableYear,
   logger,
   OtelIngestionProcessor,
   traceException,
@@ -41,6 +42,29 @@ type ProcessOtelEventsParams = {
   mediaPath?: "early" | "reference";
   inputByteLength?: number;
 };
+
+/** The nullable timestamp columns of events_full, from the native row schema. */
+const nullableTimestampColumns = PreparedEvent.columns()
+  .filter(({ columnType }) => columnType.startsWith("Nullable(DateTime64"))
+  .map(({ name }) => name);
+
+/**
+ * Returns the event row with each optional timestamp ClickHouse cannot store
+ * set to null. One such value would fail the insert of every row sent with it.
+ */
+function withoutUnstorableTimestamps<T extends Record<string, unknown>>(
+  eventRecord: T,
+): T {
+  const unstorable = nullableTimestampColumns.filter((column) => {
+    const value = eventRecord[column];
+    return typeof value === "string" && hasUnstorableYear(value);
+  });
+  if (unstorable.length === 0) return eventRecord;
+  return {
+    ...eventRecord,
+    ...Object.fromEntries(unstorable.map((column) => [column, null])),
+  };
+}
 
 /**
  * Processes a resource-spans batch for observation eval scheduling and direct
@@ -128,9 +152,8 @@ export async function processOtelEvents({
       // Step 1: Create enriched event record (required for both evals and writes)
       let eventRecord;
       try {
-        eventRecord = await ingestionService.createEventRecord(
-          eventInput,
-          fileKey,
+        eventRecord = withoutUnstorableTimestamps(
+          await ingestionService.createEventRecord(eventInput, fileKey),
         );
       } catch (error) {
         traceException(error);
