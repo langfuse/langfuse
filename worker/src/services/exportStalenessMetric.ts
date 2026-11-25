@@ -1,5 +1,6 @@
 import { recordDistribution } from "@langfuse/shared/src/server";
 
+/** @internal */
 export const EXPORT_STALENESS_METRIC = "langfuse.export.staleness_seconds";
 
 type ExportStalenessIntegration = "blob_storage" | "posthog" | "mixpanel";

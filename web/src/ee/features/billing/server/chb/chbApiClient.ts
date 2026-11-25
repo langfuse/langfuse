@@ -19,7 +19,6 @@ export {
   ChbApiClient,
   ChbPaymentRequiredError,
   type ChbAttachedPlan,
-  type ChbCheckoutSession,
 } from "@langfuse/shared/src/server/ee/clickhouseBilling";
 
 class ChbApiClientSingleton {
@@ -50,6 +49,9 @@ class ChbApiClientSingleton {
 export const getChbApiClient = (): ChbApiClient | null =>
   ChbApiClientSingleton.getInstance();
 
-/** Test-only: reset the singleton between cases. */
+/**
+ * Test-only: reset the singleton between cases.
+ * @internal
+ */
 export const resetChbApiClientForTests = (): void =>
   ChbApiClientSingleton.reset();

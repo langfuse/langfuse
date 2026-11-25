@@ -175,6 +175,7 @@ export function TraceRuleSavedDialog({
         <Dialog
           title="Evaluator saved"
           closeLabel="Skip"
+          noCapture
           requireExplicitClose={pending}
           actions={[
             {
@@ -205,6 +206,7 @@ export function TraceRuleSavedDialog({
                   onValueChange={setRuleChoice}
                   placeholder="Select a trace rule"
                   disabled={pending}
+                  noCapture
                   options={[
                     { value: NEW_RULE, label: "New trace rule" },
                     ...existingRules.map((rule) => ({

@@ -20,6 +20,7 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { env as workerEnv } from "../../env";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
   charsPerToken,
@@ -127,7 +128,9 @@ export async function summarizeAssembledTrace(
         try {
           await metrics.measure("trace", async () => {
             result = await summarizeEnabledTrace(input, metrics);
-            if (result.failure !== undefined) throw result.failure;
+            if (result.failure !== undefined)
+              // eslint-disable-next-line @typescript-eslint/only-throw-error -- propagate assembled-trace failure
+              throw result.failure;
           });
           span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
           return result!;
@@ -323,7 +326,11 @@ async function summarizeTraceFacets(params: {
     return undefined;
   }
   const text = renderStoredTopicText(params.transcript, params.executionIssues);
-  metrics.summaryInputCharacters("text", text.length);
+  metrics.summaryInputCharacters(
+    "text",
+    text.length,
+    text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
+  );
   metrics.summaryInputEstimatedTokens(
     Math.ceil(text.length / charsPerToken(models.summary.model)),
   );
@@ -331,6 +338,8 @@ async function summarizeTraceFacets(params: {
   // The caller lists built-in facets first, so the cached prompt prefix stays stable.
   const keyed = keyTopicTraceFacets(facets);
   const errors = new Map<string, TopicsProviderUnavailable>();
+  const withoutSummary = new Set<string>();
+  let outputs: Record<string, FacetOutput> = {};
   let generated:
     | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
     | undefined;
@@ -343,7 +352,20 @@ async function summarizeTraceFacets(params: {
         config,
         params.metadata,
       );
-      const outputs = generated.output as Record<string, FacetOutput>;
+      // An applicable status without a description says nothing; keep it as insufficient input.
+      outputs = Object.fromEntries(
+        Object.entries(generated.output as Record<string, FacetOutput>).map(
+          ([key, output]): [string, FacetOutput] => {
+            if (output.status !== "applicable" || output.summary.trim())
+              return [key, output];
+            withoutSummary.add(key);
+            return [
+              key,
+              { ...output, status: "insufficient_input", summary: "" },
+            ];
+          },
+        ),
+      );
       for (const { key } of keyed) {
         const message = outputs[key]
           ? topicSummaryOutputError(outputs[key])
@@ -372,12 +394,16 @@ async function summarizeTraceFacets(params: {
         throw error;
     });
   const result = generated!;
-  const outputs = result.output as Record<string, FacetOutput>;
   const results = facets.map((facet, index): TraceFacetResult => {
     const { key } = keyed[index];
     const error = errors.get(key);
     if (error) outcome(facet, "invalid_output", "rule");
-    else outcome(facet, outputs[key].status, "model");
+    else
+      outcome(
+        facet,
+        outputs[key].status,
+        withoutSummary.has(key) ? "rule" : "model",
+      );
     return error ? { error } : { output: outputs[key] };
   });
   const counts: Record<string, number> = {};
@@ -442,7 +468,7 @@ function baseTopicSummary(params: {
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: params.metadata,
   };
 }

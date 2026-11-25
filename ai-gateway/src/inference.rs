@@ -26,6 +26,7 @@ use crate::{
 pub struct InferenceService {
     control_plane: Arc<ControlPlaneClient>,
     provider: ProviderTransport,
+    guardrails: crate::guardrails::Guardrails,
     request_limits: RequestLimits,
     memory_budget: Arc<Semaphore>,
     telemetry: Option<crate::telemetry::Telemetry>,
@@ -85,6 +86,27 @@ pub(crate) struct MemoryReservation {
 }
 
 impl MemoryReservation {
+    /// Reserve temporary working memory from `budget` without waiting.
+    pub(crate) fn from_budget(
+        budget: &Arc<Semaphore>,
+        bytes: usize,
+        phase: &'static str,
+    ) -> Result<Self, ResolutionError> {
+        let reserved = u32::try_from(bytes)
+            .ok()
+            .and_then(|bytes| Arc::clone(budget).try_acquire_many_owned(bytes).ok())
+            .ok_or_else(|| {
+                crate::observability::rejected(phase);
+                ResolutionError::Busy
+            })?;
+        crate::observability::memory_reserved(bytes);
+        Ok(Self {
+            bytes: reserved,
+            overhead: 0,
+            budget: Arc::clone(budget),
+        })
+    }
+
     /// Grow the reservation to the overhead plus `body` bytes without waiting.
     ///
     /// # Errors
@@ -167,6 +189,14 @@ impl InferenceService {
         )?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
         let control_plane = Arc::new(ControlPlaneClient::new(control_plane)?);
+        let memory_budget = Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes));
+        let cpu = CpuWork::new();
+        let guardrails = crate::guardrails::Guardrails::new(
+            config.outbound_policy.clone(),
+            config.external_guardrail_timeout,
+            cpu.clone(),
+            Arc::clone(&memory_budget),
+        )?;
         Ok(Self {
             control_plane: Arc::clone(&control_plane),
             provider: ProviderTransport::new(
@@ -174,15 +204,17 @@ impl InferenceService {
                 config.outbound_policy.clone(),
             )
             .map_err(|_| ResolutionError::Configuration)?
-            .with_telemetry(telemetry.clone()),
+            .with_telemetry(telemetry.clone())
+            .with_cpu(cpu.clone()),
+            guardrails,
             request_limits: config.request_limits,
-            memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
+            memory_budget,
             telemetry: Some(telemetry),
             spend_limits: crate::spend::SpendLimits::new(
                 config.spend_counters.clone(),
                 control_plane,
             ),
-            cpu: CpuWork::new(),
+            cpu,
         })
     }
 
@@ -311,14 +343,14 @@ impl InferenceService {
 
     /// Authenticate, then start the execution. The API format comes from the public route,
     /// so Web selects a compatible connection, and the body size counts toward the
-    /// organization's byte rate limit. Memory is already reserved by the caller. A
-    /// refused request records the request's input, taking it.
+    /// organization's byte rate limit. Memory is already reserved by the caller.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         route: Route,
         headers: &HeaderMap,
-        request: &mut ParsedRequest,
+        request: &ParsedRequest,
+        reservation: &mut Option<MemoryReservation>,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let api_format = route.api_format();
@@ -375,20 +407,40 @@ impl InferenceService {
                 {
                     Ok(spend_limits) => spend_limits,
                     Err(error) => {
-                        self.refuse(&context, headers, request, correlation, &error, &[]);
+                        self.refuse(
+                            &context,
+                            route,
+                            headers,
+                            request,
+                            reservation.take(),
+                            correlation,
+                            &error,
+                            &[],
+                        )
+                        .await;
                         return Err(error);
                     }
                 }
             } else {
                 None
             };
-            let guardrails = self.check_guardrails(api_format, &context, request).await?;
+            let guardrails = self.guardrails.check(api_format, &context, request).await?;
             if let Some(blocking) = guardrails.blocking() {
                 let error = ResolutionError::GuardrailBlocked(
                     format!("Request blocked by guardrail \"{}\"", blocking.name).into(),
                 );
                 let findings = guardrails.into_findings();
-                self.refuse(&context, headers, request, correlation, &error, &findings);
+                self.refuse(
+                    &context,
+                    route,
+                    headers,
+                    request,
+                    reservation.take(),
+                    correlation,
+                    &error,
+                    &findings,
+                )
+                .await;
                 return Err(error);
             }
             let mut permit = self.provider.admit(spend_limits);
@@ -401,11 +453,17 @@ impl InferenceService {
 
     /// Records a refusal on the resolution span and, for a generation, as a
     /// rejected generation carrying the guardrails it matched.
-    fn refuse(
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "forwards refusal context from resolve_and_admit to telemetry capture"
+    )]
+    async fn refuse(
         &self,
         context: &ResolvedRequestContext,
+        route: Route,
         headers: &HeaderMap,
-        request: &mut ParsedRequest,
+        request: &ParsedRequest,
+        reservation: Option<MemoryReservation>,
         correlation: &mut RequestCorrelation,
         error: &ResolutionError,
         guardrails: &[Finding],
@@ -417,90 +475,26 @@ impl InferenceService {
             span.record("otel.status_code", "ERROR");
             span.record("error.type", reason);
         }
-        if let Some(input) = request.input.take() {
-            self.record_rejection(
-                context,
-                headers,
-                input,
-                correlation,
-                crate::http::resolution_rejection(error),
-                guardrails,
-            );
+        if !route.captures_generation() || context.ingestion_mode() == IngestionMode::None {
+            return;
         }
-    }
-
-    /// Scans the request's last turn with the guardrails resolved for its key. Finding
-    /// the last turn reads the whole conversation; the scan reads only the last turn,
-    /// so each step leaves the async worker based on what it reads.
-    async fn check_guardrails(
-        &self,
-        api_format: ApiFormat,
-        context: &ResolvedRequestContext,
-        request: &ParsedRequest,
-    ) -> Result<crate::guardrails::Outcome, ResolutionError> {
-        if context.guardrails().is_empty() {
-            return Ok(crate::guardrails::Outcome::default());
-        }
-        let guardrails = context.guardrails().to_vec();
-        let organization_id = context.attribution().organization_id().as_str().to_owned();
-        let body = request.body().clone();
-        let scanned = request.scanned.clone();
-        async move {
-            let (turn, finding) = self
-                .run_cpu(CpuJob::FindLastTurn, scanned.len(), {
-                    let body = body.clone();
-                    let scanned = scanned.clone();
-                    move || {
-                        let started = std::time::Instant::now();
-                        let turn = crate::guardrails::last_turn(api_format, &body, &scanned);
-                        (turn, started.elapsed())
-                    }
-                })
-                .await?;
-            let bytes = turn
-                .as_ref()
-                .map_or(0, crate::guardrails::text::LastTurn::bytes);
-            self.run_cpu(CpuJob::ScanGuardrails, bytes, move || {
-                let started = std::time::Instant::now();
-                let outcome = crate::guardrails::check(&guardrails, &body, &scanned, &turn);
-                crate::observability::guardrails_checked(
-                    &organization_id,
-                    finding + started.elapsed(),
-                    bytes,
-                );
-                outcome
-            })
-            .await
-        }
-        .instrument(tracing::info_span!(
-            "request.guardrails",
-            otel.kind = "internal"
-        ))
-        .await
-    }
-
-    /// Records the refused request as a generation, like one the provider answered.
-    fn record_rejection(
-        &self,
-        context: &ResolvedRequestContext,
-        headers: &HeaderMap,
-        input: RequestInput,
-        correlation: &mut RequestCorrelation,
-        rejection: GatewayRejection,
-        guardrails: &[Finding],
-    ) {
         let Some(telemetry) = &self.telemetry else {
             return;
         };
-        if context.ingestion_mode() == IngestionMode::None {
+        let Some((input, _reservation)) =
+            RequestInput::parse_on_cpu(&self.cpu, request.body().clone(), reservation).await
+        else {
             return;
-        }
-        let api_format = context.connection().api_format();
-        let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
-        capture.deliver_to(telemetry.clone(), context, headers, correlation);
-        capture.set_provider_model(context.connection().provider_model());
-        capture.record_guardrails(guardrails);
-        capture.reject(rejection);
+        };
+        record_rejection(
+            telemetry,
+            context,
+            headers,
+            input,
+            correlation,
+            crate::http::resolution_rejection(error),
+            guardrails,
+        );
     }
 
     pub(crate) async fn forward(
@@ -519,15 +513,34 @@ impl InferenceService {
 
     #[cfg(test)]
     pub(crate) fn for_test(control_plane: ControlPlaneClient, provider: ProviderTransport) -> Self {
+        let memory_budget = Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes));
+        let cpu = CpuWork::new();
+        let guardrails = crate::guardrails::Guardrails::new(
+            crate::providers::OutboundPolicy::default(),
+            Duration::from_secs(3),
+            cpu.clone(),
+            Arc::clone(&memory_budget),
+        )
+        .unwrap();
         Self {
             control_plane: Arc::new(control_plane),
             provider,
+            guardrails,
             request_limits: RequestLimits::default(),
-            memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
+            memory_budget,
             telemetry: None,
             spend_limits: crate::spend::SpendLimits::default(),
-            cpu: CpuWork::new(),
+            cpu,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_external_guardrails(
+        mut self,
+        external_guardrails: crate::guardrails::external::ExternalGuardrailClient,
+    ) -> Self {
+        self.guardrails = self.guardrails.with_external(external_guardrails);
+        self
     }
 
     #[cfg(test)]
@@ -539,6 +552,8 @@ impl InferenceService {
     #[cfg(test)]
     pub(crate) fn with_request_limits(mut self, request_limits: RequestLimits) -> Self {
         self.memory_budget = Arc::new(Semaphore::new(request_limits.memory_budget_bytes));
+        self.guardrails
+            .set_memory_budget(Arc::clone(&self.memory_budget));
         self.request_limits = request_limits;
         self
     }
@@ -547,4 +562,22 @@ impl InferenceService {
     pub(crate) fn available_memory(&self) -> usize {
         self.memory_budget.available_permits()
     }
+}
+
+/// Records the refused request as a generation, like one the provider answered.
+fn record_rejection(
+    telemetry: &crate::telemetry::Telemetry,
+    context: &ResolvedRequestContext,
+    headers: &HeaderMap,
+    input: RequestInput,
+    correlation: &mut RequestCorrelation,
+    rejection: GatewayRejection,
+    guardrails: &[Finding],
+) {
+    let api_format = context.connection().api_format();
+    let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
+    capture.deliver_to(telemetry.clone(), context, headers, correlation);
+    capture.set_provider_model(context.connection().provider_model());
+    capture.record_guardrails(guardrails);
+    capture.reject(rejection);
 }

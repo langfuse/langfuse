@@ -99,6 +99,15 @@ async function priceTopicUsage(
 /** The rendered transcript exceeds the character limit; no model call was made. */
 export class TopicInputTooLarge extends Error {
   readonly name = "TopicInputTooLarge";
+
+  constructor(
+    readonly characters: number,
+    limit: number,
+  ) {
+    super(
+      `The rendered trace transcript is ${characters} characters, above the ${limit}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+    );
+  }
 }
 
 type TopicCallMetadata = Record<string, unknown> & {
@@ -167,13 +176,14 @@ async function topicModelCall<T>(
             httpStatus,
             reason: failure.reason,
           });
+          const responseMetadata = getTopicTextResponseMetadata(error);
           const failed = {
             ...fields,
             "langfuse.topics.error.reason": failure.reason,
             "langfuse.topics.error.type":
               error instanceof Error ? error.name : "unknown",
             ...(httpStatus && { "http.status_code": httpStatus }),
-            ...getTopicTextResponseMetadata(error),
+            ...responseMetadata,
           };
           span.setAttributes(failed);
           logger.warn("Topics model request failed", failed);
@@ -189,6 +199,16 @@ async function topicModelCall<T>(
             );
             continue;
           }
+          // Length constraints can be dropped, so a stopped naming response may
+          // be an empty object. Ask once more. Truncation and refusals are not.
+          if (
+            stage === "naming" &&
+            failure.reason === "invalid_output" &&
+            responseMetadata?.["langfuse.topics.response.finish_reason"] ===
+              "stop" &&
+            attempt < 1
+          )
+            continue;
           throw failure;
         }
       }
@@ -401,7 +421,8 @@ export async function summarizeTopicTraceFacets(
   );
   if (text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS)
     throw new TopicInputTooLarge(
-      `The rendered trace transcript is ${text.length} characters, above the ${workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS}-character input limit. No model call was made; the transcript is never shortened per facet.`,
+      text.length,
+      workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
     );
   return structuredCall(
     system,

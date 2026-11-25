@@ -77,5 +77,5 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
         };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

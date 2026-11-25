@@ -20,6 +20,7 @@ import {
 type EvaluationRule =
   RouterOutputs["evalsV2"]["rules"]["listForExperimentDataset"][number];
 
+/** @internal */
 export function getDatasetExperimentRules(
   rules: EvaluationRule[] | undefined,
   datasetId: string,

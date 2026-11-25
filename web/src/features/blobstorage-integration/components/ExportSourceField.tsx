@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useWatch } from "react-hook-form";
-import { Info, ExternalLink } from "@langfuse/icons";
+import { Info, SquareArrowOutUpRight } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
@@ -88,7 +88,7 @@ export const ExportSourceField = ({
                         className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                       >
                         For further information see
-                        <ExternalLink size="sm" />
+                        <SquareArrowOutUpRight size="sm" />
                       </a>
                     </div>
                   </TooltipContent>

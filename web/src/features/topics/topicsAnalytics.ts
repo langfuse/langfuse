@@ -48,7 +48,11 @@ type TopicsEventProperties = {
       }
     | { step: "traces"; samplePercent: number; filterCount: number };
   /** A step's Next failed. */
-  "topics:setup_flow_error": { step: TopicsSetupStep };
+  "topics:setup_flow_error": {
+    step: TopicsSetupStep;
+    /** Models whose test call failed; empty for every other failure. */
+    failedSlots: Array<"summary" | "embedding" | "clustering">;
+  };
   /** Start analyzing succeeded and the first map's setup is running. */
   "topics:setup_flow_finished": {
     samplePercent: number;

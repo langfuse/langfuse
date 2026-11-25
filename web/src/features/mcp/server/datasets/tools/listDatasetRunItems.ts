@@ -50,5 +50,5 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

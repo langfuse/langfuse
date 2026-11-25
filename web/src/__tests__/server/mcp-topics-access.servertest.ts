@@ -14,7 +14,6 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import { topicsProject } from "@/src/__tests__/fixtures/topics";
-import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { topicsFeature } from "@/src/features/mcp/server/topics";
 import { authenticator } from "@/src/features/apiKey/authenticator";
@@ -55,7 +54,7 @@ async function contextFor(key: {
 
 /** Connects an MCP client to the real server for one key's context. */
 async function connect(context: ServerContext) {
-  const server = createMcpServer(context);
+  const server = await createMcpServer(context);
   const client = new Client({ name: "topics-access-test", version: "1.0.0" });
   const [serverTransport, clientTransport] =
     InMemoryTransport.createLinkedPair();
@@ -123,7 +122,7 @@ describe("Topics MCP tools access", () => {
     const byTopic = [
       {
         type: "stringOptions",
-        column: "topicId",
+        column: "topicStableId",
         operator: "any of",
         value: [owner.topicId],
       },

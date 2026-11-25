@@ -25,7 +25,7 @@ import {
   formatSql,
   layoutSql,
   normalizeParams,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 import {
   getAggregatedScoresForPromptsFromEvents,
   getScoresForExperimentItems,

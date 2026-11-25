@@ -6,14 +6,19 @@ import { type GraphNodeData } from "../types";
  * the (truncated) label rather than measuring the DOM. Estimating keeps layout
  * pure and synchronous to feed; the small inaccuracy vs. real text metrics is
  * absorbed by node padding.
+ * @internal
  */
 export const NODE_HEIGHT = 34;
+/** @internal */
 export const MAX_LABEL_LENGTH = 28;
 
+/** @internal */
 export const APPROX_CHAR_WIDTH = 6.6; // px per char at the ~13px label font
 const ICON_SLOT = 22; // type icon + gap
 const PADDING_X = 22; // left + right padding
+/** @internal */
 export const MIN_WIDTH = 96;
+/** @internal */
 export const MAX_WIDTH = 240;
 
 /** Truncate a label to keep nodes compact; full name is shown on hover. */

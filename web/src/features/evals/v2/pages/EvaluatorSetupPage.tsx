@@ -38,6 +38,7 @@ import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/Evaluato
 import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -96,12 +97,14 @@ type InitialEvaluator = {
   sampleFilter?: FilterState;
 };
 
+/** @internal */
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
   return evaluator.blockedAt === null;
 }
 
+/** @internal */
 export function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
@@ -111,6 +114,7 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
+/** @internal */
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
@@ -160,6 +164,7 @@ export function getEvaluatorVersionDefinition(
   };
 }
 
+/** @internal */
 export function restoreEvaluatorVersion({
   store,
   version,
@@ -188,6 +193,7 @@ export function EvaluatorSetupPage(
         mode: "edit";
         projectId: string;
         initialEvaluator: InitialEvaluator;
+        initialTargetObject?: EvaluatorTargetObject;
       },
 ) {
   const { projectId } = props;
@@ -240,6 +246,8 @@ export function EvaluatorSetupPage(
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      initialTargetObject:
+        props.mode === "edit" ? props.initialTargetObject : undefined,
       defaultModel: projectDefaultModel.defaultModel,
       mode: props.mode,
     }),
@@ -640,6 +648,13 @@ export function EvaluatorSetupPage(
       const { name, description } = metadata;
       const offerTraceRule = (evaluator: { id: string }) => {
         if (state.targetObject !== TopicsTargetObject) return false;
+        // Evaluators opened on Trace messages already have trace rules.
+        if (
+          props.mode === "edit" &&
+          props.initialTargetObject === TopicsTargetObject
+        ) {
+          return false;
+        }
         setSavedTraceEvaluator({
           id: evaluator.id,
           name,
@@ -785,9 +800,13 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(
-      applyFallbackDecisionModel(state, fallbackDecisionModel),
-    );
+    const { definition } = prepareEvaluatorDraft({
+      ...applyFallbackDecisionModel(state, fallbackDecisionModel),
+      variableFields: variableFieldsForTarget(
+        state.targetObject,
+        state.variableFields,
+      ),
+    });
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     const isTraceTest = state.targetObject === TopicsTargetObject;
@@ -1063,8 +1082,8 @@ export function EvaluatorSetupPage(
                   primaryContent={evaluatorEditor}
                   secondaryContent={evaluatorTestPanel}
                   open={testPanelOpen}
-                  defaultPrimarySize={60}
-                  defaultSecondarySize={40}
+                  defaultPrimarySize={50}
+                  defaultSecondarySize={50}
                   minPrimarySize={30}
                   minSecondarySize="360px"
                   collapsedSecondarySize="48px"

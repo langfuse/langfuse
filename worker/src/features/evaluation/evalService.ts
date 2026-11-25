@@ -1280,6 +1280,7 @@ function toNormalizedScores(params: {
   }));
 }
 
+/** @internal */
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
@@ -1592,6 +1593,7 @@ export const evaluate = async ({
   });
 };
 
+/** @internal */
 export async function extractVariablesFromTracingData({
   projectId,
   variables,

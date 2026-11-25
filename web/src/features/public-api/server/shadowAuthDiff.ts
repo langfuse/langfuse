@@ -118,4 +118,5 @@ export type NewDecision =
   | { success: true }
   | { success: false; error: { httpCode: number } };
 
+/** @internal */
 export const __test = { newVerdict, legacyVerdict };

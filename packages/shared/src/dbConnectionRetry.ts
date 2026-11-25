@@ -53,6 +53,7 @@ const isRetryable = (error: unknown, operation: string): boolean =>
 
 const MAX_ATTEMPTS = 4;
 
+/** @internal */
 export const withPostgresConnectionRetry = <T>(
   context: { model?: string; operation: string },
   run: () => Promise<T>,

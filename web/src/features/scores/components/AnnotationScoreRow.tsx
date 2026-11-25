@@ -432,7 +432,6 @@ export function AnnotationScoreRow({
                         projectId={target.scoreMetadata.projectId}
                         config={config}
                         categories={categories}
-                        name={field.name}
                         value={field.value ?? ""}
                         disabled={config.isArchived || locked}
                         analyticsData={{

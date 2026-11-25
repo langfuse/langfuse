@@ -7,6 +7,7 @@
 
 import { Metric } from "@/src/components/design-system/Metric/Metric";
 
+/** @internal */
 export function SessionBadge({
   sessionId,
   projectId,
@@ -24,6 +25,7 @@ export function SessionBadge({
   );
 }
 
+/** @internal */
 export function UserIdBadge({
   userId,
   projectId,

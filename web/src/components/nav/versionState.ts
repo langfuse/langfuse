@@ -63,3 +63,20 @@ export function describeVersionState(
     versionText,
   };
 }
+
+/** The dot next to the version: a running migration outranks an available update. */
+export function getVersionStatusDot(
+  details: ReturnType<typeof describeVersionState>,
+): { label: string; tone: "major" | "minor" | "patch" | "migration" } | null {
+  const { update, backgroundMigrationStatus } = details;
+  if (backgroundMigrationStatus) {
+    return { label: "Background migration running", tone: "migration" };
+  }
+  if (update) {
+    return {
+      label: `New ${update.updateType} version available`,
+      tone: update.updateType,
+    };
+  }
+  return null;
+}

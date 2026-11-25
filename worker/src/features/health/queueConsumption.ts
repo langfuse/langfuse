@@ -44,7 +44,10 @@ export const markQueueJobActivity = (): void => {
   lastActivityMs = Date.now();
 };
 
-/** Test-only: module state is global, so tests must reset between cases. */
+/**
+ * Test-only: module state is global, so tests must reset between cases.
+ * @internal
+ */
 export const resetQueueConsumptionStateForTest = (): void => {
   registeredWorkerCount = 0;
   trackingSinceMs = null;

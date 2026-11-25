@@ -1,5 +1,5 @@
 //! Resolve credentials through trusted Web before any provider execution.
-mod bedrock;
+pub(crate) mod bedrock;
 mod contracts;
 pub(crate) mod signing;
 mod vertex;
@@ -614,7 +614,7 @@ impl SpendLimitExceeded {
     }
 }
 
-fn valid_token(value: &str) -> bool {
+pub(crate) fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 

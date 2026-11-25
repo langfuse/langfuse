@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import {
   handleListExperimentItems,
   listExperimentItemsTool,

@@ -36,6 +36,7 @@ const NIGHTLY_REFIT_PRIORITY = 10;
  * The latest daily refit time at or before `now`: the configured UTC hour plus
  * a stable per-project offset within the spread window, so projects in one
  * deployment do not all refit at the same moment.
+ * @internal
  */
 export function nightlyRefitSlot(
   projectId: string,
@@ -58,6 +59,7 @@ export function nightlyRefitSlot(
  * run row with the rule's ID, whose ID derives from the slot, so a slot is
  * handled at most once; a slot with nothing to fit leaves a skipped run.
  * After downtime, only the latest slot runs.
+ * @internal
  */
 export async function scheduleNightlyTopicRefits(
   now: Date,

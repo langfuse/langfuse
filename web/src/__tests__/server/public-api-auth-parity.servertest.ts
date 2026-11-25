@@ -140,7 +140,7 @@ const projectRoutes: Route[] = [
   },
   { route: "unstable/skills/files/content", methods: ["GET"] },
   { route: "unstable/topics/index", methods: ["GET"] },
-  { route: "unstable/topics/[topicId]", methods: ["GET"] },
+  { route: "unstable/topics/[topicStableId]", methods: ["GET"] },
   { route: "unstable/topic-facets/index", methods: ["GET"] },
   { route: "unstable/topic-facets/[facetId]", methods: ["GET"] },
   { route: "unstable/topic-summaries/index", methods: ["GET"] },

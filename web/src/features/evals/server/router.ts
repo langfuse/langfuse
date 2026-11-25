@@ -80,7 +80,6 @@ import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/serve
 import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
 import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
-export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
 // `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs

@@ -24,7 +24,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   Check,
-  ExternalLink,
+  SquareArrowOutUpRight,
   FilterIcon,
   Info,
   Plus,
@@ -1243,7 +1243,7 @@ function FilterBuilderForm({
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink
+                <SquareArrowOutUpRight
                   size="base"
                   color="default"
                   __rawClassName="ml-2"

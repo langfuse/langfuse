@@ -304,6 +304,7 @@ export const createAnnotationQueueForApi = async ({
 
 type AnnotationQueueItemRow = Parameters<typeof toAnnotationQueueItemApi>[0];
 
+/** @internal */
 export const annotationQueueItemsPageQuery = ({
   projectId,
   queueId,

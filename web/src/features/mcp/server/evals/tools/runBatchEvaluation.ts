@@ -80,5 +80,4 @@ export const [runBatchEvaluationTool, handleRunBatchEvaluation] = defineTool({
           { userId: context.userId ?? context.apiKeyId, plan: context.plan },
         ),
     }),
-  expensiveHint: true,
 });

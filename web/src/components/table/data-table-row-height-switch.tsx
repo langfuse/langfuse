@@ -114,6 +114,7 @@ export function clampCustomRowHeightPx(
   );
 }
 
+/** @internal */
 export function resolveStoredRowHeight(
   stored: unknown,
   fallbackPreset: RowHeight,

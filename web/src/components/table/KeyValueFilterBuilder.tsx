@@ -117,6 +117,7 @@ const STRING_OPERATOR_OPTIONS = Object.entries(STRING_OPERATOR_LABELS).map(
 
 type NumericOperator = keyof typeof NUMERIC_OPERATOR_LABELS;
 
+/** @internal */
 export const stringRowOperatorOptions = (
   filter: StringKeyValueFilterEntry,
   numericValues: boolean,

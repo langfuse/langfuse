@@ -44,5 +44,5 @@ export const [
       },
       fn: async () => managedEvaluatorTemplateService.list(input),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
