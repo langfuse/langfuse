@@ -6,12 +6,15 @@
 //! `[^,]` match full UTF-8 characters so match spans always land on char
 //! boundaries. Lookaround and backreferences are rejected by the parser.
 //!
-//! All numeric limits are supplied by the caller to [`validate`] (control
-//! plane); no limits are hardcoded in the WebAssembly module or enforced in
-//! [`compile`] (gateway).
+//! All numeric limits are supplied by the caller to [`validate`] and
+//! [`preview`] (control plane); no limits are hardcoded in the WebAssembly
+//! module or enforced in [`compile_set`] / [`compile_captures`] (gateway).
+use regex_automata::{
+    Input,
+    nfa::thompson::{self, pikevm::PikeVM},
+};
 #[cfg(feature = "gateway")]
-use regex_automata::meta;
-use regex_automata::nfa::thompson;
+use regex_automata::{MatchKind, meta, nfa::thompson::WhichCaptures};
 use regex_syntax::{
     ast::{
         self, Ast, ClassAscii, ClassAsciiKind, ClassPerlKind, ClassSet, ClassSetItem, Flag,
@@ -65,6 +68,28 @@ pub struct Report {
         tsify(optional)
     )]
     pub set_bytes: Option<u32>,
+}
+
+/// A matched span in UTF-16 code-unit offsets (JavaScript string indices).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+pub struct MatchSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Result of validating a pattern and matching it against sample text.
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+pub struct PreviewResult {
+    pub valid: bool,
+    #[cfg_attr(
+        feature = "wasm",
+        serde(skip_serializing_if = "Option::is_none"),
+        tsify(optional)
+    )]
+    pub error: Option<String>,
+    pub matches: Vec<MatchSpan>,
 }
 
 /// Rewrites an AST so `regex-syntax` translates it with `unicode(true)` and
@@ -337,7 +362,11 @@ fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
         .map_err(|error| describe(&error))
 }
 
-fn compiled_size(hirs: &[&Hir], limit: u32, what: &str) -> Result<u32, String> {
+fn compile_bounded_nfa(
+    hirs: &[&Hir],
+    limit: u32,
+    what: &str,
+) -> Result<(thompson::NFA, u32), String> {
     let nfa = thompson::Compiler::new()
         .configure(thompson::Config::new().nfa_size_limit(Some(limit as usize)))
         .build_many_from_hir(hirs)
@@ -348,7 +377,7 @@ fn compiled_size(hirs: &[&Hir], limit: u32, what: &str) -> Result<u32, String> {
             "{what} compiles to {bytes} bytes, over the limit of {limit}"
         ));
     }
-    Ok(bytes)
+    Ok((nfa, bytes))
 }
 
 /// The most specific message in an error's source chain, on one line.
@@ -366,7 +395,7 @@ fn describe(error: &dyn std::error::Error) -> String {
         .to_owned()
 }
 
-fn check_rule(pattern: &str, max_rule_bytes: u32) -> Result<(Hir, u32), String> {
+fn check_rule(pattern: &str, max_rule_bytes: u32) -> Result<(Hir, thompson::NFA, u32), String> {
     if pattern.is_empty() {
         return Err("pattern is empty".into());
     }
@@ -374,8 +403,8 @@ fn check_rule(pattern: &str, max_rule_bytes: u32) -> Result<(Hir, u32), String> 
     if hir.properties().minimum_len() == Some(0) {
         return Err("pattern matches the empty string".into());
     }
-    let bytes = compiled_size(&[&hir], max_rule_bytes, "rule")?;
-    Ok((hir, bytes))
+    let (nfa, bytes) = compile_bounded_nfa(&[&hir], max_rule_bytes, "rule")?;
+    Ok((hir, nfa, bytes))
 }
 
 /// Validates an organization's rules in the control plane against `limits`:
@@ -402,7 +431,7 @@ fn check_rules(patterns: &[String], max_rule_bytes: u32) -> (Vec<RuleResult>, Ve
 
     for (index, pattern) in patterns.iter().enumerate() {
         match check_rule(pattern, max_rule_bytes) {
-            Ok((hir, bytes)) => {
+            Ok((hir, _, bytes)) => {
                 hirs.push(hir);
                 rules.push(RuleResult {
                     index,
@@ -429,25 +458,116 @@ fn check_set(hirs: &[Hir], max_set_bytes: u32) -> (Option<u32>, Option<String>) 
         return (None, None);
     }
     let refs: Vec<&Hir> = hirs.iter().collect();
-    match compiled_size(&refs, max_set_bytes, "rule set") {
-        Ok(bytes) => (Some(bytes), None),
+    match compile_bounded_nfa(&refs, max_set_bytes, "rule set") {
+        Ok((_, bytes)) => (Some(bytes), None),
         Err(error) => (None, Some(error)),
     }
 }
 
-/// Compiles rules into one multi-pattern regex using the same ASCII-only
-/// translation as [`validate`]; each match carries its span and the index of
-/// the rule that produced it. Size limits are enforced in the control plane via
-/// [`validate`], not here.
+/// Validates `pattern` against `max_rule_bytes` and returns all non-empty
+/// matches in `text` as UTF-16 code-unit offsets using linear-time PikeVM.
+pub fn preview(pattern: &str, text: &str, max_rule_bytes: u32) -> PreviewResult {
+    let nfa = match check_rule(pattern, max_rule_bytes) {
+        Ok((_, nfa, _)) => nfa,
+        Err(error) => {
+            return PreviewResult {
+                valid: false,
+                error: Some(error),
+                matches: Vec::new(),
+            };
+        }
+    };
+    if text.is_empty() {
+        return PreviewResult {
+            valid: true,
+            error: None,
+            matches: Vec::new(),
+        };
+    }
+    let vm = match PikeVM::new_from_nfa(nfa) {
+        Ok(vm) => vm,
+        Err(error) => {
+            return PreviewResult {
+                valid: false,
+                error: Some(describe(&error)),
+                matches: Vec::new(),
+            };
+        }
+    };
+    let mut cache = vm.create_cache();
+    let byte_spans: Vec<(usize, usize)> = vm
+        .find_iter(&mut cache, Input::new(text.as_bytes()))
+        .filter(|m| m.start() < m.end())
+        .map(|m| (m.start(), m.end()))
+        .collect();
+    PreviewResult {
+        valid: true,
+        error: None,
+        matches: byte_spans_to_utf16(text, &byte_spans),
+    }
+}
+
+fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSpan> {
+    if byte_spans.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(byte_spans.len());
+    let mut cursor_byte = 0usize;
+    let mut cursor_utf16 = 0usize;
+    for &(start_byte, end_byte) in byte_spans {
+        if start_byte > cursor_byte {
+            cursor_utf16 += text[cursor_byte..start_byte].encode_utf16().count();
+            cursor_byte = start_byte;
+        }
+        let start = cursor_utf16;
+        if end_byte > cursor_byte {
+            cursor_utf16 += text[cursor_byte..end_byte].encode_utf16().count();
+            cursor_byte = end_byte;
+        }
+        out.push(MatchSpan {
+            start,
+            end: cursor_utf16,
+        });
+    }
+    out
+}
+
+/// Compiles rules into one multi-pattern regex configured for overlapping
+/// detection (`MatchKind::All`, no captures) using the same ASCII-only
+/// translation as [`validate`]. Size limits are enforced in the control plane
+/// via [`validate`], not here.
 #[cfg(feature = "gateway")]
-pub fn compile(patterns: &[String]) -> Result<meta::Regex, String> {
+pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String> {
     let hirs: Vec<Hir> = patterns
         .iter()
-        .map(|pattern| parse_to_hir(pattern))
+        .map(|pattern| parse_to_hir(pattern.as_ref()))
         .collect::<Result<_, _>>()?;
     meta::Builder::new()
-        .configure(meta::Config::new().nfa_size_limit(None))
+        .configure(
+            meta::Config::new()
+                .match_kind(MatchKind::All)
+                .utf8_empty(false)
+                .which_captures(WhichCaptures::None)
+                .nfa_size_limit(None),
+        )
         .build_many_from_hir(&hirs)
+        .map_err(|error| describe(&error))
+}
+
+/// Compiles one rule with leftmost-first capture support for redaction span
+/// extraction, using the same ASCII-only translation as [`validate`].
+#[cfg(feature = "gateway")]
+pub fn compile_captures(pattern: &str) -> Result<meta::Regex, String> {
+    let hir = parse_to_hir(pattern)?;
+    meta::Builder::new()
+        .configure(
+            meta::Config::new()
+                .match_kind(MatchKind::LeftmostFirst)
+                .utf8_empty(false)
+                .which_captures(WhichCaptures::All)
+                .nfa_size_limit(None),
+        )
+        .build_from_hir(&hir)
         .map_err(|error| describe(&error))
 }
 
@@ -465,10 +585,22 @@ mod wasm {
         let limits = limits.to_rust()?;
         Ok(super::validate(&patterns, &limits).into_ts()?)
     }
+
+    /// Validates a single pattern and returns UTF-16 match spans against `text`.
+    #[wasm_bindgen]
+    pub fn preview(
+        pattern: String,
+        text: String,
+        max_rule_bytes: u32,
+    ) -> Result<Ts<super::PreviewResult>, JsError> {
+        Ok(super::preview(&pattern, &text, max_rule_bytes).into_ts()?)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use regex_automata::PatternSet;
+
     use super::*;
 
     const RFC_LIMITS: Limits = Limits {
@@ -533,43 +665,32 @@ mod tests {
     fn enforces_ascii_semantics_and_utf8_char_boundaries() {
         // `\S`, `.`, and `[^,]` match full multi-byte UTF-8 characters so match
         // spans stay on char boundaries for slicing/redaction.
-        let utf8 = compile(&[
-            r"token=\S".to_string(),
-            r"a.b".to_string(),
-            r"[^,]+".to_string(),
-        ])
-        .unwrap();
+        let utf8 = compile_captures(r"token=\S").unwrap();
         let text = "token=é";
         let m = utf8.find(text).unwrap();
         assert_eq!(&text[m.start()..m.end()], "token=é");
 
-        let dot = compile(&[r"a.b".to_string()]).unwrap();
+        let dot = compile_captures(r"a.b").unwrap();
         assert!(dot.is_match("aéb"));
 
         // `\w`, `\d`, `\s`, `\b`, and `(?i)` remain ASCII-only.
-        let ascii_classes = compile(&[
-            r"\w+".to_string(),
-            r"\d+".to_string(),
-            r"\s+".to_string(),
-            r"(?i)k".to_string(),
-        ])
-        .unwrap();
+        let ascii_classes = compile_set(&[r"\w+", r"\d+", r"\s+", r"(?i)k"]).unwrap();
         assert!(!ascii_classes.is_match("é"));
         assert!(!ascii_classes.is_match("\u{0660}")); // Arabic-Indic digit 0
         assert!(!ascii_classes.is_match("\u{00A0}")); // NBSP
         assert!(!ascii_classes.is_match("\u{212A}")); // Kelvin sign
 
         // `(?i)` folds ASCII case even inside negated classes and ranges.
-        let case_negated = compile(&[r"(?i)[^a]+".to_string()]).unwrap();
+        let case_negated = compile_captures(r"(?i)[^a]+").unwrap();
         let m = case_negated.find("xyAz").unwrap();
         assert_eq!(&"xyAz"[m.start()..m.end()], "xy");
 
-        let case_alt = compile(&[r"a(?i)b|c".to_string()]).unwrap();
+        let case_alt = compile_captures(r"a(?i)b|c").unwrap();
         assert!(case_alt.is_match("aB"));
         assert!(case_alt.is_match("C"));
 
         // `\B` uses ASCII word-boundary semantics without breaking UTF-8 matching.
-        let not_word_boundary = compile(&[r"\Bfoo".to_string()]).unwrap();
+        let not_word_boundary = compile_captures(r"\Bfoo").unwrap();
         assert!(not_word_boundary.is_match("afoo"));
         assert!(!not_word_boundary.is_match("éfoo"));
     }
@@ -584,7 +705,7 @@ mod tests {
 
         // Org total > 512 KiB compiled (each rule fits under 128 KiB).
         let medium_rule = r"\w{1,250}".to_string();
-        let (_, medium_bytes) = check_rule(&medium_rule, RFC_LIMITS.max_rule_bytes).unwrap();
+        let (_, _, medium_bytes) = check_rule(&medium_rule, RFC_LIMITS.max_rule_bytes).unwrap();
         let count = (RFC_LIMITS.max_set_bytes / medium_bytes) as usize + 2;
         let oversized_set = vec![medium_rule; count];
         let set_report = validate(&oversized_set, &RFC_LIMITS);
@@ -614,25 +735,48 @@ mod tests {
         // Limits are enforced in the control plane only, not in the gateway.
         let oversized_rule = r"\w{1,500}".repeat(5);
         assert!(!validate(std::slice::from_ref(&oversized_rule), &RFC_LIMITS).ok);
-        assert!(compile(std::slice::from_ref(&oversized_rule)).is_ok());
+        assert!(compile_set(std::slice::from_ref(&oversized_rule)).is_ok());
+        assert!(compile_captures(&oversized_rule).is_ok());
 
         // Gateway still rejects Unicode patterns and bad syntax.
-        assert!(compile(&[r"(?u:\w)+".to_string()]).is_err());
-        assert!(compile(&[r"\p{L}+".to_string()]).is_err());
-        assert!(compile(&[r"foo(?=bar)".to_string()]).is_err());
+        assert!(compile_set(&[r"(?u:\w)+"]).is_err());
+        assert!(compile_set(&[r"\p{L}+"]).is_err());
+        assert!(compile_set(&[r"foo(?=bar)"]).is_err());
+        assert!(compile_captures(r"(?u:\w)+").is_err());
     }
 
     #[test]
-    fn compiled_set_reports_rule_index() {
-        let patterns = vec![
-            r"\b\d{3}-\d{2}-\d{4}\b".to_string(),
-            r"[a-z]+@[a-z]+\.com".to_string(),
-        ];
-        let regex = compile(&patterns).unwrap();
-        let hits: Vec<usize> = regex
-            .find_iter("mail a@b.com ssn 078-05-1120")
-            .map(|m| m.pattern().as_usize())
-            .collect();
-        assert_eq!(hits, vec![1, 0]);
+    fn preview_returns_utf16_match_spans_and_validation_errors() {
+        // "😀" is 4 UTF-8 bytes and 2 UTF-16 code units, so "ORD-123456" starts at UTF-16 index 3.
+        let res = preview(
+            r"ORD-\d{6}",
+            "😀 ORD-123456 and ORD-999999",
+            RFC_LIMITS.max_rule_bytes,
+        );
+        assert_eq!(
+            res,
+            PreviewResult {
+                valid: true,
+                error: None,
+                matches: vec![
+                    MatchSpan { start: 3, end: 13 },
+                    MatchSpan { start: 18, end: 28 },
+                ],
+            }
+        );
+
+        let invalid = preview(r"(?u:\w)+", "abc", RFC_LIMITS.max_rule_bytes);
+        assert!(!invalid.valid);
+        assert!(invalid.error.is_some());
+        assert!(invalid.matches.is_empty());
+    }
+
+    #[test]
+    fn compiled_set_reports_overlapping_matches() {
+        let regex = compile_set(&[r"\b\d{3}-\d{2}-\d{4}\b", r"[a-z]+@[a-z]+\.com"]).unwrap();
+        let mut found = PatternSet::new(regex.pattern_len());
+        regex.which_overlapping_matches(&Input::new(b"mail a@b.com ssn 078-05-1120"), &mut found);
+        let hits: Vec<usize> = found.iter().map(|id| id.as_usize()).collect();
+        assert_eq!(hits, vec![0, 1]);
     }
 }

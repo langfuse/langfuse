@@ -24,7 +24,7 @@ gateway = [
 wasm = ["dep:serde", "dep:tsify", "dep:wasm-bindgen"]
 
 [dependencies]
-regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "syntax", "nfa-thompson"] }
+regex-automata = { version = "=0.4.18", default-features = false, features = ["std", "syntax", "nfa-thompson", "nfa-pikevm"] }
 regex-syntax = { version = "=0.8.11", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"], optional = true }
 tsify = { version = "0.5", default-features = false, features = ["js"], optional = true }

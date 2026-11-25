@@ -56,18 +56,17 @@ import {
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
-  GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
-  compileGuardrailConfigPatterns,
-  estimateCompiledPatternsBytes,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
+  GatewayGuardrailCustomRegexSchema,
   parseContainsWordsText,
   validateContainsWordsText,
   validateSecretPrefix,
@@ -118,6 +117,7 @@ function createGuardrailFormSchema(
           `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
         ),
       containsText: z.string(),
+      customRegex: z.string(),
       bedrockGuardrailId: z.string(),
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
@@ -177,19 +177,20 @@ function createGuardrailFormSchema(
             path: ["containsText"],
             message: error,
           });
-          return;
         }
-        const compiledBytes = estimateCompiledPatternsBytes(
-          compileGuardrailConfigPatterns({
-            containsWords: parseContainsWordsText(values.containsText),
-          }),
+        return;
+      }
+      if (templateKind === "custom_regex") {
+        const regexResult = GatewayGuardrailCustomRegexSchema.safeParse(
+          values.customRegex,
         );
-        if (compiledBytes > GATEWAY_GUARDRAIL_MAX_RULE_BYTES) {
+        if (!regexResult.success) {
           ctx.addIssue({
             code: "custom",
-            path: ["containsText"],
+            path: ["customRegex"],
             message:
-              "Keyword list is too large for one guardrail. Remove some entries or split across guardrails.",
+              regexResult.error.issues[0]?.message ??
+              "Enter a regular expression",
           });
         }
         return;
@@ -230,6 +231,7 @@ export type GatewayGuardrailFormValues = {
   presets: GatewayGuardrailPreset[];
   secretPrefixes: string[];
   containsWords: string[];
+  customRegex?: string | null;
   bedrock?: {
     guardrailId: string;
     guardrailVersion: string;
@@ -251,6 +253,20 @@ export type ExternalGuardrailTestControl = {
   onTest: (values: GatewayGuardrailFormValues) => void;
 };
 
+type CustomRegexPreviewResult = {
+  valid: boolean;
+  error?: string;
+  matches: Array<{ start: number; end: number }>;
+};
+
+export type CustomRegexPreviewControl = {
+  pattern: string;
+  text: string;
+  isFetching: boolean;
+  result: CustomRegexPreviewResult | null;
+  onChange: (pattern: string, text: string) => void;
+};
+
 export type GatewayGuardrailFormDialogProps = {
   title: string;
   submitLabel: string;
@@ -261,6 +277,7 @@ export type GatewayGuardrailFormDialogProps = {
   /** True when editing an existing external guardrail so a blank key keeps the saved secret. */
   hasSavedApiKey?: boolean;
   externalTest?: ExternalGuardrailTestControl;
+  customRegexPreview?: CustomRegexPreviewControl;
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
@@ -278,6 +295,7 @@ export function GatewayGuardrailFormDialog({
   initialTestText = "",
   hasSavedApiKey = false,
   externalTest,
+  customRegexPreview,
   targetPicker,
   isSubmitting,
   errorMessage,
@@ -302,6 +320,7 @@ export function GatewayGuardrailFormDialog({
       presets: initialValues.presets,
       secretPrefixes: initialValues.secretPrefixes,
       containsText: initialValues.containsWords.join("\n"),
+      customRegex: initialValues.customRegex ?? "",
       bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
       bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
       bedrockRegion: initialValues.bedrock?.region ?? "",
@@ -315,6 +334,7 @@ export function GatewayGuardrailFormDialog({
   const selectedPresets = form.watch("presets");
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
+  const customRegex = form.watch("customRegex");
   const bedrockGuardrailId = form.watch("bedrockGuardrailId");
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
@@ -342,6 +362,22 @@ export function GatewayGuardrailFormDialog({
         GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success
       : GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success);
 
+  const isCustomRegex = templateKind === "custom_regex";
+  const activeCustomRegexPreview =
+    isCustomRegex &&
+    customRegexPreview &&
+    customRegexPreview.pattern === customRegex
+      ? customRegexPreview.result
+      : null;
+  const customRegexServerError =
+    activeCustomRegexPreview && !activeCustomRegexPreview.valid
+      ? (activeCustomRegexPreview.error ?? "Invalid regular expression")
+      : undefined;
+  const customRegexMatches =
+    activeCustomRegexPreview?.valid && customRegexPreview?.text === testText
+      ? activeCustomRegexPreview.matches
+      : [];
+
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
@@ -352,6 +388,7 @@ export function GatewayGuardrailFormDialog({
         presets: [],
         secretPrefixes: [],
         containsWords: [],
+        customRegex: null,
         bedrock: {
           guardrailId: values.bedrockGuardrailId.trim(),
           guardrailVersion: values.bedrockGuardrailVersion.trim(),
@@ -365,7 +402,9 @@ export function GatewayGuardrailFormDialog({
     return {
       name: values.name.trim(),
       presets:
-        templateKind === "contains" ? initialValues.presets : values.presets,
+        templateKind === "contains" || templateKind === "custom_regex"
+          ? initialValues.presets
+          : values.presets,
       secretPrefixes:
         templateKind === "secrets"
           ? values.secretPrefixes
@@ -374,9 +413,24 @@ export function GatewayGuardrailFormDialog({
         templateKind === "contains"
           ? parseContainsWordsText(values.containsText)
           : initialValues.containsWords,
+      customRegex:
+        templateKind === "custom_regex"
+          ? values.customRegex
+          : initialValues.customRegex,
       action: values.action,
       targets: values.targets,
     };
+  };
+
+  const handleCustomRegexChange = (nextPattern: string) => {
+    customRegexPreview?.onChange(nextPattern, testText);
+  };
+
+  const handleTestTextChange = (nextText: string) => {
+    setTestText(nextText);
+    if (isCustomRegex) {
+      customRegexPreview?.onChange(customRegex, nextText);
+    }
   };
 
   const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
@@ -508,6 +562,8 @@ export function GatewayGuardrailFormDialog({
                     selectedPresets={selectedPresets}
                     secretPrefixes={secretPrefixes}
                     containsEntryCount={parsedContains.length}
+                    customRegexLength={customRegex.length}
+                    customRegexErrorMessage={customRegexServerError}
                     hasSavedApiKey={hasSavedApiKey}
                     presetErrorMessage={
                       form.formState.errors.presets?.message ??
@@ -515,6 +571,7 @@ export function GatewayGuardrailFormDialog({
                     }
                     onPresetsChange={handlePresetsChange}
                     onSecretPrefixesChange={handleSecretPrefixesChange}
+                    onCustomRegexChange={handleCustomRegexChange}
                   />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -603,14 +660,22 @@ export function GatewayGuardrailFormDialog({
                 <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
                   <GatewayGuardrailTestInput
                     value={testText}
-                    onChange={setTestText}
-                    presets={templateKind === "contains" ? [] : selectedPresets}
+                    onChange={handleTestTextChange}
+                    presets={
+                      templateKind === "contains" || isCustomRegex
+                        ? []
+                        : selectedPresets
+                    }
                     secretPrefixes={
                       templateKind === "secrets" ? secretPrefixes : undefined
                     }
                     containsWords={
                       templateKind === "contains" ? parsedContains : undefined
                     }
+                    customMatches={
+                      isCustomRegex ? customRegexMatches : undefined
+                    }
+                    usesGatewayPreview={isCustomRegex}
                   />
                 </aside>
               ) : null}
@@ -645,7 +710,11 @@ export function GatewayGuardrailFormDialog({
               variant="primary"
               text={submitLabel}
               loading={isSubmitting}
-              disabled={!form.formState.isValid || isBusy}
+              disabled={
+                !form.formState.isValid ||
+                Boolean(customRegexServerError) ||
+                isBusy
+              }
             />
           </footer>
         </div>
@@ -666,10 +735,13 @@ type TemplateRuleFieldsProps = {
   selectedPresets: readonly GatewayGuardrailPreset[];
   secretPrefixes: readonly string[];
   containsEntryCount: number;
+  customRegexLength: number;
+  customRegexErrorMessage?: string;
   hasSavedApiKey: boolean;
   presetErrorMessage?: string;
   onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
   onSecretPrefixesChange: (prefixes: string[]) => void;
+  onCustomRegexChange: (pattern: string) => void;
 };
 
 function TemplateRuleFields({
@@ -679,10 +751,13 @@ function TemplateRuleFields({
   selectedPresets,
   secretPrefixes,
   containsEntryCount,
+  customRegexLength,
+  customRegexErrorMessage,
   hasSavedApiKey,
   presetErrorMessage,
   onPresetsChange,
   onSecretPrefixesChange,
+  onCustomRegexChange,
 }: TemplateRuleFieldsProps) {
   if (templateKind === "bedrock") {
     return (
@@ -704,6 +779,26 @@ function TemplateRuleFields({
             onBlur={field.onBlur}
             entryCount={containsEntryCount}
             errorMessage={fieldState.error?.message}
+          />
+        )}
+      />
+    );
+  }
+  if (templateKind === "custom_regex") {
+    return (
+      <Controller
+        control={control}
+        name="customRegex"
+        render={({ field, fieldState }) => (
+          <CustomRegexField
+            value={field.value}
+            onChange={(nextValue) => {
+              field.onChange(nextValue);
+              onCustomRegexChange(nextValue);
+            }}
+            onBlur={field.onBlur}
+            charCount={customRegexLength}
+            errorMessage={fieldState.error?.message ?? customRegexErrorMessage}
           />
         )}
       />
@@ -1130,4 +1225,78 @@ function ContainsWordListField({
 
 function noop() {
   // Runs on is locked to Input in this release.
+}
+
+type CustomRegexFieldProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  charCount: number;
+  errorMessage?: string;
+};
+
+function CustomRegexField({
+  value,
+  onChange,
+  onBlur,
+  charCount,
+  errorMessage,
+}: CustomRegexFieldProps) {
+  const inputId = useId();
+  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    onChange(event.target.value);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <label htmlFor={inputId} className="text-sm leading-none font-bold">
+            Regular expression
+          </label>
+          <CustomTooltip
+            content={
+              <span>
+                Rust regex syntax in ASCII mode (up to{" "}
+                {GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} chars). Lookaround,
+                backreferences, and Unicode classes (\p{"{..}"}) are not
+                supported.
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={Info}
+                label="About Regular expression"
+                size="xs"
+                variant="toolbar"
+              />
+            )}
+          </CustomTooltip>
+        </div>
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {charCount} / {GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH}
+        </span>
+      </div>
+      <textarea
+        id={inputId}
+        rows={3}
+        value={value}
+        onChange={handleChange}
+        onBlur={onBlur}
+        spellCheck={false}
+        placeholder={String.raw`e.g. \bORD-\d{6}\b`}
+        aria-invalid={Boolean(errorMessage)}
+        className={cn(
+          "ph-no-capture bg-background border-input placeholder:text-muted-foreground focus-visible:ring-ring min-h-20 w-full resize-y rounded-md border p-3 font-mono text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2",
+          errorMessage &&
+            "border-destructive focus-visible:ring-destructive/40 focus-visible:ring-offset-0",
+        )}
+      />
+      {errorMessage ? (
+        <p className="text-destructive text-sm">{errorMessage}</p>
+      ) : null}
+    </div>
+  );
 }

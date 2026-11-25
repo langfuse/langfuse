@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 
 const require = createRequire(import.meta.url);
-const { validate } = require("../pkg/ai_gateway_guardrail_rules.js");
+const { preview, validate } = require("../pkg/ai_gateway_guardrail_rules.js");
 
 const RFC_LIMITS = {
   max_rule_bytes: 128 * 1024,
@@ -55,4 +55,27 @@ test("wasm32 enforces caller-supplied size limits and rejects missing limits", (
     false,
   );
   assert.throws(() => validate([ssn], {}));
+});
+
+test("wasm32 preview returns UTF-16 match spans and validation errors", () => {
+  const text = "😀 ORD-123456 and ORD-999999";
+  const result = preview(
+    String.raw`ORD-\d{6}`,
+    text,
+    RFC_LIMITS.max_rule_bytes,
+  );
+  assert.equal(result.valid, true);
+  assert.deepEqual(
+    result.matches.map(({ start, end }) => text.slice(start, end)),
+    ["ORD-123456", "ORD-999999"],
+  );
+
+  const invalid = preview(
+    String.raw`(?u:\w)+`,
+    text,
+    RFC_LIMITS.max_rule_bytes,
+  );
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.error);
+  assert.deepEqual(invalid.matches, []);
 });

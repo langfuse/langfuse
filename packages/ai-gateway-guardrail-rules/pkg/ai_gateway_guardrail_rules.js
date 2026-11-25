@@ -1,6 +1,34 @@
 /* @ts-self-types="./ai_gateway_guardrail_rules.d.ts" */
 
 /**
+ * Validates a single pattern and returns UTF-16 match spans against `text`.
+ * @param {string} pattern
+ * @param {string} text
+ * @param {number} max_rule_bytes
+ * @returns {PreviewResult}
+ */
+function preview(pattern, text, max_rule_bytes) {
+    const val3 = +max_rule_bytes;
+    let ptr0, len0, ptr1, len1;
+    try {
+        ptr0 = passStringToWasm0(pattern, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        len0 = WASM_VECTOR_LEN;
+        ptr1 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        len1 = WASM_VECTOR_LEN;
+    } catch (e) {
+        if (ptr1) { wasm.__wbindgen_free(ptr1, len1 * 1, 1); }
+        if (ptr0) { wasm.__wbindgen_free(ptr0, len0 * 1, 1); }
+        throw e;
+    }
+    const ret = wasm.preview(ptr0, len0, ptr1, len1, val3);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+exports.preview = preview;
+
+/**
  * Validates an organization's guardrail patterns against caller-supplied limits.
  * @param {string[]} patterns
  * @param {Limits} limits

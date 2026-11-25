@@ -8,6 +8,7 @@ import {
   GatewayGuardrailFormDialog,
   type ExternalGuardrailTestControl,
   type ExternalGuardrailTestOutcome,
+  type GatewayGuardrailFormDialogProps,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
 import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
@@ -19,6 +20,7 @@ import {
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
 import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
+import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
@@ -159,6 +161,7 @@ export function GatewayGuardrailDialogController({
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
+                  customRegex: values.customRegex || undefined,
                   assignments,
                 });
               }
@@ -183,6 +186,7 @@ export function GatewayGuardrailDialogController({
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
+                  customRegex: values.customRegex || undefined,
                   assignments,
                 });
               }
@@ -307,8 +311,9 @@ function GuardrailDialogContent({
     };
     const isExternal = Boolean(selectedTemplate.external);
     return (
-      <GatewayGuardrailFormDialog
+      <ConnectedGuardrailFormDialog
         key={selectedTemplate.id}
+        organizationId={organizationId}
         title={selectedTemplate.name}
         submitLabel={isExternal ? "Test and save" : "Add guardrail"}
         templateKind={selectedTemplate.id}
@@ -319,6 +324,7 @@ function GuardrailDialogContent({
           presets: [...selectedTemplate.defaultPresets],
           secretPrefixes: [],
           containsWords: [],
+          customRegex: null,
           action: "BLOCK",
           targets: [EVERYONE_TARGET_OPTION],
         }}
@@ -343,8 +349,9 @@ function GuardrailDialogContent({
   const isExternal = guardrail.type === "BEDROCK";
 
   return (
-    <GatewayGuardrailFormDialog
+    <ConnectedGuardrailFormDialog
       key={guardrail.id}
+      organizationId={organizationId}
       title="Edit guardrail"
       submitLabel={isExternal ? "Test and save" : "Save changes"}
       templateKind={templateKind}
@@ -356,6 +363,7 @@ function GuardrailDialogContent({
         presets: guardrail.presets,
         secretPrefixes: guardrail.secretPrefixes,
         containsWords: guardrail.containsWords,
+        customRegex: guardrail.customRegex,
         bedrock: guardrail.bedrock ?? undefined,
         action: initialAction,
         targets: assignmentsToTargetOptions(guardrail.assignments),
@@ -364,6 +372,28 @@ function GuardrailDialogContent({
       isSubmitting={isSubmitting}
       errorMessage={errorMessage}
       onSubmit={onSubmitForm}
+    />
+  );
+}
+
+function ConnectedGuardrailFormDialog({
+  organizationId,
+  ...props
+}: Omit<GatewayGuardrailFormDialogProps, "customRegexPreview"> & {
+  organizationId: string;
+}) {
+  const isCustomRegex = props.templateKind === "custom_regex";
+  const customRegexPreview = useGatewayGuardrailRegexPreview({
+    organizationId,
+    enabled: isCustomRegex,
+    initialPattern: props.initialValues.customRegex ?? "",
+    initialText: props.initialTestText ?? "",
+  });
+
+  return (
+    <GatewayGuardrailFormDialog
+      {...props}
+      customRegexPreview={isCustomRegex ? customRegexPreview : undefined}
     />
   );
 }
@@ -416,6 +446,14 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
 } {
   if (guardrail.type === "BEDROCK") {
     return { templateKind: "bedrock", availablePresets: [] };
+  }
+  if (
+    guardrail.presets.length === 0 &&
+    guardrail.secretPrefixes.length === 0 &&
+    guardrail.containsWords.length === 0 &&
+    guardrail.customRegex
+  ) {
+    return { templateKind: "custom_regex", availablePresets: [] };
   }
   if (
     guardrail.presets.length === 0 &&

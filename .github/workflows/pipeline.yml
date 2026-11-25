@@ -202,7 +202,8 @@ jobs:
         with:
           cache-key: langfuse/test-ai-gateway
       - name: Build runtime image
-        run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
+        working-directory: .
+        run: docker buildx build --load --pull --target runtime -f ai-gateway/Dockerfile -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
@@ -1978,17 +1979,18 @@ jobs:
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-          # The gateway crate is its own build context (ai-gateway/.dockerignore).
+          # Uses ai-gateway/Dockerfile.dockerignore so only ai-gateway and
+          # packages/ai-gateway-guardrail-rules are sent in the build context.
           - component: ai-gateway
             image_name: ai-gateway
-            context: ./ai-gateway
+            context: .
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: ai-gateway
             image_name: ai-gateway
-            context: ./ai-gateway
+            context: .
             dockerfile: ./ai-gateway/Dockerfile
             platform: linux/arm64
             platform_tag: arm64
