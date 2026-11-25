@@ -10,6 +10,13 @@ import { evaluateGate, requiredJobs } from "./merge-gate.mjs";
 const successfulJobs = () =>
   Object.fromEntries(requiredJobs.map((name) => [name, { result: "success" }]));
 
+const webUiJobs = [
+  "tests-web-client",
+  "tests-storybook",
+  "build-storybook",
+  "e2e-tests",
+];
+
 test("CLI rejects missing jobs when invoked through a symlink", () => {
   const dir = mkdtempSync(join(tmpdir(), "merge-gate-"));
   try {
@@ -74,13 +81,14 @@ test("merge queue rejects missing or unexpectedly skipped jobs", () => {
   }
 });
 
-test("changed-file provider selection permits only explicit exclusions", () => {
+test("changed-file selection permits only explicit exclusions", () => {
   const needs = successfulJobs();
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
+  for (const job of webUiJobs) needs[job] = { result: "skipped" };
   const selection = {
     result: "success",
-    outputs: { llm_connections: "false", ai_gateway: "false" },
+    outputs: { llm_connections: "false", ai_gateway: "false", web_ui: "false" },
   };
   needs["llm-connections-filter"] = selection;
   for (const event of ["pull_request", "merge_group", "push"]) {
@@ -89,7 +97,7 @@ test("changed-file provider selection permits only explicit exclusions", () => {
       [],
       event,
     );
-    for (const output of ["llm_connections", "ai_gateway"]) {
+    for (const output of ["llm_connections", "ai_gateway", "web_ui"]) {
       for (const changed of ["true", undefined]) {
         selection.outputs[output] = changed;
         assert.notEqual(evaluateGate({ event, needs }).length, 0);
@@ -104,7 +112,11 @@ test("changed-file provider selection permits only explicit exclusions", () => {
     delete needs["llm-connections-filter"];
     assert.notEqual(evaluateGate({ event, needs }).length, 0);
     needs["llm-connections-filter"] = selection;
-    for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
+    for (const job of [
+      "test-worker-llm-connections",
+      "test-ai-gateway-e2e",
+      ...webUiJobs,
+    ]) {
       for (const result of ["failure", "cancelled", undefined]) {
         if (result) needs[job] = { result };
         else delete needs[job];
@@ -112,9 +124,12 @@ test("changed-file provider selection permits only explicit exclusions", () => {
       }
       needs[job] = { result: "skipped" };
     }
-    needs["tests-web"] = { result: "skipped" };
-    assert.notEqual(evaluateGate({ event, needs }).length, 0);
-    needs["tests-web"] = { result: "success" };
+    // These suites start the worker, so a worker-only change still needs them.
+    for (const job of ["tests-web", "e2e-server-tests"]) {
+      needs[job] = { result: "skipped" };
+      assert.notEqual(evaluateGate({ event, needs }).length, 0, job);
+      needs[job] = { result: "success" };
+    }
   }
   assert.notEqual(
     evaluateGate({ event: "workflow_dispatch", needs }).length,

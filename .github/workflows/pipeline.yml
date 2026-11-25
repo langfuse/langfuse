@@ -140,6 +140,8 @@ jobs:
       llm_connections: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.llm_connections }}
       topics_llm: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.topics_llm }}
       ai_gateway: ${{ steps.range.outputs.run_all == 'true' || steps.filter.outputs.ai_gateway }}
+      # Tags and manual runs test the web UI regardless of the diff.
+      web_ui: ${{ steps.range.outputs.run_all == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') || steps.filter.outputs.web_ui }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -528,10 +530,12 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
+      - llm-connections-filter
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). Changes confined to worker/ skip the suite: see the
+    # web_ui filter in .github/ci-paths.yml.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     timeout-minutes: 10
     env:
       VITEST_MAX_WORKERS: "4"
@@ -584,7 +588,10 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - llm-connections-filter
+    # Changes confined to worker/ skip the build: see the web_ui filter in
+    # .github/ci-paths.yml.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     timeout-minutes: 10
     env:
       NODE_ENV: test
@@ -1042,7 +1049,10 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+      - llm-connections-filter
+    # Changes confined to worker/ skip the suite: see the web_ui filter in
+    # .github/ci-paths.yml.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     env:
       VITEST_MAX_WORKERS: "6"
     steps:
@@ -1441,10 +1451,13 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - llm-connections-filter
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
-    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    # at run creation (!cancelled() lets the condition evaluate despite the
+    # skipped dependency). The web build and Playwright run exclude the worker,
+    # so changes confined to worker/ skip the suite: see the web_ui filter in
+    # .github/ci-paths.yml.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     env:
       NODE_ENV: test
     steps:
