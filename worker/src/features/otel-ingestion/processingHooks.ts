@@ -2,7 +2,7 @@ import type { OtelMediaWrite } from "../otel-media/uploadHooks";
 import type { ObservationEvalSchedulerDeps } from "../evaluation/observationEval/types";
 import type { recordTraceActivity } from "../traceDispatch/traceRuleRecording";
 
-type OtelSchedulingHooks = {
+export type OtelSchedulingHooks = {
   observationWrites: (
     real: ObservationEvalSchedulerDeps,
   ) => ObservationEvalSchedulerDeps;

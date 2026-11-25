@@ -73,3 +73,41 @@ Raw ingress limits and byte-length telemetry remain pre-media measurements. Trac
 `LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table writes in projects admitted by the early-media selector. It requires early extraction; media uploads remain optional. Unselected projects keep the original TypeScript path. Legacy writes remain in TypeScript in dual-write mode; events-only Rust jobs skip constructing the TypeScript span graph. The Rust path retains the native media registry through normalization and service calls.
 
 Native errors reject the job without falling back to TypeScript processing.
+
+## Comparing TypeScript and Rust ingestion
+
+With TypeScript as the direct writer, `LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE` selects batches by project and source file. The default of `0` requires only the production tables. Use `0.001`, `0.01` and `0.05` for a 0.1%, 1% and 5% rollout. Each increase includes the earlier sample.
+
+The worker retains up to four accepted inputs totaling 64 MiB. When TypeScript processing returns or throws, the worker passes the post-masking input to the same `processRustOtelEvents` that writes to `events_full` when `LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust as the primary writer. Both runs resolve models, prompts and skills through their production services and evaluate the scheduling rules. The shadow uses the native writer with `events_native_test` as its destination. The replay receives its media, evaluation, and trace-recording handlers as arguments. They compare each write request and return the corresponding primary result. Rule and sampling lookups can still refresh shared Redis caches. Primary exceptions still propagate to the ingestion queue.
+
+Before enabling sampling, run the [shadow table setup SQL](../../../../packages/shared/clickhouse/migrations/otel-shadow/0061.sql) in the ingestion writer's database. It clones the current event columns and defaults on an unreplicated installation.
+
+When a forward migration changes those columns, add the corresponding SQL for existing shadow tables under [otel-shadow](../../../../packages/shared/clickhouse/migrations/otel-shadow), using the same version number. On installations with sampling enabled, pause sampling during the upgrade and apply the shadow SQL for the versions being crossed.
+
+The worker supplies `created_at` when it processes a batch, so backfilled spans land in the current UTC day. Each day's parts become eligible for expiry at 00:10 UTC the next day. The ten-minute grace covers ordinary verifier lag across midnight. ClickHouse removes expired parts asynchronously. Deleting a trace or project from the primary tables can still leave its full input, output and metadata in the shadow table until cleanup.
+
+Each processor records the row keys its writer accepted. After replay, the worker compares those keys and queues them for a background read of both tables. Graceful shutdown drains the buffer. A worker crash can lose outstanding comparisons. The `row_verification` metric counts keys skipped at capacity and keys left unverified after a read error.
+
+### Reading a comparison
+
+Metrics use the prefix `langfuse.ingestion.otel.shadow.`.
+
+- `pair` reports each processor’s outcome (enqueued rows, empty batch or exception) and the stage that failed. The discrepancy log includes enqueue counts, handled failures by stage and up to three row keys. For a shadow exception, `shadow_failure_reason` identifies a known native error code or failure category. Raw exception messages can contain span IDs and field values.
+- The same log counts missing and extra service requests by kind. For an evaluation that matches, this includes the observation snapshot, execution record and queue request. For trace dispatch it compares trace IDs, start times and selected rules. Each path uses its own size estimate. Failed attempts count, so check the failure stages before attributing later missing requests.
+- The worker groups row checks by 64 MiB of sampled input and checks smaller groups after 30 seconds. One indexed query reads both tables for up to 64 keys. If an enqueued row is still missing, the worker checks that key once more after 30 seconds. A missing result means the row was absent at the final read. A later insert can still succeed. Graceful shutdown flushes the writers before the final check.
+- When both rows are visible, the verifier compares every column except the three write-time clocks. Mismatch reports identify the row and changed columns, including maps that differ only in key order. They omit field values.
+- In worker JSON logs, filter by `otel_ingestion_mode:shadow` for calls made during replay. The batch report distinguishes `shadow_only_failure`, `primary_only_failure`, and `both_failed` even with text logging. Replayed lookups and inserts also emit ordinary service logs, which can include lookup names or driver error messages.
+- For asynchronous shadow insert failures, filter `langfuse.queue.clickhouse_writer.rows_dropped` by `entity_type:events_native_test` and `format:native-test`. A batch can finish processing before the writer exhausts its insert retries.
+- Compare `paired_processing_duration_ms` for successful events-only batches with the same primary media path. Filter on `primary_effects:none` to select batches where TypeScript attempted no captured media, evaluation or trace-dispatch writes. Both paths can still perform enrichment reads, and Rust can benefit from caches warmed by TypeScript. The measurement excludes the buffered writer wait.
+
+For standard OTEL files, the discrepancy log includes `sourceFile` even when both writers enqueued zero rows. Resolve it under `<event upload prefix>otel/<projectId>/` in the event bucket. For other file layouts, use a reported row key in an authorized ClickHouse session. Query the side that stored the row and omit the span predicate if the example has no span ID. Multiple deliveries can return several file paths.
+
+```sql
+SELECT DISTINCT blob_storage_file_path
+FROM events_full
+WHERE project_id = {projectId:String}
+  AND toStartOfMinute(start_time) = toStartOfMinute({startTime:DateTime64(6, 'UTC')})
+  AND xxHash32(trace_id) = {traceHash:UInt32}
+  AND span_id = {spanId:String}
+  AND start_time = {startTime:DateTime64(6, 'UTC')}
+```
