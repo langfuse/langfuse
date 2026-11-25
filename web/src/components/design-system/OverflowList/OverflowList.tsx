@@ -15,8 +15,9 @@ import { flushSync } from "react-dom";
 /**
  * Renders keyed items on one line and moves items that do not fit into a
  * caller-rendered overflow control. The component owns DOM measurement and
- * remeasures when its width or item widths change, and when the overflow
- * control mounts.
+ * remeasures when its width or item widths change, when the overflow control
+ * mounts, and when the overflow control's width changes. Overflow-control
+ * remasures only lower visibleCount.
  * `additionalOverflowCount` reserves the control for paginated or virtualized
  * entries that should not be mounted in the measurement row. Item and overflow
  * presentation remain entirely caller-defined. Apply `getItemProps` to each
@@ -194,7 +195,9 @@ function useOverflowList<TItem>({
 }) {
   const measurementRowRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<(() => void) | null>(null);
+  const measureRef = useRef<
+    ((options?: { allowIncrease?: boolean }) => void) | null
+  >(null);
   const trailingContentRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
   const itemKeySignature = items.map(getKey).join("\u0000");
@@ -206,10 +209,17 @@ function useOverflowList<TItem>({
     const measurementRow = measurementRowRef.current;
     if (!measurementRow) return;
 
-    const commitVisibleCount = (next: number) => {
-      setVisibleCount((current) => (current === next ? current : next));
+    const commitVisibleCount = (
+      next: number,
+      { allowIncrease = true }: { allowIncrease?: boolean } = {},
+    ) => {
+      setVisibleCount((current) => {
+        if (next === current) return current;
+        if (!allowIncrease && next > current) return current;
+        return next;
+      });
     };
-    const measure = () => {
+    const measure = (options?: { allowIncrease?: boolean }) => {
       const itemElements = Array.from(
         measurementRow.querySelectorAll<HTMLElement>(
           ":scope > [data-overflow-item]",
@@ -232,7 +242,7 @@ function useOverflowList<TItem>({
         additionalOverflowCount <= 0 &&
         contentWidth <= availableWidthBeforeOverflow + 1
       ) {
-        commitVisibleCount(itemElements.length);
+        commitVisibleCount(itemElements.length, options);
         return;
       }
 
@@ -251,6 +261,7 @@ function useOverflowList<TItem>({
         firstHiddenIndex === -1
           ? itemElements.length
           : Math.max(minVisible, firstHiddenIndex),
+        options,
       );
     };
 
@@ -284,12 +295,25 @@ function useOverflowList<TItem>({
     minVisible,
   ]);
 
-  // Overflow width is only known after the control mounts. Remeasure that
-  // once — not on every layout, or a count-dependent +N width oscillates
-  // visibleCount until React hits max update depth.
+  // Remeasure when the overflow control mounts or its width changes. That
+  // path only lowers visibleCount.
   useLayoutEffect(() => {
     if (!hasOverflowControl) return;
-    measureRef.current?.();
+    const overflowNode = overflowRef.current;
+    if (!overflowNode) return;
+
+    measureRef.current?.({ allowIncrease: false });
+    if (typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      flushSync(() => {
+        measureRef.current?.({ allowIncrease: false });
+      });
+    });
+    resizeObserver.observe(overflowNode);
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, [hasOverflowControl]);
 
   const getItemProps = (
