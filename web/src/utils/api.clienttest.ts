@@ -5,7 +5,6 @@ import { observable } from "@trpc/server/observable";
 import { vi } from "vitest";
 import type { AppRouter } from "@/src/server/api/root";
 import {
-  EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
   buildIdLink,
@@ -18,7 +17,6 @@ import {
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
-  isTrpcZodValidationError,
   MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
@@ -26,6 +24,8 @@ import {
   shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
+import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
+import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
 import {
   getTrpcToastOperation,
@@ -699,8 +699,9 @@ describe("isExpectedTrpcClientError", () => {
 
   it("treats BAD_REQUEST on an allowlisted procedure as expected", () => {
     // Each path throws BAD_REQUEST for rejected user input the UI already
-    // explains: a remote-experiment URL, a model or gateway connection, or
-    // an invite for someone who is already a member or already invited.
+    // explains: a remote-experiment URL, a model or gateway connection, an
+    // invite for someone who is already a member or already invited, or a
+    // prompt export over the version limit.
     for (const path of EXPECTED_TRPC_BAD_REQUEST_PATHS) {
       expect(
         isExpectedTrpcClientError(
@@ -1056,12 +1057,10 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
-  it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
-    // The organizations.delete FORBIDDEN advice: previously console.error'd by
-    // the component (one Sentry event per retry), now classified as expected.
+  it("suppresses organization deletion while projects are still purging", () => {
     const error = trpcServerError({
-      code: "FORBIDDEN",
-      httpStatus: 403,
+      code: "PRECONDITION_FAILED",
+      httpStatus: 412,
       path: "organizations.delete",
       message:
         "Deletion of your projects is still being processed, please try deleting the organization later",
@@ -1072,7 +1071,7 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
     expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
     expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
-      code: "FORBIDDEN",
+      code: "PRECONDITION_FAILED",
       path: "organizations.delete",
     });
   });

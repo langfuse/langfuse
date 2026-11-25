@@ -37,6 +37,7 @@ export function ObservationLevelTag({
   );
 }
 
+/** @internal */
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
   DEBUG: { text: "text-muted-foreground", bg: "bg-tertiary" },
@@ -55,6 +56,7 @@ const NEUTRAL_LEVEL_COLOR: LevelColor = { text: "", bg: "" };
  * `undefined`. Dereferencing `.bg`/`.text` on that undefined crashed the
  * trace/observations tables (LFE-14567). Every color lookup must therefore be
  * total: unknown or absent levels get a neutral (no color chip) fallback.
+ * @internal
  */
 export function getLevelColors(level: string | null | undefined): LevelColor {
   // Own-property check (NOT `in`): `in` walks the prototype chain, so a level
@@ -72,7 +74,7 @@ const levelBarColors: Record<string, string> = {
   DEFAULT: "bg-accent-dark-green",
   DEBUG: "bg-muted-foreground/40",
   WARNING: "bg-dark-yellow",
-  ERROR: "bg-dark-red",
+  ERROR: "bg-destructive",
 };
 
 /** Renders the colored status bar for a level facet option (renderIcon). */

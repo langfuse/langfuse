@@ -14,12 +14,22 @@ const db = vi.hoisted(() => ({
   organization: { findMany: vi.fn() },
   project: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
+  $transaction: vi.fn((run: (tx: unknown) => unknown) => run(db)),
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
+}));
+
+vi.mock("@/src/env.mjs", () => ({
+  env: { LANGFUSE_SUPPORT_ACCESS_DENIED_ORG_IDS: ["org-denied"] },
+}));
+
+vi.mock("@langfuse/shared/rbac/server", () => ({
+  replaceRolesForPrincipal: vi.fn(),
+  revokeRolesForPrincipal: vi.fn(),
 }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
@@ -288,6 +298,15 @@ describe("provisionSupportAccess", () => {
       select: { orgId: true },
     });
     expect(grantedOrgId()).toBe("org-of-project");
+  });
+
+  it("rejects an organization on the deny list", async () => {
+    db.project.findFirst.mockResolvedValue({ orgId: "org-denied" });
+
+    expect(
+      await provisionSupportAccess(grantRequest, entitlementId, now),
+    ).toMatchObject({ ok: false });
+    expect(db.$executeRaw).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown organization", async () => {

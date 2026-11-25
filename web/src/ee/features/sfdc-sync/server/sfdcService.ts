@@ -607,7 +607,10 @@ export function getSfdcService(): SfdcService | null {
   return cached;
 }
 
-/** Test-only helper to reset the module-level cache between cases. */
+/**
+ * Test-only helper to reset the module-level cache between cases.
+ * @internal
+ */
 export function resetSfdcServiceCacheForTests(): void {
   cached = undefined;
 }

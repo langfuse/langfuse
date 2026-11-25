@@ -337,6 +337,7 @@ export const FlatObservations = meta.story({
     ...loadedArgs,
     observationLayout: "flat",
     filterControls: undefined,
+    peekTraceId: "turn-1",
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -344,9 +345,11 @@ export const FlatObservations = meta.story({
       await canvas.findByRole("region", { name: "Session observations" }),
     ).toBeInTheDocument();
     const observation = await canvas.findByText("Compose response");
-    await expect(
-      canvas.getByRole("group", { name: "Answer product question" }),
-    ).toContainElement(observation);
+    const trace = canvas.getByRole("group", {
+      name: "Answer product question",
+    });
+    await expect(trace).toContainElement(observation);
+    await expect(trace).toHaveAttribute("data-peeked", "true");
     await expect(
       canvas.getByText("Answer product question"),
     ).toBeInTheDocument();

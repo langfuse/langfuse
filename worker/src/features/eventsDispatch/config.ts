@@ -1,12 +1,9 @@
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { env } from "../../env";
 
-/** Cloud-only switch for the whole pipeline: trace recording, dispatch and the consumer. */
+/** Switch for the whole pipeline: trace recording, dispatch and the consumer. */
 export function isEventsDispatchEnabled(): boolean {
-  return (
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_EVENTS_DISPATCH_ENABLED === "true"
-  );
+  return env.LANGFUSE_EVENTS_DISPATCH_ENABLED === "true";
 }
 
 // Mutable so tests can shorten windows; production never writes these.

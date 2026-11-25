@@ -217,6 +217,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
 /**
  * Upserts a model with its pricing tiers in a transaction
+ * @internal
  */
 export async function upsertModelWithTiers(
   defaultModelPrice: DefaultModelPrice,

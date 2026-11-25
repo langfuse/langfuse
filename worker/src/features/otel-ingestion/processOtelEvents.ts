@@ -13,9 +13,9 @@ import {
   scheduleEvals,
 } from "../evaluation/scheduleEvals";
 import {
-  isTraceBatchSampled,
-  resolveTraceBatchSamplingRate,
-} from "../traceBatching/traceBatchSampling";
+  isTraceDispatchSampled,
+  resolveTraceDispatchSamplingRate,
+} from "../traceDispatch/traceDispatchSampling";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
@@ -63,12 +63,12 @@ export async function processOtelEvents({
   }
 
   // Trace recording requires direct events-table writes.
-  const traceBatchSamplingRate =
+  const traceDispatchSamplingRate =
     shouldWriteToEventsTable && isEventsDispatchEnabled()
-      ? await resolveTraceBatchSamplingRate(projectId)
+      ? await resolveTraceDispatchSamplingRate(projectId)
       : 0;
   const includeTraceTranscriptRules = eventInputs.some(({ traceId }) =>
-    isTraceBatchSampled(traceId, traceBatchSamplingRate),
+    isTraceDispatchSampled(traceId, traceDispatchSamplingRate),
   );
   const rules = await fetchEvalRules(projectId, {
     includeTraceTranscriptRules,
@@ -136,9 +136,9 @@ export async function processOtelEvents({
       }
 
       // Step 2: Keep transcript matches even if observation scheduling fails.
-      const traceActivity = isTraceBatchSampled(
+      const traceActivity = isTraceDispatchSampled(
         eventInput.traceId,
-        traceBatchSamplingRate,
+        traceDispatchSamplingRate,
       )
         ? {
             traceId: eventInput.traceId,
@@ -147,8 +147,11 @@ export async function processOtelEvents({
         : undefined;
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
-            parseObservation: () =>
-              convertEventRecordToObservationForEval(eventRecord),
+            parseObservation: () => {
+              const observation =
+                convertEventRecordToObservationForEval(eventRecord);
+              return { observation, loadSnapshot: () => observation };
+            },
             environment: eventRecord.environment,
             traceActivity,
             rules,

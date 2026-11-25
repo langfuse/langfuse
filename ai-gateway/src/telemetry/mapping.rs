@@ -10,11 +10,13 @@ use crate::{
 };
 
 const USER_ID_ATTRIBUTE: &str = "user.id";
+const GATEWAY_COST_SOURCE_METADATA_KEY: &str = "langfuse.gateway.cost.source";
+const GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
     let (level, message) = observation_status(&facts);
-    let metadata = observation_metadata(&facts, context);
+    let mut metadata = observation_metadata(&facts, context);
     let observation_type = observation_type(facts.api_format);
     let mut attributes = vec![attribute("langfuse.observation.type", observation_type)];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
@@ -44,13 +46,15 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details {
-        attributes.extend(usage_attributes(
+        append_usage_attributes(
             facts.api_format,
             &facts.metadata,
             &usage,
             inference.provider_metadata.as_ref(),
             facts.charged_cost_details.as_ref(),
-        ));
+            &mut attributes,
+            &mut metadata,
+        );
     }
     if full {
         if let Some(input) = inference.input {
@@ -91,11 +95,13 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         "attributes": attributes,
         "status": { "code": if level == "ERROR" { 2 } else { 0 } },
     });
-    if let Some(parent) = &context.parent_span_id {
-        span["parentSpanId"] = json!(parent);
-    }
-    if !context.trace_state.is_empty() {
-        span["traceState"] = json!(context.trace_state);
+    if let Some(span) = span.as_object_mut() {
+        if let Some(parent) = &context.parent_span_id {
+            span.insert("parentSpanId".into(), json!(parent));
+        }
+        if !context.trace_state.is_empty() {
+            span.insert("traceState".into(), json!(context.trace_state));
+        }
     }
     span
 }
@@ -197,7 +203,7 @@ fn omit_content(
     if let Some(value) = attributes
         .iter_mut()
         .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
-        .map(|attribute| &mut attribute["value"]["stringValue"])
+        .and_then(|attribute| attribute.pointer_mut("/value/stringValue"))
         && let Some(Value::Object(mut metadata)) = value
             .as_str()
             .and_then(|value| serde_json::from_str(value).ok())
@@ -248,6 +254,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
+    metadata.extend(guardrail_metadata(facts));
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -304,6 +311,36 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
                 json!(MAX_INPUT_CAPTURE_BYTES),
             );
         }
+    }
+    metadata
+}
+
+/// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
+/// without reading `metadata_values` or parsing JSON.
+fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
+        return metadata;
+    };
+    let mut blocked = false;
+    let mut matched = false;
+    for finding in guardrails {
+        if let (Some(id), Some(action)) = (
+            finding.get("id").and_then(Value::as_str),
+            finding.get("action").and_then(Value::as_str),
+        ) {
+            matched = true;
+            if action == "block" {
+                blocked = true;
+            }
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+        }
+    }
+    if matched {
+        let outcome = if blocked { "block" } else { "log" };
+        metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
 }
@@ -402,6 +439,13 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
+    } else if facts
+        .metadata
+        .get("guardrails")
+        .and_then(Value::as_array)
+        .is_some_and(|guardrails| !guardrails.is_empty())
+    {
+        ("WARNING", Some("Request matched a guardrail".into()))
     } else {
         ("DEFAULT", None)
     }
@@ -419,28 +463,39 @@ fn observation_type(api_format: ApiFormat) -> &'static str {
     }
 }
 
-fn usage_attributes(
+fn append_usage_attributes(
     api_format: ApiFormat,
-    metadata: &Value,
+    facts_metadata: &Value,
     usage: &Value,
     provider_metadata: Option<&Value>,
     charged_cost_details: Option<&crate::spend::UsageCostType>,
-) -> Vec<Value> {
-    let provider = metadata.get("provider").and_then(Value::as_str);
+    attributes: &mut Vec<Value>,
+    metadata: &mut Map<String, Value>,
+) {
+    let provider = facts_metadata.get("provider").and_then(Value::as_str);
     let usage =
         crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
-    let usage_details = usage.usage_details.map(|details| {
-        attribute(
+    if let Some(details) = usage.usage_details {
+        attributes.push(attribute(
             "langfuse.observation.usage_details",
             details.to_json().to_string(),
-        )
-    });
-    let cost_details = usage
-        .provided_cost_details
-        .as_ref()
-        .or(charged_cost_details)
-        .map(|cost| attribute("langfuse.observation.cost_details", json!(cost).to_string()));
-    usage_details.into_iter().chain(cost_details).collect()
+        ));
+    }
+    if let Some(cost) = usage.provided_cost_details.as_ref() {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+    } else if let Some(cost) = charged_cost_details.filter(|cost| !cost.is_empty()) {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+        metadata.insert(
+            GATEWAY_COST_SOURCE_METADATA_KEY.into(),
+            json!(GATEWAY_COST_SOURCE_CALCULATED),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1031,24 +1086,32 @@ mod tests {
 
     #[test]
     fn a_spend_limited_key_s_charge_becomes_the_generation_cost() {
-        let cost_details = |provider: &str, usage: Value| {
+        let cost_and_source = |provider: &str, usage: Value| {
             let mut facts = facts();
             facts.metadata["provider"] = json!(provider);
             facts.inference.usage_details = Some(usage);
             facts.charged_cost_details =
                 Some([("input".into(), 0.1), ("total".into(), 0.1)].into());
-            attributes(&span(facts, &context()))
+            let attrs = attributes(&span(facts, &context()));
+            let cost = attrs
                 .get("langfuse.observation.cost_details")
-                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap());
+            let source = metadata(&attrs)
+                .get("langfuse.gateway.cost.source")
+                .cloned();
+            (cost, source)
         };
         assert_eq!(
-            cost_details("openai", json!({"input_tokens": 20})),
-            Some(json!({"input": 0.1, "total": 0.1}))
+            cost_and_source("openai", json!({"input_tokens": 20})),
+            (
+                Some(json!({"input": 0.1, "total": 0.1})),
+                Some(json!("calculated")),
+            )
         );
         // The provider's own cost wins, as it does when the charge is priced.
         assert_eq!(
-            cost_details("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
-            Some(json!({"total": 0.25}))
+            cost_and_source("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
+            (Some(json!({"total": 0.25})), None)
         );
     }
 

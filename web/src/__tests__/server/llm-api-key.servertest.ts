@@ -19,7 +19,6 @@ vi.mock(
   }),
 );
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
 import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
 import * as auditLogs from "@/src/features/audit-logs/auditLog";
@@ -43,6 +42,10 @@ import {
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
+import {
+  createSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/session-factory";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
 
@@ -55,24 +58,15 @@ describe("llmApiKey.all RPC", () => {
   const createCallerForProjectRole = (
     projectRole: "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const limitedSession: Session = {
-      ...session,
-      user: {
-        ...session.user!,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            role: "MEMBER",
-            projects: [
-              {
-                ...session.user!.organizations[0].projects[0],
-                role: projectRole,
-              },
-            ],
-          },
-        ],
-      },
-    };
+    const limitedSession = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "MEMBER",
+          projects: [{ id: projectId, role: projectRole, retentionDays: null }],
+        },
+      ],
+    });
 
     const limitedCtx = createInnerTRPCContext({
       session: limitedSession,
@@ -89,40 +83,15 @@ describe("llmApiKey.all RPC", () => {
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
-    session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        name: "Demo User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-      },
-      environment: {} as any,
-    };
+    session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
@@ -1072,19 +1041,19 @@ describe("llmApiKey.all RPC", () => {
     });
     const callerWithPlan = (
       plan: "cloud:hobby" | "cloud:enterprise",
-      organization: Partial<
-        NonNullable<Session["user"]>["organizations"][number]
-      > = {},
+      organization: Partial<TestOrganization> = {},
     ) => {
-      const planSession: Session = {
-        ...session,
-        user: {
-          ...session.user!,
-          organizations: [
-            { ...session.user!.organizations[0], ...organization, plan },
-          ],
-        },
-      };
+      const planSession = createSession({
+        organizations: [
+          {
+            id: orgId,
+            role: "OWNER",
+            projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+            ...organization,
+            plan,
+          },
+        ],
+      });
       return appRouter.createCaller({
         ...createInnerTRPCContext({ session: planSession, headers: {} }),
         prisma,
@@ -1252,10 +1221,7 @@ describe("llmApiKey.all RPC", () => {
         const callerB = callerWithPlan("cloud:enterprise", {
           id: tenantB.orgId,
           projects: [
-            {
-              ...session.user!.organizations[0].projects[0],
-              id: tenantB.projectId,
-            },
+            { id: tenantB.projectId, role: "ADMIN", retentionDays: null },
           ],
         });
         const nonce = randomUUID();
@@ -1284,9 +1250,7 @@ describe("llmApiKey.all RPC", () => {
       it("requires llmApiKeys:create within the project", async () => {
         const member = callerWithPlan("cloud:enterprise", {
           role: "MEMBER",
-          projects: [
-            { ...session.user!.organizations[0].projects[0], role: "MEMBER" },
-          ],
+          projects: [{ id: projectId, role: "MEMBER", retentionDays: null }],
         });
 
         await expect(

@@ -23,8 +23,11 @@ import {
   SystemRoleId,
   UserId,
 } from "../../src/features/rbac/types";
+import {
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
+} from "../../src/features/memberships";
 import { redis } from "../../src/server/redis/redis";
-import { findOrCreateOrgMembership } from "../../src/features/memberships/orgMembershipRepository";
 import {
   DEFAULT_SEED_API_KEY,
   EVAL_TRACE_COUNT,
@@ -79,16 +82,8 @@ async function main() {
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
-      featureFlags: ["langfuseTopics"],
       v4BetaEnabled: true,
     },
-  });
-  await prisma.user.updateMany({
-    where: {
-      id: seedUserId1,
-      NOT: { featureFlags: { has: "langfuseTopics" } },
-    },
-    data: { featureFlags: { push: "langfuseTopics" } },
   });
   const user2 = await prisma.user.upsert({
     where: { id: seedUserId2 },
@@ -158,22 +153,12 @@ async function main() {
     role: "MEMBER",
   });
 
-  await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        projectId: project1.id,
-        userId: user2.id,
-      },
-    },
-    create: {
-      userId: user2.id,
-      projectId: project1.id,
-      role: "ADMIN",
-      orgMembershipId: orgMembership2.id,
-    },
-    update: {
-      orgMembershipId: orgMembership2.id,
-    },
+  await findOrCreateProjectMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    projectId: project1.id,
+    role: "ADMIN",
+    orgMembershipId: orgMembership2.id,
   });
 
   await seedAiGateway({
@@ -520,20 +505,12 @@ async function seedAiGateway(params: {
   });
   // Mirrors what the control plane writes when it creates the project: the
   // creator keeps an explicit role so the project stays reachable in the UI.
-  await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        projectId: ingestionProjectId,
-        userId: params.userId,
-      },
-    },
-    create: {
-      projectId: ingestionProjectId,
-      userId: params.userId,
-      orgMembershipId: params.orgMembershipId,
-      role: "OWNER",
-    },
-    update: { orgMembershipId: params.orgMembershipId },
+  await findOrCreateProjectMembership(prisma, {
+    orgId: params.organizationId,
+    projectId: ingestionProjectId,
+    userId: params.userId,
+    orgMembershipId: params.orgMembershipId,
+    role: "OWNER",
   });
   await prisma.gatewayConfig.upsert({
     where: { organizationId: params.organizationId },
@@ -588,7 +565,7 @@ async function seedAiGateway(params: {
     (await createApiKey(prisma, {
       tenant: OrganizationId(params.organizationId),
       scope: UserId(params.userId),
-      role: SystemRoleId("AI_GATEWAY"),
+      role: SystemRoleId("AI_GATEWAY_INFERENCE"),
       createdBy: UserId(params.userId),
       name: "Seeded gateway key",
       predefinedKeys: {

@@ -1,12 +1,12 @@
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
-import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  getOrganizationPlanServerSide,
   aiGatewayIngestionApiKey,
   type ApiAccessScopeWithOptionalApiKeyId,
   logger,
 } from "@langfuse/shared/src/server";
+import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
+import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { z } from "zod/v4";
 
 import {

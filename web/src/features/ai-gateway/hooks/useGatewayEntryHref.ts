@@ -6,8 +6,8 @@ import { visibleGatewayPages } from "@/src/features/ai-gateway/fns/visibleGatewa
 
 const ENTRY_ORDER = [
   GATEWAY_PAGE_SLUGS.overview,
-  GATEWAY_PAGE_SLUGS.models,
   GATEWAY_PAGE_SLUGS.apiKeys,
+  GATEWAY_PAGE_SLUGS.models,
 ] as const;
 
 /** The first AI Gateway page the viewer can open in the organization, if any. */

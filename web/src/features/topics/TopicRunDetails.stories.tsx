@@ -1,9 +1,8 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
-import { type RouterOutputs } from "@/src/utils/api";
 import { TopicRunDetails } from "./TopicRunDetails";
+import { type TopicRunWithCost as Run } from "./topic-run-labels";
 
-type Run = RouterOutputs["topics"]["execution"];
 type FacetProgress = Run["facets"][number];
 
 const facets = [
@@ -50,7 +49,7 @@ function processRun(overrides: Partial<Run>): Run {
     createdAt: "2026-10-23T09:12:00Z",
     updatedAt: "2026-10-23T09:40:00Z",
     error: null,
-    estimatedCost: 1.62,
+    costBreakdown: { summaries: 1.62, naming: null },
     facets: facetRefs.map(({ facetId }) => facetProgress(facetId)),
     input: {
       operation: "process",
@@ -65,7 +64,7 @@ function processRun(overrides: Partial<Run>): Run {
 
 const retryIdle = { isPending: false, onRetry: fn() };
 
-const doneWithIssues: Run = {
+const doneWithIssues = {
   id: "run-update",
   projectId: "project",
   status: "completed_with_errors",
@@ -73,7 +72,7 @@ const doneWithIssues: Run = {
   createdAt: "2026-10-22T17:05:00Z",
   updatedAt: "2026-10-22T17:48:00Z",
   error: null,
-  estimatedCost: 0,
+  costBreakdown: { summaries: null, naming: null },
   facets: [
     facetProgress("intent", {
       counts: {
@@ -129,14 +128,14 @@ const doneWithIssues: Run = {
     exploratory: false,
     minimumTraceCount: 100,
   },
-};
+} satisfies Run;
 
 const failedRun = processRun({
   id: "run-failed",
   status: "failed",
   phase: "summarizing",
   error: "Summary model returned 429 Too Many Requests for 3 batches.",
-  estimatedCost: 0.62,
+  costBreakdown: { summaries: 0.62, naming: null },
   facets: facetRefs.map(({ facetId }) =>
     facetProgress(facetId, {
       outcome: "failed",
@@ -195,6 +194,27 @@ export const Regenerating = meta.story({
 export const DoneWithIssues = meta.story({
   args: {
     execution: doneWithIssues,
+    retry: retryIdle,
+  },
+});
+
+export const ReuseOnlySnapshot = meta.story({
+  args: {
+    execution: {
+      ...doneWithIssues,
+      status: "completed",
+      phase: "completed",
+      facets: [facetProgress("intent")],
+      input: {
+        ...doneWithIssues.input,
+        facets: [facetRefs[0]!],
+        analysis: { label: "Checkout", filter: [], seed: "seed" },
+      },
+      costBreakdown: {
+        summaries: null,
+        naming: 0.08,
+      },
+    },
     retry: retryIdle,
   },
 });
@@ -264,7 +284,7 @@ export const FailedManualRunIsFinal = meta.story({
     await expect(
       canvas.getByText("Summarized before it stopped"),
     ).toBeVisible();
-    await expect(canvas.getByText("Estimated processing cost")).toBeVisible();
+    await expect(canvas.getByText("Summaries and embeddings")).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: "Resume run" }),
     ).toBeNull();
@@ -280,10 +300,10 @@ export const QuestionStatusesExplainThemselves = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).toBeNull();
-    await expect(canvas.getByText("Not tracked")).toBeVisible();
+    await expect(canvas.getByText("No new summaries")).toBeVisible();
     await expect(
-      canvas.getByText("Topic naming costs aren’t tracked yet."),
-    ).toBeVisible();
+      canvas.getByText("Topic naming").nextElementSibling,
+    ).toHaveTextContent("Unavailable");
     await expect(canvas.getByText("Done with issues")).toBeVisible();
     await expect(
       canvas.getByText("1,193 in topics · 47 didn’t fit a topic"),
@@ -304,5 +324,37 @@ export const QuestionStatusesExplainThemselves = meta.story({
         "The other 340 didn’t form clear groups. Try a larger, more varied set of traces.",
       ),
     ).toBeVisible();
+  },
+});
+
+export const SummarizingSnapshotShowsItsCost = meta.story({
+  name: "(Test) A snapshot adds retained processing and naming costs",
+  args: {
+    execution: {
+      ...doneWithIssues,
+      costBreakdown: {
+        summaries: 0.42,
+        naming: 0.08,
+      },
+      input: {
+        ...doneWithIssues.input,
+        analysis: {
+          label: "Checkout",
+          filter: [],
+          seed: "seed",
+          summarize: { limit: 500, selection: "latest" },
+        },
+      },
+    },
+    retry: retryIdle,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const summaries = canvas.getByText("Summaries and embeddings");
+    const summaryValue = summaries.nextElementSibling!;
+    await expect(summaryValue).toHaveTextContent("~$0.42");
+    await expect(canvas.getByText("~$0.08")).toBeVisible();
+    await expect(canvas.getByText("~$0.50")).toBeVisible();
+    await expect(canvas.queryByText("No new summaries")).toBeNull();
   },
 });

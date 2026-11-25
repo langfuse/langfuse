@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   BarChart4,
   ChevronDown,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Download,
   FileCode2,
   GitBranch,
@@ -68,7 +68,6 @@ import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
-import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -99,19 +98,14 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: (
-              <>
-                <FeatureReleaseStatus status="beta" />
-                {isV3Legacy && (
-                  <Badge
-                    text="Skill tracing requires v4"
-                    title="You can still create and use skills in the legacy view."
-                    color="warning"
-                    size="md"
-                    leadingIcon={TriangleAlert}
-                  />
-                )}
-              </>
+            titleBadges: isV3Legacy && (
+              <Badge
+                text="Skill tracing requires v4"
+                title="You can still create and use skills in the legacy view."
+                color="warning"
+                size="md"
+                leadingIcon={TriangleAlert}
+              />
             ),
             help: {
               description:
@@ -203,7 +197,7 @@ function SkillsHeaderActions({
             type: "item",
             id: "api",
             title: "API",
-            icon: ExternalLink,
+            icon: SquareArrowOutUpRight,
             href: "https://api.reference.langfuse.com/#tag/skills",
             linkTarget: "_blank",
           },

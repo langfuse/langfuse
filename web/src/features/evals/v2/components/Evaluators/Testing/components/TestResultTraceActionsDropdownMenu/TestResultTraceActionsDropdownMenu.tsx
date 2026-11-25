@@ -1,6 +1,6 @@
 /* eslint-disable @repo/component-file-structure */
 import { forwardRef, type ComponentProps } from "react";
-import { ExternalLink, MoreVertical } from "@langfuse/icons";
+import { SquareArrowOutUpRight, MoreVertical } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -47,7 +47,7 @@ export function TestResultTraceActionsDropdownMenu({
                 type: "item",
                 id: "open-execution-trace",
                 title: "Open execution trace",
-                icon: ExternalLink,
+                icon: SquareArrowOutUpRight,
                 onClick: openExecutionTrace,
               },
             ]

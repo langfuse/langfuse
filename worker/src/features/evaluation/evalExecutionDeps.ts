@@ -6,7 +6,7 @@ import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
-  buildEventBucketPrefix,
+  buildEvalScoreBucketPrefix,
   createDecisionModelClient,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
@@ -179,10 +179,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     },
 
     uploadScore: async (params) => {
-      const bucketPrefix = buildEventBucketPrefix({
+      const bucketPrefix = buildEvalScoreBucketPrefix({
         projectId: params.projectId,
-        entityType: "score",
-        entityId: params.scoreId,
+        scoreId: params.scoreId,
       });
       const bucketPath = `${bucketPrefix}${params.eventId}.json`;
 
@@ -198,10 +197,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         throw new Error("Ingestion queue not available");
       }
 
-      const bucketPrefix = buildEventBucketPrefix({
+      const bucketPrefix = buildEvalScoreBucketPrefix({
         projectId: params.projectId,
-        entityType: "score",
-        entityId: params.scoreId,
+        scoreId: params.scoreId,
       });
 
       await queue.add(QueueJobs.IngestionJob, {
@@ -345,6 +343,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
  * Creates a mock implementation of eval execution dependencies for testing.
  * All functions are no-ops or return null by default.
  * Override specific functions as needed in tests.
+ * @internal
  */
 export function createMockEvalExecutionDeps(
   overrides?: Partial<EvalExecutionDeps>,

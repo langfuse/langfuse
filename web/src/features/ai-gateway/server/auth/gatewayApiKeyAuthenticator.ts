@@ -11,8 +11,7 @@ import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { getPoliciesForApiKey } from "@/src/features/auth/policy/contextResolver";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { getOrganizationPlanServerSide } from "@langfuse/shared/src/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -24,7 +23,9 @@ import {
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { normalizeGatewaySpendBudgetAlertThresholds } from "@/src/features/ai-gateway/fns/spendLimits/normalizeGatewaySpendBudgetAlertThresholds";
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 import {
   type CachedResolveContext,
@@ -52,6 +53,7 @@ type GatewayApiKeyAuthenticatorConfig = {
 
 export class GatewayApiKeyAuthenticator {
   private readonly repository: GatewayResolveRepository;
+  private readonly guardrails: GatewayGuardrailService;
   private readonly cache: GatewayResolveCache;
   private readonly modelRoutingService = new GatewayModelRoutingService();
 
@@ -60,6 +62,7 @@ export class GatewayApiKeyAuthenticator {
     config: GatewayApiKeyAuthenticatorConfig = {},
   ) {
     this.repository = new GatewayResolveRepository(prisma);
+    this.guardrails = new GatewayGuardrailService(prisma);
     this.cache = config.resolveCache ?? new GatewayResolveCache();
   }
 
@@ -172,6 +175,18 @@ export class GatewayApiKeyAuthenticator {
     const cloudConfig = organization.cloudConfig
       ? CloudConfigSchema.safeParse(organization.cloudConfig).data
       : undefined;
+    // Needs the key's organization and user, so it follows the key lookup, but
+    // runs alongside the permission check rather than after it.
+    const [guardrails] = await Promise.all([
+      this.guardrails.resolveForKey({
+        organizationId,
+        apiKeyId: row.id,
+        userId: row.userId,
+      }),
+      // Any organization key may call the gateway when its roles grant
+      // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
+      assertCanInvokeGateway(this.prisma, row, organizationId),
+    ]);
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
@@ -212,6 +227,7 @@ export class GatewayApiKeyAuthenticator {
           )
           .map((limit) => toResolveSpendLimit(limit, "organization")),
       ],
+      guardrails,
       ingestionProjectId: projectIsUsable
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
@@ -225,27 +241,6 @@ export class GatewayApiKeyAuthenticator {
           GatewayProviderConfigSchema.safeParse(connection.config).data ?? null,
       })),
     };
-
-    // Runs on cache misses only, so a role change takes effect within
-    // LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
-    if (row.userId) {
-      const ownerRole = row.user?.organizationMemberships.find(
-        (membership) => membership.orgId === organizationId,
-      )?.role;
-      if (
-        !ownerRole ||
-        !hasOrganizationAccess({ role: ownerRole, scope: "gateway:invoke" })
-      ) {
-        throw new GatewayControlPlaneError(
-          "API key owner is not allowed to invoke the gateway",
-          403,
-        );
-      }
-    }
-
-    // Any organization key may call the gateway when its roles grant
-    // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
-    await assertCanInvokeGateway(this.prisma, row, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
@@ -289,6 +284,7 @@ type ResolvedSpendLimit = {
   scope: GatewaySpendLimitScope;
   interval: GatewaySpendLimitInterval;
   limitUsd: Prisma.Decimal;
+  alertThresholds: number[];
   countingStartedAt: Date;
 };
 
@@ -329,6 +325,9 @@ function toResolveSpendLimit(
     interval: limit.interval.toLowerCase() as Lowercase<typeof limit.interval>,
     limit_usd: limit.limitUsd.toNumber(),
     counting_started_at: limit.countingStartedAt.getTime(),
+    alert_thresholds: normalizeGatewaySpendBudgetAlertThresholds(
+      limit.alertThresholds,
+    ),
   };
 }
 

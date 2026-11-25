@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -8,16 +7,20 @@ import {
   type Prisma,
   type Role,
 } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
 let userId = "";
-let session: Session;
+let firstOrg: { id: string; name: string };
+let firstProject: { id: string; name: string; createdAt: Date };
 let caller: ReturnType<typeof appRouter.createCaller>;
 
 function callerFor(callerSession: Session) {
@@ -28,17 +31,32 @@ function callerFor(callerSession: Session) {
   return appRouter.createCaller({ ...ctx, prisma });
 }
 
-function sessionWithProjectRole(role: Role): Session {
-  const [org] = session.user!.organizations;
-  return {
-    ...session,
+function sessionWithProjectRole(role: Role) {
+  return createSession({
     user: {
-      ...session.user!,
-      organizations: [
-        { ...org, projects: org.projects.map((p) => ({ ...p, role })) },
-      ],
+      id: userId,
+      name: "Rule tester",
+      canCreateOrganizations: false,
+      v4BetaEnabled: false,
     },
-  };
+    organizations: [
+      {
+        id: firstOrg.id,
+        role: "OWNER",
+        name: firstOrg.name,
+        aiFeaturesEnabled: true,
+        projects: [
+          {
+            id: firstProject.id,
+            role,
+            name: firstProject.name,
+            createdAt: firstProject.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 }
 
 function experimentDatasetRule(
@@ -84,45 +102,9 @@ beforeAll(async () => {
     data: { id: userId, name: "Rule tester", email: `${userId}@test.dev` },
   });
 
-  session = {
-    expires: "1",
-    user: {
-      id: userId,
-      name: "Rule tester",
-      canCreateOrganizations: false,
-      organizations: [
-        {
-          id: first.org.id,
-          name: first.org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              name: first.project.name,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              metadata: {},
-              createdAt: first.project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      v4BetaEnabled: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  } satisfies Session;
-  caller = callerFor(session);
+  firstOrg = first.org;
+  firstProject = first.project;
+  caller = callerFor(sessionWithProjectRole("ADMIN"));
 });
 
 afterEach(async () => {
@@ -456,6 +438,110 @@ describe("evaluation rule v2 tRPC", () => {
     ).resolves.toMatchObject({
       assignments: [expect.objectContaining({ evaluatorId: first.id })],
     });
+  });
+
+  it("saves the project idle time only inside the trace evals gate and the idle bounds", async () => {
+    await expect(
+      caller.evalsV2.rules.saveTracingReadinessSettings({
+        projectId,
+        traceIdleMs: 120_000,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await prisma.tracingReadinessSettings.findUnique({
+        where: { projectId },
+      }),
+    ).toBeNull();
+
+    const project = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      include: { organization: true },
+    });
+    const original = {
+      projectIds: sharedEnv.LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (sharedEnv as any).LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS = [projectId];
+    try {
+      const session = createSession({
+        user: {
+          id: userId,
+          name: "Rule tester",
+          canCreateOrganizations: false,
+          featureFlags: testFeatureFlags({ traceTranscriptEvals: true }),
+          v4BetaEnabled: false,
+        },
+        organizations: [
+          {
+            id: project.organization.id,
+            name: project.organization.name,
+            role: "OWNER",
+            aiFeaturesEnabled: true,
+            projects: [
+              {
+                id: projectId,
+                name: project.name,
+                role: "ADMIN",
+                createdAt: project.createdAt.toISOString(),
+              },
+            ],
+          },
+        ],
+        environment: { selfHostedInstancePlan: "cloud:hobby" },
+      });
+      const gated = appRouter.createCaller({
+        ...createInnerTRPCContext({ session, headers: {} }),
+        prisma,
+      });
+
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 30_000,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 3_600_001,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(
+        await prisma.tracingReadinessSettings.findUnique({
+          where: { projectId },
+        }),
+      ).toBeNull();
+
+      await expect(
+        gated.evalsV2.rules.saveTracingReadinessSettings({
+          projectId,
+          traceIdleMs: 120_000,
+        }),
+      ).resolves.toEqual({ traceIdleMs: 120_000 });
+      await expect(
+        gated.evalsV2.rules.tracingReadinessSettings({ projectId }),
+      ).resolves.toEqual({ traceIdleMs: 120_000 });
+      const log = await prisma.auditLog.findFirst({
+        where: {
+          projectId,
+          resourceType: "project",
+          resourceId: projectId,
+          action: "update",
+        },
+      });
+      expect(log?.after).toContain("120000");
+    } finally {
+      (sharedEnv as any).LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS =
+        original.projectIds;
+      (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+      await prisma.tracingReadinessSettings.deleteMany({
+        where: { projectId },
+      });
+      await prisma.auditLog.deleteMany({
+        where: { projectId, resourceType: "project", resourceId: projectId },
+      });
+    }
   });
 
   it("rejects reads and writes for another project", async () => {

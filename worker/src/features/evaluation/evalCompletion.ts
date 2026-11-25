@@ -57,12 +57,8 @@ export async function completeEvalExecution({
     executionMetadata: result.metadata,
     evaluationContext: result.evaluationContext,
   });
-  const [firstScorePayload] = scoreWritePayloads;
-
-  if (!firstScorePayload) {
-    throw new Error(`Evaluation job ${jobExecutionId} returned no scores`);
-  }
-  const jobOutputScoreId = firstScorePayload.scoreId;
+  // Undefined when the evaluator returned no scores; the job still completes.
+  const jobOutputScoreId = scoreWritePayloads[0]?.scoreId;
 
   try {
     await Promise.all(

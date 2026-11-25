@@ -1,4 +1,4 @@
-import { ErrorPageWithSentry } from "@/src/components/error-page";
+import { ErrorPageWithSentry } from "@/src/components/ErrorPageWithSentry";
 import { isExpectedAuthErrorPageMessage } from "@/src/features/auth/lib/expectedAuthErrors";
 import { useRouter } from "next/router";
 

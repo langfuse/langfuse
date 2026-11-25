@@ -114,8 +114,10 @@ const MAX_WRAP_NODES = 300;
  * The expanded (RIGHT) path is exempt: it unrolls loops into an ACYCLIC DAG and
  * is already bounded upstream (MAX_EXPANDED_EDGES + the MAX_WRAP_NODES wrapping
  * cap), so it lays out in ~2.5s even at its own limits.
+ * @internal
  */
 export const MAX_GRAPH_LAYOUT_EDGES = 2_000;
+/** @internal */
 export const MAX_GRAPH_LAYOUT_NODES = 2_500;
 
 /**
@@ -128,6 +130,7 @@ export const MAX_GRAPH_LAYOUT_NODES = 2_500;
  * graph freeze the tab for minutes on the fallback path.
  */
 const MAX_MAIN_THREAD_LAYOUT_EDGES = 250;
+/** @internal */
 export const MAX_MAIN_THREAD_LAYOUT_NODES = 500;
 
 /** True when a request is too big to lay out on the calling thread. */
@@ -189,6 +192,7 @@ function tooLargeLayout(request: GraphLayoutRequest): GraphLayout {
  *
  * JSON key, not a space-joined one: node ids are SDK-supplied names that
  * commonly contain spaces, so two distinct edges must not collide.
+ * @internal
  */
 export function dedupeEdges(
   edges: GraphCanvasData["edges"],
@@ -442,6 +446,7 @@ export async function layoutGraphOnThisThread(
 /**
  * Whole layout pipeline on the calling thread. The renderer goes through the
  * worker client instead; this is what the layout tests exercise.
+ * @internal
  */
 export async function computeGraphLayout(
   graph: GraphCanvasData,

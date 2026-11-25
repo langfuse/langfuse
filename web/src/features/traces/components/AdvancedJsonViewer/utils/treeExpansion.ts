@@ -102,6 +102,7 @@ function propagateOffsetsUpward(node: TreeNode | null): void {
  * @param tree - Current tree state
  * @param nodeId - ID of node whose descendants to expand
  * @returns Updated tree state
+ * @internal
  */
 export function expandAllDescendants(
   tree: TreeState,
@@ -148,6 +149,7 @@ export function expandAllDescendants(
  * @param tree - Current tree state
  * @param nodeId - ID of node whose descendants to collapse
  * @returns Updated tree state
+ * @internal
  */
 export function collapseAllDescendants(
   tree: TreeState,
@@ -194,6 +196,7 @@ export function collapseAllDescendants(
  * @param tree - Current tree state
  * @param nodeId - ID of node to reveal
  * @returns Updated tree state
+ * @internal
  */
 export function expandToNode(tree: TreeState, nodeId: string): TreeState {
   const node = tree.nodeMap.get(nodeId);

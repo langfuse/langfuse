@@ -9,11 +9,14 @@ export default withGatewaySpendLimitAlertSignatureVerification(
   async ({ res, fastHashedSecretKey, limits }) => {
     await alerts.reportReached({
       fastHashedSecretKey,
-      limits: limits.map(({ limitId, countingStartedAt, windowStart }) => ({
-        limitId,
-        countingStartedAt: new Date(countingStartedAt),
-        windowStart: new Date(windowStart),
-      })),
+      limits: limits.map(
+        ({ limitId, countingStartedAt, windowStart, thresholdPercent }) => ({
+          limitId,
+          countingStartedAt: new Date(countingStartedAt),
+          windowStart: new Date(windowStart),
+          thresholdPercent,
+        }),
+      ),
     });
     return res.status(200).json({});
   },

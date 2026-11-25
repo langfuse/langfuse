@@ -22,6 +22,7 @@ import {
 
 export * from "./helpers";
 
+/** @internal */
 export const DELETED_MASK_CLEANER_LOCK_KEY =
   "langfuse:clickhouse-deleted-mask-cleaner";
 

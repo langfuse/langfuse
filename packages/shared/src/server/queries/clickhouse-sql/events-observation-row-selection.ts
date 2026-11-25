@@ -6,7 +6,10 @@ import {
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   type TracingSearchType,
 } from "../../../interfaces/search";
-import { fromFilterState } from "../../../query-ast/filterStateCodec";
+import {
+  fromFilterState,
+  type FilterStateCondition,
+} from "../../../query-ast/filterStateCodec";
 import type {
   PredicateAnd,
   PredicateCondition,
@@ -247,12 +250,12 @@ export type EventsRowConditions = {
   events?: CompiledEventsCondition;
   search?: CompiledEventsCondition;
   requiresEventsFull: boolean;
-  /**
-   * The latest (tightest) top-level `startTime >=` / `>` filter value, which
-   * bounds the score CTEs.
-   */
-  startTimeFrom: string | null;
+  /** The `startTime` bounds of the events filters ({@link startTimeBoundsOf}). */
+  startTime: StartTimeBounds;
 };
+
+/** `startTime` bounds in epoch ms; a missing side is unbounded. */
+export type StartTimeBounds = { from?: number; to?: number };
 
 /** The conditions of `predicate`, a conjunction `fromFilterState` built. */
 const predicateConditions = (predicate: PredicateAnd): PredicateCondition[] =>
@@ -261,23 +264,40 @@ const predicateConditions = (predicate: PredicateAnd): PredicateCondition[] =>
   );
 
 /**
- * The latest `startTime >=` / `>` bound among the top-level conditions, as
- * ClickHouse text. Every row matches all of them, so the latest one is the
- * tightest sound lower bound for the score CTEs.
+ * The tightest `startTime` bounds among the top-level conditions: the latest
+ * `>` / `>=` value and the earliest `<` / `<=` value. Every row matches all of
+ * them, so they are sound bounds for the score CTEs and the scan windows.
  */
-const startTimeFromOf = (conditions: PredicateCondition[]): string | null => {
-  const bounds = conditions.flatMap((condition) =>
-    condition.type === "datetime" &&
-    (condition.op === ">=" || condition.op === ">") &&
-    resolvePredicateSourceField(eventsPredicateSource, condition.field.id)
-      ?.id === "startTime"
-      ? [new Date(condition.value).getTime()]
-      : [],
-  );
-  return bounds.length > 0
-    ? convertDateToClickhouseDateTime(new Date(Math.max(...bounds)))
-    : null;
+const startTimeBoundsOf = (
+  conditions: PredicateCondition[],
+): StartTimeBounds => {
+  let from: number | undefined;
+  let to: number | undefined;
+  for (const condition of conditions) {
+    if (condition.type !== "datetime") continue;
+    if (
+      resolvePredicateSourceField(eventsPredicateSource, condition.field.id)
+        ?.id !== "startTime"
+    ) {
+      continue;
+    }
+    const value = new Date(condition.value).getTime();
+    if (condition.op === ">" || condition.op === ">=") {
+      from = Math.max(from ?? value, value);
+    } else {
+      to = Math.min(to ?? value, value);
+    }
+  }
+  return { from, to };
 };
+
+/** The lower `startTime` bound of `rowConditions` as ClickHouse text, if any. */
+export const startTimeFromOf = (
+  rowConditions: EventsRowConditions,
+): string | null =>
+  rowConditions.startTime.from === undefined
+    ? null
+    : convertDateToClickhouseDateTime(new Date(rowConditions.startTime.from));
 
 /** `condition` as a WHERE clause of the raw-SQL builders; none without one. */
 export const rowConditionClause = (
@@ -304,14 +324,14 @@ export const withoutPositionInTrace = (
  * `positionInTrace` leaf the caller did not strip
  * ({@link withoutPositionInTrace}).
  */
-const compileEventsRowConditions = ({
+export const compileEventsRowConditions = ({
   projectId,
   filter,
   searchQuery,
   searchType,
 }: {
   projectId: string;
-  filter: FilterCondition[];
+  filter: FilterStateCondition[];
   searchQuery?: string;
   searchType?: TracingSearchType[];
 }): EventsRowConditions => {
@@ -333,7 +353,7 @@ const compileEventsRowConditions = ({
     requiresEventsFull: Boolean(
       events?.requiresEventsFull || compiledSearch?.requiresEventsFull,
     ),
-    startTimeFrom: startTimeFromOf(predicateConditions(predicate)),
+    startTime: startTimeBoundsOf(predicateConditions(predicate)),
   };
 };
 
@@ -448,7 +468,7 @@ const buildEventsObservationRowSelectionInternal = (
     ordersByScore: scoreOrderLevel !== undefined,
     includeScoreProjection,
   });
-  const startTimeFrom = rowConditions.startTimeFrom;
+  const startTimeFrom = startTimeFromOf(rowConditions);
   const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
   const needsObservationScores =
     hasObservationScoreFilter ||

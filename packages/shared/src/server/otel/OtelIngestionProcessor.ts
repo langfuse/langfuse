@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-promise-reject-errors -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
@@ -35,6 +36,7 @@ import {
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   isClaudeManagedAgentSessionCreation,
+  isClaudePlatformRequestSpan,
   isClaudeManagedAgentSpan,
   ObservationTypeMapperRegistry,
 } from "./ObservationTypeMapper";
@@ -49,8 +51,12 @@ export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
 
-/** Metadata key under which the AI gateway records the caller's gateway API key id. */
-export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
+export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "../../features/ai-gateway/constants";
+
+/** Metadata key under which the AI gateway marks costs it calculated from model pricing. */
+export const AI_GATEWAY_COST_SOURCE_METADATA_KEY =
+  "langfuse.gateway.cost.source";
+export const AI_GATEWAY_COST_SOURCE_CALCULATED = "calculated";
 
 /**
  * The ingestion API key Web records for an upload authorized by a gateway
@@ -3019,6 +3025,7 @@ export class OtelIngestionProcessor {
    * are unaffected unless they have one of these operation names.
    *
    * CMA session creation only configures a model and must not trigger enrichment.
+   * The Claude Platform request span repeats the usage of its model_request child.
    */
   private shouldSkipModelUsageAndCost(
     attributes: Record<string, unknown>,
@@ -3028,6 +3035,10 @@ export class OtelIngestionProcessor {
   ): boolean {
     const operationName = attributes["gen_ai.operation.name"];
     if (operationName === "invoke_agent" || operationName === "agent_step") {
+      return true;
+    }
+
+    if (isClaudePlatformRequestSpan(scopeName, spanName)) {
       return true;
     }
 
@@ -3358,6 +3369,23 @@ export class OtelIngestionProcessor {
       },
       {},
     );
+
+    // Claude Platform reports the cache-write TTL split outside gen_ai.usage.*.
+    for (const ttl of ["5m", "1h"]) {
+      const usageDetailKey = `cache_creation.${ttl}_input_tokens`;
+      const attribute =
+        attributes[
+          `anthropic.usage.cache_creation.ephemeral_${ttl}_input_tokens`
+        ];
+      const value = Number(attribute);
+      if (
+        rawUsageDetails[usageDetailKey] === undefined &&
+        attribute !== undefined &&
+        !Number.isNaN(value)
+      ) {
+        rawUsageDetails[usageDetailKey] = value;
+      }
+    }
 
     const inputTokens =
       rawUsageDetails["prompt_tokens"] ??

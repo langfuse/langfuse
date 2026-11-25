@@ -24,6 +24,7 @@ export async function saveProjectMembership(
 ): Promise<ProjectMembership> {
   const membership = await withTransaction(prisma, async (tx) => {
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
+    await assertOrgMembershipInOrg(tx, { orgId, ...data });
     const membership = await tx.projectMembership.upsert({
       where: {
         projectId_userId: { projectId: data.projectId, userId: data.userId },
@@ -45,6 +46,7 @@ export async function createProjectMembership(
 ): Promise<ProjectMembership> {
   return await withTransaction(prisma, async (tx) => {
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
+    await assertOrgMembershipInOrg(tx, { orgId, ...data });
     const membership = await tx.projectMembership
       .create({ data })
       .catch(rethrowIfMembershipExists("project"));
@@ -60,6 +62,7 @@ export async function findOrCreateProjectMembership(
 ): Promise<ProjectMembership> {
   return await withTransaction(prisma, async (tx) => {
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
+    await assertOrgMembershipInOrg(tx, { orgId, ...data });
     const membership = await tx.projectMembership.upsert({
       where: {
         projectId_userId: { projectId: data.projectId, userId: data.userId },
@@ -142,6 +145,27 @@ async function assertProjectInOrg(
   `;
   if (projects.length === 0) {
     throw new LangfuseNotFoundError("Project not found in organization");
+  }
+}
+
+/** assertOrgMembershipInOrg share-locks the user's organization membership and throws LangfuseNotFoundError unless it belongs to the organization. */
+async function assertOrgMembershipInOrg(
+  tx: Prisma.TransactionClient,
+  {
+    orgId,
+    orgMembershipId,
+    userId,
+  }: { orgId: string; orgMembershipId: string; userId: string },
+) {
+  const memberships = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM organization_memberships
+    WHERE id = ${orgMembershipId} AND org_id = ${orgId} AND user_id = ${userId}
+    FOR SHARE
+  `;
+  if (memberships.length === 0) {
+    throw new LangfuseNotFoundError(
+      "Organization membership not found in organization",
+    );
   }
 }
 

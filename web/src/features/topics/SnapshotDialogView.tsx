@@ -9,8 +9,13 @@ import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import { TopicInlineSelect } from "./TopicInlineSelect";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
+import {
+  TopicCostEstimateCard,
+  type TopicCostForecast,
+} from "./TopicCostEstimateCard";
 
 type SnapshotSelection = "random" | "latest";
+
 export type SnapshotSummarize = {
   /** Null until toggled, so summarizing turns on by itself when summaries are short. */
   enabled: boolean | null;
@@ -91,6 +96,7 @@ export function SnapshotDialogView({
   preview,
   summarize,
   onSummarizeChange,
+  costEstimate,
   canStart,
   starting,
   errors,
@@ -141,6 +147,15 @@ export function SnapshotDialogView({
               extra={extra}
               facetCount={facetIds.length}
             />
+            {costEstimate &&
+              (extra > 0 ? (
+                <TopicCostEstimateCard {...costEstimate} newTraces={extra} />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  $0 for new summaries and embeddings. Topic naming may incur a
+                  charge.
+                </p>
+              ))}
           </div>
           {errors.map((message) => (
             <TopicsErrorMessage key={message} message={message} />
@@ -303,8 +318,8 @@ function SnapshotSummary({
         Counting summarized traces…
       </div>
     );
-  const grouped = preview.summarizedCount + extra;
-  if (grouped < preview.smallSampleMinimumTraceCount)
+  const clustered = preview.summarizedCount + extra;
+  if (clustered < preview.smallSampleMinimumTraceCount)
     return (
       <div className="bg-light-yellow text-dark-yellow rounded-md px-4 py-2.5 text-sm">
         {preview.summarizedCount === 0
@@ -321,8 +336,8 @@ function SnapshotSummary({
       <span className="flex items-center gap-2">
         <Layers size="base" aria-hidden="true" />
         {extra > 0
-          ? `~${count(grouped)} traces will be grouped (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
-          : `${count(grouped)} summarized traces will be grouped`}
+          ? `~${count(clustered)} traces will be clustered (${count(preview.summarizedCount)} summarized + up to ${count(extra)} new)`
+          : `${count(clustered)} summarized traces will be clustered`}
       </span>
       {extra > 0 ? (
         <span className="flex items-center gap-2">
@@ -357,6 +372,8 @@ type SnapshotDialogViewProps = {
   preview: SnapshotPreview | null;
   summarize: SnapshotSummarize;
   onSummarizeChange: (summarize: SnapshotSummarize) => void;
+  /** Present once the counts match the selection. Reuse-only snapshots need no estimate lookup. */
+  costEstimate: TopicCostForecast | null;
   canStart: boolean;
   starting: boolean;
   errors: string[];

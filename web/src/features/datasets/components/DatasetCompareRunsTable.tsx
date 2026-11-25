@@ -243,7 +243,6 @@ function DatasetCompareRunsTableInternal(props: {
           projectId={props.projectId}
           datasetId={props.datasetId}
           filteredRuns={activeRunFilters}
-          className="px-2 pb-2"
         />
       )}
       <DataTable

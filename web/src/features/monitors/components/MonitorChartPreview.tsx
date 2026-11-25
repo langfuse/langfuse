@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { type z } from "zod";
 
@@ -220,11 +219,11 @@ export const MonitorChartPreview = ({
 };
 
 /** toChartPoints reshapes executeQuery rows into LINE_TIME_SERIES points, coercing string-typed metric values into numbers. */
-const toChartPoints = (
+function toChartPoints(
   rows: Array<Record<string, unknown>>,
   measure: string,
   aggregation: z.infer<typeof metricAggregations>,
-): DataPoint[] => {
+): DataPoint[] {
   const metricField = `${aggregation}_${measure}`;
   return rows.map((row) => {
     const metric = row[metricField];
@@ -234,13 +233,13 @@ const toChartPoints = (
       metric: Array.isArray(metric) ? metric : Number(metric || 0),
     } satisfies DataPoint;
   });
-};
+}
 
 /** leadingWindowRange returns the [now−offset−windowMs, now−offset] range for the scalar leading-point query. */
-const leadingWindowRange = (
+function leadingWindowRange(
   window: MonitorWindow,
   now: number,
-): { fromTimestamp: string; toTimestamp: string } => {
+): { fromTimestamp: string; toTimestamp: string } {
   const windowMs = Number(windowToMs(window));
   const to = now - monitorEvaluationOffsetMs;
   const from = to - windowMs;
@@ -248,15 +247,15 @@ const leadingWindowRange = (
     toTimestamp: new Date(to).toISOString(),
     fromTimestamp: new Date(from).toISOString(),
   };
-};
+}
 
 /** toLeadingPoint converts a scalar executeQuery row into a DataPoint pinned to toTimestamp. */
-const toLeadingPoint = (
+function toLeadingPoint(
   row: Record<string, unknown>,
   toTimestamp: string,
   measure: string,
   aggregation: z.infer<typeof metricAggregations>,
-): DataPoint => {
+): DataPoint {
   const metricField = `${aggregation}_${measure}`;
   const metric = row[metricField];
   return {
@@ -264,6 +263,7 @@ const toLeadingPoint = (
     dimension: "metric",
     metric: Array.isArray(metric) ? metric : Number(metric || 0),
   } satisfies DataPoint;
-};
+}
 
+/** @internal */
 export const __test = { leadingWindowRange, toLeadingPoint };

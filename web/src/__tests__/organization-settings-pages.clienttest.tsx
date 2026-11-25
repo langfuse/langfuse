@@ -32,6 +32,10 @@ vi.mock(
   () => ({ ConnectedMembersSettingsTable: () => null }),
 );
 
+vi.mock("@/src/features/models/components/OrganizationModelsSettings", () => ({
+  OrganizationModelsSettings: () => null,
+}));
+
 vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   JSONView: () => null,
 }));
@@ -251,6 +255,14 @@ describe("useOrganizationSettingsPages", () => {
 
     afterEach(() => {
       vi.mocked(isCloudPlan).mockReturnValue(false);
+    });
+
+    it("shows Models to owners and admins, not to members", () => {
+      grantScopesOf(Role.ADMIN);
+      expect(visibleSlugs()).toContain("models");
+
+      grantScopesOf(Role.MEMBER);
+      expect(visibleSlugs()).not.toContain("models");
     });
 
     it("shows Projects to AI_GATEWAY members with a project", () => {

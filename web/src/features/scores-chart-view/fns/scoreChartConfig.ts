@@ -65,6 +65,7 @@ const getScoreDimension = (
 };
 
 /** The executeQuery column name for a metric, e.g. `avg_value`, `count_count`. */
+/** @internal */
 export const scoreMetricField = (config: ScoreChartViewConfig): string =>
   `${config.aggregation}_${getScoreMetric(config.metric, config.dataset).measure}`;
 

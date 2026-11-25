@@ -13,7 +13,6 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Input } from "@/src/components/design-system/Input/Input";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { stripUrlScheme } from "../helpers/stripUrlScheme";
-import { FieldGroup } from "./FieldGroup";
 
 const defaultHeaders = [
   {
@@ -74,39 +73,41 @@ function WebhookHeadersField({
   });
 
   return (
-    <FieldGroup label="Headers">
-      <p className="text-muted-foreground text-sm">
-        Default headers (automatically added by Langfuse):
-      </p>
-      {defaultHeaders.map((header) => (
-        <div key={header.name} className="grid grid-cols-2 gap-2">
-          <Input aria-label="Header name" value={header.name} disabled />
-          <Input aria-label="Header value" value={header.value} disabled />
+    <Form.CompositeField
+      label="Headers"
+      sublabel="Default headers are automatically added by Langfuse."
+    >
+      <div className="flex flex-col gap-2">
+        {defaultHeaders.map((header) => (
+          <div key={header.name} className="grid grid-cols-2 gap-2">
+            <Input aria-label="Header name" value={header.name} disabled />
+            <Input aria-label="Header value" value={header.value} disabled />
+          </div>
+        ))}
+        <p className="text-muted-foreground pt-2 text-sm">
+          Optional custom headers to include in the webhook request:
+        </p>
+        {headers.fields.map((header, index) => (
+          <CustomHeaderRow
+            key={header.id}
+            form={form}
+            index={index}
+            onRemove={() => headers.remove(index)}
+          />
+        ))}
+        <div className="pt-1">
+          <Button
+            type="button"
+            variant="secondary"
+            text="Add custom header"
+            icon={Plus}
+            onClick={() =>
+              headers.append({ name: "", value: "", isSecret: false })
+            }
+          />
         </div>
-      ))}
-      <p className="text-muted-foreground pt-2 text-sm">
-        Optional custom headers to include in the webhook request:
-      </p>
-      {headers.fields.map((header, index) => (
-        <CustomHeaderRow
-          key={header.id}
-          form={form}
-          index={index}
-          onRemove={() => headers.remove(index)}
-        />
-      ))}
-      <div className="pt-1">
-        <Button
-          type="button"
-          variant="secondary"
-          text="Add custom header"
-          icon={Plus}
-          onClick={() =>
-            headers.append({ name: "", value: "", isSecret: false })
-          }
-        />
       </div>
-    </FieldGroup>
+    </Form.CompositeField>
   );
 }
 
@@ -153,9 +154,7 @@ function CustomHeaderRow({
           <IconButton icon={X} label="Remove header" onClick={onRemove} />
         </div>
       </div>
-      {errorMessage && (
-        <p className="text-destructive text-sm">{errorMessage}</p>
-      )}
+      {errorMessage && <Form.Error message={errorMessage} />}
     </div>
   );
 }

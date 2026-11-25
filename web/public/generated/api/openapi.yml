@@ -1673,7 +1673,9 @@ paths:
         An evaluator defines **how** Langfuse should score data. LLM-as-a-judge
         evaluators define a prompt, expected structured output, and optional
         model configuration. Code evaluators define source code and a runtime
-        language.
+        language. Decision-model evaluators define typed questions, a
+        decision-model configuration, and a mapping from observation data to
+        state keys.
 
 
         This always creates a new evaluator with version `1`. Names are not
@@ -1890,7 +1892,8 @@ paths:
         definition, include `type` and every definition field for that type.
         Definition fields are replaced as a complete unit rather than merged.
         For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to
-        `null` selects the project's default evaluation model.
+        `null` selects the project's default evaluation model. Decision-model
+        evaluators always require `modelConfig`.
 
 
         Replacing a definition automatically returns an evaluator paused by an
@@ -3766,7 +3769,7 @@ paths:
 
             [
               {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "arrayOptions", "stringObject", "boolean", "null"
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
@@ -3775,10 +3778,11 @@ paths:
                                           // - arrayOptions: "any of", "none of", "all of"
                                           // - number: "=", ">", "<", ">=", "<="
                                           // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
+                                          // - numberObject: "=", ">", "<", ">=", "<=" (metadata only)
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
-                "value": any,             // Required. Type depends on filter type: ISO 8601 string for datetime, JSON number for number (not a numeric string), array of strings for stringOptions/arrayOptions, boolean for boolean, and "" (empty string) for null
-                "key": string             // Required only for stringObject (the metadata key to filter on)
+                "value": any,             // Required. Type depends on filter type: ISO 8601 string for datetime, JSON number for number and numberObject (not a numeric string), array of strings for stringOptions/arrayOptions, boolean for boolean, and "" (empty string) for null
+                "key": string             // Required only for stringObject and numberObject (the metadata key to filter on)
               }
             ]
 
@@ -3876,10 +3880,12 @@ paths:
 
             - `metadata` (stringObject) - Metadata key-value pairs. Use the
             `key` parameter to filter on a specific metadata key. Metadata
-            values are stored as strings, so match numbers and booleans by their
-            string form with `=` (for example `"value": "true"` or `"value":
-            "42"`); numeric comparisons such as `>` are not supported on
-            metadata.
+            values are stored as strings: a stringObject filter matches numbers
+            and booleans by their string form with `=` (for example `"value":
+            "true"` or `"value": "42"`). A numberObject filter compares the
+            value as a number (for example `"operator": ">", "value": 20`
+            matches `"20.5"` and `"21"`); values that are not numbers never
+            match.
 
 
             The `matches` operator is only supported for `input`, `output`, and
@@ -6669,6 +6675,99 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/organizations/billable-units:
+    get:
+      description: |-
+        Unstable: the shape may change without notice.
+
+        Billable units of the organization's projects, per UTC time bucket and
+        project. These are the numbers of the organization's Usage settings
+        tab. Requires an organization-scoped API key.
+
+        Units are counted by ingestion time in `[fromTimestamp, toTimestamp)`
+        as approximate distinct units per bucket (about 0.3% error on large
+        counts, small counts are exact). A unit counts once in every bucket it
+        appears in, so the counts stay close to, but are not exactly, what is
+        billed. Deployments still in the v3 `legacy` write mode count the rows
+        of the traces, observations and scores tables instead.
+
+        Buckets start at UTC hour, day, Monday or month boundaries. The first
+        and last bucket cover only the part inside the range, and a
+        `toTimestamp` in the future is cut off at now. Buckets and projects
+        without usage are left out, and so are deleted projects.
+      operationId: unstable_billableUnits_get
+      tags:
+        - UnstableBillableUnits
+      parameters:
+        - name: fromTimestamp
+          in: query
+          description: Start of the range (inclusive), ISO 8601 with a time zone.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toTimestamp
+          in: query
+          description: >-
+            End of the range (exclusive), ISO 8601 with a time zone. At most 31
+            days after `fromTimestamp` for `hour` granularity, 366 days
+            otherwise.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: granularity
+          in: query
+          description: Bucket size. Defaults to `day`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/unstableBillableUnitsGranularity'
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableBillableUnitsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
   /api/public/unstable/dashboard-widgets:
     get:
       description: |-
@@ -10567,10 +10666,13 @@ components:
       enum:
         - llm_as_judge
         - code
-      description: |-
+        - decision_model
+      description: >-
         The evaluator type.
 
-        The public API supports LLM-as-a-judge and code evaluators.
+
+        The public API supports LLM-as-a-judge, code, and decision-model
+        evaluators.
     CodeEvaluatorSourceCodeLanguage:
       title: CodeEvaluatorSourceCodeLanguage
       type: string
@@ -11930,6 +12032,241 @@ components:
         - sourceCodeLanguage
       allOf:
         - $ref: '#/components/schemas/EvaluatorVersionBase'
+    DecisionModelEntry:
+      title: DecisionModelEntry
+      oneOf:
+        - type: string
+          title: String
+        - type: object
+          additionalProperties: true
+          title: Object
+        - type: array
+          items: {}
+          title: Array
+        - type: number
+          format: double
+          title: DoubleNumber
+        - type: boolean
+          title: Boolean
+      description: >-
+        Instruction text (1 to 20,000 characters), or a non-null JSON value that
+        the decision model receives as structured instructions.
+    DecisionModelChoiceCriterion:
+      title: DecisionModelChoiceCriterion
+      type: object
+      description: One allowed answer of a `choice` question.
+      properties:
+        value:
+          type: string
+          description: >-
+            Answer value stored as the categorical score value. Must be unique
+            within the question.
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          nullable: true
+          description: Optional description of when this answer applies.
+      required:
+        - value
+    DecisionModelScoreCriterion:
+      title: DecisionModelScoreCriterion
+      type: object
+      description: One level of a `score` question, ordered from lowest to highest.
+      properties:
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: Description of this level.
+      required:
+        - description
+    DecisionModelBooleanCriteria:
+      title: DecisionModelBooleanCriteria
+      type: object
+      description: >-
+        Optional descriptions of the two answers of a `boolean` question. The
+        answer is always `true` or `false`; these descriptions only tell the
+        model when each one applies.
+      properties:
+        'true':
+          $ref: '#/components/schemas/DecisionModelBooleanCriterion'
+          nullable: true
+          description: When the statement is true.
+        'false':
+          $ref: '#/components/schemas/DecisionModelBooleanCriterion'
+          nullable: true
+          description: When the statement is false.
+    DecisionModelBooleanCriterion:
+      title: DecisionModelBooleanCriterion
+      type: object
+      description: One answer of a `boolean` question.
+      properties:
+        description:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: Description of when this answer applies.
+      required:
+        - description
+    DecisionModelChoiceQuestion:
+      title: DecisionModelChoiceQuestion
+      type: object
+      description: Pick one of a fixed list of options. Produces a categorical score.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name, wrapped in backticks, for example `` `user_message` ``.
+        criteria:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelChoiceCriterion'
+          description: The allowed answers. Between 2 and 255, with unique values.
+      required:
+        - id
+        - scoreName
+        - instructions
+        - criteria
+    DecisionModelScoreQuestion:
+      title: DecisionModelScoreQuestion
+      type: object
+      description: Rate on an ordered scale. Produces a numeric score.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name, wrapped in backticks, for example `` `user_message` ``.
+        criteria:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelScoreCriterion'
+          description: >-
+            The levels of the scale. Between 2 and 10, ordered from lowest to
+            highest.
+      required:
+        - id
+        - scoreName
+        - instructions
+        - criteria
+    DecisionModelBooleanQuestion:
+      title: DecisionModelBooleanQuestion
+      type: object
+      description: >-
+        Decide whether a statement is true. Produces a numeric score: the
+        probability (0–1) that the statement is true.
+      properties:
+        id:
+          type: string
+          description: Question identifier. Must be unique within the evaluator.
+        scoreName:
+          type: string
+          description: >-
+            Name of the score this question produces. Must be unique within the
+            evaluator.
+        instructions:
+          $ref: '#/components/schemas/DecisionModelEntry'
+          description: >-
+            Question instructions. Refer to state keys from `variableMapping` by
+            name, wrapped in backticks, for example `` `user_message` ``.
+        criteria:
+          $ref: '#/components/schemas/DecisionModelBooleanCriteria'
+          nullable: true
+          description: >-
+            Optional descriptions of when the statement is true and when it is
+            false.
+      required:
+        - id
+        - scoreName
+        - instructions
+    DecisionModelQuestion:
+      title: DecisionModelQuestion
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - choice
+            - $ref: '#/components/schemas/DecisionModelChoiceQuestion'
+          required:
+            - type
+          title: DecisionModelChoiceQuestion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - score
+            - $ref: '#/components/schemas/DecisionModelScoreQuestion'
+          required:
+            - type
+          title: DecisionModelScoreQuestion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - boolean
+            - $ref: '#/components/schemas/DecisionModelBooleanQuestion'
+          required:
+            - type
+          title: DecisionModelBooleanQuestion
+      description: >-
+        One typed question answered by a decision-model evaluator. Each question
+        produces one score.
+    DecisionModelEvaluatorVersion:
+      title: DecisionModelEvaluatorVersion
+      type: object
+      properties:
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Typed questions answered during evaluation.
+        variables:
+          type: array
+          items:
+            type: string
+          description: State keys available to the questions and evaluation-rule mappings.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          description: Default mapping from observation data to state keys.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model used for evaluation.
+      required:
+        - type
+        - questions
+        - variables
+        - variableMapping
+        - modelConfig
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorVersionBase'
     EvaluatorVersion:
       title: EvaluatorVersion
       oneOf:
@@ -11957,6 +12294,18 @@ components:
           required:
             - type
           title: CodeEvaluatorVersion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/DecisionModelEvaluatorVersion'
+          required:
+            - type
+          title: DecisionModelEvaluatorVersion
     EvaluationRuleAssignment:
       title: EvaluationRuleAssignment
       type: object
@@ -12128,6 +12477,42 @@ components:
         - sourceCodeLanguage
       allOf:
         - $ref: '#/components/schemas/EvaluatorBase'
+    DecisionModelEvaluator:
+      title: DecisionModelEvaluator
+      type: object
+      properties:
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Typed questions answered by the latest evaluator version.
+        variables:
+          type: array
+          items:
+            type: string
+          description: State keys available to the questions and evaluation-rule mappings.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          description: >-
+            Default mapping from observation data to state keys for the latest
+            version.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model used by the latest version.
+      required:
+        - type
+        - questions
+        - variables
+        - variableMapping
+        - modelConfig
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorBase'
     Evaluator:
       title: Evaluator
       oneOf:
@@ -12155,6 +12540,18 @@ components:
           required:
             - type
           title: CodeEvaluator
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/DecisionModelEvaluator'
+          required:
+            - type
+          title: DecisionModelEvaluator
       description: >-
         One evaluator that can be used for scoring.
 
@@ -12247,6 +12644,53 @@ components:
         - type
         - sourceCode
         - sourceCodeLanguage
+    CreateDecisionModelEvaluatorRequest:
+      title: CreateDecisionModelEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            Human-readable evaluator name. Names are not identifiers and do not
+            need to be unique.
+        description:
+          type: string
+          nullable: true
+          description: Optional human-readable evaluator description.
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: >-
+            Between 1 and 50 typed questions. Question ids and score names must
+            be unique.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: >-
+            Decision-model connection and model. Required.
+
+
+            The provider must be a decision-model connection of the project.
+            Call `GET /api/public/llm-connections` to discover available
+            providers.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          description: >-
+            At least one mapping from observation data to a state key. Each
+            `variable` is a state key that starts with a letter or underscore
+            and contains only letters, digits, and underscores.
+      required:
+        - name
+        - type
+        - questions
+        - modelConfig
+        - variableMapping
     CreateEvaluatorRequest:
       title: CreateEvaluatorRequest
       oneOf:
@@ -12274,6 +12718,18 @@ components:
           required:
             - type
           title: CreateCodeEvaluatorRequest
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - decision_model
+            - $ref: '#/components/schemas/CreateDecisionModelEvaluatorRequest'
+          required:
+            - type
+          title: CreateDecisionModelEvaluatorRequest
       description: >-
         Initial evaluator definition with metadata and definition fields at the
         same level. The returned evaluator starts at version `1`.
@@ -12360,12 +12816,47 @@ components:
         - type
         - sourceCode
         - sourceCodeLanguage
+    UpdateDecisionModelEvaluatorRequest:
+      title: UpdateDecisionModelEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable evaluator name.
+        description:
+          type: string
+          nullable: true
+          description: New description. Set to `null` to clear it.
+        type:
+          type: string
+          const: decision_model
+          description: Evaluator type. The type of an existing evaluator cannot change.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionModelQuestion'
+          description: Complete replacement list of typed questions.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          description: Decision-model connection and model. Required.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          description: Complete replacement mapping from observation data to state keys.
+      required:
+        - type
+        - questions
+        - modelConfig
+        - variableMapping
     UpdateEvaluatorRequest:
       title: UpdateEvaluatorRequest
       oneOf:
         - $ref: '#/components/schemas/UpdateEvaluatorMetadataRequest'
         - $ref: '#/components/schemas/UpdateLlmAsJudgeEvaluatorRequest'
         - $ref: '#/components/schemas/UpdateCodeEvaluatorRequest'
+        - $ref: '#/components/schemas/UpdateDecisionModelEvaluatorRequest'
       description: >-
         Metadata-only update or complete flattened definition replacement. At
         least one field must be provided.
@@ -15016,6 +15507,62 @@ components:
           type: string
       required:
         - message
+    unstableBillableUnitsGranularity:
+      title: unstableBillableUnitsGranularity
+      type: string
+      enum:
+        - hour
+        - day
+        - week
+        - month
+    unstableBillableUnitsRow:
+      title: unstableBillableUnitsRow
+      type: object
+      description: Billable units of one project in one bucket.
+      properties:
+        bucket:
+          type: string
+          format: date-time
+          description: Start of the UTC bucket.
+        projectId:
+          type: string
+        count:
+          type: integer
+          description: All billable units, the sum of the per-type counts.
+        traces:
+          type: integer
+        observations:
+          type: integer
+        scores:
+          type: integer
+        topicFacetSummaries:
+          type: integer
+      required:
+        - bucket
+        - projectId
+        - count
+        - traces
+        - observations
+        - scores
+        - topicFacetSummaries
+    unstableBillableUnitsResponse:
+      title: unstableBillableUnitsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableBillableUnitsRow'
+        usageRecordedFrom:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            When usage recording started on this deployment. Buckets before it
+            show no usage. Null while nothing has been recorded, and on
+            deployments that count the legacy tables.
+      required:
+        - data
     unstableDashboardWidgetView:
       title: unstableDashboardWidgetView
       type: string

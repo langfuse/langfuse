@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +34,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { BaseUrlPicker } from "@/src/components/BaseUrlPicker/BaseUrlPicker";
+import {
+  OPENAI_DATA_RESIDENCY_HINT,
+  openAiBaseUrlPresets,
+} from "@/src/constants/openAiBaseUrlPresets";
 import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
@@ -821,7 +827,9 @@ export function CreateLLMApiKeyForm({
       adapter: values.adapter,
       baseURL:
         values.baseURL ||
-        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+        (mode === "update" &&
+        (currentAdapter === LLMAdapter.TypeSafe ||
+          currentAdapter === LLMAdapter.OpenAI)
           ? null
           : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
@@ -996,26 +1004,21 @@ export function CreateLLMApiKeyForm({
           />
 
           {showOtherModelInfo && (
-            <div className="bg-muted/40 text-muted-foreground space-y-2 rounded-md border p-4 text-sm">
-              <p>
-                You can use any model provider as LLM connection that supports
-                one of the adapters in the list. Many providers support the
-                OpenAI API schema, such as Z.ai, OpenRouter, Qwen, Mistral,
-                Hugging Face, and more. Just replace the API Base URL with the
-                endpoint for the model, and add your provider&apos;s custom
-                model names and api key.
-              </p>
-              <p>
-                <a
-                  href="https://langfuse.com/docs/administration/llm-connection#supported-providers"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  Learn more about supported providers
-                </a>
-              </p>
-            </div>
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about supported providers",
+                  href: "https://langfuse.com/docs/administration/llm-connection#supported-providers",
+                },
+              ]}
+            >
+              You can use any model provider as LLM connection that supports one
+              of the adapters in the list. Many providers support the OpenAI API
+              schema, such as Z.ai, OpenRouter, Qwen, Mistral, Hugging Face, and
+              more. Just replace the API Base URL with the endpoint for the
+              model, and add your provider&apos;s custom model names and api
+              key.
+            </Banner>
           )}
 
           {!showOtherModelInfo && (
@@ -1636,29 +1639,43 @@ export function CreateLLMApiKeyForm({
                       render={({ field, fieldState }) => (
                         <FormItem>
                           <FormLabel>API Base URL</FormLabel>
-                          <FormDescription>
-                            Leave blank to use the default base URL for the
-                            given LLM adapter.{" "}
-                            {currentAdapter === LLMAdapter.OpenAI && (
-                              <span>
-                                OpenAI default: https://api.openai.com/v1
-                              </span>
-                            )}
-                            {currentAdapter === LLMAdapter.Anthropic && (
-                              <span>
-                                Anthropic default: https://api.anthropic.com
-                                (excluding /v1/messages)
-                              </span>
-                            )}
-                          </FormDescription>
-
-                          <FormControl>
-                            <DesignSystemInput
-                              {...field}
-                              error={Boolean(fieldState.error)}
-                              placeholder="default"
-                            />
-                          </FormControl>
+                          {currentAdapter === LLMAdapter.OpenAI ? (
+                            <>
+                              <FormDescription>
+                                {OPENAI_DATA_RESIDENCY_HINT}
+                              </FormDescription>
+                              <FormControl>
+                                <BaseUrlPicker
+                                  presets={openAiBaseUrlPresets}
+                                  value={field.value}
+                                  error={Boolean(fieldState.error)}
+                                  onChange={field.onChange}
+                                  onBlur={field.onBlur}
+                                  ref={field.ref}
+                                />
+                              </FormControl>
+                            </>
+                          ) : (
+                            <>
+                              <FormDescription>
+                                Leave blank to use the default base URL for the
+                                given LLM adapter.{" "}
+                                {currentAdapter === LLMAdapter.Anthropic && (
+                                  <span>
+                                    Anthropic default: https://api.anthropic.com
+                                    (excluding /v1/messages)
+                                  </span>
+                                )}
+                              </FormDescription>
+                              <FormControl>
+                                <DesignSystemInput
+                                  {...field}
+                                  error={Boolean(fieldState.error)}
+                                  placeholder="default"
+                                />
+                              </FormControl>
+                            </>
+                          )}
 
                           <FormMessage />
                         </FormItem>

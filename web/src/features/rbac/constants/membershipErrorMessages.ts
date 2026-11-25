@@ -12,9 +12,3 @@ export const ALREADY_ORGANIZATION_MEMBER_MESSAGE =
 
 export const PENDING_MEMBERSHIP_INVITE_MESSAGE =
   "A pending membership invitation with this email and organization already exists";
-
-export const ORGANIZATION_ROLE_TOO_HIGH_MESSAGE =
-  "You cannot grant or edit an organization role higher than your own.";
-
-export const PROJECT_ROLE_TOO_HIGH_MESSAGE =
-  "You cannot grant or edit a project role higher than your own.";

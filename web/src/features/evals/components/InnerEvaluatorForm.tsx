@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -84,7 +84,7 @@ import {
   FlaskConical,
   InfoIcon,
   ListTree,
-  ExternalLink,
+  SquareArrowOutUpRight,
 } from "@langfuse/icons";
 import Link from "next/link";
 import {
@@ -298,7 +298,11 @@ function CodeEvalSourceLink({
         rel="noopener noreferrer"
       >
         Edit source code
-        <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+        <SquareArrowOutUpRight
+          size="base"
+          color="default"
+          __rawClassName="ml-1"
+        />
       </Link>
     </Button>
   ) : (
@@ -308,7 +312,11 @@ function CodeEvalSourceLink({
       title="Only user-managed templates can be edited"
     >
       Edit source code
-      <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+      <SquareArrowOutUpRight
+        size="base"
+        color="default"
+        __rawClassName="ml-1"
+      />
     </Button>
   );
 
@@ -852,14 +860,11 @@ export const InnerEvaluatorForm = (props: {
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
-            <Alert variant="destructive" icon={AlertTriangle}>
-              <Alert.Title>Unsupported filter detected</Alert.Title>
-              <Alert.Description>
-                This evaluator has a filter that is not supported for
-                trace-level evaluators. It is effectively paused. Please remove
-                all filters and re-add them from scratch to resume execution.
-              </Alert.Description>
-            </Alert>
+            <Banner variant="error" title="Unsupported filter detected">
+              This evaluator has a filter that is not supported for trace-level
+              evaluators. It is effectively paused. Please remove all filters
+              and re-add them from scratch to resume execution.
+            </Banner>
           )}
           <div className="flex flex-col gap-4">
             {!props.hideTargetSelection && (

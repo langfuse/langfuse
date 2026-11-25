@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
-import { Info, TriangleAlert } from "@langfuse/icons";
 import {
   getInvalidLlmBaseUrlReason,
   getLlmBaseUrlFormatError,
 } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -25,8 +24,8 @@ import {
   AzureResourceField,
   type AzureResourceFieldValue,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AzureResourceField/AzureResourceField";
-import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/ConnectionTestStatus";
-import { type ConnectionTestFailure } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
+import { ConnectionTestStatus } from "@/src/features/ai-gateway/components/ConnectionTestStatus/ConnectionTestStatus";
+import { type ConnectionTestFailure } from "@/src/features/ai-gateway/components/ConnectionTestStatus/components/ConnectionTestDetails/ConnectionTestDetails";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { RegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/RegionField/RegionField";
@@ -297,6 +296,7 @@ export function ProviderDialogController({
           provider: selectedConnection.provider,
           isRenamed: name.trim() !== selectedConnection.name,
           isCredentialReplaced: Boolean(credential),
+          ...toEndpointUsage(saved),
         });
       } else {
         saved = await create.mutateAsync({
@@ -312,6 +312,7 @@ export function ProviderDialogController({
           surface,
           provider,
           isFirstCredential: existingNames.length === 0,
+          ...toEndpointUsage(saved),
         });
         onAfterCreate?.({ provider });
       }
@@ -384,14 +385,11 @@ export function ProviderDialogController({
             </DialogHeader>
             <DialogBody className="gap-6">
               {isGatewayHipaaNoticeVisible(region) ? (
-                <Alert variant="info" icon={Info}>
-                  <Alert.Title>HIPAA region</Alert.Title>
-                  <Alert.Description>
-                    Requests are forwarded to the provider you configure, using
-                    your provider connection and on your instruction. Make sure
-                    you have a BAA with that provider before sending PHI.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="info" title="HIPAA region">
+                  Requests are forwarded to the provider you configure, using
+                  your provider connection and on your instruction. Make sure
+                  you have a BAA with that provider before sending PHI.
+                </Banner>
               ) : null}
               {selectedConnection ? (
                 <div>
@@ -478,22 +476,16 @@ export function ProviderDialogController({
                 />
               ) : null}
               {selectedConnection && name.trim() !== selectedConnection.name ? (
-                <Alert variant="warning" icon={TriangleAlert}>
-                  <Alert.Title>Renaming changes model slugs</Alert.Title>
-                  <Alert.Description>
-                    Requests using model slugs with the old connection name will
-                    stop resolving.
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="warning" title="Renaming changes model slugs">
+                  Requests using model slugs with the old connection name will
+                  stop resolving.
+                </Banner>
               ) : null}
               {isSaveError ? (
-                <Alert variant="destructive">
-                  <Alert.Title>Connection could not be saved</Alert.Title>
-                  <Alert.Description>
-                    {/* Base URL validation and provider errors can echo the configured host. */}
-                    <span className="ph-no-capture">{saveError?.message}</span>
-                  </Alert.Description>
-                </Alert>
+                <Banner variant="error" title="Connection could not be saved">
+                  {/* Base URL validation and provider errors can echo the configured host. */}
+                  <span className="ph-no-capture">{saveError?.message}</span>
+                </Banner>
               ) : null}
               {test.data?.success &&
               test.data.modelListingDenied &&
@@ -572,6 +564,24 @@ export function ProviderDialogController({
       }}
     </DialogController>
   );
+}
+
+/**
+ * Reads the saved connection, as the server drops blank header rows it has no
+ * value for. Azure's endpoint is its resource, not a custom base URL.
+ */
+function toEndpointUsage(
+  connection: Pick<
+    GatewayConnection,
+    "provider" | "baseURL" | "extraHeaderKeys"
+  >,
+) {
+  return {
+    hasCustomBaseUrl:
+      supportsCustomEndpoint(connection.provider) &&
+      Boolean(connection.baseURL),
+    extraHeaderCount: connection.extraHeaderKeys.length,
+  };
 }
 
 function isValidAzureResource({ name, project }: AzureResourceFieldValue) {

@@ -158,6 +158,7 @@ export function useDataTableControls() {
   return context as ControlsContextType;
 }
 
+/** @internal */
 export interface QueryFilter {
   filters: UIFilter[];
   expanded: string[];
@@ -1476,6 +1477,7 @@ function FilterAccordionItem({
   );
 }
 
+/** @internal */
 export function CategoricalFacet({
   conditionCount,
   label,

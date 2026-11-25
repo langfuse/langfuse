@@ -73,6 +73,7 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
+/** @internal */
 export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
 

@@ -139,6 +139,7 @@ function digestsMatch(expectedHex: string, candidateHex: string): boolean {
  * The dispatcher re-signs on every delivery attempt, so the short window stays
  * compatible with its multi-day retry budget. One local secret is enough for a
  * rotation: while CHB signs with both keys, any `v1` matching ours passes.
+ * @internal
  */
 export function verifyChbSignature(params: {
   rawBody: string | Buffer;
@@ -461,10 +462,7 @@ async function persistAndPropagate(params: {
   // surfaced rather than retried.
   try {
     await auditLog({
-      session: {
-        user: { id: "clickhouse-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "clickhouse-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,

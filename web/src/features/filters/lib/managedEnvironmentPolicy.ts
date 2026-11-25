@@ -177,6 +177,7 @@ export function toSearchBarEnvironmentFilters(params: {
   });
 }
 
+/** @internal */
 export function buildImplicitEnvironmentFilter(params: {
   explicitFilters: FilterState;
   config: ManagedEnvironmentPolicyConfig;

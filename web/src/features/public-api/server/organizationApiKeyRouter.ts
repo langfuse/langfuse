@@ -18,7 +18,10 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
-import { GATEWAY_ROLE } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
+import {
+  GATEWAY_KEY_ROLES,
+  GATEWAY_ROLE,
+} from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 
 // Gateway traffic from keys without a bound user reports the key name as its user ID.
 const GATEWAY_KEY_NAME_REQUIRED = "Gateway keys need a name";
@@ -152,7 +155,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         },
         include: {
           roleAssignments: {
-            where: { systemRole: GATEWAY_ROLE },
+            where: { systemRole: { in: GATEWAY_KEY_ROLES } },
             select: { id: true },
           },
         },

@@ -3,16 +3,16 @@ import {
   EvalTemplateType,
   JobConfigState,
   TopicsTargetObject,
+  TRACE_TRANSCRIPT_EVAL_TYPES,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueJobs,
   TopicsTraceQueue,
-  type TraceBatchInputReference,
+  type TraceTranscriptReference,
 } from "@langfuse/shared/src/server";
 import {
   TRACE_TRANSCRIPT_EVAL_CONSUMER,
-  TRACE_TRANSCRIPT_EVAL_TYPES,
   enqueueTraceTranscriptEvals,
 } from "./traceTranscriptEval";
 
@@ -28,8 +28,9 @@ type EventsDispatchEnqueueContext = {
 type EventsDispatchConsumer = {
   name: string;
   evaluatorTypes: readonly EvalTemplateType[];
+  enqueueWhenTranscriptNull: boolean;
   enqueue: (
-    reference: TraceBatchInputReference,
+    reference: TraceTranscriptReference,
     ruleIds: string[],
     context: EventsDispatchEnqueueContext,
   ) => Promise<void>;
@@ -38,6 +39,8 @@ type EventsDispatchConsumer = {
 const TOPICS_CONSUMER: EventsDispatchConsumer = {
   name: "topics",
   evaluatorTypes: [EvalTemplateType.FACET],
+  // Marks its facets insufficient_input from the null-transcript envelope.
+  enqueueWhenTranscriptNull: true,
   enqueue: async (reference, ruleIds, { transcriptS3Path, batchActionId }) => {
     const queue = TopicsTraceQueue.getInstance({
       shardingKey: `${reference.projectId}-${reference.traceId}`,
@@ -71,6 +74,7 @@ const CONSUMERS: EventsDispatchConsumer[] = [
   {
     name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
     evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
+    enqueueWhenTranscriptNull: false,
     enqueue: enqueueTraceTranscriptEvals,
   },
 ];

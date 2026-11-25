@@ -26,6 +26,7 @@ changing how it emits SQL.
   dialect's expressivity.
 - `passHarness.ts` — test-only: applies one compiler pass alone, for the pass suites ([Testing a pass](#testing-a-pass)).
 - `catalog.golden.test.ts` — catalog SQL baselines.
+- `DECISIONS.md` — the compiler's standing design rules, one record each, with the code and test that enforce it.
 
 The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
@@ -71,8 +72,8 @@ must carry the `.golden.test.ts` suffix to run there.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `projectId` (see `../repositories/environments.ts`).
-- **Read events through the logical `events` relation.** Each `events` relation compiles to `events_core` unless a column reference that resolves to it reads a column `events_core` truncates (`input`, `output`, `metadata_values`, `input_length`, `output_length`); then that relation becomes `events_full`. Metadata `=` / `startsWith` predicates on `metadataValue` or `firstMetadataValue` stay on `events_core` when `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL builders, and so does an `IN` of a bound string list whose every value it accepts for `=`. The `=` / `IN` rules also hold for `if(guard, nullIf(lookup, ''), NULL)`, whose guard routes on its own, and `is null` / `is not null` over it or over `nullIf(lookup, '')` stays on `events_core`: a cut entry is empty exactly when the full one is. A `metadataTokenPrefilter` / `metadataSubstringPrefilter` of the same operator and value ANDed beside an `=` comparison stays on `events_core` too, and so does an emptiness check of a truncated column (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*` over `events`, raw SQL text in a select that reads it, and any other unqualified truncated column are compile errors while `events` is in scope. `events_core` / `events_full` are not part of the Kysely schema, and naming them anywhere — FROM/JOIN, alias, column qualifier, raw SQL — is a compile error; only the routing pass writes them.
-- **Read `events_truncated` to get the truncated copy on purpose** (input/output/metadata previews, dashboard dimensions). Everything outside its select's own WHERE (select, aggregate `FILTER (WHERE …)`, GROUP BY, ORDER BY, HAVING, JOIN ON, ARRAY JOIN) reads the `events_core` values whatever columns it names. It compiles to `events_core` unless that WHERE reads a truncated column by a condition the `events` rules above send to `events_full`; then it compiles to `events_full`, and every truncated column it reads outside the WHERE is cut as `events_core_mv` cuts it (`leftUTF8(e.input, 200)`, `arrayMap(v -> leftUTF8(v, 200), e.metadata_values)`, `lengthUTF8(leftUTF8(e.input, 200))`; the cuts live in `EVENTS_CORE_TRUNCATIONS`). In its WHERE, raw SQL text and an unqualified truncated column are always compile errors. `*`, an unqualified truncated column, and raw SQL outside the WHERE are allowed while it stays on `events_core`, and a compile error once its WHERE routes it to `events_full`.
+- **Read events through the logical `events` relation.** Each `events` relation compiles to `events_core` unless a column reference that resolves to it reads a column `events_core` truncates (`input`, `output`, `metadata_values`, `input_length`, `output_length`); then that relation becomes `events_full`. Metadata `=` / `startsWith` predicates on `metadataValue` or `firstMetadataValue` stay on `events_core` when `metadataFilterIsEventsCoreSafe` accepts the value, as in the raw-SQL builders, and so does an `IN` of a bound string list whose every value it accepts for `=`. The `=` / `IN` rules also hold for `if(guard, nullIf(lookup, ''), NULL)`, whose guard routes on its own, and `is null` / `is not null` over it or over `nullIf(lookup, '')` stays on `events_core`: a cut entry is empty exactly when the full one is. A `metadataTokenPrefilter` / `metadataSubstringPrefilter` of the same operator and value ANDed beside an `=` comparison stays on `events_core` too, and so does an emptiness check of a truncated column (`e.input != ''`, `'' = e.output`, `e.input is not null`). `*` / `e.*` over `events` and any other unqualified truncated column are compile errors while `events` is in scope. `events_core` / `events_full` are not part of the Kysely schema, and naming them anywhere — FROM/JOIN, alias, column qualifier — is a compile error; only the routing pass writes them.
+- **Read `events_truncated` to get the truncated copy on purpose** (input/output/metadata previews, dashboard dimensions). Everything outside its select's own WHERE (select, aggregate `FILTER (WHERE …)`, GROUP BY, ORDER BY, HAVING, JOIN ON, ARRAY JOIN) reads the `events_core` values whatever columns it names. It compiles to `events_core` unless that WHERE reads a truncated column by a condition the `events` rules above send to `events_full`; then it compiles to `events_full`, and every truncated column it reads outside the WHERE is cut as `events_core_mv` cuts it (`leftUTF8(e.input, 200)`, `arrayMap(v -> leftUTF8(v, 200), e.metadata_values)`, `lengthUTF8(leftUTF8(e.input, 200))`; the cuts live in `EVENTS_CORE_TRUNCATIONS`). In its WHERE, an unqualified truncated column is always a compile error. `*` and an unqualified truncated column outside the WHERE are allowed while it stays on `events_core`, and a compile error once its WHERE routes it to `events_full`.
 - **Give each CTE (and view) its own plain name.** A CTE name is a plain
   identifier that is not a registry table (`traces`, `events_core`, the
   logical `events` / `events_truncated`, …) and doesn't reuse the name of a sibling or an
@@ -87,7 +88,7 @@ must carry the `.golden.test.ts` suffix to run there.
 - **Identifiers, function and aggregate names must be plain identifiers**
   (`[A-Za-z_][A-Za-z0-9_]*`). The compiler writes them unquoted, so anything
   else fails to compile. This covers columns, tables, aliases, CTE names,
-  `sql.ref` and `sql.id`; `sql.ref("e.*")` is rejected too, list the
+  and `sql.ref`; `sql.ref("e.*")` is rejected too, list the
   columns instead. A positive integer after a qualifier (`x.1`) is tuple
   element access and compiles as is. `collate` is not supported.
 - **Qualify every column of a SELECT that reads several relations.** ClickHouse binds an unqualified column there to the left-most relation that has it, without an ambiguity error. So when a SELECT has more than one FROM item or JOIN (subqueries and CTE reads count; ARRAY JOIN does not), a bare name must be an output alias of that SELECT (ARRAY JOIN aliases included) or a lambda parameter; anything else throws `QueryCompileError`. An alias read inside its own expression reads the relations, so `max(timestamp) AS timestamp` throws too. Each SELECT is checked on its own relations: a single-relation subquery may use bare names.
@@ -135,6 +136,11 @@ must carry the `.golden.test.ts` suffix to run there.
   `expressionBuilder()` loses the check entirely: helper results don't carry
   their table scope in their type, and Kysely's `select()` / `where()` accept
   any expression.
+- **Helpers take columns as expressions.** A helper parameter that names a
+  column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
+  column-name string, so the calling query's builder checks the column. Don't
+  cast or `@ts-expect-error` a query past the types; add the missing column or
+  helper instead.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -303,12 +309,12 @@ and it is where tenancy is enforced:
    present, so `qb.compile()` without the plugin also fails. Value binds take
    their ClickHouse type from the compared column's registry entry when one is
    in scope (`scores.value > 1` → `{p:Float64}`).
-5. Raw-SQL table sources (``selectFrom(sql`...`)``), raw fragments embedding
-   a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE, and a `sql.table(...)` reference
-   inside raw SQL in any position throw `UnscopedRelationError`, as
-   does any FROM/JOIN source that is neither a table reference nor a subquery
-   (table functions such as `remote()`, `clusterAllReplicas()`, `merge()`).
-   Kysely's own keyword fragments (`asc`/`desc`) are not relations.
+5. A FROM/JOIN source that is neither a table reference nor a subquery throws `UnscopedRelationError`: raw SQL (``selectFrom(sql`...`)``) and table functions such as `remote()`, `clusterAllReplicas()`, `merge()`.
+6. Raw SQL compiles only in two shapes, checked by the compiler (`visitRaw`) on every entry point:
+   - a column reference, `sql.ref("t.col")` (no text around one reference), which every pass reads like `eb.ref` in an expression slot. As a FROM/JOIN source, a CTE body or a UNION/INTERSECT/EXCEPT operand it throws `UnscopedRelationError`;
+   - an ORDER BY direction, `asc` / `desc`, as `orderBy("t.col", "desc")` builds it.
+
+   Any other raw SQL throws `UnscopedRelationError`: `` sql`…` `` templates, `sql.raw`, `sql.lit`, `sql.id`, `sql.table`, `sql.join`, and `modifyFront` / `modifyEnd`. Their text could read a relation the tenancy pass never sees or leave its slot (`1 = 1 --`). Use builder expressions, a function from `extensions.ts` (or `eb.fn` for one on the allowlist), a constant helper from `extensions.ts` (`literal(...)`, `typedValue(...)`, `emptyMap()`), or a bound value.
 
 Every pass and the compiler read a FROM/JOIN item through `describeRelation`
 (`relations.ts`): it peels one FINAL and then one alias, so `scores as s final`
@@ -345,9 +351,7 @@ widening behavior.
 
 - `aliasRef("alias")` (`extensions.ts`) — references a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it), as a column reference node with `.as(…)`. Prefer it to `sql.ref("alias")`, which renders the same reference wrapped in raw SQL. Both are untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where the bare spelling only matches the legacy SQL, since ClickHouse also accepts `costType as costType`).
 - `eb.fn("ch_function", [...])` — a ClickHouse function by name. The name must be on `ALLOWED_FUNCTIONS` (`functions.ts`), since a function can read a table or server state. The return type defaults to `unknown`; no arity or return checking.
-- New columns — add them to the table registry in `schema.ts` (one `defineTable`
-  entry per relation) as queries need them. That single declaration drives the
-  row types, the runtime column-type map, and the tenanted-table set.
+- New columns — add them to the table registry in `schema.ts` (one `defineTable` entry per relation) as queries need them. That single declaration drives the row types, the runtime column-type map, and the tenanted-table set. Take each type from the latest ClickHouse migration, `Nullable(…)` kept and `LowCardinality(T)` registered as `T`: binds take their type from it. A physical column the registry does not model is listed in `UNMODELED_COLUMNS` in `schema.ts`. `query-ast-registry-ddl.servertest.ts` fails when a migration adds a column to a registered table that is in neither, and prints the `defineTable` line to paste; model it or list it. It also fails on a declared column whose type differs from ClickHouse, and on an `UNMODELED_COLUMNS` entry that is modeled or no longer exists.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
