@@ -14,7 +14,7 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { useScaledElementWidth } from "@/src/hooks/useScaledElementWidth";
+import { ResizeContainer } from "@/src/components/ResizeContainer";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
@@ -84,8 +84,6 @@ export function DashboardGrid({
     activeKey: activeChartKey,
     onActiveKeyChange: setActiveChartKey,
   };
-  const { containerRef, contentRef, width, containerStyle, contentStyle } =
-    useScaledElementWidth({ settleMs: 200 });
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
   );
@@ -105,36 +103,12 @@ export function DashboardGrid({
   const MIN_ROW_HEIGHT = 58;
   // Matches the page padding (p-3) around the grid.
   const GRID_GAP = 12;
-  const rowHeight =
-    width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
   // Detect if screen is medium or smaller (below 1024px). Exact complement of
   // Tailwind's `lg:` breakpoint: widget content uses `lg:` variants for its
   // grid-mode sizing (e.g. smaller chart flex bases that rely on grow), so the
   // stacked layout must never overlap them. (LFE-10813)
   const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
-
-  // Convert WidgetPlacement to react-grid-layout format
-  const layout = widgets.map((w) => {
-    const contentHeight = contentHeights[w.id];
-    const contentRows = contentHeight
-      ? Math.ceil((contentHeight + GRID_GAP) / (rowHeight + GRID_GAP))
-      : 0;
-
-    return {
-      i: w.id,
-      x: w.x,
-      y: w.y,
-      w: w.x_size,
-      h:
-        w.type === "preset" && w.presetId === "home-score-analytics"
-          ? Math.max(w.y_size, contentRows)
-          : w.y_size,
-      isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
-      minW: 2,
-      minH: 2,
-    };
-  });
 
   const handleLayoutChange = (newLayout: any[]) => {
     // Safety checks: prevent layout changes on small screens and when editing is disabled
@@ -235,40 +209,63 @@ export function DashboardGrid({
 
   // Desktop grid. Small screens render the stacked layout above.
   return (
-    <div
-      ref={containerRef}
-      className="w-full min-w-0 overflow-hidden"
-      style={containerStyle}
-    >
-      <div ref={contentRef} style={contentStyle}>
-        {width !== null && (
-          <Responsive
-            className="layout"
-            width={width}
-            layouts={{ lg: layout }}
-            cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-            margin={[GRID_GAP, GRID_GAP]}
-            containerPadding={[0, 0]}
-            rowHeight={rowHeight}
-            isDraggable={canEdit}
-            isResizable={canEdit}
-            onDragStop={handleLayoutChange} // Save immediately when drag stops
-            onResizeStop={handleLayoutChange} // Save immediately when resize stops
-            draggableHandle=".drag-handle"
-            useCSSTransforms
-          >
-            {widgets.map((widget) => (
-              <div
-                key={widget.id}
-                data-placement-id={widget.id}
-                className="max-h-full max-w-full"
-              >
-                {renderPlacement(widget)}
-              </div>
-            ))}
-          </Responsive>
-        )}
-      </div>
-    </div>
+    <ResizeContainer className="w-full min-w-0 overflow-hidden" settleMs={200}>
+      {(width) => {
+        const rowHeight =
+          width !== null
+            ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16)
+            : MIN_ROW_HEIGHT;
+        const layout = widgets.map((w) => {
+          const contentHeight = contentHeights[w.id];
+          const contentRows = contentHeight
+            ? Math.ceil((contentHeight + GRID_GAP) / (rowHeight + GRID_GAP))
+            : 0;
+
+          return {
+            i: w.id,
+            x: w.x,
+            y: w.y,
+            w: w.x_size,
+            h:
+              w.type === "preset" && w.presetId === "home-score-analytics"
+                ? Math.max(w.y_size, contentRows)
+                : w.y_size,
+            isDraggable: canEdit && !isSmallScreen,
+            minW: 2,
+            minH: 2,
+          };
+        });
+
+        return (
+          width !== null && (
+            <Responsive
+              className="layout"
+              width={width}
+              layouts={{ lg: layout }}
+              cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
+              margin={[GRID_GAP, GRID_GAP]}
+              containerPadding={[0, 0]}
+              rowHeight={rowHeight}
+              isDraggable={canEdit}
+              isResizable={canEdit}
+              onDragStop={handleLayoutChange} // Save immediately when drag stops
+              onResizeStop={handleLayoutChange} // Save immediately when resize stops
+              draggableHandle=".drag-handle"
+              useCSSTransforms
+            >
+              {widgets.map((widget) => (
+                <div
+                  key={widget.id}
+                  data-placement-id={widget.id}
+                  className="max-h-full max-w-full"
+                >
+                  {renderPlacement(widget)}
+                </div>
+              ))}
+            </Responsive>
+          )
+        );
+      }}
+    </ResizeContainer>
   );
 }

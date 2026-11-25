@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+"use client";
+// Headless box: the caller owns the classes on the measured element.
+/* eslint-disable @repo/no-style-props */
+
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { cn } from "@/src/utils/tailwind";
 
 const CONTENT_SCALE_VAR = "--lf-content-scale";
 const SCALED_HEIGHT_VAR = "--lf-scaled-height";
@@ -13,19 +24,11 @@ const scaledContentStyle = {
 } as const;
 
 /**
- * Measure an element's width and keep a child layout at the last committed
- * width while the box is still changing.
- *
- * The committed width is what callers should lay out against. Until the
- * width has been still for `settleMs`, the hook writes a CSS scale and
- * height on the container so the committed layout fills the live box
- * without a React update. Callers apply `containerStyle` and `contentStyle`.
+ * Measure a box and keep its child layout at the last committed width while
+ * the box is still changing. Until the width has been still for `settleMs`,
+ * a CSS scale fills the live box without a React update.
  */
-export function useScaledElementWidth({
-  settleMs = 200,
-}: {
-  settleMs?: number;
-} = {}) {
+function useScaledElementWidth(settleMs: number) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [content, setContent] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -110,5 +113,30 @@ export function useScaledElementWidth({
     [width],
   );
 
-  return { containerRef, contentRef, width, containerStyle, contentStyle };
+  return { containerRef, contentRef, width, contentStyle };
+}
+
+export function ResizeContainer({
+  children,
+  className,
+  settleMs = 200,
+}: {
+  children: (width: number | null) => ReactNode;
+  className?: string;
+  settleMs?: number;
+}) {
+  const { containerRef, contentRef, width, contentStyle } =
+    useScaledElementWidth(settleMs);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn("w-full min-w-0 overflow-hidden", className)}
+      style={containerStyle}
+    >
+      <div ref={contentRef} style={contentStyle}>
+        {children(width)}
+      </div>
+    </div>
+  );
 }
