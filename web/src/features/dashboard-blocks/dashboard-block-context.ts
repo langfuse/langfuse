@@ -1,11 +1,32 @@
 import { createContext, useContext } from "react";
-import { type SavedDashboardBlock, type FilterState } from "@langfuse/shared";
+import {
+  type SavedDashboardBlock,
+  type HomeDashboardPresetId,
+  type FilterState,
+} from "@langfuse/shared";
 import { type DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
 
-export type BlockEditorRequest =
-  | { kind: "markdown"; block?: SavedDashboardBlock }
-  | { kind: "multiQuery"; block?: SavedDashboardBlock; initialTabId?: string };
+export type HomePresetDraft = {
+  source: NonNullable<SavedDashboardBlock["sourcePreset"]>;
+  selection: PresetSelection;
+};
+
+export type BlockEditorRequest = (
+  | {
+      kind: "multiQuery" | "markdown";
+      block?: SavedDashboardBlock;
+      initialTabId?: string;
+      preset?: never;
+    }
+  | {
+      kind: "multiQuery";
+      block?: never;
+      initialTabId?: never;
+      preset: HomePresetDraft;
+    }
+) & { onTabSaved?: (tabId: string) => void };
 
 export type DashboardBlocksContextValue = {
   projectId: string;
@@ -18,6 +39,7 @@ export type DashboardBlocksContextValue = {
   blocksPending: boolean;
   capabilities: { multiQuery: boolean; markdown: boolean };
   blocks: SavedDashboardBlock[];
+  savedPresetTabs?: ReadonlyMap<string, string>;
   widgets: DashboardPlacement[];
   placementOptions: { value: string | null; label: string }[];
   loadError: boolean;
@@ -31,12 +53,16 @@ export type DashboardBlocksContextValue = {
       | "save"
       | "cancel"
       | "duplicate"
+      | "preset_edit"
+      | "preset_convert"
+      | "preset_restore"
       | "remove"
       | "placement"
       | "layout_open"
       | "layout_close",
     kind?: "multiQuery" | "markdown",
     isNew?: boolean,
+    presetId?: HomeDashboardPresetId,
   ) => void;
 };
 

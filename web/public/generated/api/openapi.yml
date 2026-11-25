@@ -15825,6 +15825,18 @@ components:
           required:
             - kind
           title: UnstableMultiQueryDashboardBlock
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - convertedPreset
+            - $ref: '#/components/schemas/unstableConvertedDashboardPreset'
+          required:
+            - kind
+          title: UnstableConvertedDashboardPreset
       required:
         - id
         - revision
@@ -15845,6 +15857,32 @@ components:
             append.
           type: string
           nullable: true
+    unstableConvertedDashboardPreset:
+      title: unstableConvertedDashboardPreset
+      type: object
+      description: >-
+        Replaces the contents of the referenced preset placement while retaining
+        its grid position and size. Render the chart in that placement. Its
+        beforePlacementId is null.
+      properties:
+        sourcePreset:
+          $ref: '#/components/schemas/unstableDashboardPresetSource'
+        config:
+          $ref: '#/components/schemas/unstableDashboardMultiQueryConfigV2'
+      required:
+        - sourcePreset
+        - config
+    unstableDashboardPresetSource:
+      title: unstableDashboardPresetSource
+      type: object
+      properties:
+        placementId:
+          type: string
+        presetId:
+          type: string
+      required:
+        - placementId
+        - presetId
     unstableMarkdownDashboardBlock:
       title: unstableMarkdownDashboardBlock
       type: object
@@ -16018,6 +16056,12 @@ components:
           type: string
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        homeCategoryFallback:
+          type: boolean
+          nullable: true
+        homeScoreAggregate:
+          type: boolean
+          nullable: true
         metrics:
           type: array
           items:
@@ -16069,6 +16113,20 @@ components:
           description: Between 1 and 200 characters.
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
+        homeCategoryFallback:
+          type: boolean
+          nullable: true
+          description: >-
+            Read an observation cost or usage category time series from its Home
+            data source on the legacy read path.
+        homeScoreAggregate:
+          type: boolean
+          nullable: true
+          description: >-
+            Use the Home score aggregate on the project's read path. Supports
+            score-record counts and numeric means, grouped by name, source or
+            data type. Use the scores-numeric source with explicit data type
+            filters to select a population.
         metrics:
           type: array
           items:
@@ -16152,8 +16210,30 @@ components:
         legend:
           type: boolean
           nullable: true
+        subtotalMetric:
+          type: string
+          nullable: true
+          description: >-
+            A source.metric reference to a count or sum. The subtotal includes
+            returned groups before table display filters.
+        hideUnattributedRows:
+          type: boolean
+          nullable: true
+          description: Hide table rows with a missing breakdown value.
+        timeBuckets:
+          $ref: '#/components/schemas/unstableDashboardTimeBuckets'
+          nullable: true
+          description: >-
+            Use the dashboard's time interval or let the analytics query choose
+            one.
       required:
         - chartType
+    unstableDashboardTimeBuckets:
+      title: unstableDashboardTimeBuckets
+      type: string
+      enum:
+        - auto
+        - dashboard
     unstableDashboardMultiQueryView:
       title: unstableDashboardMultiQueryView
       type: object

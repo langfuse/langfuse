@@ -2,13 +2,15 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useRef } from "react";
-import { CopyIcon, CopyPlusIcon, TrashIcon } from "@langfuse/icons";
+import { CopyIcon, CopyPlusIcon, PencilIcon, TrashIcon } from "@langfuse/icons";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
+  type PresetSelection,
+  type PresetSelectionActions,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
@@ -49,6 +51,7 @@ export function PresetDashboardWidget({
   readOnly,
   showDuplicateButton = false,
   onDuplicatePreset,
+  onEditPreset,
   heightBehavior,
 }: {
   projectId: string;
@@ -79,6 +82,10 @@ export function PresetDashboardWidget({
    */
   showDuplicateButton?: boolean;
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  onEditPreset?: (
+    placement: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
   heightBehavior:
     | { mode: "fixed" }
     | {
@@ -88,10 +95,6 @@ export function PresetDashboardWidget({
 }) {
   const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
-  // Presets on project-owned dashboards (e.g. a clone of the curated Home)
-  // can be moved/removed, but their content stays fixed until extended into a
-  // configurable widget. On Langfuse-owned dashboards the same affordances
-  // show, routing through the clone-first flow.
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -284,6 +287,21 @@ export function PresetDashboardWidget({
         : []),
     ],
   };
+  const actionsForSelection: PresetSelectionActions | undefined =
+    hasRbacCUDAccess && onEditPreset
+      ? (selection) => ({
+          ...actions,
+          buttons: [
+            {
+              id: "edit",
+              label: "Edit widget",
+              icon: PencilIcon,
+              onClick: () => onEditPreset(placement, selection),
+            },
+            ...(actions.buttons ?? []),
+          ],
+        })
+      : undefined;
 
   return (
     <div
@@ -297,7 +315,11 @@ export function PresetDashboardWidget({
             : "h-full w-full overflow-y-auto"
         }
       >
-        {renderPreset({ ...ctx, actions })}
+        {renderPreset({
+          ...ctx,
+          actions: actionsForSelection?.({}) ?? actions,
+          actionsForSelection,
+        })}
       </div>
     </div>
   );

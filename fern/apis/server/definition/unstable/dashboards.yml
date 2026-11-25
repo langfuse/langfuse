@@ -346,6 +346,16 @@ types:
     union:
       markdown: MarkdownDashboardBlock
       multiQuery: MultiQueryDashboardBlock
+      convertedPreset: ConvertedDashboardPreset
+  ConvertedDashboardPreset:
+    docs: Replaces the contents of the referenced preset placement while retaining its grid position and size. Render the chart in that placement. Its beforePlacementId is null.
+    properties:
+      sourcePreset: DashboardPresetSource
+      config: DashboardMultiQueryConfigV2
+  DashboardPresetSource:
+    properties:
+      placementId: string
+      presetId: string
   MarkdownDashboardBlock:
     properties:
       config: DashboardMarkdownConfig
@@ -436,6 +446,8 @@ types:
       id: string
       label: string
       view: dashboardWidgets.DashboardWidgetViewWithLegacy
+      homeCategoryFallback: optional<boolean>
+      homeScoreAggregate: optional<boolean>
       metrics: list<DashboardMultiQueryTabMetric>
       dimensions: list<dashboardWidgets.DashboardWidgetDimension>
       filters: list<dashboardWidgets.DashboardWidgetFilter>
@@ -456,6 +468,12 @@ types:
         type: string
         docs: Between 1 and 200 characters.
       view: dashboardWidgets.DashboardWidgetViewWithLegacy
+      homeCategoryFallback:
+        type: optional<boolean>
+        docs: Read an observation cost or usage category time series from its Home data source on the legacy read path.
+      homeScoreAggregate:
+        type: optional<boolean>
+        docs: Use the Home score aggregate on the project's read path. Supports score-record counts and numeric means, grouped by name, source or data type. Use the scores-numeric source with explicit data type filters to select a population.
       metrics:
         type: list<DashboardMultiQueryMetric>
         docs: Between 1 and 5 metrics with unique ids and distinct measure/aggregation pairs.
@@ -492,6 +510,19 @@ types:
         type: optional<integer>
         docs: Between 1 and 100.
       legend: optional<boolean>
+      subtotalMetric:
+        type: optional<string>
+        docs: A source.metric reference to a count or sum. The subtotal includes returned groups before table display filters.
+      hideUnattributedRows:
+        type: optional<boolean>
+        docs: Hide table rows with a missing breakdown value.
+      timeBuckets:
+        type: optional<DashboardTimeBuckets>
+        docs: Use the dashboard's time interval or let the analytics query choose one.
+  DashboardTimeBuckets:
+    enum:
+      - auto
+      - dashboard
   DashboardMultiQueryView:
     properties:
       id:

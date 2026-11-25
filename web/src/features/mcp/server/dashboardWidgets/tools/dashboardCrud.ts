@@ -98,7 +98,13 @@ const publicBlockBaseSchema = classicPlacementBaseSchema
     height: true,
   })
   .extend({
-    kind: z.enum(["markdown", "multiQuery"]).optional(),
+    kind: z.enum(["markdown", "multiQuery", "convertedPreset"]).optional(),
+    sourcePreset: z
+      .object({ placementId: z.string(), presetId: z.string() })
+      .optional()
+      .describe(
+        "For a converted preset, echo the original grid placement and preset IDs.",
+      ),
     revision: z.number().int().positive().optional(),
     beforePlacementId: z
       .unknown()

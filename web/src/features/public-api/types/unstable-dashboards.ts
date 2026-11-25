@@ -1,6 +1,9 @@
 import { z } from "zod";
 import isEqual from "lodash/isEqual";
-import { savedDashboardBlockSchema, singleFilterList } from "@langfuse/shared";
+import {
+  storedInlineDashboardWidgetSchema,
+  singleFilterList,
+} from "@langfuse/shared";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -53,7 +56,7 @@ const legacyDefinition = z
 const versionedDefinition = z.strictObject({
   version: z.literal("1"),
   blocks: z.array(
-    z.union([DashboardPlacementSchema, savedDashboardBlockSchema]),
+    z.union([DashboardPlacementSchema, storedInlineDashboardWidgetSchema]),
   ),
   widgets: classicWidgets,
 });

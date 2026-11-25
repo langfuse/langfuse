@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import type { HomeWidgetRecipeContext } from "@/src/features/dashboard-blocks/homeWidgetRecipes";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -14,6 +15,11 @@ import { LatencyTableCard } from "@/src/features/dashboard/components/LatencyTab
 import { GenerationLatencyCard } from "@/src/features/dashboard/components/GenerationLatencyCard";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 
+export type PresetSelection = Omit<HomeWidgetRecipeContext, "version">;
+export type PresetSelectionActions = (
+  selection: PresetSelection,
+) => DataCardActions;
+
 /**
  * Props bag a "preset" dashboard placement is rendered with. Derived by
  * PresetDashboardWidget from the surrounding dashboard's state (time range,
@@ -22,6 +28,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
  */
 export interface PresetWidgetContext {
   actions?: DataCardActions;
+  actionsForSelection?: PresetSelectionActions;
   projectId: string;
   /** Page-level filters WITHOUT the time window (time arrives as timestamps). */
   globalFilterState: FilterState;
@@ -91,6 +98,7 @@ const HOME_PRESETS: Record<
   "home-traces-obs-time-series": (ctx) => (
     <TracesAndObservationsTimeSeriesCard
       actions={ctx.actions}
+      actionsForSelection={ctx.actionsForSelection}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -107,6 +115,7 @@ const HOME_PRESETS: Record<
   "home-model-usage": (ctx) => (
     <ModelUsageCard
       actions={ctx.actions}
+      actionsForSelection={ctx.actionsForSelection}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -124,6 +133,7 @@ const HOME_PRESETS: Record<
   "home-users": (ctx) => (
     <UserConsumptionCard
       actions={ctx.actions}
+      actionsForSelection={ctx.actionsForSelection}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -195,6 +205,7 @@ const HOME_PRESETS: Record<
   "home-generation-latency": (ctx) => (
     <GenerationLatencyCard
       actions={ctx.actions}
+      actionsForSelection={ctx.actionsForSelection}
       className={ctx.className}
       projectId={ctx.projectId}
       agg={ctx.agg}
@@ -211,6 +222,7 @@ const HOME_PRESETS: Record<
   "home-score-analytics": (ctx) => (
     <ScoreAnalytics
       actions={ctx.actions}
+      actionsForSelection={ctx.actionsForSelection}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}

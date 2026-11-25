@@ -152,6 +152,7 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
     act(() => reads[0]!.resolve(blocks));
     await waitFor(() => expect(value().blocks).toEqual(["note", "chart"]));
     expect(capabilityReads).toBe(0);
+    expect(reads[0]).toHaveProperty("includeConvertedPresets", true);
     expect(reads[0]).not.toHaveProperty("kinds");
     changeKinds("project", { multiQuery: false, markdown: false });
     expect(value()).toMatchObject({
@@ -195,6 +196,7 @@ it("reads saved blocks without authoring opt-in, isolates scope changes, and ret
       {
         projectId: "other-project",
         dashboardId: "other-dashboard",
+        includeConvertedPresets: true,
       },
       "query",
     );

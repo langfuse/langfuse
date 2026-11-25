@@ -1304,6 +1304,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                   projectId={projectId}
                   dashboardId={dashboardId}
                   canEdit={hasCUDAccess}
+                  canCloneToEdit={isLockedEditable}
                   readPath={readPath}
                   dateRange={absoluteTimeRange}
                   filterState={gridFilterState}
@@ -1537,6 +1538,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         <div>
                           <DashboardBlocksCanvas
                             key={gridResetKey}
+                            dashboardName={dashboard.data?.name}
                             gridProps={{
                               readPath,
                               widgets: dashboardDefinition.widgets,

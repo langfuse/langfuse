@@ -22,11 +22,37 @@ When the upgraded app reads a classic `{ "widgets": [...] }` dashboard, it prese
 {
   "version": "1",
   "widgets": [
-    { "type": "preset", "id": "traces", "presetId": "home-traces", "x": 0, "y": 0, "x_size": 12, "y_size": 5 }
+    {
+      "type": "preset",
+      "id": "traces",
+      "presetId": "home-traces",
+      "x": 0,
+      "y": 0,
+      "x_size": 12,
+      "y_size": 5
+    }
   ],
   "blocks": [
-    { "type": "preset", "id": "traces", "presetId": "home-traces", "x": 0, "y": 0, "x_size": 12, "y_size": 5 },
-    { "id": "90426bdb-2e6f-494b-b306-b048beeae938", "kind": "markdown", "config": { "version": 1, "title": "Traffic", "content": "The chart counts traces in the selected period." }, "revision": 1, "beforePlacementId": "traces" }
+    {
+      "type": "preset",
+      "id": "traces",
+      "presetId": "home-traces",
+      "x": 0,
+      "y": 0,
+      "x_size": 12,
+      "y_size": 5
+    },
+    {
+      "id": "90426bdb-2e6f-494b-b306-b048beeae938",
+      "kind": "markdown",
+      "config": {
+        "version": 1,
+        "title": "Traffic",
+        "content": "The chart counts traces in the selected period."
+      },
+      "revision": 1,
+      "beforePlacementId": "traces"
+    }
   ]
 }
 ```
@@ -36,10 +62,10 @@ The dashboard router accepts either the original layout or a single widget edit 
 Once every web replica supports the versioned definition and clone path, staff can opt in from their account menu. Select **Internal view** under **View mode**, then open **Feature preview** and enable **Dashboard widget authoring** (`dashboardBlockAuthoring`). As in Topics, staff eligibility uses the account email's exact domain, `@langfuse.com` or `@clickhouse.com`, case-insensitively. Self-hosted installations use the same email-domain convention. The preview defaults off. After enrollment, authoring works in either view on dashboards the employee can edit. Staff can opt out in either view and re-enroll in Internal view. Ordinary readers retain access to the saved widgets. Organization defaults and deployment-wide experimental settings cannot grant widget authoring.
 
 | Person opening a project dashboard                         | Can see saved charts and Markdown | Can add, edit, move or remove widgets |
-| ---------------------------------------------------------- | --------------------------------- | ------------------------------------ |
-| Employee opted in, with dashboard edit permission          | Yes                               | Yes                                  |
-| Employee opted out, or another authorized dashboard reader | Yes                               | No                                   |
-| Person without dashboard read permission                   | No                                | No                                   |
+| ---------------------------------------------------------- | --------------------------------- | ------------------------------------- |
+| Employee opted in, with dashboard edit permission          | Yes                               | Yes                                   |
+| Employee opted out, or another authorized dashboard reader | Yes                               | No                                    |
+| Person without dashboard read permission                   | No                                | No                                    |
 
 The existing dashboard read includes a presence hint so an ordinary classic dashboard can load without a separate request to load inline widgets. A new client pointed at a pre-feature server falls back to the classic dashboard. Older application versions continue to read and save the original grid. Turning the preview off keeps both the document and its contents visible on the upgraded app. A true application rollback restores the pre-feature layout writer. Opening a dashboard on that version preserves the complete document, but saving a classic layout replaces it with `{widgets}` and drops its inline charts and Markdown widgets. During a rollback, pause layout edits on pilot dashboards that must retain their inline widgets or back up their definitions before editing.
 
@@ -47,11 +73,28 @@ An inline widget refers to an existing chart placement or the end of the dashboa
 
 Multi-query schedules up to five ordinary analytics queries for the active tab. Each tab has its own display settings, queries and browser-evaluated formulas. For example, an observation containing both `metadata.abc` and `metadata.bbc` contributes to both independently filtered counts. Compatible presentation changes reuse existing results. Abandoned v4 streams can be aborted. On the legacy transport an already submitted request retains its concurrency slot until it settles.
 
-## Migrating a Home card
+## Editing a Home card
 
-Upgrading the dashboard definition keeps each Home card as a preset. An opted-in editor can add a candidate chart to the same project dashboard and compare both over the same dates and filters. For **Model costs**, start with Observations and add **Sum total cost** and **Sum total tokens**. Group by **Model** and filter **Type** to Generation, Agent, Tool, Chain, Retriever, Evaluator, Embedding and Guardrail. Choose **Table**, sort by total cost with the largest first, and set **Rows per series** to 20. The preset hides unnamed models and shows a cost subtotal. The editable table labels an unnamed model “Unknown” and gives each metric its own row. Compare these details as well as the query results before switching the card.
+Hover over a Home card and choose **Edit widget**. The employee editor opens with the card’s queries, current model or score selections, and active tab. Changing the draft or choosing **Cancel** leaves the dashboard alone. **Save chart** replaces only that placement, including when it shares a row with other cards. On managed Home, the pencil opens the existing clone flow and continues editing that card in the project copy. Creating the copy leaves the project’s Home selection alone.
 
-The pilot places an inline chart above a row or at the end of the dashboard. A preset can occupy half a row. Anchoring a candidate to the right-hand preset puts it above both tiles. Deleting that preset moves the candidate to the end. Before converting a saved customer card, give the replacement its original grid position and size and retain enough of the original preset to undo the conversion. The managed default Home uses its own classic renderer and needs a separate rollout. After a recipe is verified, the chooser can offer it for new dashboards while existing dashboards keep their saved cards.
+The saved widget uses the same editor, tabs, formulas and display controls as any multi-query chart. All authorized readers see the replacement. Choose **Widget actions → Restore Home card** to discard the editable configuration and bring back the preset in its current position and size. **Remove widget** deletes both. Duplicating the editable widget creates an independent chart. Restoring a preset brings back its normal reader controls and defaults. Unsaved reader selections on the original card are session state.
+
+| Home card                       | Starting configuration in the editor                                                                                                                                                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Traces                          | Top 20 names plus a separately queried total. The newer read path counts distinct trace IDs.                                                                                                                                        |
+| Model costs                     | Cost and tokens in adjacent columns, ranked by cost. The subtotal includes unnamed models in the returned top 20.                                                                                                                   |
+| Scores                          | Counts and means by score name, source and data type, including counts equal to zero and one. Category counts and the full-period total have their own tabs.                                                                        |
+| Traces and observations by time | Observation counts by level and a period total. The legacy read path also includes traces.                                                                                                                                          |
+| Model usage                     | Cost and usage by model or category, plus totals for the selected models. On v3, the category tabs use the existing Home queries.                                                                                                   |
+| User consumption                | Cost and trace counts by user, with a subtotal of the returned groups.                                                                                                                                                              |
+| Scores over time                | Numeric and boolean score means per time bucket, grouped by name, data type and source.                                                                                                                                             |
+| Trace latency                   | p50, p90, p95 and p99 by name. The v3 card measures traces. The v4 card measures root observations.                                                                                                                                 |
+| Generation latency table        | The same four percentiles by generation-like observation name, ranked by p95.                                                                                                                                                       |
+| Observation latency table       | Percentiles by observation type and name, excluding generations.                                                                                                                                                                    |
+| Model latencies                 | Five percentile tabs from p50 through p99 for the selected models.                                                                                                                                                                  |
+| Score analytics                 | Distribution and trend tabs for each selected numeric, boolean or categorical definition. Choose up to four definitions in one widget. The editor explains how its histogram population differs from the sampled v3 Home histogram. |
+
+The original preset placement remains the geometry owner in the classic projection. A versioned chart entry in the same dashboard document identifies that placement and its preset type. A row lock checks both before saving. Moves and resizes update one grid slot. Authorized reads render the editable chart there. The classic projection still renders the original card for older clients. Upgraded servers reject ambiguous placement IDs and attempts to detach or silently delete a saved conversion through a classic layout write. During a binary rollback, retain the backup and layout-edit precautions above. A server that understands inline widgets but predates conversions can move the original placement. Replacing or removing the original placement on that server breaks the binding.
 
 ## Public API and MCP
 

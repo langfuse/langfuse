@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { savedDashboardBlockSchema } from "./blocks";
+import { storedInlineDashboardWidgetSchema } from "./blocks";
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
   type: z.literal("widget"),
@@ -35,7 +35,10 @@ export const DashboardDefinitionSchema = z.object({
 export const DashboardDefinitionV1Schema = DashboardDefinitionSchema.extend({
   version: z.literal("1"),
   blocks: z.array(
-    z.union([DashboardDefinitionWidgetSchema, savedDashboardBlockSchema]),
+    z.union([
+      DashboardDefinitionWidgetSchema,
+      storedInlineDashboardWidgetSchema,
+    ]),
   ),
 });
 

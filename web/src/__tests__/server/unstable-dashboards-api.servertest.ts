@@ -117,6 +117,12 @@ describe("unstable dashboard API", () => {
         ],
       },
     };
+    const converted = {
+      ...tabbedChart,
+      id: randomUUID(),
+      kind: "convertedPreset",
+      sourcePreset: { placementId: placement.id, presetId: placement.presetId },
+    };
     const opaque = {
       ...note,
       id: randomUUID(),
@@ -131,7 +137,14 @@ describe("unstable dashboard API", () => {
           definition: {
             version: "1",
             widgets: [storedPlacement],
-            blocks: [storedPlacement, note, chart, tabbedChart, opaque],
+            blocks: [
+              storedPlacement,
+              note,
+              chart,
+              tabbedChart,
+              converted,
+              opaque,
+            ],
           },
         },
       });
@@ -146,7 +159,7 @@ describe("unstable dashboard API", () => {
       const expected = {
         version: "1",
         widgets: [placement],
-        blocks: [placement, note, chart, tabbedChart],
+        blocks: [placement, note, chart, tabbedChart, converted],
       };
       expect(read.body.definition).toEqual(expected);
       const listed = await makeZodVerifiedAPICall(
@@ -173,7 +186,7 @@ describe("unstable dashboard API", () => {
           name: "Expanded chart",
           definition: {
             version: "1",
-            blocks: [moved, note, chart, tabbedChart],
+            blocks: [moved, note, chart, tabbedChart, converted],
           },
         },
         auth,
@@ -181,19 +194,38 @@ describe("unstable dashboard API", () => {
       expect(accepted.body.definition).toEqual({
         version: "1",
         widgets: [moved],
-        blocks: [moved, note, chart, tabbedChart],
+        blocks: [moved, note, chart, tabbedChart, converted],
       });
 
       for (const blocks of [
-        [moved, chart, tabbedChart],
-        [moved, note, chart, tabbedChart, { ...note, id: randomUUID() }],
+        [moved, note, chart, tabbedChart],
+        [
+          moved,
+          note,
+          chart,
+          tabbedChart,
+          {
+            ...converted,
+            sourcePreset: { ...converted.sourcePreset, placementId: "another" },
+          },
+        ],
+        [moved, chart, tabbedChart, converted],
+        [
+          moved,
+          note,
+          chart,
+          tabbedChart,
+          converted,
+          { ...note, id: randomUUID() },
+        ],
         [
           moved,
           { ...note, config: { ...note.config, content: "Replacement" } },
           chart,
           tabbedChart,
+          converted,
         ],
-        [moved, chart, note, tabbedChart],
+        [moved, chart, note, tabbedChart, converted],
       ]) {
         const rejected = await makeAPICall(
           "PATCH",
@@ -215,6 +247,13 @@ describe("unstable dashboard API", () => {
         );
         expect(rejected.status).toBe(403);
       }
+      const removedFallback = await makeAPICall(
+        "PATCH",
+        path,
+        { definition: { widgets: [] } },
+        auth,
+      );
+      expect(removedFallback.status).toBe(409);
       const deniedCreate = await makeAPICall(
         "POST",
         route,
@@ -267,6 +306,7 @@ describe("unstable dashboard API", () => {
             },
             chart,
             tabbedChart,
+            converted,
           ],
         },
       });

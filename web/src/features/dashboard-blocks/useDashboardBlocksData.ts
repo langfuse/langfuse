@@ -41,7 +41,7 @@ export function useDashboardBlocksData({
   const readsEnabled = dashboardReady && hasDashboardBlocks === true;
   const utils = api.useUtils();
   const queryClient = useQueryClient();
-  const input = { projectId, dashboardId };
+  const input = { projectId, dashboardId, includeConvertedPresets: true };
   const queryKey = getQueryKey(
     api.dashboard.getDashboardBlocks,
     input,

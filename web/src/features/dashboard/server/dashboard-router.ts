@@ -565,6 +565,7 @@ export const dashboardRouter = createTRPCRouter({
     .input(
       GetDashboardInput.extend({
         kinds: z.array(z.enum(["multiQuery", "markdown"])).optional(),
+        includeConvertedPresets: z.boolean().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -576,6 +577,7 @@ export const dashboardRouter = createTRPCRouter({
       const blocks = await DashboardService.getDashboardBlocks(
         input.projectId,
         input.dashboardId,
+        input.includeConvertedPresets,
       );
       const { kinds } = input;
       return kinds

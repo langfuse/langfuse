@@ -249,6 +249,7 @@ export class DashboardService {
             name: true,
             description: true,
             definition: true,
+            filters: true,
           },
         });
         if (!source)
@@ -267,6 +268,7 @@ export class DashboardService {
               names.map(({ name }) => name),
             ),
             description: source.description,
+            filters: source.filters ?? [],
             projectId,
             createdBy: userId,
             updatedBy: userId,
@@ -281,7 +283,7 @@ export class DashboardService {
           UPDATE dashboards AS target SET definition = CASE
             WHEN source.definition->'version' = '"1"'::jsonb AND jsonb_typeof(source.definition->'blocks') = 'array'
             THEN jsonb_set(source.definition, '{blocks}', (
-              SELECT COALESCE(jsonb_agg(CASE WHEN entry->>'kind' IN ('markdown', 'multiQuery')
+              SELECT COALESCE(jsonb_agg(CASE WHEN entry->>'kind' IN ('markdown', 'multiQuery', 'convertedPreset')
                 AND jsonb_typeof(entry->'revision') = 'number'
                 THEN jsonb_set(entry, '{revision}', '1'::jsonb) ELSE entry END ORDER BY ord), '[]'::jsonb)
               FROM jsonb_array_elements(source.definition->'blocks') WITH ORDINALITY AS stored(entry, ord)

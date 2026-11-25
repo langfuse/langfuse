@@ -7,6 +7,8 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { useSaveDashboardBlock } from "./useDashboardBlockMutations";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type BlockEditorRequest } from "./dashboard-block-context";
+import { buildHomeWidgetRecipe } from "./homeWidgetRecipes";
+import { HomePresetSelectionDialog } from "./HomePresetSelectionDialog";
 import { DashboardMarkdownEditor } from "./DashboardMarkdownEditor";
 import { DashboardBlockPlacement } from "./DashboardBlockPlacement";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -46,6 +48,14 @@ export function DashboardBlockEditor({
   onCancel: () => void;
 }) {
   const [id] = useState(() => request.block?.id ?? uuidv4());
+  const [recipe, setRecipe] = useState(() =>
+    request.kind === "multiQuery" && request.preset
+      ? buildHomeWidgetRecipe(request.preset.source.presetId, {
+          ...request.preset.selection,
+          version: readPath === "v4" ? "v2" : "v1",
+        })
+      : undefined,
+  );
   const [beforePlacementId, setBeforePlacementId] = useState(
     request.block?.beforePlacementId ?? null,
   );
@@ -54,7 +64,11 @@ export function DashboardBlockEditor({
     setBeforePlacementId(next);
     onPlacementChanged();
   };
-  const mutation = useSaveDashboardBlock({ projectId, dashboardId, onSaved });
+  const mutation = useSaveDashboardBlock({ projectId, dashboardId });
+  const finishSave = (activeTabId?: string) => {
+    if (activeTabId) request.onTabSaved?.(activeTabId);
+    onSaved();
+  };
   const error = saveErrorMessage(mutation.isError, mutation.error?.data?.code);
   const save = (
     content:
@@ -63,19 +77,23 @@ export function DashboardBlockEditor({
           config: { version: 1; title: string; content: string };
         }
       | { kind: "multiQuery"; config: SavedMultiQueryConfig },
+    activeTabId?: string,
   ) => {
     if (!canEdit || mutation.isPending) return;
-    mutation.mutate({
-      projectId,
-      dashboardId,
-      blockPatch: {
-        op: "upsert",
-        id,
-        expectedRevision: request.block?.revision ?? 0,
-        beforePlacementId,
-        ...content,
+    mutation.mutate(
+      {
+        projectId,
+        dashboardId,
+        blockPatch: {
+          op: "upsert",
+          id,
+          expectedRevision: request.block?.revision ?? 0,
+          beforePlacementId,
+          ...content,
+        },
       },
-    });
+      { onSuccess: () => finishSave(activeTabId) },
+    );
   };
   if (!canEdit)
     return (
@@ -105,15 +123,46 @@ export function DashboardBlockEditor({
         onPreview={onPreview}
       />
     );
+  if (recipe && "reason" in recipe) {
+    if (
+      request.preset &&
+      dateRange &&
+      [
+        "home-score-analytics",
+        "home-model-usage",
+        "home-generation-latency",
+      ].includes(request.preset.source.presetId)
+    )
+      return (
+        <HomePresetSelectionDialog
+          preset={request.preset}
+          projectId={projectId}
+          dateRange={dateRange}
+          filterState={filterState}
+          version={readPath === "v4" ? "v2" : "v1"}
+          onContinue={setRecipe}
+        />
+      );
+    return (
+      <Dialog title="Edit Home card" closeLabel="Close" noCapture>
+        <Dialog.Body>
+          <p className="text-muted-foreground text-sm">{recipe.reason}</p>
+        </Dialog.Body>
+      </Dialog>
+    );
+  }
+  const chartTitle = request.block
+    ? "Edit multi-query chart"
+    : "New multi-query chart";
   return (
     <Dialog
-      title={request.block ? "Edit multi-query chart" : "New multi-query chart"}
+      title={request.preset ? "Edit Home card" : chartTitle}
       size="xxl"
       noCapture
       requireExplicitClose={mutation.isPending}
     >
       <Dialog.Body>
-        {!request.block && placementOptions.length > 1 && (
+        {!request.block && !request.preset && placementOptions.length > 1 && (
           <DashboardBlockPlacement
             value={beforePlacementId}
             options={placementOptions}
@@ -121,12 +170,27 @@ export function DashboardBlockEditor({
             onChange={updatePlacement}
           />
         )}
+        {recipe && (
+          <div className="mb-3 space-y-1 px-1 text-sm">
+            <p>
+              Saving replaces this Home card with an editable widget in the same
+              position. You can restore the Home card from the widget menu.
+            </p>
+            {recipe.limitations.length > 0 && (
+              <ul className="text-muted-foreground list-disc space-y-1 pl-5">
+                {recipe.limitations.map((limitation) => (
+                  <li key={limitation}>{limitation}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <MultiQueryEditor
-          initialTabId={request.initialTabId}
+          initialTabId={recipe?.initialTabId ?? request.initialTabId}
           initial={
             request.block?.kind === "multiQuery"
               ? request.block.config
-              : undefined
+              : recipe?.config
           }
           projectId={projectId}
           dateRange={dateRange}
@@ -134,7 +198,25 @@ export function DashboardBlockEditor({
           readPath={readPath}
           savePending={mutation.isPending}
           saveError={error}
-          onSave={(config) => save({ kind: "multiQuery", config })}
+          onSave={(config, activeTabId) => {
+            if (!request.preset)
+              return save({ kind: "multiQuery", config }, activeTabId);
+            if (!canEdit || mutation.isPending) return;
+            mutation.mutate(
+              {
+                projectId,
+                dashboardId,
+                blockPatch: {
+                  op: "convertPreset",
+                  id,
+                  expectedRevision: 0,
+                  sourcePreset: request.preset.source,
+                  config,
+                },
+              },
+              { onSuccess: () => finishSave(activeTabId) },
+            );
+          }}
           onCancel={onCancel}
         />
       </Dialog.Body>

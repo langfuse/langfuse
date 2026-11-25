@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { savedMultiQueryConfigSchema } from "./multiQuery";
+import { HOME_DASHBOARD_PRESET_IDS } from "../../domain/home-dashboard";
+import {
+  multiQueryConfigV2Schema,
+  savedMultiQueryConfigSchema,
+} from "./multiQuery";
 
 export const dashboardMarkdownConfigVersion = 1;
 
@@ -30,11 +34,45 @@ export const savedDashboardBlockSchema = dashboardBlockContentSchema.and(
   }),
 );
 
-export type SavedDashboardBlock = z.infer<typeof savedDashboardBlockSchema>;
+const sourcePresetSchema = z.object({
+  placementId: z.string().min(1),
+  presetId: z.enum(HOME_DASHBOARD_PRESET_IDS),
+});
+
+const convertedDashboardPresetSchema = z.object({
+  id: z.uuid(),
+  revision: z.number().int().positive(),
+  kind: z.literal("convertedPreset"),
+  sourcePreset: sourcePresetSchema,
+  config: multiQueryConfigV2Schema,
+  beforePlacementId: z.null(),
+});
+
+export const storedInlineDashboardWidgetSchema = z.union([
+  savedDashboardBlockSchema,
+  convertedDashboardPresetSchema,
+]);
+export type StoredInlineDashboardWidget = z.infer<
+  typeof storedInlineDashboardWidgetSchema
+>;
+
+export type SavedDashboardBlock = z.infer<typeof savedDashboardBlockSchema> & {
+  sourcePreset?: z.infer<typeof sourcePresetSchema>;
+};
 
 const dashboardBlockIdentitySchema = z.object({ id: z.uuid() });
 
 export const dashboardBlockPatchSchema = z.union([
+  dashboardBlockIdentitySchema.extend({
+    op: z.literal("convertPreset"),
+    expectedRevision: z.literal(0),
+    sourcePreset: sourcePresetSchema,
+    config: multiQueryConfigV2Schema,
+  }),
+  dashboardBlockIdentitySchema.extend({
+    op: z.literal("restorePreset"),
+    expectedRevision: z.number().int().positive(),
+  }),
   dashboardBlockIdentitySchema
     .extend({
       op: z.literal("upsert"),

@@ -7,10 +7,11 @@ import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import {
   DashboardDefinitionSchema,
   DashboardDefinitionV1Schema,
-  savedDashboardBlockSchema,
+  storedInlineDashboardWidgetSchema,
   type DashboardBlockPatch,
   type DashboardDefinition,
   type SavedDashboardBlock,
+  type StoredInlineDashboardWidget,
 } from "../../../features/dashboards";
 import { DashboardDomainSchema, type DashboardDomain } from "./types";
 import { z } from "zod";
@@ -78,6 +79,7 @@ export function hasDashboardBlocks(
 export async function getDashboardBlocks(
   projectId: string,
   dashboardId: string,
+  includeConvertedPresets = false,
 ): Promise<SavedDashboardBlock[]> {
   const dashboard = await prisma.dashboard.findFirst({
     where: { id: dashboardId, OR: [{ projectId }, { projectId: null }] },
@@ -89,35 +91,87 @@ export async function getDashboardBlocks(
     dashboard.definition,
     DashboardDefinitionSchema.parse(dashboard.definition),
   );
-  return knownInlineBlocks(layout);
+  return knownInlineBlocks(layout).flatMap<SavedDashboardBlock>((entry) => {
+    if (entry.kind !== "convertedPreset") return [entry];
+    return includeConvertedPresets ? [{ ...entry, kind: "multiQuery" }] : [];
+  });
 }
 
 function readSavedBlock(entry: unknown) {
-  return savedDashboardBlockSchema.safeParse(
+  return storedInlineDashboardWidgetSchema.safeParse(
     isObject(entry) && !("beforePlacementId" in entry)
       ? { ...entry, beforePlacementId: null }
       : entry,
   );
 }
 
+function indexPlacements(entries: readonly unknown[]) {
+  const positions = new Map<
+    string,
+    { index: number; presetId: unknown } | null
+  >();
+  entries.forEach((entry, index) => {
+    if (!isObject(entry) || typeof entry.id !== "string") return;
+    // A legacy document may contain duplicate IDs. It has no unambiguous replacement slot.
+    const presetId =
+      isClassicPlacement(entry) && entry.type === "preset"
+        ? entry.presetId
+        : undefined;
+    positions.set(
+      entry.id,
+      positions.has(entry.id) ? null : { index, presetId },
+    );
+  });
+  return positions;
+}
+
+function boundPresetIndex(
+  positions: ReturnType<typeof indexPlacements>,
+  source: { placementId: string; presetId: string },
+) {
+  const placement = positions.get(source.placementId);
+  return placement?.presetId === source.presetId ? placement.index : undefined;
+}
+
+// Preserve bindings even when this binary cannot interpret a newer chart configuration.
+function storedPresetSource(entry: unknown) {
+  if (
+    !isObject(entry) ||
+    entry.kind !== "convertedPreset" ||
+    !isObject(entry.sourcePreset)
+  )
+    return;
+  const { placementId, presetId } = entry.sourcePreset;
+  if (typeof placementId === "string" && typeof presetId === "string")
+    return { placementId, presetId };
+}
+
 function knownInlineBlocks(
   layout: ReturnType<typeof interpretDashboardDefinition>,
-): SavedDashboardBlock[] {
+): StoredInlineDashboardWidget[] {
   if (!layout || layout.needsUpgrade) return [];
-  const placements = new Set(layout.definition.widgets.map(({ id }) => id));
-  return layout.definition.blocks.flatMap((entry) => {
-    if (isClassicPlacement(entry)) return [];
-    const block = readSavedBlock(entry);
-    if (!block.success) return [];
-    const anchor = block.data.beforePlacementId;
-    return [
-      {
-        ...block.data,
-        beforePlacementId:
-          anchor !== null && placements.has(anchor) ? anchor : null,
-      },
-    ];
-  });
+  const placements = indexPlacements(layout.definition.widgets);
+  return layout.definition.blocks.flatMap<StoredInlineDashboardWidget>(
+    (entry) => {
+      if (isClassicPlacement(entry)) return [];
+      const block = readSavedBlock(entry);
+      if (!block.success) return [];
+      const saved = block.data;
+      if (saved.kind === "convertedPreset") {
+        return boundPresetIndex(placements, saved.sourcePreset) !== undefined
+          ? [saved]
+          : [];
+      }
+      const anchor = saved.beforePlacementId;
+      return [
+        {
+          ...saved,
+          beforePlacementId:
+            anchor !== null && placements.has(anchor) ? anchor : null,
+        },
+      ];
+    },
+  );
 }
 
 export type PublicDashboard = Omit<DashboardDomain, "definition"> & {
@@ -233,6 +287,19 @@ async function replaceClassicLayout(
     throw new LangfuseConflictError(
       "Dashboard widget and placement IDs must be unique.",
     );
+  const previous = indexPlacements(current.definition.widgets);
+  const next = indexPlacements(layout.widgets);
+  for (const entry of current.definition.blocks) {
+    const source = storedPresetSource(entry);
+    if (
+      source &&
+      boundPresetIndex(previous, source) !== undefined &&
+      boundPresetIndex(next, source) === undefined
+    )
+      throw new LangfuseConflictError(
+        "Restore or remove the converted widget before removing its preset placement.",
+      );
+  }
   const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
 
   // Rebuild only the classic part, without decoding other entries through JavaScript.
@@ -252,7 +319,7 @@ export async function patchPublicDashboard(
     description?: string;
     filters?: DashboardDomain["filters"];
     definition?: DashboardDefinition & {
-      expectedInlineBlocks?: SavedDashboardBlock[];
+      expectedInlineBlocks?: StoredInlineDashboardWidget[];
     };
   },
 ) {
@@ -321,35 +388,89 @@ export async function patchDashboardBlock(
     const index = matching[0];
     const current =
       index === undefined ? undefined : readSavedBlock(entries[index]);
+    const conflict = () =>
+      new LangfuseConflictError(
+        "This dashboard widget changed. Reload it and try again.",
+      );
     if (current === undefined && patch.expectedRevision !== 0)
       throw new LangfuseNotFoundError("Dashboard widget not found");
     if (
       current &&
-      (!current.success ||
-        current.data.revision !== patch.expectedRevision ||
-        (patch.op === "upsert" && current.data.kind !== patch.kind))
-    ) {
-      throw new LangfuseConflictError(
-        "This dashboard widget changed. Reload it and try again.",
-      );
-    }
-
+      (!current.success || current.data.revision !== patch.expectedRevision)
+    )
+      throw conflict();
+    const saved = current?.data;
     const path = Prisma.sql`ARRAY['blocks', ${String(index ?? entries.length)}]`;
     const base = layout.needsUpgrade
       ? Prisma.sql`definition || jsonb_build_object('version', '1', 'blocks', definition->'widgets')`
       : Prisma.sql`definition`;
+    // A replacement is bound to the same unique preset in both representations of the grid.
+    const source =
+      patch.op === "convertPreset"
+        ? patch.sourcePreset
+        : storedPresetSource(saved);
+    const gridIndex =
+      source &&
+      boundPresetIndex(indexPlacements(layout.definition.widgets), source);
+    const entryIndex =
+      source && boundPresetIndex(indexPlacements(entries), source);
+    if (source && (gridIndex === undefined || entryIndex === undefined))
+      throw conflict();
     let updated: Prisma.Sql;
-    if (patch.op === "remove") {
+    if (patch.op === "convertPreset") {
+      if (
+        entries.some(
+          (entry) =>
+            storedPresetSource(entry)?.placementId ===
+            patch.sourcePreset.placementId,
+        )
+      )
+        throw conflict();
+      const replacement = {
+        kind: "convertedPreset",
+        id: patch.id,
+        revision: 1,
+        beforePlacementId: null,
+        sourcePreset: patch.sourcePreset,
+        config: patch.config,
+      };
+      updated = Prisma.sql`jsonb_set(${base}, ${path}, ${JSON.stringify(replacement)}::jsonb)`;
+    } else if (patch.op === "restorePreset") {
+      if (saved?.kind !== "convertedPreset") throw conflict();
       updated = Prisma.sql`definition #- ${path}`;
+    } else if (patch.op === "remove") {
+      updated = Prisma.sql`definition #- ${path}`;
+      if (saved?.kind === "convertedPreset") {
+        if (
+          gridIndex === undefined ||
+          entryIndex === undefined ||
+          index === undefined
+        )
+          throw conflict();
+        // Array positions shift when an item is removed. Remove the later one first.
+        updated = Prisma.sql`definition #- ARRAY['widgets', ${String(gridIndex)}]
+          #- ARRAY['blocks', ${String(Math.max(index, entryIndex))}] #- ARRAY['blocks', ${String(Math.min(index, entryIndex))}]`;
+      }
     } else {
+      if (saved?.kind === "convertedPreset") {
+        if (
+          patch.kind !== "multiQuery" ||
+          patch.config.version !== 2 ||
+          patch.beforePlacementId != null
+        )
+          throw conflict();
+      } else if (saved && saved.kind !== patch.kind) throw conflict();
       const next = {
         id: patch.id,
-        kind: patch.kind,
+        kind: saved?.kind ?? patch.kind,
+        ...(saved?.kind === "convertedPreset"
+          ? { sourcePreset: saved.sourcePreset }
+          : {}),
         config: patch.config,
         revision: patch.expectedRevision + 1,
         beforePlacementId:
           patch.beforePlacementId === undefined
-            ? (current?.data?.beforePlacementId ?? null)
+            ? (saved?.beforePlacementId ?? null)
             : patch.beforePlacementId,
       };
       updated = Prisma.sql`jsonb_set(${base}, ${path}, ${JSON.stringify(next)}::jsonb)`;

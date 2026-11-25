@@ -12,11 +12,96 @@ import {
   prepareMultiQueryUnitVisualization,
 } from "./multiQueryPresentation";
 import { toFullMetricString } from "@/src/features/widgets/chart-library/utils";
+import { groupedMetricTable, returnedRowsSubtotal } from "./multiQueryTable";
+
+it("keeps ranked models and their metric columns together, including unattributed costs in the subtotal", () => {
+  const example: MultiQueryValue = {
+    queryId: "costs",
+    queryLabel: "Models",
+    metricId: "usd",
+    metricLabel: "Cost",
+    dimensions: { providedModelName: "Beta" },
+    time: null,
+    value: 8,
+    unit: "USD",
+    seriesId: "costs.usd",
+  };
+  const values = [
+    example,
+    {
+      ...example,
+      metricId: "tokens",
+      metricLabel: "Tokens",
+      value: 13,
+      unit: "tokens",
+    },
+    { ...example, dimensions: { providedModelName: null }, value: 5 },
+    { ...example, dimensions: { providedModelName: "Alpha" }, value: 0 },
+  ];
+  const config = createMultiQueryConfig();
+  config.queries[0] = {
+    ...config.queries[0]!,
+    id: "costs",
+    metrics: [{ id: "usd", measure: "totalCost", aggregation: "sum" }],
+  };
+  const table = groupedMetricTable(values, true)!;
+  expect(table.columns.map((c) => c.label)).toEqual([
+    "Model",
+    "Cost",
+    "Tokens",
+  ]);
+  expect(table.rows.map((r) => r.cells[0]!.value)).toEqual(["Beta", "Alpha"]);
+  expect(table.rows[1]!.cells[2]!.value).toBe("—");
+  expect(returnedRowsSubtotal(config.queries, "costs.usd", values)?.value).toBe(
+    13,
+  );
+  config.queries[0].metrics[0]!.aggregation = "p95";
+  expect(
+    returnedRowsSubtotal(config.queries, "costs.usd", values),
+  ).toBeUndefined();
+});
 
 it("renders calculated percentage points once, including a measured zero", () => {
   const format = multiQueryFormatter("percent");
   expect(toFullMetricString(format(12.5, { style: "full" }))).toBe("12.5%");
   expect(toFullMetricString(format(0, { style: "compact" }))).toBe("0%");
+});
+
+it("shows zero for an absent filtered count only if all its groups were returned", () => {
+  const common = {
+    metricId: "count",
+    metricLabel: "Count",
+    unit: "integer",
+    time: null,
+    value: 1,
+  };
+  const rows = [
+    {
+      ...common,
+      seriesId: "all.count",
+      queryId: "all",
+      queryLabel: "All",
+      dimensions: { name: "A" },
+    },
+    {
+      ...common,
+      seriesId: "zero.count",
+      queryId: "zero",
+      queryLabel: "Zero",
+      dimensions: { name: "B" },
+    },
+  ];
+  const queries = ["all", "zero"].map((id) => ({
+    ...createMultiQueryConfig().queries[0]!,
+    id,
+    dimensions: [{ field: "name" }],
+  }));
+  const cell = (rowLimit: number) =>
+    groupedMetricTable(rows, false, { queries, rowLimit })!.rows[0]!.cells.find(
+      (c) => c.columnId === "zero.count",
+    )!.value;
+  expect(cell(10)).toBe(0);
+  expect(cell(1)).toBe("—");
 });
 
 describe("multi-query value presentation", () => {

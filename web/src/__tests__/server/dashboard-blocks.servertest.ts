@@ -165,6 +165,135 @@ describe("project dashboard blocks", () => {
     });
   });
 
+  it("converts one preset in its existing grid slot and restores it after revision-checked edits", async () => {
+    const preset = {
+      id: "left",
+      type: "preset" as const,
+      presetId: "home-traces" as const,
+      x: 6,
+      y: 2,
+      x_size: 5,
+      y_size: 4,
+    };
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Converted preset",
+        description: "",
+        definition: { widgets: [preset] },
+      },
+    });
+    const target = { projectId, dashboardId: dashboard.id };
+    const owner = caller(projectId);
+    const reader = caller(projectId, "VIEWER", { optedIn: false });
+    const patch = {
+      op: "convertPreset" as const,
+      id: randomUUID(),
+      expectedRevision: 0 as const,
+      sourcePreset: {
+        placementId: preset.id,
+        presetId: preset.presetId,
+      },
+      config: {
+        version: 2 as const,
+        title: "Traces",
+        description: "",
+        tabs: [
+          {
+            id: "trace",
+            label: "Traces",
+            queries: multiQueryConfig.queries,
+            display: multiQueryConfig.display,
+          },
+        ],
+      },
+    };
+    await expect(patchBlock(reader, target, patch)).rejects.toThrow();
+    await expect(
+      patchBlock(caller(projectId, "ADMIN", { optedIn: false }), target, patch),
+    ).rejects.toThrow();
+    await expect(
+      patchBlock(owner, target, {
+        ...patch,
+        sourcePreset: { ...patch.sourcePreset, presetId: "home-model-costs" },
+      }),
+    ).rejects.toThrow();
+    await patchBlock(owner, target, patch);
+    const editable = { ...target, includeConvertedPresets: true };
+    const [chart] = await reader.dashboard.getDashboardBlocks(editable);
+    expect(chart).toMatchObject({
+      kind: "multiQuery",
+      revision: 1,
+      id: patch.id,
+      sourcePreset: patch.sourcePreset,
+    });
+    expect(await reader.dashboard.getDashboardBlocks(target)).toEqual([]);
+    await expect(
+      patchBlock(owner, target, { ...patch, id: randomUUID() }),
+    ).rejects.toThrow();
+    await expect(
+      owner.dashboard.updateDashboardDefinition({
+        ...target,
+        definition: { widgets: [] },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      owner.dashboard.updateDashboardDefinition({
+        ...target,
+        definition: { widgets: [preset, { ...preset, x: 0 }] },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    const moved = { ...preset, x: 0, y: 7, x_size: 7, y_size: 5 };
+    await owner.dashboard.updateDashboardDefinition({
+      ...target,
+      definition: { widgets: [moved] },
+    });
+    await patchBlock(owner, target, {
+      op: "upsert",
+      id: patch.id,
+      expectedRevision: 1,
+      kind: "multiQuery",
+      config: { ...patch.config, title: "Custom traces" },
+    });
+    const clone = await owner.dashboard.cloneDashboard(target);
+    const cloneTarget = { ...editable, dashboardId: clone.id };
+    expect(
+      await reader.dashboard.getDashboardBlocks(cloneTarget),
+    ).toMatchObject([
+      {
+        id: patch.id,
+        revision: 1,
+        sourcePreset: patch.sourcePreset,
+        config: { title: "Custom traces" },
+      },
+    ]);
+    await expect(
+      patchBlock(owner, target, {
+        op: "restorePreset",
+        id: patch.id,
+        expectedRevision: 1,
+      }),
+    ).rejects.toThrow();
+    await patchBlock(owner, target, {
+      op: "restorePreset",
+      id: patch.id,
+      expectedRevision: 2,
+    });
+    expect(await reader.dashboard.getDashboardBlocks(editable)).toEqual([]);
+    expect(
+      (await reader.dashboard.getDashboard(target)).definition.widgets,
+    ).toEqual([moved]);
+    await patchBlock(owner, target, patch);
+    await patchBlock(owner, target, {
+      op: "remove",
+      id: patch.id,
+      expectedRevision: 1,
+    });
+    expect(
+      (await reader.dashboard.getDashboard(target)).definition.widgets,
+    ).toEqual([]);
+  });
+
   it("commits a concurrent classic layout and block patch to the same dashboard definition", async () => {
     const owner = caller(projectId);
     const { id: dashboardId } = await owner.dashboard.createDashboard({

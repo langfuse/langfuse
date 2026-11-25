@@ -57,7 +57,10 @@ export function MultiQueryEditor({
 }: MultiQueryWidgetContext & {
   initial: SavedMultiQueryConfig | undefined;
   initialTabId?: string;
-  onSave: (config: MultiQueryConfigV2) => void | Promise<void>;
+  onSave: (
+    config: MultiQueryConfigV2,
+    activeTabId: string,
+  ) => void | Promise<void>;
   onCancel: () => void;
   savePending?: boolean;
   saveError?: string;
@@ -240,7 +243,7 @@ export function MultiQueryEditor({
     if (!canSave || !schema.success) return;
     try {
       setSubmitError("");
-      await onSave(schema.data);
+      await onSave(schema.data, active.id);
     } catch {
       setSubmitError("The chart could not be saved. Try again.");
     }

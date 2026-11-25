@@ -52,7 +52,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Button } from "@/src/components/ui/button";
 import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
 import { DashboardBlocksCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksCanvas";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
@@ -272,8 +271,6 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
     capture,
   ]);
 
-  // Home is a viewing surface: no in-place editing (that lives in the
-  // Dashboards section, one pencil click away).
   const definition =
     displayedDashboard?.definition ?? LANGFUSE_HOME_DASHBOARD_DEFINITION;
 
@@ -550,10 +547,11 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           />
         </PageHeaderControlsPortal>
         <DashboardBlocksProvider
-          key={projectId}
+          key={`${projectId}:${dashboardId}`}
           projectId={projectId}
           dashboardId={dashboardId}
-          canEdit={false}
+          canEdit={dashboardOwner === "PROJECT" && hasRbacCUDAccess}
+          canCloneToEdit={dashboardOwner === "LANGFUSE" && hasRbacCUDAccess}
           readPath={readPath}
           dateRange={absoluteTimeRange}
           filterState={gridFilterState}
@@ -566,42 +564,23 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
               <Skeleton className="h-full w-full" />
             </div>
           ) : (
-            <>
-              {dashboardOwner === "PROJECT" && (
-                <DashboardBlocksCanvas
-                  gridProps={{
-                    widgets: definition.widgets,
-                    onChange: () => undefined,
-                    canEdit: false,
-                    dashboardId,
-                    projectId,
-                    readPath,
-                    dateRange: absoluteTimeRange,
-                    filterState: gridFilterState,
-                    onDeleteWidget: () => undefined,
-                    dashboardOwner,
-                    getWidgetSchedulerId,
-                    readOnly: true,
-                  }}
-                />
-              )}
-              {dashboardOwner !== "PROJECT" && (
-                <DashboardGrid
-                  widgets={definition.widgets}
-                  onChange={() => undefined}
-                  canEdit={false}
-                  dashboardId={dashboardId}
-                  projectId={projectId}
-                  readPath={readPath}
-                  dateRange={absoluteTimeRange}
-                  filterState={gridFilterState}
-                  onDeleteWidget={() => undefined}
-                  dashboardOwner={dashboardOwner}
-                  getWidgetSchedulerId={getWidgetSchedulerId}
-                  readOnly
-                />
-              )}
-            </>
+            <DashboardBlocksCanvas
+              dashboardName={dashboardName}
+              gridProps={{
+                widgets: definition.widgets,
+                onChange: () => undefined,
+                canEdit: false,
+                dashboardId,
+                projectId,
+                readPath,
+                dateRange: absoluteTimeRange,
+                filterState: gridFilterState,
+                onDeleteWidget: () => undefined,
+                dashboardOwner,
+                getWidgetSchedulerId,
+                readOnly: true,
+              }}
+            />
           )}
         </DashboardBlocksProvider>
       </Page>

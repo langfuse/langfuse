@@ -13,6 +13,8 @@ const multiQuerySourceSchema = z.object({
   id,
   label: z.string().min(1).max(200),
   view: views,
+  homeCategoryFallback: z.boolean().optional(),
+  homeScoreAggregate: z.boolean().optional(),
   metrics: z
     .array(metric.extend({ id, label: z.string().max(200).optional() }))
     .min(1)
@@ -46,6 +48,13 @@ const displaySchema = z.object({
   rowLimit: z.number().int().min(1).max(1000).optional(),
   bins: z.number().int().min(1).max(100).optional(),
   legend: z.boolean().optional(),
+  subtotalMetric: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*$/)
+    .max(129)
+    .optional(),
+  hideUnattributedRows: z.boolean().optional(),
+  timeBuckets: z.enum(["auto", "dashboard"]).optional(),
 });
 
 export const multiQueryConfigVersion = 1;
@@ -56,6 +65,15 @@ function validateSources(
 ) {
   const queryIds = new Set<string>();
   for (const query of queries) {
+    if (
+      query.homeScoreAggregate &&
+      (query.homeCategoryFallback || query.view !== "scores-numeric")
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Home score aggregates require the score data source.",
+      });
+    }
     if (queryIds.has(query.id))
       ctx.addIssue({
         code: "custom",

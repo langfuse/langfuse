@@ -1,4 +1,7 @@
 import { useId } from "react";
+import { api } from "@/src/utils/api";
+import { homeCategoryInput } from "./homeCategoryQuery";
+import { homeScoreInput, homeScoreRows } from "./homeScoreAggregate";
 import { type QueryType } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { shouldUseWidgetSSE } from "@/src/features/widgets/utils";
@@ -31,6 +34,27 @@ function useQuerySlot(
   },
 ) {
   const version = source?.version ?? (context.readPath === "v4" ? "v2" : "v1");
+  const utils = api.useUtils();
+  const category = source?.homeCategory;
+  const scoreFilters = source?.homeScoreFilters;
+  const fetchScore =
+    source && scoreFilters
+      ? {
+          key: "home:score-aggregate",
+          fetch: async () => {
+            const rows = await utils.dashboard.chart.fetch(
+              homeScoreInput(
+                context.projectId,
+                version,
+                source.query,
+                scoreFilters,
+              ),
+              { trpc: { context: { skipBatch: true } }, staleTime: 0 },
+            );
+            return homeScoreRows(source.query, rows);
+          },
+        }
+      : undefined;
   return useScheduledDashboardExecuteQuery(
     {
       projectId: context.projectId,
@@ -41,6 +65,24 @@ function useQuerySlot(
       queryId: context.slotId,
       enabled: context.enabled && Boolean(source),
       refreshKey: context.refreshKey,
+      fetchQuery: category
+        ? {
+            key: category.queryName,
+            fetch: async (query) => {
+              const rows = await utils.dashboard.chart.fetch(
+                homeCategoryInput(context.projectId, query, category),
+                { trpc: { context: { skipBatch: true } }, staleTime: 0 },
+              );
+              return rows.map((row) => ({
+                time_dimension: new Date(
+                  String(row.intervalStart),
+                ).toISOString(),
+                [category.field]: row.key,
+                ["sum_" + category.measure]: row.sum,
+              }));
+            },
+          }
+        : fetchScore,
       trpc: { context: { skipBatch: true } },
       meta: { silentHttpCodes: [400, 412, 422] },
       retry: false,

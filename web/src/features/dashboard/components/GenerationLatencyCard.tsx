@@ -4,6 +4,7 @@ import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
 } from "@/src/features/dashboard/components/hooks";
+import type { PresetSelectionActions } from "./home-preset-registry";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import { useDashboardCardTabs } from "@/src/features/dashboard/hooks/useDashboardCardTabs";
 import {
@@ -21,6 +22,7 @@ import { useMemo } from "react";
 
 export const GenerationLatencyCard = ({
   actions,
+  actionsForSelection,
   className,
   projectId,
   globalFilterState,
@@ -34,6 +36,7 @@ export const GenerationLatencyCard = ({
   sync,
 }: {
   actions?: DataCardActions;
+  actionsForSelection?: PresetSelectionActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -161,7 +164,12 @@ export const GenerationLatencyCard = ({
     <div className={className}>
       <WidgetChartCard
         chartType="LINE_TIME_SERIES"
-        actions={actions}
+        actions={
+          actionsForSelection?.({
+            models: selectedModels,
+            activeTab: tabs.value,
+          }) ?? actions
+        }
         title="Model latencies"
         description="Latencies (seconds) per LLM generation"
         tabs={tabs}

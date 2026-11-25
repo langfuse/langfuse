@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import type { PresetSelectionActions } from "./home-preset-registry";
 import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import {
   extractTimeSeriesData,
@@ -23,6 +24,7 @@ import { useMemo } from "react";
 
 export const ModelUsageCard = ({
   actions,
+  actionsForSelection,
   className,
   projectId,
   globalFilterState,
@@ -37,6 +39,7 @@ export const ModelUsageCard = ({
   sync,
 }: {
   actions?: DataCardActions;
+  actionsForSelection?: PresetSelectionActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -361,7 +364,12 @@ export const ModelUsageCard = ({
     <div className={className}>
       <WidgetChartCard
         chartType="LINE_TIME_SERIES"
-        actions={actions}
+        actions={
+          actionsForSelection?.({
+            models: selectedModels,
+            activeTab: tabs.value,
+          }) ?? actions
+        }
         title="Model Usage"
         tabs={tabs}
         content={

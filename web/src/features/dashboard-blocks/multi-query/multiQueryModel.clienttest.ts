@@ -43,6 +43,73 @@ const context = {
 };
 
 describe("multi-query ordinary query composition", () => {
+  it("runs saved Home map categories against their original data on the legacy read path", () => {
+    const categories = structuredClone(config);
+    categories.display.chartType = "LINE_TIME_SERIES";
+    categories.queries = [
+      {
+        id: "usage",
+        label: "Usage by type",
+        view: "observations",
+        homeCategoryFallback: true,
+        dimensions: [{ field: "usageType" }],
+        metrics: [{ id: "tokens", measure: "usageByType", aggregation: "sum" }],
+        filters: [
+          {
+            column: "providedModelName",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["Model A"],
+          },
+        ],
+      },
+    ];
+    const [legacy] = buildMultiQueryPlan(categories, {
+      ...context,
+      readPath: "v3",
+    }).queries;
+    expect(legacy?.homeCategory?.queryName).toBe(
+      "observations-usage-by-type-timeseries",
+    );
+    expect(legacy?.homeCategory?.filters).toContainEqual({
+      column: "model",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["Model A"],
+    });
+    const result = normalizeMultiQueryResults(
+      { queries: [legacy!], warnings: [] },
+      [
+        {
+          data: [
+            {
+              usageType: "input",
+              time_dimension: "2026-11-01T00:00:00Z",
+              sum_usageByType: 12,
+            },
+            {
+              usageType: null,
+              time_dimension: "2026-11-02T00:00:00Z",
+              sum_usageByType: 0,
+            },
+          ],
+          isPending: false,
+          isError: false,
+          error: null,
+        },
+      ],
+    );
+    expect(result.series[0]).toMatchObject({ label: "input", unit: "tokens" });
+    expect(result.series).toHaveLength(1);
+    expect(result.bucketTimes).toHaveLength(2);
+    expect(
+      buildMultiQueryPlan(categories, context).queries[0]?.homeCategory,
+    ).toBeUndefined();
+    categories.queries[0]!.dimensions.push({ field: "name" });
+    expect(() =>
+      buildMultiQueryPlan(categories, { ...context, readPath: "v3" }),
+    ).toThrow(/category/i);
+  });
   it("keeps a comparison together and converts a saved default view to an independent first tab", () => {
     const views = [
       { id: "abc", label: "Has abc", queryIds: ["a"] },

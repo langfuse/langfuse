@@ -4,7 +4,8 @@ import {
   multiQueryFormatter,
   prepareMultiQueryUnitVisualization,
 } from "./multiQueryPresentation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { groupedMetricTable, returnedRowsSubtotal } from "./multiQueryTable";
 import { type MultiQueryConfig } from "@langfuse/shared";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
@@ -12,7 +13,10 @@ import {
   type Visualization,
 } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { usePreparedWidgetChart } from "@/src/features/widgets/components/usePreparedWidgetChart";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  isTimeSeriesChart,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useMultiQueryWidget } from "./useMultiQueryWidget";
 import { type MultiQuerySeries, type MultiQueryValue } from "./multiQueryModel";
@@ -58,9 +62,47 @@ export function MultiQueryResultView({
     ? result.values.filter((row) => !hidden.has(row.seriesId))
     : result.values;
   const groups = new Set(visibleSeries.map((item) => item.unit));
+  const groupedTable = useMemo(
+    () =>
+      showTable
+        ? groupedMetricTable(
+            result.values,
+            config.display.hideUnattributedRows,
+            result.status === "complete"
+              ? {
+                  queries: config.queries,
+                  rowLimit: config.display.rowLimit ?? 100,
+                }
+              : undefined,
+          )
+        : undefined,
+    [
+      showTable,
+      result.values,
+      result.status,
+      config.display.hideUnattributedRows,
+      config.display.rowLimit,
+      config.queries,
+    ],
+  );
+  const detailedValues =
+    showTable && !groupedTable && config.display.hideUnattributedRows
+      ? result.values.filter(
+          (row) => !Object.values(row.dimensions).includes(null),
+        )
+      : result.values;
+  const tableCount = groupedTable?.rows.length ?? detailedValues.length;
+  const subtotal =
+    result.status === "complete"
+      ? returnedRowsSubtotal(
+          config.queries,
+          config.display.subtotalMetric,
+          result.values,
+        )
+      : undefined;
   const pageIndex = Math.min(
     page.pageIndex,
-    Math.max(0, Math.ceil(result.values.length / page.pageSize) - 1),
+    Math.max(0, Math.ceil(tableCount / page.pageSize) - 1),
   );
   const captureView = (action: string) =>
     capture("dashboard:block_interaction", {
@@ -79,7 +121,7 @@ export function MultiQueryResultView({
       { id: "unit", label: "Unit" },
       { id: "evaluations", label: "Evaluations", align: "right" },
     ],
-    rows: result.values
+    rows: detailedValues
       .slice(pageIndex * page.pageSize, (pageIndex + 1) * page.pageSize)
       .map((row, index) => ({
         id: `${row.seriesId}:${index}`,
@@ -126,7 +168,19 @@ export function MultiQueryResultView({
         message: "No series selected for display",
         description: "Show a series or a formula in the chart editor.",
       };
-    if (showTable) return data;
+    if (showTable) {
+      if (!tableCount) return { type: "empty", message: "No matching rows" };
+      return groupedTable
+        ? {
+            type: "table",
+            columns: groupedTable.columns,
+            rows: groupedTable.rows.slice(
+              pageIndex * page.pageSize,
+              (pageIndex + 1) * page.pageSize,
+            ),
+          }
+        : data;
+    }
     if (result.values.length === 0)
       return {
         type: "empty",
@@ -211,6 +265,20 @@ export function MultiQueryResultView({
           ))}
         </details>
       ) : null}
+      {subtotal && (
+        <div className="shrink-0 px-4 pb-1">
+          <p className="text-xl font-bold tabular-nums">
+            {toFullMetricString(
+              multiQueryFormatter(subtotal.unit)(subtotal.value, {
+                style: "compact",
+              }),
+            )}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            {subtotal.label} · Sum of returned groups
+          </p>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
         {content ? (
           <VisualizationFrame content={content} />
@@ -239,10 +307,10 @@ export function MultiQueryResultView({
           }}
         />
       )}
-      {showTable && result.values.length > 0 ? (
+      {showTable && tableCount > page.pageSize ? (
         <PaginationBar
           mode="offset"
-          totalCount={result.values.length}
+          totalCount={tableCount}
           state={{ ...page, pageIndex }}
           onChange={setPage}
           pageSizeOptions={[25, 50, 100]}

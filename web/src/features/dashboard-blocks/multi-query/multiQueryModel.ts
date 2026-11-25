@@ -1,4 +1,6 @@
 import { type FilterState } from "@langfuse/shared";
+import { homeCategoryQuery } from "./homeCategoryQuery";
+import { homeScoreAggregate } from "./homeScoreAggregate";
 import {
   multiQueryConfigSchema,
   type MultiQueryConfig,
@@ -19,6 +21,10 @@ import {
   seriesFillColor,
 } from "@/src/features/widgets/chart-library/seriesColors";
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import {
+  dashboardDateRangeAggregationSettings,
+  findClosestDashboardInterval,
+} from "@/src/utils/date-range-utils";
 
 export type MultiQuerySource = MultiQueryConfig["queries"][number];
 export type MultiQueryContext = {
@@ -31,6 +37,8 @@ export type PlannedMultiQuery = {
   query: QueryType;
   version: ViewVersion;
   dimensions: string[];
+  homeCategory?: ReturnType<typeof homeCategoryQuery>;
+  homeScoreFilters?: ReturnType<typeof homeScoreAggregate>;
 };
 export type MultiQueryPlan = {
   queries: PlannedMultiQuery[];
@@ -153,15 +161,18 @@ export function buildMultiQueryPlan(
       (source) => !selectedQueryIds || selectedQueryIds.includes(source.id),
     )
     .map((source): PlannedMultiQuery => {
-      const version = resolveWidgetRenderVersion({
-        newestReadableVersion: context.readPath === "v4" ? "v2" : "v1",
-        shape: {
-          view: source.view,
-          measures: source.metrics,
-          dimensions: source.dimensions,
-          filters: [...source.filters, ...context.filterState],
-        },
-      });
+      const readVersion = context.readPath === "v4" ? "v2" : "v1";
+      const version = source.homeScoreAggregate
+        ? readVersion
+        : resolveWidgetRenderVersion({
+            newestReadableVersion: readVersion,
+            shape: {
+              view: source.view,
+              measures: source.metrics,
+              dimensions: source.dimensions,
+              filters: [...source.filters, ...context.filterState],
+            },
+          });
       const declaration = getViewDeclaration(source.view, version);
       const localFilters = mapLegacyUiTableFilterToView(
         source.view,
@@ -175,6 +186,14 @@ export function buildMultiQueryPlan(
         source.view,
         context.filterState,
       );
+      if (
+        source.homeScoreAggregate &&
+        mappedGlobal.length !== context.filterState.length
+      ) {
+        throw new Error(
+          `${source.label}: a dashboard filter is unavailable for Home score records`,
+        );
+      }
       if (mappedGlobal.length !== context.filterState.length)
         warnings.push(
           `${source.label}: some dashboard filters do not apply to this data source`,
@@ -201,7 +220,14 @@ export function buildMultiQueryPlan(
       }));
       const timeSeries = isTimeSeriesChart(config.display.chartType);
       const needsBucketCount =
-        (timeSeries && dimensions.length > 0) ||
+        (timeSeries &&
+          dimensions.length > 0 &&
+          !(
+            source.homeCategoryFallback &&
+            metrics.some((metric) =>
+              ["usageByType", "costByType"].includes(metric.measure),
+            )
+          )) ||
         metrics.some(
           (metric) =>
             !["count", "sum", "uniq", "histogram"].includes(metric.aggregation),
@@ -223,7 +249,17 @@ export function buildMultiQueryPlan(
           widgetFilters: source.filters,
           dashboardFilters: context.filterState,
         }),
-        timeDimension: timeSeries ? { granularity: "auto" } : null,
+        timeDimension: timeSeries
+          ? {
+              granularity:
+                config.display.timeBuckets === "dashboard"
+                  ? (dashboardDateRangeAggregationSettings[
+                      findClosestDashboardInterval(context.dateRange) ??
+                        "last7Days"
+                    ].dateTrunc ?? "day")
+                  : "auto",
+            }
+          : null,
         fromTimestamp: context.dateRange.from.toISOString(),
         toTimestamp: context.dateRange.to.toISOString(),
         orderBy:
@@ -246,7 +282,21 @@ export function buildMultiQueryPlan(
       const validation = validateQuery(query, version);
       if (!validation.valid)
         throw new Error(`${source.label}: ${validation.reason}`);
-      return { source, query, version, dimensions };
+      const homeCategory =
+        context.readPath === "v3" && source.homeCategoryFallback
+          ? homeCategoryQuery(query)
+          : undefined;
+      const homeScoreFilters = source.homeScoreAggregate
+        ? homeScoreAggregate(query)
+        : undefined;
+      return {
+        source,
+        query,
+        version: homeCategory ? "v1" : version,
+        dimensions,
+        homeCategory,
+        homeScoreFilters,
+      };
     });
   return { queries, warnings };
 }
@@ -290,7 +340,8 @@ export function normalizeMultiQueryResults(
       });
       continue;
     }
-    const declaration = getViewDeclaration(item.source.view, item.version);
+    const resultVersion = item.homeCategory ? "v2" : item.version;
+    const declaration = getViewDeclaration(item.source.view, resultVersion);
     for (const row of result.data ?? []) {
       const dimensions = Object.fromEntries(
         item.dimensions.map((field) => [
@@ -309,24 +360,31 @@ export function normalizeMultiQueryResults(
         time &&
         item.dimensions.length > 0 &&
         Object.values(dimensions).every((value) => value === null) &&
-        count === 0
+        (count === 0 ||
+          (item.source.homeCategoryFallback &&
+            item.source.metrics.some((metric) =>
+              ["costByType", "usageByType"].includes(metric.measure),
+            )))
       )
         continue;
       for (const metric of item.source.metrics) {
         const metricLabel = multiQueryMetricLabel(metric);
         const id = `${item.source.id}.${metric.id}${item.dimensions.length > 0 ? `:${JSON.stringify(dimensions)}` : ""}`;
-        const label = [
-          item.source.label,
-          ...(item.source.metrics.length > 1 || metric.label
-            ? [metricLabel]
-            : []),
-          ...(dimensionLabel ? [dimensionLabel] : []),
-        ].join(" · ");
+        const labels = [];
+        if (!dimensionLabel || plan.queries.length > 1)
+          labels.push(item.source.label);
+        if (
+          item.source.metrics.length > 1 ||
+          (!dimensionLabel && metric.label && metricLabel !== item.source.label)
+        )
+          labels.push(metricLabel);
+        if (dimensionLabel) labels.push(dimensionLabel);
+        const label = labels.join(" · ");
         const bucketUnit = getResultUnit(
           item.source.view,
           metric.measure,
           metric.aggregation,
-          item.version,
+          resultVersion,
         );
         const unit =
           metric.aggregation === "histogram" ? "integer" : bucketUnit;

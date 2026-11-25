@@ -12,7 +12,14 @@ import {
 } from "../components/PresetDashboardWidget";
 import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { type PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
 import { useDashboardChartSync } from "@/src/features/dashboard/hooks/DashboardChartSyncProvider";
 
 export type WidgetDuplicateSurface = "grid_menu" | "grid_toolbar";
@@ -84,6 +91,8 @@ export function DashboardGrid({
   duplicateSurface = "grid_menu",
   onDuplicateWidget,
   onDuplicatePreset,
+  onEditPreset,
+  presetOverrides,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -118,6 +127,11 @@ export function DashboardGrid({
     anchor: PresetPlacement,
     surface: WidgetDuplicateSurface,
   ) => void;
+  onEditPreset?: (
+    placement: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
+  presetOverrides?: ReadonlyMap<string, ReactNode>;
 }) {
   const chartSync = useDashboardChartSync();
   const { containerRef, width } = useDebouncedContainerWidth(200);
@@ -162,7 +176,9 @@ export function DashboardGrid({
       y: w.y,
       w: w.x_size,
       h:
-        w.type === "preset" && w.presetId === "home-score-analytics"
+        w.type === "preset" &&
+        w.presetId === "home-score-analytics" &&
+        !presetOverrides?.has(w.id)
           ? Math.max(w.y_size, contentRows)
           : w.y_size,
       isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
@@ -200,7 +216,8 @@ export function DashboardGrid({
   // registered curated component; "widget" placements render the generic
   // query-backed widget.
   const renderPlacement = (widget: DashboardPlacement) =>
-    widget.type === "preset" ? (
+    presetOverrides?.get(widget.id) ??
+    (widget.type === "preset" ? (
       <PresetDashboardWidget
         dashboardId={dashboardId}
         chartSync={chartSync}
@@ -214,6 +231,7 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
+        onEditPreset={onEditPreset}
         showDuplicateButton={duplicateSurface === "grid_toolbar"}
         onDuplicatePreset={
           onDuplicatePreset
@@ -251,7 +269,7 @@ export function DashboardGrid({
             : undefined
         }
       />
-    );
+    ));
 
   // Render flex layout for small screens
   if (isSmallScreen) {

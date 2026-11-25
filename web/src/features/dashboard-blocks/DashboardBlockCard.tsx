@@ -2,14 +2,18 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { CopyPlusIcon, Grid2X2, Pencil, Trash2 } from "@langfuse/icons";
-import { type SavedDashboardBlock } from "@langfuse/shared";
-import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
 import {
-  useRemoveDashboardBlock,
-  useSaveDashboardBlock,
-} from "./useDashboardBlockMutations";
+  CopyPlusIcon,
+  Grid2X2,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "@langfuse/icons";
+import { type SavedDashboardBlock } from "@langfuse/shared";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
+import { useSaveDashboardBlock } from "./useDashboardBlockMutations";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -23,8 +27,18 @@ const MultiQueryChart = dynamic(
   { loading: () => <Skeleton className="h-80 w-full" /> },
 );
 
-export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
-  const [selectedTabId, setSelectedTabId] = useState<string>();
+export function DashboardBlockCard({
+  block,
+  draggable = false,
+  initialTabId,
+  editOnly = false,
+}: {
+  block: SavedDashboardBlock;
+  draggable?: boolean;
+  initialTabId?: string;
+  editOnly?: boolean;
+}) {
+  const [selectedTabId, setSelectedTabId] = useState(initialTabId);
   const {
     projectId,
     dashboardId,
@@ -39,6 +53,8 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
     track,
   } = useDashboardBlocks();
   const editable = canEdit && capabilities[block.kind];
+  const sourcePreset =
+    block.kind === "multiQuery" ? block.sourcePreset : undefined;
   const duplicate = useSaveDashboardBlock({
     projectId,
     dashboardId,
@@ -81,7 +97,8 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
           op: "upsert",
           id: uuidv4(),
           expectedRevision: 0,
-          beforePlacementId: block.beforePlacementId,
+          beforePlacementId:
+            sourcePreset?.placementId ?? block.beforePlacementId,
           ...content,
         },
       },
@@ -95,42 +112,76 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
       },
     );
   };
-  const remove = useRemoveDashboardBlock({
-    projectId,
-    dashboardId,
-    onRemoved: () => track("remove", block.kind),
-  });
+  const update = useSaveDashboardBlock({ projectId, dashboardId });
   return (
-    <ConfirmationDialogController
-      title="Remove widget?"
-      text="The widget will be removed from this dashboard."
-      confirmLabel="Remove"
-      variant="destructive"
-      disabled={!editable}
-      loading={remove.isPending}
-      error={
-        remove.error
-          ? "Could not remove the widget. Refresh and try again."
-          : undefined
-      }
-      onConfirm={() => {
-        if (!editable) return;
-        return remove
-          .mutateAsync({
-            projectId,
-            dashboardId,
-            blockPatch: {
-              op: "remove",
-              id: block.id,
-              expectedRevision: block.revision,
-            },
-          })
-          .then(() => undefined);
+    <DialogController<"remove" | "restore">
+      onBeforeClose={() => !update.isPending}
+      renderDialog={({ state, closeDialog }) => {
+        const restoring = state === "restore";
+        const removalDescription = sourcePreset
+          ? "This removes the widget and its original Home card from this dashboard."
+          : "The widget will be removed from this dashboard.";
+        return (
+          <Dialog
+            title={restoring ? "Restore Home card?" : "Remove widget?"}
+            requireExplicitClose={update.isPending}
+            actions={[
+              {
+                label: restoring ? "Restore Home card" : "Remove",
+                variant: "destructive",
+                disabled: !editable,
+                loading: update.isPending,
+                onClick: () => {
+                  if (!editable || update.isPending) return;
+                  update.mutate(
+                    {
+                      projectId,
+                      dashboardId,
+                      blockPatch: {
+                        op: restoring ? "restorePreset" : "remove",
+                        id: block.id,
+                        expectedRevision: block.revision,
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        track(
+                          restoring ? "preset_restore" : "remove",
+                          block.kind,
+                          false,
+                          sourcePreset?.presetId,
+                        );
+                        closeDialog();
+                      },
+                    },
+                  );
+                },
+              },
+            ]}
+          >
+            <Dialog.Body>
+              <p className="text-muted-foreground text-sm">
+                {restoring
+                  ? "The original Home card will return to this position. Changes to the editable widget will be discarded."
+                  : removalDescription}
+              </p>
+              {update.error && (
+                <p role="alert" className="text-destructive mt-2 text-sm">
+                  The dashboard could not be updated. Refresh and try again.
+                </p>
+              )}
+            </Dialog.Body>
+          </Dialog>
+        );
       }}
     >
       {({ openDialog }) => {
+        const confirm = (action: "remove" | "restore") => {
+          update.reset();
+          openDialog(action);
+        };
         const positionActions: NonNullable<DataCardActions["menu"]> =
-          placementOptions.length > 1
+          !sourcePreset && placementOptions.length > 1
             ? [
                 {
                   id: "position",
@@ -141,8 +192,10 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                 },
               ]
             : [];
+        const layoutActions = draggable ? { draggable } : undefined;
         const actions: DataCardActions | undefined = editable
           ? {
+              draggable,
               buttons: [
                 {
                   id: "edit",
@@ -155,6 +208,7 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                             kind: block.kind,
                             block,
                             initialTabId: selectedTabId,
+                            onTabSaved: setSelectedTabId,
                           }
                         : { kind: block.kind, block },
                     ),
@@ -169,27 +223,50 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
               ],
               menu: [
                 ...positionActions,
+                ...(sourcePreset
+                  ? [
+                      {
+                        id: "restore",
+                        type: "item" as const,
+                        title: "Restore Home card",
+                        icon: RotateCcw,
+                        onClick: () => confirm("restore"),
+                      },
+                    ]
+                  : []),
                 {
                   id: "remove",
                   type: "item",
                   title: "Remove widget",
                   icon: Trash2,
                   variant: "destructive",
-                  onClick: openDialog,
+                  onClick: () => confirm("remove"),
                 },
               ],
             }
-          : undefined;
+          : layoutActions;
+        const cardActions =
+          editable && editOnly
+            ? {
+                buttons: actions?.buttons?.filter(
+                  (button) => button.id === "edit",
+                ),
+              }
+            : actions;
         return (
           <div
-            className="ph-no-capture min-w-0"
+            className={
+              sourcePreset
+                ? "ph-no-capture h-full min-w-0"
+                : "ph-no-capture min-w-0"
+            }
             data-dashboard-block-id={block.id}
           >
             {block.kind === "markdown" ? (
               <DashboardMarkdown
                 title={block.config.title}
                 content={block.config.content}
-                actions={actions}
+                actions={cardActions}
               />
             ) : (
               <MultiQueryChart
@@ -200,12 +277,12 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                 dateRange={dateRange}
                 filterState={filterState}
                 readPath={readPath}
-                actions={actions}
+                actions={cardActions}
               />
             )}
           </div>
         );
       }}
-    </ConfirmationDialogController>
+    </DialogController>
   );
 }

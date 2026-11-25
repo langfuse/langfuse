@@ -171,23 +171,38 @@ export function MultiQuerySourceEditor({
             <SelectInput
               aria-label="Data source"
               placeholder="Choose data"
-              value={source.view}
-              options={views.options
-                .filter(
-                  (view) =>
-                    isSuggestedWidgetView(view, version) ||
-                    view === source.view,
-                )
-                .map((view) => ({
-                  value: view,
-                  label: readableMultiQueryField(view.replaceAll("-", " ")),
-                }))}
+              value={
+                source.homeScoreAggregate ? "homeScoreRecords" : source.view
+              }
+              options={[
+                ...(source.homeScoreAggregate
+                  ? [
+                      {
+                        value: "homeScoreRecords" as const,
+                        label: "Home score records",
+                      },
+                    ]
+                  : []),
+                ...views.options
+                  .filter(
+                    (view) =>
+                      isSuggestedWidgetView(view, version) ||
+                      view === source.view,
+                  )
+                  .map((view) => ({
+                    value: view,
+                    label: readableMultiQueryField(view.replaceAll("-", " ")),
+                  })),
+              ]}
               onValueChange={(view) => {
+                if (view === "homeScoreRecords") return;
                 const score =
                   view === "scores-numeric" || view === "scores-boolean";
                 onChange({
                   ...source,
                   view,
+                  homeScoreAggregate: undefined,
+                  homeCategoryFallback: undefined,
                   metrics: [
                     {
                       id: "value",
@@ -202,12 +217,13 @@ export function MultiQuerySourceEditor({
               }}
             />
           </label>
-          {source.view.startsWith("scores-") ? (
+          {source.view.startsWith("scores-") && (
             <p className="text-muted-foreground text-xs">
-              Individual score records · score timestamp · all attachment types
-              unless filtered.
+              {source.homeScoreAggregate
+                ? "Uses the Home score aggregate and score timestamps, including text and correction records when the selected data types allow them."
+                : "Individual score records · score timestamp · all attachment types unless filtered."}
             </p>
-          ) : null}
+          )}
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium">Metrics</span>
             {source.metrics.map((metric) => (

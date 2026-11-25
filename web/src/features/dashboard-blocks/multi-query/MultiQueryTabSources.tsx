@@ -6,7 +6,11 @@ import { SelectInput } from "@/src/components/design-system/SelectInput/SelectIn
 import { Input } from "@/src/components/design-system/Input/Input";
 import { MultiQuerySourceEditor } from "./MultiQuerySourceEditor";
 import { MultiQueryFormulaEditor } from "./MultiQueryFormulaEditor";
-import { createMultiQueryConfig } from "./multiQueryModel";
+import {
+  createMultiQueryConfig,
+  multiQueryMetricLabel,
+} from "./multiQueryModel";
+import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { nextEditorId } from "./multiQueryTabEditing";
 import { type MultiQueryWidgetContext } from "./useMultiQueryWidget";
 
@@ -194,6 +198,72 @@ export function MultiQueryTabSources({
           Display options
         </summary>
         <div className="flex flex-col gap-3 pt-3">
+          {isTimeSeriesChart(tab.display.chartType) && (
+            <label className="flex flex-col gap-1">
+              Time interval
+              <SelectInput
+                aria-label="Time interval"
+                placeholder="Choose interval"
+                value={tab.display.timeBuckets ?? "auto"}
+                options={[
+                  { value: "auto", label: "Automatic" },
+                  { value: "dashboard", label: "Match Home dashboard" },
+                ]}
+                onValueChange={(value) => {
+                  display({
+                    timeBuckets: value === "dashboard" ? "dashboard" : "auto",
+                  });
+                  track("multi_query_time_interval_changed");
+                }}
+              />
+            </label>
+          )}
+          <label className="flex flex-col gap-1">
+            Subtotal
+            <SelectInput
+              aria-label="Subtotal"
+              placeholder="Choose metric"
+              value={tab.display.subtotalMetric ?? "none"}
+              options={[
+                { value: "none", label: "None" },
+                ...tab.queries.flatMap((source) =>
+                  source.metrics
+                    .filter((metric) =>
+                      ["count", "sum", "uniq"].includes(metric.aggregation),
+                    )
+                    .map((metric) => ({
+                      value: source.id + "." + metric.id,
+                      label:
+                        source.label + " · " + multiQueryMetricLabel(metric),
+                    })),
+                ),
+              ]}
+              onValueChange={(value) => {
+                display({
+                  subtotalMetric: value === "none" ? undefined : value,
+                });
+                track("multi_query_subtotal_changed");
+              }}
+            />
+          </label>
+          {tab.display.chartType === "PIVOT_TABLE" && (
+            <label className="flex flex-col gap-1">
+              Missing breakdown values
+              <SelectInput
+                aria-label="Missing breakdown values"
+                placeholder="Choose visibility"
+                value={tab.display.hideUnattributedRows ? "hide" : "show"}
+                options={[
+                  { value: "show", label: "Show as Unknown" },
+                  { value: "hide", label: "Hide rows" },
+                ]}
+                onValueChange={(value) => {
+                  display({ hideUnattributedRows: value === "hide" });
+                  track("multi_query_missing_groups_changed");
+                }}
+              />
+            </label>
+          )}
           <label className="flex items-center justify-between gap-2">
             Rows per series
             <Input

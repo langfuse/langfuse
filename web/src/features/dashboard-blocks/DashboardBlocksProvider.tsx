@@ -1,6 +1,10 @@
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import dynamic from "next/dynamic";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  getPendingPresetEdit,
+  clearPendingPresetEdit,
+} from "./homePresetNavigation";
 import { type FilterState, type SavedDashboardBlock } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -55,6 +59,7 @@ export function DashboardBlocksProvider({
   projectId,
   dashboardId,
   canEdit,
+  canCloneToEdit = false,
   readPath,
   dateRange,
   filterState,
@@ -66,6 +71,7 @@ export function DashboardBlocksProvider({
   projectId: string;
   dashboardId: string;
   canEdit: boolean;
+  canCloneToEdit?: boolean;
   readPath: ResolvedReadPath;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -75,6 +81,16 @@ export function DashboardBlocksProvider({
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
+  const [presetInCopy] = useState(() =>
+    getPendingPresetEdit(projectId, dashboardId),
+  );
+  const dismissPreset = useRef(presetInCopy?.source.presetId);
+  const [savedPresetTabs, setSavedPresetTabs] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
+  useEffect(() => {
+    if (presetInCopy) clearPendingPresetEdit(presetInCopy);
+  }, [presetInCopy]);
   const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
   const {
     capabilities,
@@ -86,7 +102,7 @@ export function DashboardBlocksProvider({
   } = useDashboardBlocksData({
     projectId,
     dashboardId,
-    canEdit,
+    canEdit: canEdit || canCloneToEdit,
     readPath,
     widgets,
     hasDashboardBlocks,
@@ -97,27 +113,57 @@ export function DashboardBlocksProvider({
     action,
     blockKind,
     isNew,
+    presetId,
   ) =>
     capture("dashboard:block_interaction", {
       action,
       blockKind,
       isNew,
+      ...(presetId && { presetId }),
       isV4: readPath === "v4",
     });
   return (
     <DialogController<DashboardBlockDialogRequest>
-      onDismiss={() => track("cancel")}
+      initialState={() =>
+        presetInCopy && {
+          intent: "content",
+          request: { kind: "multiQuery", preset: presetInCopy },
+        }
+      }
+      onDismiss={() => {
+        if (dismissPreset.current)
+          track("cancel", "multiQuery", false, dismissPreset.current);
+        else track("cancel");
+      }}
       renderDialog={({ state, closeDialog }) => {
         const kind =
           state.intent === "position" ? state.block.kind : state.request.kind;
-        const isNew = state.intent === "content" && !state.request.block;
+        const preset =
+          state.intent === "content" && state.request.kind === "multiQuery"
+            ? state.request.preset
+            : undefined;
+        const isNew =
+          state.intent === "content" && !state.request.block && !preset;
+        const existingInCopy =
+          preset && preset === presetInCopy
+            ? blocks.find(
+                (block) =>
+                  block.kind === "multiQuery" &&
+                  block.sourcePreset?.placementId === preset.source.placementId,
+              )
+            : undefined;
         const allowed = canEdit && capabilities[kind];
         const onSaved = () => {
-          track("save", kind, isNew);
+          track(
+            preset && !existingInCopy ? "preset_convert" : "save",
+            kind,
+            isNew,
+            preset?.source.presetId,
+          );
           closeDialog();
         };
         const onCancel = () => {
-          track("cancel", kind, isNew);
+          track("cancel", kind, isNew, preset?.source.presetId);
           closeDialog();
         };
         const onPlacementChanged = () => track("placement", kind, isNew);
@@ -134,9 +180,48 @@ export function DashboardBlocksProvider({
               onPositionChanged={onPlacementChanged}
             />
           );
+        let request = state.request;
+        if (preset && preset === presetInCopy) {
+          if (!dashboardReady || capabilitiesPending || blocksPending)
+            return (
+              <Dialog title="Opening widget" noCapture>
+                <Dialog.Body>
+                  <Skeleton className="h-64 w-full" />
+                </Dialog.Body>
+              </Dialog>
+            );
+          const placement = widgets.find(
+            (w) => w.id === preset.source.placementId,
+          );
+          if (
+            loadError ||
+            placement?.type !== "preset" ||
+            placement.presetId !== preset.source.presetId
+          )
+            return (
+              <Dialog title="Edit Home card" closeLabel="Close" noCapture>
+                <Dialog.Body>
+                  {loadError
+                    ? "The dashboard could not be loaded. Refresh and try again."
+                    : "This copy no longer contains the selected Home card."}
+                </Dialog.Body>
+              </Dialog>
+            );
+          if (existingInCopy)
+            request = { kind: "multiQuery", block: existingInCopy };
+        }
+        if (preset)
+          request = {
+            ...request,
+            onTabSaved: (tabId) => {
+              setSavedPresetTabs((previous) =>
+                new Map(previous).set(preset.source.placementId, tabId),
+              );
+            },
+          };
         return (
           <DashboardBlockEditor
-            request={state.request}
+            request={request}
             projectId={projectId}
             dashboardId={dashboardId}
             canEdit={allowed}
@@ -165,21 +250,35 @@ export function DashboardBlocksProvider({
             blocksPending,
             capabilities,
             blocks,
+            savedPresetTabs,
             widgets,
             placementOptions,
             loadError,
             openPositionEditor: (block) => {
               if (!canEdit || !capabilities[block.kind]) return;
+              dismissPreset.current = undefined;
               track("placement", block.kind, false);
               openDialog({ intent: "position", block });
             },
             openEditor: (request) => {
               if (!canEdit || !capabilities[request.kind]) return;
-              track(
-                request.block ? "edit" : "add",
-                request.kind,
-                !request.block,
-              );
+              dismissPreset.current =
+                request.kind === "multiQuery"
+                  ? request.preset?.source.presetId
+                  : undefined;
+              if (request.kind === "multiQuery" && request.preset)
+                track(
+                  "preset_edit",
+                  request.kind,
+                  false,
+                  request.preset.source.presetId,
+                );
+              else
+                track(
+                  request.block ? "edit" : "add",
+                  request.kind,
+                  !request.block,
+                );
               openDialog({ intent: "content", request });
             },
             track,
