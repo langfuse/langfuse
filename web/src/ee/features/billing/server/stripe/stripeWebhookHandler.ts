@@ -1,3 +1,4 @@
+/* oxlint-disable eqeqeq -- subscription item arity checks mirror Stripe webhook edge cases */
 /* eslint-disable no-nested-ternary */
 import {
   getOrgIdFromStripeClientReference,
