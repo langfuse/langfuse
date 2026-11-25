@@ -85,7 +85,7 @@ impl<'a> EventAssembly<'a> {
         }
         let mut source = EventSource::new(span, resource, scope_name, scope_version, config);
         let (row, evaluation_fields) =
-            source.row(trace_id, span_id, resource, scope, scope_version, config);
+            source.row(trace_id, span_id, resource, scope, scope_version, config)?;
         let event = OwnedEvent {
             row,
             evaluation_fields,
@@ -304,7 +304,7 @@ impl<'a> EventSource<'a> {
         scope: &Object,
         scope_version: Option<&str>,
         config: &EventBuildConfig,
-    ) -> (OtelStorageRow, Option<Box<JsonObject>>) {
+    ) -> Option<(OtelStorageRow, Option<Box<JsonObject>>)> {
         let parent_span_id = self
             .span
             .parent_span_id
@@ -327,11 +327,19 @@ impl<'a> EventSource<'a> {
             self.scope_name,
             &mut evaluation_fields,
         );
-        let (start_time, end_time) = resolve_timestamps(
+        let Some((start_time, end_time)) = resolve_timestamps(
             self.span.start_time.as_deref(),
             self.span.end_time.as_deref(),
             &config.fallback_time,
-        );
+        ) else {
+            // ClickHouse cannot store such a time. Dropping only this span preserves its siblings.
+            tracing::warn!(
+                project_id = %config.project_id,
+                observation_id = %span_id,
+                "Skipping OTEL span with a start or end time outside years 0000-9999"
+            );
+            return None;
+        };
         let mut attributes = EventAttributes {
             span: &self.attributes,
             resource,
@@ -380,7 +388,7 @@ impl<'a> EventSource<'a> {
             ingestion_sdk_version: config.ingestion_sdk_version.clone(),
             ..row
         };
-        (row, evaluation_fields)
+        Some((row, evaluation_fields))
     }
 
     fn payloads(&mut self, row: &OtelStorageRow) -> ProviderIO {
