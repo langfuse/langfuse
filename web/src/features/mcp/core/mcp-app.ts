@@ -25,14 +25,17 @@ export const MCP_APPS_EXTENSION = { [EXTENSION_ID]: {} };
  * (in their `_meta` envelope); 2025-era clients declare theirs once in
  * `initialize`, which this stateless endpoint does not keep. So only a client
  * that declared capabilities without the MCP Apps extension is known not to
- * render apps; others keep app tools, which also answer in text.
+ * render apps; others keep app tools, which also answer in text. The
+ * capabilities are read before the SDK validates the request, so malformed
+ * ones count as no MCP Apps support.
  */
 export const clientMayRenderApps = (
   capabilities: ClientCapabilities | undefined,
-) =>
-  capabilities === undefined ||
-  (getUiCapability(capabilities)?.mimeTypes?.includes(RESOURCE_MIME_TYPE) ??
-    false);
+) => {
+  if (capabilities === undefined) return true;
+  const mimeTypes: unknown = getUiCapability(capabilities)?.mimeTypes;
+  return Array.isArray(mimeTypes) && mimeTypes.includes(RESOURCE_MIME_TYPE);
+};
 
 /** Whether a tool definition renders its results with a `ui://` resource. */
 export const isAppTool = (definition: {

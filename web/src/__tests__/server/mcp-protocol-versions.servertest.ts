@@ -6,6 +6,7 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resources";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import type { ServerContext } from "@/src/features/mcp/types";
 import { createMcpTestSetup } from "./mcp-helpers";
@@ -107,36 +108,38 @@ describe("MCP protocol versions", () => {
     {
       case: "a 2026-07-28 client that renders MCP Apps",
       negotiation: { mode: { pin: "2026-07-28" } },
-      rendersApps: true,
+      ui: { mimeTypes: ["text/html;profile=mcp-app"] as string[] },
       listed: true,
     },
     {
       case: "a 2026-07-28 client without MCP Apps support",
       negotiation: { mode: { pin: "2026-07-28" } },
-      rendersApps: false,
+      ui: undefined,
+      listed: false,
+    },
+    {
+      case: "a 2026-07-28 client with malformed MCP Apps capabilities",
+      negotiation: { mode: { pin: "2026-07-28" } },
+      ui: { mimeTypes: 1 },
       listed: false,
     },
     {
       // Its capabilities stay with `initialize`, so tools/list cannot tell.
       case: "a 2025-era client",
       negotiation: undefined,
-      rendersApps: false,
+      ui: undefined,
       listed: true,
     },
   ] as const)(
-    "lists app tools to $case: $listed",
-    async ({ negotiation, rendersApps, listed }) => {
+    "lists app tools and resources to $case: $listed",
+    async ({ negotiation, ui, listed }) => {
       const client = new Client(
         { name: "protocol-versions-test", version: "1.0.0" },
         {
           ...(negotiation && { versionNegotiation: negotiation }),
-          ...(rendersApps && {
+          ...(ui && {
             capabilities: {
-              extensions: {
-                "io.modelcontextprotocol/ui": {
-                  mimeTypes: ["text/html;profile=mcp-app"],
-                },
-              },
+              extensions: { "io.modelcontextprotocol/ui": ui },
             },
           }),
         },
@@ -147,6 +150,10 @@ describe("MCP protocol versions", () => {
         const names = tools.map((tool) => tool.name);
         expect(names).toContain("listPrompts");
         expect(names.includes("renderWidget")).toBe(listed);
+
+        const { resources } = await client.listResources();
+        const uris = resources.map((resource) => resource.uri);
+        expect(uris.includes(WIDGET_APP_RESOURCE_URI)).toBe(listed);
       } finally {
         await client.close();
       }

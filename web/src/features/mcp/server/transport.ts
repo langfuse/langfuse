@@ -19,7 +19,10 @@ import type { ServerContext } from "../types";
 import { createMcpServer } from "./mcpServer";
 import { recordResourceRead } from "./resources";
 
-/** Capabilities a 2026-07-28 request declares in its `_meta` envelope. */
+/**
+ * Capabilities a 2026-07-28 request declares in its `_meta` envelope, as sent:
+ * the SDK validates the request only after the server is built.
+ */
 const declaredClientCapabilities = (
   body: unknown,
 ): ClientCapabilities | undefined =>

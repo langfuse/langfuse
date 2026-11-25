@@ -59,7 +59,7 @@ Each feature module (`server/<feature>/index.ts`) lists its tools; `MCP_FEATURES
 
 The Langfuse MCP server uses a **stateless per-request architecture**:
 
-1. **Fresh server instance per request:** Each MCP request creates a new `McpServer` (`createMcpServer` in `server/mcpServer.ts`)
+1. **Fresh server instance per request:** Each MCP request creates a new `McpServer` (`createMcpServer`)
 2. **Context captured in closures:** Authentication context is captured in handler closures
 3. **No session storage:** Server is discarded after request completes
 4. **No state between requests:** Each request is independent
@@ -72,7 +72,7 @@ This design:
 
 `server/transport.ts` serves both protocol eras through the SDK's `createMcpHandler`: 2026-07-28 requests are answered directly (JSON unless a tool streams), 2025-era requests through its stateless legacy fallback, which always responds with SSE (`text/event-stream`).
 
-Resources are served by the SDK: the bundled Langfuse skills through its Skills extension (`server/skills/resources.ts`: `skills/list`, `skills/get`, and `resources/read` on `skill://langfuse/...`), and the MCP App page `ui://langfuse/widget.html` with `registerAppResource`. The transport counts every `resources/read` (`recordResourceRead` in `server/resources.ts`) as `langfuse.mcp.resource_read`, tagged by kind, URI and outcome.
+Resources are served by the SDK: the bundled Langfuse skills through its Skills extension (`langfuseSkills`: `skills/list`, `skills/get`, and `resources/read` on `skill://langfuse/...`), and the MCP App page `ui://langfuse/widget.html` with `registerAppResource`. The transport counts every `resources/read` (`recordResourceRead`) as `langfuse.mcp.resource_read`, tagged by kind, URI and outcome.
 
 ### Authentication Flow
 
