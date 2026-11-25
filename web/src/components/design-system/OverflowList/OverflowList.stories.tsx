@@ -141,3 +141,33 @@ export const OverflowAlignment = meta.story({
     }
   },
 });
+
+export const OverflowWidthDependsOnCount = meta.story({
+  name: "(Test) Overflow Width Depends On Count",
+  args: {
+    ...CallerOwnedItems.input.args,
+    alignment: "center",
+    renderOverflow: ({ overflowItemCount }) => (
+      <button
+        type="button"
+        // Wide when few items overflow, narrow when many do — the same
+        // +N width coupling chart legends have. Measuring on every layout
+        // then ping-pongs visibleCount until React hits max update depth.
+        style={{ width: overflowItemCount >= 3 ? 24 : 96 }}
+      >
+        +{overflowItemCount}
+      </button>
+    ),
+  },
+  render: (args) => (
+    <div className="w-[220px]">
+      <OverflowList {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => {
+      expect(canvas.getByRole("button", { name: /^\+\d+$/ })).toBeVisible();
+    });
+  },
+});
