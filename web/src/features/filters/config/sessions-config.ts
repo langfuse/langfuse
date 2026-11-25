@@ -16,6 +16,7 @@ export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   tags: "traceTags",
 };
 
+/** @internal */
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
 

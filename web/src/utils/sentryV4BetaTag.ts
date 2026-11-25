@@ -3,6 +3,7 @@ import { getActiveSpan, getRootSpan, setTag } from "@sentry/nextjs";
 /**
  * Isolation-scope tag so browser pageload/navigation metric alerts can split
  * v3 vs v4. Boolean only — never user or project IDs (those stay on `setUser`).
+ * @internal
  */
 export const V4_BETA_ENABLED_SENTRY_TAG = "v4BetaEnabled";
 
@@ -10,6 +11,7 @@ export const V4_BETA_ENABLED_SENTRY_TAG = "v4BetaEnabled";
  * Last-known v4 flag for the next hard pageload. Isolation-scope tags are
  * copied onto the pageload transaction at `Sentry.init`, which runs before
  * session hydrate. Not the intro-dialog key (`v4-beta-intro-dialog-seen`).
+ * @internal
  */
 export const V4_BETA_ENABLED_STORAGE_KEY = "v4BetaEnabled";
 

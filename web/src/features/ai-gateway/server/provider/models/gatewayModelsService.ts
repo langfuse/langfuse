@@ -151,4 +151,5 @@ function compareModels(
   return 0;
 }
 
+/** @internal */
 export const __test = { modelMatchesApiFormat };

@@ -24,6 +24,7 @@ import {
  * Extracts media references from live dataset item fields, deduped by media id.
  * Valid JSON uses the backend-style collector; invalid mid-edit JSON falls back
  * to regex so previews do not disappear while typing.
+ * @internal
  */
 export function collectMediaReferenceStrings(
   jsonStrings: (string | undefined)[],
@@ -61,6 +62,7 @@ type SliceableDoc = {
   sliceString(from: number, to?: number): string;
 };
 
+/** @internal */
 export function getMediaReferenceInsertRange(
   doc: SliceableDoc,
   from: number,

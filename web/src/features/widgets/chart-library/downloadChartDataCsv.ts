@@ -15,6 +15,7 @@ const escapeCsvValue = (value: any): string => {
  * Serializes chart data rows to CSV text. Both the header row and the value
  * rows are escaped, so dynamic column names (e.g. breakdown dimension values)
  * that contain a comma, quote, or line break do not misalign the columns.
+ * @internal
  */
 export function buildChartDataCsv(data: Record<string, any>[]): string {
   if (data.length === 0) return "";

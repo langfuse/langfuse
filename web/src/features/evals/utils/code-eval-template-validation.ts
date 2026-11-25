@@ -614,6 +614,7 @@ async function validateCodeEvalSourceWithTypescript(
   return validateCodeEvalSource(source, tsModule);
 }
 
+/** @internal */
 export async function validateCodeEvalSourceWithPython(
   source: string,
 ): Promise<CodeEvalValidationResult> {

@@ -29,9 +29,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { isCloudPlan, planLabels, type Plan } from "@langfuse/shared";
@@ -51,9 +48,10 @@ import {
   type UserNavigationItem,
 } from "@/src/components/nav/UserMenuItems";
 import { VersionAttentionDot } from "@/src/components/nav/VersionAttentionDot";
-import { VersionMenuItems } from "@/src/components/nav/VersionMenuItems";
+import { VersionSubmenu } from "@/src/components/nav/VersionSubmenu";
 import {
   describeVersionState,
+  getVersionStatusDot,
   type SidebarVersionState,
 } from "@/src/components/nav/versionState";
 import { ControlledOrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/ControlledOrganizationDropdownMenu";
@@ -533,22 +531,7 @@ function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <span className="flex items-center gap-1.5">
-                  {versionDetails.versionText}
-                  {versionStatusDot && (
-                    <VersionAttentionDot {...versionStatusDot} />
-                  )}
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <VersionMenuItems
-                  state={versionState}
-                  details={versionDetails}
-                />
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <VersionSubmenu state={versionState} version={version} />
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <UserMenuItems items={items} />
@@ -594,20 +577,4 @@ const DemoBadge = () => {
       </SidebarGroupContent>
     </SidebarGroup>
   );
-};
-
-const getVersionStatusDot = (
-  details: ReturnType<typeof describeVersionState>,
-): React.ComponentProps<typeof VersionAttentionDot> | null => {
-  const { update, backgroundMigrationStatus } = details;
-  if (backgroundMigrationStatus) {
-    return { label: "Background migration running", tone: "migration" };
-  }
-  if (update) {
-    return {
-      label: `New ${update.updateType} version available`,
-      tone: update.updateType,
-    };
-  }
-  return null;
 };

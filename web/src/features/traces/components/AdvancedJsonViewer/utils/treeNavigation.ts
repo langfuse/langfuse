@@ -107,6 +107,7 @@ export function getNodeByIndex(
  *
  * @param rootNode - Root of the tree
  * @returns Total number of visible rows (including root)
+ * @internal
  */
 export function getVisibleRowCount(rootNode: TreeNode): number {
   return 1 + rootNode.visibleDescendantCount;
@@ -262,6 +263,7 @@ export function getAllVisibleNodes(rootNode: TreeNode): TreeNode[] {
  *
  * @param node - Node to check
  * @returns True if visible in tree
+ * @internal
  */
 export function isNodeVisible(node: TreeNode): boolean {
   let current = node.parentNode;

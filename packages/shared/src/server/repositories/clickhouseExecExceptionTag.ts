@@ -12,6 +12,7 @@ import { Transform } from "stream";
 import { extractErrorAtTheEndOfChunk } from "@clickhouse/client";
 
 // Literal prefix of the error trailer; the per-query tag is appended at runtime.
+/** @internal */
 export const EXCEPTION_TRAILER_MARKER = Buffer.from("\r\n__exception__\r\n");
 
 export interface ClickhouseExecExceptionTagTransformOptions {

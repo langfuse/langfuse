@@ -9,17 +9,21 @@ import { type TraceDeletePredicateSource } from "@langfuse/shared";
  * the query the batch action resolves (filter, search, cutoff) instead, since
  * they can cover far more traces than were ever loaded. Every entry expires on
  * its own so storage cannot grow without bound.
+ * @internal
  */
 export const PENDING_TRACE_DELETIONS_STORAGE_KEY =
   "langfuse.pending-trace-deletions.v1";
 
 /** Matches the upper bound the confirmation dialog tells the user. */
+/** @internal */
 export const PENDING_TRACE_DELETION_TTL_MS = 48 * 60 * 60 * 1000;
 
 /** Oldest ids are dropped first once a project exceeds this. */
+/** @internal */
 export const PENDING_TRACE_DELETION_MAX_IDS_PER_PROJECT = 1000;
 
 /** Oldest select-all entries are dropped first once a project exceeds this. */
+/** @internal */
 export const PENDING_TRACE_DELETION_MAX_QUERIES_PER_PROJECT = 20;
 
 /** The batch-action query as dispatched, in its JSON form. */
@@ -106,6 +110,7 @@ function parseQueryEntry(
   };
 }
 
+/** @internal */
 export function parsePendingTraceDeletions(
   raw: string | null | undefined,
 ): PendingTraceDeletions {
@@ -167,6 +172,7 @@ function capQueries(
 }
 
 /** Drops expired entries and enforces the per-project caps. Same reference when nothing changed. */
+/** @internal */
 export function prunePendingTraceDeletions(
   store: PendingTraceDeletions,
   now: number,
@@ -205,6 +211,7 @@ const emptyProject = (): PendingTraceDeletionProject => ({
   queries: [],
 });
 
+/** @internal */
 export function addPendingTraceDeletions(
   store: PendingTraceDeletions,
   projectId: string,
@@ -224,6 +231,7 @@ export function addPendingTraceDeletions(
   };
 }
 
+/** @internal */
 export function addPendingTraceDeletionQuery(
   store: PendingTraceDeletions,
   projectId: string,
@@ -246,6 +254,7 @@ export function addPendingTraceDeletionQuery(
 }
 
 /** Drops select-all entries requested before `settledBefore`, once the server reports no trace delete is running. */
+/** @internal */
 export function settlePendingTraceDeletionQueries(
   store: PendingTraceDeletions,
   projectId: string,
@@ -266,6 +275,7 @@ export function settlePendingTraceDeletionQueries(
   return next;
 }
 
+/** @internal */
 export function pendingTraceDeletionSnapshot(
   store: PendingTraceDeletions,
   projectId: string,
@@ -333,6 +343,7 @@ function update(
 }
 
 /** Test helper. Production code never needs to drop the in-memory snapshot. */
+/** @internal */
 export function resetPendingTraceDeletionStore() {
   memoryRaw = null;
   if (typeof window === "undefined") return;
