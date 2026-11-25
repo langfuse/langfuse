@@ -12034,9 +12034,23 @@ components:
         - $ref: '#/components/schemas/EvaluatorVersionBase'
     DecisionModelEntry:
       title: DecisionModelEntry
+      oneOf:
+        - type: string
+          title: String
+        - type: object
+          additionalProperties: true
+          title: Object
+        - type: array
+          items: {}
+          title: Array
+        - type: number
+          format: double
+          title: DoubleNumber
+        - type: boolean
+          title: Boolean
       description: >-
-        Instruction text, or a JSON value that the decision model receives as
-        structured instructions.
+        Instruction text (1 to 20,000 characters), or a non-null JSON value that
+        the decision model receives as structured instructions.
     DecisionModelChoiceOption:
       title: DecisionModelChoiceOption
       type: object

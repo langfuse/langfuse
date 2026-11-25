@@ -271,8 +271,15 @@ types:
         docs: Runtime language used to execute the source code.
 
   DecisionModelEntry:
-    docs: Instruction text, or a JSON value that the decision model receives as structured instructions.
-    type: unknown
+    docs: |
+      Instruction text (1 to 20,000 characters), or a non-null JSON value that the decision model receives as structured instructions.
+    discriminated: false
+    union:
+      - string
+      - map<string, unknown>
+      - list<unknown>
+      - double
+      - boolean
 
   DecisionModelChoiceOption:
     docs: One allowed answer of a `choice` question.
