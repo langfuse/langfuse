@@ -6,7 +6,6 @@ import {
   type Expression,
   type ExpressionBuilder,
   type SelectQueryBuilder,
-  type SqlBool,
 } from "kysely";
 import { type z } from "zod";
 import {
@@ -32,15 +31,7 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import {
-  eventsObservationsView,
-  getViewDeclaration,
-  SCORE_V2_RELATIONS,
-  scoresBooleanViewV2,
-  scoresCategoricalViewV2,
-  scoresListableCountViewV2,
-  scoresNumericViewV2,
-} from "../dataModel";
+import { eventsObservationsView, getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
@@ -72,14 +63,8 @@ import {
   type IntervalUnit,
   type IntervalValue,
 } from "../../../server/query-ast/extensions";
-import {
-  lowerEventsFieldCondition,
-  lowerFieldCondition,
-} from "../../../server/repositories/events-predicate";
-import type {
-  EventsFieldLowering,
-  FieldLowering,
-} from "../../../server/repositories/events-predicate-fields";
+import { lowerEventsFieldCondition } from "../../../server/repositories/events-predicate";
+import type { EventsFieldLowering } from "../../../server/repositories/events-predicate-fields";
 import {
   eventsObservationsArrayDimension,
   eventsObservationsDimension,
@@ -92,25 +77,14 @@ import {
 } from "./eventsObservationsRegistry";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 import {
-  eventsTraceAttributes,
-  TRACE_ATTRIBUTE_COLUMNS,
-} from "./eventsTraceAttributes";
-import {
-  SEGMENT_FILTER,
-  scoreDimension,
-  scoreFilterLowering,
-  scoreMeasure,
-  scoresExpressionBuilder,
-  type ScoresBuilder,
-} from "./scoresRegistry";
-import {
   getCompatibleFilterTypes,
   isFilterColumnType,
   type CompatibleFilterType,
   type FilterColumnType,
 } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
+import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
 
-type AppliedDimensionType = {
+export type AppliedDimensionType = {
   /** The dimension's key in the view. */
   name: string;
   table: string;
@@ -122,7 +96,7 @@ type AppliedDimensionType = {
   pairExpand?: { valuesSql: string; valueAlias: string };
 };
 
-type AppliedMetricType = {
+export type AppliedMetricType = {
   sql: string;
   aggregation: z.infer<typeof metricAggregations>;
   queryAggregation?: z.infer<typeof metricAggregations>;
@@ -230,7 +204,7 @@ const WITH_FILL_STEPS: Record<
  * string, as the string builder binds time bounds; ClickHouse compares it
  * exactly against the `DateTime64(6)` / `DateTime64(3)` columns.
  */
-const utcDateTime = (date: Date) =>
+export const utcDateTime = (date: Date) =>
   typedValue<Date>(
     convertDateToClickhouseDateTime(date),
     "DateTime64(3, 'UTC')",
@@ -298,7 +272,7 @@ function rowLimitLiteral(rowLimit: number) {
 }
 
 /** Throws `InvalidRequestError` unless `view` declares every relation in `relationTables`. */
-function assertKnownRelationTables(
+export function assertKnownRelationTables(
   view: ViewDeclarationType,
   relationTables: Iterable<string>,
 ) {
@@ -326,51 +300,18 @@ type OuterClauses = {
 };
 
 /** What a time bucket truncates and an entity bucket reads, per view. */
-type BucketValues = {
+export type BucketValues = {
   time: Expression<Date>;
   entity: (field: string) => AliasableExpression<unknown>;
 };
-
-/**
- * A dashboard filter on a v2 score view: the lowering and condition, the
- * dimension it names (none for `timestamp` and `metadata`), and that
- * dimension's relation (none for a `scores` column).
- */
-type ScoreFilter = {
-  lowering: FieldLowering<ScoresBuilder>;
-  condition: PredicateCondition;
-  dimension: string | undefined;
-  relation: string | undefined;
-};
-
-const SCORE_TRACES = SCORE_V2_RELATIONS.traces;
-const SCORE_OBSERVATIONS = SCORE_V2_RELATIONS.observations;
-
-/** The views {@link QueryBuilder.build} compiles through `buildScores`. */
-const SCORE_VIEWS_V2: ReadonlySet<ViewDeclarationType> = new Set([
-  scoresNumericViewV2,
-  scoresCategoricalViewV2,
-  scoresBooleanViewV2,
-  scoresListableCountViewV2,
-]);
 
 /**
  * A dimension or measure in the select it sits in: as it is at level
  * `single`, `any(…)` in the inner select of a two-level query, whose rows
  * are one per grouped entity.
  */
-const atLevel = <T>(value: AliasableExpression<T>, level: QueryLevel) =>
+export const atLevel = <T>(value: AliasableExpression<T>, level: QueryLevel) =>
   level === "two" ? anyValue(value) : value;
-
-/** `query` with each of `conditions` ANDed to its WHERE, in order. */
-function whereAll<DB, TB extends keyof DB, O>(
-  query: SelectQueryBuilder<DB, TB, O>,
-  conditions: ReadonlyArray<Expression<SqlBool>>,
-): SelectQueryBuilder<DB, TB, O> {
-  let filtered = query;
-  for (const condition of conditions) filtered = filtered.where(condition);
-  return filtered;
-}
 
 /**
  * The dimension of `dimensions` (a view's declared dimensions) a filter on
@@ -378,180 +319,13 @@ function whereAll<DB, TB extends keyof DB, O>(
  * (`scoreName`, `traceName`), so a filter sent with the wrong column name
  * keeps working; `undefined` for any other column.
  */
-function filterDimensionName(
+export function filterDimensionName(
   column: string,
   dimensions: Readonly<Record<string, unknown>>,
 ): string | undefined {
   if (column in dimensions) return column;
   if (column.endsWith("Name") && "name" in dimensions) return "name";
   return undefined;
-}
-
-/** The query's time window, bound as {@link utcDateTime}. */
-type TimeWindow = { from: Expression<Date>; to: Expression<Date> };
-
-/**
- * What the parts of the v2 score query's FROM and WHERE read: the query's
- * time window, its dashboard filters and the view's segments.
- */
-type ScoresSourceScope = {
-  window: TimeWindow;
-  filters: ScoreFilter[];
-  segments: ViewDeclarationType["segments"];
-};
-
-const isTraceFilter = (filter: ScoreFilter) => filter.relation === SCORE_TRACES;
-
-/** Each of `filters` as its WHERE conjuncts, in order. */
-function lowerScoreFilters(filters: ScoreFilter[]) {
-  const eb = scoresExpressionBuilder();
-  return filters.flatMap((f) =>
-    lowerFieldCondition(eb, f.lowering, f.condition),
-  );
-}
-
-/** `scores.timestamp between <from> and <to> and <segment>` */
-function scoreWindowAndSegment({ window, segments }: ScoresSourceScope) {
-  const eb = scoresExpressionBuilder();
-  return [
-    eb("scores.timestamp", ">=", window.from),
-    eb("scores.timestamp", "<=", window.to),
-    ...segments.flatMap((segment) =>
-      lowerFieldCondition(eb, SEGMENT_FILTER, conditionFromFilter(segment)),
-    ),
-  ];
-}
-
-/**
- * `select scores.trace_id from scores where <score filters> and <window> and
- * <segment>`, without FINAL: it only narrows trace ids.
- */
-function scoredTraceIds(scope: ScoresSourceScope) {
-  return whereAll(
-    getClickhouseKysely().selectFrom("scores").select("scores.trace_id"),
-    [
-      ...lowerScoreFilters(
-        scope.filters.filter((f) => f.relation === undefined),
-      ),
-      ...scoreWindowAndSegment(scope),
-    ],
-  );
-}
-
-/** The trace attributes subquery with the columns `dimensions` read. */
-function traceAttributesFor(window: TimeWindow, dimensions: string[]) {
-  return eventsTraceAttributes(
-    window,
-    TRACE_ATTRIBUTE_COLUMNS.filter((column) =>
-      dimensions.some((d) => scoreDimension(d).traceColumn === column),
-    ),
-  );
-}
-
-/** The dimensions the trace filters in `filters` name. */
-const traceFilterDimensions = (filters: ScoreFilter[]) =>
-  filters.flatMap((f) =>
-    isTraceFilter(f) && f.dimension ? [f.dimension] : [],
-  );
-
-/**
- * `from scores [inner join <relation> on …]…`, one join per relation in
- * `joined`, in order. The trace join selects the trace columns of
- * `traceDimensions` and of the trace filters.
- */
-function scoresJoins(
-  scope: ScoresSourceScope,
-  joined: string[],
-  traceDimensions: string[],
-) {
-  const db = getClickhouseKysely();
-  let source = db.selectFrom("scores");
-  for (const relation of joined) {
-    source = source
-      // … inner join events as e on <score's observation>
-      .$if(relation === SCORE_OBSERVATIONS, (qb) =>
-        qb.innerJoin("events as e", (join) =>
-          join
-            .onRef("scores.project_id", "=", "e.project_id")
-            .onRef("scores.trace_id", "=", "e.trace_id")
-            .onRef("scores.observation_id", "=", "e.span_id"),
-        ),
-      )
-      // … inner join (select * from (<trace attributes>) as events_traces_all
-      // where events_traces_all.id in (<scored trace ids>)) as events_traces on …
-      .$if(relation === SCORE_TRACES, (qb) =>
-        qb.innerJoin(
-          db
-            .selectFrom(
-              traceAttributesFor(scope.window, [
-                ...traceDimensions,
-                ...traceFilterDimensions(scope.filters),
-              ]).as("events_traces_all"),
-            )
-            .selectAll()
-            .where("events_traces_all.id", "in", scoredTraceIds(scope))
-            .as("events_traces"),
-          (join) =>
-            join
-              .onRef("scores.trace_id", "=", "events_traces.id")
-              .onRef("scores.project_id", "=", "events_traces.project_id"),
-        ),
-      );
-  }
-  return source;
-}
-
-/**
- * `scores.trace_id in (select events_traces.id from (<trace attributes>) as
- * events_traces where <trace filters> and events_traces.id in (<scored trace
- * ids>))`
- */
-function traceSemiJoin(scope: ScoresSourceScope) {
-  const eb = scoresExpressionBuilder();
-  return eb(
-    "scores.trace_id",
-    "in",
-    whereAll(
-      getClickhouseKysely()
-        .selectFrom(
-          traceAttributesFor(
-            scope.window,
-            traceFilterDimensions(scope.filters),
-          ).as("events_traces"),
-        )
-        .select("events_traces.id"),
-      [
-        ...lowerScoreFilters(scope.filters.filter(isTraceFilter)),
-        eb("events_traces.id", "in", scoredTraceIds(scope)),
-      ],
-    ),
-  );
-}
-
-/**
- * The WHERE conjuncts of the v2 score query: `<filters> and <window> and
- * <segment> [and e.start_time between <from> and <to>] [and <trace
- * semi-join>]`. Trace filters move into the {@link traceSemiJoin} when
- * `joined` lacks the trace relation, and the observation window applies when
- * it has the observation relation.
- */
-function scoresWhere(scope: ScoresSourceScope, joined: string[]) {
-  const eb = scoresExpressionBuilder();
-  const semiJoinsTraces =
-    !joined.includes(SCORE_TRACES) && scope.filters.some(isTraceFilter);
-  return [
-    ...lowerScoreFilters(
-      scope.filters.filter((f) => !(semiJoinsTraces && isTraceFilter(f))),
-    ),
-    ...scoreWindowAndSegment(scope),
-    ...(joined.includes(SCORE_OBSERVATIONS)
-      ? [
-          eb("e.start_time", ">=", scope.window.from),
-          eb("e.start_time", "<=", scope.window.to),
-        ]
-      : []),
-    ...(semiJoinsTraces ? [traceSemiJoin(scope)] : []),
-  ];
 }
 
 /** Latest fill bound whose TO + one step stays below the DateTime maximum (2106-02-07T06:28:15Z). */
@@ -623,7 +397,7 @@ export class QueryBuilder {
     return getViewDeclaration(viewName, this.version);
   }
 
-  private applyBucketingDimension(
+  applyBucketingDimension(
     query: QueryType,
     view: ViewDeclarationType,
   ): AppliedBucketingDimension {
@@ -712,7 +486,7 @@ export class QueryBuilder {
     return dimension;
   }
 
-  private mapDimensions(
+  mapDimensions(
     dimensions: Array<{ field: string }>,
     view: ViewDeclarationType,
   ): AppliedDimensionType[] {
@@ -733,7 +507,7 @@ export class QueryBuilder {
     });
   }
 
-  private mapMetrics(
+  mapMetrics(
     metrics: Array<{
       measure: string;
       aggregation: z.infer<typeof metricAggregations>;
@@ -777,7 +551,7 @@ export class QueryBuilder {
    * toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
    * and its per-tool result alias is in scope.
    */
-  private withRequiredDimensions(
+  withRequiredDimensions(
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
     view: ViewDeclarationType,
@@ -810,7 +584,7 @@ export class QueryBuilder {
    * events predicate lowering (the v2 observations view) compare metadata
    * as numbers.
    */
-  private validateFilters(
+  validateFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
     { numericMetadata = false }: { numericMetadata?: boolean } = {},
@@ -1171,12 +945,12 @@ export class QueryBuilder {
     return filterList;
   }
 
-  private collectRelationTables(
+  collectRelationTables(
     view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    filters: FilterList,
     appliedBucketingDimension: AppliedBucketingDimension,
+    filters: FilterList = new FilterList([]),
   ) {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
@@ -1212,7 +986,7 @@ export class QueryBuilder {
     return relationTables;
   }
 
-  private canUseSingleLevelQuery(
+  canUseSingleLevelQuery(
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
   ): boolean {
@@ -1870,7 +1644,7 @@ export class QueryBuilder {
    * Validates that the provided orderBy fields exist in the dimensions or metrics
    * and returns the processed orderBy array with fully qualified field names.
    */
-  private validateAndProcessOrderBy(
+  validateAndProcessOrderBy(
     orderBy: Array<{ field: string; direction: string }> | null,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
@@ -2003,12 +1777,11 @@ export class QueryBuilder {
     }));
 
     // No filter joins a relation: `eventsObservationsFilterLowering` compares
-    // `e` columns only. The empty list stands in for the filters.
+    // `e` columns only.
     const relationTables = this.collectRelationTables(
       view,
       appliedDimensions,
       appliedMetrics,
-      new FilterList([]),
       bucket,
     );
     assertKnownRelationTables(view, relationTables);
@@ -2094,184 +1867,8 @@ export class QueryBuilder {
     );
   }
 
-  /**
-   * {@link build} for the v2 score views, on the query AST: the shapes of
-   * {@link buildEventsObservations} over `from scores [final]`, with the
-   * entries of `scoresRegistry.ts` and filters lowered by
-   * `lowerFieldCondition`. Tenancy adds the project conditions. Rows flagged
-   * deleted are read, as the string builder does.
-   *
-   * The view's two relations:
-   * - `events_observations` joins `events as e` on the score's observation,
-   *   with `e.start_time` in the query window;
-   * - `events_traces` joins the trace attributes (`eventsTraceAttributes`)
-   *   of the traces that have a score passing the query's score filters.
-   *   When the query only filters on it, it becomes a semi-join instead:
-   *   `scores.trace_id in (<ids of matching traces>)`, last in WHERE.
-   *
-   * Level: single-level only without a join, whatever
-   * `enableSingleLevelOptimization` says: a join can match several rows per
-   * score, so the inner select groups by score to count each score once.
-   */
-  private buildScores(
-    query: QueryType,
-    view: ViewDeclarationType,
-    projectId: string,
-    skipScoresFinal: boolean,
-  ): { query: string; parameters: Record<string, unknown> } {
-    const requestedDimensions = this.mapDimensions(query.dimensions, view);
-    const appliedMetrics = this.mapMetrics(query.metrics, view);
-    const bucket = this.applyBucketingDimension(query, view);
-    const appliedDimensions = this.withRequiredDimensions(
-      requestedDimensions,
-      appliedMetrics,
-      view,
-    );
-    this.validateFilters(query.filters, view);
-    const filters = query.filters.map((filter): ScoreFilter => {
-      const dimension = filterDimensionName(filter.column, view.dimensions);
-      return {
-        lowering: scoreFilterLowering(
-          filter.column,
-          dimension,
-          view.dimensions,
-        ),
-        condition: conditionFromFilter(filter),
-        dimension,
-        relation: dimension
-          ? view.dimensions[dimension].relationTable
-          : undefined,
-      };
-    });
-
-    // Relations in order of first use: entity bucket, dimensions, measures,
-    // filters, as in `collectRelationTables`.
-    const outputRelations = this.collectRelationTables(
-      view,
-      appliedDimensions,
-      appliedMetrics,
-      new FilterList([]),
-      bucket,
-    );
-    const relations = new Set([
-      ...outputRelations,
-      ...filters.flatMap((f) => (f.relation ? [f.relation] : [])),
-    ]);
-    assertKnownRelationTables(view, relations);
-    const semiJoinsTraces =
-      relations.has(SCORE_TRACES) && !outputRelations.has(SCORE_TRACES);
-    const joined = [...relations].filter(
-      (relation) => !(semiJoinsTraces && relation === SCORE_TRACES),
-    );
-    const level: QueryLevel =
-      joined.length === 0 &&
-      this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
-        ? "single"
-        : "two";
-    const orderBy = this.validateAndProcessOrderBy(
-      query.orderBy,
-      appliedDimensions,
-      appliedMetrics,
-      bucket,
-    );
-    const outerClauses = this.astOuterClauses(
-      query,
-      appliedDimensions,
-      bucket,
-      orderBy,
-    );
-    const eb = scoresExpressionBuilder();
-    const source = this.astScoresSource(query, view, {
-      filters,
-      joined,
-      skipScoresFinal,
-      traceDimensions: [
-        ...appliedDimensions.map((d) => d.name),
-        ...(bucket.type === "entity" ? [bucket.field] : []),
-      ],
-    });
-    const bucketValues: BucketValues = {
-      time: eb.ref("scores.timestamp"),
-      entity: (field) => scoreDimension(field).expression(eb),
-    };
-    const measure = (level: QueryLevel) => (metric: AppliedMetricType) =>
-      scoreMeasure(eb, metric.measureName, level);
-    const dimensionValue = (d: AppliedDimensionType, level: QueryLevel) =>
-      atLevel(scoreDimension(d.name).expression(eb), level).as(
-        this.dimensionAlias(d),
-      );
-
-    if (level === "single") {
-      // select <dimensions>, <bucket>, <aggregation>(<measure>) … from <source>
-      return this.compileWithOuterClauses(
-        projectId,
-        outerClauses,
-        source.select(() => [
-          ...appliedDimensions.map((d) => dimensionValue(d, "single")),
-          ...this.astBucketSelection(bucket, "single", bucketValues),
-          ...this.astSingleLevelMetrics(eb, appliedMetrics, measure("single")),
-        ]),
-      );
-    }
-    // select scores.project_id, scores.id, any(<dimension>) …, <measures> from <source>
-    // group by scores.project_id, scores.id
-    const perScore = source
-      .select(["scores.project_id", "scores.id"])
-      .select(() => [
-        ...appliedDimensions.map((d) => dimensionValue(d, "two")),
-        ...this.astBucketSelection(bucket, "two", bucketValues),
-        ...this.astInnerMetrics(eb, appliedMetrics, measure("two")),
-      ])
-      .groupBy(["scores.project_id", "scores.id"]);
-    return this.compileWithOuterClauses(
-      projectId,
-      outerClauses,
-      this.astOuterSelect(
-        perScore.as("per_score"),
-        appliedDimensions,
-        bucket,
-        appliedMetrics,
-      ),
-    );
-  }
-
-  /**
-   * The FROM, JOINs and WHERE of the v2 score query: {@link scoresJoins}
-   * `where` {@link scoresWhere} `[final]`. `traceDimensions` are the output
-   * dimensions, whose trace attributes the trace join selects.
-   */
-  private astScoresSource(
-    query: QueryType,
-    view: ViewDeclarationType,
-    {
-      filters,
-      joined,
-      skipScoresFinal,
-      traceDimensions,
-    }: {
-      filters: ScoreFilter[];
-      joined: string[];
-      skipScoresFinal: boolean;
-      traceDimensions: string[];
-    },
-  ) {
-    const scope: ScoresSourceScope = {
-      window: {
-        from: utcDateTime(new Date(query.fromTimestamp)),
-        to: utcDateTime(new Date(query.toTimestamp)),
-      },
-      filters,
-      segments: view.segments,
-    };
-    const filtered = whereAll(
-      scoresJoins(scope, joined, traceDimensions),
-      scoresWhere(scope, joined),
-    );
-    return skipScoresFinal ? filtered : filtered.$call(useFinal(["scores"]));
-  }
-
   /** `group by` / `order by` / `with fill` / `limit` of the outermost select. */
-  private astOuterClauses(
+  astOuterClauses(
     query: QueryType,
     appliedDimensions: AppliedDimensionType[],
     bucket: AppliedBucketingDimension,
@@ -2301,7 +1898,7 @@ export class QueryBuilder {
    * A pair-expanded key stays bare (`costType`), every other dimension is
    * aliased (`name as name`); ClickHouse accepts either spelling.
    */
-  private astOuterSelect<O, A extends string>(
+  astOuterSelect<O, A extends string>(
     inner: AliasedSelectQueryBuilder<O, A>,
     appliedDimensions: AppliedDimensionType[],
     bucket: AppliedBucketingDimension,
@@ -2327,7 +1924,7 @@ export class QueryBuilder {
    * `select` with `… group by <dimensions>, <bucket> order by … [with fill …]
    * [limit n]`, compiled for `projectId`.
    */
-  private compileWithOuterClauses<DB, TB extends keyof DB, O>(
+  compileWithOuterClauses<DB, TB extends keyof DB, O>(
     projectId: string,
     { groupBy, orderBy, fill, rowLimit }: OuterClauses,
     select: SelectQueryBuilder<DB, TB, O>,
@@ -2425,7 +2022,7 @@ export class QueryBuilder {
     );
   }
 
-  private dimensionAlias(dimension: AppliedDimensionType): string {
+  dimensionAlias(dimension: AppliedDimensionType): string {
     return dimension.alias ?? dimension.sql;
   }
 
@@ -2458,7 +2055,7 @@ export class QueryBuilder {
    * The time or entity bucket as `time_dimension` / `entity_dimension`, from
    * the view's time column or its entity dimension.
    */
-  private astBucketSelection(
+  astBucketSelection(
     bucket: AppliedBucketingDimension,
     level: QueryLevel,
     values: BucketValues,
@@ -2497,7 +2094,7 @@ export class QueryBuilder {
    * `<aggregation>(<measure>) as <aggregation>_<measure>`, or `count(*) as
    * count`; `value` is the view's single-level value of a measure.
    */
-  private astSingleLevelMetrics<DB, TB extends keyof DB>(
+  astSingleLevelMetrics<DB, TB extends keyof DB>(
     eb: ExpressionBuilder<DB, TB>,
     appliedMetrics: AppliedMetricType[],
     value: (metric: AppliedMetricType) => Expression<unknown>,
@@ -2514,7 +2111,7 @@ export class QueryBuilder {
    * `<measure> as <measure>`, or `count(*) as count`; `value` is the view's
    * inner-select value of a measure.
    */
-  private astInnerMetrics<DB, TB extends keyof DB>(
+  astInnerMetrics<DB, TB extends keyof DB>(
     eb: ExpressionBuilder<DB, TB>,
     appliedMetrics: AppliedMetricType[],
     value: (metric: AppliedMetricType) => AliasableExpression<unknown>,
@@ -2606,7 +2203,8 @@ export class QueryBuilder {
       );
     }
     if (SCORE_VIEWS_V2.has(view)) {
-      return this.buildScores(
+      return buildScores(
+        this,
         query,
         view,
         projectId,
@@ -2741,8 +2339,8 @@ export class QueryBuilder {
       view,
       appliedDimensions,
       appliedMetrics,
-      filterList,
       appliedBucketingDimension,
+      filterList,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(
