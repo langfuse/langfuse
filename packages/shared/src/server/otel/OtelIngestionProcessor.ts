@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-promise-reject-errors -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
