@@ -352,9 +352,15 @@ export class RuleService {
     createdByUserId: string | null,
   ) {
     const targetObject = input.targetObject ?? EvalTargetObject.EVENT;
-    const isTraceTranscript = targetObject === TopicsTargetObject;
     const filter = this.validateRuleFilters(targetObject, input.filter);
-    const traceMapping = input.variableMapping ?? [];
+    // Trace assignments store explicit mappings; observation assignments store none.
+    const assignment: RuleAssignmentInput = {
+      evaluatorId: input.evaluatorId,
+      variableMapping:
+        targetObject === TopicsTargetObject
+          ? (input.variableMapping ?? [])
+          : null,
+    };
     const attachToMatch = async () => {
       const matchingRule =
         await repository.findActiveRuleWithMatchingFilterAndSampling({
@@ -366,50 +372,11 @@ export class RuleService {
           visibility: this.visibility,
         });
       if (!matchingRule) return null;
-
-      const currentAssignment = matchingRule.assignments.find(
-        (assignment) => assignment.evaluatorId === input.evaluatorId,
+      return this.attachEvaluatorToMatchingRule(
+        input.projectId,
+        matchingRule,
+        assignment,
       );
-
-      if (!isTraceTranscript) {
-        if (currentAssignment)
-          return this.get(input.projectId, matchingRule.id);
-        return this.attach({
-          projectId: input.projectId,
-          ruleId: matchingRule.id,
-          assignment: { evaluatorId: input.evaluatorId, variableMapping: null },
-        });
-      }
-
-      // Trace assignments store explicit mappings, so a re-save replaces this
-      // evaluator's mapping and leaves the rule's other assignments as they are.
-      if (!currentAssignment) {
-        return this.attach({
-          projectId: input.projectId,
-          ruleId: matchingRule.id,
-          assignment: {
-            evaluatorId: input.evaluatorId,
-            variableMapping: traceMapping,
-          },
-        });
-      }
-      if (
-        stableJsonStringify(currentAssignment.variableMapping) ===
-        stableJsonStringify(traceMapping)
-      ) {
-        return this.get(input.projectId, matchingRule.id);
-      }
-      return this.update({
-        projectId: input.projectId,
-        ruleId: matchingRule.id,
-        evaluatorMappings: matchingRule.assignments.map((assignment) => ({
-          evaluatorId: assignment.evaluatorId,
-          variableMapping:
-            assignment.evaluatorId === input.evaluatorId
-              ? traceMapping
-              : (assignment.variableMapping as ObservationVariableMapping[]),
-        })),
-      });
     };
 
     const existingRule = await attachToMatch();
@@ -430,37 +397,68 @@ export class RuleService {
       return { action: "attached" as const, rule: concurrentlyCreatedRule };
     }
 
-    const name = suggestedName ?? fallbackRuleName(filter, targetObject);
-    const rule = isTraceTranscript
-      ? await this.createTraceTranscriptRule(
-          {
-            projectId: input.projectId,
-            name,
-            targetObject: TopicsTargetObject,
-            filter,
-            sampling: input.sampling,
-            enabled: true,
-            evaluatorAssignments: [
-              { evaluatorId: input.evaluatorId, variableMapping: traceMapping },
-            ],
-          },
-          createdByUserId,
-        )
-      : await this.create(
-          {
-            projectId: input.projectId,
-            name,
-            targetObject: EvalTargetObject.EVENT,
-            filter,
-            sampling: input.sampling,
-            enabled: true,
-            evaluatorAssignments: [
-              { evaluatorId: input.evaluatorId, variableMapping: null },
-            ],
-          },
-          createdByUserId,
-        );
+    const newRule = {
+      projectId: input.projectId,
+      name: suggestedName ?? fallbackRuleName(filter, targetObject),
+      filter,
+      sampling: input.sampling,
+      enabled: true,
+      evaluatorAssignments: [assignment],
+    };
+    const rule =
+      targetObject === TopicsTargetObject
+        ? await this.createTraceTranscriptRule(
+            { ...newRule, targetObject: TopicsTargetObject },
+            createdByUserId,
+          )
+        : await this.create(
+            { ...newRule, targetObject: EvalTargetObject.EVENT },
+            createdByUserId,
+          );
     return { action: "created" as const, rule };
+  }
+
+  /**
+   * Attaches the evaluator to a rule that already matches. A trace rule that
+   * has the evaluator with another mapping gets only that mapping replaced.
+   */
+  private async attachEvaluatorToMatchingRule(
+    projectId: string,
+    matchingRule: NonNullable<
+      Awaited<
+        ReturnType<
+          typeof repository.findActiveRuleWithMatchingFilterAndSampling
+        >
+      >
+    >,
+    assignment: RuleAssignmentInput,
+  ) {
+    const current = matchingRule.assignments.find(
+      ({ evaluatorId }) => evaluatorId === assignment.evaluatorId,
+    );
+    if (!current) {
+      return this.attach({ projectId, ruleId: matchingRule.id, assignment });
+    }
+    if (
+      assignment.variableMapping === null ||
+      stableJsonStringify(current.variableMapping) ===
+        stableJsonStringify(assignment.variableMapping)
+    ) {
+      return this.get(projectId, matchingRule.id);
+    }
+    return this.update({
+      projectId,
+      ruleId: matchingRule.id,
+      evaluatorMappings: matchingRule.assignments.map((existing) =>
+        existing.evaluatorId === assignment.evaluatorId
+          ? assignment
+          : {
+              evaluatorId: existing.evaluatorId,
+              variableMapping:
+                existing.variableMapping as ObservationVariableMapping[],
+            },
+      ),
+    });
   }
 
   async update(input: RuleServiceUpdateInput) {
@@ -1105,14 +1103,16 @@ function toRuleResponse(rule: StoredRule) {
         return {
           ...assignment,
           variableMapping: variableMapping as
-            ObservationVariableMapping[] | null,
+            | ObservationVariableMapping[]
+            | null,
           evaluator: {
             ...evaluatorMetadata,
             latestVersion: latestVersion
               ? {
                   ...latestVersion,
                   variableMapping: latestVersion.variableMapping as
-                    ObservationVariableMapping[] | null,
+                    | ObservationVariableMapping[]
+                    | null,
                 }
               : null,
           },

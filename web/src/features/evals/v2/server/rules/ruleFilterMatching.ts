@@ -26,7 +26,8 @@ export function filtersMatch(left: FilterState, right: FilterState) {
 export function fallbackRuleName(
   filter: FilterState,
   targetObject:
-    EvalTargetObject | typeof TopicsTargetObject = EvalTargetObject.EVENT,
+    | EvalTargetObject
+    | typeof TopicsTargetObject = EvalTargetObject.EVENT,
 ) {
   if (filter.length === 0) {
     return targetObject === TopicsTargetObject

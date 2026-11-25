@@ -46,6 +46,10 @@ export function RuleFilterStep({
     (traceEvalsAvailable || isTraceTranscript) &&
     targetObject !== EvalTargetObject.EXPERIMENT;
   const scopeLocked = mode === "edit" || lockScope;
+  const scopeLockedNote =
+    mode === "edit"
+      ? "Scope is fixed after creation."
+      : "Scope matches how the evaluator was tested.";
   const copy = ruleScopeCopy(targetObject, scopeSelectable);
   return (
     <Stepper
@@ -81,9 +85,7 @@ export function RuleFilterStep({
           </label>
           {scopeLocked ? (
             <span className="text-muted-foreground text-xs">
-              {mode === "edit"
-                ? "Scope is fixed after creation."
-                : "Scope matches how the evaluator was tested."}
+              {scopeLockedNote}
             </span>
           ) : null}
         </div>
