@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MultiSelect } from "./MultiSelect";
@@ -11,6 +12,30 @@ vi.stubGlobal(
   },
 );
 Element.prototype.scrollIntoView = vi.fn();
+
+function ControlledMultiSelect({
+  initialValues = [],
+  options,
+  onValuesChange,
+}: {
+  initialValues?: string[];
+  options: { value: string; displayValue?: string }[];
+  onValuesChange?: (values: string[]) => void;
+}) {
+  const [values, setValues] = useState(initialValues);
+  const handleValueChange = (nextValues: string[]) => {
+    setValues(nextValues);
+    onValuesChange?.(nextValues);
+  };
+  return (
+    <MultiSelect
+      values={values}
+      options={options}
+      onValueChange={handleValueChange}
+      isCustomSelectEnabled
+    />
+  );
+}
 
 describe("MultiSelect", () => {
   it("shows a selected value that is missing from the current options", () => {
@@ -55,5 +80,85 @@ describe("MultiSelect", () => {
     );
 
     expect(screen.getByText("6 selected")).toBeInTheDocument();
+  });
+
+  it("lists a selected custom value once and toggles the same set with Select All", () => {
+    const onValuesChange = vi.fn();
+    render(
+      <ControlledMultiSelect
+        options={[{ value: "user-1" }, { value: "user-2" }]}
+        onValuesChange={onValuesChange}
+      />,
+    );
+
+    const trigger = screen.getByRole("button");
+    fireEvent.click(trigger);
+
+    const customInput = screen.getByPlaceholderText("Enter custom value");
+    fireEvent.change(customInput, { target: { value: "ghost-user" } });
+    fireEvent.click(customInput.closest("[role='option']")!);
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(trigger).getByText("ghost-user")).toBeInTheDocument();
+    expect(within(dialog).queryByText("ghost-user")).not.toBeInTheDocument();
+    expect(customInput).toHaveValue("ghost-user");
+    expect(onValuesChange).toHaveBeenLastCalledWith(["ghost-user"]);
+
+    fireEvent.click(within(dialog).getByText("Select All"));
+    const firstSelectAllValues = onValuesChange.mock.lastCall?.[0] as string[];
+    expect(new Set(firstSelectAllValues)).toEqual(
+      new Set(["ghost-user", "user-1", "user-2"]),
+    );
+    expect(within(trigger).getByText("3 selected")).toBeInTheDocument();
+    expect(within(dialog).getByText("Deselect All")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByText("Deselect All"));
+    expect(onValuesChange).toHaveBeenLastCalledWith([]);
+    expect(within(trigger).queryByText("3 selected")).not.toBeInTheDocument();
+    expect(within(trigger).queryByText("ghost-user")).not.toBeInTheDocument();
+    expect(customInput).toHaveValue("ghost-user");
+    expect(within(dialog).getByText("Select All")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByText("Select All"));
+    const secondSelectAllValues = onValuesChange.mock.lastCall?.[0] as string[];
+    expect(new Set(secondSelectAllValues)).toEqual(
+      new Set(firstSelectAllValues),
+    );
+    expect(within(trigger).getByText("3 selected")).toBeInTheDocument();
+    expect(within(dialog).getByText("Deselect All")).toBeInTheDocument();
+  });
+
+  it("clears the custom input row once loaded options include a pre-selected value", () => {
+    const onValueChange = vi.fn();
+    const { rerender } = render(
+      <MultiSelect
+        values={["key-1"]}
+        options={[]}
+        onValueChange={onValueChange}
+        isCustomSelectEnabled
+      />,
+    );
+
+    rerender(
+      <MultiSelect
+        values={["key-1"]}
+        options={[
+          { value: "key-1", displayValue: "Primary key" },
+          { value: "key-2", displayValue: "Secondary key" },
+        ]}
+        onValueChange={onValueChange}
+        isCustomSelectEnabled
+      />,
+    );
+
+    const trigger = screen.getByRole("button");
+    fireEvent.click(trigger);
+
+    const customInput = screen.getByPlaceholderText("Enter custom value");
+    expect(within(trigger).getByText("Primary key")).toBeInTheDocument();
+    expect(customInput).toHaveValue("");
+
+    fireEvent.click(customInput.closest("[role='option']")!);
+    expect(onValueChange).not.toHaveBeenCalled();
   });
 });

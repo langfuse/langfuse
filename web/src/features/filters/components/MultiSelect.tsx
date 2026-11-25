@@ -23,7 +23,7 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 /** Rows span the menu edge to edge, so their hover meets the separators. */
@@ -39,8 +39,20 @@ const getFreeTextInput = (
   optionValues: Set<string>,
 ): string | undefined =>
   isCustomSelectEnabled
-    ? Array.from(values.values()).find((value) => !optionValues.has(value))
+    ? values.find((value) => value.length > 0 && !optionValues.has(value))
     : undefined;
+
+const getCustomOptionValue = (
+  isCustomSelectEnabled: boolean,
+  freeTextInput: string | undefined,
+  freeText: string,
+  optionValues: Set<string>,
+) => {
+  if (!isCustomSelectEnabled) return undefined;
+  if (freeTextInput) return freeTextInput;
+  if (freeText.length > 0 && !optionValues.has(freeText)) return freeText;
+  return undefined;
+};
 
 export function MultiSelect({
   title,
@@ -71,28 +83,56 @@ export function MultiSelect({
   isLoading?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
-  const optionValues = new Set(options.map((option) => option.value));
+  const optionValues = useMemo(
+    () => new Set(options.map((option) => option.value)),
+    [options],
+  );
   const freeTextInput = getFreeTextInput(
     isCustomSelectEnabled,
     values,
     optionValues,
   );
-  const [freeText, setFreeText] = useState(freeTextInput || "");
+  // Scope local edits to the custom value they started from so loading options
+  // or external value updates clear stale input text without an effect.
+  const [freeTextDraft, setFreeTextDraft] = useState<{
+    forValue: string | undefined;
+    text: string;
+  } | null>(null);
+  const freeText =
+    freeTextDraft !== null && freeTextDraft.forValue === freeTextInput
+      ? freeTextDraft.text
+      : (freeTextInput ?? "");
 
-  // Merge options with selected values that might not be in options
-  // This ensures selected values are always visible and removable
+  // Merge options with selected values that might not be in options.
+  // Exclude the custom value represented by the custom input row so it is not listed twice.
   const mergedOptions = useMemo(() => {
-    const optionSet = new Set(options.map((o) => o.value));
-    const missingSelectedOptions: FilterOption[] = values
-      .filter((v) => !optionSet.has(v) && v.length > 0)
+    const missingSelectedOptions: FilterOption[] = Array.from(selectedValues)
+      .filter(
+        (v) => !optionValues.has(v) && v.length > 0 && v !== freeTextInput,
+      )
       .map((v) => ({ value: v }));
     return [...options, ...missingSelectedOptions];
-  }, [options, values]);
+  }, [options, optionValues, selectedValues, freeTextInput]);
 
-  const selectableOptions = useMemo(
-    () => mergedOptions.filter((option) => option.value.length > 0),
-    [mergedOptions],
+  const customOptionValue = getCustomOptionValue(
+    isCustomSelectEnabled,
+    freeTextInput,
+    freeText,
+    optionValues,
   );
+
+  const selectableOptions = useMemo(() => {
+    const baseOptions = mergedOptions.filter(
+      (option) => option.value.length > 0,
+    );
+    if (
+      customOptionValue &&
+      !baseOptions.some((option) => option.value === customOptionValue)
+    ) {
+      return [...baseOptions, { value: customOptionValue }];
+    }
+    return baseOptions;
+  }, [mergedOptions, customOptionValue]);
 
   const showSelectAll =
     selectableOptions.length > 0 &&
@@ -105,39 +145,110 @@ export function MultiSelect({
     );
   }, [selectableOptions, selectedValues]);
 
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const clearDebounce = useCallback(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+      debounceTimeout.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearDebounce, [clearDebounce]);
+
   const handleSelectAll = useCallback(() => {
+    clearDebounce();
     const newSelectedValues = new Set(selectedValues);
     if (allSelectedState) {
       // Deselect all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.delete(option.value),
       );
+      if (
+        isCustomSelectEnabled &&
+        freeText.length > 0 &&
+        !optionValues.has(freeText)
+      ) {
+        setFreeTextDraft({ forValue: undefined, text: freeText });
+      }
     } else {
       // Select all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.add(option.value),
       );
+      setFreeTextDraft(null);
     }
     const filterValues = Array.from(newSelectedValues);
-    onValueChange(filterValues.length ? filterValues : []);
-  }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
+    onValueChange(filterValues.length > 0 ? filterValues : []);
+  }, [
+    allSelectedState,
+    clearDebounce,
+    freeText,
+    isCustomSelectEnabled,
+    onValueChange,
+    optionValues,
+    selectableOptions,
+    selectedValues,
+  ]);
 
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const handleDebouncedChange = (value: string) => {
-    const freeTextInput = getFreeTextInput(
-      isCustomSelectEnabled,
-      values,
-      optionValues,
-    );
+    if (!freeTextInput) return;
 
-    if (!!freeTextInput) {
-      selectedValues.delete(freeTextInput);
-      selectedValues.add(value);
-      selectedValues.delete("");
-      const filterValues = Array.from(selectedValues);
-      onValueChange(filterValues.length ? filterValues : []);
+    const nextSelectedValues = new Set(selectedValues);
+    nextSelectedValues.delete(freeTextInput);
+    if (value.length > 0) {
+      nextSelectedValues.add(value);
     }
+    setFreeTextDraft(null);
+    const filterValues = Array.from(nextSelectedValues);
+    onValueChange(filterValues.length > 0 ? filterValues : []);
   };
+
+  const handleToggleCustomValue = useCallback(() => {
+    clearDebounce();
+    const nextSelectedValues = new Set(selectedValues);
+
+    if (freeTextInput) {
+      nextSelectedValues.delete(freeTextInput);
+      if (freeText.length > 0 && !optionValues.has(freeText)) {
+        setFreeTextDraft({ forValue: undefined, text: freeText });
+      } else {
+        setFreeTextDraft(null);
+      }
+    } else {
+      if (freeText.length === 0) return;
+      nextSelectedValues.add(freeText);
+      setFreeTextDraft(null);
+    }
+
+    nextSelectedValues.delete("");
+    const filterValues = Array.from(nextSelectedValues);
+    onValueChange(filterValues.length > 0 ? filterValues : []);
+  }, [
+    clearDebounce,
+    freeText,
+    freeTextInput,
+    onValueChange,
+    optionValues,
+    selectedValues,
+  ]);
+
+  const handleFreeTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = e.target.value;
+    setFreeTextDraft({
+      forValue: freeTextInput,
+      text: nextValue,
+    });
+    clearDebounce();
+    debounceTimeout.current = setTimeout(() => {
+      handleDebouncedChange(nextValue);
+    }, 500);
+  };
+
+  const handleClearFilters = useCallback(() => {
+    clearDebounce();
+    setFreeTextDraft(null);
+    onValueChange([]);
+  }, [clearDebounce, onValueChange]);
 
   function getSelectedOptions() {
     const selectedOptions = mergedOptions.filter(
@@ -276,13 +387,16 @@ export function MultiSelect({
                     className={itemClassName}
                     disabled={isLoading}
                     onSelect={() => {
+                      const nextSelectedValues = new Set(selectedValues);
                       if (isSelected) {
-                        selectedValues.delete(option.value);
+                        nextSelectedValues.delete(option.value);
                       } else {
-                        selectedValues.add(option.value);
+                        nextSelectedValues.add(option.value);
                       }
-                      const filterValues = Array.from(selectedValues);
-                      onValueChange(filterValues.length ? filterValues : []);
+                      const filterValues = Array.from(nextSelectedValues);
+                      onValueChange(
+                        filterValues.length > 0 ? filterValues : [],
+                      );
                     }}
                   >
                     <div
@@ -332,33 +446,12 @@ export function MultiSelect({
                   key="freeTextField"
                   className={itemClassName}
                   disabled={isLoading}
-                  onSelect={() => {
-                    const freeTextInput = getFreeTextInput(
-                      isCustomSelectEnabled,
-                      values,
-                      optionValues,
-                    );
-
-                    if (!!freeTextInput) {
-                      selectedValues.delete(freeTextInput);
-                    } else {
-                      selectedValues.add(freeText);
-                    }
-                    selectedValues.delete("");
-                    const filterValues = Array.from(selectedValues);
-                    onValueChange(filterValues.length ? filterValues : []);
-                  }}
+                  onSelect={handleToggleCustomValue}
                 >
                   <div
                     className={cn(
                       "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
-                      getFreeTextInput(
-                        isCustomSelectEnabled,
-                        values,
-                        optionValues,
-                      ) ||
-                        (optionValues.has(freeText) &&
-                          selectedValues.has(freeText))
+                      Boolean(freeTextInput)
                         ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
@@ -369,15 +462,7 @@ export function MultiSelect({
                     type="text"
                     disabled={isLoading}
                     value={freeText}
-                    onChange={(e) => {
-                      setFreeText(e.target.value);
-                      if (debounceTimeout.current) {
-                        clearTimeout(debounceTimeout.current);
-                      }
-                      debounceTimeout.current = setTimeout(() => {
-                        handleDebouncedChange(e.target.value);
-                      }, 500);
-                    }}
+                    onChange={handleFreeTextChange}
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
@@ -393,7 +478,7 @@ export function MultiSelect({
                 <InputCommandGroup className={groupClassName}>
                   <InputCommandItem
                     disabled={isLoading}
-                    onSelect={() => onValueChange([])}
+                    onSelect={handleClearFilters}
                     className={cn(itemClassName, "justify-center text-center")}
                   >
                     Clear filters
