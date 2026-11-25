@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight } from "@langfuse/icons";
 
+import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
 import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
@@ -94,8 +95,8 @@ export function EvaluatorTestStrip({
   const showResult = open && panelState.status !== "empty";
 
   return (
-    <div className="flex flex-col">
-      <div className="flex h-12 items-center justify-between gap-3 px-6">
+    <div className="flex min-h-0 flex-col">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-6">
         <button
           type="button"
           className="inline-flex items-center gap-1 text-sm"
@@ -122,23 +123,38 @@ export function EvaluatorTestStrip({
         />
       </div>
       {showResult ? (
-        <div className="ph-no-capture grid grid-cols-3 gap-4 px-3 pt-1 pb-3">
+        <div className="ph-no-capture flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
+            <div className="min-w-0">
+              <p className="text-muted-foreground text-xs">Score</p>
+              <p className="mt-2 text-2xl font-bold">{score || "—"}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-muted-foreground text-xs">Model reasoning</p>
+              <p className="mt-2 text-sm whitespace-pre-wrap">
+                {reasoning || "—"}
+              </p>
+            </div>
+          </div>
           <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Variable result</p>
+            <p className="text-muted-foreground text-xs">Variables</p>
             {variables.length > 0 ? (
-              variables.map((variable) => (
-                <div key={variable.name} className="mt-2 min-w-0">
-                  <span className="bg-muted rounded px-1 font-mono text-xs">{`{{${variable.name}}}`}</span>
-                  <div className="mt-2 max-h-48 overflow-auto">
-                    <PrettyJsonView
-                      json={variable.value}
-                      currentView="pretty"
-                      scrollable
-                      borderless
-                    />
-                  </div>
-                </div>
-              ))
+              <dl className="mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-3">
+                {variables.map((variable) => (
+                  <Fragment key={variable.name}>
+                    <dt className="min-w-0">
+                      <Tag text={`{{${variable.name}}}`} />
+                    </dt>
+                    <dd className="min-w-0">
+                      <PrettyJsonView
+                        json={variable.value}
+                        currentView="pretty"
+                        borderless
+                      />
+                    </dd>
+                  </Fragment>
+                ))}
+              </dl>
             ) : (
               <p className="text-muted-foreground mt-2 text-sm">
                 {panelState.status === "running"
@@ -146,16 +162,6 @@ export function EvaluatorTestStrip({
                   : "No variable result."}
               </p>
             )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Score</p>
-            <p className="mt-2 text-2xl font-bold">{score || "—"}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Model reasoning</p>
-            <p className="mt-2 text-sm whitespace-pre-wrap">
-              {reasoning || "—"}
-            </p>
           </div>
         </div>
       ) : null}
