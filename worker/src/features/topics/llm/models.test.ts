@@ -507,27 +507,21 @@ describe("Topics naming boundary", () => {
             : /returned no usable structured output/,
         ),
       });
-      // Empty structured output is asked once more; a content filter is not.
-      const attempts = reason === "invalid_output" ? 2 : 1;
-      expect(state.call).toHaveBeenCalledTimes(attempts);
-      expect(state.onCost).toHaveBeenCalledTimes(attempts);
-      for (const [cost] of state.onCost.mock.calls)
-        expect(cost).toEqual({
-          naming_input: 0.025,
-          total: 0.02,
-        });
+      expect(state.onCost).toHaveBeenCalledExactlyOnceWith({
+        naming_input: 0.025,
+        total: 0.02,
+      });
       expect((failure as Error).message).not.toMatch(/credentials|secret/);
-      expect(logger.warn).toHaveBeenCalledTimes(attempts);
-      for (const [message, fields] of vi.mocked(logger.warn).mock.calls) {
-        expect(message).toBe("Topics model request failed");
-        expect(fields).toMatchObject({
-          ...response,
-          "langfuse.topics.error.reason": reason,
-          "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
-        });
-        expect(state.spanAttributes).toHaveBeenCalledWith(fields);
-        expect(JSON.stringify(fields)).not.toMatch(/secret/);
-      }
+      expect(logger.warn).toHaveBeenCalledOnce();
+      const [message, fields] = vi.mocked(logger.warn).mock.calls[0];
+      expect(message).toBe("Topics model request failed");
+      expect(fields).toMatchObject({
+        ...response,
+        "langfuse.topics.error.reason": reason,
+        "langfuse.topics.error.type": "AI_NoOutputGeneratedError",
+      });
+      expect(state.spanAttributes).toHaveBeenCalledWith(fields);
+      expect(JSON.stringify(fields)).not.toMatch(/secret/);
       expect(JSON.stringify(state.spanAttributes.mock.calls)).not.toMatch(
         /secret/,
       );
@@ -626,6 +620,35 @@ describe("Topics naming boundary", () => {
       ["langfuse.topics.tokens", 100, { stage: "naming", direction: "input" }],
       ["langfuse.topics.tokens", 30, { stage: "naming", direction: "output" }],
     ]);
+  });
+
+  it("does not ask again when truncated naming output fails validation", async () => {
+    const rejection = Object.assign(
+      new Error("No object generated: could not parse the response."),
+      { name: "AI_NoObjectGeneratedError", text: '{"name":"Invoice' },
+    );
+    state.responseMetadata.mockImplementation((error) =>
+      error === rejection
+        ? {
+            "langfuse.topics.response.finish_reason": "length",
+            "langfuse.topics.response.raw_finish_reason": "max_tokens",
+          }
+        : undefined,
+    );
+    state.call.mockImplementation(async ({ onFailedResponseUsage }) => {
+      await onFailedResponseUsage({
+        usageDetails: { input: 100, output: 1000 },
+        providedCostDetails: {},
+      });
+      throw rejection;
+    });
+
+    await expect(
+      nameTopicGroup(topicsModels(), evidence),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.onCost).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
   });
 
   it.each([
