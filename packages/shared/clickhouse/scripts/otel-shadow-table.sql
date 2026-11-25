@@ -1,8 +1,8 @@
 -- Rows written by the sampled Rust shadow run (LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE).
 -- Not a migration: run it once in the ingestion writer's database before enabling
 -- sampling, and drop and recreate the table after a migration changes the
--- events_full columns. Parts expire an hour into the day after they were
--- written, which leaves the comparison time to read rows written before
+-- events_full columns. Parts expire six hours into the day after they were
+-- written, which leaves the paced comparison time to read rows written before
 -- midnight; project and trace deletion do not reach this table. Granules are small so
 -- the comparison read stays cheap on this side.
 -- The statement suits ClickHouse Cloud and a single node. On a self-managed
@@ -14,7 +14,7 @@ PARTITION BY toDate(toTimeZone(created_at, 'UTC'))
 PRIMARY KEY (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
 ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, start_time)
 SAMPLE BY xxHash32(trace_id)
-TTL toStartOfDay(toTimeZone(created_at, 'UTC')) + INTERVAL 1 DAY + INTERVAL 1 HOUR DELETE
+TTL toStartOfDay(toTimeZone(created_at, 'UTC')) + INTERVAL 1 DAY + INTERVAL 6 HOUR DELETE
 SETTINGS
     index_granularity_bytes = '1Mi',
     merge_max_block_size_bytes = '64Mi',

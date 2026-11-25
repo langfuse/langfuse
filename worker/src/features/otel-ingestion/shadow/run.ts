@@ -23,17 +23,24 @@ import type { RustOtelWrites } from "../otelWrites";
 import { prepareOtelBatch } from "../prepareOtelBatch";
 import { processOtelEvents } from "../processOtelEvents";
 import { processRustOtelEvents } from "../processRustOtelEvents";
-import { queueRowVerification, type ShadowRowKey } from "./verifyRows";
+import {
+  hasComparisonCapacity,
+  queueRowVerification,
+  type ShadowRowKey,
+} from "./verifyRows";
 
 const SHADOW_RUN = "otel-rust-shadow";
 const METRIC_PREFIX = "langfuse.ingestion.otel.shadow.";
 /**
  * Rust runs start once their job has finished, so job concurrency does not
  * bound them. Each holds its input and a native batch until it settles; while
- * this many are going, further sampled batches skip theirs.
+ * this many are going, a batch whose turn comes skips its run.
  */
 const MAX_RUST_RUNS = 2;
 let rustRuns = 0;
+/** Rust runs started and selected batches turned away in the current one-minute window. */
+const admission = { started: 0, refused: 0, since: 0 };
+const ADMISSION_WINDOW_MS = 60_000;
 
 type Sample = {
   input: Buffer;
@@ -76,25 +83,56 @@ type RustRun = {
   processMs?: number;
 };
 
+/** Close a window that is a minute old, warning when it turned batches away. */
+function closeAdmissionWindow(now: number): void {
+  if (now - admission.since < ADMISSION_WINDOW_MS) return;
+  if (admission.refused > 0) {
+    const configuredRate = env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE;
+    logger.warn("OTEL shadow sampling is throttled", {
+      configuredRate,
+      effectiveRate:
+        (configuredRate * admission.started) /
+        (admission.started + admission.refused),
+      startedBatches: admission.started,
+      refusedBatches: admission.refused,
+    });
+  }
+  admission.started = 0;
+  admission.refused = 0;
+  admission.since = now;
+}
+
+/** Count a selected batch that gets no Rust run. */
+function refuse(result: "throttled" | "skipped"): void {
+  admission.refused++;
+  recordIncrement(`${METRIC_PREFIX}batch`, 1, { result });
+}
+
 /**
- * Whether the Rust path also processes this batch. The choice is fixed per
- * file, so a retry repeats it and a higher rate keeps the files a lower rate
- * chose.
+ * Whether the Rust path also processes this batch. The rate selects a fixed
+ * set of files, so a retry is selected again and a higher rate keeps the files
+ * a lower rate selected. A selected batch is admitted only while the row
+ * comparison has room, so the load the shadow adds follows what the
+ * comparison keeps up with.
  */
-export function isOtelShadowSampled(
+export function admitOtelShadowBatch(
   projectId: string,
   fileKey: string,
 ): boolean {
   const rate = env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE;
-  return (
+  const selected =
     rate > 0 &&
     env.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "ts" &&
     // The Rust run would send the batch to the masking callback a second time.
     !isIngestionMaskingEnabled() &&
     getDeterministicSamplingValue(
       `otel-native-shadow:${projectId}:${fileKey}`,
-    ) < rate
-  );
+    ) < rate;
+  if (!selected) return false;
+  closeAdmissionWindow(Date.now());
+  if (hasComparisonCapacity()) return true;
+  refuse("throttled");
+  return false;
 }
 
 /**
@@ -145,10 +183,11 @@ function recordTypeScriptWrites(
 /** Start the Rust run and its comparison in the background, unless too many are going. */
 function startRustComparison(sample: Sample, typeScript: TypeScriptRun): void {
   if (rustRuns >= MAX_RUST_RUNS) {
-    recordIncrement(`${METRIC_PREFIX}batch`, 1, { result: "skipped" });
+    refuse("skipped");
     return;
   }
   rustRuns++;
+  admission.started++;
   const recorded = newRecorded();
   runRust(sample, recorded)
     .then((run) => report(sample, typeScript, recorded, run))

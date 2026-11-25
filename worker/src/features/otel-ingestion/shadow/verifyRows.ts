@@ -41,11 +41,24 @@ const SETTLE_MS = 20_000;
 const FIELD_BYTES = 100_000;
 const ID_FIELDS_PER_READ = 4;
 const READ_TIMEOUT_S = 60;
-/** Samples queue while reads fall behind; beyond this they count as unverified. */
-const MAX_PENDING_ROWS = 100_000;
+/**
+ * A batch is sampled only while fewer rows than this wait to be compared, so
+ * sampling slows down to what the comparison keeps up with.
+ */
+const MAX_WAITING_ROWS = 10_000;
+/** Reads take at most about this share of a worker's time. */
+const READ_TIME_SHARE = 0.1;
 
 const pending: Sample[] = [];
 let pendingRows = 0;
+/** The batches being compared: their reads still to run and what the finished ones found. */
+let current:
+  | { samples: Sample[]; rows: number; reads: Read[]; found: Comparison[] }
+  | undefined;
+
+/** Whether the comparison has room for the rows of another batch. */
+export const hasComparisonCapacity = (): boolean =>
+  pendingRows + (current?.rows ?? 0) < MAX_WAITING_ROWS;
 
 /** The start time as ClickHouse stores it: UTC with six fractional digits. */
 function storedStartTime(startTime: string): string | undefined {
@@ -77,12 +90,10 @@ export function queueRowVerification(sample: {
       stored,
     ]);
   }
-  const fits = pendingRows + rows.size <= MAX_PENDING_ROWS;
-  const unverified = unreadable + (fits ? 0 : rows.size);
-  if (unverified > 0) {
-    recordIncrement(METRIC, unverified, { outcome: "unverified" });
+  if (unreadable > 0) {
+    recordIncrement(METRIC, unreadable, { outcome: "unverified" });
   }
-  if (!fits || rows.size === 0) return;
+  if (rows.size === 0) return;
   pendingRows += rows.size;
   pending.push({
     projectId: sample.projectId,
@@ -320,9 +331,32 @@ function reportFile(
   }
 }
 
+/** The settled samples as the next group to compare, with the reads they need. */
+function nextGroup(now: number): typeof current {
+  const samples = takeSettled(now);
+  if (samples.length === 0) return undefined;
+  return {
+    samples,
+    rows: samples.reduce((sum, { rows }) => sum + rows.length, 0),
+    reads: readsOf(samples),
+    found: [],
+  };
+}
+
+function reportGroup(samples: Sample[], found: Comparison[]): void {
+  const totals = totalsByFile(found);
+  for (const sample of samples) {
+    reportFile(
+      sample,
+      totals.get(sample.fileKey) ?? nothingFound(sample.fileKey),
+    );
+  }
+}
+
 /**
- * Compares the rows of sampled batches in the background. It reads the rows of
- * many batches with one query and runs one query at a time.
+ * Compares the rows of sampled batches in the background. One query reads the
+ * rows of many batches, and reads are paced to a small share of the worker's
+ * time.
  */
 export class OtelShadowRowVerifier extends PeriodicRunner {
   private stopped = false;
@@ -345,19 +379,22 @@ export class OtelShadowRowVerifier extends PeriodicRunner {
     return 5_000;
   }
 
-  protected async execute(): Promise<void> {
-    const settled = takeSettled(Date.now());
-    const found: Comparison[] = [];
-    for (const read of readsOf(settled)) {
-      if (this.stopped) return;
-      found.push(...(await compare(read)));
+  /**
+   * Run one read of the batches being compared and report them once their
+   * last read is done. The next run waits long enough to keep reads at
+   * READ_TIME_SHARE of the worker's time.
+   */
+  protected async execute(): Promise<number | void> {
+    if (!current) current = nextGroup(Date.now());
+    const read = current?.reads.shift();
+    if (!current || !read) return;
+    const startedAt = performance.now();
+    current.found.push(...(await compare(read)));
+    const readMs = performance.now() - startedAt;
+    if (current.reads.length === 0 && !this.stopped) {
+      reportGroup(current.samples, current.found);
+      current = undefined;
     }
-    const totals = totalsByFile(found);
-    for (const sample of settled) {
-      reportFile(
-        sample,
-        totals.get(sample.fileKey) ?? nothingFound(sample.fileKey),
-      );
-    }
+    return Math.max(this.defaultIntervalMs, readMs * (1 / READ_TIME_SHARE - 1));
   }
 }

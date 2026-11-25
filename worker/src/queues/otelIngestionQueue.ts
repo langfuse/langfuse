@@ -55,7 +55,7 @@ import {
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
 import { productionRustOtelWrites } from "../features/otel-ingestion/otelWrites";
 import {
-  isOtelShadowSampled,
+  admitOtelShadowBatch,
   withOtelShadow,
 } from "../features/otel-ingestion/shadow/run";
 import { productionEvalWrites } from "../features/evaluation/scheduleEvals";
@@ -674,7 +674,7 @@ export const otelIngestionQueueProcessorBuilder = (
           });
           return;
         }
-        if (isOtelShadowSampled(projectId, fileKey)) {
+        if (admitOtelShadowBatch(projectId, fileKey)) {
           shadowInput = Buffer.from(
             bytes.buffer,
             bytes.byteOffset,
