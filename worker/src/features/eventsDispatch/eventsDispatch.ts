@@ -40,7 +40,10 @@ type DispatchTrace = z.infer<
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
   | { outcome: "enqueued" | "too_large" | "missing" }
-  | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
+  | {
+      outcome: "skipped";
+      reason: "no_rules" | "internal_environment" | "no_transcript";
+    }
   | {
       outcome: "failed";
       reason: string;
@@ -158,6 +161,7 @@ function dispatchTrace(
       await new Promise((resolve) => setImmediate(resolve));
       const reference = { projectId, traceId, revision };
       let stored;
+      let dispatched;
       try {
         const traceTimestamp = new Date(
           Math.min(...observations.map((row) => row.startTime.getTime())),
@@ -165,6 +169,11 @@ function dispatchTrace(
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );
+        dispatched = context
+          ? jobs
+          : jobs.filter(({ consumer }) => consumer.enqueueWhenTranscriptNull);
+        if (dispatched.length === 0)
+          return finish({ outcome: "skipped", reason: "no_transcript" });
         stored = await inputStorage.put(reference, {
           transcript: context?.transcript ?? null,
           executionIssues: context?.executionIssues ?? [],
@@ -200,7 +209,7 @@ function dispatchTrace(
 
       const failedRuleIds: string[] = [];
       await Promise.all(
-        jobs.map(({ consumer, ruleIds }) =>
+        dispatched.map(({ consumer, ruleIds }) =>
           consumer
             .enqueue(reference, ruleIds, {
               transcriptS3Path: stored.key,

@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { getScoreTool, handleGetScore } from "./tools/getScore";
 import {
   getScoreConfigTool,

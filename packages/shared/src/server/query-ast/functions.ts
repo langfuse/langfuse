@@ -41,6 +41,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "arrayStringConcat",
   "arraySum",
   "arrayZip",
+  "cityHash64",
   "coalesce",
   "concat",
   "countEqual",
@@ -63,6 +64,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "like",
   "lower",
   "map",
+  "mapContains",
   "mapExists",
   "mapFilter",
   "mapFromArrays",
@@ -122,6 +124,8 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "sum",
   "sumMap",
   "uniq",
+  "uniqCombined",
+  "uniqCombinedIf",
   "uniqIf",
 ]);
 

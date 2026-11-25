@@ -19,12 +19,16 @@ import {
 } from "@/src/features/models/hooks/useModelDefinitionApi";
 import { modelMaintainerByScope } from "@/src/features/models/modelMaintainer";
 import {
+  cloneLabelFor,
   isEditableIn,
   modelDetailHref,
   type ModelOwner,
   useCanEditModels,
 } from "@/src/features/models/modelOwner";
-import { type GetModelResult } from "@/src/features/models/validation";
+import {
+  type GetModelResult,
+  type ModelListItem,
+} from "@/src/features/models/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
@@ -147,7 +151,11 @@ export function ConnectedModelDefinitionsTable({
                         }}
                         rowHeight={rowHeight}
                         onRowHeightChange={setRowHeight}
-                        lastUsed={lastUsed.data}
+                        lastUsed={
+                          owner.scope === "project"
+                            ? (lastUsed.data ?? "loading")
+                            : undefined
+                        }
                         toolbarActions={[
                           {
                             id: "test-model-match",
@@ -175,6 +183,7 @@ export function ConnectedModelDefinitionsTable({
                             openDeleteDialog(model.serverResponse);
                           },
                         }}
+                        cloneLabel={cloneLabelFor(owner)}
                         onRowClick={(model) => {
                           router.push(modelDetailHref(owner, model.modelId));
                         }}
@@ -193,7 +202,7 @@ export function ConnectedModelDefinitionsTable({
 
 function convertToTableRow(
   ownerScope: ModelOwner["scope"],
-  model: GetModelResult,
+  model: ModelListItem,
 ): ModelTableRow {
   return {
     modelId: model.id,
@@ -201,6 +210,7 @@ function convertToTableRow(
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     editable: isEditableIn(ownerScope, model.scope),
+    isOverridden: model.isOverridden,
     serverResponse: model,
   };
 }

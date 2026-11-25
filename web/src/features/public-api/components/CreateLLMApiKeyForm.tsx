@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1003,26 +1004,21 @@ export function CreateLLMApiKeyForm({
           />
 
           {showOtherModelInfo && (
-            <div className="bg-muted/40 text-muted-foreground space-y-2 rounded-md border p-4 text-sm">
-              <p>
-                You can use any model provider as LLM connection that supports
-                one of the adapters in the list. Many providers support the
-                OpenAI API schema, such as Z.ai, OpenRouter, Qwen, Mistral,
-                Hugging Face, and more. Just replace the API Base URL with the
-                endpoint for the model, and add your provider&apos;s custom
-                model names and api key.
-              </p>
-              <p>
-                <a
-                  href="https://langfuse.com/docs/administration/llm-connection#supported-providers"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  Learn more about supported providers
-                </a>
-              </p>
-            </div>
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about supported providers",
+                  href: "https://langfuse.com/docs/administration/llm-connection#supported-providers",
+                },
+              ]}
+            >
+              You can use any model provider as LLM connection that supports one
+              of the adapters in the list. Many providers support the OpenAI API
+              schema, such as Z.ai, OpenRouter, Qwen, Mistral, Hugging Face, and
+              more. Just replace the API Base URL with the endpoint for the
+              model, and add your provider&apos;s custom model names and api
+              key.
+            </Banner>
           )}
 
           {!showOtherModelInfo && (

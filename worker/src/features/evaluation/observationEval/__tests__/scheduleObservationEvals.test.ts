@@ -141,6 +141,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [],
         schedulerDeps,
       });
@@ -158,6 +159,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             id: "paused-config",
@@ -186,6 +188,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             id: "blocked-config",
@@ -219,6 +222,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [createMockConfig({ id: "config-1" })],
         schedulerDeps,
       });
@@ -238,6 +242,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({ id: "config-1" }),
           createMockConfig({ id: "config-2" }),
@@ -250,6 +255,46 @@ describe("scheduleObservationEvals", () => {
     });
   });
 
+  describe("snapshot loading", () => {
+    it("should load the snapshot only for an observation that a rule selects", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const snapshot = createMockObservation();
+      const loadSnapshot = vi.fn(() => snapshot);
+      const configs = [
+        createMockConfig({
+          filter: [
+            {
+              column: "type",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["GENERATION"],
+            },
+          ],
+        }),
+      ];
+
+      await scheduleObservationEvals({
+        observation: { ...snapshot, type: "SPAN" },
+        loadSnapshot,
+        configs,
+        schedulerDeps,
+      });
+      expect(loadSnapshot).not.toHaveBeenCalled();
+
+      await scheduleObservationEvals({
+        observation: { ...snapshot },
+        loadSnapshot,
+        configs,
+        schedulerDeps,
+      });
+      expect(loadSnapshot).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.uploadObservationToS3.mock.calls[0][0].data).toBe(
+        snapshot,
+      );
+    });
+  });
+
   describe("filter evaluation", () => {
     it("should skip config and S3 upload when filter does not match", async () => {
       const schedulerDeps = createMockSchedulerDeps();
@@ -257,6 +302,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             filter: [
@@ -283,6 +329,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             filter: [
@@ -308,6 +355,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [createMockConfig({ filter: [] })],
         schedulerDeps,
       });
@@ -324,6 +372,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             sampling: { toNumber: () => 0 } as unknown as Prisma.Decimal,
@@ -343,6 +392,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
@@ -361,6 +411,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             id: "sampled-out-config",
@@ -391,6 +442,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps,
       });
@@ -424,6 +476,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps,
       });
@@ -454,6 +507,7 @@ describe("scheduleObservationEvals", () => {
 
       const schedulingPromise = scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [
           createMockConfig({ id: "config-1" }),
           createMockConfig({ id: "config-2" }),
@@ -481,6 +535,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps,
       });
@@ -506,11 +561,13 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: firstObservation,
+        loadSnapshot: () => firstObservation,
         configs: [config],
         schedulerDeps,
       });
       await scheduleObservationEvals({
         observation: secondObservation,
+        loadSnapshot: () => secondObservation,
         configs: [config],
         schedulerDeps,
       });
@@ -591,6 +648,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [rule],
         schedulerDeps,
       });
@@ -630,6 +688,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [createMockRule()],
         schedulerDeps,
       });
@@ -648,6 +707,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [createMockRule({ id: "rule-1", ruleId: null })],
         schedulerDeps,
         executionMode: "MANUAL",
@@ -672,6 +732,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [
           createMockRule({
             id: "evaluator-1",
@@ -724,6 +785,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [rule],
         schedulerDeps,
         executionMode: "MANUAL",
@@ -763,6 +825,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [rule],
         schedulerDeps,
       });
@@ -787,6 +850,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [createMockRule({ id: "evaluator-1", ruleId: null })],
         schedulerDeps,
         executionMode: "MANUAL",
@@ -802,6 +866,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [
           createMockRule({
             assignments: [
@@ -836,6 +901,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [createMockConfig()],
         schedulerDeps,
       });
@@ -851,6 +917,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation: createMockObservation(),
+        loadSnapshot: () => createMockObservation(),
         configs: [
           createMockRule({
             assignments: [
@@ -889,6 +956,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({ id: "config-1" }),
           createMockConfig({ id: "config-2" }),
@@ -911,6 +979,7 @@ describe("scheduleObservationEvals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [
           createMockConfig({
             id: "config-1",

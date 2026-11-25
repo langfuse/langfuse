@@ -1,12 +1,42 @@
 import { expect, waitFor } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SidebarAccountButton } from "./SidebarAccountButton";
+import motion from "./sidebarMotion.module.css";
 
 const meta = preview.meta({ component: SidebarAccountButton });
+
+export const VariantMatrix = meta.story({
+  render: () => (
+    <div className="flex flex-wrap items-start gap-8 p-4">
+      {(["expanded", "collapsed", "mobile"] as const).map((surface) => (
+        <div key={surface}>
+          <p className="text-muted-foreground mb-2 text-xs">{surface}</p>
+          <div
+            className={motion.surface}
+            data-sidebar-mode={surface}
+            style={surface === "mobile" ? { width: 343 } : undefined}
+          >
+            <div className="bg-sidebar text-sidebar-foreground p-2">
+              <SidebarAccountButton
+                surface={surface}
+                user={{
+                  name: "Alexandra Morgan",
+                  email: "alexandra.morgan@example.com",
+                  avatar: "",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+});
 
 export const ReplayPrivacy = meta.story({
   name: "(Test) Replay excludes account identity and tooltip attributes",
   args: {
+    surface: "expanded",
     user: {
       name: "Replay private account sentinel",
       email: "replay-private-account@example.com",

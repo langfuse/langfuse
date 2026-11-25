@@ -1,7 +1,7 @@
 import { expect, fn, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { OutlierBarStrip } from "./OutlierBarStrip";
-import { makeFixtureSeries } from "./lib/fixtures";
+import { makeFixtureSeries } from "@/.storybook/fixtures/outlier-strip";
 import { prepareOutlierSeries, type OutlierStripBin } from "./lib/binning";
 
 /**

@@ -18,7 +18,7 @@ pub(super) fn allows_runtime_base_url(api_format: ApiFormat, base_url: &str) -> 
 
 /// Matches region names such as `us-east-1` or `us-gov-west-1`. Web validates
 /// the same shape, so the region stays a single DNS label.
-fn is_aws_region(region: &str) -> bool {
+pub(crate) fn is_aws_region(region: &str) -> bool {
     let parts: Vec<&str> = region.split('-').collect();
     let [geography, middle @ .., number] = parts.as_slice() else {
         return false;

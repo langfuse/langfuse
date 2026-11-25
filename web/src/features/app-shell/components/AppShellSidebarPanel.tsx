@@ -118,7 +118,7 @@ export function AppShellSidebarPanel({
         >
           {({ Trigger }) => (
             <Trigger asChild>
-              <SidebarAccountButton user={user} />
+              <SidebarAccountButton user={user} surface={surface} />
             </Trigger>
           )}
         </SidebarUserMenu>

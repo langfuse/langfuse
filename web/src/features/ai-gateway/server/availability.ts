@@ -5,6 +5,7 @@ import {
   type GatewayDeploymentEnvironment,
   isDevelopmentOrPreview,
 } from "@/src/features/ai-gateway/fns/isDevelopmentOrPreview";
+import { isGatewayGuardrailsEnabled } from "@/src/features/ai-gateway/fns/isGatewayGuardrailsEnabled";
 
 type GatewayAvailabilityEnvironment = GatewayDeploymentEnvironment & {
   deployed?: "true" | "false";
@@ -88,6 +89,38 @@ export const requireGatewayEnabledForOrganization = (
     )
   ) {
     throw new ForbiddenError("AI Gateway is not enabled for this organization");
+  }
+};
+
+const isGatewayGuardrailsEnabledForOrganization = (
+  organizationId: string,
+  allowedOrganizationIds = env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST ??
+    [],
+  environment = getGatewayAvailabilityEnvironment(),
+): boolean =>
+  isGatewayGuardrailsEnabled(environment) &&
+  isGatewayEnabledForOrganization(
+    organizationId,
+    allowedOrganizationIds,
+    environment,
+  );
+
+export const requireGatewayGuardrailsEnabledForOrganization = (
+  organizationId: string,
+  allowedOrganizationIds = env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST ??
+    [],
+  environment = getGatewayAvailabilityEnvironment(),
+): void => {
+  if (
+    !isGatewayGuardrailsEnabledForOrganization(
+      organizationId,
+      allowedOrganizationIds,
+      environment,
+    )
+  ) {
+    throw new ForbiddenError(
+      "AI Gateway guardrails are not enabled for this environment",
+    );
   }
 };
 

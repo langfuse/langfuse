@@ -17,13 +17,20 @@
   "workspaces": {
     ".": {
       // `pnpm change check` is a pnpm built-in, not an installed binary.
-      "ignoreBinaries": ["change"],
+        // The workspace launcher uses Turbo; shipped images start Node directly.
+        "ignoreBinaries": ["change", "turbo!"],
     },
     "packages/native": {
-      // The public types re-export the declarations paired with the generated JS loader.
-      "entry": ["index.d.ts"],
+      "entry": [
+        // The public types re-export the declarations paired with the generated JS loader.
+        "index.d.ts",
+        // Invoked directly by the native release build, not imported by runtime code.
+        "scripts/remove-generated-cargo-patch.mjs!",
+      ],
     },
     "packages/shared": {
+      // Database and seed commands use these dev tools from a full workspace install.
+      "ignoreBinaries": ["dotenv!", "tsx!"],
       "oxlint": { "config": ["oxlint.config.mts"] },
       // Loaded through the inherited config; declared by @repo/oxlint-config.
       "ignoreDependencies": ["eslint-plugin-turbo"],
@@ -31,18 +38,34 @@
         // Compile-time type assertions: `tsc` checks their `@ts-expect-error` cases, nothing imports them.
         "src/**/*types.assert.ts",
       ],
+      "project": [
+        // Regular-only patterns become exclusions in production; keep them outside src.
+        "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
+        "{scripts,prisma,clickhouse}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
+        "src/**/*.{ts,tsx}!",
+        "!src/**/*.{test,spec}.{ts,tsx}!",
+        "!src/**/__tests__/**!",
+      ],
       "ignoreFiles": [
         // Standalone helper invoked manually as documented in the adjacent framework-traces README.
         "scripts/seeder/utils/framework-traces/merge-observations.ts",
       ],
     },
     "worker": {
+      // The local start script uses dotenv; the shipped image starts Node directly.
+      "ignoreBinaries": ["dotenv!"],
       "oxlint": { "config": ["oxlint.config.mts"] },
       // Loaded through the inherited config; declared by @repo/oxlint-config.
       "ignoreDependencies": ["eslint-plugin-turbo"],
       "entry": [
+        // The start script runs dist/index.js, built from this source entry.
+        "src/index.ts!",
         // Migration implementations are loaded dynamically from script names persisted in the database.
-        "src/backgroundMigrations/*.ts",
+        "src/backgroundMigrations/*.ts!",
+      ],
+      "project": [
+        "src/**/*.{ts,js}!",
+        "!src/**/__tests__/**!",
       ],
       "ignoreFiles": [
         // Standalone fixture downloader invoked manually as documented in the adjacent README.
@@ -54,6 +77,8 @@
       ],
     },
     "web": {
+      // The local start script uses dotenv; the shipped image starts Node directly.
+      "ignoreBinaries": ["dotenv!"],
       "oxlint": { "config": ["oxlint.config.mts"] },
       // Knip's default patterns miss shared and per-project configs, causing false unused dependencies.
       "vitest": { "config": ["vitest*.mts"] },
@@ -61,10 +86,10 @@
         // Components imported by MDX documentation, which Knip does not trace.
         ".storybook/docs/**/*.tsx",
         // Runtime worker entry loaded by filename through Piscina.
-        "src/server/otel/otelIngestionWorker.ts",
+        "src/server/otel/otelIngestionWorker.ts!",
         // Web Worker entry bundled into a string module by
         // scripts/build-json-parser-worker.mjs, never imported by the app.
-        "src/workers/json-parser.worker.ts",
+        "src/workers/json-parser.worker.ts!",
       ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
@@ -72,7 +97,16 @@
         "src/__tests__/mocks/**",
       ],
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
-      "project": ["src/**/*.{ts,tsx,mjs}", ".storybook/docs/*.{ts,tsx}"],
+      "project": [
+        "src/**/*.{ts,tsx,mjs}!",
+        "!src/**/*.{clienttest,servertest,test,spec,stories}.{ts,tsx}!",
+        "!src/**/__tests__/**!",
+        "!src/**/__e2e__/**!",
+        "!src/**/*.mdx!",
+        // Maintenance script invoked directly, not imported by the app.
+        "!src/ee/features/sfdc-sync/scripts/**!",
+        ".storybook/{docs/*,{fixtures,illustrations,prototypes}/**/*}.{ts,tsx}",
+      ],
       "ignoreDependencies": [
         // Loaded through the inherited config; declared by @repo/oxlint-config.
         "@next/eslint-plugin-next",
@@ -99,8 +133,11 @@
       "project": ["src/**/*.ts"],
     },
     "packages/in-app-agent-sandbox-runtime": {
-      "entry": ["src/server.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "entry": ["src/server.ts!"],
+      "project": ["src/**/*.ts!", "tests/**/*.ts"],
+    },
+    "packages/langfuse-skills": {
+      "ignoreFiles": ["scripts/sync-skills.mjs"],
     },
     "packages/config-oxlint": {
       "oxlint": { "config": ["library.js", "next.js"] },

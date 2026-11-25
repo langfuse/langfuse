@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
   createTopicRun,
   enqueueTopicRuleRefit,
-  getEnabledTopicsModels,
+  getAllEnabledTopicsModels,
   hasCompatibleTopicSummaries,
   getTopicRuleMap,
   isTopicRuleSetupActive,
@@ -64,13 +63,7 @@ export async function scheduleNightlyTopicRefits(
   now: Date,
   onProgress: () => Promise<void> = async () => {},
 ): Promise<number> {
-  const projects = [
-    ...(
-      await getEnabledTopicsModels(
-        sharedEnv.LANGFUSE_TOPICS_ENABLED_PROJECT_IDS,
-      )
-    ).values(),
-  ]
+  const projects = [...(await getAllEnabledTopicsModels()).values()]
     .map((models) => ({
       projectId: models.projectId,
       embeddingConfig: {

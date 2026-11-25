@@ -14,7 +14,7 @@ import {
 type BannerVariant = "neutral" | "info" | "success" | "warning" | "error";
 
 const bannerVariants = cva(
-  "text-foreground flex w-full gap-2 rounded-lg p-3 text-sm",
+  "text-foreground flex w-full gap-2 rounded-lg px-3 pt-2.5 pb-3 text-sm",
   {
     variants: {
       variant: {
@@ -41,7 +41,7 @@ const iconVariants = cva("flex h-lh shrink-0 items-center", {
   },
 });
 
-const actionsVariants = cva("mt-2 flex flex-wrap gap-x-4 gap-y-1", {
+const actionsVariants = cva("flex flex-wrap gap-x-4 gap-y-1", {
   variants: {
     variant: {
       neutral: "text-foreground",
@@ -65,6 +65,7 @@ const icons: Record<BannerVariant, IconComponent> = {
   error: CircleAlert,
 };
 
+/** External links get the external link icon from Banner, in place of `icon`. */
 export type BannerAction = {
   text: string;
   icon?: IconComponent;
@@ -127,14 +128,13 @@ function BannerActionItem({ action }: { action: BannerAction }) {
       target="_blank"
       rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
     >
-      {icon}
       {action.text}
-      {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
+      {/* Half a pixel is off the scale on purpose: 0 sits high, 1px sits low. */}
       <ExternalLink
         size="sm"
         color="inherit"
         aria-hidden="true"
-        __rawClassName="-translate-y-px"
+        __rawClassName="translate-y-[0.5px]"
       />
     </a>
   );
@@ -159,9 +159,16 @@ export function Banner({
       <span className={iconVariants({ variant })}>
         <Icon size="base" aria-hidden="true" />
       </span>
-      <div className="min-w-0 flex-1">
-        {title ? <h5 className="font-medium">{title}</h5> : null}
-        {children}
+      {/* Actions share the row with a one-line message and wrap underneath anything longer. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4 gap-y-2">
+        <div
+          className={
+            title && children ? "min-w-0 basis-full" : "min-w-0 flex-auto"
+          }
+        >
+          {title ? <h5 className="font-medium">{title}</h5> : null}
+          {children}
+        </div>
         {actions && actions.length > 0 ? (
           <div className={actionsVariants({ variant })}>
             {actions.map((action) => (

@@ -79,7 +79,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
   isTopicsProcessingActive: vi.fn(async (projectId: string) =>
     topicsProjects.has(projectId),
   ),
@@ -1913,11 +1912,11 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    // An unreadable gate falls back to the Topics allowlist.
+    // An unreadable gate admits nothing.
     vi.mocked(getTopicsProcessingSampling).mockRejectedValueOnce(
       new Error("postgres down"),
     );
-    expect(await resolveTraceDispatchSamplingRate("project")).toBe(1);
+    expect(await resolveTraceDispatchSamplingRate("project")).toBe(0);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_dispatch.topics_gate_failures",
       1,

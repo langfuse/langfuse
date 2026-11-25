@@ -6,11 +6,9 @@ afterEach(() => {
 });
 
 describe("trace evals project allowlist", () => {
-  it("enables only listed projects, only on Langfuse Cloud, independent of the Topics list", async () => {
+  it("enables only listed projects, only on Langfuse Cloud", async () => {
     vi.stubEnv("DOCKER_BUILD", undefined);
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
-    vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "true");
-    vi.stubEnv("LANGFUSE_TOPICS_ENABLED_PROJECT_IDS", "topics-project");
     vi.stubEnv(
       "LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS",
       " project-a, ,project-b ",
@@ -19,7 +17,6 @@ describe("trace evals project allowlist", () => {
       await import("./traceEvalsConfig.js");
     expect(isTraceEvalsProjectEnabled("project-a")).toBe(true);
     expect(isTraceEvalsProjectEnabled("project-b")).toBe(true);
-    expect(isTraceEvalsProjectEnabled("topics-project")).toBe(false);
     expect(isTraceEvalsProjectEnabled("project")).toBe(false);
 
     vi.resetModules();

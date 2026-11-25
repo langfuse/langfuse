@@ -65,5 +65,5 @@ export const [createSkillVersionTool, handleCreateSkillVersion] = defineTool({
           },
         }),
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

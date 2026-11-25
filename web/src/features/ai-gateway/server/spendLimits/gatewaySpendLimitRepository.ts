@@ -261,7 +261,7 @@ export class GatewaySpendLimitRepository {
     limitUsd: number;
     alertThresholds?: GatewaySpendBudgetAlertThreshold[];
     countingStartedAt: Date;
-    ownerUserId: string;
+    ownerUserId: string | null;
   }) {
     return this.prisma.gatewaySpendLimit.create({
       data: { ...params, alertThresholds, ...toScopeColumns(scope) },
@@ -313,6 +313,43 @@ export class GatewaySpendLimitRepository {
         alertThresholds: params.alertThresholds,
         ownerUserId: params.userId,
       },
+      select: GATEWAY_SPEND_LIMIT_SELECT,
+    });
+  }
+
+  /** Locks the scope's own limits in deterministic order so concurrent resets serialize monotonically. */
+  async listForUpdate(params: {
+    organizationId: string;
+    scope: GatewaySpendLimitScope;
+  }) {
+    if (params.scope.type === "API_KEY") {
+      await this.prisma.$queryRaw`
+        SELECT "id"
+        FROM "gateway_spend_limits"
+        WHERE "organization_id" = ${params.organizationId}
+          AND "scope" = 'API_KEY'::"GatewaySpendLimitScope"
+          AND "api_key_id" = ${params.scope.apiKeyId}
+        ORDER BY "id" ASC
+        FOR UPDATE
+      `;
+    } else {
+      await this.prisma.$queryRaw`
+        SELECT "id"
+        FROM "gateway_spend_limits"
+        WHERE "organization_id" = ${params.organizationId}
+          AND "scope" = 'USER'::"GatewaySpendLimitScope"
+          AND "user_id" = ${params.scope.userId}
+        ORDER BY "id" ASC
+        FOR UPDATE
+      `;
+    }
+    return this.list(params);
+  }
+
+  resetCountingStartedAt(params: { id: string; countingStartedAt: Date }) {
+    return this.prisma.gatewaySpendLimit.update({
+      where: { id: params.id },
+      data: { countingStartedAt: params.countingStartedAt },
       select: GATEWAY_SPEND_LIMIT_SELECT,
     });
   }
