@@ -94,19 +94,13 @@ impl Guardrails {
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let bytes = turn.as_ref().map_or(0, LastTurn::bytes);
-            let has_local_redact = guardrails.iter().any(Guardrail::is_local_redact);
-            let scan_bytes = if has_local_redact {
-                scanned.len()
-            } else {
-                bytes
-            };
             let has_external = guardrails.iter().any(Guardrail::is_external);
             let mut turn_text_reservation = (has_external && bytes > 0)
                 .then(|| MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails"))
                 .transpose()?;
             let (local, scanning) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, scan_bytes, {
+                .run(CpuJob::ScanGuardrails, bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
@@ -317,12 +311,6 @@ impl Guardrail {
                 self.action,
                 GuardrailAction::Enforce | GuardrailAction::Redact
             )
-    }
-
-    fn is_local_redact(&self) -> bool {
-        self.is_active()
-            && self.action == GuardrailAction::Redact
-            && self.regex_patterns().is_some()
     }
 
     fn redaction_label(&self) -> &str {
@@ -632,7 +620,7 @@ impl LocalScan {
         let redactions = if self.unreadable || self.any_blocking(guardrails, &fail_closed_redact) {
             Vec::new()
         } else if !self.pending_redaction_texts.is_empty() {
-            let mut combined = build_combined_redactions(
+            build_combined_redactions(
                 guardrails,
                 &self.active_indices,
                 &self.pending_redaction_texts,
@@ -640,11 +628,7 @@ impl LocalScan {
                 &mut fail_closed_redact,
                 budget,
                 &mut self.redaction_reservations,
-            )?;
-            // Earlier-turn local regex redactions are strictly disjoint from
-            // last-turn `pending_redaction_texts` ranges and splice in the same pass.
-            combined.extend(self.local_redactions);
-            combined
+            )?
         } else {
             self.local_redactions
         };
@@ -763,11 +747,6 @@ fn scan_local(
             .get(index)
             .is_some_and(Guardrail::is_external_enforce)
     });
-    let has_local_redact = active_indices.iter().any(|&index| {
-        guardrails
-            .get(index)
-            .is_some_and(Guardrail::is_local_redact)
-    });
 
     let compiled = (!regex_slots.is_empty()).then(|| compiled(&regex_slots));
     let mut state = ScanState::new(
@@ -784,17 +763,8 @@ fn scan_local(
     let unreadable = turn
         .as_ref()
         .map_or(true, |turn| state.scan_last_turn(turn, scanned));
-    let earlier_unreadable = if !unreadable
-        && !state.budget_exhausted
-        && has_local_redact
-        && let Ok(turn) = turn
-    {
-        state.scan_earlier_turns(turn, scanned)
-    } else {
-        false
-    };
 
-    state.finish(unreadable, earlier_unreadable)
+    state.finish(unreadable)
 }
 
 struct ScanState<'g, 'b> {
@@ -931,76 +901,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
         .is_err()
     }
 
-    fn scan_earlier_turns(&mut self, turn: &LastTurn, scanned: &ScannedMembers) -> bool {
-        let Some(compiled) = self.compiled.as_deref() else {
-            return false;
-        };
-        let guardrails = self.guardrails;
-        let active_indices = &self.active_indices;
-        let regex_slots = &self.regex_slots;
-        let body = self.body;
-        let budget = self.budget;
-        turn.read_earlier_leaves(member(body, scanned), &mut |leaf| {
-            if self.budget_exhausted {
-                return;
-            }
-            self.leaf_matched.fill(false);
-            record_leaf_matches(
-                &compiled.matchers,
-                &mut self.found,
-                &mut self.leaf_matched,
-                leaf.text,
-            );
-            let matched_redact_slots = matched_local_redact_slots(
-                guardrails,
-                active_indices,
-                regex_slots,
-                &self.leaf_matched,
-            );
-            if matched_redact_slots.is_empty() {
-                return;
-            }
-            // Only mark `redact` regex guardrails matched on earlier turns;
-            // `block` and `log` remain scoped to the last turn.
-            for ((&(slot, _), &matched), overall) in regex_slots
-                .iter()
-                .zip(&self.leaf_matched)
-                .zip(&mut self.regex_matched)
-            {
-                if matched
-                    && active_indices
-                        .get(slot)
-                        .and_then(|&index| guardrails.get(index))
-                        .is_some_and(Guardrail::is_local_redact)
-                {
-                    *overall = true;
-                }
-            }
-            if apply_local_leaf_redaction(
-                guardrails,
-                active_indices,
-                &matched_redact_slots,
-                body,
-                leaf,
-                &mut self.span_scratch,
-                &mut self.local_redactions,
-                &mut self.local_fail_closed,
-                budget,
-                &mut self.redaction_reservations,
-            )
-            .is_err()
-            {
-                self.budget_exhausted = true;
-            }
-        })
-        .is_err()
-    }
-
-    fn finish(
-        mut self,
-        unreadable: bool,
-        earlier_unreadable: bool,
-    ) -> Result<LocalScan, ResolutionError> {
+    fn finish(mut self, unreadable: bool) -> Result<LocalScan, ResolutionError> {
         if self.budget_exhausted {
             return Err(ResolutionError::Busy);
         }
@@ -1009,9 +910,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
             let Some(guardrail) = self.guardrails.get(index) else {
                 continue;
             };
-            let fail_closed = matches!(guardrail.kind, GuardrailKind::FailClosed)
-                || (earlier_unreadable && guardrail.is_local_redact());
-            if fail_closed {
+            if matches!(guardrail.kind, GuardrailKind::FailClosed) {
                 if let Some(entry) = matched.get_mut(slot) {
                     *entry = true;
                 }
@@ -1675,7 +1574,7 @@ mod tests {
     }
 
     #[test]
-    fn redacts_nested_message_content_multibyte_utf8_and_earlier_turns() {
+    fn redacts_nested_message_content_and_multibyte_utf8() {
         let body = r#"{"messages":[{"role":"user","content":"old a@example.com"},{"role":"assistant","content":"ok"},{"role":"user","content":[{"type":"text","text":"café a@example.com 🚀"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}},{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"call 555-1234 and ssn 123-45-6789"}]}]}]}"#;
         let outcome = check_request(
             &[
@@ -1693,8 +1592,7 @@ mod tests {
         assert_eq!(ids, ["email", "phone", "ssn"]);
         let rewritten: serde_json::Value =
             serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        // Earlier turns are also redacted so stateless multi-turn resends cannot leak PII.
-        assert_eq!(rewritten["messages"][0]["content"], "old [EMAIL]");
+        assert_eq!(rewritten["messages"][0]["content"], "old a@example.com");
         assert_eq!(
             rewritten["messages"][2]["content"][0]["text"],
             "café [EMAIL] 🚀"
@@ -1932,45 +1830,5 @@ mod tests {
             Some(&tight_budget),
         );
         assert!(matches!(result, Err(ResolutionError::Busy)));
-    }
-
-    #[test]
-    fn redacts_anthropic_system_prompt_on_later_turns_and_isolates_earlier_unreadability() {
-        // 1. Anthropic `system` is still redacted on turn 2 while `log` stays last-turn only.
-        let body = r#"{"system":"support email a@example.com","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"},{"role":"user","content":"follow up"}]}"#;
-        let outcome = check_request(
-            &[
-                guardrail("log-email", GuardrailAction::Log, &[EMAIL]),
-                redact_guardrail("redact-email", "[EMAIL]", &[EMAIL]),
-            ],
-            ApiFormat::AnthropicMessages,
-            body.as_bytes(),
-            &scanned(body, &["system", "messages"]),
-        );
-        assert!(outcome.blocking().is_none());
-        let (findings, edits, _) = outcome.into_parts();
-        let ids: Vec<&str> = findings.iter().map(|f| f.id.as_str()).collect();
-        assert_eq!(ids, ["redact-email"]);
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(rewritten["system"], "support email [EMAIL]");
-
-        // 2. An unreadable earlier turn fails closed only the local redact rule, not unrelated last-turn rules.
-        let malformed_history = r#"{"messages":[{"role":"user","content":"bad \ud83d"},{"role":"assistant","content":"ok"},{"role":"user","content":"clean"}]}"#;
-        let outcome = check_request(
-            &[
-                guardrail("block-ssn", GuardrailAction::Block, &[SSN]),
-                redact_guardrail("redact-email", "[EMAIL]", &[EMAIL]),
-            ],
-            ApiFormat::OpenAiChatCompletions,
-            malformed_history.as_bytes(),
-            &scanned(malformed_history, &["messages"]),
-        );
-        assert_eq!(
-            outcome.blocking().map(|finding| finding.id.as_str()),
-            Some("redact-email")
-        );
-        let ids: Vec<String> = outcome.into_findings().into_iter().map(|f| f.id).collect();
-        assert_eq!(ids, ["redact-email"]);
     }
 }
