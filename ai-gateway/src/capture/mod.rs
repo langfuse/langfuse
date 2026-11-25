@@ -548,12 +548,13 @@ impl RequestInput {
         if redactions.is_empty() {
             return true;
         }
-        let removed: usize = redactions.iter().map(|edit| edit.range.len()).sum();
-        let added: usize = redactions.iter().map(|edit| edit.replacement.len()).sum();
+        // Recompute body size after replacements; drop members if redaction pushed it over the cap.
+        let original_bytes: usize = redactions.iter().map(|edit| edit.range.len()).sum();
+        let replacement_bytes: usize = redactions.iter().map(|edit| edit.replacement.len()).sum();
         let new_body_bytes = self
             .body_bytes
-            .saturating_sub(removed)
-            .saturating_add(added);
+            .saturating_sub(original_bytes)
+            .saturating_add(replacement_bytes);
         self.body_bytes = new_body_bytes;
         if new_body_bytes > MAX_INPUT_CAPTURE_BYTES {
             self.members = None;
@@ -562,6 +563,8 @@ impl RequestInput {
         let Some(members) = self.members.as_mut() else {
             return true;
         };
+
+        // Patch only touched scanned members, converting body offsets to member-relative offsets.
         let mut applied = 0usize;
         for (name, member_range) in scanned.members() {
             let base = member_range.start;
@@ -595,6 +598,8 @@ impl RequestInput {
             };
             members.insert((*name).to_owned(), raw);
         }
+
+        // Fail closed if any edit did not map into a scanned member.
         applied == redactions.len()
     }
 

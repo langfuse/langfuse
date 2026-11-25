@@ -41,9 +41,13 @@ pub(crate) struct BodyEdit {
 /// Returns `None` if any edit range is inverted, out of bounds, or overlapping.
 pub(crate) fn splice_bytes(source: &[u8], edits: &mut [(Range<usize>, &[u8])]) -> Option<Vec<u8>> {
     edits.sort_by_key(|(range, _)| range.start);
-    let removed: usize = edits.iter().map(|(range, _)| range.len()).sum();
-    let added: usize = edits.iter().map(|(_, bytes)| bytes.len()).sum();
-    let capacity = source.len().saturating_sub(removed).saturating_add(added);
+    // Preallocate the exact output size so all replacements splice in a single pass.
+    let original_bytes: usize = edits.iter().map(|(range, _)| range.len()).sum();
+    let replacement_bytes: usize = edits.iter().map(|(_, bytes)| bytes.len()).sum();
+    let capacity = source
+        .len()
+        .saturating_sub(original_bytes)
+        .saturating_add(replacement_bytes);
     let mut rewritten = Vec::with_capacity(capacity);
     let mut copied = 0;
     for (range, replacement) in &*edits {
@@ -189,13 +193,18 @@ pub(crate) fn prepare_redactions(text: &str, spans: &mut Vec<RedactionSpan<'_>>)
     }
     merge_spans(spans);
 
-    let mut removed = 0usize;
-    let mut added = 0usize;
+    // Compute exact post-replacement length so callers can reserve memory before allocating.
+    let mut original_bytes = 0usize;
+    let mut replacement_bytes = 0usize;
     for span in &*spans {
-        removed = removed.saturating_add(span.end.saturating_sub(span.start));
-        added = added.saturating_add(span.label.len());
+        original_bytes = original_bytes.saturating_add(span.end.saturating_sub(span.start));
+        replacement_bytes = replacement_bytes.saturating_add(span.label.len());
     }
-    Some(text.len().saturating_sub(removed).saturating_add(added))
+    let capacity = text
+        .len()
+        .saturating_sub(original_bytes)
+        .saturating_add(replacement_bytes);
+    Some(capacity)
 }
 
 /// Builds the redacted string from spans already validated and merged by
