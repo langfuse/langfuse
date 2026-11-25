@@ -37,6 +37,12 @@ topics_llm:
   - packages/shared/src/encryption/**
   - packages/shared/src/interfaces/customLLMProviderConfigSchemas.ts
 
+# Any change outside web/: the worker neither imports nor reads web/. A negated
+# pattern matches every path it does not exclude, so this is false only when
+# every changed file is under web/.
+worker:
+  - "!web/**"
+
 # Gateway Rust service, control-plane/feature code, RBAC/API-key auth it depends on, and e2e suite.
 ai_gateway:
   - ai-gateway/src/**
