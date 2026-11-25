@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useMediaQuery } from "react-responsive";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
@@ -19,6 +20,7 @@ export function SeriesLegend({
   const overflowButton = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const hasHover = useMediaQuery({ query: "(hover: hover)" });
   const searchable = series.length > 12;
   const matches =
     searchable && search.trim()
@@ -60,6 +62,7 @@ export function SeriesLegend({
         if (!next) setSearch("");
       }}
       placement="top"
+      interaction={hasHover ? "hover" : "click"}
       openDelay={120}
       content={
         <div
@@ -94,7 +97,7 @@ export function SeriesLegend({
     >
       {({ getTriggerProps }) => (
         <div
-          {...getTriggerProps()}
+          {...(hasHover ? getTriggerProps() : {})}
           role="group"
           aria-label="Chart legend"
           className="ph-no-capture @container min-w-0 shrink-0"
@@ -117,11 +120,12 @@ export function SeriesLegend({
             )}
             renderOverflow={({ overflowItemCount }) => (
               <button
-                ref={overflowButton}
+                {...(hasHover
+                  ? { ref: overflowButton, onClick: () => setOpen(true) }
+                  : getTriggerProps({ ref: overflowButton }))}
                 type="button"
                 aria-label="Show all chart series"
                 aria-expanded={open}
-                onClick={() => setOpen(true)}
                 className="text-muted-foreground hover:bg-muted cursor-pointer rounded px-1.5 py-1 text-xs"
               >
                 +{overflowItemCount}
