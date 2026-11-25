@@ -2,8 +2,10 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
+import { Separator } from "@/src/components/ui/separator";
 import {
   V4MigrationApisSection,
+  V4MigrationHeaderContent,
   V4MigrationCustomInstrumentationSection,
   V4MigrationDetectedInstrumentationSection,
   V4MigrationEvalsSection,
@@ -233,6 +235,113 @@ const migratedKeysState = makeSdkState({
   upgradeRequiredCount: 1,
 });
 
+const migratedKeyB = "pk-lf-abcdef123456b7021d";
+const actionNeededOnlyState = makeSdkState({
+  status: "legacy",
+  sdkUsageSeries: [
+    makeSeries({
+      sdkVersion: "2.60.3",
+      publicKey: "pk-lf-1111222233334444",
+      lastSeen: new Date(Date.now() - 5 * HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      source: "otel-dual-write",
+      sdkName: "openlit",
+      sdkVersion: "1.35.4",
+      canonicalSdkName: null,
+      publicKey: "pk-lf-aaaa000011112222",
+      lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
+    }),
+  ],
+  upgradeRequiredCount: 1,
+  delayedOtelIngestionCount: 1,
+});
+
+const mixedMigrationState = makeSdkState({
+  status: "legacy",
+  sdkUsageSeries: [
+    makeSeries({
+      sdkVersion: "2.60.3",
+      publicKey: migratedKey,
+      lastSeen: new Date(Date.now() - 7 * HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      sdkVersion: "4.7.1",
+      publicKey: migratedKey,
+      source: "otel",
+      ingestionPath: "otel",
+      deliveryMode: "realtime",
+      lastSeen: new Date(Date.now() - HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      sdkName: "javascript",
+      sdkVersion: "3.38.5",
+      canonicalSdkName: "javascript",
+      publicKey: migratedKeyB,
+      lastSeen: new Date(Date.now() - 9 * HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      sdkName: "javascript",
+      sdkVersion: "5.1.0",
+      canonicalSdkName: "javascript",
+      publicKey: migratedKeyB,
+      source: "otel",
+      ingestionPath: "otel",
+      deliveryMode: "realtime",
+      lastSeen: new Date(Date.now() - 3 * HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      sdkVersion: "2.44.0",
+      publicKey: "pk-lf-still-needs-action",
+      lastSeen: new Date(Date.now() - 4 * HOUR_MS).toISOString(),
+    }),
+    makeSeries({
+      source: "otel-dual-write",
+      sdkName: "openlit",
+      sdkVersion: "1.35.4",
+      canonicalSdkName: null,
+      publicKey: "pk-lf-otel-still-delayed",
+      lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
+    }),
+  ],
+  upgradeRequiredCount: 3,
+  delayedOtelIngestionCount: 1,
+});
+
+function MigrationPanelPreview({
+  sdk,
+  remainingActionsAreMigrated = false,
+}: {
+  sdk: V4MigrationSdkState;
+  remainingActionsAreMigrated?: boolean;
+}) {
+  return (
+    <div className="bg-background w-[520px]">
+      <div className="px-4 pt-4">
+        <V4MigrationHeaderContent
+          readiness="action-needed"
+          remainingActionsAreMigrated={remainingActionsAreMigrated}
+        />
+      </div>
+      <div className="flex flex-col gap-1 px-4 pt-6 pb-8">
+        <Separator />
+        <div className="flex items-center gap-2 pt-4 text-base font-bold">
+          Action items
+        </div>
+        <p className="text-muted-foreground text-sm">
+          SDK, instrumentation, experiment, and API checks cover activity from
+          the last 3 days.
+        </p>
+        <V4MigrationSdkSection sdk={sdk} defaultOpen />
+        <V4MigrationOtelSection sdk={sdk} defaultOpen />
+        <V4MigrationCustomInstrumentationSection sdk={sdk} defaultOpen />
+        <V4MigrationMigratedKeysSection sdk={sdk} defaultOpen />
+        <V4MigrationDetectedInstrumentationSection sdk={sdk} />
+      </div>
+    </div>
+  );
+}
+
 const detectedInstrumentationState = makeSdkState({
   status: "latest",
   sdkUsageSeries: [makeSeries({}), realtimeOtelExporter],
@@ -337,6 +446,23 @@ export const UpgradeInstrumentation = meta.story({
 export const MigratedKeys = meta.story({
   render: () => (
     <V4MigrationMigratedKeysSection sdk={migratedKeysState} defaultOpen />
+  ),
+});
+
+export const PanelActionNeeded = meta.story({
+  render: () => <MigrationPanelPreview sdk={actionNeededOnlyState} />,
+});
+
+export const PanelMixed = meta.story({
+  render: () => <MigrationPanelPreview sdk={mixedMigrationState} />,
+});
+
+export const PanelMigrated = meta.story({
+  render: () => (
+    <MigrationPanelPreview
+      sdk={migratedKeysState}
+      remainingActionsAreMigrated
+    />
   ),
 });
 

@@ -429,6 +429,56 @@ describe("v4 migration SDK status", () => {
     ).toEqual([""]);
   });
 
+  it("keeps unrelated action rows when two keys already have a newer clean row", () => {
+    const state = getLoadedSdkState(
+      sdkSeries({
+        sdkVersion: "2.60.3",
+        publicKey: "pk-lf-migrated-a",
+        lastSeen: "2026-07-23T08:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "4.7.1",
+        publicKey: "pk-lf-migrated-a",
+        deliveryMode: "realtime",
+        lastSeen: "2026-07-23T12:00:00Z",
+      }),
+      sdkSeries({
+        sdkName: "javascript",
+        sdkVersion: "3.38.5",
+        publicKey: "pk-lf-migrated-b",
+        lastSeen: "2026-07-23T07:00:00Z",
+      }),
+      sdkSeries({
+        sdkName: "javascript",
+        sdkVersion: "5.1.0",
+        publicKey: "pk-lf-migrated-b",
+        deliveryMode: "realtime",
+        lastSeen: "2026-07-23T11:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "2.44.0",
+        publicKey: "pk-lf-still-legacy",
+        lastSeen: "2026-07-23T10:00:00Z",
+      }),
+      delayedOtelSeries({
+        sdkName: "openlit",
+        sdkVersion: "1.35.4",
+        publicKey: "pk-lf-otel-delayed",
+        lastSeen: "2026-07-23T09:00:00Z",
+      }),
+    );
+
+    expect(
+      getMigratedKeySeries(state).map((row) => row.required.publicKey),
+    ).toEqual(["pk-lf-migrated-a", "pk-lf-migrated-b"]);
+    expect(
+      getSdkSectionState(state).series.map((row) => row.publicKey),
+    ).toEqual(["pk-lf-still-legacy"]);
+    expect(
+      getOtelSectionState(state).series.map((row) => row.publicKey),
+    ).toEqual(["pk-lf-otel-delayed"]);
+  });
+
   it("does not offer a major upgrade to non-SDK traffic", () => {
     expect(
       getAvailableSdkMajorUpgrade(
