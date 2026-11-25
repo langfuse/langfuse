@@ -927,10 +927,7 @@ function validateGuardrailPatterns(config: {
   customRegex?: string;
 }): string[] {
   const patterns = compileGuardrailConfigPatterns(config);
-  const report = validateRegexRules(patterns, {
-    max_rule_bytes: GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
-    max_set_bytes: GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
-  });
+  const report = validateRegexRules(patterns, GATEWAY_GUARDRAIL_MAX_RULE_BYTES);
   if (!report.ok) {
     const error =
       report.rules.find((rule) => rule.error)?.error ?? report.set_error;
@@ -960,23 +957,20 @@ async function assertOrgSizeLimit(
     existingPatterns.push(...compileGuardrailConfigPatterns(parsed.data));
   }
 
-  // `newPatterns` already passed the per-rule limit check. Check the org total
-  // without re-rejecting existing rules above the per-rule cap, and drop
-  // uncompilable legacy stored patterns (which the gateway also skips) so a
-  // stale row cannot block unrelated saves.
-  const orgLimits = {
-    max_rule_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
-    max_set_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
-  };
+  // Drop uncompilable legacy stored patterns (which the gateway also skips) so
+  // a stale row cannot block unrelated saves.
   let report = validateRegexRules(
     [...existingPatterns, ...newPatterns],
-    orgLimits,
+    GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
   );
   if (!report.ok && !report.set_error && existingPatterns.length > 0) {
     const validExisting = existingPatterns.filter(
       (_, index) => !report.rules[index]?.error,
     );
-    report = validateRegexRules([...validExisting, ...newPatterns], orgLimits);
+    report = validateRegexRules(
+      [...validExisting, ...newPatterns],
+      GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
+    );
   }
   if (!report.ok) {
     throw new InvalidRequestError(

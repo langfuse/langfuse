@@ -9,20 +9,6 @@ export interface MatchSpan {
 }
 
 /**
- * Caller-supplied compiled-size limits for control-plane validation.
- */
-export interface Limits {
-    /**
-     * Maximum compiled NFA size of one rule, in bytes.
-     */
-    max_rule_bytes: number;
-    /**
-     * Maximum compiled NFA size of all of an organization's rules together, in bytes.
-     */
-    max_set_bytes: number;
-}
-
-/**
  * Machine-readable reason a guardrail pattern or rule set failed validation.
  */
 export type ValidationErrorCode = "empty_pattern" | "matches_empty_string" | "unicode_not_allowed" | "syntax_error" | "size_limit_exceeded";
@@ -46,7 +32,6 @@ export interface Report {
 export interface RuleResult {
     index: number;
     error?: ValidationError;
-    compiled_bytes?: number;
 }
 
 export interface ValidationError {
@@ -58,9 +43,9 @@ export interface ValidationError {
 /**
  * Validates a single pattern and returns UTF-16 match spans against `text`.
  */
-export function preview(pattern: string, text: string, max_rule_bytes: number): PreviewResult;
+export function preview(pattern: string, text: string, max_bytes: number): PreviewResult;
 
 /**
- * Validates an organization's guardrail patterns against caller-supplied limits.
+ * Validates guardrail patterns against a combined compiled NFA limit `max_bytes`.
  */
-export function validate(patterns: string[], limits: Limits): Report;
+export function validate(patterns: string[], max_bytes: number): Report;
