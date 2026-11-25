@@ -138,7 +138,7 @@ Events dispatch streams full `events_full` payloads through `getEventsDispatchEv
 
 ## Input storage
 
-Events dispatch stores the assembled transcript once per routed trace, then enqueues one job per consumer with the IDs of every rule routed to it. The Topics job resolves those rules' facets at their current version and reads the object back; events dispatch makes no model calls. Each S3 request is bounded to 10 seconds so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. A failed upload counts the trace as failed and enqueues nothing for it. An oversized envelope (`TRACE_TRANSCRIPT_MAX_CHARACTERS`) is a deliberate skip: the trace is logged with a warning, counted as `outcome:too_large`, uploads nothing and is not retried. A trace with no assembled transcript still reaches Topics (which marks its facets `insufficient_input`), but trace transcript evals are not enqueued for it; a trace routed only to trace evals ends as `outcome:skipped,reason:no_transcript` without an upload.
+Events dispatch stores the assembled transcript once per routed trace, then enqueues one job per consumer with the IDs of every rule routed to it. The Topics job resolves those rules' facets at their current version and reads the object back; events dispatch makes no model calls. Each S3 request is bounded to 10 seconds so a stalled request cannot hold a slot indefinitely; the SDK attempt budget stays at its default. An oversized input or failed upload counts the trace as failed and enqueues nothing for it.
 
 The shared `server/eventsDispatch` module uses the event-upload bucket and credentials:
 
