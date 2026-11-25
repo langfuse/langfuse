@@ -10,7 +10,11 @@ import { type QueryType, type ViewVersion } from "../types";
 import { billableUnitsView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
-import { aliasRef, utcDateTime } from "../../../server/query-ast/extensions";
+import {
+  aliasRef,
+  uniq,
+  utcDateTime,
+} from "../../../server/query-ast/extensions";
 import {
   billableUnitsDimension,
   billableUnitsFilterCondition,
@@ -93,14 +97,17 @@ export function buildBillableUnits(
         time: eb.ref("b.ingested_at"),
         entity: (field) => billableUnitsDimension(field)(eb),
       }),
-      // `count` and `uniq` both run as `uniq`: the view's
-      // `aggregationOverrides` set `queryAggregation`.
-      ...astSingleLevelMetrics(
-        eb,
-        appliedMetrics,
-        (metric) => billableUnitsMeasure(metric.measureName)(eb),
-        chartConfig?.bins,
-      ),
+      ...(appliedMetrics.length === 0
+        ? // A unit has a ledger row per ingestion, so `count(*)` would count rows.
+          [uniq(billableUnitsMeasure("count")(eb)).as("count")]
+        : // `count` and `uniq` both run as `uniq`: the view's
+          // `aggregationOverrides` set `queryAggregation`.
+          astSingleLevelMetrics(
+            eb,
+            appliedMetrics,
+            (metric) => billableUnitsMeasure(metric.measureName)(eb),
+            chartConfig?.bins,
+          )),
     ]),
   );
 }

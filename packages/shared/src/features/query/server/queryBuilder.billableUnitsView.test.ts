@@ -137,6 +137,16 @@ describe("billable-units view", () => {
     );
   });
 
+  it("counts distinct units, not ledger rows, when no metric is requested", async () => {
+    const { query: sql } = await new QueryBuilder(undefined, "v2").build(
+      { ...query, metrics: [] },
+      "project-1",
+    );
+    expect(sql).toContain(
+      "uniq(tuple(b.event_type, b.event_id)) as count from",
+    );
+  });
+
   it("rejects a metadata filter as an invalid request", async () => {
     await expect(
       new QueryBuilder(undefined, "v2").build(
