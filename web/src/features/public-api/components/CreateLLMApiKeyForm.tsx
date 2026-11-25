@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,6 +50,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { AnthropicModelFamilyCheckbox } from "@/src/features/llm-api-key/components/AnthropicModelFamilyCheckbox/AnthropicModelFamilyCheckbox";
 import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
 import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -158,7 +160,12 @@ const createFormSchema = (params: {
         ),
       ),
       withDefaultModels: z.boolean(),
-      customModels: z.array(z.object({ value: z.string().min(1) })),
+      customModels: z.array(
+        z.object({
+          value: z.string().min(1),
+          anthropicModelFamily: z.boolean(),
+        }),
+      ),
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
@@ -459,6 +466,11 @@ export function CreateLLMApiKeyForm({
     existingBaseURL: existingKey?.baseURL,
   });
 
+  const existingCustomModelConfig =
+    existingKey?.adapter === LLMAdapter.Bedrock
+      ? (existingKey.config as BedrockConfig | null)?.customModelConfig
+      : undefined;
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -476,7 +488,11 @@ export function CreateLLMApiKeyForm({
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
             typeSafeUpstream: resolveTypeSafeUpstream(existingKey.baseURL).id,
             withDefaultModels: existingKey.withDefaultModels,
-            customModels: existingKey.customModels.map((value) => ({ value })),
+            customModels: existingKey.customModels.map((value) => ({
+              value,
+              anthropicModelFamily:
+                existingCustomModelConfig?.[value]?.modelFamily === "anthropic",
+            })),
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
               [],
@@ -606,6 +622,18 @@ export function CreateLLMApiKeyForm({
                 {...form.register(`customModels.${index}.value`)}
                 placeholder={`Custom model name ${index + 1}`}
               />
+              {currentAdapter === LLMAdapter.Bedrock && (
+                <FormField
+                  control={form.control}
+                  name={`customModels.${index}.anthropicModelFamily`}
+                  render={({ field }) => (
+                    <AnthropicModelFamilyCheckbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -618,7 +646,7 @@ export function CreateLLMApiKeyForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => append({ value: "" })}
+            onClick={() => append({ value: "", anthropicModelFamily: false })}
             className="w-full"
           >
             <PlusIcon
@@ -774,8 +802,20 @@ export function CreateLLMApiKeyForm({
         }
       }
 
+      const customModelConfig: NonNullable<BedrockConfig["customModelConfig"]> =
+        Object.fromEntries(
+          values.customModels
+            .filter((model) => model.anthropicModelFamily && model.value.trim())
+            .map((model) => [
+              model.value.trim(),
+              { modelFamily: "anthropic" as const },
+            ]),
+        );
       config = {
         region: values.awsRegion ?? "",
+        ...(Object.keys(customModelConfig).length > 0
+          ? { customModelConfig }
+          : {}),
       };
     } else if (currentAdapter === LLMAdapter.VertexAI) {
       // Handle Vertex AI credentials
@@ -1003,26 +1043,21 @@ export function CreateLLMApiKeyForm({
           />
 
           {showOtherModelInfo && (
-            <div className="bg-muted/40 text-muted-foreground space-y-2 rounded-md border p-4 text-sm">
-              <p>
-                You can use any model provider as LLM connection that supports
-                one of the adapters in the list. Many providers support the
-                OpenAI API schema, such as Z.ai, OpenRouter, Qwen, Mistral,
-                Hugging Face, and more. Just replace the API Base URL with the
-                endpoint for the model, and add your provider&apos;s custom
-                model names and api key.
-              </p>
-              <p>
-                <a
-                  href="https://langfuse.com/docs/administration/llm-connection#supported-providers"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  Learn more about supported providers
-                </a>
-              </p>
-            </div>
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about supported providers",
+                  href: "https://langfuse.com/docs/administration/llm-connection#supported-providers",
+                },
+              ]}
+            >
+              You can use any model provider as LLM connection that supports one
+              of the adapters in the list. Many providers support the OpenAI API
+              schema, such as Z.ai, OpenRouter, Qwen, Mistral, Hugging Face, and
+              more. Just replace the API Base URL with the endpoint for the
+              model, and add your provider&apos;s custom model names and api
+              key.
+            </Banner>
           )}
 
           {!showOtherModelInfo && (

@@ -1,3 +1,4 @@
+/* oxlint-disable eqeqeq -- legacy Stripe invoice line parsing uses loose typeof checks */
 import type Stripe from "stripe";
 import { TRPCError } from "@trpc/server";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
@@ -64,6 +65,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
+/** @internal */
 export class BillingService {
   constructor(
     private stripe: Stripe,

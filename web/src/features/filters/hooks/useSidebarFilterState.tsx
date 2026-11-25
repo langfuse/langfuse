@@ -63,8 +63,6 @@ import {
   type StringKeyValueFilterEntry,
 } from "../lib/sidebar-filter-actions";
 
-// Re-exported so existing consumers (tests, session view) keep their path.
-export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -170,6 +168,7 @@ export type TextFilterEntry = {
   value: string;
 };
 
+/** @internal */
 export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
   /** Conditions that must be edited individually in the filter bar. */
@@ -237,6 +236,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   unit?: string;
 }
 
+/** @internal */
 export interface StringUIFilter extends BaseUIFilter {
   type: "string";
   value: string;
@@ -289,6 +289,7 @@ interface BooleanKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
 }
 
+/** @internal */
 export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows

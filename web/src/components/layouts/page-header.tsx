@@ -9,9 +9,8 @@ import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
-import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,
   type PageTabsProps,
@@ -87,13 +86,14 @@ const PageHeader = ({
   breadcrumbBadges,
   hideTitleRow = false,
 }: PageHeaderProps) => {
-  const hasAppSidebar = useHasAppSidebar();
+  const appNavigation = useAppNavigation();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  // The sidebar trigger + brand mark only make sense where a real AppSidebar
+  // The sidebar control + brand mark only make sense where a real sidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
   // hamburger opening an empty sheet, no orphaned brand mark.
-  const showSidebarChrome = showSidebarTrigger && hasAppSidebar;
+  const SidebarControl =
+    showSidebarTrigger && appNavigation ? appNavigation.SidebarControl : null;
   return (
     <div
       className={cn([
@@ -123,10 +123,11 @@ const PageHeader = ({
             )}
           >
             <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
-              {showSidebarChrome ? (
+              {SidebarControl ? (
                 <>
-                  {/* Above the breadcrumb trigger, whose box reaches under it. */}
-                  <SidebarTrigger className="relative z-10" />
+                  <div className="relative z-10 flex items-center">
+                    <SidebarControl />
+                  </div>
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}

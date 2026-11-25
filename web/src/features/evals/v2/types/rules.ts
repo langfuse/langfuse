@@ -1,7 +1,9 @@
 import type {
+  EvalTargetObject,
   EvalTemplateType,
   FilterState,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import type { StoreApi } from "zustand/vanilla";
 import type { TableSelectionStore } from "@/src/components/table/table-selection-store";
@@ -23,6 +25,8 @@ export type RuleDraft = {
   sampling: number;
   assignments: RuleDraftAssignment[];
 };
+
+export type RuleTargetObject = EvalTargetObject | typeof TopicsTargetObject;
 
 export type RuleEvaluatorOption = {
   id: string;
@@ -59,11 +63,13 @@ type RuleSetupStoreActions = {
     variableMapping: ObservationVariableMapping[],
   ) => void;
   setSelectedObservation: (observation: SampleObservation | null) => void;
+  setTargetObject: (targetObject: RuleTargetObject) => void;
 };
 
 type RuleSetupStoreState = RuleDraft & {
   initialDraft: RuleDraft;
   selectedObservation: SampleObservation | null;
+  targetObject: RuleTargetObject;
   actions: RuleSetupStoreActions;
 };
 

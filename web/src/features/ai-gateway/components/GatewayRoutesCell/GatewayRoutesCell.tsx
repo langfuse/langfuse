@@ -1,7 +1,7 @@
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import type { ApiFormat } from "@/src/features/ai-gateway/fns/getGatewayModelApiFormats";
 
 const apiFormatLabels = {
@@ -21,11 +21,13 @@ export function GatewayRoutesCell({ apiFormats }: GatewayRoutesCellProps) {
   if (apiFormats.length === 0) return <EmptyValue />;
 
   return (
-    <SingleLineOverflowList
+    <OverflowList
       items={apiFormats}
       additionalOverflowCount={0}
       getKey={getApiFormatKey}
-      renderItem={renderRouteBadge}
+      renderItem={(apiFormat, { getItemProps }) => (
+        <span {...getItemProps()}>{renderRouteBadge(apiFormat)}</span>
+      )}
       renderOverflow={renderOverflowBadge}
     />
   );

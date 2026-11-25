@@ -62,6 +62,7 @@ const getLogLevelFromHTTPStatus = (httpStatus: number): TRPCErrorLogLevel => {
   return "warn";
 };
 
+/** @internal */
 export const getTRPCErrorReporting = (
   error: TRPCError,
 ): {

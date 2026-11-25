@@ -3,6 +3,7 @@
 
 import * as React from "react";
 
+import { Banner } from "../Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/ui/input";
@@ -112,10 +113,9 @@ function ConfirmationDialogController<TValue = undefined>({
           <Dialog.Body>
             <p className="text-muted-foreground text-sm">{resolvedText}</p>
             {error ? (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                <p className="font-bold">Error:</p>
+              <Banner variant="error" title="Error">
                 <p className="whitespace-pre-wrap">{error}</p>
-              </div>
+              </Banner>
             ) : null}
             {requiresConfirmationInput ? (
               <div className="grid gap-2">

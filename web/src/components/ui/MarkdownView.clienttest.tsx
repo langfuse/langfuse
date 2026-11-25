@@ -1,10 +1,10 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 import {
-  MarkdownView,
+  MarkdownViewContent,
   prependBasePathToInternalHref,
-} from "@/src/components/ui/MarkdownView";
-import { MarkdownViewContent } from "./MarkdownViewContent";
+} from "./MarkdownViewContent";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { MarkdownViewController } from "./MarkdownViewController";
 import { IOSection } from "./IOSection";

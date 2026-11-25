@@ -115,6 +115,26 @@ describe("classifyViewFiltersForTable", () => {
     expect(notApplicable.size).toBe(0);
   });
 
+  it("numeric metadata: dropped with a hint on v3, forwarded on v4", () => {
+    const numericMetadata: FilterState[number] = {
+      column: "metadata",
+      type: "numberObject",
+      key: "latency_ms",
+      operator: ">",
+      value: 200,
+    };
+    const v3 = classifyViewFiltersForTable("observations", [numericMetadata]);
+    expect(v3.applicable).toEqual([]);
+    expect([...v3.notApplicable.keys()]).toEqual(["metadata (numeric)"]);
+
+    const v4 = classifyViewFiltersForTable(
+      "observations",
+      [numericMetadata],
+      "v4",
+    );
+    expect(v4.notApplicable.size).toBe(0);
+  });
+
   it("drops sessionId on observations (no session column) with a reason", () => {
     const { applicable, notApplicable } = classifyViewFiltersForTable(
       "observations",

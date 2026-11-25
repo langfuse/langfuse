@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Decimal from "decimal.js";
 
 export const compactNumberFormatter = (
@@ -82,6 +81,13 @@ const SUB_CENT_THRESHOLD = 0.01;
 /** Upper bound on the widening, so a dust value cannot stretch a table cell. */
 const MAX_SUB_CENT_FRACTION_DIGITS = 10;
 
+/** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
+const subCentFractionDigits = (cost: number) =>
+  Math.min(
+    2 + Math.ceil(-Math.log10(Math.abs(cost))),
+    MAX_SUB_CENT_FRACTION_DIGITS,
+  );
+
 export const costFormatter = (totalCost?: number) => {
   const cost = totalCost ?? 0;
 
@@ -104,13 +110,6 @@ export const centCostFormatter = (cost: number) => {
 
   return usdFormatter(cost, 2, 2);
 };
-
-/** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
-const subCentFractionDigits = (cost: number) =>
-  Math.min(
-    2 + Math.ceil(-Math.log10(Math.abs(cost))),
-    MAX_SUB_CENT_FRACTION_DIGITS,
-  );
 
 export const formatTokenCounts = (
   inputUsage?: number | null,

@@ -8,6 +8,7 @@ import { TraceReviewPanel } from "./TraceReviewPanel";
 const state = vi.hoisted(() => ({
   query: { annotation: "open" } as Record<string, string>,
   selectedNodeId: "first",
+  hasAnchorTrace: true,
   replace: vi.fn(),
 }));
 let store: ReturnType<typeof createTraceReviewPanelStore>;
@@ -15,6 +16,7 @@ beforeEach(() => {
   store = createTraceReviewPanelStore({ projectId: "project" });
   state.query = { annotation: "open" };
   state.selectedNodeId = "first";
+  state.hasAnchorTrace = true;
   state.replace.mockClear();
 });
 vi.mock("../contexts/TraceReviewPanelProvider", () => ({
@@ -32,11 +34,19 @@ vi.mock("../contexts/SelectionProvider", () => ({
 }));
 vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
-    trace: { id: "trace", projectId: "project", environment: "default" },
-    sessionTraces: [
-      { id: "trace", projectId: "project", environment: "default" },
-      { id: "other-trace", projectId: "project", environment: "default" },
-    ],
+    trace: state.hasAnchorTrace
+      ? { id: "trace", projectId: "project", environment: "default" }
+      : null,
+    sessionId: "session",
+    scope: {
+      type: "session",
+      projectId: "project",
+      sessionId: "session",
+      traces: [
+        { id: "trace", projectId: "project", environment: "default" },
+        { id: "other-trace", projectId: "project", environment: "default" },
+      ],
+    },
     observations: [
       { id: "first", traceId: "trace", environment: "default" },
       { id: "second", traceId: "trace", environment: "default" },
@@ -141,42 +151,46 @@ it("follows the selected annotation target and switches panels through the URL",
   );
 });
 
-it("scopes annotations to the selected session trace, including reused observation IDs", () => {
-  state.query = { annotation: "open" };
-  state.selectedNodeId = "trace-trace";
-  const view = render(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("annotation")).toHaveTextContent(
-    "trace:trace-score",
-  );
-  expect(screen.getByTestId("annotation")).not.toHaveTextContent(
-    "other-trace-score",
-  );
+it.each([true, false])(
+  "scopes review panels to the selected session trace, including reused observation IDs (anchor=%s)",
+  (hasAnchorTrace) => {
+    state.hasAnchorTrace = hasAnchorTrace;
+    state.query = { annotation: "open" };
+    state.selectedNodeId = "trace-trace";
+    const view = render(<TraceReviewPanel projectId="project" />);
+    expect(screen.getByTestId("annotation")).toHaveTextContent(
+      "trace:trace-score",
+    );
+    expect(screen.getByTestId("annotation")).not.toHaveTextContent(
+      "other-trace-score",
+    );
 
-  state.selectedNodeId = "trace-other-trace";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("annotation")).toHaveTextContent(
-    "trace:other-trace-score",
-  );
+    state.selectedNodeId = "trace-other-trace";
+    view.rerender(<TraceReviewPanel projectId="project" />);
+    expect(screen.getByTestId("annotation")).toHaveTextContent(
+      "trace:other-trace-score",
+    );
 
-  state.selectedNodeId = "other-trace:first";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("annotation")).toHaveTextContent(
-    "first:other-first-score",
-  );
-  expect(screen.getByTestId("annotation")).not.toHaveTextContent(
-    "first:first-score",
-  );
-  expect(screen.getByTestId("trace-scope")).toHaveTextContent(
-    "other-trace-score",
-  );
+    state.selectedNodeId = "other-trace:first";
+    view.rerender(<TraceReviewPanel projectId="project" />);
+    expect(screen.getByTestId("annotation")).toHaveTextContent(
+      "first:other-first-score",
+    );
+    expect(screen.getByTestId("annotation")).not.toHaveTextContent(
+      "first:first-score",
+    );
+    expect(screen.getByTestId("trace-scope")).toHaveTextContent(
+      "other-trace-score",
+    );
 
-  state.query = { comments: "open" };
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent(/^first$/);
-  state.selectedNodeId = "trace-other-trace";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent(/^other-trace$/);
-});
+    state.query = { comments: "open" };
+    view.rerender(<TraceReviewPanel projectId="project" />);
+    expect(screen.getByTestId("comments")).toHaveTextContent(/^first$/);
+    state.selectedNodeId = "trace-other-trace";
+    view.rerender(<TraceReviewPanel projectId="project" />);
+    expect(screen.getByTestId("comments")).toHaveTextContent(/^other-trace$/);
+  },
+);
 
 it("closes comment deep links with Escape and clears their URL target", () => {
   state.query = {

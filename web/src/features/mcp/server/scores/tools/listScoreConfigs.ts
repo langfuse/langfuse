@@ -30,5 +30,5 @@ export const [listScoreConfigsTool, handleListScoreConfigs] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

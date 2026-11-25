@@ -52,6 +52,7 @@ export function createSecureLlmFetch({
   };
 }
 
+/** @internal */
 export async function fetchSecureLlmUrl(
   url: string,
   options: RequestInit,

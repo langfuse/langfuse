@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
+import type { TopicsEventMap } from "@/src/features/topics/topicsAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -235,7 +236,6 @@ const events = {
     "gallery_creation_source_select",
     "empty_state_template_select",
     "empty_state_browse_library",
-    "empty_state_detect_topics",
     "alert_create_clicked",
   ],
   evaluation_rules: [
@@ -438,6 +438,7 @@ const events = {
     "feature_flag_default_toggled",
     "personal_feature_previews_opened",
     "user_feature_flag_toggled",
+    "enterprise_trial_redeemed",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -447,14 +448,23 @@ const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
+  // Typed in features/topics/topicsAnalytics.ts. Metadata only, and every
+  // event carries projectId and orgId.
   topics: [
+    "page_viewed",
+    "setup_flow_opened",
+    "setup_flow_step_completed",
+    "setup_flow_error",
+    "setup_flow_finished",
+    "map_viewed",
+    "map_created",
+    "map_refreshed",
+    "snapshot_started",
+    "map_selected",
+    "topic_selected",
     "results_view_select",
-    "setup_opened",
-    "setup_step_saved",
-    "setup_started",
-    // Tracing pulse chart topic stripe. Props: isV4, isSelected, topicCount; never topic names.
+    "cost_estimate_started",
     "stripe_toggle",
-    // Topics page "Give feedback", opening the support form as Feedback. No props.
     "feedback_open",
   ],
   in_app_agent: [
@@ -487,10 +497,17 @@ const events = {
     "custom_model_removed",
     "budget_saved",
     "budget_removed",
+    "budget_reset",
     "agent_setup_instructions_viewed",
     "agent_setup_instructions_copied",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  // Sidebar presentation and shell adoption, using state flags and static sources.
+  app_shell: [
+    "sidebar_pin_toggled",
+    "sidebar_expansion_toggled",
+    "variant_switched",
+  ],
   spend_alert: ["created", "updated", "deleted"],
   billing_coupon: ["submitted"],
   // Launch surfaces answer "which entry point and state lead people into
@@ -576,6 +593,7 @@ type EventName = {
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
   AiGatewayEventMap &
+  TopicsEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

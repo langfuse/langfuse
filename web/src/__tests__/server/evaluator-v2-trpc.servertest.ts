@@ -646,6 +646,31 @@ describe("evalsV2 tRPC", () => {
       ]),
     });
   });
+
+  it("rejects legacy rule mappings to unknown observation columns", async () => {
+    await expect(
+      caller.evals.createJob({
+        projectId,
+        evalTemplateId: randomUUID(),
+        scoreName: "legacy-unknown-column",
+        target: "event",
+        filter: [],
+        mapping: [
+          {
+            templateVariable: "expected_output",
+            selectedColumnId: "expected_output",
+          },
+        ],
+        sampling: 1,
+        timeScope: ["NEW"],
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(
+        'Variable "expected_output" maps to unknown column "expected_output"',
+      ),
+    });
+  });
 });
 
 function evaluatorWrites(

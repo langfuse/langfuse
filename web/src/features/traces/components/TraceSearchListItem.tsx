@@ -16,7 +16,8 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 interface TraceSearchListItemProps {
   item: TraceSearchListItemData;
   isSelected: boolean;
-  onSelect: () => void;
+  /** Absent for a read-only result: no pointer and no hover wash. */
+  onSelect?: () => void;
   onHover?: () => void;
 }
 
@@ -43,7 +44,8 @@ export function TraceSearchListItem({
       onClick={onSelect}
       onMouseEnter={onHover}
       className={cn(
-        "hover:bg-muted/50 flex cursor-pointer items-start px-2 py-1.5 transition-colors",
+        "flex items-start px-2 py-1.5 transition-colors",
+        onSelect && "hover:bg-muted/50 cursor-pointer",
         isSelected && "bg-muted",
       )}
     >

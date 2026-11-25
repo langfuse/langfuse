@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { getHealthTool, handleGetHealth } from "./tools/getHealth";
 
 export const healthFeature = {

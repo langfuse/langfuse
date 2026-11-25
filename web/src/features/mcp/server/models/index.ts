@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { createModelTool, handleCreateModel } from "./tools/createModel";
 import { deleteModelTool, handleDeleteModel } from "./tools/deleteModel";
 import { getModelTool, handleGetModel } from "./tools/getModel";

@@ -2,7 +2,7 @@
 // Looks up the projectId for a trace and redirects to /project/[projectId]/traces/[traceId]
 // which displays the current trace view
 
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 import { useRouter } from "next/router";
 
 const TraceRedirectPage = ({

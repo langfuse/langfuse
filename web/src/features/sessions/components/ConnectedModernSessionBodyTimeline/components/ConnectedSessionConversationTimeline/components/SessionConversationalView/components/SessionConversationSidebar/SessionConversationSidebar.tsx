@@ -51,6 +51,40 @@ export type SessionConversationSidebarTrace = {
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
 const SIDEBAR_SCROLL_PADDING = 16;
 
+type ActivePeek = { traceId: string; observationId: string | undefined };
+
+function filterSidebarTraces(
+  traces: SessionConversationSidebarTrace[],
+  search: string,
+) {
+  const query = search.toLowerCase();
+  if (!query) return traces;
+  return traces.flatMap((turn) => {
+    if ((turn.trace.name ?? "").toLowerCase().includes(query)) return [turn];
+    const transcriptRows = turn.transcriptRows?.filter((row) =>
+      `${row.role} ${row.label}`.toLowerCase().includes(query),
+    );
+    if (transcriptRows?.length === 0) return [];
+    return [{ ...turn, transcriptRows: transcriptRows ?? turn.transcriptRows }];
+  });
+}
+
+function selectPeekedTurnId(
+  traces: SessionConversationSidebarTrace[],
+  activePeek: ActivePeek | undefined,
+) {
+  if (!activePeek) return undefined;
+  const peekTrace =
+    traces.find(
+      ({ trace, transcriptRows }) =>
+        trace.id === activePeek.traceId &&
+        transcriptRows?.some(
+          (row) => row.observationId === activePeek.observationId,
+        ),
+    ) ?? traces.find(({ trace }) => trace.id === activePeek.traceId);
+  return peekTrace?.itemId ?? peekTrace?.trace.id;
+}
+
 export function SessionConversationSidebar(
   props: (
     | { state: "loading" }
@@ -58,6 +92,7 @@ export function SessionConversationSidebar(
         state: "loaded";
         traces: SessionConversationSidebarTrace[];
         activeTraceId: string | undefined;
+        activePeek?: ActivePeek;
         search: string;
         searchQuery?: string;
         onSearchChange: (search: string) => void;
@@ -82,11 +117,14 @@ export function SessionConversationSidebar(
     };
   },
 ) {
-  const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const allTraces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const activePeek = props.state === "loaded" ? props.activePeek : undefined;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
+  const peekedTurnId = selectPeekedTurnId(allTraces, activePeek);
   const appliedSearch =
     props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
+  const traces = filterSidebarTraces(allTraces, appliedSearch);
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
@@ -370,6 +408,7 @@ export function SessionConversationSidebar(
                     <SessionSidebarTraceCard
                       title={trace.name ?? "Trace"}
                       isActive={isActive}
+                      isPeeked={itemId === peekedTurnId}
                       number={sidebarTrace.displayNumber ?? turnNumber}
                       onSelect={() => props.onSelect(targetIndex)}
                       collapse={{

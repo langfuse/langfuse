@@ -1,4 +1,4 @@
-import { InvalidRequestError } from "@langfuse/shared";
+import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
@@ -29,7 +29,10 @@ import {
   listTopicFacets,
   listTopicRules,
   readLatestTopicAssignments,
+  topicMatchingTraceIdsQuery,
+  TRACE_SPAN_MARGIN_MS,
 } from "@langfuse/shared/topics/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { requireAnalysis } from "./slices";
 
 function resolveTopicResult(
@@ -40,7 +43,7 @@ function resolveTopicResult(
     | "facetVersion"
     | "traceId"
     | "unitStartTime"
-    | "processedAt"
+    | "createdAt"
     | "state"
   >,
   stored?: TopicAssignment,
@@ -52,7 +55,7 @@ function resolveTopicResult(
     stored.facetVersion === summary.facetVersion &&
     stored.traceId === summary.traceId &&
     stored.unitStartTime === summary.unitStartTime &&
-    stored.summaryProcessedAt === summary.processedAt
+    stored.summaryProcessedAt === summary.createdAt
       ? stored
       : undefined;
   let outcome: string = summary.state;
@@ -133,7 +136,7 @@ async function resolveFacetMaps(
     ? rules.filter((rule) => rule.id === scope.ruleId)
     : rules;
   if (scope.ruleId && !scoped.length)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   const enabledFacetIds = scoped.length
     ? new Set(scoped.flatMap((rule) => rule.facetIds))
     : null;
@@ -239,6 +242,8 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
             awaitingMap: 0,
             notApplicable: 0,
             insufficientInput: 0,
+            emptyInput: 0,
+            inputTooLarge: 0,
           }
         : {
             total: count.total,
@@ -247,6 +252,8 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
             awaitingMap: count.awaiting,
             notApplicable: count.notApplicable,
             insufficientInput: count.insufficientInput,
+            emptyInput: count.emptyInput,
+            inputTooLarge: count.inputTooLarge,
           },
       topics,
       map: run
@@ -459,6 +466,8 @@ export async function listTopicTraces(input: {
   };
   assigned?: boolean;
   traceId?: string;
+  /** Tracing filters on the trace, as a rule filter takes them. */
+  filter?: FilterState;
   cursor?: TopicResultCursor;
 }) {
   const conditions: TopicResultCondition[] = [];
@@ -498,6 +507,20 @@ export async function listTopicTraces(input: {
     cursor: input.cursor,
     includeAssignment: true,
     truncateSummaries: false,
+    // Same matching as a rule filter: any observation that starts within the margin after the trace.
+    traceFilter: input.filter?.length
+      ? ({ from, to, traceIds }) =>
+          topicMatchingTraceIdsQuery(
+            {
+              projectId: input.projectId,
+              filter: input.filter!,
+              from,
+              to: new Date(to.getTime() + TRACE_SPAN_MARGIN_MS),
+              traceIds,
+            },
+            prisma,
+          )
+      : undefined,
   });
   const names = new Map(
     run?.topics.map((topic) => [topic.topicVersionId, topic.name]),

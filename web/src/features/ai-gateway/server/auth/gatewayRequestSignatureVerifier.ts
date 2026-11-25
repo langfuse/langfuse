@@ -138,6 +138,7 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
  * copies onto every line, so Web resolution logs join the gateway's. Call it
  * only after the gateway signature is verified; the header itself is unsigned,
  * so only a single UUID is accepted.
+ * @internal
  */
 export function contextWithGatewayRequestId(
   req: Pick<NextApiRequest, "headers">,

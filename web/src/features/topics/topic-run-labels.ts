@@ -1,4 +1,5 @@
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { type RouterOutputs } from "@/src/utils/api";
 import { costFormatter } from "@/src/utils/numbers";
 import {
   type TopicExecutionSummary,
@@ -6,8 +7,11 @@ import {
   type TopicOperation,
 } from "@langfuse/shared/topics";
 
+export type TopicRunCost =
+  RouterOutputs["topics"]["executionCostBreakdown"][string];
+
 export type TopicRunWithCost = TopicExecutionSummary & {
-  estimatedCost?: number | null;
+  costBreakdown?: TopicRunCost | null;
 };
 
 type RunCostInput = {
@@ -50,16 +54,24 @@ export const executionBadgeTypes: Record<TopicExecutionStatus, Status> = {
 export const busy = (status: string) =>
   status === "queued" || status === "running";
 
+export const estimatedTopicCostLabel = "Estimated cost:";
+
+export const estimatedTopicCostDescription =
+  "Missing prices or failed calls can make this estimate too low. Duplicate records can make it too high. Summary and embedding calls split their cost across results. Each result belongs to its snapshot or is shared equally by the live maps that requested it. Later reuse is free. Naming costs belong to the run that created the topic version. Please confirm with your model provider.";
+
 export function createsSummaries(input: RunCostInput) {
   return input.operation === "process" || Boolean(input.analysis?.summarize);
 }
 
-export function formatTopicRunCost(
-  input: RunCostInput,
-  estimatedCost: number | null | undefined,
-) {
-  if (!createsSummaries(input)) return "No new summaries";
-  if (estimatedCost === undefined) return "Loading…";
-  if (estimatedCost === null) return "Unavailable";
-  return `~${costFormatter(estimatedCost)}`;
+export function formatTopicCost(cost: number | null | undefined) {
+  if (cost === undefined) return "Loading…";
+  if (cost === null) return "Unavailable";
+  return `~${costFormatter(cost)}`;
+}
+
+export function formatTopicRunCost(costs: TopicRunCost | null | undefined) {
+  if (costs == null) return formatTopicCost(costs);
+  const { summaries, naming } = costs;
+  if (summaries === null && naming === null) return formatTopicCost(null);
+  return formatTopicCost((summaries ?? 0) + (naming ?? 0));
 }

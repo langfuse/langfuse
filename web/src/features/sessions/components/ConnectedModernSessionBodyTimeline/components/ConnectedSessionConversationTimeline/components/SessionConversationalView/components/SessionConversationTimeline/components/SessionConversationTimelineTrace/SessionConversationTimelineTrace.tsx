@@ -5,7 +5,7 @@ import {
   MessageSquare,
   MessageSquareOff,
   Pencil,
-  ExternalLinkIcon,
+  SquareArrowOutUpRight,
 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
@@ -168,7 +168,7 @@ export function SessionConversationTimelineTrace({
                   },
                   {
                     label: "Open trace",
-                    icon: ExternalLinkIcon,
+                    icon: SquareArrowOutUpRight,
                     onClick: onOpenTrace,
                   },
                 ].map(

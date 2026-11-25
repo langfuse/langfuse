@@ -39,6 +39,7 @@ const isEventPropagationEnabled = (): boolean =>
  * threshold. A missing heartbeat (job never ran yet — e.g. fresh boot or during
  * a rollout) is treated as NOT stuck to avoid restart loops before the first
  * scheduled run. A disabled job is never stuck.
+ * @internal
  */
 export const evaluateEventPropagationStuck = (input: {
   enabled: boolean;
@@ -94,6 +95,7 @@ export const evaluateEventPropagationStuck = (input: {
  * Fetch event-propagation health from Redis (cursor + run heartbeat) and
  * evaluate it. Redis-only: no ClickHouse query, so it is cheap enough to run on
  * every health probe.
+ * @internal
  */
 export const getEventPropagationHealth =
   async (): Promise<EventPropagationHealth> => {

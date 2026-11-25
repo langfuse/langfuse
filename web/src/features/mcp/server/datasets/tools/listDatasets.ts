@@ -43,5 +43,5 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

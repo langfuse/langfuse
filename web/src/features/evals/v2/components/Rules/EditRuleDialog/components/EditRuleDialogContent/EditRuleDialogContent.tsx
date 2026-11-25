@@ -4,11 +4,13 @@ import {
   EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
+import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
@@ -16,6 +18,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -39,30 +42,33 @@ export function EditRuleDialogContent({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [ruleSetupStore] = useState(() =>
-    createRuleSetupStore({
-      name: rule.name,
-      filter: singleFilterList.catch([]).parse(rule.filter),
-      sampling: rule.sampling,
-      assignments: rule.assignments.map((assignment) => {
-        const preparedDefault = prepareModernRuleVariableMapping(
-          assignment.evaluator.latestVersion?.variableMapping,
-          assignment.evaluator.type,
-        );
-        return {
-          evaluatorId: assignment.evaluator.id,
-          evaluatorName: assignment.evaluator.name,
-          evaluatorType: assignment.evaluator.type,
-          defaultVariableMapping: preparedDefault.defaultVariableMapping,
-          variableMapping:
-            assignment.evaluator.type === EvalTemplateType.CODE ||
-            assignment.variableMapping == null
-              ? preparedDefault.initialVariableMapping
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
-        };
-      }),
-    }),
+    createRuleSetupStore(
+      {
+        name: rule.name,
+        filter: singleFilterList.catch([]).parse(rule.filter),
+        sampling: rule.sampling,
+        assignments: rule.assignments.map((assignment) => {
+          const preparedDefault = prepareModernRuleVariableMapping(
+            assignment.evaluator.latestVersion?.variableMapping,
+            assignment.evaluator.type,
+          );
+          return {
+            evaluatorId: assignment.evaluator.id,
+            evaluatorName: assignment.evaluator.name,
+            evaluatorType: assignment.evaluator.type,
+            defaultVariableMapping: preparedDefault.defaultVariableMapping,
+            variableMapping:
+              assignment.evaluator.type === EvalTemplateType.CODE ||
+              assignment.variableMapping == null
+                ? preparedDefault.initialVariableMapping
+                : observationVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping),
+          };
+        }),
+      },
+      { targetObject: rule.targetObject },
+    ),
   );
   const update = api.evalsV2.rules.update.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
@@ -88,10 +94,13 @@ export function EditRuleDialogContent({
       name: draft.name.trim(),
       filter: draft.filter,
       sampling: draft.sampling,
-      evaluatorMappings: draft.assignments.map((assignment) => ({
-        evaluatorId: assignment.evaluatorId,
-        variableMapping: assignment.variableMapping,
-      })),
+      evaluatorMappings:
+        rule.targetObject === TopicsTargetObject
+          ? traceTranscriptAssignments(draft.assignments)
+          : draft.assignments.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping,
+            })),
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
@@ -130,6 +139,13 @@ export function EditRuleDialogContent({
       <DialogBody>
         <fieldset disabled={!hasWriteAccess} className="contents">
           <RuleSetup
+            filterStep={
+              <RuleFilterStep
+                projectId={projectId}
+                store={ruleSetupStore}
+                mode="edit"
+              />
+            }
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}

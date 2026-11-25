@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { optionalJsonParam, singleFilterList } from "@langfuse/shared";
+import { TOPIC_SUMMARY_STATES } from "@langfuse/shared/topics";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -36,7 +37,7 @@ const TopicFacetSchema = z
     ruleIds: z.array(z.string()),
     version: z.number().int(),
     prompt: z.string(),
-    publishedRun: z
+    publishedMap: z
       .object({
         id: z.string(),
         completedAt: z.coerce.date().nullable(),
@@ -49,13 +50,13 @@ const TopicFacetSchema = z
 
 const TopicSchema = z
   .object({
-    id: z.string(),
+    stableId: z.string(),
     versionId: z.string(),
     name: z.string(),
     description: z.string(),
     facet: FacetRefSchema,
     ruleId: z.string().nullable(),
-    runId: z.string(),
+    mapId: z.string(),
     traceCount: z.number().int(),
   })
   .strict();
@@ -67,6 +68,8 @@ const TopicStatusCountsSchema = z
     awaitingMap: z.number().int(),
     notApplicable: z.number().int(),
     insufficientInput: z.number().int(),
+    emptyInput: z.number().int(),
+    inputTooLarge: z.number().int(),
   })
   .strict();
 
@@ -103,7 +106,7 @@ export const GetUnstableTopicsResponse = z
         .object({
           facet: FacetRefSchema,
           ruleId: z.string().nullable(),
-          publishedRunId: z.string().nullable(),
+          publishedMapId: z.string().nullable(),
           counts: TopicStatusCountsSchema,
         })
         .strict(),
@@ -204,10 +207,10 @@ export const GetUnstableTopicSummariesResponse = z
           facetId: z.string(),
           facetName: z.string(),
           facetVersion: z.number().int(),
-          state: z.enum(["complete", "not_applicable", "insufficient_input"]),
+          state: z.enum(TOPIC_SUMMARY_STATES),
           summary: z.string().nullable(),
           summaryTruncated: z.boolean(),
-          processedAt: z.coerce.date(),
+          createdAt: z.coerce.date(),
         })
         .strict(),
     ),
@@ -230,11 +233,15 @@ export const GetUnstableTopicAssignmentsResponse = z
           ruleId: z.string().nullable(),
           status: z.enum(["assigned", "outlier"]),
           topic: z
-            .object({ id: z.string(), versionId: z.string(), name: z.string() })
+            .object({
+              stableId: z.string(),
+              versionId: z.string(),
+              name: z.string(),
+            })
             .strict()
             .nullable(),
-          runId: z.string().nullable(),
-          assignedAt: z.coerce.date(),
+          mapId: z.string().nullable(),
+          createdAt: z.coerce.date(),
         })
         .strict(),
     ),
@@ -243,7 +250,7 @@ export const GetUnstableTopicAssignmentsResponse = z
   .strict();
 
 export const GetUnstableTopicQuery = timeWindow.extend({
-  topicId: z.string(),
+  topicStableId: z.string(),
 });
 export const GetUnstableTopicResponse = TopicSchema.extend({
   inCurrentMap: z.boolean(),

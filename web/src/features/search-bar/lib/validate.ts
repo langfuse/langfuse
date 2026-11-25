@@ -16,6 +16,7 @@ import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
 export const MAX_QUERY_LENGTH = 64 * 1024;
+/** @internal */
 export const MAX_QUERY_DIAGNOSTICS = 100;
 const MAX_SEARCH_QUERY_LENGTH = 2048;
 

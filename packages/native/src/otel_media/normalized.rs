@@ -15,8 +15,8 @@ use super::payload::{
     MediaSource,
 };
 use super::rules::{
-    is_media_reference, is_supported_content_type, may_be_serialized_json,
-    may_contain_serialized_media, DATA_URI_PREFIX,
+    contains_unicode_escape, find_data_uri_prefix, is_media_reference, is_supported_content_type,
+    may_be_serialized_json, may_contain_serialized_media, DATA_URI_PREFIX,
 };
 use super::scanner::{find_data_uri_candidates, parse_data_uri};
 use super::source_text::for_each_media_reference;
@@ -208,8 +208,8 @@ where
         if may_be_serialized_json(source.as_str())
             && source.as_utf8().is_some()
             && embedded_depth < MAX_EMBEDDED_JSON_DEPTH
-            && (source.as_str().contains(DATA_URI_PREFIX)
-                || source.as_str().contains("\\u")
+            && (find_data_uri_prefix(source.as_str()).is_some()
+                || contains_unicode_escape(source.as_str())
                 || may_contain_serialized_media(source.as_str()))
         {
             match (self.extract_embedded)(source.as_bytes(), embedded_depth + 1, 0, &mut self.ids) {

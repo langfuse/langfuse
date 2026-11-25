@@ -202,5 +202,5 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });
