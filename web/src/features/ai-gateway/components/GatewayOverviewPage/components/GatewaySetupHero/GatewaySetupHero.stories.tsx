@@ -23,32 +23,22 @@ export const NotStarted = meta.story({
   },
 });
 
-export const ProviderConnected = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: false },
-      { provider: "BEDROCK", isConnected: false },
-    ],
+export const DiagramLabelsInside = meta.story({
+  name: "(Test) Diagram labels stay inside the diagram",
+  args: { providers: [] },
+  play: async ({ canvasElement }) => {
+    const labels = [...canvasElement.querySelectorAll<SVGTextElement>("text")];
+    await expect(labels).not.toHaveLength(0);
+    for (const label of labels) {
+      const diagram = label.ownerSVGElement?.getBoundingClientRect();
+      await expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(
+        diagram?.right ?? 0,
+      );
+    }
   },
 });
 
-/** Every provider, OpenRouter, xAI, Vercel and Vertex AI included. */
-export const WithAllProviders = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
-      { provider: "BEDROCK", isConnected: false },
-      { provider: "OPENROUTER", isConnected: false },
-      { provider: "XAI", isConnected: false },
-      { provider: "VERCEL", isConnected: false },
-      { provider: "VERTEX", isConnected: false },
-    ],
-  },
-});
-
-/** Every provider plus "More soon", as in the Models empty state. */
+/** Every provider plus "More soon". */
 export const SwitchboardWithAllRows = meta.story({
   name: "(Test) All switchboard rows stay inside the diagram",
   args: { providers: [] },
