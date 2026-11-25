@@ -77,7 +77,7 @@ export function EvaluatorSavedDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-4xl"
+        className="ph-no-capture sm:max-w-4xl"
         closeOnInteractionOutside
         onOpenAutoFocus={onOpenAutoFocus}
         onCloseAutoFocus={onCloseAnimationEnd}
