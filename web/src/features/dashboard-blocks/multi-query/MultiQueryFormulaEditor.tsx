@@ -9,6 +9,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { MultiQueryFormulaInput } from "./MultiQueryFormulaInput";
+import { formatMultiQueryFormula } from "./multiQueryFormulas";
 
 export function MultiQueryFormulaEditor({
   tab,
@@ -34,6 +35,10 @@ export function MultiQueryFormulaEditor({
         <div className="min-w-0 flex-1">
           <Input
             aria-label="Formula name"
+            placeholder={
+              formatMultiQueryFormula(tab, formula.expression).trim() ||
+              "Name (optional)"
+            }
             maxLength={200}
             value={formula.label}
             onFocus={() => {

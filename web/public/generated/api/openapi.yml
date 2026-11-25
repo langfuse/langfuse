@@ -16024,6 +16024,9 @@ components:
           type: string
         label:
           type: string
+          description: >-
+            Set to an empty string to display the formula expression using the
+            tab's series letters.
         expression:
           type: string
           description: >-

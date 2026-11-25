@@ -251,6 +251,37 @@ describe("multi-query ordinary query composition", () => {
     );
   });
 
+  it("labels unnamed formulas with their tab expression until a name is supplied", () => {
+    const tab = normalizeMultiQueryConfig(config).tabs[0]!;
+    const result = normalizeMultiQueryResults(
+      buildMultiQueryPlan(config, context),
+      config.queries.map(() => ({
+        data: [{ count_count: 3 }],
+        isPending: false,
+        isError: false,
+        error: null,
+      })),
+    );
+    for (const [label, expression, expected] of [
+      ["", "a.count / b.count", "A / B"],
+      ["", "(a.count + b.count) / 2", "(A + B) / 2"],
+      ["Average", "(a.count + b.count) / 2", "Average"],
+    ] as const) {
+      const saved = multiQueryTabSchema.parse({
+        ...tab,
+        formulas: [{ id: "f", label, expression, format: "number" }],
+      });
+      const chart = applyMultiQueryFormulas(saved, result);
+      expect(chart.series.find((s) => s.id === "formula:f")?.label).toBe(
+        expected,
+      );
+      expect(chart.values.find((v) => v.queryId === "f")).toMatchObject({
+        queryLabel: expected,
+        metricLabel: expected,
+      });
+    }
+  });
+
   it("switches named execution subsets without invalidating the other saved views and falls back after deletion", () => {
     const named = {
       ...config,

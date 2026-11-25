@@ -159,7 +159,7 @@ const tabSourceSchema = multiQuerySourceSchema.extend({
 });
 const formulaSchema = z.object({
   id,
-  label: z.string().min(1).max(200),
+  label: z.string().max(200),
   expression: z.string().min(1).max(1024),
   format: z.enum(["number", "percent"]),
   hidden: z.boolean().optional(),

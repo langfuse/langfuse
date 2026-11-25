@@ -138,6 +138,9 @@ export function applyMultiQueryFormulas(
   let nextColor = result.series.length;
   for (const formula of tab.formulas ?? []) {
     if (formula.hidden) continue;
+    const label =
+      formula.label.trim() ||
+      formatMultiQueryFormula(tab, formula.expression).trim();
     try {
       const compiled = compileMultiQueryFormula(formula.expression);
       const wanted = new Set(compiled.references);
@@ -184,7 +187,7 @@ export function applyMultiQueryFormulas(
           series.push({
             id,
             label: [
-              formula.label,
+              label,
               ...group.map(([, value]) => value ?? "Unknown"),
             ].join(" · "),
             unit,
@@ -201,8 +204,8 @@ export function applyMultiQueryFormulas(
           seriesId: id,
           queryId: formula.id,
           metricId: formula.id,
-          queryLabel: formula.label,
-          metricLabel: formula.label,
+          queryLabel: label,
+          metricLabel: label,
           time: sample.time,
           dimensions: sample.dimensions,
           value: value !== null && Number.isFinite(value) ? value : null,
@@ -212,7 +215,7 @@ export function applyMultiQueryFormulas(
     } catch (error) {
       failures.push({
         id: formula.id,
-        label: formula.label,
+        label,
         message: error instanceof Error ? error.message : "Invalid formula",
       });
     }

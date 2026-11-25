@@ -431,7 +431,9 @@ types:
   DashboardMultiQueryFormula:
     properties:
       id: string
-      label: string
+      label:
+        type: string
+        docs: Set to an empty string to display the formula expression using the tab's series letters.
       expression:
         type: string
         docs: Arithmetic on queryId.metricId references from this tab, numeric literals, and parentheses. Null or missing operands and division by zero have no value.

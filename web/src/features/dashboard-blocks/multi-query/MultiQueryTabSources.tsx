@@ -67,9 +67,7 @@ export function MultiQueryTabSources({
         ...formulas,
         {
           id,
-          label: formulas.length
-            ? "Formula " + (formulas.length + 1)
-            : "Formula",
+          label: "",
           expression: "",
           format: "number",
         },

@@ -637,7 +637,7 @@ export function MultiQueryEditor({
                 onClick={() => openDialog()}
                 aria-label={`Rename widget, ${config.title}`}
                 disabled={savePending}
-                className="hover:bg-accent focus-visible:ring-ring inline-flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
+                className="hover:bg-accent focus-visible:ring-ring -ms-2 inline-flex min-h-8 max-w-full items-center gap-2 rounded-md px-2 py-1 text-left leading-6 focus-visible:ring-2 focus-visible:outline-hidden"
               >
                 <span className="truncate" title={config.title}>
                   {config.title}
