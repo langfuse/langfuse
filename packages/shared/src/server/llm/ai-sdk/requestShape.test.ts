@@ -786,8 +786,8 @@ describe("AI SDK request shapes", () => {
     }
   });
 
-  // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
-  // so capture at the global fetch the AI SDK falls back to.
+  // The Bedrock builder skips createSecureLlmFetch (VPC endpoints) and calls
+  // globalThis.fetch via fetchWithoutBaggage, so capture at global fetch.
   async function runBedrockCompletion(params?: {
     model?: string;
     projectId?: string;

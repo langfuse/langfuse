@@ -1,4 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  context,
+  propagation,
+  trace,
+  TraceFlags,
+  type Baggage,
+  type SpanContext,
+} from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { embed, generateText } from "ai";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { env } from "../../../../env";
 import {
@@ -33,6 +52,7 @@ vi.mock("../../../ee/storageRoleAuth/storageRoleCredentials", () => ({
 import { OutboundUrlValidationError } from "../../../outbound-url/validation";
 import {
   assertValidBedrockRegion,
+  buildBedrockEmbeddingModel,
   buildBedrockModel,
   resolveBedrockProviderAuth,
   translateBedrockProviderOptions,
@@ -328,4 +348,131 @@ describe("Bedrock LLM host allowlist", () => {
 
     expect(() => buildBedrockModel(userConnection)).not.toThrow();
   });
+});
+
+describe("Bedrock outbound fetch baggage stripping", () => {
+  const contextManager = new AsyncLocalStorageContextManager();
+  const callerSpanContext: SpanContext = {
+    traceId: "0af7651916cd43dd8448eb211c80319c",
+    spanId: "b7ad6b7169203331",
+    traceFlags: TraceFlags.SAMPLED,
+  };
+
+  beforeAll(() => {
+    contextManager.enable();
+    context.setGlobalContextManager(contextManager);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterAll(() => {
+    context.disable();
+  });
+
+  function createCallerContext() {
+    const withSpan = trace.setSpanContext(context.active(), callerSpanContext);
+    return propagation.setBaggage(
+      withSpan,
+      propagation.createBaggage({
+        "langfuse.project.id": { value: "project-1" },
+        "langfuse.org.id": { value: "org-1" },
+      }),
+    );
+  }
+
+  it.each([
+    [
+      "SigV4 access keys",
+      JSON.stringify({ accessKeyId: "AKIA123", secretAccessKey: "secret" }),
+    ],
+    ["Bedrock API key", JSON.stringify({ apiKey: "bedrock-key" })],
+  ])(
+    "strips active OTel baggage on buildBedrockModel (%s) while preserving span and outer baggage",
+    async (_authLabel, apiKey) => {
+      let outboundBaggage: Baggage | undefined = propagation.createBaggage();
+      let outboundSpanContext: SpanContext | undefined;
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof globalThis.fetch>(async () => {
+          outboundBaggage = propagation.getBaggage(context.active());
+          outboundSpanContext = trace.getSpanContext(context.active());
+          return Response.json({
+            output: {
+              message: { role: "assistant", content: [{ text: "ok" }] },
+            },
+            stopReason: "end_turn",
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            metrics: { latencyMs: 1 },
+          });
+        }),
+      );
+
+      const model = buildBedrockModel({
+        modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        apiKey,
+        config: { region: "us-east-1" },
+        credentialSource: "user",
+      });
+
+      let outerBaggageAfter: string | undefined;
+      await context.with(createCallerContext(), async () => {
+        await generateText({ model, prompt: "hello" });
+        outerBaggageAfter = propagation
+          .getBaggage(context.active())
+          ?.getEntry("langfuse.project.id")?.value;
+      });
+
+      expect(outboundBaggage).toBeUndefined();
+      expect(outboundSpanContext).toEqual(callerSpanContext);
+      expect(outerBaggageAfter).toBe("project-1");
+    },
+  );
+
+  it.each([
+    [
+      "SigV4 access keys",
+      JSON.stringify({ accessKeyId: "AKIA123", secretAccessKey: "secret" }),
+    ],
+    ["Bedrock API key", JSON.stringify({ apiKey: "bedrock-key" })],
+  ])(
+    "strips active OTel baggage on buildBedrockEmbeddingModel (%s) while preserving span and outer baggage",
+    async (_authLabel, apiKey) => {
+      let outboundBaggage: Baggage | undefined = propagation.createBaggage();
+      let outboundSpanContext: SpanContext | undefined;
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof globalThis.fetch>(async () => {
+          outboundBaggage = propagation.getBaggage(context.active());
+          outboundSpanContext = trace.getSpanContext(context.active());
+          return Response.json({
+            embedding: [0.1, 0.2],
+            inputTextTokenCount: 2,
+          });
+        }),
+      );
+
+      const model = buildBedrockEmbeddingModel({
+        modelId: "amazon.titan-embed-text-v2:0",
+        apiKey,
+        config: { region: "us-east-1" },
+        credentialSource: "user",
+      });
+
+      let outerBaggageAfter: string | undefined;
+      await context.with(createCallerContext(), async () => {
+        await embed({ model, value: "hello" });
+        outerBaggageAfter = propagation
+          .getBaggage(context.active())
+          ?.getEntry("langfuse.project.id")?.value;
+      });
+
+      expect(outboundBaggage).toBeUndefined();
+      expect(outboundSpanContext).toEqual(callerSpanContext);
+      expect(outerBaggageAfter).toBe("project-1");
+    },
+  );
 });

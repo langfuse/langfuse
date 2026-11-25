@@ -11,6 +11,7 @@ import {
   parseBedrockIamRole,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
 import { createBedrockRoleCredentialProvider } from "../../../ee/bedrockRoleAuth/bedrockRoleCredentials";
+import { fetchWithoutBaggage } from "../../../instrumentation";
 import { parseOutboundUrl } from "../../../outbound-url/validation";
 import {
   assertLlmProviderHostAllowed,
@@ -265,11 +266,12 @@ function assertBedrockHostAllowed(region: string | undefined): void {
 }
 
 /**
- * No custom fetch is used: Bedrock has no user-controlled base URL (the host
- * is derived from the region), and self-hosted deployments commonly reach
+ * Skips `createSecureLlmFetch`: Bedrock has no user-controlled base URL (the
+ * host is derived from the region), and self-hosted deployments commonly reach
  * Bedrock through VPC endpoints resolving to private IPs, which the secure
- * LLM fetch would block. Requests therefore use the provider's AWS transport.
- * A configured LLM host allowlist is still applied to that transport's host.
+ * LLM fetch would block. Requests instead use `fetchWithoutBaggage` so OTel
+ * baggage does not leak on the provider's AWS transport, while a configured
+ * LLM host allowlist is still applied to that transport's host.
  */
 function createBedrockProvider(params: {
   projectId?: string;
@@ -302,6 +304,7 @@ function createBedrockProvider(params: {
   return createAmazonBedrock({
     region,
     ...auth,
+    fetch: fetchWithoutBaggage,
   });
 }
 

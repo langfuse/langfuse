@@ -1,4 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  context,
+  propagation,
+  trace as otelTrace,
+  TraceFlags,
+  type Baggage,
+  type SpanContext,
+} from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { z } from "zod";
 import { encrypt } from "../../encryption";
 import { env } from "../../env";
@@ -1228,5 +1246,78 @@ describe("allowlisted Cloud Bedrock runtime credentials", () => {
       }),
     ).rejects.toThrow("Invalid Bedrock credentials");
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("generateTopicText InvokeModel baggage stripping", () => {
+  const contextManager = new AsyncLocalStorageContextManager();
+  const callerSpanContext: SpanContext = {
+    traceId: "0af7651916cd43dd8448eb211c80319c",
+    spanId: "b7ad6b7169203331",
+    traceFlags: TraceFlags.SAMPLED,
+  };
+
+  beforeAll(() => {
+    contextManager.enable();
+    context.setGlobalContextManager(contextManager);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterAll(() => {
+    context.disable();
+  });
+
+  it("strips active OTel baggage on cached Bedrock InvokeModel requests while preserving span and outer baggage", async () => {
+    let outboundBaggage: Baggage | undefined = propagation.createBaggage();
+    let outboundSpanContext: SpanContext | undefined;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => {
+        outboundBaggage = propagation.getBaggage(context.active());
+        outboundSpanContext = otelTrace.getSpanContext(context.active());
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({ summary: "Account access" }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        });
+      }),
+    );
+
+    const callerContext = propagation.setBaggage(
+      otelTrace.setSpanContext(context.active(), callerSpanContext),
+      propagation.createBaggage({
+        "langfuse.project.id": { value: "project-1" },
+        "langfuse.org.id": { value: "org-1" },
+      }),
+    );
+
+    let outerBaggageAfter: string | undefined;
+    await context.with(callerContext, async () => {
+      await generateTopicText({
+        model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+        system: [{ text: "System prompt.", cache: true }],
+        input: "I cannot sign in.",
+        schema: z.object({ summary: z.string() }),
+        maxOutputTokens: 256,
+        trace,
+      });
+      outerBaggageAfter = propagation
+        .getBaggage(context.active())
+        ?.getEntry("langfuse.project.id")?.value;
+    });
+
+    expect(outboundBaggage).toBeUndefined();
+    expect(outboundSpanContext).toEqual(callerSpanContext);
+    expect(outerBaggageAfter).toBe("project-1");
   });
 });

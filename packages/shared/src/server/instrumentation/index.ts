@@ -141,6 +141,10 @@ export function withoutBaggage<T>(fn: () => T): T {
   );
 }
 
+/** fetchWithoutBaggage runs globalThis.fetch with the active context's baggage removed. */
+export const fetchWithoutBaggage: typeof fetch = (input, init) =>
+  withoutBaggage(() => globalThis.fetch(input, init));
+
 export const getActiveTraceId = () => {
   const span = opentelemetry.trace.getActiveSpan();
   // Only return a trace id for sampled/recording spans. An unsampled span still

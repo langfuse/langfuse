@@ -1,4 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  context,
+  propagation,
+  trace,
+  TraceFlags,
+  type Baggage,
+  type SpanContext,
+} from "@opentelemetry/api";
+import { node } from "@opentelemetry/sdk-node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 // Vertex Anthropic asks shared for the ADC project and OAuth token so the
 // worker never constructs google-auth-library (pnpm does not expose it).
@@ -491,6 +509,187 @@ describe("Vertex Claude request shape", () => {
     expect(calls[0]?.body.anthropic_version).toBeTruthy();
     expect(calls[0]?.body.model).toBeUndefined();
   });
+});
+
+describe("in-app agent outbound fetch baggage stripping", () => {
+  const provider = new node.NodeTracerProvider();
+  const callerSpanContext: SpanContext = {
+    traceId: "0af7651916cd43dd8448eb211c80319c",
+    spanId: "b7ad6b7169203331",
+    traceFlags: TraceFlags.SAMPLED,
+  };
+
+  beforeAll(() => {
+    provider.register();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  afterAll(async () => {
+    await provider.shutdown();
+    context.disable();
+    trace.disable();
+  });
+
+  it.each([
+    {
+      label: "Bedrock",
+      config: {
+        provider: "bedrock" as const,
+        modelId: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        titleModelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+        region: "eu-central-1",
+      },
+      envStubs: {
+        AWS_ACCESS_KEY_ID: "AKIA123",
+        AWS_SECRET_ACCESS_KEY: "secret",
+      },
+      response: {
+        output: { message: { role: "assistant", content: [{ text: "ok" }] } },
+        stopReason: "end_turn",
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        metrics: { latencyMs: 1 },
+      },
+    },
+    {
+      label: "Anthropic",
+      config: {
+        provider: "anthropic" as const,
+        modelId: "claude-opus-4-8",
+        titleModelId: "claude-haiku-4-5",
+        apiKey: "sk-ant-test",
+        baseURL: "https://api.anthropic.com/v1",
+      },
+      envStubs: {},
+      response: {
+        id: "msg_1",
+        type: "message",
+        role: "assistant",
+        model: "claude-opus-4-8",
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    },
+    {
+      label: "OpenAI",
+      config: {
+        provider: "openai" as const,
+        modelId: "gpt-5.6-sol",
+        titleModelId: "gpt-5.6-luna",
+        apiKey: "sk-test",
+        baseURL: "https://api.openai.com/v1",
+      },
+      envStubs: {},
+      response: OPENAI_RESPONSES_RESPONSE,
+    },
+    {
+      label: "OpenAI-compatible",
+      config: {
+        provider: "openai" as const,
+        modelId: "anthropic/claude-opus-4.6",
+        titleModelId: "anthropic/claude-haiku-4.5",
+        apiKey: "sk-test",
+        baseURL: "https://gateway.example.com/v1",
+      },
+      envStubs: {},
+      response: OPENAI_CHAT_RESPONSE,
+    },
+    {
+      label: "Vertex Anthropic",
+      config: {
+        provider: "vertex" as const,
+        modelId: "claude-sonnet-4-5@20250929",
+        titleModelId: "gemini-2.5-flash",
+        location: "us-east5",
+      },
+      envStubs: {},
+      response: {
+        id: "msg_1",
+        type: "message",
+        role: "assistant",
+        model: "claude-sonnet-4-5@20250929",
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    },
+    {
+      label: "Vertex Gemini",
+      config: {
+        provider: "vertex" as const,
+        modelId: "gemini-2.5-flash",
+        titleModelId: "gemini-2.5-flash",
+        location: "us-east5",
+      },
+      envStubs: {
+        GOOGLE_VERTEX_API_KEY: "test-vertex-key",
+      },
+      response: {
+        candidates: [
+          {
+            content: { parts: [{ text: "ok" }], role: "model" },
+            finishReason: "STOP",
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 1,
+          candidatesTokenCount: 1,
+          totalTokenCount: 2,
+        },
+      },
+    },
+  ])(
+    "strips active OTel baggage on $label requests while preserving span and outer baggage",
+    async ({ config, envStubs, response }) => {
+      for (const [key, value] of Object.entries(envStubs)) {
+        vi.stubEnv(key, value);
+      }
+
+      let outboundBaggage: Baggage | undefined = propagation.createBaggage();
+      let outboundSpanContext: SpanContext | undefined;
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof globalThis.fetch>(async () => {
+          outboundBaggage = propagation.getBaggage(context.active());
+          outboundSpanContext = trace.getSpanContext(context.active());
+          return new Response(JSON.stringify(response), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }),
+      );
+
+      const callerContext = propagation.setBaggage(
+        trace.setSpanContext(context.active(), callerSpanContext),
+        propagation.createBaggage({
+          "langfuse.project.id": { value: "project-1" },
+          "langfuse.org.id": { value: "org-1" },
+        }),
+      );
+
+      const model = await createInAppAgentLanguageModel({ config });
+      let outerBaggageAfter: string | undefined;
+      await context.with(callerContext, async () => {
+        await model.doGenerate({
+          prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+        });
+        outerBaggageAfter = propagation
+          .getBaggage(context.active())
+          ?.getEntry("langfuse.project.id")?.value;
+      });
+
+      expect(outboundBaggage).toBeUndefined();
+      expect(outboundSpanContext).toEqual(callerSpanContext);
+      expect(outerBaggageAfter).toBe("project-1");
+    },
+  );
 });
 
 function createCaptureFetch(response: unknown) {

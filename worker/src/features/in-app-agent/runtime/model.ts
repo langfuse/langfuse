@@ -14,6 +14,7 @@ import { env } from "@langfuse/shared/src/env";
 import {
   assertValidAnthropicVertexModelName,
   createDefaultBedrockProviderAuth,
+  fetchWithoutBaggage,
   generateVertexAccessTokenFromADC,
   isClaudeModel,
   resolveVertexProjectIdFromADC,
@@ -42,6 +43,7 @@ export async function createInAppAgentLanguageModel(params: {
         ...(params.config.extraHeaders
           ? { headers: params.config.extraHeaders }
           : {}),
+        fetch: fetchWithoutBaggage,
       });
 
       return anthropic(
@@ -64,6 +66,7 @@ export async function createInAppAgentLanguageModel(params: {
         ...createDefaultBedrockProviderAuth(
           params.awsProfile ? { profile: params.awsProfile } : undefined,
         ),
+        fetch: fetchWithoutBaggage,
       });
 
       return bedrock(params.config.modelId as Parameters<typeof bedrock>[0]);
@@ -95,6 +98,7 @@ async function createVertexInAppAgentLanguageModel(config: {
       project,
       location,
       generateAuthToken: generateVertexAccessTokenFromADC,
+      fetch: fetchWithoutBaggage,
     });
 
     return vertexAnthropic(
@@ -102,7 +106,11 @@ async function createVertexInAppAgentLanguageModel(config: {
     );
   }
 
-  const vertex = createVertex({ project, location });
+  const vertex = createVertex({
+    project,
+    location,
+    fetch: fetchWithoutBaggage,
+  });
 
   return vertex(config.modelId as Parameters<typeof vertex>[0]);
 }
@@ -130,6 +138,7 @@ function createOpenAIInAppAgentLanguageModel(config: {
       apiKey: config.apiKey,
       baseURL: config.baseURL,
       ...extraHeaders,
+      fetch: fetchWithoutBaggage,
     });
 
     return openaiCompatible.languageModel(config.modelId);
@@ -139,6 +148,7 @@ function createOpenAIInAppAgentLanguageModel(config: {
     apiKey: config.apiKey,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
     ...extraHeaders,
+    fetch: fetchWithoutBaggage,
   });
 
   return apiMode === "responses"

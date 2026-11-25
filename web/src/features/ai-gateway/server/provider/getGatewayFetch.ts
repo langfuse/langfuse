@@ -1,6 +1,7 @@
 import {
   assertLlmProviderHostAllowed,
   createSecureLlmFetch,
+  fetchWithoutBaggage,
 } from "@langfuse/shared/src/server";
 
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
@@ -10,7 +11,7 @@ const allowlistedFetch: typeof fetch = async (input, init) => {
   assertLlmProviderHostAllowed(
     new URL(input instanceof Request ? input.url : input).hostname,
   );
-  return fetch(input, init);
+  return fetchWithoutBaggage(input, init);
 };
 
 /**
