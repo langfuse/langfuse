@@ -50,15 +50,20 @@ export const NoGatewayKeys = meta.story({
     searchPlaceholder: "Search gateway keys",
     options: [],
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: /Gateway key/ }),
     );
     const body = within(canvasElement.ownerDocument.body);
-    await waitFor(() =>
-      expect(body.getByText("Enter custom value")).toBeVisible(),
-    );
     await expect(body.queryByText("Select All")).toBeNull();
+    const search = await body.findByPlaceholderText("Search gateway keys");
+    await userEvent.type(search, "deleted-key-id");
+    await userEvent.click(
+      await body.findByRole("option", { name: /deleted-key-id/ }),
+    );
+    await waitFor(() =>
+      expect(args.onValueChange).toHaveBeenLastCalledWith(["deleted-key-id"]),
+    );
   },
 });
 

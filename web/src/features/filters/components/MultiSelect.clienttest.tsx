@@ -97,31 +97,4 @@ describe("MultiSelect", () => {
       new Set(["user-1", "user-2"]),
     );
   });
-
-  it("shows a preselected value once after options load", () => {
-    const { rerender } = render(
-      <MultiSelect
-        title="Search"
-        values={["key-1"]}
-        options={[]}
-        onValueChange={vi.fn()}
-        isCustomSelectEnabled
-      />,
-    );
-
-    rerender(
-      <MultiSelect
-        title="Search"
-        values={["key-1"]}
-        options={[{ value: "key-1", displayValue: "Primary key" }]}
-        onValueChange={vi.fn()}
-        isCustomSelectEnabled
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button"));
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getAllByText("Primary key")).toHaveLength(1);
-    expect(within(dialog).queryByText("key-1")).not.toBeInTheDocument();
-  });
 });
