@@ -306,7 +306,7 @@ async function generateWithConnection<T>(
       ? { providerOptions: { openai: { forceReasoning: true } } }
       : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
-    maxRetries: 2,
+    maxRetries: params.maxRetries ?? 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
     // Retain wire refusal markers in memory; diagnostics only expose their classification.
     include: { responseBody: true },
@@ -658,6 +658,8 @@ type TopicTextParams<T> = {
   schema: z.ZodType<T>;
   maxOutputTokens: number;
   timeoutMs?: number;
+  /** AI SDK retries of 429 and 5xx responses; callers with their own backoff pass 0. */
+  maxRetries?: number;
   trace?: TraceSinkParams;
   /** A provider may report usage before its response fails structured-output validation. */
   onFailedResponseUsage?: (usage: TopicTextUsageDetails) => Promise<void>;

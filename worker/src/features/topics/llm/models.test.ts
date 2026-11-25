@@ -1228,6 +1228,38 @@ describe("Topics naming boundary", () => {
     });
   });
 
+  it("leaves a 429 to the queue's backoff but retries a 5xx at once", async () => {
+    const providerError = (statusCode: number) =>
+      Object.assign(new Error(`HTTP ${statusCode}`), {
+        name: "AI_APICallError",
+        statusCode,
+      });
+    const embed = () =>
+      embedTopicSummaries(
+        topicsModels().embedding,
+        ["An invoice request."],
+        256,
+        "project",
+      );
+
+    state.embed.mockRejectedValueOnce(providerError(429));
+    await expect(embed()).rejects.toMatchObject({ reason: "rate_limit" });
+    expect(state.embed).toHaveBeenCalledTimes(1);
+    expect(state.embed.mock.calls[0][0].maxRetries).toBe(0);
+
+    state.embed
+      .mockReset()
+      .mockRejectedValueOnce(providerError(503))
+      .mockResolvedValueOnce({
+        embeddings: [Array(256).fill(0.25)],
+        tokens: 5,
+      });
+    await expect(embed()).resolves.toMatchObject({
+      embeddings: [expect.any(Array)],
+    });
+    expect(state.embed).toHaveBeenCalledTimes(2);
+  });
+
   it("records embedding input usage even when the returned vector is invalid", async () => {
     state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
     await expect(
