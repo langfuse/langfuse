@@ -60,6 +60,7 @@ import {
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
@@ -374,7 +375,9 @@ export function GatewayGuardrailFormDialog({
       ? (activeCustomRegexPreview.error ?? "Invalid regular expression")
       : undefined;
   const customRegexMatches =
-    activeCustomRegexPreview?.valid && customRegexPreview?.text === testText
+    activeCustomRegexPreview?.valid &&
+    customRegexPreview?.text ===
+      testText.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH)
       ? activeCustomRegexPreview.matches
       : [];
 
