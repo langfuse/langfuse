@@ -61,9 +61,8 @@ export function MultiQueryFormulaInput({
     tokenError ??
     (value.trim()
       ? (syntaxHints.get(validationMessage ?? "") ?? validationMessage)
-      : "Choose a metric from this tab.");
-  const diagnostic =
-    revealError || (!focused && value.trim()) ? message : undefined;
+      : "Enter an expression or remove this formula to save.");
+  const diagnostic = revealError || !focused ? message : undefined;
   const update = (next: string) => {
     setRevealError(false);
     onChange({
