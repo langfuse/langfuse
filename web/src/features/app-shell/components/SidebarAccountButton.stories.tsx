@@ -19,7 +19,16 @@ export const VariantMatrix = meta.story({
             <div className="bg-sidebar text-sidebar-foreground p-2">
               <SidebarAccountButton
                 surface={surface}
-                versionState={{ deployment: "cloud" }}
+                versionState={{
+                  deployment: "self-hosted",
+                  plan: "oss",
+                  release: {
+                    status: "update-available",
+                    updateType: "minor",
+                    latestRelease: "v9.9.9",
+                  },
+                  migration: { status: "idle" },
+                }}
                 user={{
                   name: "Alexandra Morgan",
                   email: "alexandra.morgan@example.com",

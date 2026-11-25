@@ -48,13 +48,21 @@ export function SidebarAccountButton({
           email={user.email}
           aria-hidden
         />
+        {surface === "collapsed" && versionStatusDot && (
+          <span className={motion.statusDot}>
+            <VersionAttentionDot {...versionStatusDot} />
+          </span>
+        )}
       </span>
       <span
         className={cn(motion.identity, motion.label)}
         data-surface={surface}
       >
-        <span className="text-foreground truncate font-bold" title={user.name}>
-          {user.name}
+        <span
+          className="text-foreground truncate font-bold"
+          title={user.name || user.email}
+        >
+          {user.name || user.email}
         </span>
         <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
           <span className="truncate" title={versionDetails.versionText}>

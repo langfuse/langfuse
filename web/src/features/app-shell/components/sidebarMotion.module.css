@@ -141,6 +141,13 @@
   flex: 1;
 }
 
+.statusDot {
+  position: absolute;
+  display: flex;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0.125rem;
+}
+
 .chevron {
   display: flex;
   flex-shrink: 0;
