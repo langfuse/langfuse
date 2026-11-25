@@ -38,7 +38,7 @@ export default async function handler(
     documentationUri:
       "https://langfuse.com/docs/administration/scim-and-org-api",
     patch: {
-      supported: true,
+      supported: false,
     },
     bulk: {
       supported: false,
