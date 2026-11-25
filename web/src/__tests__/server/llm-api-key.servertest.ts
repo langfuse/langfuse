@@ -1620,7 +1620,7 @@ describe("llmApiKey.all RPC", () => {
     const withDefaultModels = false;
 
     // Create initial key
-    await caller.llmApiKey.create({
+    const createResult = await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
       provider,
@@ -1629,6 +1629,7 @@ describe("llmApiKey.all RPC", () => {
       customModels,
       withDefaultModels,
     });
+    expect(createResult).toBeUndefined();
 
     // Verify initial key
     const initialKeys = await prisma.llmApiKeys.findMany({
