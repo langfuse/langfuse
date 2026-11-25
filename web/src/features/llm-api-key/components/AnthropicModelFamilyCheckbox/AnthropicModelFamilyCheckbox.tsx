@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { InfoIcon } from "@langfuse/icons";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 const TOOLTIP_LABEL =
@@ -32,13 +33,12 @@ export function AnthropicModelFamilyCheckbox({
       </label>
       <Tooltip label={TOOLTIP_LABEL}>
         {({ getTriggerProps }) => (
-          <button
-            type="button"
-            aria-label="About Anthropic model"
+          <IconButton
+            icon={InfoIcon}
+            label="About Anthropic model"
+            size="xs"
             {...getTriggerProps()}
-          >
-            <InfoIcon size="sm" color="muted" />
-          </button>
+          />
         )}
       </Tooltip>
     </div>
