@@ -272,6 +272,7 @@ export function MultiQueryEditor({
       <div ref={tabBar} className="min-w-0 shrink-0">
         <Tabs value={active.id} onValueChange={select}>
           <TabBar
+            variant="editor"
             label="Widget tabs"
             createAction={{
               label: "Add tab",
@@ -306,7 +307,6 @@ export function MultiQueryEditor({
                 noCapture: true,
                 menu: {
                   label: tab.label + " options",
-                  alwaysVisible: active.id === tab.id,
                   items: [
                     {
                       id: "rename",
