@@ -17,6 +17,7 @@ import {
   UserId,
 } from "@langfuse/shared/rbac";
 import type { ServerContext } from "@/src/features/mcp/types";
+import type { McpTool } from "@/src/features/mcp/core/define-tool";
 import type { RegisteredTool } from "@/src/features/mcp/server/tools";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 
@@ -290,6 +291,18 @@ export function verifyToolAnnotations(
   }
 }
 
+/** The JSON Schema a tool's `tools/list` entry advertises. */
+export function toolJsonSchema(tool: Pick<McpTool, "inputSchema">): {
+  type: "object";
+  properties?: Record<string, Record<string, unknown>>;
+  required?: string[];
+  [key: string]: unknown;
+} {
+  return tool.inputSchema["~standard"].jsonSchema.input({
+    target: "draft-2020-12",
+  }) as ReturnType<typeof toolJsonSchema>;
+}
+
 /** The tool with this name, when the context may list and call it. */
 export async function findCallableTool(
   name: string,
@@ -298,10 +311,11 @@ export async function findCallableTool(
   // Imported on use: the tool list loads every feature module, which fails in
   // tests that import these helpers while partially mocking their dependencies
   // (such as `@langfuse/shared/src/db` in the v4 migration tests).
-  const { canCallTool, getEnabledTool } =
+  const { canCallTool, getEnabledTools } =
     await import("@/src/features/mcp/server/tools");
-  const tool = await getEnabledTool(name, context);
-  return tool && canCallTool(tool, context) ? tool : undefined;
+  return (await getEnabledTools(context)).find(
+    (tool) => tool.definition.name === name && canCallTool(tool, context),
+  );
 }
 
 /**

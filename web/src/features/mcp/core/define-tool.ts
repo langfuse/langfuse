@@ -1,11 +1,14 @@
 /**
  * MCP Tool Definition Helper
  *
- * Simplified helper for defining MCP tools with automatic JSON Schema generation.
- * Handles the conversion from Zod schemas to JSON Schema for MCP compatibility.
+ * A Langfuse MCP tool is what `McpServer.registerTool` takes (name,
+ * description, input schema, annotations, `_meta`), plus the API action a
+ * caller must hold and a `run` function that receives the arguments the SDK
+ * already validated against `inputSchema`.
  */
 
-import { z } from "zod";
+import type { z } from "zod";
+import type { McpUiToolMeta } from "@modelcontextprotocol/ext-apps";
 import {
   collectAccessRead,
   type AccessAuditMeta,
@@ -13,17 +16,14 @@ import {
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import type {
-  Tool,
+  StandardSchemaWithJSON,
   ToolAnnotations,
   ServerContext as McpRequestContext,
 } from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
-import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
 
-/**
- * Tool handler function type
- */
+/** Tool handler: validates its input, then runs the tool. */
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
@@ -52,10 +52,10 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Description for LLM to understand when to use this tool */
   description: string;
 
-  /** Base Zod schema (without refinements) - used only for JSON Schema generation */
+  /** Schema without refinements whose JSON Schema clients see in tools/list. */
   baseSchema: z.ZodType<unknown>;
 
-  /** Full Zod schema with refinements - used for runtime validation */
+  /** Full schema with refinements that validates tool arguments. */
   inputSchema: z.ZodType<TInput>;
 
   /** Handler function that executes the tool logic */
@@ -71,7 +71,7 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   annotations?: ToolAnnotations;
 
   /** Renders results with an MCP App UI resource in hosts that support it. */
-  ui?: McpAppToolUi;
+  ui?: McpUiToolMeta;
 }
 
 /** Options of a tool whose reads are recorded as audit access events. */
@@ -94,25 +94,35 @@ interface DefineAuditedToolOptions<
   ) => Promise<unknown>;
 }
 
-/**
- * MCP Tool definition
- */
-export interface ToolDefinition<TName extends string = string> {
+/** A tool as registered with `McpServer.registerTool`. */
+export interface McpTool<TName extends string = string> {
   name: TName;
   description: string;
-  action: ApiAction;
-  inputSchema: Tool["inputSchema"];
+  /** Validates arguments and advertises their JSON Schema in `tools/list`. */
+  inputSchema: StandardSchemaWithJSON;
   annotations?: ToolAnnotations;
-  _meta?: ReturnType<typeof toMcpAppToolMeta>;
+  /** MCP Apps UI resource rendering this tool's results. */
+  _meta?: { ui: McpUiToolMeta };
+  /** Action the caller must hold to run this tool. */
+  action: ApiAction;
+  /** Runs the tool on arguments already validated against `inputSchema`. */
+  run: (
+    input: unknown,
+    context: ServerContext,
+    mcpRequest?: McpRequestContext,
+  ) => Promise<unknown>;
 }
 
-type JsonSchemaObject = Record<string, unknown>;
-
-function isObjectJsonSchema(
-  schema: JsonSchemaObject,
-): schema is Tool["inputSchema"] {
-  return schema.type === "object";
-}
+/** Validates with `inputSchema` and advertises the JSON Schema of `baseSchema`. */
+const toToolSchema = (
+  inputSchema: z.ZodType<unknown>,
+  baseSchema: z.ZodType<unknown>,
+): StandardSchemaWithJSON => ({
+  "~standard": {
+    ...inputSchema["~standard"],
+    jsonSchema: baseSchema["~standard"].jsonSchema,
+  },
+});
 
 function hasJsonSchemaUnion(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
@@ -135,10 +145,11 @@ function hasJsonSchemaUnion(value: unknown): boolean {
 }
 
 /**
- * Define an MCP tool with automatic JSON Schema generation.
+ * Define an MCP tool.
  *
  * @param options Tool configuration options
- * @returns Tuple of [tool definition for MCP, wrapped handler for execution]
+ * @returns The tool to register, and a handler that validates its input
+ * before running the tool (for direct calls).
  *
  * @example
  * const baseSchema = z.object({
@@ -146,28 +157,29 @@ function hasJsonSchemaUnion(value: unknown): boolean {
  *   version: z.number().optional(),
  * });
  *
- * const [toolDef, handler] = defineTool({
+ * const [getPromptTool, handleGetPrompt] = defineTool({
  *   name: "getPrompt",
  *   description: "Fetch a prompt by name",
  *   baseSchema,
  *   inputSchema: baseSchema.refine(...), // Add runtime validations
+ *   action: "prompts:read",
  *   handler: async (input, context) => {
  *     // Implementation
  *   },
- *   readOnly: true,
+ *   annotations: { readOnlyHint: true },
  * });
  */
 export function defineTool<TInput, const TName extends string>(
   options: DefineAuditedToolOptions<TInput, TName>,
-): [ToolDefinition<TName>, ToolHandler<TInput>];
+): [McpTool<TName>, ToolHandler<TInput>];
 export function defineTool<TInput, const TName extends string>(
   options: DefineToolOptions<TInput, TName>,
-): [ToolDefinition<TName>, ToolHandler<TInput>];
+): [McpTool<TName>, ToolHandler<TInput>];
 export function defineTool<TInput, const TName extends string>(
   options:
     | DefineAuditedToolOptions<TInput, TName>
     | DefineToolOptions<TInput, TName>,
-): [ToolDefinition<TName>, ToolHandler<TInput>] {
+): [McpTool<TName>, ToolHandler<TInput>] {
   const {
     name,
     description,
@@ -178,50 +190,30 @@ export function defineTool<TInput, const TName extends string>(
     ui,
   } = options;
 
-  // Convert base Zod schema to JSON Schema using Zod v4's native method
-  const jsonSchema = z.toJSONSchema(baseSchema, {
-    target: "draft-7", // MCP uses JSON Schema draft-7
-    unrepresentable: "any", // Fallback for unsupported types
+  const schema = toToolSchema(inputSchema, baseSchema);
+  const jsonSchema = schema["~standard"].jsonSchema.input({
+    target: "draft-2020-12",
   });
 
-  if (!jsonSchema) {
-    throw new Error(
-      `Failed to convert Zod schema to JSON Schema for tool: ${name}.`,
-    );
-  }
-
+  // Some MCP clients reject combinators in tool input schemas.
   if (hasJsonSchemaUnion(jsonSchema)) {
     throw new Error(
       `Failed to convert Zod schema to JSON Schema for tool: ${name}. Union and intersection schemas are not supported for MCP tool inputs; use a plain object schema instead.`,
     );
   }
 
-  const jsonSchemaObject = jsonSchema as JsonSchemaObject;
-
-  // Validate that we got a usable plain object schema.
-  if (!isObjectJsonSchema(jsonSchemaObject)) {
+  if (jsonSchema.type !== "object") {
     throw new Error(
       `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
     );
   }
 
-  // Build tool definition
-  const toolDefinition: ToolDefinition<TName> = {
-    name,
-    description,
-    action,
-    inputSchema: jsonSchemaObject,
-    ...(annotations ? { annotations } : {}),
-    ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
-  };
-
-  const wrappedHandler: ToolHandler<TInput> = async (
-    rawInput: unknown,
+  const run = async (
+    input: unknown,
     context: ServerContext,
     mcpRequest?: McpRequestContext,
-  ) => {
-    // Validate input with the full schema (including refinements)
-    const validatedInput = inputSchema.parse(rawInput);
+  ): Promise<unknown> => {
+    const validatedInput = input as TInput;
 
     if (!("accessAudit" in options)) {
       return await options.handler(validatedInput, context, mcpRequest);
@@ -236,5 +228,18 @@ export function defineTool<TInput, const TName extends string>(
     return result;
   };
 
-  return [toolDefinition, wrappedHandler];
+  const tool: McpTool<TName> = {
+    name,
+    description,
+    inputSchema: schema,
+    ...(annotations ? { annotations } : {}),
+    ...(ui ? { _meta: { ui } } : {}),
+    action,
+    run,
+  };
+
+  const handler: ToolHandler<TInput> = async (input, context, mcpRequest) =>
+    run(await inputSchema.parseAsync(input), context, mcpRequest);
+
+  return [tool, handler];
 }

@@ -20,7 +20,8 @@ vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
 }));
 
 import { __test } from "@/src/features/mcp/server/mcpServer";
-import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
+import type { McpTool } from "@/src/features/mcp/core/define-tool";
+import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import {
   __dangerouslySkipAuthz,
   type ApiAction,
@@ -71,12 +72,17 @@ const serverContext = (auth?: AuthorizationContext): ServerContext => ({
   auth,
 });
 
-const tool = (action: ApiAction): ToolDefinition => ({
-  name: "someTool",
-  description: "",
-  action,
-  inputSchema: { type: "object" },
-});
+const tool = (action: ApiAction): Pick<McpTool, "action"> => ({ action });
+
+/** The denial as the tool call reports it. */
+const denial = (check: () => void) => {
+  try {
+    check();
+  } catch (error) {
+    return formatErrorForUser(error);
+  }
+  throw new Error("expected a denial");
+};
 
 describe("assertToolAuthorized", () => {
   beforeEach(() => {
@@ -84,20 +90,20 @@ describe("assertToolAuthorized", () => {
     shadowAuthDiff.mockReset();
   });
 
-  it("throws a formatted InvalidRequest error when the context lacks the tool's action", () => {
-    expect(() =>
-      assertToolAuthorized(
-        tool("prompts:CUD"),
-        serverContext(authContext([allowPrompts])),
-      ),
-    ).toThrow(
-      expect.objectContaining({
-        code: ProtocolErrorCode.InvalidRequest,
-        message: expect.stringContaining(
-          'Access denied. The "prompts:CUD" permission is required to access this resource.',
+  it("denies with an InvalidRequest message when the context lacks the tool's action", () => {
+    expect(
+      denial(() =>
+        assertToolAuthorized(
+          tool("prompts:CUD"),
+          serverContext(authContext([allowPrompts])),
         ),
-      }) as Error,
-    );
+      ),
+    ).toMatchObject({
+      code: ProtocolErrorCode.InvalidRequest,
+      message: expect.stringContaining(
+        'Access denied. The "prompts:CUD" permission is required to access this resource.',
+      ),
+    });
   });
 
   it("passes when the resolved context holds the tool's action", () => {
@@ -110,19 +116,19 @@ describe("assertToolAuthorized", () => {
   });
 
   it("keeps the generic permission message for an invalid wildcard target", () => {
-    expect(() =>
-      assertToolAuthorized(tool("prompts:read"), {
-        ...serverContext(authContext([allowPrompts])),
-        projectId: "*",
-      }),
-    ).toThrow(
-      expect.objectContaining({
-        code: ProtocolErrorCode.InvalidRequest,
-        message: expect.stringContaining(
-          "Access denied. You do not have permission to access this resource.",
-        ),
-      }) as Error,
-    );
+    expect(
+      denial(() =>
+        assertToolAuthorized(tool("prompts:read"), {
+          ...serverContext(authContext([allowPrompts])),
+          projectId: "*",
+        }),
+      ),
+    ).toMatchObject({
+      code: ProtocolErrorCode.InvalidRequest,
+      message: expect.stringContaining(
+        "Access denied. You do not have permission to access this resource.",
+      ),
+    });
   });
 
   it("passes an ungated tool regardless of context", () => {
@@ -142,16 +148,14 @@ describe("assertToolAuthorized", () => {
   });
 
   it("rejects a gated tool without context in enforce", () => {
-    expect(() =>
-      assertToolAuthorized(tool("prompts:CUD"), serverContext()),
-    ).toThrow(
-      expect.objectContaining({
-        code: ProtocolErrorCode.InvalidRequest,
-        message: expect.stringContaining(
-          "Authentication failed. Please check your API key.",
-        ),
-      }) as Error,
-    );
+    expect(
+      denial(() => assertToolAuthorized(tool("prompts:CUD"), serverContext())),
+    ).toMatchObject({
+      code: ProtocolErrorCode.InvalidRequest,
+      message: expect.stringContaining(
+        "Authentication failed. Please check your API key.",
+      ),
+    });
   });
 
   describe("shadow mode", () => {

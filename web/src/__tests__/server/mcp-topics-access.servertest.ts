@@ -174,10 +174,13 @@ describe("Topics MCP tools access", () => {
     });
     const client = await connect(await contextFor({ ...owner, ...ingestKey }));
     try {
-      for (const tool of TOPICS_TOOLS)
-        await expect(
-          client.callTool({ name: tool, arguments: {} }),
-        ).rejects.toThrow();
+      for (const tool of TOPICS_TOOLS) {
+        const result = await callText(client, tool);
+        expect(result.isError, tool).toBe(true);
+        expect(result.text).toContain(
+          'Access denied. The "topics:read" permission is required',
+        );
+      }
     } finally {
       await client.close();
     }

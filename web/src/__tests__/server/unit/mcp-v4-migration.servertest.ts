@@ -16,7 +16,10 @@ import {
   getV4MigrationDataTool,
   handleGetV4MigrationData,
 } from "@/src/features/mcp/server/v4Migration/tools/getV4MigrationData";
-import { mockServerContext } from "@/src/__tests__/server/mcp-helpers";
+import {
+  mockServerContext,
+  toolJsonSchema,
+} from "@/src/__tests__/server/mcp-helpers";
 
 describe("getV4MigrationData MCP tool", () => {
   beforeEach(() => {
@@ -78,14 +81,11 @@ describe("getV4MigrationData MCP tool", () => {
   it("is discoverable as a read-only tool without project input", () => {
     expect(getV4MigrationDataTool).toMatchObject({
       name: "getV4MigrationData",
-      annotations: {
-        readOnlyHint: true,
-      },
-      inputSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
+      annotations: { readOnlyHint: true },
+    });
+    expect(toolJsonSchema(getV4MigrationDataTool)).toMatchObject({
+      type: "object",
+      properties: {},
     });
   });
 });

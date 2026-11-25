@@ -2,7 +2,7 @@ import { ToolSchema } from "@modelcontextprotocol/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { isoDateTime } from "@langfuse/shared";
-import { mockServerContext } from "../mcp-helpers";
+import { mockServerContext, toolJsonSchema } from "../mcp-helpers";
 
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../features/mcp/core/define-tool";
@@ -21,7 +21,7 @@ describe("defineTool", () => {
       handler,
     });
     const property = (
-      tool.inputSchema.properties as Record<
+      toolJsonSchema(tool).properties as Record<
         string,
         { type: string; pattern: string }
       >
@@ -106,8 +106,13 @@ describe("defineTool", () => {
       value: 1,
     };
 
-    expect(ToolSchema.safeParse(tool).success).toBe(true);
-    expect(tool.inputSchema).toMatchObject({
+    expect(
+      ToolSchema.safeParse({
+        name: tool.name,
+        inputSchema: toolJsonSchema(tool),
+      }).success,
+    ).toBe(true);
+    expect(toolJsonSchema(tool)).toMatchObject({
       type: "object",
       required: ["id", "filter", "value"],
       properties: {
@@ -152,7 +157,7 @@ describe("defineTool", () => {
       handler: async (input) => input,
     });
 
-    expect(tool.inputSchema.type).toBe("object");
+    expect(toolJsonSchema(tool).type).toBe("object");
   });
 
   it("publishes annotations as given, including hints set to false", () => {
@@ -192,7 +197,7 @@ describe("defineTool", () => {
       handler: async (input) => input,
     });
 
-    expect(tool.inputSchema.properties).toEqual(
+    expect(toolJsonSchema(tool).properties).toEqual(
       expect.objectContaining({
         anyOf: expect.objectContaining({ type: "string" }),
         oneOf: expect.objectContaining({ type: "string" }),
@@ -267,7 +272,7 @@ describe("defineTool", () => {
       handler: async (input) => input,
     });
 
-    expect(tool.inputSchema.properties).toEqual(
+    expect(toolJsonSchema(tool).properties).toEqual(
       expect.objectContaining({
         label: expect.objectContaining({ pattern: "^[a-z0-9_\\-.]+$" }),
       }),

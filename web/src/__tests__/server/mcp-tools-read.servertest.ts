@@ -34,11 +34,7 @@ vi.mock(
   }),
 );
 
-import {
-  Client,
-  InMemoryTransport,
-  ProtocolErrorCode,
-} from "@modelcontextprotocol/client";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
@@ -85,6 +81,7 @@ import {
   findCallableTool,
   mcpEvalOutputDefinition,
   mockServerContext,
+  toolJsonSchema,
   verifyAuditLog,
   verifyToolAnnotations,
 } from "./mcp-helpers";
@@ -646,7 +643,7 @@ describe("MCP Read Tools", () => {
     });
 
     it("should not expose projectId in its input schema", () => {
-      const properties = listMonitorsTool.inputSchema.properties as Record<
+      const properties = toolJsonSchema(listMonitorsTool).properties as Record<
         string,
         unknown
       >;
@@ -1558,7 +1555,7 @@ describe("MCP Read Tools", () => {
 
     it("should advertise required bounds for both tools", () => {
       for (const tool of [getObservationTool, listObservationsTool]) {
-        expect(tool.inputSchema.required).toEqual(
+        expect(toolJsonSchema(tool).required).toEqual(
           expect.arrayContaining(["fromStartTime", "toStartTime"]),
         );
       }
@@ -1581,10 +1578,8 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
-      const properties = listObservationsTool.inputSchema.properties as Record<
-        string,
-        unknown
-      >;
+      const properties = toolJsonSchema(listObservationsTool)
+        .properties as Record<string, unknown>;
       expect(properties.isRootObservation).toMatchObject({ type: "boolean" });
 
       const filterSchema = properties.filter as
@@ -2620,7 +2615,7 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped metrics query input in the tool schema", () => {
-      const properties = queryMetricsTool.inputSchema.properties as Record<
+      const properties = toolJsonSchema(queryMetricsTool).properties as Record<
         string,
         unknown
       >;
@@ -3371,7 +3366,7 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose semantic-root inputs", () => {
-      const properties = getObservationFilterValuesTool.inputSchema
+      const properties = toolJsonSchema(getObservationFilterValuesTool)
         .properties as Record<string, unknown>;
 
       expect(properties).toMatchObject({
@@ -4042,11 +4037,16 @@ describe("MCP Read Tools", () => {
                 })),
               },
             }),
-          ).rejects.toMatchObject({
-            code: ProtocolErrorCode.InvalidRequest,
-            message: expect.stringContaining(
-              'Access denied. The "scores:save" permission is required to access this resource.',
-            ),
+          ).resolves.toMatchObject({
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: expect.stringContaining(
+                  'Access denied. The "scores:save" permission is required to access this resource.',
+                ),
+              },
+            ],
           });
         } finally {
           await client.close();
@@ -4237,7 +4237,7 @@ describe("MCP Read Tools", () => {
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
-          createScoreConfigTool.inputSchema,
+          toolJsonSchema(createScoreConfigTool),
           "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
         ),
       ).toBe(true);
@@ -4372,7 +4372,7 @@ describe("MCP Read Tools", () => {
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
-          updateScoreConfigTool.inputSchema,
+          toolJsonSchema(updateScoreConfigTool),
           "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
         ),
       ).toBe(true);
@@ -4380,7 +4380,10 @@ describe("MCP Read Tools", () => {
 
     it("should not expose archive state in the input schema", () => {
       expect(
-        containsPropertyName(updateScoreConfigTool.inputSchema, "isArchived"),
+        containsPropertyName(
+          toolJsonSchema(updateScoreConfigTool),
+          "isArchived",
+        ),
       ).toBe(false);
     });
 

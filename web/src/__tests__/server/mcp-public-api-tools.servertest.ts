@@ -50,6 +50,7 @@ import {
   createPromptInDb,
   findCallableTool,
   mockServerContext,
+  toolJsonSchema,
   verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
@@ -1078,7 +1079,7 @@ describe("MCP tool schema interoperability", () => {
 
   const getAllToolPatterns = () =>
     MCP_TOOLS.flatMap((tool) =>
-      collectPatterns(tool.definition.inputSchema).map((entry) => ({
+      collectPatterns(toolJsonSchema(tool.definition)).map((entry) => ({
         tool: tool.definition.name,
         ...entry,
       })),

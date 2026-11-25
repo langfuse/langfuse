@@ -5,7 +5,7 @@
  * create a module in /server/[feature-name]/ and list it in MCP_FEATURES.
  */
 
-import type { ToolDefinition, ToolHandler } from "../core/define-tool";
+import type { McpTool, ToolHandler } from "../core/define-tool";
 import type { ServerContext } from "../types";
 import { promptsFeature } from "./prompts";
 import { skillsFeature } from "./skills";
@@ -29,9 +29,9 @@ import { topicsFeature } from "./topics";
 import { v4MigrationFeature } from "./v4Migration";
 import { appsFeature } from "./apps";
 
-/** A tool's definition (for the MCP protocol) and its handler. */
+/** A tool (as registered with the MCP server) and its validating handler. */
 export interface RegisteredTool<TName extends string = string> {
-  definition: ToolDefinition<TName>;
+  definition: McpTool<TName>;
   handler: ToolHandler<any>;
 }
 
@@ -121,25 +121,6 @@ export async function getEnabledTools(
     ),
   );
   return enabled.flat();
-}
-
-/**
- * The tool with this name, when its feature is enabled in this context. Only
- * the owning feature's check runs, so a call costs no other feature's lookup.
- */
-export async function getEnabledTool(
-  name: string,
-  context: ServerContext,
-): Promise<RegisteredTool | undefined> {
-  for (const feature of MCP_FEATURES as readonly McpFeatureModule[]) {
-    const tool = feature.tools.find((t) => t.definition.name === name);
-    if (tool) {
-      return !feature.isEnabled || (await feature.isEnabled(context))
-        ? tool
-        : undefined;
-    }
-  }
-  return undefined;
 }
 
 /**

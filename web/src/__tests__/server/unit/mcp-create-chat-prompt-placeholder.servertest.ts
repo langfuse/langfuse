@@ -4,14 +4,13 @@ import {
   ChatMessageSchema,
   createChatPromptTool,
 } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
+import { toolJsonSchema } from "@/src/__tests__/server/mcp-helpers";
 
 type JsonSchema = Record<string, unknown>;
 
 const promptItemJsonSchema = () => {
-  const inputSchema = createChatPromptTool.inputSchema as {
-    properties?: Record<string, unknown>;
-  };
-  const prompt = inputSchema.properties?.prompt as JsonSchema;
+  const prompt = toolJsonSchema(createChatPromptTool).properties
+    ?.prompt as JsonSchema;
   return prompt.items as JsonSchema;
 };
 
@@ -55,7 +54,7 @@ describe("createChatPrompt placeholder messages", () => {
   });
 
   it("serializes the base schema to JSON Schema without unions", () => {
-    const serialized = JSON.stringify(createChatPromptTool.inputSchema);
+    const serialized = JSON.stringify(toolJsonSchema(createChatPromptTool));
     expect(serialized).not.toContain("oneOf");
     expect(serialized).not.toContain("anyOf");
     expect(serialized).not.toContain("allOf");

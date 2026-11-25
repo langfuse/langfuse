@@ -72,7 +72,18 @@ This design:
 
 `server/transport.ts` serves both protocol eras through the SDK's `createMcpHandler`: 2026-07-28 requests are answered directly (JSON unless a tool streams), 2025-era requests through its stateless legacy fallback, which always responds with SSE (`text/event-stream`).
 
+Tools are registered per request: every tool of a feature module whose `isEnabled(context)` passes, with `McpServer.registerTool` (MCP App tools with `registerAppTool`). The SDK validates arguments against the tool's `inputSchema` and lists its JSON Schema. In-app agent keys list the same tools but may call only read-only ones and the mutating tools approved for the run (`canCallTool`).
+
 Resources are served by the SDK: the bundled Langfuse skills through its Skills extension (`langfuseSkills`: `skills/list`, `skills/get`, and `resources/read` on `skill://langfuse/...`), and the MCP App page `ui://langfuse/widget.html` with `registerAppResource`. The transport counts every `resources/read` (`recordResourceRead`) as `langfuse.mcp.resource_read`, tagged by kind, URI and outcome.
+
+### Defining a Tool
+
+`defineTool` returns the tool to register and a handler for direct calls (it validates its input, then runs the tool):
+
+- `baseSchema` (no refinements) is the JSON Schema clients see in `tools/list`; `inputSchema` (with refinements) validates arguments. Union and intersection schemas are rejected: some MCP clients do not accept them.
+- `action` is the API action the caller must hold; it is checked on every call.
+- Handlers return plain data (sent as JSON text) or a `callToolResult(...)` when they need a full `CallToolResult`, such as `_meta` for an MCP App.
+- Errors a handler throws, and denied calls, become `isError` results with a message that is safe to show (`formatErrorForUser`).
 
 ### Authentication Flow
 
@@ -85,9 +96,9 @@ Resources are served by the SDK: the bundled Langfuse skills through its Skills 
    ↓
 4. Build ServerContext from API key metadata
    ↓
-5. Create fresh MCP server with context in closure
+5. Create fresh McpServer with context in closures
    ↓
-6. Handle request (context auto-injected to handlers)
+6. Handle request (each tool call checks the tool's action)
    ↓
 7. Discard server instance
 ```
@@ -129,7 +140,7 @@ Tools that return trace, observation, score or experiment data declare `accessAu
 How a call flows:
 
 1. The model calls `renderWidget` (`server/apps/tools/renderWidget.ts`). The server runs the same query a dashboard tile runs and returns a text summary for the model (`widgetSummary.ts`) plus the widget definition and rows in the result's `_meta.widget`, which hosts keep away from the model.
-2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`, registered with `registerAppResource`) and loads it into a sandboxed iframe.
+2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`, registered with `registerAppTool`). The host reads that resource (`server/apps/resources.ts`, registered with `registerAppResource`) and loads it into a sandboxed iframe.
 3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
 4. When the host proxies tool calls (`serverTools` capability) and has sent the call's arguments (`toolinput`), a toolbar above the card shows the dashboard's `TimeRangePicker` and a refresh button. Both call `renderWidget` again through the host (`app.callServerTool`) with the original arguments and the chosen window (`timeRange` for a preset, `fromTimestamp`/`toTimestamp` for a calendar range), and render that result in place. Picking another window while a call runs cancels it (an aborted `signal`, which the host is told about). The host sizes the frame to the document, so the view adds height while the picker's popover is open. The model does not see these calls, so the view passes the new text summary to the host with `updateModelContext`, which hosts add to the user's next message.
 
@@ -139,7 +150,7 @@ The view is an ordinary Next.js page, `/mcp-apps/widget` (`src/app/mcp-apps`), b
 - The iframe's origin is the host's, so the page's root-relative `/_next/` URLs (in tags and in the inline RSC payload) are rewritten to absolute Langfuse URLs, and an inline script sets Turbopack's chunk base path. Plain `<script>` and stylesheet tags load across origins without CORS; with `NEXT_PUBLIC_ASSET_PREFIX`, Next adds `crossorigin`, so that asset host must send `Access-Control-Allow-Origin: *`.
 - Hosts only allow public HTTPS origins in the iframe CSP (Claude drops `http://localhost`), so a local dev server renders an empty widget there. To try it locally, serve the dev server on a public HTTPS hostname (for example a tunnel) and set `NEXTAUTH_URL` to it. `allowedDevOrigins` lets the hosts' sandbox origins load dev assets.
 
-The server declares the `io.modelcontextprotocol/ui` extension. App tools (and their `ui://` resources) are left out of discovery for clients that declare capabilities without it, which only 2026-07-28 clients do on every request. 2025-era clients declare capabilities only in `initialize`, which the stateless endpoint does not keep, so they still see app tools, which answer in text everywhere. The in-app agent never gets them (`apps/index.ts`).
+The server declares the `io.modelcontextprotocol/ui` extension. App tools (and their `ui://` resources) are not registered for requests that declare capabilities without it, which only 2026-07-28 clients do on every request. 2025-era clients declare capabilities only in `initialize`, which the stateless endpoint does not keep, so they still see app tools, which answer in text everywhere. The in-app agent never gets them (`apps/index.ts`).
 
 Hosts may cache the resource per conversation, so check view changes in a new one.
 

@@ -15,15 +15,15 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
-import { appToolResult } from "@/src/features/mcp/core/mcp-app";
+import { callToolResult } from "@/src/features/mcp/core/tool-result";
 import { WIDGET_APP_RESOURCE_URI } from "@/src/features/mcp/server/apps/resources";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
-import { getEnabledTool } from "@/src/features/mcp/server/tools";
+import { getEnabledTools } from "@/src/features/mcp/server/tools";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 
 vi.mock("@/src/features/mcp/server/tools", () => ({
-  getEnabledTool: vi.fn(),
+  getEnabledTools: vi.fn(async () => []),
   canCallTool: () => true,
 }));
 
@@ -60,7 +60,7 @@ describe("MCP tool results", () => {
       name: "validation",
       error: undefined,
       input: "",
-      message: "Validation failed: name: Name is required",
+      message: expect.stringContaining("Name is required"),
     },
     ...[
       new Error("internal secret"),
@@ -87,9 +87,7 @@ describe("MCP tool results", () => {
           return "ok";
         },
       });
-      vi.mocked(getEnabledTool).mockImplementation(async (name) =>
-        name === definition.name ? { definition, handler } : undefined,
-      );
+      vi.mocked(getEnabledTools).mockResolvedValue([{ definition, handler }]);
       const server = await createMcpServer(context);
       const client = new Client({ name: "test", version: "1.0.0" });
       const [serverTransport, clientTransport] =
@@ -125,12 +123,12 @@ describe("MCP Apps", () => {
       inputSchema: schema,
       ui: { resourceUri: WIDGET_APP_RESOURCE_URI },
       handler: async () =>
-        appToolResult({ text: "summary", meta: { widget: { name: "Cost" } } }),
+        callToolResult({
+          content: [{ type: "text", text: "summary" }],
+          _meta: { widget: { name: "Cost" } },
+        }),
     });
-    vi.mocked(getEnabledTool).mockImplementation(async (name) =>
-      name === definition.name ? { definition, handler } : undefined,
-    );
-    expect(definition._meta?.ui.resourceUri).toBe(WIDGET_APP_RESOURCE_URI);
+    vi.mocked(getEnabledTools).mockResolvedValue([{ definition, handler }]);
     const server = await createMcpServer(context);
     const client = new Client({ name: "app-test", version: "1.0.0" });
     const [serverTransport, clientTransport] =
@@ -138,6 +136,11 @@ describe("MCP Apps", () => {
     try {
       await server.connect(serverTransport);
       await client.connect(clientTransport);
+      const { tools } = await client.listTools();
+      expect(tools[0]?._meta).toMatchObject({
+        ui: { resourceUri: WIDGET_APP_RESOURCE_URI },
+        "ui/resourceUri": WIDGET_APP_RESOURCE_URI,
+      });
       const result = await client.callTool({
         name: definition.name,
         arguments: {},

@@ -11,25 +11,23 @@
  * - Server discarded after request completes
  */
 
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import {
   McpServer,
-  ProtocolError,
-  ProtocolErrorCode,
-  isInputRequiredResult,
+  type CallToolResult,
   type ClientCapabilities,
+  type InputRequiredResult,
+  type ServerContext as McpRequestContext,
 } from "@modelcontextprotocol/server";
+import { ForbiddenError } from "@langfuse/shared";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
-import type { ToolDefinition } from "../core/define-tool";
-import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
-import {
-  clientMayRenderApps,
-  isAppTool,
-  isAppToolResult,
-  MCP_APPS_EXTENSION,
-} from "../core/mcp-app";
+import type { McpTool } from "../core/define-tool";
+import { toCallToolResult } from "../core/tool-result";
+import { canCallTool, getEnabledTools, type RegisteredTool } from "./tools";
+import { clientMayRenderApps, MCP_APPS_EXTENSION } from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 import { langfuseSkills } from "@/src/features/mcp/server/skills/resources";
@@ -62,7 +60,9 @@ export const getMcpServerInstructions = (): string =>
  * Creates a fresh MCP server for each request with context captured in closures.
  * This follows the stateless pattern where no server state persists between requests.
  *
- * Tools come from the feature modules listed in `tools.ts`.
+ * Tools come from the feature modules listed in `tools.ts`. Tools of
+ * disabled features are not registered, so calling one fails like calling a
+ * tool that does not exist.
  *
  * @param context - Server context from authenticated request (captured in closures)
  * @param clientCapabilities - Capabilities the request declared, if any;
@@ -97,118 +97,93 @@ export async function createMcpServer(
 
   const skillCatalog = await langfuseSkills;
   skillCatalog.attach(server);
-  if (clientMayRenderApps(clientCapabilities)) {
-    registerWidgetAppResource(server);
+
+  const withApps = clientMayRenderApps(clientCapabilities);
+  if (withApps) registerWidgetAppResource(server);
+
+  for (const tool of await getEnabledTools(context)) {
+    const { name, description, inputSchema, annotations, _meta } =
+      tool.definition;
+    const callback = (input: unknown, mcpRequest: McpRequestContext) =>
+      callTool(tool, input, context, mcpRequest);
+    if (!_meta) {
+      server.registerTool(
+        name,
+        { description, inputSchema, annotations },
+        callback,
+      );
+    } else if (withApps) {
+      registerAppTool(
+        server,
+        name,
+        { description, inputSchema, annotations, _meta },
+        callback,
+      );
+    }
   }
-
-  // Tools keep their own handlers on the underlying low-level server.
-  server.server.registerCapabilities({ tools: {} });
-
-  // ListTools handler - dynamically load from registry
-  server.server.setRequestHandler("tools/list", async () => {
-    const definitions = (await getEnabledTools(context)).map(
-      (tool) => tool.definition,
-    );
-    const tools = clientMayRenderApps(clientCapabilities)
-      ? definitions
-      : definitions.filter((definition) => !isAppTool(definition));
-
-    logger.debug("MCP ListTools", {
-      projectId: context.projectId,
-      toolCount: tools.length,
-      toolNames: tools.map((t) => t.name),
-    });
-
-    return { tools };
-  });
-
-  // CallTool handler - route to registered tool handlers
-  server.server.setRequestHandler("tools/call", async (request, ctx) => {
-    const { name, arguments: args } = request.params;
-
-    logger.debug("MCP CallTool", {
-      projectId: context.projectId,
-      toolName: name,
-    });
-
-    // Tools of disabled features and tools the context may not call fail the
-    // same way as absent tools.
-    const registeredTool = await getEnabledTool(name, context);
-
-    if (!registeredTool || !canCallTool(registeredTool, context)) {
-      throw new ProtocolError(
-        ProtocolErrorCode.InvalidParams,
-        `Unknown tool: ${name}`,
-      );
-    }
-
-    assertToolAuthorized(registeredTool.definition, context);
-
-    // Execute handler with context
-    // Handler validates input; errors are formatted only at this boundary.
-    const clickHouseCtx = contextWithLangfuseProps({
-      projectId: context.projectId,
-      apiKeyId: context.apiKeyId,
-      clickhouse: {
-        surface: "mcp",
-        route: name,
-      },
-    });
-    try {
-      const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context, ctx),
-      );
-
-      if (isInputRequiredResult(result)) return result;
-
-      if (isAppToolResult(result)) {
-        return {
-          content: [{ type: "text", text: result.text }],
-          _meta: result.meta,
-        };
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              typeof result === "string"
-                ? result
-                : JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      const { message } = formatErrorForUser(error);
-      return {
-        content: [{ type: "text", text: message }],
-        isError: true,
-      };
-    }
-  });
 
   return server;
 }
 
-/** assertToolAuthorized reports enforce-mode denials as MCP errors. */
+/**
+ * Runs a tool on SDK-validated input. Errors, denials included, become tool
+ * results with a message that is safe to show; internal details stay in the
+ * logs.
+ */
+async function callTool(
+  tool: RegisteredTool,
+  input: unknown,
+  context: ServerContext,
+  mcpRequest: McpRequestContext,
+): Promise<CallToolResult | InputRequiredResult> {
+  const { name, run } = tool.definition;
+  logger.debug("MCP CallTool", {
+    projectId: context.projectId,
+    toolName: name,
+  });
+
+  const clickHouseCtx = contextWithLangfuseProps({
+    projectId: context.projectId,
+    apiKeyId: context.apiKeyId,
+    clickhouse: {
+      surface: "mcp",
+      route: name,
+    },
+  });
+  try {
+    if (!canCallTool(tool, context)) {
+      throw new ForbiddenError(
+        `Tool ${name} needs approval in this in-app agent run.`,
+      );
+    }
+    assertToolAuthorized(tool.definition, context);
+    const result = await otelContext.with(clickHouseCtx, () =>
+      run(input, context, mcpRequest),
+    );
+    return toCallToolResult(result);
+  } catch (error) {
+    return {
+      content: [{ type: "text", text: formatErrorForUser(error).message }],
+      isError: true,
+    };
+  }
+}
+
+/** Throws the enforce-mode denial when the caller may not run the tool. */
 function assertToolAuthorized(
-  definition: ToolDefinition,
+  tool: Pick<McpTool, "action">,
   context: ServerContext,
 ): void {
   const decision = shadowAuthorize({
     ctx: context.auth,
-    action: definition.action,
+    action: tool.action,
     resource: { projectId: context.projectId },
     legacyDecision: {
       success: true,
       scope: { accessLevel: context.accessLevel },
     },
   });
-  if (!decision.success) {
-    const { code, message } = formatErrorForUser(decision.error);
-    throw new ProtocolError(code, message);
-  }
+  if (!decision.success) throw decision.error;
 }
 
 /** @internal */

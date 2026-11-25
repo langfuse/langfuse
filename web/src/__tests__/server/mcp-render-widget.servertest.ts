@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { handleRenderWidget } from "@/src/features/mcp/server/apps/tools/renderWidget";
-import { type AppToolResult } from "@/src/features/mcp/core/mcp-app";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { type WidgetPayload } from "@/src/features/mcp/core/widget-payload";
 import { mockServerContext } from "./mcp-helpers";
 
@@ -18,14 +18,16 @@ describe("renderWidget", () => {
         toTimestamp,
       },
       mockServerContext({ projectId: uuidv4() }),
-    )) as AppToolResult;
+    )) as CallToolResult;
 
-    const summary = JSON.parse(result.text) as { from: string; to: string };
+    const [content] = result.content;
+    if (content?.type !== "text") throw new Error("expected text content");
+    const summary = JSON.parse(content.text) as { from: string; to: string };
     expect({ from: summary.from, to: summary.to }).toEqual({
       from: fromTimestamp,
       to: toTimestamp,
     });
-    expect((result.meta.widget as WidgetPayload).timeRange).toEqual({
+    expect((result._meta?.widget as WidgetPayload).timeRange).toEqual({
       from: fromTimestamp,
       to: toTimestamp,
     });

@@ -65,6 +65,7 @@ import {
   createUserWithOrgRole,
   mcpEvalOutputDefinition,
   protectPromptLabel,
+  toolJsonSchema,
   verifyAuditLog,
   verifyToolAnnotations,
 } from "./mcp-helpers";
@@ -550,7 +551,7 @@ describe("MCP Write Tools", () => {
       try {
         expect(testEvaluatorTool.annotations?.readOnlyHint).not.toBe(true);
         expect(testEvaluatorTool.annotations?.destructiveHint).not.toBe(true);
-        expect(testEvaluatorTool.inputSchema.properties).toEqual(
+        expect(toolJsonSchema(testEvaluatorTool).properties).toEqual(
           expect.objectContaining({
             evaluatorId: expect.any(Object),
             type: expect.any(Object),
@@ -718,11 +719,11 @@ describe("MCP Write Tools", () => {
         [createEvaluatorTool, McpEvaluatorInput],
         [updateEvaluatorTool, McpUpdateEvaluatorInput],
       ] as const) {
-        const properties = tool.inputSchema.properties as Record<
+        const properties = toolJsonSchema(tool).properties as Record<
           string,
           { description?: string }
         >;
-        for (const field of tool.inputSchema.required ?? []) {
+        for (const field of toolJsonSchema(tool).required ?? []) {
           expect(properties[field]?.description, field).toBeTruthy();
         }
 
@@ -813,7 +814,7 @@ describe("MCP Write Tools", () => {
     });
 
     it("addresses project evaluators by stable id", () => {
-      const properties = createEvaluationRuleTool.inputSchema.properties;
+      const properties = toolJsonSchema(createEvaluationRuleTool).properties;
 
       expect(properties).toHaveProperty("evaluatorAssignments");
       expect(properties).not.toHaveProperty("evaluatorId");
@@ -1618,18 +1619,22 @@ describe("MCP Write Tools", () => {
 
         const denied =
           'Access denied. The "evalDefaultModel:CUD" permission is required to access this resource.';
+        const deniedResult = {
+          isError: true,
+          content: [{ type: "text", text: expect.stringContaining(denied) }],
+        };
         await expect(
           client.callTool({
             name: setDefaultEvaluationModelTool.name,
             arguments: { provider, model: "gpt-4.1-mini" },
           }),
-        ).rejects.toThrow(denied);
+        ).resolves.toMatchObject(deniedResult);
         await expect(
           client.callTool({
             name: deleteDefaultEvaluationModelTool.name,
             arguments: {},
           }),
-        ).rejects.toThrow(denied);
+        ).resolves.toMatchObject(deniedResult);
       } finally {
         await client.close();
         mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =

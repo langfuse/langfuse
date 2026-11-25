@@ -35,7 +35,7 @@ import {
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { defineTool } from "../../../core/define-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { appToolResult } from "../../../core/mcp-app";
+import { callToolResult } from "../../../core/tool-result";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   convertSelectedEnvironmentsToFilter,
@@ -395,32 +395,37 @@ const toRenderResult = (params: {
     timeRangeLabel: window.label,
     earliestTimestamp: window.accessFloor?.toISOString(),
   };
-  return appToolResult({
-    text: JSON.stringify({
-      note: "Summary of the chart's data. When rowsLimited is set, only the top rows by the first metric were queried and the summary covers those. Hosts that support MCP Apps also show the chart to the user.",
-      title: widget.name,
-      chartType: widget.chartType,
-      metric: metricAlias(firstMetric),
-      unit: getResultUnit(
-        widget.view,
-        firstMetric.measure,
-        firstMetric.agg,
-        VERSION,
-      ),
-      dimension: widget.dimensions[0]?.field ?? null,
-      timeRange: window.label,
-      from: window.fromTimestamp.toISOString(),
-      to: window.toTimestamp.toISOString(),
-      ...summarizeWidget({
-        ...widget,
-        rows,
-        rowLimit: params.rowLimit,
-        dimensionRepeatsRows: dimensionRepeatsRows(widget),
-      }),
-      url: params.url,
-    }),
+  return callToolResult({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          note: "Summary of the chart's data. When rowsLimited is set, only the top rows by the first metric were queried and the summary covers those. Hosts that support MCP Apps also show the chart to the user.",
+          title: widget.name,
+          chartType: widget.chartType,
+          metric: metricAlias(firstMetric),
+          unit: getResultUnit(
+            widget.view,
+            firstMetric.measure,
+            firstMetric.agg,
+            VERSION,
+          ),
+          dimension: widget.dimensions[0]?.field ?? null,
+          timeRange: window.label,
+          from: window.fromTimestamp.toISOString(),
+          to: window.toTimestamp.toISOString(),
+          ...summarizeWidget({
+            ...widget,
+            rows,
+            rowLimit: params.rowLimit,
+            dimensionRepeatsRows: dimensionRepeatsRows(widget),
+          }),
+          url: params.url,
+        }),
+      },
+    ],
     // Rows for the MCP App view; hosts keep result _meta from the model.
-    meta: { widget: payload },
+    _meta: { widget: payload },
   });
 };
 
