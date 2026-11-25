@@ -107,6 +107,8 @@ An older `{widgets}` client can save its layout without knowing which inline wid
 
 A reader encountering an unsupported future root receives the classic projection. Its stored definition can be edited by a server that understands that version.
 
+When editing classic placements in `blocks` on a GET response, omit `widgets` from the PATCH or update it to match. Sending a changed `blocks` layout alongside the unchanged current `widgets` mirror returns HTTP 400. The server cannot infer which grid the caller intended to keep.
+
 ## Evolving a definition
 
 `kind` selects the editor. `config.version` identifies the persisted format for that kind. `revision` counts successful edits to one saved widget and prevents stale writes. A Markdown edit can move revision 6 to 7 while the format stays at version 1. The analytics API read version (`v1`/`v2`) separately selects a data source at query time.

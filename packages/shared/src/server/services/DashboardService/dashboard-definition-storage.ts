@@ -3,6 +3,7 @@ import { Prisma, type Dashboard } from "@prisma/client";
 import { prisma } from "../../../db";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { ForbiddenError } from "../../../errors/ForbiddenError";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import {
   DashboardDefinitionSchema,
@@ -372,10 +373,15 @@ export async function patchPublicDashboard(
             "blocks" in before.definition &&
             isDeepStrictEqual(blocks, before.definition.blocks)
           )
-        )
+        ) {
+          if (isDeepStrictEqual(widgets, before.definition.widgets))
+            throw new InvalidRequestError(
+              "The widgets mirror disagrees with the classic placements in blocks. Check the current layout. To edit blocks, omit widgets or make its placements match.",
+            );
           throw new LangfuseConflictError(
             "The dashboard layout changed. Reload the dashboard and try again.",
           );
+        }
       }
       result = await replaceClassicLayout(
         tx,

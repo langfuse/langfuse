@@ -76,7 +76,9 @@ service:
 
         A legacy `widgets` definition updates classic placements while
         preserving inline widgets. For a version 1 edit, update `blocks` and
-        omit `widgets` or mirror the classic placements there. A client may
+        omit `widgets` or mirror the classic placements there. Editing classic
+        placements in `blocks` and echoing the unchanged current `widgets`
+        returns `400`. Omit the old mirror before retrying. A client may
         also edit only `widgets` on a definition returned by GET and echo
         `blocks` unchanged. A concurrent classic move, resize, or change to
         the original placement used as an inline anchor returns `409` when

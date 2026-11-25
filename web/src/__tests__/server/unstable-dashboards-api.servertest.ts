@@ -384,6 +384,30 @@ describe("unstable dashboard API", () => {
       const blocks = definition.blocks.map((block) =>
         block.id === placement.id ? moved : block,
       );
+      const inconsistentMirror = await makeAPICall(
+        "PATCH",
+        path,
+        {
+          name: "Rejected mirror",
+          definition: { ...definition, blocks },
+        },
+        auth,
+      );
+      expect(inconsistentMirror.status).toBe(400);
+      expect(
+        StructuredPublicApiErrorResponse.parse(inconsistentMirror.body),
+      ).toMatchObject({
+        code: "invalid_request",
+        message: expect.stringMatching(/omit widgets/i),
+      });
+      const unchanged = await makeZodVerifiedAPICall(
+        GetUnstableDashboardResponse,
+        "GET",
+        path,
+        undefined,
+        auth,
+      );
+      expect(unchanged.body).toEqual(updated.body);
       const movedByBlocks = await makeZodVerifiedAPICall(
         PatchUnstableDashboardResponse,
         "PATCH",
