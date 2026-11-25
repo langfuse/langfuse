@@ -1,8 +1,8 @@
 /**
  * The v2 score views' query on the query AST ({@link buildScores}): its FROM,
  * joins and WHERE, read from the score registry entries. The
- * view-independent steps (dimension and metric mapping, outer clauses) stay
- * on {@link QueryBuilder}, which dispatches the score views here.
+ * view-independent steps (dimension and metric mapping, outer clauses) are in
+ * `viewQuerySteps.ts`; `QueryBuilder` dispatches the score views here.
  */
 import type { SelectQueryBuilder, Expression, SqlBool } from "kysely";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -14,7 +14,7 @@ import {
   scoresBooleanViewV2,
   scoresListableCountViewV2,
 } from "../dataModel";
-import type { QueryType, ViewDeclarationType } from "../types";
+import type { QueryType, ViewDeclarationType, ViewVersion } from "../types";
 import {
   SEGMENT_FILTER,
   scoresExpressionBuilder,
@@ -31,9 +31,8 @@ import {
   TRACE_ATTRIBUTE_COLUMNS,
 } from "./eventsTraceAttributes";
 import { useFinal } from "../../../server/query-ast/extensions";
-import type { QueryLevel } from "./eventsObservationsRegistry";
+import type { QueryLevel } from "./registryEntry";
 import {
-  type QueryBuilder,
   filterDimensionName,
   assertKnownRelationTables,
   type BucketValues,
@@ -41,7 +40,22 @@ import {
   type AppliedDimensionType,
   atLevel,
   utcDateTime,
-} from "./queryBuilder";
+  applyBucketingDimension,
+  astBucketSelection,
+  astInnerMetrics,
+  astOuterClauses,
+  astOuterSelect,
+  astSingleLevelMetrics,
+  canUseSingleLevelQuery,
+  collectRelationTables,
+  compileWithOuterClauses,
+  dimensionAlias,
+  mapDimensions,
+  mapMetrics,
+  validateAndProcessOrderBy,
+  validateFilters,
+  withRequiredDimensions,
+} from "./viewQuerySteps";
 
 /**
  * A dashboard filter on a v2 score view: the lowering and condition, the
@@ -59,7 +73,7 @@ const SCORE_TRACES = SCORE_V2_RELATIONS.traces;
 
 const SCORE_OBSERVATIONS = SCORE_V2_RELATIONS.observations;
 
-/** The views {@link QueryBuilder.build} compiles through `buildScores`. */
+/** The views `QueryBuilder.build` compiles through `buildScores`. */
 export const SCORE_VIEWS_V2: ReadonlySet<ViewDeclarationType> = new Set([
   scoresNumericViewV2,
   scoresCategoricalViewV2,
@@ -245,8 +259,8 @@ function scoresWhere(scope: ScoresSourceScope, joined: string[]) {
 }
 
 /**
- * {@link QueryBuilder.build} for the v2 score views, on the query AST: the shapes of
- * {@link QueryBuilder.buildEventsObservations} over `from scores [final]`, with the
+ * `QueryBuilder.build` for the v2 score views, on the query AST: the shapes of
+ * `buildEventsObservations` over `from scores [final]`, with the
  * entries of `scoresRegistry.ts` and filters lowered by
  * `lowerFieldCondition`. Tenancy adds the project conditions. Rows flagged
  * deleted are read, as the string builder does.
@@ -262,23 +276,27 @@ function scoresWhere(scope: ScoresSourceScope, joined: string[]) {
  * Level: single-level only without a join, whatever
  * `enableSingleLevelOptimization` says: a join can match several rows per
  * score, so the inner select groups by score to count each score once.
+ *
+ * `version` and `chartConfig` (histogram bins, row limit) are the
+ * `QueryBuilder`'s.
  */
 export function buildScores(
-  builder: QueryBuilder,
   query: QueryType,
   view: ViewDeclarationType,
   projectId: string,
   skipScoresFinal: boolean,
+  version: ViewVersion,
+  chartConfig: { bins?: number; row_limit?: number } | undefined,
 ): { query: string; parameters: Record<string, unknown> } {
-  const requestedDimensions = builder.mapDimensions(query.dimensions, view);
-  const appliedMetrics = builder.mapMetrics(query.metrics, view);
-  const bucket = builder.applyBucketingDimension(query, view);
-  const appliedDimensions = builder.withRequiredDimensions(
+  const requestedDimensions = mapDimensions(query.dimensions, view);
+  const appliedMetrics = mapMetrics(query.metrics, view);
+  const bucket = applyBucketingDimension(query, view, version);
+  const appliedDimensions = withRequiredDimensions(
     requestedDimensions,
     appliedMetrics,
     view,
   );
-  builder.validateFilters(query.filters, view);
+  validateFilters(query.filters, view);
   const filters = query.filters.map((filter): ScoreFilter => {
     const dimension = filterDimensionName(filter.column, view.dimensions);
     return {
@@ -292,9 +310,8 @@ export function buildScores(
   });
 
   // Relations in order of first use: entity bucket, dimensions, measures,
-  // filters, as in `collectRelationTables`.
-  const outputRelations = builder.collectRelationTables(
-    view,
+  // filters.
+  const outputRelations = collectRelationTables(
     appliedDimensions,
     appliedMetrics,
     bucket,
@@ -311,20 +328,21 @@ export function buildScores(
   );
   const level: QueryLevel =
     joined.length === 0 &&
-    builder.canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
+    canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
       ? "single"
       : "two";
-  const orderBy = builder.validateAndProcessOrderBy(
+  const orderBy = validateAndProcessOrderBy(
     query.orderBy,
     appliedDimensions,
     appliedMetrics,
     bucket,
   );
-  const outerClauses = builder.astOuterClauses(
+  const outerClauses = astOuterClauses(
     query,
     appliedDimensions,
     bucket,
     orderBy,
+    chartConfig?.row_limit,
   );
   const eb = scoresExpressionBuilder();
   const source = astScoresSource(query, view, {
@@ -343,19 +361,22 @@ export function buildScores(
   const measure = (level: QueryLevel) => (metric: AppliedMetricType) =>
     scoreMeasure(eb, metric.measureName, level);
   const dimensionValue = (d: AppliedDimensionType, level: QueryLevel) =>
-    atLevel(scoreDimension(d.name).expression(eb), level).as(
-      builder.dimensionAlias(d),
-    );
+    atLevel(scoreDimension(d.name).expression(eb), level).as(dimensionAlias(d));
 
   if (level === "single") {
     // select <dimensions>, <bucket>, <aggregation>(<measure>) … from <source>
-    return builder.compileWithOuterClauses(
+    return compileWithOuterClauses(
       projectId,
       outerClauses,
       source.select(() => [
         ...appliedDimensions.map((d) => dimensionValue(d, "single")),
-        ...builder.astBucketSelection(bucket, "single", bucketValues),
-        ...builder.astSingleLevelMetrics(eb, appliedMetrics, measure("single")),
+        ...astBucketSelection(bucket, "single", bucketValues),
+        ...astSingleLevelMetrics(
+          eb,
+          appliedMetrics,
+          measure("single"),
+          chartConfig?.bins,
+        ),
       ]),
     );
   }
@@ -365,18 +386,19 @@ export function buildScores(
     .select(["scores.project_id", "scores.id"])
     .select(() => [
       ...appliedDimensions.map((d) => dimensionValue(d, "two")),
-      ...builder.astBucketSelection(bucket, "two", bucketValues),
-      ...builder.astInnerMetrics(eb, appliedMetrics, measure("two")),
+      ...astBucketSelection(bucket, "two", bucketValues),
+      ...astInnerMetrics(eb, appliedMetrics, measure("two")),
     ])
     .groupBy(["scores.project_id", "scores.id"]);
-  return builder.compileWithOuterClauses(
+  return compileWithOuterClauses(
     projectId,
     outerClauses,
-    builder.astOuterSelect(
+    astOuterSelect(
       perScore.as("per_score"),
       appliedDimensions,
       bucket,
       appliedMetrics,
+      chartConfig?.bins,
     ),
   );
 }

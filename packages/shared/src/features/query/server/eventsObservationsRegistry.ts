@@ -63,6 +63,7 @@ import {
 } from "../../ai-gateway/constants";
 import {
   scalarDimensions,
+  type QueryLevel,
   type Read as EntryRead,
   type ScalarDimensionEntry,
 } from "./registryEntry";
@@ -81,9 +82,6 @@ type ObservationsWithScoresBuilder = ExpressionBuilder<
   ObservationsDb,
   "e" | "scores"
 >;
-
-/** Level of a dashboard query: `two` has an inner aggregating select. */
-export type QueryLevel = "single" | "two";
 
 /**
  * What a template measure calls where the legacy SQL has a `@@AGGn@@`

@@ -48,12 +48,12 @@ import {
   aggregationSlot,
   EVENTS_OBSERVATIONS_DIMENSIONS,
   type DimensionEntry,
-  type QueryLevel,
 } from "./eventsObservationsRegistry";
 import type { TraceAttributeColumn } from "./eventsTraceAttributes";
 import {
   entryOf,
   scalarDimensions,
+  type QueryLevel,
   type Read as EntryRead,
 } from "./registryEntry";
 
