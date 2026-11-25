@@ -190,8 +190,8 @@ export function uniq(value: Expression<unknown>): ChExpression<number> {
 }
 
 /**
- * ClickHouse `uniqCombined(value)`, an approximate distinct count whose
- * memory stays bounded however many distinct values there are.
+ * ClickHouse `uniqCombined(value)`, an approximate distinct count with a
+ * fixed-size state, more accurate than `uniq` and exact for small counts.
  */
 export function uniqCombined(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniqCombined", [value]);
