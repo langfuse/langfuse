@@ -7,29 +7,11 @@ import {
   type ScoreDataTypeType,
   type ListableScore,
   type ListableScoreDataType,
+  normalizeScoreName,
+  composeAggregateScoreKey,
 } from "@langfuse/shared";
 
-/**
- * Normalizes score names for comparison by converting - and . to _
- * "-" and "." reserved for splitting in namespace
- */
-export const normalizeScoreName = (name: string): string => {
-  return name.replaceAll(/[-\.]/g, "_");
-};
-
-export const composeAggregateScoreKey = ({
-  name,
-  source,
-  dataType,
-}: {
-  name: string;
-  source: ScoreSourceType;
-  dataType: ScoreDataTypeType;
-  keyPrefix?: string;
-}): string => {
-  const formattedName = normalizeScoreName(name);
-  return `${formattedName}-${source}-${dataType}`;
-};
+export { normalizeScoreName, composeAggregateScoreKey };
 
 export const decomposeAggregateScoreKey = (
   key: string,

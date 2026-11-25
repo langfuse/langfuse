@@ -21,7 +21,6 @@ export const composeAggregateScoreKey = ({
   name: string;
   source: ScoreSourceType;
   dataType: ScoreDataTypeType;
-  keyPrefix?: string;
 }): string => {
   const formattedName = normalizeScoreName(name);
   return `${formattedName}-${source}-${dataType}`;
