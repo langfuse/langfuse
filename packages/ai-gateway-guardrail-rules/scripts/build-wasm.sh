@@ -27,4 +27,5 @@ rm -rf "$OUT"
 # The producers section records how each tool was built (a release binary of
 # the CLI adds its git hash, a `cargo install` does not), so it is dropped.
 "$WASM_BINDGEN" --target nodejs --remove-producers-section --out-dir "$OUT" "$TARGET_DIR/wasm32-unknown-unknown/release/ai_gateway_guardrail_rules.wasm"
+node scripts/inline-wasm.mjs "$OUT"
 echo "built $OUT ($(wc -c < "$OUT/ai_gateway_guardrail_rules_bg.wasm") bytes wasm, $(gzip -9 -c "$OUT/ai_gateway_guardrail_rules_bg.wasm" | wc -c) gzipped)"

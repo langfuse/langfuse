@@ -31,6 +31,10 @@
         "scripts/remove-generated-cargo-patch.mjs!",
       ],
     },
+    "packages/ai-gateway-guardrail-rules": {
+      // Invoked by scripts/build-wasm.sh, not imported by runtime code.
+      "entry": ["scripts/inline-wasm.mjs!"],
+    },
     "packages/shared": {
       // Database and seed commands use these dev tools from a full workspace install.
       "ignoreBinaries": ["dotenv!", "tsx!"],

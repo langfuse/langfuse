@@ -359,8 +359,7 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-const wasmPath = `${__dirname}/ai_gateway_guardrail_rules_bg.wasm`;
-const wasmBytes = require('fs').readFileSync(wasmPath);
+const wasmBytes = require('./ai_gateway_guardrail_rules_bg.wasm.js');
 const wasmModule = new WebAssembly.Module(wasmBytes);
 let wasmInstance = new WebAssembly.Instance(wasmModule, __wbg_get_imports());
 let wasm = wasmInstance.exports;
