@@ -1082,8 +1082,8 @@ export function EvaluatorSetupPage(
                   primaryContent={evaluatorEditor}
                   secondaryContent={evaluatorTestPanel}
                   open={testPanelOpen}
-                  defaultPrimarySize={60}
-                  defaultSecondarySize={40}
+                  defaultPrimarySize={50}
+                  defaultSecondarySize={50}
                   minPrimarySize={30}
                   minSecondarySize="360px"
                   collapsedSecondarySize="48px"
