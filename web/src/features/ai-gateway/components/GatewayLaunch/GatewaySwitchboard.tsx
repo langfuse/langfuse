@@ -1,5 +1,4 @@
 import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";
-import { useId } from "react";
 
 import { env } from "@/src/env.mjs";
 
@@ -17,15 +16,6 @@ const HERO_FAN = [
   { d: "M-20 284C123.2 284,174 160.8,222 144", opacity: 0.36 },
 ];
 
-const BANNER_FAN = [
-  "M0 14.7C49.6 14.7,70 44,92 48",
-  "M0 28C54.3 28,70 45.6,92 48",
-  "M0 41.3C51 41.3,70 47.2,92 48",
-  "M0 54.7C55 54.7,70 48.8,92 48",
-  "M0 68C53.9 68,70 50.4,92 48",
-  "M0 81.3C52.5 81.3,70 52,92 48",
-];
-
 const PROVIDERS = [
   { label: "Anthropic", Icon: SiAnthropic },
   { label: "OpenAI", Icon: SiOpenai },
@@ -34,16 +24,7 @@ const PROVIDERS = [
 const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;
 
 /** Illustration: many lines enter one Langfuse point, which routes to the enabled providers. */
-export function GatewaySwitchboard({
-  variant,
-}: {
-  variant: "dialog" | "banner";
-}) {
-  if (variant === "banner") return <BannerSwitchboard />;
-  return <DialogSwitchboard />;
-}
-
-function DialogSwitchboard() {
+export function GatewaySwitchboard() {
   return (
     <svg
       viewBox="0 0 640 288"
@@ -137,87 +118,6 @@ function DialogSwitchboard() {
       <circle cx={524} cy={194} r={4.5} className="fill-surface-section" />
       <circle cx={244} cy={144} r={21} className="fill-surface-section" />
       <image href={iconSrc} x={220} y={120} width={48} height={48} />
-    </svg>
-  );
-}
-
-function BannerSwitchboard() {
-  const gradientId = useId();
-  return (
-    <svg viewBox="0 0 290 96" className="h-full w-full" aria-hidden="true">
-      <defs>
-        <linearGradient
-          id={gradientId}
-          gradientUnits="userSpaceOnUse"
-          x1={0}
-          y1={0}
-          x2={92}
-          y2={0}
-        >
-          <stop
-            offset={0}
-            stopOpacity={0.08}
-            style={{ stopColor: "hsl(var(--foreground))" }}
-          />
-          <stop
-            offset={1}
-            stopOpacity={0.55}
-            style={{ stopColor: "hsl(var(--foreground))" }}
-          />
-        </linearGradient>
-      </defs>
-      {BANNER_FAN.map((d) => (
-        <path
-          key={d}
-          d={d}
-          fill="none"
-          stroke={`url(#${gradientId})`}
-          strokeWidth={1.1}
-          strokeLinecap="round"
-        />
-      ))}
-      {PROVIDERS.map(({ label, Icon }, index) => {
-        const y = 30 + index * 36;
-        return (
-          <g key={label}>
-            <path
-              d={`M116 48C127 48,127 ${y},138 ${y}`}
-              fill="none"
-              strokeWidth={1.1}
-              strokeLinecap="round"
-              className="stroke-muted-foreground"
-            />
-            <rect
-              x={138}
-              y={y - 11}
-              width={118}
-              height={22}
-              rx={4}
-              className="fill-background stroke-border"
-            />
-            <Icon size="sm" color="foreground" x={145} y={y - 6} />
-            <text
-              x={161}
-              y={y + 3.3}
-              fontSize={10}
-              className="fill-foreground font-mono"
-            >
-              {label}
-            </text>
-            <rect
-              x={228}
-              y={y - 5.6}
-              width={19.6}
-              height={11.2}
-              rx={5.6}
-              className="fill-foreground"
-            />
-            <circle cx={242} cy={y} r={4.2} className="fill-surface-section" />
-          </g>
-        );
-      })}
-      <circle cx={104} cy={48} r={10.5} className="fill-surface-section" />
-      <image href={iconSrc} x={92} y={36} width={24} height={24} />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ export function GatewayHero() {
         styles.dotGrid,
       )}
     >
-      <GatewaySwitchboard variant="dialog" />
+      <GatewaySwitchboard />
     </div>
   );
 }
