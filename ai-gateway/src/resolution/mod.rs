@@ -646,6 +646,9 @@ pub enum ResolutionError {
     /// The key has spend limits, but Langfuse has no price for the model.
     #[error("spend limit cannot price the model")]
     SpendLimitUnpricedModel,
+    /// A `block` guardrail matched the request; holds the caller-facing message.
+    #[error("blocked by a guardrail")]
+    GuardrailBlocked(std::sync::Arc<str>),
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

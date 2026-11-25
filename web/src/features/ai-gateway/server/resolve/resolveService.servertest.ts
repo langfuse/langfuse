@@ -36,6 +36,7 @@ vi.mock("@langfuse/shared/encryption", () => ({
 const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
   const prisma = {
     apiKey: { findFirst },
+    gatewayGuardrail: { findMany: () => Promise.resolve([]) },
     roleAssignment: {
       findMany: () =>
         Promise.resolve([
@@ -162,6 +163,7 @@ describe("GatewayResolveService", () => {
         expires_at: expect.any(Number),
       },
       spend_limits: [],
+      guardrails: [],
       pricing: null,
     });
   });

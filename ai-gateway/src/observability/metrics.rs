@@ -28,6 +28,8 @@ struct Metrics {
     executions: Counter<u64>,
     spend_uncharged: Counter<u64>,
     spend: Counter<f64>,
+    guardrails: Histogram<f64>,
+    guardrails_size: Histogram<u64>,
 }
 
 static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
@@ -64,6 +66,11 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         response_size: meter
             .u64_histogram("http.server.response.body.size")
             .with_unit("By")
+            .with_boundaries(bytes.clone())
+            .build(),
+        guardrails_size: meter
+            .u64_histogram("gateway.guardrails.scanned.size")
+            .with_unit("By")
             .with_boundaries(bytes)
             .build(),
         active: meter.i64_up_down_counter("gateway.active").build(),
@@ -79,6 +86,15 @@ static METRICS: LazyLock<Metrics> = LazyLock::new(|| {
         spend: meter
             .f64_counter("gateway.spend.usd")
             .with_unit("USD")
+            .build(),
+        // A scan runs at roughly 0.5 GB/s, so tens of microseconds to tens of milliseconds.
+        guardrails: meter
+            .f64_histogram("gateway.guardrails.duration")
+            .with_unit("s")
+            .with_boundaries(vec![
+                0.000_01, 0.000_025, 0.000_05, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
+                0.025, 0.05, 0.1, 0.25, 1.0,
+            ])
             .build(),
     }
 });
@@ -273,6 +289,20 @@ pub(crate) fn spend_charged(
         attributes.push(KeyValue::new("langfuse.project.id", project_id.to_owned()));
     }
     METRICS.spend.add(usd, &attributes);
+}
+
+/// How long a request's guardrail check ran, excluding any wait for the blocking
+/// pool, and how many bytes of its last turn it scanned. Tagged by organization,
+/// like spend, to find the tenants that cost the most.
+pub(crate) fn guardrails_checked(organization_id: &str, duration: Duration, scanned: usize) {
+    let attributes = [KeyValue::new(
+        "langfuse.organization.id",
+        organization_id.to_owned(),
+    )];
+    METRICS
+        .guardrails
+        .record(duration.as_secs_f64(), &attributes);
+    METRICS.guardrails_size.record(bytes(scanned), &attributes);
 }
 
 pub(crate) fn delivery(outcome: &'static str, reason: &'static str, records: u64) {

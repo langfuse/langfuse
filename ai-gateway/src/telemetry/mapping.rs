@@ -254,6 +254,10 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
+    // The matched guardrails as `{id, action}` objects, to filter generations by either.
+    if let Some(guardrails) = facts.metadata.get("guardrails") {
+        metadata.insert("langfuse.gateway.guardrails".into(), guardrails.clone());
+    }
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -408,6 +412,13 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
+    } else if facts
+        .metadata
+        .get("guardrails")
+        .and_then(Value::as_array)
+        .is_some_and(|guardrails| !guardrails.is_empty())
+    {
+        ("WARNING", Some("Request matched a guardrail".into()))
     } else {
         ("DEFAULT", None)
     }
