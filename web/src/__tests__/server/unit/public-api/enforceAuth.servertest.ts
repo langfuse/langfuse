@@ -82,7 +82,7 @@ const orgKey = () => apiKey("key_1", { orgId: ORG });
 const projectKey = () => apiKey("key_2", { orgId: ORG, projectId: PRJ });
 
 const adminKey = (): AuthorizationContext => ({
-  principal: { kind: "admin", userId: null },
+  principal: { kind: "admin" },
   policies: [],
 });
 

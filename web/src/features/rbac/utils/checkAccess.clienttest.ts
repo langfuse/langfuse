@@ -53,7 +53,7 @@ function apiKeyContext(): AuthorizationContext {
 
 function adminContext(): AuthorizationContext {
   return {
-    principal: { kind: "admin", userId: null },
+    principal: { kind: "admin" },
     policies: [[readPolicy("*", "*")]],
   };
 }

@@ -90,7 +90,7 @@ describe("toApiAccessScope", () => {
   it("maps an admin principal onto the self-host admin scope", () => {
     expect(
       toApiAccessScope(
-        { kind: "admin", userId: null },
+        { kind: "admin" },
         { orgId: "org_1", projectId: "prj_1" },
       ),
     ).toEqual({

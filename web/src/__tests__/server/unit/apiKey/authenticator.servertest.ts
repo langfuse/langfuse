@@ -372,7 +372,7 @@ describe("Authenticator consolidated context cache", () => {
     redis.map.set(
       `authz:context:${knownHash}`,
       JSON.stringify({
-        context: { principal: { kind: "admin", userId: null }, policies: [] },
+        context: { principal: { kind: "admin" }, policies: [] },
       }),
     );
     const auth = new Authenticator(

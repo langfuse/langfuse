@@ -31,7 +31,7 @@ export type PrincipalOrganization = {
 export type Principal = AdminPrincipal | UserPrincipal | ApiKeyPrincipal;
 
 /** AdminPrincipal is the self-host admin key. */
-type AdminPrincipal = { kind: "admin"; userId: string | null };
+type AdminPrincipal = { kind: "admin" };
 
 /** UserPrincipal is a signed-in user. */
 type UserPrincipal = { kind: "user"; userId: string };

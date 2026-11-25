@@ -192,7 +192,7 @@ function publicBearerPolicies(
 
 /** adminContext grants the admin principal OWNER permissions across all tenants. */
 function adminContext(): AuthorizationContext {
-  const principal: Principal = { kind: "admin", userId: null };
+  const principal: Principal = { kind: "admin" };
   const roleId = SystemRoleId("OWNER");
   const tenantId = OrganizationId("*");
   const policies: Policy[] = systemRoleAccessRights.OWNER.policies.map(
