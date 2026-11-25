@@ -1027,9 +1027,8 @@ const OTEL_SOURCE = (file: string) =>
     ),
   );
 
-// Attributes whose malformed values the two paths read differently. A sweep of
-// every key below with every value of `attributeValueArbitrary` found them;
-// the generator leaves them out until the paths agree.
+// Attributes whose malformed values the two paths read differently. The
+// generator leaves them out until the paths agree.
 const attributeKeysReadDifferently = new Set([
   // JavaScript's Date and Number accept text that is not a timestamp or a duration.
   "langfuse.observation.completion_start_time",
@@ -1112,7 +1111,8 @@ const processorAttributeReplayArbitrary: Arbitrary<ProviderReplaySeed> =
     }),
   });
 
-// Spans that once differed between the paths.
+// Spans the two paths must read the same way: one without attributes, model
+// parameters encoded three times, and an integer above 2^53.
 const directedEvaluationExamples: ProviderReplaySeed[][] = [
   [genericProviderSeed([])],
   ...[
