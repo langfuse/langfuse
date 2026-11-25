@@ -482,7 +482,8 @@ describe("V4MigrationDetailsContent", () => {
 
     for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
       const caller = screen.getByText(callerName).closest("li");
-      expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(caller).toHaveClass("py-2");
+      expect(caller).not.toHaveClass("border-l-4");
       expect(caller?.firstElementChild).toHaveTextContent(callerName);
       expect(caller?.firstElementChild).toHaveTextContent(/calls? · last seen/);
       expect(
@@ -776,10 +777,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
   });
 
-  it("keeps outdated SDK usage surfaced when a newer version later used the same key", () => {
-    // The check reports what it observed in the lookback window: a newer SDK
-    // ingesting later on the same public key is not evidence that the
-    // outdated usage is gone, so it must not retire the offender.
+  it("moves a key that later used the new ingestion API into Migrated", () => {
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
@@ -799,13 +797,12 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    expect(screen.queryByText("Update SDK")).not.toBeInTheDocument();
+    expect(screen.getByText("Migrated")).toBeInTheDocument();
     expect(
-      within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
+      screen.getByText(/now uses the new ingestion API/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    expect(screen.queryByText(/upgrade completed/)).not.toBeInTheDocument();
-    // Compatible series are listed under the detected section, not Update SDK.
+    expect(screen.getByText(/last legacy event/)).toBeInTheDocument();
     expect(
       screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();

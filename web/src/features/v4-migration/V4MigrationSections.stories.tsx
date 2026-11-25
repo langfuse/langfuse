@@ -9,6 +9,7 @@ import {
   V4MigrationEvalsSection,
   V4MigrationExperimentsSection,
   V4MigrationIntegrationsSection,
+  V4MigrationMigratedKeysSection,
   V4MigrationOtelSection,
   V4MigrationSdkSection,
 } from "./V4MigrationContent";
@@ -212,6 +213,26 @@ const customInstrumentationState = makeSdkState({
   sdkUsageSeries: [customInstrumentation],
 });
 
+const migratedKey = "pk-lf-1234567890a5016c";
+const migratedLegacy = makeSeries({
+  sdkVersion: "2.60.3",
+  publicKey: migratedKey,
+  lastSeen: new Date(Date.now() - 7 * HOUR_MS).toISOString(),
+});
+const migratedSuccessor = makeSeries({
+  sdkVersion: "4.7.1",
+  publicKey: migratedKey,
+  source: "otel",
+  ingestionPath: "otel",
+  deliveryMode: "realtime",
+  lastSeen: new Date(Date.now() - HOUR_MS).toISOString(),
+});
+const migratedKeysState = makeSdkState({
+  status: "legacy",
+  sdkUsageSeries: [migratedLegacy, migratedSuccessor],
+  upgradeRequiredCount: 1,
+});
+
 const detectedInstrumentationState = makeSdkState({
   status: "latest",
   sdkUsageSeries: [makeSeries({}), realtimeOtelExporter],
@@ -310,6 +331,12 @@ export const UpgradeInstrumentation = meta.story({
       sdk={customInstrumentationState}
       defaultOpen
     />
+  ),
+});
+
+export const MigratedKeys = meta.story({
+  render: () => (
+    <V4MigrationMigratedKeysSection sdk={migratedKeysState} defaultOpen />
   ),
 });
 

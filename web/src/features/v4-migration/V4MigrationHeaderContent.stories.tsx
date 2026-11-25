@@ -21,6 +21,10 @@ export const ActionNeeded = meta.story({
   args: { readiness: "action-needed" },
 });
 
+export const Migrated = meta.story({
+  args: { readiness: "action-needed", remainingActionsAreMigrated: true },
+});
+
 export const Ready = meta.story({
   args: { readiness: "ready" },
 });

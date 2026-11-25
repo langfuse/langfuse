@@ -41,6 +41,50 @@ const sortSdkUsageSeries = (
 ): V4MigrationSdkUsageSeries[] =>
   [...rows].sort((left, right) => right.lastSeen.localeCompare(left.lastSeen));
 
+const usageSeriesKey = (series: V4MigrationSdkUsageSeries): string =>
+  `${series.source}:${series.sdkName}:${series.sdkVersion}:${series.publicKey}`;
+
+export type MigratedKeySeries = {
+  /** Legacy row that still sits inside the lookback window. */
+  required: V4MigrationSdkUsageSeries;
+  /** Later clean row for the same non-empty public key. */
+  successor: V4MigrationSdkUsageSeries;
+};
+
+// A required row is already migrated when the same API key has a later row
+// that needs no action. Empty keys stay in the action sections: they cannot
+// be matched to a successor.
+export const getMigratedKeySeries = (
+  sdk: V4MigrationSdkState,
+): MigratedKeySeries[] => {
+  const successorByKey = new Map<string, V4MigrationSdkUsageSeries>();
+  for (const series of sdk.sdkUsageSeries) {
+    if (series.actionLevel !== "none" || series.publicKey.length === 0) {
+      continue;
+    }
+    const current = successorByKey.get(series.publicKey);
+    if (!current || series.lastSeen.localeCompare(current.lastSeen) > 0) {
+      successorByKey.set(series.publicKey, series);
+    }
+  }
+
+  return sdk.sdkUsageSeries.flatMap((series) => {
+    if (series.actionLevel !== "required" || series.publicKey.length === 0) {
+      return [];
+    }
+    const successor = successorByKey.get(series.publicKey);
+    if (!successor || successor.lastSeen.localeCompare(series.lastSeen) <= 0) {
+      return [];
+    }
+    return [{ required: series, successor }];
+  });
+};
+
+const migratedRequiredKeys = (sdk: V4MigrationSdkState): Set<string> =>
+  new Set(
+    getMigratedKeySeries(sdk).map((series) => usageSeriesKey(series.required)),
+  );
+
 export const getV4MigrationSdkState = (params: {
   summary: SdkUsageSummary | undefined;
   isLoading: boolean;
@@ -138,10 +182,12 @@ export type V4MigrationSdkSectionState = {
 export const getSdkSectionState = (
   sdk: V4MigrationSdkState,
 ): V4MigrationSdkSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
   const series = sdk.sdkUsageSeries.filter(
     (usage) =>
       usage.remediationType === "update_sdk" &&
-      usage.actionLevel === "required",
+      usage.actionLevel === "required" &&
+      !migrated.has(usageSeriesKey(usage)),
   );
   const actionableCount = series.filter(isActionableSdkSeries).length;
 
@@ -167,7 +213,11 @@ export type V4MigrationCustomInstrumentationSectionState = {
 export const getCustomInstrumentationSectionState = (
   sdk: V4MigrationSdkState,
 ): V4MigrationCustomInstrumentationSectionState => ({
-  series: sdk.sdkUsageSeries.filter(isCustomInstrumentationSeries),
+  series: sdk.sdkUsageSeries.filter(
+    (usage) =>
+      isCustomInstrumentationSeries(usage) &&
+      !migratedRequiredKeys(sdk).has(usageSeriesKey(usage)),
+  ),
 });
 
 export type V4MigrationOtelSectionState = {
@@ -179,8 +229,12 @@ export type V4MigrationOtelSectionState = {
 export const getOtelSectionState = (
   sdk: V4MigrationSdkState,
 ): V4MigrationOtelSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
   const series = sdk.sdkUsageSeries.filter(
-    (usage) => isOtelExporterSeries(usage) && usage.actionLevel === "required",
+    (usage) =>
+      isOtelExporterSeries(usage) &&
+      usage.actionLevel === "required" &&
+      !migrated.has(usageSeriesKey(usage)),
   );
   return {
     series,

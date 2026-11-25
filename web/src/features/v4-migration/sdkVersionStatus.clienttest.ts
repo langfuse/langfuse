@@ -5,6 +5,7 @@ import {
   getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
+  getMigratedKeySeries,
   getOtelSectionState,
   getSdkSectionState,
   getV4MigrationSdkState,
@@ -373,6 +374,60 @@ describe("v4 migration SDK status", () => {
       ).toEqual(expected);
     },
   );
+
+  it("moves a required row to migrated keys when a later clean row shares its public key", () => {
+    const state = getLoadedSdkState(
+      sdkSeries({
+        sdkVersion: "2.60.3",
+        publicKey: "pk-lf-1234567890a5016c",
+        lastSeen: "2026-07-23T08:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "4.7.1",
+        publicKey: "pk-lf-1234567890a5016c",
+        source: "otel",
+        ingestionPath: "otel",
+        deliveryMode: "realtime",
+        lastSeen: "2026-07-23T12:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "2.1.0",
+        publicKey: "pk-lf-still-legacy",
+        lastSeen: "2026-07-23T11:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "3.0.0",
+        publicKey: "pk-lf-older-clean",
+        lastSeen: "2026-07-23T12:00:00Z",
+      }),
+      sdkSeries({
+        sdkVersion: "4.7.1",
+        publicKey: "pk-lf-older-clean",
+        lastSeen: "2026-07-23T09:00:00Z",
+      }),
+      delayedOtelSeries({
+        publicKey: "",
+        lastSeen: "2026-07-23T07:00:00Z",
+      }),
+      realtimeOtelSeries({
+        publicKey: "",
+        lastSeen: "2026-07-23T13:00:00Z",
+      }),
+    );
+
+    expect(
+      getMigratedKeySeries(state).map((row) => row.required.publicKey),
+    ).toEqual(["pk-lf-1234567890a5016c"]);
+    expect(getMigratedKeySeries(state)[0]?.successor.deliveryMode).toBe(
+      "realtime",
+    );
+    expect(
+      getSdkSectionState(state).series.map((row) => row.publicKey),
+    ).toEqual(["pk-lf-older-clean", "pk-lf-still-legacy"]);
+    expect(
+      getOtelSectionState(state).series.map((row) => row.publicKey),
+    ).toEqual([""]);
+  });
 
   it("does not offer a major upgrade to non-SDK traffic", () => {
     expect(

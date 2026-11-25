@@ -9,8 +9,10 @@ import {
   BotMessageSquare,
   Check,
   ChevronRight,
+  CircleCheck,
   Copy,
   Info,
+  TriangleAlert,
 } from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -34,6 +36,7 @@ import {
   getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
+  getMigratedKeySeries,
   getOtelSectionState,
   getSdkSectionState,
   isActionableSdkSeries,
@@ -48,6 +51,7 @@ import {
   type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
+  type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
@@ -345,6 +349,45 @@ function CodeBlockWithCopy({
   );
 }
 
+function truncatePublicKey(publicKey: string): string {
+  if (publicKey.length > 18) {
+    return `${publicKey.slice(0, 9)}…${publicKey.slice(-6)}`;
+  }
+  return publicKey;
+}
+
+function ingestionModeLabel(deliveryMode: "realtime" | "delayed"): string {
+  return deliveryMode === "realtime" ? "real-time" : "delayed";
+}
+
+// True when the only checklist rows still inside the lookback are keys that
+// already send on the new ingestion API. Readiness and the banner stay as
+// they are; this only changes the panel copy.
+export function allRemainingActionsAreMigratedKeys(
+  status: ProjectMigrationStatus,
+): boolean {
+  if (getMigratedKeySeries(status.sdk).length === 0) return false;
+  if (
+    status.sdk.status === "checking" ||
+    status.sdk.status === "error" ||
+    getSdkSectionState(status.sdk).series.length > 0 ||
+    getOtelSectionState(status.sdk).series.length > 0 ||
+    getCustomInstrumentationSectionState(status.sdk).series.length > 0
+  ) {
+    return false;
+  }
+  return (
+    status.evals.status === "loaded" &&
+    status.evals.count === 0 &&
+    status.experiments.status === "loaded" &&
+    status.experiments.result === "not_required" &&
+    status.apis.status === "loaded" &&
+    status.apis.count === 0 &&
+    status.exports.status === "loaded" &&
+    status.exports.count === 0
+  );
+}
+
 function SdkUsageSeriesRows({
   series,
   needsAction,
@@ -355,7 +398,7 @@ function SdkUsageSeriesRows({
   analyticsSection,
 }: {
   series: V4MigrationSdkUsageSeries[];
-  /** Drives the per-row status emoji; the suffix carries the text meaning. */
+  /** Drives the per-row status icon; the suffix carries the text meaning. */
   needsAction: (series: V4MigrationSdkUsageSeries) => boolean;
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
   /** Row label when the series carries no usable SDK name. */
@@ -371,7 +414,7 @@ function SdkUsageSeriesRows({
   if (series.length === 0) return null;
 
   return (
-    <ul className="mt-2 flex flex-col gap-2">
+    <ul className="mt-2 divide-y">
       {series.map((usage) => {
         const sdkLabel =
           usage.canonicalSdkName === null && usage.sdkName === "unknown"
@@ -382,10 +425,7 @@ function SdkUsageSeriesRows({
               });
         const publicKey = (() => {
           if (usage.publicKey) {
-            if (usage.publicKey.length > 18) {
-              return `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`;
-            }
-            return usage.publicKey;
+            return truncatePublicKey(usage.publicKey);
           }
           if (hideMissingApiKey) {
             return null;
@@ -402,17 +442,29 @@ function SdkUsageSeriesRows({
         return (
           <li
             key={`${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
-            // Message-box style: soft fill + a thicker left edge to group the
-            // two lines of one item.
-            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+            className="py-2 text-sm"
           >
             {/* Action line: what it is and what to do about it. */}
             <div className="text-muted-foreground flex items-center gap-1.5">
-              <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
+              {needsAction(usage) ? (
+                <TriangleAlert
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-amber-500"
+                  aria-hidden="true"
+                />
+              ) : (
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-green-600"
+                  aria-hidden="true"
+                />
+              )}
               <MonoValue>{sdkLabel}</MonoValue>
               {suffix(usage)}
             </div>
-            {/* Metadata line, indented under the label (emoji + gap). */}
+            {/* Metadata line, indented under the label (icon + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {publicKey ? (
                 <span title={usage.publicKey || undefined}>{publicKey}</span>
@@ -658,6 +710,55 @@ export function V4MigrationCustomInstrumentationSection({
         needsAction={() => true}
         suffix={() => null}
       />
+    </Section>
+  );
+}
+
+export function V4MigrationMigratedKeysSection({
+  sdk,
+  defaultOpen,
+}: {
+  sdk: V4MigrationSdkState;
+  defaultOpen?: boolean;
+}) {
+  const series = getMigratedKeySeries(sdk);
+  if (series.length === 0) return null;
+
+  return (
+    <Section
+      title="Migrated"
+      analyticsSection="migrated"
+      count={series.length}
+      statusVariant="done"
+      defaultOpen={defaultOpen}
+    >
+      <ul className="divide-y">
+        {series.map(({ required, successor }) => (
+          <li
+            key={`${required.source}:${required.sdkName}:${required.sdkVersion}:${required.publicKey}`}
+            className="text-muted-foreground flex items-start gap-1.5 py-2 text-sm"
+          >
+            <CircleCheck
+              size="sm"
+              color="inherit"
+              __rawClassName="mt-0.5 text-green-600"
+              aria-hidden="true"
+            />
+            <span>
+              <span title={required.publicKey}>
+                {truncatePublicKey(required.publicKey)}
+              </span>{" "}
+              now uses the new ingestion API (
+              {ingestionModeLabel(successor.deliveryMode)}) · last legacy event{" "}
+              {formatCompactRelativeTime(new Date(required.lastSeen))}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground pt-2 text-sm leading-relaxed">
+        Everything looks good. This banner will disappear automatically once no
+        legacy traffic has been seen for {V4_MIGRATION_LOOKBACK_DAYS} days.
+      </p>
     </Section>
   );
 }
@@ -955,7 +1056,7 @@ export function V4MigrationApisSection({
               migration guide
             </ExternalLink>
           </p>
-          <div className="flex flex-col gap-3">
+          <div className="divide-y">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
               const callers = row.callers ?? [];
@@ -969,7 +1070,7 @@ export function V4MigrationApisSection({
                   : publicApiPrefixStart + publicApiPrefix.length;
 
               return (
-                <div key={row.endpoint} className="rounded-md border p-3">
+                <div key={row.endpoint} className="py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <ExternalLink
                       href={DEPRECATED_API_MIGRATION_URL}
@@ -997,7 +1098,7 @@ export function V4MigrationApisSection({
                     ) : null}
                   </div>
                   {hasKnownCallers ? (
-                    <ul className="mt-2 flex flex-col gap-2">
+                    <ul className="mt-1 divide-y">
                       {callers.map((caller, index) => {
                         const codingAgent = getCodingAgentName(
                           caller.userAgent,
@@ -1027,11 +1128,16 @@ export function V4MigrationApisSection({
                         return (
                           <li
                             key={`${callerName}-${index}`}
-                            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+                            className="py-2 text-sm"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                               <div className="text-muted-foreground flex items-center gap-1.5">
-                                <span aria-hidden="true">⚠️</span>
+                                <TriangleAlert
+                                  size="sm"
+                                  color="inherit"
+                                  __rawClassName="text-amber-500"
+                                  aria-hidden="true"
+                                />
                                 <MonoValue>{callerName}</MonoValue>
                               </div>
                               <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
@@ -1320,6 +1426,7 @@ export function V4MigrationDeadlineNote() {
 export function V4MigrationHeaderContent({
   titleRowClassName,
   readiness,
+  remainingActionsAreMigrated = false,
 }: {
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
@@ -1328,8 +1435,11 @@ export function V4MigrationHeaderContent({
   titleRowClassName?: string;
   /** Known readiness from the organization status page or an action-only entry point. */
   readiness?: ProjectMigrationReadiness;
+  /** Keys already on the new API are the only rows left in the lookback. */
+  remainingActionsAreMigrated?: boolean;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const showActionPrompt = actionNeeded && !remainingActionsAreMigrated;
   const title = useV4MigrationTitle();
 
   return (
@@ -1382,12 +1492,14 @@ export function V4MigrationHeaderContent({
             Langfuse Halo
           </ExternalLink>
           .
-          {actionNeeded
-            ? " Complete the action items below to avoid disruption."
-            : ""}{" "}
+          {remainingActionsAreMigrated
+            ? " Migration is done. This banner clears on its own if things stay green."
+            : showActionPrompt
+              ? " Complete the action items below to avoid disruption."
+              : ""}{" "}
           <V4MigrationDocsLink />
         </p>
-        {actionNeeded && <V4MigrationDeadlineNote />}
+        {showActionPrompt && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
@@ -1715,6 +1827,7 @@ export function V4MigrationDetailsContent({
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
           />
+          <V4MigrationMigratedKeysSection sdk={migrationData.sdk} />
 
           {!evalsClean && (
             <V4MigrationEvalsSection
