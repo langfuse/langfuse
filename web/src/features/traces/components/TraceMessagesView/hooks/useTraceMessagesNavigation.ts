@@ -3,10 +3,15 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { useSingleTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 export function useTraceMessagesNavigation() {
   const { trace, isPlaceholderData } = useSingleTraceData();
   const { isPeekMode, isAnnotationMode } = useViewPreferences();
+  const { canReadTraceMessages } = useCanReadTraceMessages({
+    projectId: trace.projectId,
+    isPublic: trace.public,
+  });
   const router = useRouter();
   const utils = api.useUtils();
   const { data: sessionTraces } = api.sessions.tracesFromEvents.useQuery(
@@ -37,7 +42,7 @@ export function useTraceMessagesNavigation() {
   const nextTrace =
     traceIndex >= 0 ? sessionTraces?.[traceIndex + 1] : undefined;
   useEffect(() => {
-    if (isPlaceholderData) return;
+    if (isPlaceholderData || !canReadTraceMessages) return;
     for (const neighbor of [previousTrace, nextTrace]) {
       if (!neighbor) continue;
       utils.events.transcriptByTraceId.prefetch(
@@ -50,7 +55,14 @@ export function useTraceMessagesNavigation() {
         { staleTime: 60 * 1_000 },
       );
     }
-  }, [isPlaceholderData, previousTrace, nextTrace, trace.projectId, utils]);
+  }, [
+    isPlaceholderData,
+    canReadTraceMessages,
+    previousTrace,
+    nextTrace,
+    trace.projectId,
+    utils,
+  ]);
   const [previousTraceLink, nextTraceLink] = [previousTrace, nextTrace].map(
     (target, directionIndex) => {
       if (isAnnotationMode || !target) return undefined;

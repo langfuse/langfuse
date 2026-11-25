@@ -18,6 +18,7 @@ const resourceKindOrder: ResourceKind[] = ["organization", "project"];
 
 const actionOrder = [
   "read",
+  "readMessage",
   "create",
   "update",
   "save",

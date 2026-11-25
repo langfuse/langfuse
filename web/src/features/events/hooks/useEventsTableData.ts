@@ -20,6 +20,7 @@ import {
   removeAppRootDefaultFilter,
   shouldRunAppRootFallbackQuery,
 } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
@@ -73,16 +74,28 @@ export function useEventsTableData({
   ioCharLimit,
 }: UseEventsTableDataParams) {
   const capture = usePostHogClientCapture();
+  const { isRestricted: isTraceMessageRestricted } = useCanReadTraceMessages({
+    projectId,
+  });
+  const effectiveSearchType = useMemo(() => {
+    const requested =
+      searchType ?? (isTraceMessageRestricted ? ["id"] : ["id", "content"]);
+    if (!isTraceMessageRestricted) return requested;
+    const filtered = requested.filter(
+      (type) => type !== "content" && type !== "input" && type !== "output",
+    );
+    return filtered.length > 0 ? filtered : (["id"] as TracingSearchType[]);
+  }, [searchType, isTraceMessageRestricted]);
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
       projectId,
       filter: filterState,
       searchQuery: searchQuery ?? null,
-      searchType: searchType ?? ["id", "content"],
+      searchType: effectiveSearchType,
       orderBy: null,
     }),
-    [projectId, filterState, searchQuery, searchType],
+    [projectId, filterState, searchQuery, effectiveSearchType],
   );
 
   const getAllPayload = useMemo(

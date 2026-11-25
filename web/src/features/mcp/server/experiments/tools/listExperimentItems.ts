@@ -12,6 +12,7 @@ import {
   observationRefs,
   scoreV3Refs,
 } from "@/src/features/audit-logs/server/auditedQuery";
+import { assertApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",
@@ -34,6 +35,14 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
         "mcp.experiment_item_fields": input.fields.join(","),
       },
       fn: async (span) => {
+        if (input.fields.includes("io")) {
+          assertApiTraceMessageAccess({
+            ctx: context.auth,
+            projectId: context.projectId,
+            accessLevel: context.accessLevel,
+          });
+        }
+
         const dataAccessWindow = clampToDataAccessDays({
           plan: context.plan,
           fromTimestamp: input.fromStartTime,

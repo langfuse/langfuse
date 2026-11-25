@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { checkApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 
 export default withMiddlewares(
   {
@@ -31,7 +32,12 @@ export default withMiddlewares(
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
       rejectInEventsOnlyMode: true,
       deprecation: OBSERVATIONS_V1_DEPRECATION,
-      fn: async ({ query, auth }) => {
+      fn: async ({ query, auth, ctx }) => {
+        const canReadMessages = checkApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        }).success;
         const startTime = query.startTime
           ? new Date(query.startTime)
           : undefined;
@@ -41,14 +47,14 @@ export default withMiddlewares(
             ? getObservationByIdFromEventsTable({
                 id: query.observationId,
                 projectId: auth.scope.projectId,
-                fetchWithInputOutput: true,
+                fetchWithInputOutput: canReadMessages,
                 startTime: withStartTime ? startTime : undefined,
               })
             : // eslint-disable-next-line @typescript-eslint/no-deprecated
               getObservationById({
                 id: query.observationId,
                 projectId: auth.scope.projectId,
-                fetchWithInputOutput: true,
+                fetchWithInputOutput: canReadMessages,
                 startTime: withStartTime ? startTime : undefined,
                 preferredClickhouseService: "ReadOnly",
               });

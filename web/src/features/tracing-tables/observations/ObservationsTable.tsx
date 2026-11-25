@@ -284,8 +284,13 @@ export default function ObservationsTable({
       refetchOnReconnect: false,
     },
   );
+  const hasTraceMessageAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:readMessage",
+  });
   const legacyTracingIoSearchEnabled =
-    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
+    hasTraceMessageAccess &&
+    (legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch({
       tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
@@ -1737,6 +1742,12 @@ const GenerationsDynamicCell = ({
   col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
+  const hasTraceMessageAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:readMessage",
+  });
+  const isRestrictedIo = col !== "metadata" && !hasTraceMessageAccess;
+
   const observation = api.observations.byId.useQuery(
     {
       observationId,
@@ -1746,12 +1757,23 @@ const GenerationsDynamicCell = ({
       verbosity: "compact",
     },
     {
-      enabled: typeof traceId === "string" && typeof observationId === "string",
+      enabled:
+        !isRestrictedIo &&
+        typeof traceId === "string" &&
+        typeof observationId === "string",
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
       meta: { silentHttpCodes: [404] },
     },
   );
+
+  if (isRestrictedIo) {
+    return (
+      <span className="text-muted-foreground text-xs italic">
+        Hidden for your role
+      </span>
+    );
+  }
 
   const data = (() => {
     if (col === "output") {

@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { checkApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -25,7 +26,7 @@ export default withMiddlewares({
     // Reads from the legacy traces ClickHouse table via getTracesBySessionId,
     // which has no events_full fallback.
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, ctx }) => {
       const { sessionId } = query;
       const session = !isStorableTraceSessionId(sessionId)
         ? null
@@ -50,14 +51,25 @@ export default withMiddlewares({
         );
       }
 
-      const traces = await getTracesBySessionId(auth.scope.projectId, [
-        sessionId,
-      ]);
+      const canReadMessages = checkApiTraceMessageAccess({
+        ctx,
+        projectId: auth.scope.projectId,
+        accessLevel: auth.scope.accessLevel,
+      }).success;
+
+      const traces = await getTracesBySessionId(
+        auth.scope.projectId,
+        [sessionId],
+        undefined,
+        { excludeInputOutput: !canReadMessages },
+      );
 
       return {
         ...session,
         traces: traces.map((trace) => ({
           ...trace,
+          input: canReadMessages ? trace.input : null,
+          output: canReadMessages ? trace.output : null,
           externalId: null,
         })),
       };

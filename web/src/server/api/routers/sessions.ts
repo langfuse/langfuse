@@ -7,6 +7,7 @@ import {
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { enforceTraceMessageSearchAndFilterAccess } from "@/src/features/traces/server/traceMessageAccess";
 import {
   applyCommentFilters,
   logger,
@@ -1062,13 +1063,18 @@ export const sessionRouter = createTRPCRouter({
   observationsForTraceFromEvents: auditedQuery(
     protectedGetSessionProcedure.input(SessionTraceObservationsInput),
     { resourceType: "trace", action: "read", idKey: "traceId" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
       const positionFilter = (input.filter ?? []).find(
         (filter) => filter.type === "positionInTrace",
       );
       const baseFilters = (input.filter ?? []).filter(
         (filter) => filter.type !== "positionInTrace",
       );
+
+      enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages: ctx.canReadTraceMessages,
+        filter: baseFilters,
+      });
 
       const filterState: FilterState = [
         ...baseFilters,
@@ -1120,7 +1126,9 @@ export const sessionRouter = createTRPCRouter({
         orderBy,
         limit,
         offset,
-        selectIOAndMetadata: true,
+        selectIOAndMetadata: ctx.canReadTraceMessages,
+        selectMetadata: !ctx.canReadTraceMessages,
+        selectToolData: false,
         ioSizeCap: {
           inlineChars: SESSION_OBSERVATION_INLINE_IO_CHAR_LIMIT,
           previewChars: SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
@@ -1187,6 +1195,17 @@ export const sessionRouter = createTRPCRouter({
       // so the accounting is independent of value shape.
       let cumulativeIOChars = 0;
       const observations = page.map((observation) => {
+        if (!ctx.canReadTraceMessages) {
+          return {
+            ...observation,
+            input: null,
+            output: null,
+            inputLength: 0,
+            outputLength: 0,
+            inputTruncated: false,
+            outputTruncated: false,
+          };
+        }
         const returnedIOChars =
           (observation.inputTruncated
             ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
@@ -1244,7 +1263,14 @@ export const sessionRouter = createTRPCRouter({
       }),
     ),
     { resourceType: "observation", action: "read", idKey: "observationId" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
+      if (!ctx.canReadTraceMessages) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Downloading full trace messages requires the traces:readMessage permission.",
+        });
+      }
       const observation = await getObservationFullIOForSessionFromEventsTable({
         projectId: input.projectId,
         sessionId: input.sessionId,

@@ -121,6 +121,14 @@ export const systemRoleAccessRights: Record<SystemRole, SystemRoleDefinition> =
       policies: userRoleAccessRights("VIEWER"),
       tags: ["principal:user", "principal:apiKey"],
     },
+    VIEWER_METADATA: {
+      id: "VIEWER_METADATA",
+      name: "ViewerMetadata",
+      description:
+        "Read-only access to trace metadata without message content.",
+      policies: userRoleAccessRights("VIEWER_METADATA"),
+      tags: ["principal:user", "principal:apiKey"],
+    },
     NONE: {
       id: "NONE",
       name: "None",

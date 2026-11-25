@@ -8,6 +8,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
+import { assertApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   ExpandMetadataKeysSchema,
@@ -83,6 +84,16 @@ export const [getObservationTool, handleGetObservation] = defineTool({
         }
 
         const projectionFields = getProjectionFields(input.fields);
+        if (
+          projectionFields.includes("input") ||
+          projectionFields.includes("output")
+        ) {
+          assertApiTraceMessageAccess({
+            ctx: context.auth,
+            projectId: context.projectId,
+            accessLevel: context.accessLevel,
+          });
+        }
         const fieldGroups = getProjectionFieldGroups(projectionFields);
 
         const items = await getObservationsV2FromEventsTableForPublicApi(

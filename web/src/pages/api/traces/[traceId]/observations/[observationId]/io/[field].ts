@@ -78,6 +78,7 @@ function toTraceAccessSession(
       email: user.email,
       organizations: user.organizations,
     },
+    policies: session.policies,
   };
 }
 
@@ -98,10 +99,15 @@ export default withMiddlewares({
     }
     const { traceId, observationId, field, projectId, startTime } = parsed.data;
 
-    // Authorize the (projectId, traceId) pair. Throws 401/404 before we stream.
+    // Authorize the (projectId, traceId) pair. Throws 401/403/404 before we stream.
     const authSession = await getServerAuthSession({ req, res });
     const session = toTraceAccessSession(authSession);
-    await getAuthorizedTrace({ traceId, projectId, session });
+    await getAuthorizedTrace({
+      traceId,
+      projectId,
+      session,
+      requireTraceMessageAccess: field !== "metadata",
+    });
 
     // Cheap existence pre-query BEFORE any bytes: a null (no matching row, e.g.
     // a stale/skewed startTime) becomes a clean 404 instead of a misleading

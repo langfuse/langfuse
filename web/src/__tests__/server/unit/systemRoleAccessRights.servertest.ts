@@ -136,16 +136,27 @@ describe("systemRoleAccessRights", () => {
     expect(projectRoleAccessRights.AI_GATEWAY).toEqual([]);
   });
 
-  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
-    "grants %s organizationSettings:read",
-    (role) => {
-      expect(organizationRoleAccessRights[role]).toContain(
-        "organizationSettings:read",
-      );
-    },
-  );
+  it.each([
+    "OWNER",
+    "ADMIN",
+    "MEMBER",
+    "VIEWER",
+    "VIEWER_METADATA",
+    "NONE",
+  ] as const)("grants %s organizationSettings:read", (role) => {
+    expect(organizationRoleAccessRights[role]).toContain(
+      "organizationSettings:read",
+    );
+  });
 
-  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
+  it.each([
+    "OWNER",
+    "ADMIN",
+    "MEMBER",
+    "VIEWER",
+    "VIEWER_METADATA",
+    "NONE",
+  ] as const)(
     "derives %s policies from the org and project access-right tables",
     (role) => {
       expect(systemRoleAccessRights[role].policies).toEqual([
@@ -168,7 +179,21 @@ describe("systemRoleAccessRights", () => {
       .filter((policy) => policy.resourceKind === "project")
       .flatMap((policy) => policy.actions);
     expect(viewerProjectActions).toContain("traces:read");
+    expect(viewerProjectActions).toContain("traces:readMessage");
+    expect(viewerProjectActions).toContain("media:read");
     expect(viewerProjectActions).not.toContain("scores:save");
+  });
+
+  it("grants VIEWER_METADATA trace metadata reads without message or media reads", () => {
+    const metadataProjectActions =
+      systemRoleAccessRights.VIEWER_METADATA.policies
+        .filter((policy) => policy.resourceKind === "project")
+        .flatMap((policy) => policy.actions);
+    expect(systemRoleAccessRights.VIEWER_METADATA.name).toBe("ViewerMetadata");
+    expect(metadataProjectActions).toContain("traces:read");
+    expect(metadataProjectActions).not.toContain("traces:readMessage");
+    expect(metadataProjectActions).not.toContain("media:read");
+    expect(metadataProjectActions).not.toContain("scores:save");
   });
 
   it("keys every definition by its own id", () => {

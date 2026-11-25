@@ -261,9 +261,32 @@ export const getTracesBySessionId = async (
   projectId: string,
   sessionIds: string[],
   timestamp?: Date,
+  options?: { excludeInputOutput?: boolean },
 ) => {
+  const selectClause = options?.excludeInputOutput
+    ? `
+      id,
+      name as name,
+      user_id as user_id,
+      metadata as metadata,
+      release as release,
+      version as version,
+      project_id,
+      environment,
+      public as public,
+      bookmarked as bookmarked,
+      tags,
+      '' as input,
+      '' as output,
+      session_id as session_id,
+      0 as is_deleted,
+      timestamp,
+      created_at,
+      updated_at
+    `
+    : "*";
   const query = `
-    SELECT *
+    SELECT ${selectClause}
     FROM traces
     WHERE session_id IN ({sessionIds: Array(String)})
     AND project_id = {projectId: String}

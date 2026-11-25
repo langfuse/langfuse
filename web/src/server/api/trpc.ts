@@ -29,6 +29,11 @@ import {
   isSignInRequiredError,
   signInRequiredError,
 } from "@/src/server/utils/trpc-utils";
+import {
+  canSessionReadTraceMessages,
+  hasSessionProjectMembership,
+} from "@/src/features/traces/server/traceMessageAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
@@ -547,6 +552,14 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
     const useEventsTraceSource =
       readSource === "v4" && env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
 
+    const memberLacksTraceMessageAccess =
+      hasSessionProjectMembership(ctx.session, projectId) &&
+      !hasProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "traces:readMessage",
+      });
+
     let clickhouseTrace = traceId
       ? useEventsTraceSource
         ? await getTraceByIdFromEventsTable({
@@ -568,6 +581,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
               fromTimestamp ??
               (isEventsOnly ? timestamp : undefined) ??
               undefined,
+            excludeInputOutput: memberLacksTraceMessageAccess,
             renderingProps: {
               truncated: verbosity === "truncated",
               shouldJsonParse: false, // we do not want to parse the input/output for tRPC
@@ -591,6 +605,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         traceId,
         projectId,
         fromTimestamp: fromTimestamp ?? timestamp ?? undefined,
+        excludeInputOutput: memberLacksTraceMessageAccess,
         renderingProps: {
           truncated: verbosity === "truncated",
           shouldJsonParse: false,
@@ -608,14 +623,6 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    const trace = clickhouseTrace
-      ? {
-          ...clickhouseTrace,
-          input: parseIO(clickhouseTrace.input, verbosity),
-          output: parseIO(clickhouseTrace.output, verbosity),
-        }
-      : null;
-
     const sessionProject = ctx.session?.user?.organizations
       .flatMap((org) =>
         org.projects.map((project) => ({ ...project, organization: org })),
@@ -623,10 +630,11 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       .find(({ id }) => id === projectId);
 
     const traceSession =
-      !!trace?.sessionId && isStorableTraceSessionId(trace.sessionId)
+      !!clickhouseTrace?.sessionId &&
+      isStorableTraceSessionId(clickhouseTrace.sessionId)
         ? await ctx.prisma.traceSession.findFirst({
             where: {
-              id: trace.sessionId,
+              id: clickhouseTrace.sessionId,
               projectId,
             },
             select: {
@@ -637,7 +645,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     const isSessionPublic = traceSession?.public === true;
 
-    if (!trace?.public && !sessionProject && !isSessionPublic) {
+    if (!clickhouseTrace?.public && !sessionProject && !isSessionPublic) {
       logger.error(
         `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
       );
@@ -648,11 +656,30 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
+    const canReadTraceMessages = canSessionReadTraceMessages({
+      session: ctx.session,
+      projectId,
+      isPublic: Boolean(clickhouseTrace?.public || isSessionPublic),
+    });
+
+    const trace = clickhouseTrace
+      ? {
+          ...clickhouseTrace,
+          input: canReadTraceMessages
+            ? parseIO(clickhouseTrace.input, verbosity)
+            : null,
+          output: canReadTraceMessages
+            ? parseIO(clickhouseTrace.output, verbosity)
+            : null,
+        }
+      : null;
+
     addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
         trace, // pass the trace to the next middleware so we do not need to fetch it again
+        canReadTraceMessages,
       },
     });
   });
@@ -724,9 +751,20 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
+  const canReadTraceMessages = canSessionReadTraceMessages({
+    session: ctx.session,
+    projectId,
+    isPublic: isPublicSession,
+  });
+
   addUserToSpan({ projectId }, ctx.requestSpan);
 
-  return next({ ctx });
+  return next({
+    ctx: {
+      ...ctx,
+      canReadTraceMessages,
+    },
+  });
 });
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure

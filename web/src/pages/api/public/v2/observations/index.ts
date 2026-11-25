@@ -15,6 +15,10 @@ import {
 } from "@/src/features/public-api/types/observations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
+import {
+  assertApiTraceMessageAccess,
+  hasIoFilterColumn,
+} from "@/src/features/traces/server/traceMessageAccess";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
@@ -29,7 +33,7 @@ export default withMiddlewares({
       refs: (response) => observationRefs(response.data),
       resultCount: (response) => response.data.length,
     },
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, ctx }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
           "The observations v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
@@ -38,6 +42,13 @@ export default withMiddlewares({
 
       // Extract field groups and metadata expansion keys
       const fieldGroups = query.fields ?? undefined;
+      if (fieldGroups?.includes("io") || hasIoFilterColumn(query.filter)) {
+        assertApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        });
+      }
       const expandMetadataKeys = query.expandMetadata ?? undefined;
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,

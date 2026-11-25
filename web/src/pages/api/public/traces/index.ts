@@ -37,6 +37,10 @@ import {
   TRACES_DEPRECATION,
 } from "@/src/features/public-api/server/deprecations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import {
+  checkApiTraceMessageAccess,
+  hasIoFilterColumn,
+} from "@/src/features/traces/server/traceMessageAccess";
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
@@ -91,7 +95,7 @@ export default withMiddlewares(
       deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth }) => {
+      fn: async ({ query, auth, ctx }) => {
         // Api-performance controls.
         // 1. Reject if no date range and rejection is enabled
         if (
@@ -156,6 +160,19 @@ export default withMiddlewares(
           if (parsed.length > 0) {
             effectiveFields = parsed;
           }
+        }
+
+        const messageDecision = checkApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        });
+        if (!messageDecision.success) {
+          if (query.fields?.includes("io") || hasIoFilterColumn(query.filter)) {
+            throw messageDecision.error;
+          }
+          const baseFields = effectiveFields ?? [...TRACE_FIELD_GROUPS];
+          effectiveFields = baseFields.filter((f) => f !== "io");
         }
 
         const filterProps = {

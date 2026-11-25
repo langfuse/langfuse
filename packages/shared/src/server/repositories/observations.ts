@@ -550,6 +550,8 @@ export type ObservationTableQuery = {
     lastId: string;
   };
   selectIOAndMetadata?: boolean;
+  selectMetadata?: boolean;
+  selectToolData?: boolean;
   renderingProps?: RenderingProps;
   /**
    * Per-field I/O size cap (events table only): fields whose full length is

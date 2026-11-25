@@ -74,6 +74,17 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
     }
   });
 
+  it("blocks trace message and media MCP tools for VIEWER_METADATA while allowing metadata-safe tools", () => {
+    const policy = createInAppAgentToolPolicy({
+      userAccess: { projectRole: "VIEWER_METADATA" },
+    });
+    expect([...policy.available]).not.toContain("getObservation");
+    expect([...policy.available]).not.toContain("listObservations");
+    expect([...policy.available]).not.toContain("listExperimentItems");
+    expect([...policy.available]).not.toContain("getMedia");
+    expect([...policy.available]).toContain("queryMetrics");
+  });
+
   it("classifies every Langfuse MCP tool exactly once", () => {
     expectTypeOf<InAppAgentLangfuseMcpToolName>().toEqualTypeOf<McpToolName>();
 

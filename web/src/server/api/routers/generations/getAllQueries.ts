@@ -12,6 +12,8 @@ import {
   applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { enforceTraceMessageSearchAndFilterAccess } from "@/src/features/traces/server/traceMessageAccess";
 
 const GetAllGenerationsInput = GenerationTableOptions.safeExtend({
   ...paginationZod,
@@ -23,14 +25,25 @@ export const getAllQueries = {
   all: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
-      const search = sanitizeLegacyTracingSearch({
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
         searchQuery: input.searchQuery,
         searchType: input.searchType,
+        filter: input.filter,
+      });
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: sanitizedInput.searchQuery,
+        searchType: sanitizedInput.searchType,
         tableName: BatchTableNames.Observations,
       });
 
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: input.projectId,
         objectType: "OBSERVATION",
@@ -58,14 +71,25 @@ export const getAllQueries = {
   countAll: protectedProjectProcedure
     .input(GenerationTableOptions)
     .query(async ({ input, ctx }) => {
-      const search = sanitizeLegacyTracingSearch({
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
         searchQuery: input.searchQuery,
         searchType: input.searchType,
+        filter: input.filter,
+      });
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: sanitizedInput.searchQuery,
+        searchType: sanitizedInput.searchType,
         tableName: BatchTableNames.Observations,
       });
 
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: input.projectId,
         objectType: "OBSERVATION",

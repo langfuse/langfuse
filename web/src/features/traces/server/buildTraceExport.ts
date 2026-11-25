@@ -1,9 +1,11 @@
 import {
   BaseError,
+  ForbiddenError,
   LangfuseNotFoundError,
   ScoreDataTypeEnum,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import {
   getScoresAndCorrectionsForTraces,
   getObservationsCountFromEventsTable,
@@ -13,6 +15,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
+import { type Session } from "next-auth";
+import { authorize } from "@/src/features/rbac/authorize";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../constants/traceDownloadConfig";
 
 /** @internal */
@@ -26,6 +30,7 @@ export type TraceExportSession = {
       }>;
     }>;
   };
+  policies?: Session["policies"];
 };
 
 export type TraceExportAccessSession = TraceExportSession | null;
@@ -106,8 +111,14 @@ export async function getAuthorizedTrace(params: {
   traceId: string;
   projectId: string;
   session: TraceExportAccessSession;
+  requireTraceMessageAccess?: boolean;
 }) {
-  const { traceId, projectId, session } = params;
+  const {
+    traceId,
+    projectId,
+    session,
+    requireTraceMessageAccess = false,
+  } = params;
 
   const clickhouseTrace = await getTraceByIdFromEventsTable({
     traceId,
@@ -149,6 +160,25 @@ export async function getAuthorizedTrace(params: {
     );
   }
 
+  if (requireTraceMessageAccess && sessionOrganization !== undefined) {
+    if (!sessionOrganization.id || session?.policies === undefined) {
+      throw new ForbiddenError(
+        "Accessing trace message payloads requires the traces:readMessage permission.",
+      );
+    }
+    const decision = authorize(
+      { policies: session.policies },
+      OrganizationId(sessionOrganization.id),
+      "traces:readMessage",
+      ProjectId(projectId),
+    );
+    if (!decision.success) {
+      throw new ForbiddenError(
+        "Accessing trace message payloads requires the traces:readMessage permission.",
+      );
+    }
+  }
+
   return clickhouseTrace;
 }
 
@@ -165,6 +195,7 @@ export async function buildTraceExport({
     traceId,
     projectId,
     session,
+    requireTraceMessageAccess: true,
   });
 
   const observationRecordCount = await getObservationRecordCountForTrace({

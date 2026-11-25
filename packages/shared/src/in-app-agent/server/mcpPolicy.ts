@@ -218,7 +218,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listExperimentItems: {
     approval: "auto",
-    availability: { scope: "promptExperiments:read" },
+    availability: { scope: "traces:readMessage" },
   },
   submitFeedback: {
     approval: "approval",
@@ -230,7 +230,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   getMedia: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "media:read" },
   },
   getExternalMediaStorage: {
     approval: "auto",
@@ -282,11 +282,11 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listObservations: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "traces:readMessage" },
   },
   getObservation: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "traces:readMessage" },
   },
   getObservationFieldSchema: {
     approval: "auto",

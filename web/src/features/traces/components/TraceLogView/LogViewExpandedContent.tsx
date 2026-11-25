@@ -15,6 +15,7 @@ import {
   type JsonViewPreference,
   toPrettyOrJsonView,
 } from "@/src/components/ui/jsonViewPreference";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -41,7 +42,12 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
   externalExpansionState,
   onExternalExpansionChange,
 }: LogViewExpandedContentProps) {
-  // Fetch I/O data lazily
+  const { isRestricted } = useCanReadTraceMessages({
+    projectId,
+    isPublic: true,
+  });
+
+  // Fetch I/O data lazily (backend redacts input/output while preserving metadata when restricted)
   const { data, isLoading, isError } = useLogViewObservationIO({
     observationId: node.observationId ?? node.id,
     traceId: node.traceId ?? traceId,
@@ -57,10 +63,10 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
     // Filter out null/undefined values for cleaner display
     const result: Record<string, unknown> = {};
 
-    if (data.input !== null && data.input !== undefined) {
+    if (!isRestricted && data.input !== null && data.input !== undefined) {
       result.input = data.input;
     }
-    if (data.output !== null && data.output !== undefined) {
+    if (!isRestricted && data.output !== null && data.output !== undefined) {
       result.output = data.output;
     }
     if (data.metadata !== null && data.metadata !== undefined) {
@@ -68,10 +74,16 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
     }
 
     return Object.keys(result).length > 0 ? result : null;
-  }, [data]);
+  }, [data, isRestricted]);
 
   return (
     <div className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs [&_th:first-child]:pl-6">
+      {isRestricted && (
+        <div className="text-muted-foreground py-1.5 pl-6 text-xs">
+          Input and output messages are hidden for your role.
+        </div>
+      )}
+
       {isLoading && (
         <div className="flex items-center justify-center py-4">
           <Spinner size="sm" variant="muted" />
@@ -99,7 +111,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
         />
       )}
 
-      {!jsonData && !isLoading && !isError && (
+      {!jsonData && !isLoading && !isError && !isRestricted && (
         <div className="text-muted-foreground py-2 pl-6 text-xs">
           No input/output/metadata
         </div>

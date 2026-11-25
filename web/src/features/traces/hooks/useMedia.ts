@@ -1,3 +1,4 @@
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 export type UseMediaParams = {
@@ -21,6 +22,11 @@ export function useMedia({
   observationId,
   enabled = true,
 }: UseMediaParams) {
+  const hasMediaAccess = useHasProjectAccess({
+    projectId,
+    scope: "media:read",
+  });
+
   return api.media.getByTraceOrObservationId.useQuery(
     {
       projectId,
@@ -28,7 +34,7 @@ export function useMedia({
       observationId,
     },
     {
-      enabled,
+      enabled: enabled && hasMediaAccess,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

@@ -26,7 +26,7 @@ export const mediaRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId,
-        scope: "project:read",
+        scope: "media:read",
       });
 
       try {
@@ -53,6 +53,11 @@ export const mediaRouter = createTRPCRouter({
     .input(z.object({ mediaId: z.string(), projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       const { projectId, mediaId } = input;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "media:read",
+      });
 
       const media = await ctx.prisma.media.findUnique({
         where: {
@@ -109,6 +114,11 @@ export const mediaRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { projectId, traceId } = input;
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "media:read",
+      });
 
       let media: {
         id: string;

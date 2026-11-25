@@ -23,6 +23,10 @@ import {
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import {
+  checkApiTraceMessageAccess,
+  hasIoFilterColumn,
+} from "@/src/features/traces/server/traceMessageAccess";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -36,7 +40,16 @@ export default withMiddlewares(
         legacyPublicApiRateLimitUpgradePaths.observationsList,
       rejectInEventsOnlyMode: true,
       deprecation: OBSERVATIONS_V1_DEPRECATION,
-      fn: async ({ query, auth }) => {
+      fn: async ({ query, auth, ctx }) => {
+        const messageDecision = checkApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        });
+        if (!messageDecision.success && hasIoFilterColumn(query.filter)) {
+          throw messageDecision.error;
+        }
+        const canReadMessages = messageDecision.success;
         const dataAccessWindow = clampToDataAccessDays({
           plan: auth.scope.plan,
           fromTimestamp: query.fromStartTime ?? undefined,
@@ -87,7 +100,11 @@ export default withMiddlewares(
           ]);
 
           return {
-            data: items.map(transformDbToApiObservation),
+            data: items
+              .map((item) =>
+                canReadMessages ? item : { ...item, input: null, output: null },
+              )
+              .map(transformDbToApiObservation),
             meta: {
               page: query.page,
               limit: query.limit,
@@ -134,6 +151,8 @@ export default withMiddlewares(
               const model = models.find((m) => m.id === i.internalModelId);
               return {
                 ...i,
+                input: canReadMessages ? i.input : null,
+                output: canReadMessages ? i.output : null,
                 modelId: model?.id ?? null,
                 inputPrice:
                   model?.Price?.find((m) => m.usageType === "input")?.price ??

@@ -118,7 +118,7 @@ export const env = createEnv({
           : undefined,
       ),
     LANGFUSE_DEFAULT_ORG_ROLE: z
-      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "VIEWER_METADATA", "NONE"])
       .optional(),
     LANGFUSE_DEFAULT_PROJECT_ID: z
       .string()
@@ -132,7 +132,7 @@ export const env = createEnv({
           : undefined,
       ),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
-      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
+      .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "VIEWER_METADATA"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z
       .enum(["true", "false"])

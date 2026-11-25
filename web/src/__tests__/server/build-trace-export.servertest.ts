@@ -1,6 +1,7 @@
 import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { env } from "@langfuse/shared/src/env";
 import { beforeEach, afterAll, describe, expect, it, vi } from "vitest";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 import {
   buildTraceExport,
   TraceDownloadTooLargeError,
@@ -55,6 +56,7 @@ const observationStartTimeFilter = new Date(
 
 const makeSession = (overrides?: {
   projects?: Array<{ id: string }>;
+  policies?: TraceExportSession["policies"];
 }): TraceExportSession => ({
   user: {
     email: "test@example.com",
@@ -65,6 +67,18 @@ const makeSession = (overrides?: {
       },
     ],
   },
+  policies: overrides?.policies ?? [
+    [
+      {
+        id: "system/OWNER:project",
+        roleId: SystemRoleId("OWNER"),
+        tenantId: OrganizationId("org-1"),
+        effect: "ALLOW",
+        actions: ["traces:read", "traces:readMessage"],
+        resources: [ProjectId(projectId)],
+      },
+    ],
+  ],
 });
 
 const makeTrace = (overrides?: Record<string, unknown>) => ({

@@ -15,6 +15,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import { useSessionScopeActions } from "@/src/features/traces/hooks/useSessionScopeActions";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
@@ -123,6 +124,10 @@ function LoadedTraceDetailActions({
   onShowTranscript?: () => void;
   onShowTopicsTranscript?: () => void;
 }) {
+  const { canReadTraceMessages } = useCanReadTraceMessages({
+    projectId: trace.projectId,
+    isPublic: trace.public,
+  });
   const sessionActions = useSessionScopeActions({
     projectId: trace.projectId,
     sessionId: trace.sessionId ?? "",
@@ -161,7 +166,7 @@ function LoadedTraceDetailActions({
             const items: DropdownMenuItemDefinition[] = [
               ...shareItems,
               ...copyItems,
-              ...(onShowTranscript
+              ...(canReadTraceMessages && onShowTranscript
                 ? [
                     {
                       type: "item" as const,
@@ -173,7 +178,7 @@ function LoadedTraceDetailActions({
                     },
                   ]
                 : []),
-              ...(onShowTopicsTranscript
+              ...(canReadTraceMessages && onShowTopicsTranscript
                 ? [
                     {
                       type: "item" as const,
@@ -200,18 +205,22 @@ function LoadedTraceDetailActions({
               isSessionScope
                 ? sessionActions
                 : [
-                    {
-                      id: "download-json",
-                      type: "button",
-                      label: "Download JSON",
-                      icon: Download,
-                      isLoading: isDownloading,
-                      iconOnly: true,
-                      disabled: isDownloading || isPlaceholderData,
-                      onClick: () => {
-                        handleDownload();
-                      },
-                    },
+                    ...(canReadTraceMessages
+                      ? [
+                          {
+                            id: "download-json",
+                            type: "button" as const,
+                            label: "Download JSON",
+                            icon: Download,
+                            isLoading: isDownloading,
+                            iconOnly: true,
+                            disabled: isDownloading || isPlaceholderData,
+                            onClick: () => {
+                              handleDownload();
+                            },
+                          },
+                        ]
+                      : []),
                     {
                       id: JSON.stringify([
                         "trace-options",

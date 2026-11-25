@@ -97,6 +97,7 @@ import { ConnectedSessionManageViewsDialog } from "@/src/features/sessions/Sessi
 import { SessionDuplicateViewDialog } from "@/src/features/sessions/SessionDuplicateViewDialog/SessionDuplicateViewDialog";
 import { SessionDeleteViewDialog } from "@/src/features/sessions/SessionDeleteViewDialog/SessionDeleteViewDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 import { ConnectedSessionCustomizationDialog } from "@/src/features/sessions/SessionCustomizationDialog/ConnectedSessionCustomizationDialog";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -264,6 +265,11 @@ export const SessionPage: React.FC<{
     },
     { enabled: Boolean(projectId) && Boolean(sessionId) },
   );
+
+  const { canReadTraceMessages } = useCanReadTraceMessages({
+    projectId,
+    isPublic: session.data?.public ?? false,
+  });
 
   const onDownloadSessionAsJson = useCallback(async () => {
     await downloadSessionAsJson({
@@ -437,14 +443,18 @@ export const SessionPage: React.FC<{
                       },
                     ]
                   : []),
-                {
-                  id: "download",
-                  type: "button",
-                  label: "Download JSON",
-                  icon: Download,
-                  iconOnly: true,
-                  onClick: onDownloadSessionAsJson,
-                },
+                ...(canReadTraceMessages
+                  ? [
+                      {
+                        id: "download",
+                        type: "button" as const,
+                        label: "Download JSON",
+                        icon: Download,
+                        iconOnly: true,
+                        onClick: onDownloadSessionAsJson,
+                      },
+                    ]
+                  : []),
                 {
                   id: "navigation",
                   type: "custom",
@@ -1088,6 +1098,10 @@ const LoadedSessionEventsPage: React.FC<{
     }),
     [],
   );
+  const { canReadTraceMessages } = useCanReadTraceMessages({
+    projectId,
+    isPublic: session.public,
+  });
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
@@ -1098,10 +1112,13 @@ const LoadedSessionEventsPage: React.FC<{
       ],
       facets: observationEventsFilterConfig.facets.filter(
         (facet) =>
-          facet.column !== "sessionId" && facet.column !== "environment",
+          facet.column !== "sessionId" &&
+          facet.column !== "environment" &&
+          (canReadTraceMessages ||
+            (facet.column !== "input" && facet.column !== "output")),
       ),
     };
-  }, [positionInTraceColumn, sessionEventsTableName]);
+  }, [canReadTraceMessages, positionInTraceColumn, sessionEventsTableName]);
   const [urlFiltersQuery] = useQueryParam("filter", StringParam);
   const filtersQuery = React.useMemo(
     () =>

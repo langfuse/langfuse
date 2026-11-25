@@ -6,7 +6,11 @@ import {
   refsIf,
 } from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
+import { enforceTraceMessageSearchAndFilterAccess } from "@/src/features/traces/server/traceMessageAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   applyCommentFilters,
@@ -146,14 +150,25 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      const search = sanitizeLegacyTracingSearch({
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
         searchQuery: input.searchQuery,
         searchType: input.searchType,
+        filter: input.filter,
+      });
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: sanitizedInput.searchQuery,
+        searchType: sanitizedInput.searchType,
         tableName: BatchTableNames.Traces,
       });
 
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "TRACE",
@@ -180,14 +195,25 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
-      const search = sanitizeLegacyTracingSearch({
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
         searchQuery: input.searchQuery,
         searchType: input.searchType,
+        filter: input.filter,
+      });
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: sanitizedInput.searchQuery,
+        searchType: sanitizedInput.searchType,
         tableName: BatchTableNames.Traces,
       });
 
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "TRACE",

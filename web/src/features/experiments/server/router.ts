@@ -59,7 +59,10 @@ import {
   parsePromptToolConfig,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
@@ -933,6 +936,12 @@ export const experimentsRouter = createTRPCRouter({
         ioCharLimit: input.ioCharLimit,
       });
 
+      const canReadTraceMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:readMessage",
+      });
+
       audit.refs(
         batchIO.flatMap((item) =>
           item.outputs.flatMap((run) => [
@@ -942,6 +951,17 @@ export const experimentsRouter = createTRPCRouter({
         ),
       );
       audit.count(batchIO.length);
+      if (!canReadTraceMessages) {
+        return batchIO.map((item) => ({
+          ...item,
+          input: null,
+          expectedOutput: null,
+          outputs: item.outputs.map((run) => ({
+            ...run,
+            output: null,
+          })),
+        }));
+      }
       return batchIO;
     },
   ),

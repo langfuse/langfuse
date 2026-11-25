@@ -4,6 +4,7 @@ import { getQueryKey } from "@trpc/react-query";
 import PQueue from "p-queue";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 export type SessionTraceTranscriptState =
   | { state: "loading" }
@@ -26,9 +27,13 @@ export function useSessionTraceTranscripts({
 }): Map<string, SessionTraceTranscriptState> {
   const [queue] = useState(() => new PQueue({ concurrency: 4 }));
   const utils = api.useUtils();
-  const activeTraces = traces.filter(({ trace }) =>
-    activeTraceIds.has(trace.id),
-  );
+  const { canReadTraceMessages } = useCanReadTraceMessages({
+    projectId,
+    isPublic: true,
+  });
+  const activeTraces = canReadTraceMessages
+    ? traces.filter(({ trace }) => activeTraceIds.has(trace.id))
+    : [];
   const results = useQueries({
     queries: activeTraces.map(({ trace }) => {
       const input = {

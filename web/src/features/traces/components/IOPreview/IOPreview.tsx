@@ -22,7 +22,9 @@ import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { BookOpen, X } from "@langfuse/icons";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
@@ -161,6 +163,12 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
+  const { isRestricted: isTraceMessageRestricted } = useCanReadTraceMessages({
+    projectId,
+    isPublic: true,
+  });
+  const effectiveHideInput = hideInput || isTraceMessageRestricted;
+  const effectiveHideOutput = hideOutput || isTraceMessageRestricted;
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -192,22 +200,24 @@ export function IOPreview({
   // Shared props for both view components
   const sharedProps = {
     skills,
-    input,
-    output,
+    input: isTraceMessageRestricted ? undefined : input,
+    output: isTraceMessageRestricted ? undefined : output,
     status,
     outputCorrection,
     traceOutputCorrection,
     metadata,
-    parsedInput,
-    parsedOutput,
+    parsedInput: isTraceMessageRestricted ? undefined : parsedInput,
+    parsedOutput: isTraceMessageRestricted ? undefined : parsedOutput,
     parsedMetadata,
-    chatMLParserResult,
+    chatMLParserResult: isTraceMessageRestricted
+      ? undefined
+      : chatMLParserResult,
     isLoading,
     isParsing,
     hideIfNull,
-    hideInput,
-    hideOutput,
-    media,
+    hideInput: effectiveHideInput,
+    hideOutput: effectiveHideOutput,
+    media: isTraceMessageRestricted ? undefined : media,
     inputExpansionState,
     outputExpansionState,
     metadataExpansionState,
@@ -227,6 +237,7 @@ export function IOPreview({
   const hasInput = input !== null && input !== undefined;
   const hasOutput = output !== null && output !== undefined;
   const showEmptyState =
+    !isTraceMessageRestricted &&
     !hasInput &&
     !hasOutput &&
     !observationName && // Only show for traces, not observations
@@ -236,7 +247,16 @@ export function IOPreview({
 
   return (
     <>
-      {showViewToggle && (
+      {isTraceMessageRestricted && (
+        <div className="mb-2">
+          <Banner variant="info">
+            Trace message content (input and output) is hidden for your role.
+            Metadata, latency, usage, costs, and scores remain available.
+          </Banner>
+        </div>
+      )}
+
+      {showViewToggle && !isTraceMessageRestricted && (
         <ViewModeToggle
           selectedView={selectedView}
           onViewChange={handleViewChange}
@@ -257,18 +277,18 @@ export function IOPreview({
       {selectedView === "json-beta" && (
         <IOPreviewJSON
           hideMetadata
-          input={input}
-          output={output}
+          input={isTraceMessageRestricted ? undefined : input}
+          output={isTraceMessageRestricted ? undefined : output}
           status={status}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
+          parsedInput={isTraceMessageRestricted ? undefined : parsedInput}
+          parsedOutput={isTraceMessageRestricted ? undefined : parsedOutput}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
+          hideInput={effectiveHideInput}
+          hideOutput={effectiveHideOutput}
+          media={isTraceMessageRestricted ? undefined : media}
           expansionState={advancedJsonExpansionState}
           onExpansionChange={onAdvancedJsonExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
@@ -285,19 +305,19 @@ export function IOPreview({
       {selectedView === "json" && (
         <IOPreviewJSONSimple
           hideMetadata
-          input={input}
-          output={output}
+          input={isTraceMessageRestricted ? undefined : input}
+          output={isTraceMessageRestricted ? undefined : output}
           status={status}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
+          parsedInput={isTraceMessageRestricted ? undefined : parsedInput}
+          parsedOutput={isTraceMessageRestricted ? undefined : parsedOutput}
           isLoading={isLoading}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
+          hideInput={effectiveHideInput}
+          hideOutput={effectiveHideOutput}
+          media={isTraceMessageRestricted ? undefined : media}
           inputExpanded={jsonInputExpanded}
           outputExpanded={jsonOutputExpanded}
           metadataExpanded={jsonMetadataExpanded}

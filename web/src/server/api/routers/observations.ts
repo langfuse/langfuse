@@ -23,11 +23,11 @@ export const observationsRouter = createTRPCRouter({
       }),
     ),
     { resourceType: "observation", action: "read", idKey: "observationId" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
       const queryOpts = {
         id: input.observationId,
         projectId: input.projectId,
-        fetchWithInputOutput: true,
+        fetchWithInputOutput: ctx.canReadTraceMessages,
         traceId: input.traceId,
         startTime: input.startTime ?? undefined,
         renderingProps: {
@@ -45,8 +45,18 @@ export const observationsRouter = createTRPCRouter({
       audit.refs([ref("trace", input.traceId)]);
       return {
         ...toDomainWithStringifiedMetadata(obs),
-        input: parseIO(obs.input, input.verbosity) as string,
-        output: parseIO(obs.output, input.verbosity) as string,
+        input: ctx.canReadTraceMessages
+          ? (parseIO(obs.input, input.verbosity) as string)
+          : null,
+        output: ctx.canReadTraceMessages
+          ? (parseIO(obs.output, input.verbosity) as string)
+          : null,
+        ...(ctx.canReadTraceMessages
+          ? {}
+          : {
+              toolCalls: null,
+              toolDefinitions: null,
+            }),
         internalModel: obs?.internalModelId,
       };
     },

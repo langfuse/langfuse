@@ -59,6 +59,7 @@ const LangfuseRole = z.enum([
   "ADMIN",
   "MEMBER",
   "VIEWER",
+  "VIEWER_METADATA",
   "NONE",
   "AI_GATEWAY",
 ]);
@@ -70,6 +71,7 @@ const LANGFUSE_TO_SFDC_ROLE = {
   ADMIN: "ADMIN",
   MEMBER: "DEVELOPER",
   VIEWER: "DEVELOPER",
+  VIEWER_METADATA: "DEVELOPER",
   AI_GATEWAY: "DEVELOPER",
 } as const;
 

@@ -32,6 +32,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { recordPublicApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import { checkApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 
 export default withMiddlewares(
   {
@@ -44,7 +45,7 @@ export default withMiddlewares(
       responseSchema: GetTraceV1Response,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.traceGet,
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth, req }) => {
+      fn: async ({ query, auth, req, ctx }) => {
         const { traceId } = query;
 
         let effectiveFields: readonly TraceFieldGroup[] =
@@ -59,8 +60,17 @@ export default withMiddlewares(
             effectiveFields = parsed;
           }
         }
+        const messageDecision = checkApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        });
+        if (!messageDecision.success && query.fields?.includes("io")) {
+          throw messageDecision.error;
+        }
+        const canReadMessages = messageDecision.success;
         const requestedFields = effectiveFields;
-        const includeIO = requestedFields.includes("io");
+        const includeIO = requestedFields.includes("io") && canReadMessages;
         const includeObservations = requestedFields.includes("observations");
         const includeScores = requestedFields.includes("scores");
         const includeMetrics = requestedFields.includes("metrics");
@@ -71,7 +81,7 @@ export default withMiddlewares(
           projectId: auth.scope.projectId,
           preferredClickhouseService: "ReadOnly",
           excludeInputOutput: !includeIO,
-          excludeMetadata: !includeIO,
+          excludeMetadata: !requestedFields.includes("io"),
         });
 
         if (!trace) {
@@ -86,7 +96,7 @@ export default withMiddlewares(
                 traceId,
                 projectId: auth.scope.projectId,
                 timestamp: trace?.timestamp,
-                includeIO: includeObservations,
+                includeIO: includeObservations && canReadMessages,
                 preferredClickhouseService: "ReadOnly",
               })
             : Promise.resolve([]),
@@ -218,7 +228,7 @@ export default withMiddlewares(
         return {
           ...trace,
           externalId: null,
-          metadata: includeIO ? trace.metadata : {},
+          metadata: requestedFields.includes("io") ? trace.metadata : {},
           scores: includeScores ? validatedScores : [],
           latency: includeMetrics ? latencySeconds : -1,
           observations: includeObservations ? outObservations : [],

@@ -21,6 +21,7 @@ import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { observationRefs } from "@/src/features/audit-logs/server/auditedQuery";
+import { assertApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 import {
   ExpandMetadataKeysSchema,
   getMetadataExpansionForProjection,
@@ -177,6 +178,18 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           (60 * 60 * 1000),
       },
       fn: async () => {
+        if (
+          projectionFields.includes("input") ||
+          projectionFields.includes("output") ||
+          filterColumns.has("input") ||
+          filterColumns.has("output")
+        ) {
+          assertApiTraceMessageAccess({
+            ctx: context.auth,
+            projectId: context.projectId,
+            accessLevel: context.accessLevel,
+          });
+        }
         const fieldGroups = getProjectionFieldGroups(projectionFields);
         assertAllowedObservationRange(input);
         const dataAccessWindow = clampToDataAccessDays({

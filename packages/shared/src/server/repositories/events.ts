@@ -3237,6 +3237,8 @@ export const getObservationsBatchIOFromEventsTable = async <
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
   includeSkillFields?: TIncludeSkills;
+  /** When true, omits input, output, tool_calls, and experiment expected output from ClickHouse reads. */
+  excludeInputOutput?: boolean;
 }): Promise<
   Array<
     EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls, TIncludeSkills>
@@ -3281,26 +3283,34 @@ export const getObservationsBatchIOFromEventsTable = async <
         )
       : values;
 
+  const excludeInputOutput = opts.excludeInputOutput === true;
+
   // Keep the individual filters for primary-key pruning and the tuple filter
   // for exact trace/observation matching.
   const builder = getClickhouseKysely()
     .selectFrom(truncated ? "events_truncated as e" : "events as e")
-    .select((eb) => [
-      "e.span_id as id",
-      "e.trace_id as trace_id",
-      capIo(eb.ref("e.input")).as("input"),
-      capIo(eb.ref("e.output")).as("output"),
-    ])
-    .$if(opts.includeExperimentFields === true, (qb) =>
+    .select(["e.span_id as id", "e.trace_id as trace_id"])
+    .$if(!excludeInputOutput, (qb) =>
       qb.select((eb) => [
-        capOnFullRead(eb.ref("e.experiment_item_expected_output")).as(
-          "experiment_item_expected_output",
-        ),
-        metadataMap(
-          eb.ref("e.experiment_item_metadata_names"),
-          capEachOnFullRead(eb.ref("e.experiment_item_metadata_values")),
-        ).as("experiment_item_metadata"),
+        capIo(eb.ref("e.input")).as("input"),
+        capIo(eb.ref("e.output")).as("output"),
       ]),
+    )
+    .$if(opts.includeExperimentFields === true, (qb) =>
+      qb
+        .$if(!excludeInputOutput, (innerQb) =>
+          innerQb.select((eb) =>
+            capOnFullRead(eb.ref("e.experiment_item_expected_output")).as(
+              "experiment_item_expected_output",
+            ),
+          ),
+        )
+        .select((eb) =>
+          metadataMap(
+            eb.ref("e.experiment_item_metadata_names"),
+            capEachOnFullRead(eb.ref("e.experiment_item_metadata_values")),
+          ).as("experiment_item_metadata"),
+        ),
     )
     .$if(opts.includeSkillFields === true, (qb) =>
       qb.select([
@@ -3309,10 +3319,11 @@ export const getObservationsBatchIOFromEventsTable = async <
       ]),
     )
     .$if(opts.includeToolCallFields === true, (qb) =>
-      qb.select([
-        "e.tool_calls as tool_calls",
-        "e.tool_call_names as tool_call_names",
-      ]),
+      qb
+        .$if(!excludeInputOutput, (innerQb) =>
+          innerQb.select("e.tool_calls as tool_calls"),
+        )
+        .select("e.tool_call_names as tool_call_names"),
     )
     .select((eb) =>
       metadataMap(
@@ -3351,8 +3362,8 @@ export const getObservationsBatchIOFromEventsTable = async <
   const results = await queryClickhouse<{
     id: string;
     trace_id: string;
-    input: string | null;
-    output: string | null;
+    input?: string | null;
+    output?: string | null;
     metadata: Record<string, string>;
     skills_available?: SkillsAvailable;
     skills_resource_loaded?: SkillsResourceLoaded;
@@ -3370,8 +3381,12 @@ export const getObservationsBatchIOFromEventsTable = async <
   return results.map((r) => ({
     id: r.id,
     traceId: r.trace_id,
-    input: applyBatchIOStringRendering(r.input),
-    output: applyBatchIOStringRendering(r.output),
+    input: excludeInputOutput
+      ? null
+      : applyBatchIOStringRendering(r.input ?? null),
+    output: excludeInputOutput
+      ? null
+      : applyBatchIOStringRendering(r.output ?? null),
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
     ...(opts.includeSkillFields
@@ -3382,13 +3397,15 @@ export const getObservationsBatchIOFromEventsTable = async <
       : {}),
     ...(opts.includeToolCallFields
       ? {
-          toolCalls: r.tool_calls ?? [],
+          toolCalls: excludeInputOutput ? [] : (r.tool_calls ?? []),
           toolCallNames: r.tool_call_names ?? [],
         }
       : {}),
     ...(opts.includeExperimentFields
       ? {
-          experimentItemExpectedOutput: r.experiment_item_expected_output,
+          experimentItemExpectedOutput: excludeInputOutput
+            ? null
+            : r.experiment_item_expected_output,
           experimentItemMetadata:
             r.experiment_item_metadata !== undefined
               ? parseMetadataCHRecordToDomain(r.experiment_item_metadata)

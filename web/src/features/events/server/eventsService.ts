@@ -81,6 +81,7 @@ interface GetObservationsListBaseParams {
   searchQuery?: string;
   searchType: any[];
   limit: number;
+  selectToolData?: boolean;
 }
 
 interface GetObservationsListParams extends GetObservationsListBaseParams {
@@ -268,6 +269,7 @@ export async function getEventList(params: GetObservationsListParams) {
     limit: params.limit + 1,
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
+    selectToolData: params.selectToolData,
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
@@ -287,6 +289,7 @@ export async function getEventListCursor(
     cursor: params.cursor,
     dedupeBySpanId: true,
     selectIOAndMetadata: false,
+    selectToolData: params.selectToolData,
     renderingProps: { truncated: true, shouldJsonParse: false },
   });
   const boundary = page.observations.at(-1);
@@ -955,6 +958,7 @@ interface GetEventBatchIOParams<
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
   includeSkillFields?: TIncludeSkills;
+  excludeInputOutput?: boolean;
 }
 
 /**
@@ -986,5 +990,6 @@ export async function getEventBatchIO<
     includeExperimentFields: params.includeExperimentFields,
     includeToolCallFields: params.includeToolCallFields,
     includeSkillFields: params.includeSkillFields,
+    excludeInputOutput: params.excludeInputOutput,
   });
 }

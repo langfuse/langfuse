@@ -33,6 +33,7 @@ const allRoles: Role[] = [
   "ADMIN",
   "MEMBER",
   "VIEWER",
+  "VIEWER_METADATA",
   "AI_GATEWAY",
   "NONE",
 ];

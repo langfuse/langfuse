@@ -14,6 +14,8 @@ import {
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";
 import { canUseTraceTranscriptEvals } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { enforceTraceMessageSearchAndFilterAccess } from "@/src/features/traces/server/traceMessageAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -162,6 +164,18 @@ export const eventsRouter = createTRPCRouter({
     protectedProjectProcedure.input(GetAllEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        filter: input.filter,
+      });
+
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
         expectedTimeColumn: "startTime",
@@ -172,7 +186,7 @@ export const eventsRouter = createTRPCRouter({
       }
 
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
@@ -192,11 +206,12 @@ export const eventsRouter = createTRPCRouter({
           const events = await getEventList({
             projectId: ctx.session.projectId,
             filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
+            searchQuery: sanitizedInput.searchQuery,
+            searchType: sanitizedInput.searchType,
             orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
+            selectToolData: canReadMessages,
           });
           audit.refs(observationRefs(events.observations));
           audit.count(events.observations.length);
@@ -209,9 +224,16 @@ export const eventsRouter = createTRPCRouter({
     protectedGetSessionProcedure.input(GetSessionEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages: ctx.canReadTraceMessages,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        filter: input.filter,
+      });
+
       const filter = isProjectMember(ctx.session?.user, input.projectId)
-        ? (input.filter ?? [])
-        : (input.filter ?? []).filter(
+        ? (sanitizedInput.filter ?? [])
+        : (sanitizedInput.filter ?? []).filter(
             ({ column }) =>
               column !== "commentContent" && column !== "commentCount",
           );
@@ -245,11 +267,12 @@ export const eventsRouter = createTRPCRouter({
             value: input.sessionId,
           },
         ],
-        searchQuery: input.searchQuery ?? undefined,
-        searchType: input.searchType,
+        searchQuery: sanitizedInput.searchQuery,
+        searchType: sanitizedInput.searchType,
         orderBy: normalizedOrderBy,
         page: input.page,
         limit: input.limit,
+        selectToolData: ctx.canReadTraceMessages,
       });
       audit.refs([
         ref("session", input.sessionId),
@@ -263,8 +286,20 @@ export const eventsRouter = createTRPCRouter({
     protectedProjectProcedure.input(GetEventsCursorInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        filter: input.filter,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
@@ -290,10 +325,11 @@ export const eventsRouter = createTRPCRouter({
           const events = await getEventListCursor({
             projectId: ctx.session.projectId,
             filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
+            searchQuery: sanitizedInput.searchQuery,
+            searchType: sanitizedInput.searchType,
             limit: input.limit,
             cursor: input.cursor,
+            selectToolData: canReadMessages,
           });
           audit.refs(observationRefs(events.observations));
           audit.count(events.observations.length);
@@ -305,8 +341,20 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      const sanitizedInput = enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        filter: input.filter,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
+        filterState: sanitizedInput.filter ?? [],
         prisma: ctx.prisma,
         projectId: ctx.session.projectId,
         objectType: "OBSERVATION",
@@ -329,8 +377,8 @@ export const eventsRouter = createTRPCRouter({
           return getEventCount({
             projectId: ctx.session.projectId,
             filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
+            searchQuery: sanitizedInput.searchQuery,
+            searchType: sanitizedInput.searchType,
             orderBy: normalizedOrderBy,
           });
         },
@@ -338,7 +386,17 @@ export const eventsRouter = createTRPCRouter({
     }),
   filterOptions: protectedProjectProcedure
     .input(GetEventFilterOptionsInput)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
+      enforceTraceMessageSearchAndFilterAccess({
+        canReadMessages,
+        filter: input.filter,
+      });
+
       return instrumentAsync(
         {
           name: "get-event-filter-options-trpc",
@@ -379,7 +437,7 @@ export const eventsRouter = createTRPCRouter({
   batchIO: auditedQuery(
     protectedGetEventsTraceProcedure.input(BatchIOInput),
     { resourceType: "observation", action: "read" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
       return instrumentAsync(
         { name: "get-event-batch-io-trpc" },
         async (span) => {
@@ -401,6 +459,7 @@ export const eventsRouter = createTRPCRouter({
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
             includeSkillFields: input.includeSkills,
+            excludeInputOutput: !ctx.canReadTraceMessages,
           });
 
           audit.refs(observationRefs(batchIO));
@@ -413,7 +472,7 @@ export const eventsRouter = createTRPCRouter({
   sessionBatchIO: auditedQuery(
     protectedGetSessionProcedure.input(SessionBatchIOInput),
     { resourceType: "observation", action: "read" },
-    async ({ input, audit }) => {
+    async ({ input, ctx, audit }) => {
       return instrumentAsync(
         { name: "get-event-session-batch-io-trpc" },
         async (span) => {
@@ -431,6 +490,7 @@ export const eventsRouter = createTRPCRouter({
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
             includeSkillFields: input.includeSkills,
+            excludeInputOutput: !ctx.canReadTraceMessages,
           });
 
           audit.refs([
@@ -447,6 +507,11 @@ export const eventsRouter = createTRPCRouter({
     protectedProjectProcedure.input(BatchIOInput),
     { resourceType: "observation", action: "read" },
     async ({ input, ctx, audit }) => {
+      const canReadMessages = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "traces:readMessage",
+      });
       return instrumentAsync(
         { name: "get-experiment-batch-io-trpc" },
         async (span) => {
@@ -463,6 +528,7 @@ export const eventsRouter = createTRPCRouter({
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
             includeSkillFields: input.includeSkills,
+            excludeInputOutput: !canReadMessages,
           });
 
           audit.refs(observationRefs(batchIO));
@@ -536,6 +602,13 @@ export const eventsRouter = createTRPCRouter({
     ),
     { resourceType: "trace", action: "read", idKey: "traceId" },
     async ({ input, ctx, audit }) => {
+      if (!ctx.canReadTraceMessages) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Viewing trace transcripts requires the traces:readMessage permission.",
+        });
+      }
       const isSessionTimelineEnabled =
         getContextualFeatureFlags(ctx.session?.user, {
           projectId: input.projectId,
@@ -620,6 +693,13 @@ export const eventsRouter = createTRPCRouter({
     ),
     { resourceType: "trace", action: "read", idKey: "traceId" },
     async ({ input, ctx, audit }) => {
+      if (!ctx.canReadTraceMessages) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Viewing trace transcripts requires the traces:readMessage permission.",
+        });
+      }
       if (
         !hasInternalAccess({
           email: ctx.session?.user?.email,

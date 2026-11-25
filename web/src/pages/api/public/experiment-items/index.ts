@@ -13,6 +13,7 @@ import {
   observationRefs,
   scoreV3Refs,
 } from "@/src/features/audit-logs/server/auditedQuery";
+import { assertApiTraceMessageAccess } from "@/src/features/traces/server/traceMessageAccess";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiment Items",
@@ -31,11 +32,19 @@ export default withMiddlewares({
       ],
       resultCount: (response) => response.data.length,
     },
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, ctx }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
           "The experiment items API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
+      }
+
+      if (query.fields.includes("io")) {
+        assertApiTraceMessageAccess({
+          ctx,
+          projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+        });
       }
 
       const dataAccessWindow = clampToDataAccessDays({

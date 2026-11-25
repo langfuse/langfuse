@@ -351,18 +351,25 @@ export default function ObservationsEventsTable({
     projectId,
     scope: "batchExports:create",
   });
+  const hasTraceMessageAccess = useHasProjectAccess({
+    projectId,
+    scope: "traces:readMessage",
+  });
   const canViewTopics = useCanViewTopics(projectId);
   // Topic filters resolve on the project-scoped endpoints only, not in a session's events.
   const showTopicFilter = canViewTopics && !sessionId;
   const eventsFilterConfig = useMemo(() => {
     // Omitting `topics` without access also drops a topic filter arriving by URL or saved view.
-    const config = getObservationEventsFilterConfig(
-      showTopicFilter ? omittedFilter : [...omittedFilter, "topics"],
-    );
+    const effectiveOmitted: ObservationEventsOmittableFilterColumn[] = [
+      ...omittedFilter,
+      ...(showTopicFilter ? [] : (["topics"] as const)),
+      ...(hasTraceMessageAccess ? [] : (["input", "output"] as const)),
+    ];
+    const config = getObservationEventsFilterConfig(effectiveOmitted);
     return showTopicFilter
       ? { ...config, facets: [...config.facets, topicsFilterFacet] }
       : config;
-  }, [omittedFilter, showTopicFilter]);
+  }, [omittedFilter, showTopicFilter, hasTraceMessageAccess]);
   // Also names the per-facet Topics columns, which session views show too.
   const topicFilterOptions = useTopicFilterOptions(projectId, canViewTopics);
 
@@ -1395,7 +1402,11 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("input"),
       size: 300,
       getCell: (value, { row }) =>
-        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+        !hasTraceMessageAccess
+          ? "Hidden for your role"
+          : isIoPending(row.original.id)
+            ? { type: "loading" }
+            : value || undefined,
       singleLine: compactRows,
       enableHiding: true,
     }),
@@ -1404,7 +1415,11 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("output"),
       size: 300,
       getCell: (value, { row }) =>
-        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+        !hasTraceMessageAccess
+          ? "Hidden for your role"
+          : isIoPending(row.original.id)
+            ? { type: "loading" }
+            : value || undefined,
       singleLine: compactRows,
       variant: "output",
       enableHiding: true,

@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
+import { SessionContext } from "next-auth/react";
 
 import { ImageOff } from "@langfuse/icons";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@langfuse/shared";
 import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   type MediaContentType,
   type MediaReturnType,
@@ -74,6 +76,16 @@ export const LangfuseMediaView = ({
   }, [mediaReferenceString, mediaAPIReturnValue]);
 
   const projectId = useProjectIdFromURL();
+  const session = useContext(SessionContext);
+  const hasMediaAccess =
+    session === undefined ||
+    (typeof projectId === "string" &&
+      projectId.length > 0 &&
+      hasProjectAccess({
+        session: session.data ?? null,
+        projectId,
+        scope: "media:read",
+      }));
 
   if (!mediaData) {
     const text = "Invalid Langfuse Media Tag";
@@ -99,7 +111,7 @@ export const LangfuseMediaView = ({
       projectId: projectId as string,
     },
     {
-      enabled: Boolean(projectId) && !isOversizedField,
+      enabled: Boolean(projectId) && !isOversizedField && hasMediaAccess,
       ...mediaUrlQueryOptions,
     },
   );

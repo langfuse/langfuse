@@ -26,6 +26,7 @@ const roleValues = {
   ADMIN: "ADMIN",
   MEMBER: "MEMBER",
   VIEWER: "VIEWER",
+  VIEWER_METADATA: "VIEWER_METADATA",
   AI_GATEWAY: "AI_GATEWAY",
   NONE: "NONE",
 } as const satisfies Record<Role, Role>;

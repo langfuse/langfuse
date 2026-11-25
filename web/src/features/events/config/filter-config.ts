@@ -71,7 +71,9 @@ export type ObservationEventsOmittableFilterColumn =
   | "sessionId"
   | "userId"
   | "promptName"
-  | "topics";
+  | "topics"
+  | "input"
+  | "output";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",

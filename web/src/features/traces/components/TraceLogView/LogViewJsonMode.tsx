@@ -13,6 +13,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type FlatLogItem } from "./log-view-types";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { useCanReadTraceMessages } from "@/src/features/traces/hooks/useCanReadTraceMessages";
 
 export interface LogViewJsonModeProps {
   items: FlatLogItem[];
@@ -35,6 +36,10 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
   isCollapsed,
   onToggleCollapse,
 }: LogViewJsonModeProps) {
+  const { canReadTraceMessages, isRestricted } = useCanReadTraceMessages({
+    projectId,
+    isPublic: true,
+  });
   const { data, isLoading, isError, loadAllData, totalCount } =
     useLogViewAllObservationsIO({
       items,
@@ -44,10 +49,21 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
 
   // Auto-load data when JSON mode is rendered
   useEffect(() => {
-    if (!data && !isLoading && !isError) {
+    if (canReadTraceMessages && !data && !isLoading && !isError) {
       loadAllData();
     }
-  }, [data, isLoading, isError, loadAllData]);
+  }, [canReadTraceMessages, data, isLoading, isError, loadAllData]);
+
+  if (isRestricted) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-4">
+        <Banner variant="info">
+          Full trace JSON is hidden for your role. Switch back to table view to
+          inspect trace metadata and timings.
+        </Banner>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">

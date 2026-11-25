@@ -40,6 +40,7 @@ function getTraceExportSession(
       email: user.email,
       organizations: user.organizations,
     },
+    policies: session.policies,
   };
 }
 
