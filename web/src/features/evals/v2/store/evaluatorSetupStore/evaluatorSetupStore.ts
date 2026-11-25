@@ -3,6 +3,7 @@ import {
   EvalTemplateTypeEnum,
   experimentTargetEvalVariableColumns,
   isTraceTranscriptEvalType,
+  TRACE_TRANSCRIPT_EVAL_COLUMN,
   TopicsTargetObject,
   type FilterState,
   type ModelConfig,
@@ -77,6 +78,22 @@ function buildInitialVariableFields(
         },
       ];
     }),
+  );
+}
+
+/** A stored threads mapping keeps its path; every other variable reads the default thread field. */
+function buildInitialTraceVariableFields(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): Record<string, VariableFieldState> {
+  return Object.fromEntries(
+    Object.entries(buildInitialVariableFields(definition)).map(
+      ([variable, field]) => [
+        variable,
+        field.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
+          ? field
+          : TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      ],
+    ),
   );
 }
 
@@ -211,6 +228,7 @@ export function createEvaluatorSetupStore({
   initialEvaluator,
   initialSampleFilter,
   initialType,
+  initialTargetObject,
   defaultModel = null,
 }: {
   initialEvaluator: {
@@ -220,6 +238,7 @@ export function createEvaluatorSetupStore({
   } | null;
   initialSampleFilter?: FilterState;
   initialType?: EditableEvaluatorType;
+  initialTargetObject?: EvaluatorTargetObject;
   defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
@@ -243,6 +262,11 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "LLM_AS_JUDGE" ||
     initialDefinition?.type === "DECISION_MODEL";
   const initialQuestions = buildInitialQuestions(initialDefinition);
+  const targetObject =
+    initialTargetObject === TopicsTargetObject &&
+    isTraceTranscriptEvalType(type)
+      ? TopicsTargetObject
+      : EvalTargetObject.EVENT;
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
@@ -261,7 +285,10 @@ export function createEvaluatorSetupStore({
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
     openSteps: { 1: true, 2: true, 3: true },
-    variableFields: buildInitialVariableFields(initialDefinition),
+    variableFields:
+      targetObject === TopicsTargetObject
+        ? buildInitialTraceVariableFields(initialDefinition)
+        : buildInitialVariableFields(initialDefinition),
     activeMapping: null,
     modelPickerOpen: false,
     modelMode:
@@ -286,7 +313,7 @@ export function createEvaluatorSetupStore({
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
-    targetObject: EvalTargetObject.EVENT,
+    targetObject,
     traceSampleFilter: [],
     promptPreviewEnabled: false,
     testPanelOpen: true,

@@ -1,7 +1,17 @@
 import { useRouter } from "next/router";
-import type { EvalTemplateType } from "@langfuse/shared";
+import {
+  isTraceTranscriptEvalType,
+  TopicsTargetObject,
+  type EvalTemplateType,
+} from "@langfuse/shared";
 import { EvaluatorSetupLoadingPage } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupLoadingPage/EvaluatorSetupLoadingPage";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  api,
+  shouldRetryResourceQuery,
+  type RouterOutputs,
+} from "@/src/utils/api";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
@@ -53,7 +63,21 @@ export default function EvaluatorDetailPage() {
     { enabled: Boolean(projectId && evaluatorId) },
   );
 
-  if (evaluator.isPending) {
+  // Without rule access the call would only fail, so the page opens on Observation.
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
+  const canReadRules = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:read",
+  });
+  const assignmentsEnabled = Boolean(
+    projectId && evaluatorId && traceEvalsAvailable && canReadRules,
+  );
+  const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
+    { projectId, evaluatorId },
+    { enabled: assignmentsEnabled, retry: shouldRetryResourceQuery },
+  );
+
+  if (evaluator.isPending || (assignmentsEnabled && assignments.isPending)) {
     return <EvaluatorSetupLoadingPage mode="edit" projectId={projectId} />;
   }
   if (!evaluator.data?.versions[0] || evaluator.data.type === "FACET") {
@@ -62,11 +86,23 @@ export default function EvaluatorDetailPage() {
 
   const latest = evaluator.data.versions[0];
   const definition = toSetupDefinition(evaluator.data.type, latest);
+  const linkedOnlyToTraceRules =
+    traceEvalsAvailable &&
+    isTraceTranscriptEvalType(evaluator.data.type) &&
+    assignments.data !== undefined &&
+    assignments.data.length > 0 &&
+    assignments.data.every(
+      (assignment) =>
+        assignment.evaluationRule.targetObject === TopicsTargetObject,
+    );
   return (
     <EvaluatorSetupPage
       mode="edit"
       key={`${evaluator.data.id}-${latest.id}`}
       projectId={projectId}
+      initialTargetObject={
+        linkedOnlyToTraceRules ? TopicsTargetObject : undefined
+      }
       initialEvaluator={{
         id: evaluator.data.id,
         name: evaluator.data.name,
