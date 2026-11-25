@@ -1,6 +1,16 @@
 /* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Form } from "@/src/components/design-system/Form/Form";
+import { Button as DesignButton } from "@/src/components/design-system/Button/Button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { Button } from "@/src/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
 import { X, Plus, RefreshCw, Lock, LockOpen } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -123,150 +133,158 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
         }`}
       />
 
-      <div>
-        <h3 className="text-sm font-bold">Headers</h3>
-
-        {/* Default Headers Section */}
-        <div className="mb-4">
-          <p className="text-muted-foreground mb-2 text-sm">
+      <Card>
+        <CardHeader>
+          <CardTitle>Headers</CardTitle>
+          <CardDescription>
             Default headers (automatically added by Langfuse):
-          </p>
-          <dl className="bg-muted/50 space-y-1 rounded-md p-3 font-mono text-xs">
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <dl className="space-y-1 text-sm">
             {Object.entries({
               ...WebhookDefaultHeaders,
               "x-langfuse-signature": "t=<timestamp>,v1=<signature>",
             }).map(([name, value]) => (
               <div key={name} className="grid grid-cols-2 gap-2 wrap-anywhere">
-                <dt>{name}</dt>
-                <dd>{value}</dd>
+                <dt>
+                  <code>{name}</code>
+                </dt>
+                <dd>
+                  <code>{value}</code>
+                </dd>
               </div>
             ))}
           </dl>
-        </div>
+          <CardDescription>
+            Optional custom headers to include in the webhook request:
+          </CardDescription>
 
-        {/* Custom Headers Section */}
-        <p className="text-muted-foreground mb-2 text-sm">
-          Optional custom headers to include in the webhook request:
-        </p>
+          {customHeaderFields.map((field) => {
+            // Find the original index in the headerFields array
+            const originalIndex = headerFields.findIndex(
+              (f) => f.id === field.id,
+            );
+            const isSecret = form.watch(
+              `webhook.headers.${originalIndex}.isSecret`,
+            );
+            const displayValue = form.watch(
+              `webhook.headers.${originalIndex}.displayValue`,
+            );
+            const wasSecret = form.watch(
+              `webhook.headers.${originalIndex}.wasSecret`,
+            );
+            const valuePlaceholder =
+              wasSecret && isUrlChanged
+                ? "Re-enter secret value"
+                : displayValue || "Value";
 
-        {customHeaderFields.map((field) => {
-          // Find the original index in the headerFields array
-          const originalIndex = headerFields.findIndex(
-            (f) => f.id === field.id,
-          );
-          const isSecret = form.watch(
-            `webhook.headers.${originalIndex}.isSecret`,
-          );
-          const displayValue = form.watch(
-            `webhook.headers.${originalIndex}.displayValue`,
-          );
-          const wasSecret = form.watch(
-            `webhook.headers.${originalIndex}.wasSecret`,
-          );
-          const valuePlaceholder =
-            wasSecret && isUrlChanged
-              ? "Re-enter secret value"
-              : displayValue || "Value";
-
-          return (
-            <div
-              key={field.id}
-              className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
-            >
-              <Form.InputField
-                control={form.control}
-                name={`webhook.headers.${originalIndex}.name`}
-                label="Header Name"
-                placeholder="Header Name"
-                disabled={disabled}
-              />
-              <Form.InputField
-                control={form.control}
-                name={`webhook.headers.${originalIndex}.value`}
-                label="Value"
-                placeholder={valuePlaceholder}
-                disabled={disabled}
-                type={isSecret ? "password" : "text"}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="mt-5"
-                onClick={() => toggleHeaderSecret(originalIndex)}
-                disabled={disabled}
-                title={isSecret ? "Make header public" : "Make header secret"}
+            return (
+              <div
+                key={field.id}
+                className="grid grid-cols-2 items-start gap-2"
               >
-                {isSecret ? (
-                  <Lock size="base" __rawClassName="text-orange-500" />
-                ) : (
-                  <LockOpen size="base" color="muted" />
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="mt-5"
-                onClick={() => removeHeader(originalIndex)}
-                disabled={disabled}
-                aria-label="Remove header"
-              >
-                <X size="base" color="default" />
-              </Button>
-            </div>
-          );
-        })}
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={addHeader}
-          disabled={disabled}
-          className="mt-2"
-        >
-          <Plus size="base" color="default" __rawClassName="mr-1" />
-          Add Custom Header
-        </Button>
-      </div>
-
-      {/* Webhook Secret Section */}
-      <div>
-        <h3 className="text-sm font-bold">Webhook Secret</h3>
-        <p className="text-muted-foreground mb-2 text-sm">
-          Use this secret to verify webhook signatures for security. The secret
-          is automatically included in the x-langfuse-signature header.
-        </p>
-
-        {action?.id ? (
-          <div className="rounded-md border p-3">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <CodeSection
-                  variant="outline"
-                  content={
-                    (action.config as SafeWebhookActionConfig).displaySecretKey
-                  }
+                <Form.InputField
+                  control={form.control}
+                  name={`webhook.headers.${originalIndex}.name`}
+                  label="Header name"
+                  placeholder="Header name"
+                  disabled={disabled}
                 />
+                <Form.Field
+                  control={form.control}
+                  name={`webhook.headers.${originalIndex}.value`}
+                  label="Value"
+                >
+                  {(valueField) => (
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+                      <Input
+                        id={valueField.id}
+                        name={valueField.name}
+                        ref={valueField.ref}
+                        value={valueField.value}
+                        onChange={valueField.onChange}
+                        onBlur={valueField.onBlur}
+                        aria-describedby={valueField.inputDescribedById}
+                        aria-invalid={Boolean(valueField.error)}
+                        error={Boolean(valueField.error)}
+                        placeholder={valuePlaceholder}
+                        disabled={disabled}
+                        type={isSecret ? "password" : "text"}
+                      />
+                      <IconButton
+                        icon={isSecret ? Lock : LockOpen}
+                        label="Secret header"
+                        aria-pressed={isSecret}
+                        title={
+                          isSecret ? "Make header public" : "Make header secret"
+                        }
+                        onClick={() => toggleHeaderSecret(originalIndex)}
+                        disabled={disabled}
+                      />
+                      <IconButton
+                        icon={X}
+                        label="Remove header"
+                        onClick={() => removeHeader(originalIndex)}
+                        disabled={disabled}
+                      />
+                    </div>
+                  )}
+                </Form.Field>
               </div>
-              <div className="flex gap-2">
-                <RegenerateWebhookSecretButton
-                  projectId={projectId}
-                  action={action}
-                />
+            );
+          })}
+
+          <DesignButton
+            variant="outline"
+            onClick={addHeader}
+            disabled={disabled}
+            icon={Plus}
+            text="Add custom header"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhook secret</CardTitle>
+          <CardDescription>
+            Use this secret to verify webhook signatures for security. The
+            secret is automatically included in the x-langfuse-signature header.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {action?.id ? (
+            <div className="rounded-md border p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <CodeSection
+                    variant="outline"
+                    content={
+                      (action.config as SafeWebhookActionConfig)
+                        .displaySecretKey
+                    }
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <RegenerateWebhookSecretButton
+                    projectId={projectId}
+                    action={action}
+                  />
+                </div>
               </div>
+              <CardDescription>
+                Secret is encrypted and can only be viewed when generated or
+                regenerated
+              </CardDescription>
             </div>
-            <div className="text-muted-foreground mt-1 text-xs">
-              Secret is encrypted and can only be viewed when generated or
-              regenerated
-            </div>
-          </div>
-        ) : (
-          <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
-            Webhook secret will be generated when the automation is created.
-          </div>
-        )}
-      </div>
+          ) : (
+            <CardDescription>
+              Webhook secret will be generated when the automation is created.
+            </CardDescription>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

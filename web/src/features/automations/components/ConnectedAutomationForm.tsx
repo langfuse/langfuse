@@ -1,14 +1,10 @@
-/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import React from "react";
-import { Form } from "@/src/components/design-system/Form/Form";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Button } from "@/src/components/ui/button";
-import { AutomationForm } from "./AutomationForm";
+import { useState, type ComponentProps } from "react";
+import { AutomationForm } from "./AutomationForm/AutomationForm";
 import { useRouter } from "next/router";
 import { z } from "zod";
-import { type Control, FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "@/src/utils/api";
 import {
@@ -26,14 +22,11 @@ import {
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
 } from "@langfuse/shared/pagerduty";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ActionHandlerRegistry } from "@/src/features/automations/components/actions/ActionHandlerRegistry";
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
@@ -136,7 +129,7 @@ export const parseCreateAutomationPrefill = (
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
-  eventSource: z.string().min(1, "Event source is required"),
+  eventSource: TriggerEventSourceSchema,
   eventAction: z.array(z.string()),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
@@ -180,164 +173,6 @@ const formSchema = z
 
 export type FormValues = z.infer<typeof formSchema>;
 
-/** ConnectedEventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
-const ConnectedEventSourceField = ({
-  control,
-  onSourceChange,
-  disabled,
-}: {
-  control: Control<FormValues>;
-  onSourceChange: (value: TriggerEventSource) => void;
-  disabled: boolean;
-}) => {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  return (
-    <Form.Field
-      control={control}
-      name="eventSource"
-      label="Event Source"
-      description="The event that triggers this automation."
-    >
-      {(field) => (
-        <SelectInput<TriggerEventSource | "planned">
-          id={field.id}
-          ref={field.ref}
-          onBlur={field.onBlur}
-          aria-describedby={field.inputDescribedById}
-          aria-invalid={Boolean(field.error)}
-          error={Boolean(field.error)}
-          onValueChange={(value) => {
-            if (value !== "planned") onSourceChange(value);
-          }}
-          value={field.value as TriggerEventSource}
-          disabled={disabled}
-          placeholder="Select an event source"
-          options={[
-            { value: TriggerEventSource.Prompt, label: "Prompt" },
-            { value: TriggerEventSource.Skill, label: "Skill" },
-            ...(isLangfuseCloud || field.value === TriggerEventSource.Monitor
-              ? [{ value: TriggerEventSource.Monitor, label: "Alert" }]
-              : []),
-            {
-              value: "planned",
-              label: "More coming soon...",
-              disabled: true,
-              disabledReason: "Additional event sources are not available yet.",
-            },
-          ]}
-        />
-      )}
-    </Form.Field>
-  );
-};
-
-/** ConnectedVersionTriggerFields renders the eventAction picker and inline filter builder for prompt and skill automations. */
-const ConnectedVersionTriggerFields = ({
-  projectId,
-  eventSource,
-  control,
-  disabled,
-}: {
-  projectId: string;
-  eventSource: TriggerEventSource;
-  control: Control<FormValues>;
-  disabled: boolean;
-}) => {
-  const [optionsOpened, setOptionsOpened] = React.useState(false);
-  const isSkill = eventSource === TriggerEventSource.Skill;
-  const resource = isSkill ? "skill" : "prompt";
-  const { filterOptions, isFetching: optionsLoading } = useVersionFilterOptions(
-    {
-      projectId,
-      eventSource,
-      enabled: optionsOpened,
-    },
-  );
-
-  return (
-    <>
-      <Form.Field
-        control={control}
-        name="eventAction"
-        label="Event Action"
-        description="The actions on the event source that trigger this automation."
-      >
-        {(field) => (
-          <div
-            role="group"
-            aria-label="Event Action"
-            aria-describedby={field.inputDescribedById}
-          >
-            <MultiSelect
-              title="Event Actions"
-              label="Actions"
-              values={field.value}
-              onValueChange={field.onChange}
-              options={[
-                {
-                  value: "created",
-                  description: `Whenever a new ${resource} version is created`,
-                },
-                {
-                  value: "updated",
-                  description: `Whenever tags or labels on a ${resource} version are updated`,
-                },
-                {
-                  value: "deleted",
-                  description: `Whenever a ${resource} version is deleted`,
-                },
-              ]}
-              className="my-0 w-auto overflow-hidden"
-              disabled={disabled}
-              labelTruncateCutOff={4}
-            />
-          </div>
-        )}
-      </Form.Field>
-      <Form.Field
-        control={control}
-        name="filter"
-        label="Filter"
-        description="Add conditions to narrow down when this trigger fires."
-      >
-        {(field) => (
-          <div
-            role="group"
-            aria-label="Filter"
-            aria-describedby={field.inputDescribedById}
-          >
-            <InlineFilterBuilder
-              columns={webhookActionFilterOptions(filterOptions)}
-              columnsWithCustomSelect={["labels", "tags"]}
-              loadingOptionColumns={optionsLoading ? ["labels", "tags"] : []}
-              onOptionsOpen={(columnId) => {
-                if (columnId === "labels" || columnId === "tags") {
-                  setOptionsOpened(true);
-                }
-              }}
-              filterState={field.value || []}
-              onChange={field.onChange}
-              disabled={disabled}
-            />
-          </div>
-        )}
-      </Form.Field>
-    </>
-  );
-};
-
-/** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
-const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Banner
-    title="How alerts connect"
-    actions={[
-      { text: "Create alerts page", href: `/project/${projectId}/alerts/new` },
-    ]}
-  >
-    Add this automation to an alert from the create alerts page.
-  </Banner>
-);
-
 interface AutomationFormProps {
   projectId: string;
   onSuccess?: (
@@ -368,6 +203,7 @@ export const ConnectedAutomationForm = ({
   allowedActionTypes,
 }: AutomationFormProps) => {
   const router = useRouter();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:CUD",
@@ -416,29 +252,35 @@ export const ConnectedAutomationForm = ({
       parsedPrefill.eventSource ??
       TriggerEventSource.Prompt;
 
-    const resolvedEventAction: string[] =
-      automation?.trigger.eventActions ??
-      (resolvedEventSource === TriggerEventSource.Prompt ||
-      resolvedEventSource === TriggerEventSource.Skill
-        ? versionEventActionDefaults
-        : resolvedEventSource === TriggerEventSource.ProjectNotification
-          ? // New channels start with every event enabled; the per-event
-            // toggles in the settings section manage them afterwards.
-            [...ProjectNotificationEventTypeSchema.options]
-          : []);
+    const resolvedEventAction = (() => {
+      if (automation) return automation.trigger.eventActions;
+      if (
+        resolvedEventSource === TriggerEventSource.Prompt ||
+        resolvedEventSource === TriggerEventSource.Skill
+      ) {
+        return versionEventActionDefaults;
+      }
+      if (resolvedEventSource === TriggerEventSource.ProjectNotification) {
+        // New channels start with every event enabled.
+        return [...ProjectNotificationEventTypeSchema.options];
+      }
+      return [];
+    })();
 
     const resolvedFilter: FilterState =
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
 
+    const name = (() => {
+      if (isEditing && automation) return automation.name;
+      // The hidden name field needs a placeholder to pass validation.
+      if (resolvedEventSource === TriggerEventSource.ProjectNotification) {
+        return "Project notification";
+      }
+      return "";
+    })();
+
     const baseValues = {
-      // Project-notification names are auto-generated at submit; seed a
-      // non-empty placeholder so the hidden field passes validation.
-      name:
-        isEditing && automation
-          ? automation.name
-          : resolvedEventSource === TriggerEventSource.ProjectNotification
-            ? "Project notification"
-            : "",
+      name,
       eventSource: resolvedEventSource,
       eventAction: resolvedEventAction,
       status: (isEditing && automation
@@ -539,10 +381,7 @@ export const ConnectedAutomationForm = ({
       return;
     }
 
-    const actionConfig = handler.buildActionConfig(
-      data,
-      data.eventSource as TriggerEventSource,
-    );
+    const actionConfig = handler.buildActionConfig(data, data.eventSource);
 
     // Project-notification names are auto-generated from the destination (the
     // name field is hidden for this source; regenerated on every save so the
@@ -602,7 +441,7 @@ export const ConnectedAutomationForm = ({
 
   // Update button text based on if we're editing an existing automation
   const submitButtonText =
-    isEditing && automation ? "Update Automation" : "Save Automation";
+    isEditing && automation ? "Update automation" : "Save automation";
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
@@ -650,7 +489,13 @@ export const ConnectedAutomationForm = ({
   const currentActionHandler = getCurrentActionHandler();
 
   /** watchedEventSource drives the conditional trigger UI (prompt → filter builder, monitor → tag picker). */
-  const watchedEventSource = form.watch("eventSource") as TriggerEventSource;
+  const watchedEventSource = form.watch("eventSource");
+  const [versionOptionsOpened, setVersionOptionsOpened] = useState(false);
+  const { filterOptions, isFetching } = useVersionFilterOptions({
+    projectId,
+    eventSource: watchedEventSource,
+    enabled: versionOptionsOpened,
+  });
 
   // Project-notification channels are deliberately minimal: match-all trigger
   // (no trigger card), auto-generated name, no status toggle.
@@ -666,6 +511,7 @@ export const ConnectedAutomationForm = ({
 
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
+    setVersionOptionsOpened(false);
     form.setValue("eventSource", value);
     if (value === TriggerEventSource.Monitor) {
       form.setValue("eventAction", []);
@@ -675,7 +521,31 @@ export const ConnectedAutomationForm = ({
     form.setValue("filter", []);
   };
 
-  return (
+  const trigger: ComponentProps<typeof AutomationForm>["trigger"] = (() => {
+    if (hideTriggerCard) return null;
+    const isMonitor = watchedEventSource === TriggerEventSource.Monitor;
+    return {
+      sourcePicker: lockedEventSource
+        ? null
+        : {
+            showMonitor: isLangfuseCloud || isMonitor,
+            onSourceChange: handleEventSourceChange,
+          },
+      details: isMonitor
+        ? { kind: "monitor", projectId }
+        : {
+            kind: "version",
+            eventSource: watchedEventSource,
+            columns: webhookActionFilterOptions(filterOptions),
+            optionsLoading: isFetching,
+            onOptionsOpen: () => setVersionOptionsOpened(true),
+          },
+    };
+  })();
+
+  const renderForm = (
+    deleteAction: ComponentProps<typeof AutomationForm>["deleteAction"],
+  ) => (
     <FormProvider {...form}>
       <AutomationForm
         control={form.control}
@@ -684,64 +554,16 @@ export const ConnectedAutomationForm = ({
         showNameAndStatus={isEditing && !isProjectNotification}
         autoFocusName={!automation}
         availableActionTypes={availableActionTypes}
-        triggerSection={
-          !hideTriggerCard && (
-            <>
-              {!lockedEventSource && (
-                <ConnectedEventSourceField
-                  control={form.control}
-                  onSourceChange={handleEventSourceChange}
-                  disabled={!hasAccess || !isEditing}
-                />
-              )}
-              {watchedEventSource === TriggerEventSource.Monitor ? (
-                <MonitorTriggerFields projectId={projectId} />
-              ) : (
-                <ConnectedVersionTriggerFields
-                  key={watchedEventSource}
-                  projectId={projectId}
-                  eventSource={watchedEventSource}
-                  control={form.control}
-                  disabled={!hasAccess || !isEditing}
-                />
-              )}
-            </>
-          )
+        trigger={trigger}
+        renderActionFields={({ disabled }) =>
+          currentActionHandler?.renderForm({
+            form,
+            disabled,
+            projectId,
+            action: automation?.action,
+          })
         }
-        actionFields={currentActionHandler?.renderForm({
-          form,
-          disabled: !hasAccess || !isEditing,
-          projectId,
-          action: automation?.action,
-        })}
-        deleteAction={
-          isEditing &&
-          !isProjectNotification &&
-          automation?.trigger.id &&
-          automation?.action.id && (
-            <div>
-              <DeleteAutomationDialogController
-                projectId={projectId}
-                automationId={automation.id}
-                onSuccess={() => {
-                  router.push(`/project/${projectId}/settings/automations`);
-                }}
-              >
-                {({ disabled, openDialog }) => (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-dark-red/30 flex items-center"
-                    disabled={disabled !== undefined}
-                    onClick={openDialog}
-                  >
-                    <span className="text-dark-red">Delete</span>
-                  </Button>
-                )}
-              </DeleteAutomationDialogController>
-            </div>
-          )
-        }
+        deleteAction={deleteAction}
         submitButtonText={submitButtonText}
         submitDisabled={!hasAccess || form.formState.isSubmitting}
         onActionTypeChange={handleActionTypeChange}
@@ -749,5 +571,28 @@ export const ConnectedAutomationForm = ({
         onSubmit={form.handleSubmit(onSubmit)}
       />
     </FormProvider>
+  );
+
+  if (
+    !isEditing ||
+    isProjectNotification ||
+    !automation?.trigger.id ||
+    !automation.action.id
+  ) {
+    return renderForm(null);
+  }
+
+  return (
+    <DeleteAutomationDialogController
+      projectId={projectId}
+      automationId={automation.id}
+      onSuccess={() => {
+        router.push(`/project/${projectId}/settings/automations`);
+      }}
+    >
+      {({ disabled, openDialog }) =>
+        renderForm({ disabled: disabled !== undefined, onDelete: openDialog })
+      }
+    </DeleteAutomationDialogController>
   );
 };

@@ -2,10 +2,10 @@ import { TriggerEventSource } from "@langfuse/shared";
 import { useForm } from "react-hook-form";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../.storybook/preview";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { AutomationForm } from "./AutomationForm";
-import type { FormValues } from "./ConnectedAutomationForm";
+import type { FormValues } from "../ConnectedAutomationForm";
 
 function AutomationFormFixture({
   onSubmit,
@@ -14,10 +14,10 @@ function AutomationFormFixture({
 }) {
   const form = useForm<FormValues>({
     defaultValues: {
-      name: "Prompt updates",
+      name: "Alert updates",
       status: "ACTIVE",
-      eventSource: TriggerEventSource.Prompt,
-      eventAction: ["updated"],
+      eventSource: TriggerEventSource.Monitor,
+      eventAction: [],
       actionType: "WEBHOOK",
       webhook: { url: "https://example.com/webhook", headers: [] },
     },
@@ -31,17 +31,21 @@ function AutomationFormFixture({
       autoFocusName={false}
       fieldsDisabled={false}
       availableActionTypes={["WEBHOOK"]}
-      triggerSection={<p>When a prompt version is updated</p>}
-      actionFields={
+      trigger={{
+        sourcePicker: null,
+        details: { kind: "monitor", projectId: "demo" },
+      }}
+      renderActionFields={({ disabled }) => (
         <Form.InputField
           control={form.control}
           name="webhook.url"
           label="Webhook URL"
+          disabled={disabled}
           required
         />
-      }
+      )}
       deleteAction={null}
-      submitButtonText="Save Automation"
+      submitButtonText="Save automation"
       submitDisabled={false}
       onActionTypeChange={(value) => form.setValue("actionType", value)}
       onCancel={() => form.reset()}
@@ -55,18 +59,19 @@ const meta = preview.meta({ component: AutomationFormFixture });
 export default meta;
 
 export const Default = meta.story({
+  name: "(Test) Submit automation",
   args: { onSubmit: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const name = canvas.getByRole("textbox", { name: "Automation Name" });
+    const name = canvas.getByRole("textbox", { name: "Automation name" });
     await userEvent.clear(name);
-    await userEvent.type(name, "Publish prompt updates");
+    await userEvent.type(name, "Publish alert updates");
     await userEvent.click(
-      canvas.getByRole("button", { name: "Save Automation" }),
+      canvas.getByRole("button", { name: "Save automation" }),
     );
     await expect(args.onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "Publish prompt updates",
+        name: "Publish alert updates",
         actionType: "WEBHOOK",
         webhook: { url: "https://example.com/webhook", headers: [] },
       }),

@@ -32,7 +32,7 @@ export function GitHubDispatchActionForm({
       <Form.InputField
         control={form.control}
         name="githubDispatch.url"
-        label="Repository Dispatch URL"
+        label="Repository dispatch URL"
         required
         placeholder="https://api.github.com/repos/owner/repo/dispatches"
         disabled={disabled}
@@ -51,7 +51,7 @@ export function GitHubDispatchActionForm({
       <Form.InputField
         control={form.control}
         name="githubDispatch.eventType"
-        label="Event Type"
+        label="Event type"
         required
         placeholder="prompt-update"
         disabled={disabled}
