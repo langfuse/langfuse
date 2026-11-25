@@ -9,10 +9,5 @@ const meta = preview.meta({
 export const Default = meta.story({
   args: {
     organizationName: "Acme",
-    providers: [
-      { provider: "ANTHROPIC", isConnected: false },
-      { provider: "OPENAI", isConnected: false },
-      { provider: "BEDROCK", isConnected: false },
-    ],
   },
 });

@@ -17,15 +17,13 @@ import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/c
 import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
+import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
 import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayPagePath";
 import { GATEWAY_PAGE_SLUGS } from "@/src/features/ai-gateway/constants/gatewayPageSlugs";
-import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
-import { useGatewayModelConnections } from "@/src/features/ai-gateway/hooks/useGatewayModelConnections";
 import { GATEWAY_ANALYTICS_TIME_RANGE_PRESETS } from "@/src/features/ai-gateway/constants/gatewayAnalyticsTimeRangePresets";
 
 /**
@@ -66,12 +64,7 @@ function GatewayAnalyticsContent({
 
   if (view === "notSetUp") return <ConnectedGatewayNotSetUpNotice />;
   if (view === "notRecorded") {
-    return (
-      <AnalyticsNotRecorded
-        organizationId={organizationId}
-        canManageGateway={canManageGateway}
-      />
-    );
+    return <AnalyticsNotRecorded canManageGateway={canManageGateway} />;
   }
   if (view === "noKeys") {
     return canManageGateway ? (
@@ -109,8 +102,6 @@ function GatewayAnalyticsContent({
 }
 
 function NoKeysEmptyState({ organizationId }: { organizationId: string }) {
-  const { connectedProviders } = useGatewayModelConnections(organizationId);
-
   return (
     <GatewayAnalyticsNoKeysEmptyState
       gatewayKeysHref={buildGatewayPagePath(
@@ -118,20 +109,15 @@ function NoKeysEmptyState({ organizationId }: { organizationId: string }) {
         GATEWAY_PAGE_SLUGS.apiKeys,
       )}
       docsHref={GATEWAY_FIRST_REQUEST_DOCS_URL}
-      providers={getGatewaySetupHeroProviders(connectedProviders)}
     />
   );
 }
 
 function AnalyticsNotRecorded({
-  organizationId,
   canManageGateway,
 }: {
-  organizationId: string;
   canManageGateway: boolean;
 }) {
-  const { connectedProviders } = useGatewayModelConnections(organizationId);
-
   return (
     <GatewayPlaceholder.Frame
       title="Gateway requests aren’t recorded"
@@ -147,10 +133,7 @@ function AnalyticsNotRecorded({
         icon={BookOpen}
         href={GATEWAY_ANALYTICS_DOCS_URL}
       />
-      <GatewayIdleDiagram
-        providers={getGatewaySetupHeroProviders(connectedProviders)}
-        label="Not recorded"
-      />
+      <GatewayTrafficDiagram />
     </GatewayPlaceholder.Frame>
   );
 }

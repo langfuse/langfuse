@@ -1,8 +1,7 @@
 import { BookOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
-import { GatewayIdleDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayIdleDiagram";
+import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SELF_HOSTING_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
@@ -19,10 +18,7 @@ export function GatewayNotDeployedNotice() {
         icon={BookOpen}
         href={GATEWAY_SELF_HOSTING_DOCS_URL}
       />
-      <GatewayIdleDiagram
-        providers={getGatewaySetupHeroProviders(new Set())}
-        label="Not deployed"
-      />
+      <GatewayTrafficDiagram />
     </GatewayPlaceholder.Frame>
   );
 }

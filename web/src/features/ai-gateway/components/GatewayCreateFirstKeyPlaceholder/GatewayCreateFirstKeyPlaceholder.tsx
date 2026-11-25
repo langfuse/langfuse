@@ -2,16 +2,11 @@ import Link from "next/link";
 import { BookOpen, Box, KeyRound, Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  GatewaySetupSwitchboard,
-  type GatewaySetupSwitchboardProps,
-} from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GatewayTrafficDiagram } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayTrafficDiagram";
 import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
-import { GATEWAY_TRAFFIC_SOURCES } from "@/src/features/ai-gateway/constants/gatewayTrafficSources";
 
 export type GatewayCreateFirstKeyPlaceholderProps = {
   organizationName: string | undefined;
-  providers: GatewaySetupSwitchboardProps["providers"];
   onCreateKey: () => void;
   usageInstructionsHref: string;
   modelsHref: string;
@@ -20,7 +15,6 @@ export type GatewayCreateFirstKeyPlaceholderProps = {
 /** Shown to members of a set-up gateway until they create their first key. */
 export function GatewayCreateFirstKeyPlaceholder({
   organizationName,
-  providers,
   onCreateKey,
   usageInstructionsHref,
   modelsHref,
@@ -48,14 +42,7 @@ export function GatewayCreateFirstKeyPlaceholder({
           href={usageInstructionsHref}
         />
       </GatewayPlaceholder.Actions>
-      <GatewayPlaceholder.Diagram>
-        <div className="mx-auto aspect-[440/200] w-full max-w-xl">
-          <GatewaySetupSwitchboard
-            providers={providers}
-            sources={GATEWAY_TRAFFIC_SOURCES}
-          />
-        </div>
-      </GatewayPlaceholder.Diagram>
+      <GatewayTrafficDiagram />
       <GatewayPlaceholder.Benefits>
         <GatewayPlaceholder.Benefit
           icon={KeyRound}
