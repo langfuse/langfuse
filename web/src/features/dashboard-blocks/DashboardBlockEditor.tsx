@@ -123,6 +123,7 @@ export function DashboardBlockEditor({
           />
         )}
         <MultiQueryEditor
+          initialTabId={request.initialTabId}
           initial={
             request.block?.kind === "multiQuery"
               ? request.block.config

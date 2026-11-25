@@ -4,8 +4,8 @@ import { type DashboardPlacement } from "@/src/features/widgets/components/Dashb
 import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export type BlockEditorRequest =
-  | { kind: "multiQuery" | "markdown"; block?: never }
-  | { kind: "multiQuery" | "markdown"; block: SavedDashboardBlock };
+  | { kind: "markdown"; block?: SavedDashboardBlock }
+  | { kind: "multiQuery"; block?: SavedDashboardBlock; initialTabId?: string };
 
 export type DashboardBlocksContextValue = {
   projectId: string;

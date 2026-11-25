@@ -45,6 +45,7 @@ const noInvalidSources: ReadonlySet<string> = new Set();
 
 export function MultiQueryEditor({
   initial,
+  initialTabId,
   projectId,
   dateRange,
   filterState,
@@ -55,6 +56,7 @@ export function MultiQueryEditor({
   saveError,
 }: MultiQueryWidgetContext & {
   initial: SavedMultiQueryConfig | undefined;
+  initialTabId?: string;
   onSave: (config: MultiQueryConfigV2) => void | Promise<void>;
   onCancel: () => void;
   savePending?: boolean;
@@ -67,7 +69,11 @@ export function MultiQueryEditor({
     defaultValues: initialDraft,
   });
   const config = watch();
-  const [tabId, setTabId] = useState(config.tabs[0]!.id);
+  const [tabId, setTabId] = useState(
+    () =>
+      initialDraft.tabs.find((tab) => tab.id === initialTabId)?.id ??
+      initialDraft.tabs[0]!.id,
+  );
   const [visited, setVisited] = useState<ReadonlySet<string>>(
     () => new Set([tabId]),
   );

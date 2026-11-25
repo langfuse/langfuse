@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   normalizeMultiQueryConfig,
   type SavedMultiQueryConfig,
@@ -18,16 +17,19 @@ import { MultiQueryResultView } from "./MultiQueryResultView";
 
 export function MultiQueryChart({
   config: savedConfig,
+  selectedTabId,
+  onSelectTab,
   actions,
   ...context
 }: MultiQueryWidgetContext & {
   config: SavedMultiQueryConfig;
+  selectedTabId?: string;
+  onSelectTab: (id: string) => void;
   actions?: DataCardActions;
 }) {
   const config = normalizeMultiQueryConfig(savedConfig);
-  const [selectedId, setSelectedId] = useState<string>();
   const active =
-    config.tabs.find((tab) => tab.id === selectedId) ?? config.tabs[0]!;
+    config.tabs.find((tab) => tab.id === selectedTabId) ?? config.tabs[0]!;
   const runtime = useMultiQueryWidget(active, context, true);
   const capture = usePostHogClientCapture();
   const plot = (
@@ -97,7 +99,7 @@ export function MultiQueryChart({
           value={active.id}
           onValueChange={(id) => {
             if (id === active.id) return;
-            setSelectedId(id);
+            onSelectTab(id);
             capture("dashboard:block_interaction", {
               blockKind: "multiQuery",
               action: "multi_query_tab_changed",

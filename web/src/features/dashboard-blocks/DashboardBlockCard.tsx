@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Grid2X2, Pencil, Trash2 } from "@langfuse/icons";
 import { type SavedDashboardBlock } from "@langfuse/shared";
@@ -16,6 +17,7 @@ const MultiQueryChart = dynamic(
 );
 
 export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
+  const [selectedTabId, setSelectedTabId] = useState<string>();
   const {
     projectId,
     dashboardId,
@@ -84,7 +86,16 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
                   type: "item",
                   title: "Edit block",
                   icon: Pencil,
-                  onClick: () => openEditor({ kind: block.kind, block }),
+                  onClick: () =>
+                    openEditor(
+                      block.kind === "multiQuery"
+                        ? {
+                            kind: block.kind,
+                            block,
+                            initialTabId: selectedTabId,
+                          }
+                        : { kind: block.kind, block },
+                    ),
                 },
                 ...positionActions,
                 {
@@ -112,6 +123,8 @@ export function DashboardBlockCard({ block }: { block: SavedDashboardBlock }) {
             ) : (
               <MultiQueryChart
                 config={block.config}
+                selectedTabId={selectedTabId}
+                onSelectTab={setSelectedTabId}
                 projectId={projectId}
                 dateRange={dateRange}
                 filterState={filterState}
