@@ -51,7 +51,7 @@ const tabsListVariants = cva(
     },
     compoundVariants: [
       { look: "inset", size: "sm", class: "h-6" },
-      { look: "inset", size: "md", class: "h-7" },
+      { look: "inset", size: "md", class: "h-8" },
       { look: "inset", layout: ["default", "packed"], class: "inline-flex" },
       {
         look: "underline",

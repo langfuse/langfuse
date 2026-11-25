@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transcriptFixtures } from "../transcript/fixtures";
+import { transcriptFixtures } from "../transcript/__tests__/fixtures";
 import { createObservation } from "../test-utils/tracing-factory";
 import { convertObservation } from "../repositories/observations_converters";
 import { orderObservations } from "../transcript/ordering";
