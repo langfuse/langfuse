@@ -47,10 +47,13 @@ export const TestConfirmOnEnter = meta.story({
   name: "(Test) Confirms the category name when Enter is pressed",
   args: Edit.input.args,
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const input = canvas.getByRole("textbox", { name: "Category label" });
+    const body = within(canvasElement.ownerDocument.body);
+    const input = body.getByRole("textbox", { name: "Category label" });
+    await expect(input).toHaveValue("Correct");
     await userEvent.click(input);
     await userEvent.keyboard("{Enter}");
     await expect(args.onDone).toHaveBeenCalledOnce();
+    await expect(args.onOpenChange).not.toHaveBeenCalled();
+    await expect(args.onDelete).not.toHaveBeenCalled();
   },
 });
