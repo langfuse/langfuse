@@ -190,13 +190,13 @@ export const DecisionModelStateMappingInput = z.union([
   }),
 ]);
 
-const PUBLIC_DECISION_MODEL_PREDICATE_QUESTION_TYPE = "predicate";
+const PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE = "boolean";
 
 export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
   DecisionModelChoiceQuestionSchema,
   DecisionModelScoreQuestionSchema,
   DecisionModelNoulQuestionSchema.extend({
-    type: z.literal(PUBLIC_DECISION_MODEL_PREDICATE_QUESTION_TYPE),
+    type: z.literal(PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE),
   }),
 ]);
 type PublicDecisionModelQuestionType = z.infer<
@@ -206,7 +206,7 @@ type PublicDecisionModelQuestionType = z.infer<
 export function toInternalDecisionModelQuestion(
   question: PublicDecisionModelQuestionType,
 ): DecisionModelQuestion {
-  return question.type === PUBLIC_DECISION_MODEL_PREDICATE_QUESTION_TYPE
+  return question.type === PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE
     ? { ...question, type: DecisionModelQuestionType.NOUL }
     : question;
 }
@@ -215,7 +215,7 @@ export function toPublicDecisionModelQuestion(
   question: DecisionModelQuestion,
 ): PublicDecisionModelQuestionType {
   return question.type === DecisionModelQuestionType.NOUL
-    ? { ...question, type: PUBLIC_DECISION_MODEL_PREDICATE_QUESTION_TYPE }
+    ? { ...question, type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE }
     : question;
 }
 

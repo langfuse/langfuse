@@ -12077,11 +12077,11 @@ components:
           description: Description of this level.
       required:
         - description
-    DecisionModelPredicateCriteria:
-      title: DecisionModelPredicateCriteria
+    DecisionModelBooleanCriteria:
+      title: DecisionModelBooleanCriteria
       type: object
       description: >-
-        Optional criteria for the `true` and `false` answers of a `predicate`
+        Optional criteria for the `true` and `false` answers of a `boolean`
         question.
       properties:
         'true':
@@ -12148,8 +12148,8 @@ components:
         - scoreName
         - instructions
         - levels
-    DecisionModelPredicateQuestion:
-      title: DecisionModelPredicateQuestion
+    DecisionModelBooleanQuestion:
+      title: DecisionModelBooleanQuestion
       type: object
       description: >-
         Decide whether a statement is true. Produces a numeric score: the
@@ -12169,7 +12169,7 @@ components:
             Question instructions. Refer to state keys from `variableMapping` by
             name.
         criteria:
-          $ref: '#/components/schemas/DecisionModelPredicateCriteria'
+          $ref: '#/components/schemas/DecisionModelBooleanCriteria'
           nullable: true
           description: Optional criteria for the true and false answers.
       required:
@@ -12210,11 +12210,11 @@ components:
                 type:
                   type: string
                   enum:
-                    - predicate
-            - $ref: '#/components/schemas/DecisionModelPredicateQuestion'
+                    - boolean
+            - $ref: '#/components/schemas/DecisionModelBooleanQuestion'
           required:
             - type
-          title: DecisionModelPredicateQuestion
+          title: DecisionModelBooleanQuestion
       description: >-
         One typed question answered by a decision-model evaluator. Each question
         produces one score.
