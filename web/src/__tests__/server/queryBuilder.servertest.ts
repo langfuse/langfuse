@@ -5670,6 +5670,58 @@ describe("query builder measure-aggregation validation", () => {
         ]);
       },
     );
+
+    const seedSetAndEmpty = async (
+      projectId: string,
+      column: "tags" | "environment" | "observationName",
+    ) => {
+      const [setTraceId, emptyTraceId] = [randomUUID(), randomUUID()];
+      const [setScore, emptyScore] = [
+        scoreOn(projectId, setTraceId),
+        scoreOn(projectId, emptyTraceId),
+      ];
+      if (column === "tags") {
+        await createEventsCh([
+          span(projectId, setTraceId, { is_app_root: true, tags: ["x"] }),
+          span(projectId, emptyTraceId, { is_app_root: true, tags: [] }),
+        ]);
+      } else if (column === "environment") {
+        setScore.environment = "production";
+        emptyScore.environment = "";
+      } else {
+        const setSpan = span(projectId, setTraceId, { name: "gen" });
+        const emptySpan = span(projectId, emptyTraceId, { name: "" });
+        await createEventsCh([setSpan, emptySpan]);
+        setScore.observation_id = setSpan.span_id;
+        emptyScore.observation_id = emptySpan.span_id;
+      }
+      await createScoresCh([setScore, emptyScore]);
+    };
+
+    isEventsTableV2Enabled.each([
+      { column: "tags", operator: "is null" },
+      { column: "tags", operator: "is not null" },
+      { column: "environment", operator: "is null" },
+      { column: "environment", operator: "is not null" },
+      { column: "observationName", operator: "is null" },
+    ] as const)(
+      "matches only one of a set and an empty $column for $operator",
+      async ({ column, operator }) => {
+        const projectId = randomUUID();
+        await seedSetAndEmpty(projectId, column);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [{ column, type: "null", operator, value: "" }],
+          }),
+          "v2",
+        );
+
+        expect(count(result)).toBe(1);
+      },
+    );
   });
 
   describe("useFinal flag on events_core joins", () => {
