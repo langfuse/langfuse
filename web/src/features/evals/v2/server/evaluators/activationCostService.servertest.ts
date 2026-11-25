@@ -1,4 +1,4 @@
-import { EvalTemplateType, TopicsTargetObject } from "@langfuse/shared";
+import { EvalTemplateType } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findEvaluatorsByIds: vi.fn(),
   getObservationsCountFromEventsTable: vi.fn(),
-  getObservationsCountsFromEventsTable: vi.fn(),
   getObservationsWithModelDataFromEventsTable: vi.fn(),
   getLatestEvaluatorRunCost: vi.fn(),
   testEvaluator: vi.fn(),
@@ -20,8 +19,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   getObservationsCountFromEventsTable:
     mocks.getObservationsCountFromEventsTable,
-  getObservationsCountsFromEventsTable:
-    mocks.getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable:
     mocks.getObservationsWithModelDataFromEventsTable,
   getLatestEvaluatorRunCost: mocks.getLatestEvaluatorRunCost,
@@ -350,30 +347,6 @@ describe("getActivationCostEstimates", () => {
     expect(mocks.testEvaluator).not.toHaveBeenCalled();
     expect(result[0]?.testRunCostUsd).toBeNull();
     expect(result[0]?.estimatedCostUsd).toBeNull();
-  });
-
-  it("does not wait for a missing trace cost, since trace estimates never probe", async () => {
-    mocks.getObservationsCountsFromEventsTable.mockResolvedValue({
-      uniqueTraceCount: 40,
-    });
-    mocks.getLatestEvaluatorRunCost.mockResolvedValue(null);
-
-    const result = await getActivationCostEstimates({
-      orgId: "org-id",
-      projectId: "project-id",
-      evaluatorIds: ["evaluator-id"],
-      filter: [],
-      sampling: 1,
-      targetObject: TopicsTargetObject,
-      missingCostMode: "wait",
-      shouldReadFromObservationsTable: false,
-    });
-
-    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
-    expect(result[0]).toMatchObject({
-      matchingObservations: 40,
-      testRunCostUsd: null,
-    });
   });
 
   it("uses a known test cost when no recent trace is indexed yet", async () => {

@@ -3,7 +3,6 @@ import {
   EvalTemplateType,
   InvalidRequestError,
   LangfuseNotFoundError,
-  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
@@ -11,7 +10,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   getLatestEvaluatorRunCost,
   getObservationsCountFromEventsTable,
-  getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   logger,
 } from "@langfuse/shared/src/server";
@@ -30,7 +28,6 @@ export async function getActivationCostEstimates(params: {
   evaluatorIds: string[];
   filter: FilterState;
   sampling: number;
-  targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
   knownTestRunCostUsd?: number;
   missingCostMode?: "probe" | "wait" | "skip";
   shouldReadFromObservationsTable: boolean;
@@ -39,10 +36,8 @@ export async function getActivationCostEstimates(params: {
     to: Date;
   };
 }) {
-  const targetObject = params.targetObject ?? EvalTargetObject.EVENT;
-  const isTraceTranscript = targetObject === TopicsTargetObject;
   const validation = validateEvaluatorFiltersForTarget({
-    targetObject,
+    targetObject: EvalTargetObject.EVENT,
     filter: params.filter,
   });
   if (!validation.isValid) {
@@ -84,10 +79,12 @@ export async function getActivationCostEstimates(params: {
       : []),
   ];
   const [matchingObservations, recentRunCosts] = await Promise.all([
-    countMatchingItems({
+    getObservationsCountFromEventsTable({
       projectId: params.projectId,
       filter,
-      isTraceTranscript,
+      // Required by the shared query shape; the count aggregate ignores paging.
+      limit: 1,
+      offset: 0,
     }),
     Promise.all(
       llmEvaluators.map(async (evaluator) =>
@@ -117,7 +114,6 @@ export async function getActivationCostEstimates(params: {
     (evaluator) => costsByEvaluatorId.get(evaluator.id) === null,
   );
   if (
-    !isTraceTranscript &&
     params.missingCostMode === "wait" &&
     matchingObservations > 0 &&
     evaluatorsWithoutCost.length > 0
@@ -132,7 +128,6 @@ export async function getActivationCostEstimates(params: {
       costsByEvaluatorId.set(evaluatorId, cost),
     );
   } else if (
-    !isTraceTranscript &&
     params.missingCostMode !== "skip" &&
     matchingObservations > 0 &&
     evaluatorsWithoutCost.length > 0
@@ -174,25 +169,6 @@ export async function getActivationCostEstimates(params: {
           : matchingObservations * params.sampling * testRunCostUsd,
     };
   });
-}
-
-/** A trace rule runs once per matching trace; an observation rule once per observation. */
-async function countMatchingItems(params: {
-  projectId: string;
-  filter: FilterState;
-  isTraceTranscript: boolean;
-}) {
-  const query = {
-    projectId: params.projectId,
-    filter: params.filter,
-    // Required by the shared query shape; the count aggregate ignores paging.
-    limit: 1,
-    offset: 0,
-  };
-  if (params.isTraceTranscript) {
-    return (await getObservationsCountsFromEventsTable(query)).uniqueTraceCount;
-  }
-  return getObservationsCountFromEventsTable(query);
 }
 
 async function runTestAndWaitForCost({

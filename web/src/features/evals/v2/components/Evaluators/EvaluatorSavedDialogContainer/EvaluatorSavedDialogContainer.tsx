@@ -264,6 +264,8 @@ export function EvaluatorSavedDialogContainer({
 
   const requestEstimate = useCallback(
     async ({ filter, sampling }: { filter: FilterState; sampling: number }) => {
+      // Cost estimates only cover observation targets.
+      if (isTraceTranscript) return;
       const requestId = ++estimateRequestId.current;
       // Stay in the loading state for the whole request: the numbers on screen
       // belong to the previous scope, so a rule switch must not show the old
@@ -302,9 +304,6 @@ export function EvaluatorSavedDialogContainer({
             },
             {
               shouldRunMissingTest,
-              ...(isTraceTranscript
-                ? { targetObject: TopicsTargetObject }
-                : {}),
               ...(evaluator.testRunCostUsd !== null &&
               evaluator.testRunCostUsd !== undefined
                 ? { knownTestRunCostUsd: evaluator.testRunCostUsd }
@@ -582,52 +581,52 @@ export function EvaluatorSavedDialogContainer({
       onMaxItemsChange={backfill.setMaxItems}
     />
   );
-  const costSummary = hasConfiguredScope ? (
-    <EvaluatorSavedCostSummary
-      estimates={activation.estimate.estimates}
-      unavailableEstimateCount={activation.estimate.unavailableEstimateCount}
-      matchingObservations={activation.estimate.matchingObservations}
-      sampling={
-        activation.estimate.sampling ??
-        selectedRule?.sampling ??
-        testFilterSampling
-      }
-      isEstimating={isEstimating}
-      evaluatorType={evaluator.type}
-      targetObject={evaluator.targetObject}
-      backfill={
-        backfill.enabled
-          ? {
-              enabled: true,
-              matchingObservations: backfill.matchingObservations,
-              maxItems: backfill.effectiveMaxItems,
-              testRunCostUsd: backfill.testRunCostUsd,
-              isEstimating: backfill.isEstimating,
-            }
-          : { enabled: false }
-      }
-      onSamplingChange={
-        mode === "test-filters"
-          ? (sampling) => {
-              setTestFilterSampling(sampling);
-              setActivationSampling(sampling);
-              onboardingAnalytics?.track(
-                "eval:onboarding_sampling_changed",
-                {},
-                { onceKey: "sampling_changed" },
-              );
-            }
-          : null
-      }
-    />
-  ) : evaluator.type !== EvalTemplateType.CODE ? (
-    <div className="space-y-2">
-      <h3 className="text-sm font-bold">Cost estimate</h3>
-      <p className="text-muted-foreground text-sm">
-        Costs will be estimated in the rule editor.
-      </p>
-    </div>
-  ) : null;
+  const costSummary =
+    hasConfiguredScope && !isTraceTranscript ? (
+      <EvaluatorSavedCostSummary
+        estimates={activation.estimate.estimates}
+        unavailableEstimateCount={activation.estimate.unavailableEstimateCount}
+        matchingObservations={activation.estimate.matchingObservations}
+        sampling={
+          activation.estimate.sampling ??
+          selectedRule?.sampling ??
+          testFilterSampling
+        }
+        isEstimating={isEstimating}
+        evaluatorType={evaluator.type}
+        backfill={
+          backfill.enabled
+            ? {
+                enabled: true,
+                matchingObservations: backfill.matchingObservations,
+                maxItems: backfill.effectiveMaxItems,
+                testRunCostUsd: backfill.testRunCostUsd,
+                isEstimating: backfill.isEstimating,
+              }
+            : { enabled: false }
+        }
+        onSamplingChange={
+          mode === "test-filters"
+            ? (sampling) => {
+                setTestFilterSampling(sampling);
+                setActivationSampling(sampling);
+                onboardingAnalytics?.track(
+                  "eval:onboarding_sampling_changed",
+                  {},
+                  { onceKey: "sampling_changed" },
+                );
+              }
+            : null
+        }
+      />
+    ) : evaluator.type !== EvalTemplateType.CODE ? (
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold">Cost estimate</h3>
+        <p className="text-muted-foreground text-sm">
+          Costs will be estimated in the rule editor.
+        </p>
+      </div>
+    ) : null;
 
   const overrideWarning =
     rulesNeedingOverride.length > 0 && !overrideWarningDismissed ? (
@@ -671,7 +670,6 @@ export function EvaluatorSavedDialogContainer({
         backfillContent={backfillContent}
         warning={overrideWarning}
         costSummary={costSummary}
-        targetObject={evaluator.targetObject}
         canSubmit={
           !isEstimating &&
           !isCompleting &&

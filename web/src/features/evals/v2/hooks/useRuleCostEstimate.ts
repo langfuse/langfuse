@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { EvalTemplateType, TopicsTargetObject } from "@langfuse/shared";
+import { EvalTemplateType } from "@langfuse/shared";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -35,10 +35,9 @@ export function useRuleCostEstimate({
   store: RuleSetupStore;
   matchingObservations?: number;
 }) {
-  const { filter, sampling, assignments, targetObject } = useStore(
+  const { filter, sampling, assignments } = useStore(
     store,
     useShallow((state) => ({
-      targetObject: state.targetObject,
       filter: state.filter,
       sampling: state.sampling,
       assignments: state.assignments,
@@ -65,7 +64,7 @@ export function useRuleCostEstimate({
       setState(nextState);
     };
     const currentRequestId = ++requestId.current;
-    const filterSignature = JSON.stringify([targetObject, filter]);
+    const filterSignature = JSON.stringify(filter);
     const filterChanged = previousFilter.current !== filterSignature;
     previousFilter.current = filterSignature;
     const currentEvaluatorIds = new Set(
@@ -132,14 +131,10 @@ export function useRuleCostEstimate({
       estimatingEvaluatorIds,
     });
     const timeout = window.setTimeout(() => {
-      // Trace estimates never run the missing-cost test.
-      const unprobedEvaluatorIds =
-        targetObject === TopicsTargetObject
-          ? []
-          : estimatingEvaluatorIds.filter(
-              (evaluatorId) => !probedEvaluatorIds.current.has(evaluatorId),
-            );
-      unprobedEvaluatorIds.forEach((evaluatorId) =>
+      const unprobedEvaluatorIds = estimatingEvaluatorIds.filter(
+        (evaluatorId) => !probedEvaluatorIds.current.has(evaluatorId),
+      );
+      estimatingEvaluatorIds.forEach((evaluatorId) =>
         probedEvaluatorIds.current.add(evaluatorId),
       );
       estimateCost({
@@ -147,7 +142,6 @@ export function useRuleCostEstimate({
         evaluatorIds: estimatingEvaluatorIds,
         filter,
         sampling: 1,
-        ...(targetObject === TopicsTargetObject ? { targetObject } : {}),
         // This matches activation behavior: an evaluator without a priced test
         // gets one representative test so its estimate can become available.
         shouldRunMissingTest: unprobedEvaluatorIds.length > 0,
@@ -198,7 +192,7 @@ export function useRuleCostEstimate({
     }, ESTIMATE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [assignments, estimateCost, filter, projectId, targetObject]);
+  }, [assignments, estimateCost, filter, projectId]);
 
   return {
     ...state,

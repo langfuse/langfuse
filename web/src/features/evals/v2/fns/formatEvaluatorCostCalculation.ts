@@ -1,14 +1,5 @@
-import {
-  type EvalTemplateType,
-  EvalTemplateTypeEnum,
-  TopicsTargetObject,
-} from "@langfuse/shared";
-import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-
-function costUnit(targetObject: EvaluatorTargetObject | undefined) {
-  return targetObject === TopicsTargetObject ? "trace" : "observation";
-}
 
 export function formatEvaluatorCostCalculation({
   matchingObservations,
@@ -17,7 +8,6 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd,
   evaluatorType,
   period = "week",
-  targetObject,
 }: {
   matchingObservations: number;
   sampling: number;
@@ -25,7 +15,6 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd: number | null;
   evaluatorType: EvalTemplateType;
   period?: "week" | "selection";
-  targetObject?: EvaluatorTargetObject;
 }) {
   if (evaluatorType === EvalTemplateTypeEnum.CODE) {
     return {
@@ -36,19 +25,18 @@ export function formatEvaluatorCostCalculation({
   }
 
   const isSelection = period === "selection";
-  const unit = costUnit(targetObject);
-  const items = isSelection
-    ? `${numberFormatter(matchingObservations, 0)} ${unit}s`
-    : `${numberFormatter(matchingObservations, 0)} matching ${unit}s`;
+  const observations = isSelection
+    ? `${numberFormatter(matchingObservations, 0)} observations`
+    : `${numberFormatter(matchingObservations, 0)} matching observations`;
   const samplingRate = `${numberFormatter(sampling * 100, 0, 2)}% sampling`;
   const periodLabel = isSelection ? "for this run" : "/ week";
   const scope = isSelection
     ? "Expected cost on your linked API key (not Langfuse)."
-    : `Expected cost on your linked API key (not Langfuse). Matching ${unit}s are based on the last 7 days.`;
+    : "Expected cost on your linked API key (not Langfuse). Matching observations are based on the last 7 days.";
 
   if (matchingObservations === 0) {
     return {
-      calculation: `${items} × ${samplingRate} ≈ ${usdFormatter(0, 2, 2)} ${periodLabel}`,
+      calculation: `${observations} × ${samplingRate} ≈ ${usdFormatter(0, 2, 2)} ${periodLabel}`,
       explanation: scope,
     };
   }
@@ -61,7 +49,7 @@ export function formatEvaluatorCostCalculation({
   }
 
   return {
-    calculation: `${items} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} ${periodLabel}`,
+    calculation: `${observations} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} ${periodLabel}`,
     explanation: `${scope} Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.`,
   };
 }

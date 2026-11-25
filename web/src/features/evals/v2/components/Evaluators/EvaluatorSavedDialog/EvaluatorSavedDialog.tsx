@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import type { ReactNode } from "react";
-import { TopicsTargetObject } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -17,7 +16,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { cn } from "@/src/utils/tailwind";
 import styles from "./EvaluatorSavedDialog.module.css";
 
@@ -44,7 +42,6 @@ export function EvaluatorSavedDialog({
   backfillContent,
   warning,
   costSummary,
-  targetObject,
   canSubmit,
   isSubmitting,
   primaryActionLabel,
@@ -61,7 +58,6 @@ export function EvaluatorSavedDialog({
   backfillContent?: ReactNode;
   warning?: ReactNode;
   costSummary: ReactNode;
-  targetObject?: EvaluatorTargetObject;
   canSubmit: boolean;
   isSubmitting: boolean;
   primaryActionLabel: string;
@@ -72,7 +68,6 @@ export function EvaluatorSavedDialog({
   onOpenAutoFocus?: () => void;
   onCloseAnimationEnd?: () => void;
 }) {
-  const unit = targetObject === TopicsTargetObject ? "traces" : "observations";
   return (
     <Dialog
       open={open}
@@ -89,7 +84,7 @@ export function EvaluatorSavedDialog({
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
           <DialogTitle>Evaluator saved</DialogTitle>
           <DialogDescription>
-            Choose which {unit} this evaluator should score.
+            Choose which observations this evaluator should score.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="gap-0 p-0">
@@ -97,7 +92,7 @@ export function EvaluatorSavedDialog({
             <div className="min-w-0 overflow-y-auto px-6 py-5">
               {warning ? <div className="mb-4">{warning}</div> : null}
               <h3 className="mb-2 text-sm font-bold">
-                Set up rule to run on incoming {unit}
+                Set up rule to run on incoming observations
               </h3>
               <RadioGroup
                 value={mode}
@@ -179,9 +174,7 @@ export function EvaluatorSavedDialog({
           </div>
         </DialogBody>
         <DialogFooter className="px-6 py-3">
-          <Tooltip
-            label={`It remains available for batch evaluations and prompt experiments. Set up incoming ${unit} later.`}
-          >
+          <Tooltip label="It remains available for batch evaluations and prompt experiments. Set up incoming observations later.">
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}
