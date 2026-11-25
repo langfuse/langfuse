@@ -104,15 +104,28 @@ export function recordTopicRequestBytes(
 }
 
 /** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+/** Estimates are rare, so per-project and per-org tags stay low-cardinality. */
 export function recordTopicCostEstimate(
   outcome: "done" | "failed" | "superseded",
   startedAt: number,
+  tenant: { projectId: string; orgId: string | undefined },
+  per1000TracesUsd?: number,
 ): void {
+  const tags = {
+    projectId: tenant.projectId,
+    ...(tenant.orgId && { orgId: tenant.orgId }),
+  };
   recordDistribution(
     "langfuse.topics.cost_estimate_duration_ms",
     Date.now() - startedAt,
-    { outcome, unit: "milliseconds" },
+    { ...tags, outcome, unit: "milliseconds" },
   );
+  if (per1000TracesUsd !== undefined)
+    recordDistribution(
+      "langfuse.topics.cost_estimate_per_1000_traces_usd",
+      per1000TracesUsd,
+      tags,
+    );
 }
 
 /** One instance per execution attempt prevents nested catches counting an error twice. */
