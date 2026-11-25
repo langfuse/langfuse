@@ -8,6 +8,7 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd,
   evaluatorType,
   period = "week",
+  unit = "observation",
 }: {
   matchingObservations: number;
   sampling: number;
@@ -15,6 +16,7 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd: number | null;
   evaluatorType: EvalTemplateType;
   period?: "week" | "selection";
+  unit?: "observation" | "trace";
 }) {
   if (evaluatorType === EvalTemplateTypeEnum.CODE) {
     return {
@@ -25,18 +27,18 @@ export function formatEvaluatorCostCalculation({
   }
 
   const isSelection = period === "selection";
-  const observations = isSelection
-    ? `${numberFormatter(matchingObservations, 0)} observations`
-    : `${numberFormatter(matchingObservations, 0)} matching observations`;
+  const items = isSelection
+    ? `${numberFormatter(matchingObservations, 0)} ${unit}s`
+    : `${numberFormatter(matchingObservations, 0)} matching ${unit}s`;
   const samplingRate = `${numberFormatter(sampling * 100, 0, 2)}% sampling`;
   const periodLabel = isSelection ? "for this run" : "/ week";
   const scope = isSelection
     ? "Expected cost on your linked API key (not Langfuse)."
-    : "Expected cost on your linked API key (not Langfuse). Matching observations are based on the last 7 days.";
+    : `Expected cost on your linked API key (not Langfuse). Matching ${unit}s are based on the last 7 days.`;
 
   if (matchingObservations === 0) {
     return {
-      calculation: `${observations} × ${samplingRate} ≈ ${usdFormatter(0, 2, 2)} ${periodLabel}`,
+      calculation: `${items} × ${samplingRate} ≈ ${usdFormatter(0, 2, 2)} ${periodLabel}`,
       explanation: scope,
     };
   }
@@ -49,7 +51,7 @@ export function formatEvaluatorCostCalculation({
   }
 
   return {
-    calculation: `${observations} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} ${periodLabel}`,
+    calculation: `${items} × ${samplingRate} × ${usdFormatter(testRunCostUsd, 2, 6)} per evaluation ≈ ${usdFormatter(estimatedCostUsd, 2, 2)} ${periodLabel}`,
     explanation: `${scope} Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.`,
   };
 }

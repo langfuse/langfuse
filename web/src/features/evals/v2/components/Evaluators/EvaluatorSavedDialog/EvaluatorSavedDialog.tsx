@@ -20,6 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import styles from "./EvaluatorSavedDialog.module.css";
 
 export type EvaluatorSavedMode = "test-filters" | "different-scope";
+type EvaluatorSavedUnit = "observations" | "traces";
 
 const modeOptions = [
   {
@@ -41,6 +42,7 @@ export function EvaluatorSavedDialog({
   modeContentByMode,
   backfillContent,
   costSummary,
+  unit = "observations",
   canSubmit,
   isSubmitting,
   primaryActionLabel,
@@ -54,8 +56,9 @@ export function EvaluatorSavedDialog({
   open: boolean;
   mode: EvaluatorSavedMode;
   modeContentByMode: Record<EvaluatorSavedMode, ReactNode>;
-  backfillContent: ReactNode;
+  backfillContent?: ReactNode;
   costSummary: ReactNode;
+  unit?: EvaluatorSavedUnit;
   canSubmit: boolean;
   isSubmitting: boolean;
   primaryActionLabel: string;
@@ -82,14 +85,14 @@ export function EvaluatorSavedDialog({
         <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
           <DialogTitle>Evaluator saved</DialogTitle>
           <DialogDescription>
-            Choose which observations this evaluator should score.
+            Choose which {unit} this evaluator should score.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="gap-0 p-0">
           <div className="grid h-[30rem] grid-cols-[minmax(0,1fr)_15rem] overflow-hidden">
             <div className="min-w-0 overflow-y-auto px-6 py-5">
               <h3 className="mb-2 text-sm font-bold">
-                Set up rule to run on incoming observations
+                Set up rule to run on incoming {unit}
               </h3>
               <RadioGroup
                 value={mode}
@@ -171,7 +174,9 @@ export function EvaluatorSavedDialog({
           </div>
         </DialogBody>
         <DialogFooter className="px-6 py-3">
-          <Tooltip label="It remains available for batch evaluations and prompt experiments. Set up incoming observations later.">
+          <Tooltip
+            label={`It remains available for batch evaluations and prompt experiments. Set up incoming ${unit} later.`}
+          >
             {({ getTriggerProps }) => (
               <Button
                 {...getTriggerProps()}

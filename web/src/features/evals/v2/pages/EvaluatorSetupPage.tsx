@@ -10,6 +10,7 @@ import {
   observationVariableMappingList,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
+  EvalTargetObject,
   type EvalTemplateType,
   type FilterState,
   type ObservationVariableMapping,
@@ -35,7 +36,6 @@ import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/comp
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TraceSampleSelectorContainer/TraceSampleSelectorContainer";
 import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
-import { TraceRuleSavedDialog } from "@/src/features/evals/v2/components/Evaluators/TraceRuleSavedDialog/TraceRuleSavedDialog";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
@@ -335,12 +335,9 @@ export function EvaluatorSetupPage(
     sampleFilter: FilterState;
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
-  } | null>(null);
-  const [savedTraceEvaluator, setSavedTraceEvaluator] = useState<{
-    id: string;
-    name: string;
-    filter: FilterState;
+    targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
     variableMapping: ObservationVariableMapping[];
+    initialRuleId?: string;
   } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
@@ -638,20 +635,40 @@ export function EvaluatorSetupPage(
       );
       if (!definition) return;
       const { name, description } = metadata;
-      const offerTraceRule = (evaluator: { id: string }) => {
-        if (state.targetObject !== TopicsTargetObject) return false;
-        setSavedTraceEvaluator({
+      const isTraceTranscript = state.targetObject === TopicsTargetObject;
+      const offerRuleAttachment = async (
+        evaluator: { id: string },
+        { initialRuleId }: { initialRuleId?: string } = {},
+      ) => {
+        setSavedEvaluator({
           id: evaluator.id,
           name,
-          filter: state.traceSampleFilter,
-          variableMapping: observationVariableMappingList.catch([]).parse(
-            mappings.map(({ variable, fieldState }) => ({
-              templateVariable: variable,
-              ...fieldState,
-            })),
-          ),
+          type: state.type,
+          defaultVariableMapping: observationVariableMappingList
+            .catch([])
+            .parse(
+              definition.type === "LLM_AS_JUDGE"
+                ? definition.variableMapping
+                : undefined,
+            ),
+          sampleFilter: isTraceTranscript
+            ? state.traceSampleFilter
+            : state.sampleFilter,
+          hasCompletedTestCall,
+          testRunCostUsd: lastTestRunCostUsd,
+          targetObject: isTraceTranscript
+            ? TopicsTargetObject
+            : EvalTargetObject.EVENT,
+          variableMapping: isTraceTranscript
+            ? observationVariableMappingList.catch([]).parse(
+                mappings.map(({ variable, fieldState }) => ({
+                  templateVariable: variable,
+                  ...fieldState,
+                })),
+              )
+            : [],
+          initialRuleId,
         });
-        return true;
       };
 
       if (props.mode === "edit") {
@@ -689,7 +706,18 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
-        if (shouldOfferRuleAttachment(evaluator) && offerTraceRule(evaluator)) {
+        if (shouldOfferRuleAttachment(evaluator) && isTraceTranscript) {
+          const attachedRules =
+            await utils.client.evalsV2.rules.listRulesForEvaluator.query({
+              projectId,
+              evaluatorId: evaluator.id,
+            });
+          await offerRuleAttachment(evaluator, {
+            initialRuleId: attachedRules.find(
+              ({ evaluationRule }) =>
+                evaluationRule.targetObject === TopicsTargetObject,
+            )?.evaluationRule.id,
+          });
           return;
         }
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
@@ -742,22 +770,7 @@ export function EvaluatorSetupPage(
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
       }
-      if (offerTraceRule(evaluator)) return;
-      setSavedEvaluator({
-        id: evaluator.id,
-        name,
-        type: state.type,
-        defaultVariableMapping: observationVariableMappingList
-          .catch([])
-          .parse(
-            definition.type === "LLM_AS_JUDGE"
-              ? definition.variableMapping
-              : undefined,
-          ),
-        sampleFilter: state.sampleFilter,
-        hasCompletedTestCall,
-        testRunCostUsd: lastTestRunCostUsd,
-      });
+      await offerRuleAttachment(evaluator);
     } catch (error) {
       hasCreatedRef.current = false;
       if (
@@ -1152,20 +1165,6 @@ export function EvaluatorSetupPage(
               onDismiss={async () => {
                 await router.push(
                   `/project/${projectId}/evals/${savedEvaluator.id}`,
-                );
-              }}
-              onFinish={async () => {
-                await router.push(`/project/${projectId}/evals`);
-              }}
-            />
-          ) : null}
-          {savedTraceEvaluator ? (
-            <TraceRuleSavedDialog
-              projectId={projectId}
-              evaluator={savedTraceEvaluator}
-              onDismiss={async () => {
-                await router.push(
-                  `/project/${projectId}/evals/${savedTraceEvaluator.id}`,
                 );
               }}
               onFinish={async () => {

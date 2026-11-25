@@ -304,6 +304,92 @@ describe("RuleService", () => {
         rule: { name: "Production checkout observations" },
       });
     });
+
+    it("creates a trace rule with the mapping, then re-attaches and re-maps instead of creating another", async () => {
+      const [first, second] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const traceService = new RuleService(prisma, async () => undefined, {
+        includeTraceTranscriptRules: true,
+      });
+      const threadsMapping = (jsonSelector: string) => [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector,
+        },
+      ];
+      const traceInput = {
+        projectId,
+        filter: [
+          {
+            type: "string" as const,
+            column: "traceName",
+            operator: "=" as const,
+            value: "support-chat",
+          },
+        ],
+        sampling: 0.5,
+        targetObject: TopicsTargetObject,
+      };
+
+      const created = await traceService.createOrAttachFromEvaluatorFilters(
+        {
+          ...traceInput,
+          evaluatorId: first.id,
+          variableMapping: threadsMapping("$[0].messages"),
+        },
+        null,
+      );
+      expect(created).toMatchObject({
+        action: "created",
+        rule: { targetObject: TopicsTargetObject, name: expect.any(String) },
+      });
+
+      const attached = await traceService.createOrAttachFromEvaluatorFilters(
+        {
+          ...traceInput,
+          evaluatorId: second.id,
+          variableMapping: threadsMapping("$[1].messages"),
+        },
+        null,
+      );
+      expect(attached).toMatchObject({
+        action: "attached",
+        rule: { id: created.rule.id },
+      });
+
+      const remapped = await traceService.createOrAttachFromEvaluatorFilters(
+        {
+          ...traceInput,
+          evaluatorId: first.id,
+          variableMapping: threadsMapping("$[0].currentTurn"),
+        },
+        null,
+      );
+      expect(remapped.rule.id).toBe(created.rule.id);
+
+      await expect(
+        prisma.evaluationRule.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+      const assignments =
+        await prisma.evaluationRuleEvaluatorAssignment.findMany({
+          where: { evaluationRuleId: created.rule.id },
+          select: { evaluatorId: true, variableMapping: true },
+        });
+      expect(
+        Object.fromEntries(
+          assignments.map(({ evaluatorId, variableMapping }) => [
+            evaluatorId,
+            variableMapping,
+          ]),
+        ),
+      ).toEqual({
+        [first.id]: threadsMapping("$[0].currentTurn"),
+        [second.id]: threadsMapping("$[1].messages"),
+      });
+    });
   });
 
   describe("list", () => {

@@ -3,6 +3,7 @@
 import {
   EvalTemplateType,
   EvalTargetObject,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -42,6 +43,11 @@ type EvaluatorSavedDialogEvaluator = {
   sampleFilter: FilterState;
   hasCompletedTestCall?: boolean;
   testRunCostUsd?: number | null;
+  /** Defaults to observations. A trace evaluator also needs its transcript `variableMapping`. */
+  targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
+  variableMapping?: ObservationVariableMapping[];
+  /** A trace rule the evaluator is already attached to; preselected in the picker. */
+  initialRuleId?: string;
 };
 
 export function EvaluatorSavedDialogContainer({
@@ -59,15 +65,23 @@ export function EvaluatorSavedDialogContainer({
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const isTraceTranscript = evaluator.targetObject === TopicsTargetObject;
+  const ruleTargetObjects = isTraceTranscript
+    ? [TopicsTargetObject]
+    : [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT];
+  const traceMapping = evaluator.variableMapping ?? [];
+  const analyticsTarget = isTraceTranscript ? "trace" : "observation";
   const activation = useActivationEstimate({ projectId });
   const requestActivation = activation.requestActivation;
   const setActivationSampling = activation.setSampling;
   const [dialogPhase, setDialogPhase] = useState<DialogPhase>("saved");
-  const [mode, setMode] = useState<EvaluatorSavedMode>("test-filters");
+  const [mode, setMode] = useState<EvaluatorSavedMode>(
+    evaluator.initialRuleId ? "different-scope" : "test-filters",
+  );
   const [rulePickerOpen, setRulePickerOpen] = useState(false);
   const [selectedRuleId, setSelectedRuleId] = useState<
     string | null | undefined
-  >(undefined);
+  >(evaluator.initialRuleId);
   const [isEstimating, setIsEstimating] = useState(false);
   const [testFilterSampling, setTestFilterSampling] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -93,7 +107,7 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: true,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects: ruleTargetObjects,
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -103,7 +117,7 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: false,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects: ruleTargetObjects,
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -133,14 +147,21 @@ export function EvaluatorSavedDialogContainer({
     supportedFilters: supportedRuleFilters,
     unsupportedReasons: unsupportedRuleFilterReasons,
   } = useMemo(
-    () => classifySampleFiltersForRule(evaluator.sampleFilter),
-    [evaluator.sampleFilter],
+    () =>
+      classifySampleFiltersForRule(
+        evaluator.sampleFilter,
+        isTraceTranscript ? TopicsTargetObject : EvalTargetObject.EVENT,
+      ),
+    [evaluator.sampleFilter, isTraceTranscript],
   );
   const selectedRule = availableRules.find(
     (rule) => rule.id === selectedRuleId,
   );
   const attach = api.evalsV2.rules.attach.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
+  });
+  const updateRule = api.evalsV2.rules.update.useMutation({
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
   const createOrAttachFromEvaluatorFilters =
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
@@ -172,12 +193,30 @@ export function EvaluatorSavedDialogContainer({
     const isAlreadyAttached = currentAssignments.some(
       (assignment) => assignment.evaluationRule.id === rule.id,
     );
-    if (!isAlreadyAttached) {
+    if (isTraceTranscript && isAlreadyAttached) {
+      // Trace assignments store explicit mappings: replace only this
+      // evaluator's and keep the rule's other assignments as they are.
+      const latestRule = await utils.client.evalsV2.rules.get.query({
+        projectId,
+        ruleId: rule.id,
+      });
+      await updateRule.mutateAsync({
+        projectId,
+        ruleId: rule.id,
+        evaluatorMappings: latestRule.assignments.map((assignment) => ({
+          evaluatorId: assignment.evaluator.id,
+          variableMapping:
+            assignment.evaluator.id === evaluator.id
+              ? traceMapping
+              : assignment.variableMapping,
+        })),
+      });
+    } else if (!isAlreadyAttached) {
       await attach.mutateAsync({
         projectId,
         ruleId: rule.id,
         evaluatorId: evaluator.id,
-        variableMapping: null,
+        variableMapping: isTraceTranscript ? traceMapping : null,
         enableRule: !rule.enabled,
       });
       capture("evaluation_rules:attach_evaluator", {
@@ -189,10 +228,12 @@ export function EvaluatorSavedDialogContainer({
       projectId,
       ruleId: rule.id,
     });
-    await backfill.schedule(
-      { filter: currentRule.filter, sampling: currentRule.sampling },
-      backfill.executionRange,
-    );
+    if (!isTraceTranscript) {
+      await backfill.schedule(
+        { filter: currentRule.filter, sampling: currentRule.sampling },
+        backfill.executionRange,
+      );
+    }
     onboardingAnalytics?.completeOnboarding({
       executionPath: "existing_rule",
       hasBackfill: backfill.enabled,
@@ -209,6 +250,9 @@ export function EvaluatorSavedDialogContainer({
       evaluatorId: evaluator.id,
       filter: supportedRuleFilters,
       sampling,
+      ...(isTraceTranscript
+        ? { targetObject: TopicsTargetObject, variableMapping: traceMapping }
+        : {}),
     });
     if (result.action === "created") {
       capture("evaluation_rules:create", {
@@ -224,10 +268,12 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
-    await backfill.schedule(
-      { filter: supportedRuleFilters, sampling },
-      backfill.executionRange,
-    );
+    if (!isTraceTranscript) {
+      await backfill.schedule(
+        { filter: supportedRuleFilters, sampling },
+        backfill.executionRange,
+      );
+    }
     onboardingAnalytics?.completeOnboarding({
       executionPath: "test_filters",
       hasBackfill: backfill.enabled,
@@ -277,6 +323,9 @@ export function EvaluatorSavedDialogContainer({
             },
             {
               shouldRunMissingTest,
+              ...(isTraceTranscript
+                ? { targetObject: TopicsTargetObject }
+                : {}),
               ...(evaluator.testRunCostUsd !== null &&
               evaluator.testRunCostUsd !== undefined
                 ? { knownTestRunCostUsd: evaluator.testRunCostUsd }
@@ -300,19 +349,11 @@ export function EvaluatorSavedDialogContainer({
       evaluator.id,
       evaluator.name,
       evaluator.testRunCostUsd,
+      isTraceTranscript,
       requestActivation,
       resetMissingCostTest,
     ],
   );
-
-  const requestInitialEstimate = () => {
-    if (initialEstimateRequested.current) return;
-    initialEstimateRequested.current = true;
-    requestEstimate({
-      filter: supportedRuleFilters,
-      sampling: testFilterSampling,
-    }).catch(() => undefined);
-  };
 
   const openCreateRule = () => {
     createRuleHandoffPending.current = true;
@@ -341,6 +382,19 @@ export function EvaluatorSavedDialogContainer({
     },
     [backfill, requestEstimate, setActivationSampling],
   );
+
+  const requestInitialEstimate = () => {
+    if (initialEstimateRequested.current) return;
+    initialEstimateRequested.current = true;
+    if (selectedRule) {
+      selectExistingRule(selectedRule);
+      return;
+    }
+    requestEstimate({
+      filter: supportedRuleFilters,
+      sampling: testFilterSampling,
+    }).catch(() => undefined);
+  };
 
   const selectNewRule = () => {
     estimateRequestId.current += 1;
@@ -423,6 +477,7 @@ export function EvaluatorSavedDialogContainer({
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
+        target: analyticsTarget,
         hasBackfill: backfill.enabled,
         backfillWindow: backfill.enabled ? backfill.window : undefined,
         backfillMaxItems: backfill.enabled
@@ -436,6 +491,7 @@ export function EvaluatorSavedDialogContainer({
     if (selectedRule) {
       capture("evaluators:saved_dialog_submit", {
         action: "existing_rule",
+        target: analyticsTarget,
         hasBackfill: backfill.enabled,
         backfillWindow: backfill.enabled ? backfill.window : undefined,
         backfillMaxItems: backfill.enabled
@@ -447,6 +503,7 @@ export function EvaluatorSavedDialogContainer({
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",
+        target: analyticsTarget,
         hasBackfill: false,
       });
       onboardingAnalytics?.track("eval:onboarding_create_rule_opened", {});
@@ -523,7 +580,8 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const hasConfiguredScope = mode === "test-filters" || Boolean(selectedRule);
-  const backfillContent = (
+  // Trace transcripts have no batch evaluation path yet, so there is nothing to backfill.
+  const backfillContent = isTraceTranscript ? undefined : (
     <EvaluatorBackfillSettings
       enabled={backfill.enabled}
       canEnable={hasConfiguredScope}
@@ -561,6 +619,7 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
+      unit={analyticsTarget}
       backfill={
         backfill.enabled
           ? {
@@ -595,6 +654,9 @@ export function EvaluatorSavedDialogContainer({
     </div>
   ) : null;
 
+  // An evaluator already on a rule opens with that rule selected, so wait for the list.
+  if (evaluator.initialRuleId && rulesPending) return null;
+
   if (dialogPhase === "saved" || dialogPhase === "closing-saved") {
     return (
       <EvaluatorSavedDialog
@@ -603,15 +665,19 @@ export function EvaluatorSavedDialogContainer({
         modeContentByMode={modeContentByMode}
         backfillContent={backfillContent}
         costSummary={costSummary}
+        unit={isTraceTranscript ? "traces" : "observations"}
         canSubmit={
           !isEstimating &&
           !isCompleting &&
           (!backfill.enabled || !backfill.isEstimating) &&
           (!backfill.enabled || historicEvaluationLimit.isSuccess) &&
-          (mode === "test-filters" || selectedRuleId !== undefined)
+          (mode === "test-filters" ||
+            selectedRuleId === null ||
+            Boolean(selectedRule))
         }
         isSubmitting={
           attach.isPending ||
+          updateRule.isPending ||
           createOrAttachFromEvaluatorFilters.isPending ||
           backfill.isScheduling ||
           isCompleting
@@ -672,7 +738,17 @@ export function EvaluatorSavedDialogContainer({
             hasBackfill: false,
           });
         }}
-        initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
+        initialEvaluator={{
+          ...evaluator,
+          initialVariableMapping: isTraceTranscript ? traceMapping : null,
+        }}
+        {...(isTraceTranscript
+          ? {
+              targetObject: TopicsTargetObject,
+              lockScope: true,
+              initialFilter: supportedRuleFilters,
+            }
+          : {})}
         successNotification="none"
       />
     );

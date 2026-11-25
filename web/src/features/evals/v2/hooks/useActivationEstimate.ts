@@ -1,3 +1,4 @@
+import type { TopicsTargetObject } from "@langfuse/shared";
 import { useCallback, useState } from "react";
 import {
   requestRuleActivation,
@@ -30,6 +31,7 @@ export function useActivationEstimate({ projectId }: { projectId: string }) {
       options?: {
         shouldRunMissingTest?: boolean;
         knownTestRunCostUsd?: number;
+        targetObject?: typeof TopicsTargetObject;
       },
     ) => {
       if (request.targets.length > 0) {
@@ -44,6 +46,7 @@ export function useActivationEstimate({ projectId }: { projectId: string }) {
               evaluatorIds: targets.map(({ evaluatorId }) => evaluatorId),
               filter: targets[0]?.filter ?? [],
               sampling: targets[0]?.sampling ?? 1,
+              targetObject: options?.targetObject,
               shouldRunMissingTest: options?.shouldRunMissingTest,
               knownTestRunCostUsd: options?.knownTestRunCostUsd,
             }),

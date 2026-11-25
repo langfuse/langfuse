@@ -4,6 +4,7 @@ import {
   DecisionModelStateKeySchema,
   EvalOutputDefinitionSchema,
   EvalTemplateType,
+  EvalTargetObject,
   EvaluatorPromptMessagesSchema,
   extractVariables,
   EvaluatorSourceCodeLanguage,
@@ -14,6 +15,7 @@ import {
   observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
+  TopicsTargetObject,
   type ObservationVariableMapping,
   type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
@@ -185,6 +187,7 @@ export const EvaluatorIdsSchema = z.object({
 export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
   filter: singleFilterList,
   sampling: z.number().min(0).max(1),
+  targetObject: z.enum([EvalTargetObject.EVENT, TopicsTargetObject]).optional(),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
   timeRange: z

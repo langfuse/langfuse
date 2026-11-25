@@ -8,6 +8,7 @@ import {
   protectedProjectProcedure,
   type ProjectAuthedContext,
 } from "@/src/server/api/trpc";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { z } from "zod";
 import {
   ActivationCostEstimatesSchema,
@@ -187,6 +188,12 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evalJobExecution:read",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       const canRunMissingCostTest = hasProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,

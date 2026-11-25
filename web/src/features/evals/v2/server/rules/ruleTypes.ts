@@ -155,18 +155,34 @@ export const ExperimentDatasetRulesSchema = z.object({
   datasetId: z.string().min(1),
 });
 
+const RuleFilterTargetSchema = z
+  .enum([EvalTargetObject.EVENT, TopicsTargetObject])
+  .optional();
+
 export const SuggestRuleNameSchema = z.object({
   projectId: z.string(),
   filter: RuleMetadataSchema.shape.filter,
   sampling: RuleMetadataSchema.shape.sampling,
+  targetObject: RuleFilterTargetSchema,
 });
 
-export const CreateOrAttachFromEvaluatorFiltersSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string().min(1),
-  filter: RuleMetadataSchema.shape.filter,
-  sampling: RuleMetadataSchema.shape.sampling,
-});
+export const CreateOrAttachFromEvaluatorFiltersSchema = z
+  .object({
+    projectId: z.string(),
+    evaluatorId: z.string().min(1),
+    filter: RuleMetadataSchema.shape.filter,
+    sampling: RuleMetadataSchema.shape.sampling,
+    targetObject: RuleFilterTargetSchema,
+    variableMapping: observationVariableMappingList.optional(),
+  })
+  .refine(
+    ({ targetObject, variableMapping }) =>
+      targetObject !== TopicsTargetObject || variableMapping !== undefined,
+    {
+      message: "Trace rules need the evaluator's variable mapping.",
+      path: ["variableMapping"],
+    },
+  );
 
 export type RuleAssignmentInput = z.infer<typeof RuleAssignmentInputSchema>;
 export type CreateRuleInput = z.infer<typeof CreateRuleSchema>;

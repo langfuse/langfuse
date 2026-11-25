@@ -20,6 +20,7 @@ export function EvaluatorSavedCostSummary({
   onSamplingChange,
   evaluatorType,
   backfill,
+  unit = "observation",
 }: {
   estimates: ActivationEstimate[];
   unavailableEstimateCount: number;
@@ -37,6 +38,7 @@ export function EvaluatorSavedCostSummary({
         testRunCostUsd: number | null;
         isEstimating: boolean;
       };
+  unit?: "observation" | "trace";
 }) {
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
@@ -131,6 +133,7 @@ export function EvaluatorSavedCostSummary({
                       testRunCostUsd: estimate?.testRunCostUsd ?? null,
                       estimatedCostUsd,
                       evaluatorType,
+                      unit,
                     })}
                   />
                 </InfoTooltip>

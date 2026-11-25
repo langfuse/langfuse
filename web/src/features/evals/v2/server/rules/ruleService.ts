@@ -8,6 +8,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
+  stableJsonStringify,
   TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
@@ -212,11 +213,12 @@ export class RuleService {
     projectId: string;
     filter: FilterState;
     sampling: number;
+    targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
   }) {
-    const filter = this.validateRuleFilters(
-      EvalTargetObject.EVENT,
-      params.filter,
-    );
+    const targetObject = params.targetObject ?? EvalTargetObject.EVENT;
+    const scopeLabel =
+      targetObject === TopicsTargetObject ? "trace" : "observation";
+    const filter = this.validateRuleFilters(targetObject, params.filter);
     const availability = await resolveLangfuseAiFeatureAvailability({
       prisma: this.prisma,
       projectId: params.projectId,
@@ -228,8 +230,7 @@ export class RuleService {
         messages: [
           {
             role: ChatMessageRole.System,
-            content:
-              "Return only a concise, human-readable evaluation rule name of at most six words. Describe the observation scope. Do not use quotes or punctuation at the end.",
+            content: `Return only a concise, human-readable evaluation rule name of at most six words. Describe the ${scopeLabel} scope. Do not use quotes or punctuation at the end.`,
             type: ChatMessageType.System,
           },
           {
@@ -350,10 +351,10 @@ export class RuleService {
     input: CreateOrAttachFromEvaluatorFiltersInput,
     createdByUserId: string | null,
   ) {
-    const filter = this.validateRuleFilters(
-      EvalTargetObject.EVENT,
-      input.filter,
-    );
+    const targetObject = input.targetObject ?? EvalTargetObject.EVENT;
+    const isTraceTranscript = targetObject === TopicsTargetObject;
+    const filter = this.validateRuleFilters(targetObject, input.filter);
+    const traceMapping = input.variableMapping ?? [];
     const attachToMatch = async () => {
       const matchingRule =
         await repository.findActiveRuleWithMatchingFilterAndSampling({
@@ -361,21 +362,53 @@ export class RuleService {
           projectId: input.projectId,
           filter,
           sampling: input.sampling,
+          targetObject,
+          visibility: this.visibility,
         });
       if (!matchingRule) return null;
 
+      const currentAssignment = matchingRule.assignments.find(
+        (assignment) => assignment.evaluatorId === input.evaluatorId,
+      );
+
+      if (!isTraceTranscript) {
+        if (currentAssignment)
+          return this.get(input.projectId, matchingRule.id);
+        return this.attach({
+          projectId: input.projectId,
+          ruleId: matchingRule.id,
+          assignment: { evaluatorId: input.evaluatorId, variableMapping: null },
+        });
+      }
+
+      // Trace assignments store explicit mappings, so a re-save replaces this
+      // evaluator's mapping and leaves the rule's other assignments as they are.
+      if (!currentAssignment) {
+        return this.attach({
+          projectId: input.projectId,
+          ruleId: matchingRule.id,
+          assignment: {
+            evaluatorId: input.evaluatorId,
+            variableMapping: traceMapping,
+          },
+        });
+      }
       if (
-        matchingRule.assignments.some(
-          (assignment) => assignment.evaluatorId === input.evaluatorId,
-        )
+        stableJsonStringify(currentAssignment.variableMapping) ===
+        stableJsonStringify(traceMapping)
       ) {
         return this.get(input.projectId, matchingRule.id);
       }
-
-      return this.attach({
+      return this.update({
         projectId: input.projectId,
         ruleId: matchingRule.id,
-        assignment: { evaluatorId: input.evaluatorId, variableMapping: null },
+        evaluatorMappings: matchingRule.assignments.map((assignment) => ({
+          evaluatorId: assignment.evaluatorId,
+          variableMapping:
+            assignment.evaluatorId === input.evaluatorId
+              ? traceMapping
+              : (assignment.variableMapping as ObservationVariableMapping[]),
+        })),
       });
     };
 
@@ -387,6 +420,7 @@ export class RuleService {
       projectId: input.projectId,
       filter,
       sampling: input.sampling,
+      targetObject,
     });
 
     // Check again after name generation because another request may have
@@ -396,20 +430,36 @@ export class RuleService {
       return { action: "attached" as const, rule: concurrentlyCreatedRule };
     }
 
-    const rule = await this.create(
-      {
-        projectId: input.projectId,
-        name: suggestedName ?? fallbackRuleName(filter),
-        targetObject: EvalTargetObject.EVENT,
-        filter,
-        sampling: input.sampling,
-        enabled: true,
-        evaluatorAssignments: [
-          { evaluatorId: input.evaluatorId, variableMapping: null },
-        ],
-      },
-      createdByUserId,
-    );
+    const name = suggestedName ?? fallbackRuleName(filter, targetObject);
+    const rule = isTraceTranscript
+      ? await this.createTraceTranscriptRule(
+          {
+            projectId: input.projectId,
+            name,
+            targetObject: TopicsTargetObject,
+            filter,
+            sampling: input.sampling,
+            enabled: true,
+            evaluatorAssignments: [
+              { evaluatorId: input.evaluatorId, variableMapping: traceMapping },
+            ],
+          },
+          createdByUserId,
+        )
+      : await this.create(
+          {
+            projectId: input.projectId,
+            name,
+            targetObject: EvalTargetObject.EVENT,
+            filter,
+            sampling: input.sampling,
+            enabled: true,
+            evaluatorAssignments: [
+              { evaluatorId: input.evaluatorId, variableMapping: null },
+            ],
+          },
+          createdByUserId,
+        );
     return { action: "created" as const, rule };
   }
 
@@ -1055,16 +1105,14 @@ function toRuleResponse(rule: StoredRule) {
         return {
           ...assignment,
           variableMapping: variableMapping as
-            | ObservationVariableMapping[]
-            | null,
+            ObservationVariableMapping[] | null,
           evaluator: {
             ...evaluatorMetadata,
             latestVersion: latestVersion
               ? {
                   ...latestVersion,
                   variableMapping: latestVersion.variableMapping as
-                    | ObservationVariableMapping[]
-                    | null,
+                    ObservationVariableMapping[] | null,
                 }
               : null,
           },
