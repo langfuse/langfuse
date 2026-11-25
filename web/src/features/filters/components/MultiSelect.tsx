@@ -146,6 +146,19 @@ export function MultiSelect({
   }, [selectableOptions, selectedValues]);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const latestCommitContextRef = useRef({
+    selectedValues,
+    freeTextInput,
+    onValueChange,
+  });
+  useEffect(() => {
+    latestCommitContextRef.current = {
+      selectedValues,
+      freeTextInput,
+      onValueChange,
+    };
+  }, [selectedValues, freeTextInput, onValueChange]);
+
   const clearDebounce = useCallback(() => {
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
@@ -175,6 +188,12 @@ export function MultiSelect({
       selectableOptions.forEach((option) =>
         newSelectedValues.add(option.value),
       );
+      if (freeTextInput && freeText !== freeTextInput) {
+        newSelectedValues.delete(freeTextInput);
+        if (freeText.length > 0) {
+          newSelectedValues.add(freeText);
+        }
+      }
       setFreeTextDraft(null);
     }
     const filterValues = Array.from(newSelectedValues);
@@ -183,6 +202,7 @@ export function MultiSelect({
     allSelectedState,
     clearDebounce,
     freeText,
+    freeTextInput,
     isCustomSelectEnabled,
     onValueChange,
     optionValues,
@@ -191,16 +211,21 @@ export function MultiSelect({
   ]);
 
   const handleDebouncedChange = (value: string) => {
-    if (!freeTextInput) return;
+    const {
+      selectedValues: latestSelectedValues,
+      freeTextInput: latestFreeTextInput,
+      onValueChange: latestOnValueChange,
+    } = latestCommitContextRef.current;
+    if (!latestFreeTextInput) return;
 
-    const nextSelectedValues = new Set(selectedValues);
-    nextSelectedValues.delete(freeTextInput);
+    const nextSelectedValues = new Set(latestSelectedValues);
+    nextSelectedValues.delete(latestFreeTextInput);
     if (value.length > 0) {
       nextSelectedValues.add(value);
     }
     setFreeTextDraft(null);
     const filterValues = Array.from(nextSelectedValues);
-    onValueChange(filterValues.length > 0 ? filterValues : []);
+    latestOnValueChange(filterValues.length > 0 ? filterValues : []);
   };
 
   const handleToggleCustomValue = useCallback(() => {

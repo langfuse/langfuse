@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MultiSelect } from "./MultiSelect";
 
@@ -160,5 +160,41 @@ describe("MultiSelect", () => {
 
     fireEvent.click(customInput.closest("[role='option']")!);
     expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it("preserves pending custom text edits across intervening option clicks and Select All", () => {
+    vi.useFakeTimers();
+    try {
+      const onValuesChange = vi.fn();
+      render(
+        <ControlledMultiSelect
+          initialValues={["custom-old"]}
+          options={[{ value: "user-1" }, { value: "user-2" }]}
+          onValuesChange={onValuesChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button"));
+      const dialog = screen.getByRole("dialog");
+      const customInput = screen.getByPlaceholderText("Enter custom value");
+
+      fireEvent.change(customInput, { target: { value: "custom-new" } });
+      fireEvent.click(within(dialog).getByText("user-1"));
+
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+        new Set(["user-1", "custom-new"]),
+      );
+
+      fireEvent.change(customInput, { target: { value: "custom-final" } });
+      fireEvent.click(within(dialog).getByText("Select All"));
+      expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+        new Set(["user-1", "user-2", "custom-final"]),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
