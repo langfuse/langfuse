@@ -127,8 +127,8 @@ async function topicModelCall<T>(
   metadata: TopicCallMetadata | undefined,
   call: (maxRetries: number) => Promise<T>,
 ): Promise<T> {
-  // Trace jobs requeue a 429 with backoff; naming has no queue to back off in.
-  const backsOff = stage !== "naming";
+  // A summary 429 waits for the trace queue's backoff; other stages keep the SDK's retries.
+  const ownRetries = stage === "summary";
   return instrumentAsync(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
@@ -151,7 +151,7 @@ async function topicModelCall<T>(
       recordTopicRequestBytes(stage, model.adapter, requestBytes);
       for (let attempt = 0; ; attempt++) {
         try {
-          const result = await call(backsOff ? 0 : 2);
+          const result = await call(ownRetries ? 0 : 2);
           recordTopicModelCall(stage, model.adapter, {});
           // Shared egress metric; like llmaj, counted after a successful send.
           recordExportVolume({
@@ -177,11 +177,18 @@ async function topicModelCall<T>(
           };
           span.setAttributes(failed);
           logger.warn("Topics model request failed", failed);
-          // Timeouts and 5xx retry at once; a 429 waits for the queue's backoff.
-          const instant =
-            failure.reason === "timeout" ||
-            (failure.reason === "provider_error" && (httpStatus ?? 0) >= 500);
-          if (backsOff && instant && attempt < 2) continue;
+          // Same 2s/4s backoff the SDK uses for 5xx; timeouts and 429s go to the queue.
+          if (
+            ownRetries &&
+            failure.reason === "provider_error" &&
+            (httpStatus ?? 0) >= 500 &&
+            attempt < 2
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 2_000 * 2 ** attempt),
+            );
+            continue;
+          }
           throw failure;
         }
       }
@@ -793,8 +800,7 @@ export async function embedTopicSummaries(
     projectId,
     llmRequestEgressBytes(summaries),
     metadata,
-    (maxRetries) =>
-      generateTopicEmbeddings({ model, summaries, dimensions, maxRetries }),
+    () => generateTopicEmbeddings({ model, summaries, dimensions }),
   );
   recordTopicTokenUsage("embedding", { input: result.tokens });
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.

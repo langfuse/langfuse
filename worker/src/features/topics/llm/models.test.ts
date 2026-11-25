@@ -657,6 +657,56 @@ describe("Topics naming boundary", () => {
     );
   });
 
+  it("leaves a summary 429 to the queue's backoff but retries a 5xx after 2s and 4s", async () => {
+    const providerError = (statusCode: number) =>
+      Object.assign(new Error(`HTTP ${statusCode}`), {
+        name: "AI_APICallError",
+        statusCode,
+      });
+    const summarize = () =>
+      summarizeTopicTraceFacets(
+        topicsModels(),
+        [{ key: "intent_1", facet, builtIn: true }],
+        "transcript",
+        topicProcessingConfigSchema.parse({}),
+      );
+
+    state.call.mockRejectedValueOnce(providerError(429));
+    await expect(summarize()).rejects.toMatchObject({ reason: "rate_limit" });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.call.mock.calls[0][0].maxRetries).toBe(0);
+
+    vi.useFakeTimers();
+    try {
+      state.call
+        .mockReset()
+        .mockRejectedValueOnce(providerError(503))
+        .mockRejectedValueOnce(providerError(503))
+        .mockResolvedValueOnce({
+          output: {
+            intent_1: {
+              notes: "n",
+              summary: "Export sales.",
+              status: "applicable",
+            },
+          },
+          usage: { inputTokens: 10, outputTokens: 5 },
+          usageDetails: { input: 10, output: 5 },
+          providedCostDetails: {},
+        });
+      const result = summarize();
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(state.call).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1 + 4_000);
+      await expect(result).resolves.toMatchObject({
+        output: { intent_1: { status: "applicable" } },
+      });
+      expect(state.call).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("summarizes all facets of a trace in one request and checks its size first", async () => {
     state.call.mockResolvedValue({
       output: {
@@ -1226,38 +1276,6 @@ describe("Topics naming boundary", () => {
       projectId: "project",
       model: "eu.cohere.embed-v4:0",
     });
-  });
-
-  it("leaves a 429 to the queue's backoff but retries a 5xx at once", async () => {
-    const providerError = (statusCode: number) =>
-      Object.assign(new Error(`HTTP ${statusCode}`), {
-        name: "AI_APICallError",
-        statusCode,
-      });
-    const embed = () =>
-      embedTopicSummaries(
-        topicsModels().embedding,
-        ["An invoice request."],
-        256,
-        "project",
-      );
-
-    state.embed.mockRejectedValueOnce(providerError(429));
-    await expect(embed()).rejects.toMatchObject({ reason: "rate_limit" });
-    expect(state.embed).toHaveBeenCalledTimes(1);
-    expect(state.embed.mock.calls[0][0].maxRetries).toBe(0);
-
-    state.embed
-      .mockReset()
-      .mockRejectedValueOnce(providerError(503))
-      .mockResolvedValueOnce({
-        embeddings: [Array(256).fill(0.25)],
-        tokens: 5,
-      });
-    await expect(embed()).resolves.toMatchObject({
-      embeddings: [expect.any(Array)],
-    });
-    expect(state.embed).toHaveBeenCalledTimes(2);
   });
 
   it("records embedding input usage even when the returned vector is invalid", async () => {

@@ -9,8 +9,6 @@ export async function generateTopicEmbeddings(params: {
   model: TopicsModel;
   summaries: string[];
   dimensions: number;
-  /** AI SDK retries of 429 and 5xx responses; callers with their own backoff pass 0. */
-  maxRetries?: number;
 }) {
   const { embeddingDimensions } = topicEmbeddingConfigSchema.parse({
     embeddingDimensions: params.dimensions,
@@ -30,7 +28,7 @@ async function embedWithSizeFallback(
       values: params.summaries,
       dimensions,
       providerOptions: embeddingProviderOptions(params.model),
-      maxRetries: params.maxRetries ?? 2,
+      maxRetries: 2,
       // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
       maxParallelCalls: 10,
       abortSignal: AbortSignal.timeout(60_000),
