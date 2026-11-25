@@ -7315,22 +7315,42 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
     patch:
-      description: |-
+      description: >-
         Update a dashboard's name, description, definition, or filters.
 
+
         A legacy `widgets` definition updates classic placements while
+
         preserving inline widgets. For a version 1 edit, update `blocks` and
+
         omit `widgets` or mirror the classic placements there. A client may
+
         also edit only `widgets` on a definition returned by GET and echo
-        `blocks` unchanged. If the echoed layout has since changed, PATCH
-        returns `409`; fetch the current definition before retrying.
+
+        `blocks` unchanged. A concurrent classic move, resize, or change to
+
+        the original placement used as an inline anchor returns `409` when
+
+        it conflicts with that snapshot. Fetch the current definition before
+        retrying.
+
 
         Project API credentials may round-trip existing inline widgets unchanged
+
         while editing classic placements. If a saved widget has a newer
+
         revision, reload the dashboard after the `409` response before retrying.
+
         Creating, editing, removing, or reordering inline widgets returns
-        `403`. Use the application's employee feature preview to change inline
+
+        `403`. A stale snapshot with different inline membership or order also
+
+        returns `403`. Refetch it before reapplying a classic layout edit.
+
+        Use the application's employee feature preview to change inline
+
         content. Unsupported future entries are preserved in storage, and
+
         definitions with an unsupported root version cannot be edited.
       operationId: unstable_dashboards_update
       tags:
