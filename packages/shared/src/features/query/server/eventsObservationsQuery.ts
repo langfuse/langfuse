@@ -98,7 +98,6 @@ export function buildEventsObservations(
   // No filter joins a relation: `eventsObservationsFilterLowering` compares
   // `e` columns only.
   const relationTables = collectRelationTables(
-    view,
     appliedDimensions,
     appliedMetrics,
     bucket,

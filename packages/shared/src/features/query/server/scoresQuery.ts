@@ -310,9 +310,8 @@ export function buildScores(
   });
 
   // Relations in order of first use: entity bucket, dimensions, measures,
-  // filters, as in `collectRelationTables`.
+  // filters.
   const outputRelations = collectRelationTables(
-    view,
     appliedDimensions,
     appliedMetrics,
     bucket,

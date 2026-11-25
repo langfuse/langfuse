@@ -575,7 +575,6 @@ export function resolveDimension(
  * relation adds its filters' relations after these.
  */
 export function collectRelationTables(
-  view: ViewDeclarationType,
   appliedDimensions: AppliedDimensionType[],
   appliedMetrics: AppliedMetricType[],
   appliedBucketingDimension: AppliedBucketingDimension,

@@ -1116,7 +1116,6 @@ export class QueryBuilder {
 
     // Handle relation tables
     const relationTables = collectRelationTables(
-      view,
       appliedDimensions,
       appliedMetrics,
       appliedBucketingDimension,
