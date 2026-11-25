@@ -2369,7 +2369,7 @@ async fn redact_guardrails_rewrite_upstream_body_and_record_redact_metadata() {
     response.bytes().await.unwrap();
 
     let forwarded = harness.upstream_rx.try_recv().unwrap();
-    assert_eq!(forwarded["model"], "gpt-4.1");
+    assert_eq!(forwarded["model"], "provider-model");
     assert_eq!(forwarded["input"][0]["content"], "earlier [EMAIL]");
     assert_eq!(
         forwarded["input"][2]["content"][0]["text"],
