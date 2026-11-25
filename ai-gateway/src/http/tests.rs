@@ -2349,7 +2349,7 @@ async fn redact_guardrails_rewrite_upstream_body_and_record_redact_metadata() {
             serde_json::json!({
                 "model": "Production key:gpt-4.1",
                 "input": [
-                    {"role": "user", "content": "earlier a@example.com"},
+                    {"role": "user", "content": "earlier old@example.com"},
                     {"role": "assistant", "content": "ok"},
                     {
                         "role": "user",
@@ -2370,7 +2370,7 @@ async fn redact_guardrails_rewrite_upstream_body_and_record_redact_metadata() {
 
     let forwarded = harness.upstream_rx.try_recv().unwrap();
     assert_eq!(forwarded["model"], "provider-model");
-    assert_eq!(forwarded["input"][0]["content"], "earlier [EMAIL]");
+    assert_eq!(forwarded["input"][0]["content"], "earlier old@example.com");
     assert_eq!(
         forwarded["input"][2]["content"][0]["text"],
         "café [EMAIL] 🚀"
