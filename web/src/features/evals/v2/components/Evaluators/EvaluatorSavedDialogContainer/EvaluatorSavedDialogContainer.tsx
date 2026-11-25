@@ -581,8 +581,7 @@ export function EvaluatorSavedDialogContainer({
       onMaxItemsChange={backfill.setMaxItems}
     />
   );
-  const showCostSummary = hasConfiguredScope && !isTraceTranscript;
-  const costSummary = showCostSummary ? (
+  const costSummary = hasConfiguredScope ? (
     <EvaluatorSavedCostSummary
       estimates={activation.estimate.estimates}
       unavailableEstimateCount={activation.estimate.unavailableEstimateCount}
@@ -594,6 +593,7 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
+      targetObject={evaluator.targetObject}
       backfill={
         backfill.enabled
           ? {
@@ -619,7 +619,7 @@ export function EvaluatorSavedDialogContainer({
           : null
       }
     />
-  ) : evaluator.type !== EvalTemplateType.CODE ? (
+  ) : evaluator.type !== EvalTemplateType.CODE && !isTraceTranscript ? (
     <div className="space-y-2">
       <h3 className="text-sm font-bold">Cost estimate</h3>
       <p className="text-muted-foreground text-sm">
@@ -670,6 +670,7 @@ export function EvaluatorSavedDialogContainer({
         backfillContent={backfillContent}
         warning={overrideWarning}
         costSummary={costSummary}
+        targetObject={evaluator.targetObject}
         canSubmit={
           !isEstimating &&
           !isCompleting &&
