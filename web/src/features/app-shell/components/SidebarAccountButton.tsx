@@ -3,6 +3,12 @@ import { cn } from "@/src/utils/tailwind";
 import { type ComponentProps } from "react";
 import { ChevronsUpDown } from "@langfuse/icons";
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
+import { VersionAttentionDot } from "@/src/components/nav/VersionAttentionDot";
+import {
+  describeVersionState,
+  getVersionStatusDot,
+  type SidebarVersionState,
+} from "@/src/components/nav/versionState";
 import { type SidebarUser } from "@/src/features/app-shell/components/SidebarUserMenu";
 import { type SidebarSurface } from "@/src/features/app-shell/contexts/SidebarSurfaceProvider";
 
@@ -10,11 +16,18 @@ import { type SidebarSurface } from "@/src/features/app-shell/contexts/SidebarSu
 export function SidebarAccountButton({
   user,
   surface,
+  versionState,
   ...buttonProps
-}: { user: SidebarUser; surface: SidebarSurface } & Omit<
+}: {
+  user: SidebarUser;
+  surface: SidebarSurface;
+  versionState: SidebarVersionState;
+} & Omit<
   ComponentProps<"button">,
   "children" | "className" | "style" | "type"
 >) {
+  const versionDetails = describeVersionState(versionState);
+  const versionStatusDot = getVersionStatusDot(versionDetails);
   return (
     <button
       type="button"
@@ -43,11 +56,11 @@ export function SidebarAccountButton({
         <span className="text-foreground truncate font-bold" title={user.name}>
           {user.name}
         </span>
-        <span
-          className="text-muted-foreground truncate text-xs"
-          title={user.email}
-        >
-          {user.email}
+        <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+          <span className="truncate" title={versionDetails.versionText}>
+            {versionDetails.versionText}
+          </span>
+          {versionStatusDot && <VersionAttentionDot {...versionStatusDot} />}
         </span>
       </span>
       <span className={cn(motion.chevron, motion.label)}>

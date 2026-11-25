@@ -4,6 +4,8 @@ import {
   UserMenuItems,
   type UserNavigationItem,
 } from "@/src/components/nav/UserMenuItems";
+import { VersionSubmenu } from "@/src/components/nav/VersionSubmenu";
+import { type SidebarVersionState } from "@/src/components/nav/versionState";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,11 +28,13 @@ export type SidebarUser = { name: string; email: string; avatar: string };
 export function SidebarUserMenu({
   user,
   items,
+  versionState,
   side,
   children,
 }: {
   user: SidebarUser;
   items: UserNavigationItem[];
+  versionState: SidebarVersionState;
   side: "right" | "top";
   children: (control: { Trigger: typeof DropdownMenuTrigger }) => ReactNode;
 }) {
@@ -70,6 +74,8 @@ export function SidebarUserMenu({
             </div>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <VersionSubmenu state={versionState} />
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <UserMenuItems items={items} />
