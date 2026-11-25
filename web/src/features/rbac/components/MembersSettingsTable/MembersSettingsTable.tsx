@@ -15,6 +15,7 @@ import { createBadgeListTableColumn } from "@/src/components/design-system/table
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type GroupMember } from "@/src/features/groups/groupMember";
 import { RoleCellTrigger } from "@/src/features/rbac/components/RoleCellTrigger";
 import { directRoleColumns } from "./directRoleColumns";
 import { byPermissionCount } from "@/src/features/rbac/utils/byPermissionCount";
@@ -68,6 +69,8 @@ export type MemberGroupRole = {
   groupName: string;
   groupSource: "SCIM" | "MANUAL";
   memberCount: number;
+  /** The group's first few members; empty when the viewer may not see them. */
+  memberPreview: GroupMember[];
   role: Role;
   level: "organization" | "project";
 };
@@ -80,6 +83,8 @@ type MembersSettingsTableProps = Pick<
   project?: { id: string; name: string };
   currentUserId?: string;
   hasOrgCudAccess: boolean;
+  canSeeOrgGroups: boolean;
+  canSeeProjectGroups: boolean;
   hasProjectCudAccess: boolean;
   canManageOrgOwnership: boolean;
   canManageProjectOwnership: boolean;
@@ -194,6 +199,8 @@ export function MembersSettingsTable({
   project,
   currentUserId,
   hasOrgCudAccess,
+  canSeeOrgGroups,
+  canSeeProjectGroups,
   hasProjectCudAccess,
   canManageOrgOwnership,
   canManageProjectOwnership,
@@ -256,7 +263,9 @@ export function MembersSettingsTable({
                     orgRole={member.orgRole}
                     orgId={orgId}
                     projectId={onProject ? project?.id : undefined}
-                    canSeeOrgSettings={hasOrgCudAccess}
+                    projectName={onProject ? project?.name : undefined}
+                    canSeeOrgGroups={canSeeOrgGroups}
+                    canSeeProjectGroups={canSeeProjectGroups}
                     member={{ name: member.user.name, email: member.email }}
                     editor={directRoleEditor(member, effective, {
                       project,
@@ -349,6 +358,8 @@ export function MembersSettingsTable({
       canManageOrgOwnership,
       canManageProjectOwnership,
       hasOrgCudAccess,
+      canSeeOrgGroups,
+      canSeeProjectGroups,
       hasProjectCudAccess,
       isAiGatewayEnabled,
       isGroupsEnabled,

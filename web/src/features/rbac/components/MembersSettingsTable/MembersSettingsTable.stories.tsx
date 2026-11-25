@@ -32,6 +32,7 @@ const members: MembersSettingsTableRow[] = [
         groupName: "platform-admins",
         groupSource: "SCIM",
         memberCount: 12,
+        memberPreview: [],
         role: "ADMIN",
         level: "organization",
       },
@@ -79,6 +80,8 @@ export const Default = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canSeeProjectGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -140,13 +143,13 @@ export const AdminViewingOwner = meta.story({
     };
 
     const owner = await openRoleDialogFor(/Barbara Liskov/);
-    await expect(owner.getByText("Requires owner access")).toBeInTheDocument();
+    await expect(owner.getByRole("combobox")).toBeDisabled();
     await expect(owner.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(owner.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     const admin = await openRoleDialogFor(/Ada Lovelace/);
-    await expect(admin.queryByText("Requires owner access")).toBeNull();
+    await expect(admin.getByRole("combobox")).toBeEnabled();
   },
 });
 
@@ -154,6 +157,8 @@ export const FilteredByRole = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canSeeProjectGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -188,6 +193,8 @@ export const Loading = meta.story({
   args: {
     orgId: "org-1",
     hasOrgCudAccess: true,
+    canSeeOrgGroups: true,
+    canSeeProjectGroups: true,
     hasProjectCudAccess: false,
     canManageOrgOwnership: true,
     canManageProjectOwnership: true,
@@ -228,6 +235,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "langfuse-org-admins",
       groupSource: "SCIM",
       memberCount: 4,
+      memberPreview: [],
       role: "ADMIN",
       level: "organization",
     },
@@ -236,6 +244,7 @@ const groupMember: MembersSettingsTableRow = {
       groupName: "llm-app-maintainers",
       groupSource: "MANUAL",
       memberCount: 17,
+      memberPreview: [],
       role: "MEMBER",
       level: "project",
     },

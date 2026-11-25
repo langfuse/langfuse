@@ -1,11 +1,7 @@
-import { Users } from "@langfuse/icons";
+import { ChevronRight, Users } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 
-import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { selectTriggerClassName } from "@/src/components/ui/select";
 import { roleName } from "@/src/features/rbac/components/roleDisplay";
-import { roleIcons } from "@/src/features/rbac/components/roleIcons";
-import { cn } from "@/src/utils/tailwind";
 
 export function RoleCellTrigger({
   roles,
@@ -18,39 +14,20 @@ export function RoleCellTrigger({
   groupHint?: string;
   onClick: () => void;
 }) {
+  const names = roles.map(roleName).join(" + ");
+  const hoverText = groupHint ? `${names} · ${groupHint}` : names;
   return (
     <button
       type="button"
-      // The label and hint name the member's groups.
-      className={cn(
-        selectTriggerClassName,
-        "ph-no-capture hover:bg-muted w-auto max-w-full min-w-0",
-      )}
+      className="text-link hover:text-link-hover focus-visible:ring-ring ph-no-capture inline-flex max-w-full items-center gap-1 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
       aria-label={label}
       onClick={onClick}
     >
-      <span className="flex min-w-0 items-center gap-2">
-        {roles.map((role, index) => {
-          const Icon = roleIcons[role];
-          return (
-            <span key={role} className="flex shrink-0 items-center gap-2">
-              {index > 0 && (
-                <span className="text-muted-foreground" aria-hidden="true">
-                  +
-                </span>
-              )}
-              <Icon size="base" aria-hidden="true" />
-              {roleName(role)}
-            </span>
-          );
-        })}
+      <span className="min-w-0 truncate" title={hoverText}>
+        {names}
       </span>
-      {groupHint && (
-        <span className="text-muted-foreground inline-flex" title={groupHint}>
-          <Users size="sm" aria-hidden="true" />
-        </span>
-      )}
-      <DropdownIndicator />
+      {groupHint && <Users size="sm" aria-hidden="true" />}
+      <ChevronRight size="sm" aria-hidden="true" />
     </button>
   );
 }

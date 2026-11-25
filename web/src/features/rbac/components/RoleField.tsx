@@ -20,20 +20,26 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 
 export function RoleField({
   id,
+  "aria-label": ariaLabel,
   roles,
   value,
   onChange,
+  variant = "detailed",
   noneLabel,
   noneDescription,
   optionDisabledReason,
+  disabled = false,
 }: {
-  id: string;
+  id?: string;
+  "aria-label"?: string;
   roles: Role[];
   value: Role;
   onChange: (role: Role) => void;
+  variant?: "detailed" | "compact";
   noneLabel?: string;
   noneDescription?: string;
   optionDisabledReason?: (role: Role) => string | undefined;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [permissionsRole, setPermissionsRole] = useState<SystemRole | null>(
@@ -50,6 +56,7 @@ export function RoleField({
     setOpen(false);
     setPermissionsRole(role);
   };
+  const isCompact = variant === "compact";
 
   return (
     <div className="flex flex-col gap-1">
@@ -58,19 +65,34 @@ export function RoleField({
         onOpenChange={setOpen}
         value={value}
         onValueChange={(next) => onChange(next as Role)}
+        disabled={disabled}
       >
-        <SelectTrigger id={id} className="h-auto" disableValueLineClamp>
-          <div className="flex items-start gap-2 text-left">
+        <SelectTrigger
+          id={id}
+          aria-label={ariaLabel}
+          className={isCompact ? "w-40" : "h-auto"}
+          disableValueLineClamp
+        >
+          <div className="flex min-w-0 items-start gap-2 text-left">
             <SelectedIcon size="base" __rawClassName="mt-0.5" />
-            <div className="flex flex-col">
-              <span className="font-bold">{nameOf(value)}</span>
-              <span className="text-muted-foreground text-xs">
-                {describe(value)}
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate font-bold" title={nameOf(value)}>
+                {nameOf(value)}
               </span>
+              {!isCompact && (
+                <span className="text-muted-foreground text-xs">
+                  {describe(value)}
+                </span>
+              )}
             </div>
           </div>
         </SelectTrigger>
-        <SelectContent className="max-w-(--radix-select-trigger-width)">
+        <SelectContent
+          align={isCompact ? "end" : undefined}
+          className={
+            isCompact ? "w-80" : "max-w-(--radix-select-trigger-width)"
+          }
+        >
           {roles.map((role) => (
             <RoleSelectItem
               key={role}
@@ -87,7 +109,7 @@ export function RoleField({
           ))}
         </SelectContent>
       </Select>
-      {!(value === "NONE" && noneLabel) && (
+      {!isCompact && !(value === "NONE" && noneLabel) && (
         <span className="w-fit">
           <Button
             variant="text"

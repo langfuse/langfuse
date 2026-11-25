@@ -1,15 +1,14 @@
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  GroupMemberStack,
-  type StackMember,
-} from "@/src/features/groups/components/GroupMemberStack";
+import { GroupNameLabel } from "@/src/features/groups/components/GroupNameLabel";
+import { GroupMemberStack } from "@/src/features/groups/components/GroupMemberStack";
 import {
   GroupSourceLabel,
   type GroupSource,
 } from "@/src/features/groups/components/GroupSourceLabel";
+import { type GroupMember } from "@/src/features/groups/groupMember";
 
 type GroupTableRow = {
-  group: { displayName: string; source: GroupSource; members: StackMember[] };
+  group: { displayName: string; source: GroupSource; members: GroupMember[] };
 };
 
 export function groupTableColumns<T extends GroupTableRow>() {
@@ -17,11 +16,10 @@ export function groupTableColumns<T extends GroupTableRow>() {
     name: {
       accessorKey: "displayName",
       header: "Name",
+      size: 240,
       sensitive: true,
       cell: ({ row }) => (
-        <span className="truncate" title={row.original.group.displayName}>
-          {row.original.group.displayName}
-        </span>
+        <GroupNameLabel name={row.original.group.displayName} />
       ),
     },
     source: {
@@ -30,9 +28,9 @@ export function groupTableColumns<T extends GroupTableRow>() {
       enableHiding: true,
       headerTooltip: {
         description:
-          "SCIM: synced from your identity provider, so its name and members are managed there. Langfuse: created here by an admin.",
+          "SCIM: synced from your identity provider, so its name and members are managed there. Manual: created here by an admin.",
       },
-      size: 120,
+      size: 180,
       cell: ({ row }) => (
         <GroupSourceLabel source={row.original.group.source} />
       ),

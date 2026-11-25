@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Building } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -110,6 +111,32 @@ export const CloseOnly = meta.story({
           Open dialog
         </button>
       )}
+    </DialogController>
+  ),
+});
+
+export const WithIconDescriptionAndHint = meta.story({
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          icon={Building}
+          title="Organization access"
+          description="ada@example.com"
+          footerHint="Members are managed in your identity provider"
+          closeLabel="Cancel"
+          actions={[{ label: "Save", onClick: fn() }]}
+        >
+          <Dialog.Body separators="both">
+            <p>
+              The header names what the dialog is about; the footer hint says
+              what it cannot change.
+            </p>
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
     </DialogController>
   ),
 });

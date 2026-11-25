@@ -61,6 +61,16 @@ export function ConnectedMembersSettingsTable({
     scope: "projectMembers:CUD",
   });
 
+  const canSeeProjectGroups = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectGroups:read",
+  });
+
+  const canSeeOrgGroups = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "groups:read",
+  });
+
   const canManageOrgOwnership = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organization:manageOwnership",
@@ -227,6 +237,8 @@ export function ConnectedMembersSettingsTable({
           project={project}
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
+          canSeeOrgGroups={canSeeOrgGroups}
+          canSeeProjectGroups={canSeeProjectGroups}
           hasProjectCudAccess={hasProjectCudAccess}
           canManageOrgOwnership={canManageOrgOwnership}
           canManageProjectOwnership={canManageProjectOwnership}
