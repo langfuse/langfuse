@@ -31,6 +31,8 @@ import {
 import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
+  AI_GATEWAY_GUARDRAIL_METADATA_PREFIX,
+  AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../../features/ai-gateway/constants";
@@ -39,11 +41,17 @@ import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
 import { promptGenerationEvents } from "./prompt-events";
 import {
+  aliasRef,
+  arrayDistinct,
+  arrayJoin,
   arrayMap,
   byteLength,
   count,
   dateDiff,
   emptyMap,
+  has,
+  hasAny,
+  interval,
   startsWith,
   leftUTF8,
   limitBy,
@@ -55,9 +63,13 @@ import {
   sumMapValuesWhereKeyContains,
   toDate,
   toJSONString,
+  toMonday,
   toStartOfMinute,
+  toStartOfMonth,
   tupleIn,
+  typedValue,
   uniq,
+  withFill,
   xxHash32,
 } from "../query-ast/extensions";
 import {
@@ -4371,6 +4383,208 @@ export const getGatewaySpendSinceFromEvents = async (params: {
   return rows.map((row) => ({
     id: row.subject_id,
     spendUsd: Number(row.spend),
+  }));
+};
+
+const GATEWAY_GUARDRAIL_TIME_BUCKETS = {
+  day: { bucket: toDate, step: () => interval(1, "day") },
+  week: { bucket: toMonday, step: () => interval(1, "week") },
+  month: { bucket: toStartOfMonth, step: () => interval(1, "month") },
+} as const;
+
+export type GatewayGuardrailTimeBucket =
+  keyof typeof GATEWAY_GUARDRAIL_TIME_BUCKETS;
+
+/**
+ * Number of gateway requests that matched each guardrail since `since`.
+ * Reads `events_core` via `idx_metadata_names` (`langfuse.gateway.guardrails.<id>`)
+ * without touching `metadata_values` or `events_full`.
+ */
+export const getGatewayGuardrailFlaggedCountsFromEvents = async (params: {
+  projectId: string;
+  guardrailIds: string[];
+  since: Date;
+}): Promise<{ guardrailId: string; count: number }[]> => {
+  if (params.guardrailIds.length === 0) return [];
+
+  const keyToGuardrailId = new Map(
+    params.guardrailIds.map((id) => [
+      `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+      id,
+    ]),
+  );
+  const guardrailKeys = [...keyToGuardrailId.keys()];
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .$call(
+      arrayJoin((eb) => ({
+        guardrail_key: arrayDistinct(eb.ref("e.metadata_names")),
+      })),
+    )
+    .select(() => [
+      aliasRef<string>("guardrail_key").as("guardrail_key"),
+      count().as("count"),
+    ])
+    .where("e.start_time", ">=", params.since)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where((eb) =>
+      hasAny(
+        eb.ref("e.metadata_names"),
+        typedValue<string[]>(guardrailKeys, "Array(String)"),
+      ),
+    )
+    .where((eb) => eb(aliasRef<string>("guardrail_key"), "in", guardrailKeys))
+    .groupBy(aliasRef("guardrail_key"));
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
+
+  const rows = await queryClickhouse<{ guardrail_key: string; count: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.flatMap((row) => {
+    const guardrailId = keyToGuardrailId.get(row.guardrail_key);
+    return guardrailId ? [{ guardrailId, count: Number(row.count) }] : [];
+  });
+};
+
+/**
+ * Bucketed count of flagged gateway requests over `[fromTimestamp, toTimestamp]`,
+ * gap-filled in ClickHouse via `WITH FILL` (matching `queryBuilder.ts` buckets).
+ * Reads `events_core` using `idx_metadata_names` without reading `metadata_values`.
+ */
+export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
+  projectId: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  granularity: GatewayGuardrailTimeBucket;
+  guardrailIds?: string[];
+  groupByGuardrail?: boolean;
+}): Promise<
+  { timeDimension: string; guardrailId?: string; count: number }[]
+> => {
+  if (params.guardrailIds !== undefined && params.guardrailIds.length === 0) {
+    return [];
+  }
+
+  const { bucket, step } = GATEWAY_GUARDRAIL_TIME_BUCKETS[params.granularity];
+  const fill = withFill({
+    from: bucket(params.fromTimestamp),
+    to: bucket(params.toTimestamp),
+    step: step(),
+  });
+
+  if (params.groupByGuardrail && params.guardrailIds !== undefined) {
+    const keyToGuardrailId = new Map(
+      params.guardrailIds.map((id) => [
+        `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+        id,
+      ]),
+    );
+    const guardrailKeys = [...keyToGuardrailId.keys()];
+
+    const builder = getClickhouseKysely()
+      .selectFrom("events as e")
+      .$call(
+        arrayJoin((eb) => ({
+          guardrail_key: arrayDistinct(eb.ref("e.metadata_names")),
+        })),
+      )
+      .select((eb) => [
+        bucket(eb.ref("e.start_time")).as("time_dimension"),
+        aliasRef<string>("guardrail_key").as("guardrail_key"),
+        count().as("count"),
+      ])
+      .where("e.start_time", ">=", params.fromTimestamp)
+      .where("e.start_time", "<=", params.toTimestamp)
+      .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+      .where((eb) =>
+        hasAny(
+          eb.ref("e.metadata_names"),
+          typedValue<string[]>(guardrailKeys, "Array(String)"),
+        ),
+      )
+      .where((eb) => eb(aliasRef<string>("guardrail_key"), "in", guardrailKeys))
+      .groupBy([aliasRef("time_dimension"), aliasRef("guardrail_key")])
+      .orderBy(aliasRef("time_dimension"), "asc")
+      .$call(fill);
+
+    const { sql: query, params: queryParams } = compileClickhouseQuery(
+      builder,
+      params.projectId,
+    );
+
+    const rows = await queryClickhouse<{
+      time_dimension: string;
+      guardrail_key: string;
+      count: string;
+    }>({
+      query,
+      params: queryParams,
+      tags: { projectId: params.projectId },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => ({
+      timeDimension: row.time_dimension,
+      guardrailId: keyToGuardrailId.get(row.guardrail_key),
+      count: Number(row.count),
+    }));
+  }
+
+  const guardrailKeys = params.guardrailIds?.map(
+    (id) => `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${id}`,
+  );
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => [
+      bucket(eb.ref("e.start_time")).as("time_dimension"),
+      count().as("count"),
+    ])
+    .where("e.start_time", ">=", params.fromTimestamp)
+    .where("e.start_time", "<=", params.toTimestamp)
+    .where("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME))
+    .where((eb) =>
+      guardrailKeys
+        ? hasAny(
+            eb.ref("e.metadata_names"),
+            typedValue<string[]>(guardrailKeys, "Array(String)"),
+          )
+        : has(
+            eb.ref("e.metadata_names"),
+            literal(AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY),
+          ),
+    )
+    .groupBy(aliasRef("time_dimension"))
+    .orderBy(aliasRef("time_dimension"), "asc")
+    .$call(fill);
+
+  const { sql: query, params: queryParams } = compileClickhouseQuery(
+    builder,
+    params.projectId,
+  );
+
+  const rows = await queryClickhouse<{
+    time_dimension: string;
+    count: string;
+  }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    timeDimension: row.time_dimension,
+    count: Number(row.count),
   }));
 };
 

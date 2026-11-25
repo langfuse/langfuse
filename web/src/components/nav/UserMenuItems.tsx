@@ -33,7 +33,13 @@ export type UserNavigationItem =
       subItems: UserNavigationLeafItem[];
     });
 
-function UserMenuItem({ item }: { item: UserNavigationItem }) {
+function UserMenuItem({
+  item,
+  submenuSideOffset,
+}: {
+  item: UserNavigationItem;
+  submenuSideOffset?: number;
+}) {
   const navigation = useAppNavigation();
   if (item.type === "submenu") {
     return (
@@ -41,7 +47,7 @@ function UserMenuItem({ item }: { item: UserNavigationItem }) {
         <DropdownMenuSubTrigger>
           {item.content ?? item.name}
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
+        <DropdownMenuSubContent sideOffset={submenuSideOffset}>
           {item.subItems.map((subItem) => (
             <UserMenuItem key={subItem.name} item={subItem} />
           ))}
@@ -82,11 +88,22 @@ function UserMenuItem({ item }: { item: UserNavigationItem }) {
 }
 
 /** The account menu entries, rendered inside a dropdown menu content. */
-export function UserMenuItems({ items }: { items: UserNavigationItem[] }) {
+export function UserMenuItems({
+  items,
+  submenuSideOffset,
+}: {
+  items: UserNavigationItem[];
+  /** Negative values pull submenus over their parent, for menus as wide as the screen. */
+  submenuSideOffset?: number;
+}) {
   return (
     <>
       {items.map((item) => (
-        <UserMenuItem key={item.name} item={item} />
+        <UserMenuItem
+          key={item.name}
+          item={item}
+          submenuSideOffset={submenuSideOffset}
+        />
       ))}
     </>
   );

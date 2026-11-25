@@ -53,5 +53,5 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
         };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

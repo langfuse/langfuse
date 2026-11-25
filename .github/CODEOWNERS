@@ -4,6 +4,7 @@
 # Design system
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
+/web/.storybook/fixtures/**
 
 # Linting
 /packages/config-oxlint/ @bezbac
@@ -23,12 +24,6 @@
 # Trace dispatch
 /worker/src/features/traceDispatch/ @LysanderKie
 /packages/shared/src/server/eventsDispatch/ @LysanderKie
-
-# Topics
-/worker/src/features/topics/ @LysanderKie
-/web/src/features/topics/ @LysanderKie
-/packages/shared/src/server/topics/ @LysanderKie
-/packages/shared/src/topics/ @LysanderKie
 
 # Query AST
 /packages/shared/src/server/query-ast/ @niklassemmler

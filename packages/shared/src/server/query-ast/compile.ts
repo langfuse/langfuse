@@ -85,6 +85,7 @@ export function compileClickhouseQuery(
  * Every compiler pass, in the order it runs. Both entry points apply this
  * list through {@link applyCompilerPasses}, so a pass added here reaches
  * compiled queries and spliced conditions alike.
+ * @internal
  */
 export function compilerPasses(projectId: string): KyselyPlugin[] {
   return [

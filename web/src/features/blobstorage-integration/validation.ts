@@ -82,6 +82,7 @@ export function validateRoleAuth(
  * hyphens.
  *
  * @see https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata#container-names
+ * @internal
  */
 export const AZURE_CONTAINER_NAME_REGEX =
   /^[a-z0-9](?!.*--)[a-z0-9-]{1,61}[a-z0-9]$/;

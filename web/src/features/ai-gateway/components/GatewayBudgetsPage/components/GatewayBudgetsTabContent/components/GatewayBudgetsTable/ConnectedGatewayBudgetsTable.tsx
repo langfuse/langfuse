@@ -11,8 +11,11 @@ import type { useGatewayBudgetsTableState } from "@/src/features/ai-gateway/comp
 import { useSetGatewayBudgets } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/hooks/useSetGatewayBudgets";
 import { GatewayDefaultBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/components/GatewayDefaultBudgetDialogController/GatewayDefaultBudgetDialogController";
 import { formatGatewayDefaultBudgetLabel } from "@/src/features/ai-gateway/components/GatewayBudgetsPage/fns/formatGatewayDefaultBudgetLabel";
+import { GatewayResetBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayResetBudgetDialogController/GatewayResetBudgetDialogController";
 import { useCaptureGatewayBudgetChange } from "@/src/features/ai-gateway/hooks/useCaptureGatewayBudgetChange";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import {
   type GatewayBudgetRow,
   GatewayBudgetsTable,
@@ -47,6 +50,8 @@ export function ConnectedGatewayBudgetsTable({
 }: ConnectedGatewayBudgetsTableProps) {
   const { subject } = GATEWAY_SPEND_TABS[tab];
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
   const { budgets, selectionStore, selectedRows, selectAll, clearSelection } =
     table;
   const { selectActionColumn } = TableSelectionManager<GatewayBudgetRow>({
@@ -84,125 +89,146 @@ export function ConnectedGatewayBudgetsTable({
       subject={subject}
     >
       {({ openDialog: openDefaultDialog, defaultBudget }) => (
-        <GatewayEditBudgetDialogController
+        <GatewayResetBudgetDialogController
           organizationId={organizationId}
-          subject={subject}
+          surface="budgets_page"
         >
-          {({ openDialog }) => (
-            <>
-              <GatewayBudgetsTable
-                tab={tab}
-                data={toTableData(budgets)}
-                onRowClick={handleRowClick}
-                selectColumn={{ ...selectActionColumn, enableResizing: false }}
-                multiSelect={{
-                  selectAll,
-                  setSelectAll: selectionStore.getState().actions.setSelectAll,
-                  selectedRowIds: selectedRows.map((row) => row.id),
-                  setRowSelection:
-                    selectionStore.getState().actions.setRowSelection,
-                  pageSize: table.pagination.state.pageSize,
-                  pageIndex: table.pagination.state.pageIndex,
-                  totalCount,
-                }}
-                onEditBudget={(row) =>
-                  openDialog({
-                    tab,
-                    target: { type: "ids", subjectIds: [row.subjectId] },
-                    count: 1,
-                    name: row.name,
-                    spendLimit: row.spendLimit,
-                    existingBudgetCount:
-                      row.spendLimit !== null && !row.isDefault ? 1 : 0,
-                  })
-                }
-                toolbarActions={
-                  canManageGateway
-                    ? [
-                        {
-                          id: "defaultBudget",
-                          label: formatGatewayDefaultBudgetLabel(defaultBudget),
-                          variant: "outline",
-                          title: defaultBudgetTooltips[tab],
-                          // The dialog prefills the current default, so it opens once that has loaded.
-                          disabled: defaultBudget === undefined,
-                          onClick: openDefaultDialog,
-                        },
-                      ]
-                    : undefined
-                }
-                search={table.search}
-                status={table.status}
-                pagination={{
-                  mode: "offset",
-                  totalCount,
-                  ...table.pagination,
-                }}
-              />
-              <ConfirmationDialogController
-                title={`Remove ${selectedCount} ${subject} ${selectedCount === 1 ? "budget" : "budgets"}?`}
-                text={
-                  subject === "key"
-                    ? "Requests with these keys are no longer capped by their own budget."
-                    : "These users' keys are no longer capped by a user budget."
-                }
-                confirmLabel="Remove"
-                variant="destructive"
-                loading={removal.isPending}
-                error={removal.error?.message}
-                onAfterDismiss={() => removal.reset()}
-                onConfirm={async () => {
-                  const removed = await setBudgets({
-                    tab,
-                    subjects: bulkTarget,
-                    spendLimit: null,
-                  });
-                  if (!removed)
-                    throw new Error("Budgets could not be removed.");
-                  captureBudgetChange({
-                    surface: "budgets_page",
-                    scope: GATEWAY_SPEND_TABS[tab].scope,
-                    subjectCount: selectedCount,
-                    spendLimit: null,
-                  });
-                  clearSelection();
-                }}
-              >
-                {({ openDialog: openRemoveDialog }) => (
-                  <GatewayBudgetsSelectionBar
-                    selectedCount={selectedCount}
-                    isSaving={removal.isPending}
-                    disabledReason={bulkDisabledReason}
-                    onClear={clearSelection}
-                    onEdit={() => {
-                      const first = selectedRows[0] ?? pageRows[0];
-                      if (!first) return;
+          {({ openDialog: openResetDialog }) => (
+            <GatewayEditBudgetDialogController
+              organizationId={organizationId}
+              subject={subject}
+            >
+              {({ openDialog }) => (
+                <>
+                  <GatewayBudgetsTable
+                    tab={tab}
+                    data={toTableData(budgets)}
+                    ingestionProjectId={ingestionProjectId}
+                    onRowClick={handleRowClick}
+                    selectColumn={{
+                      ...selectActionColumn,
+                      enableResizing: false,
+                    }}
+                    multiSelect={{
+                      selectAll,
+                      setSelectAll:
+                        selectionStore.getState().actions.setSelectAll,
+                      selectedRowIds: selectedRows.map((row) => row.id),
+                      setRowSelection:
+                        selectionStore.getState().actions.setRowSelection,
+                      pageSize: table.pagination.state.pageSize,
+                      pageIndex: table.pagination.state.pageIndex,
+                      totalCount,
+                    }}
+                    onEditBudget={(row) =>
                       openDialog({
                         tab,
-                        target: bulkTarget,
-                        count: selectedCount,
-                        name: first.name,
-                        spendLimit: first.spendLimit,
-                        existingBudgetCount: selectAll
-                          ? null
-                          : selectedRows.filter(
-                              (row) =>
-                                row.spendLimit !== null && !row.isDefault,
-                            ).length,
-                        onAfterSave: clearSelection,
-                      });
-                    }}
-                    removeLabel={
-                      // Removing a budget falls back to the organization's default while one is set.
-                      defaultBudget ? "Use default budget" : "Remove budget"
+                        target: { type: "ids", subjectIds: [row.subjectId] },
+                        count: 1,
+                        name: row.name,
+                        spendLimit: row.spendLimit,
+                        existingBudgetCount:
+                          row.spendLimit !== null && !row.isDefault ? 1 : 0,
+                      })
                     }
-                    onRemove={openRemoveDialog}
+                    onResetBudget={(row) =>
+                      openResetDialog({
+                        scope: GATEWAY_SPEND_TABS[tab].scope,
+                        subjectId: row.subjectId,
+                        name: row.name,
+                        isDefault: row.isDefault,
+                      })
+                    }
+                    toolbarActions={
+                      canManageGateway
+                        ? [
+                            {
+                              id: "defaultBudget",
+                              label:
+                                formatGatewayDefaultBudgetLabel(defaultBudget),
+                              variant: "outline",
+                              title: defaultBudgetTooltips[tab],
+                              // The dialog prefills the current default, so it opens once that has loaded.
+                              disabled: defaultBudget === undefined,
+                              onClick: openDefaultDialog,
+                            },
+                          ]
+                        : undefined
+                    }
+                    search={table.search}
+                    status={table.status}
+                    pagination={{
+                      mode: "offset",
+                      totalCount,
+                      ...table.pagination,
+                    }}
                   />
-                )}
-              </ConfirmationDialogController>
-            </>
+                  <ConfirmationDialogController
+                    title={`Remove ${selectedCount} ${subject} ${selectedCount === 1 ? "budget" : "budgets"}?`}
+                    text={
+                      subject === "key"
+                        ? "Requests with these keys are no longer capped by their own budget."
+                        : "These users' keys are no longer capped by a user budget."
+                    }
+                    confirmLabel="Remove"
+                    variant="destructive"
+                    loading={removal.isPending}
+                    error={removal.error?.message}
+                    onAfterDismiss={() => removal.reset()}
+                    onConfirm={async () => {
+                      const removed = await setBudgets({
+                        tab,
+                        subjects: bulkTarget,
+                        spendLimit: null,
+                      });
+                      if (!removed)
+                        throw new Error("Budgets could not be removed.");
+                      captureBudgetChange({
+                        surface: "budgets_page",
+                        scope: GATEWAY_SPEND_TABS[tab].scope,
+                        subjectCount: selectedCount,
+                        spendLimit: null,
+                      });
+                      clearSelection();
+                    }}
+                  >
+                    {({ openDialog: openRemoveDialog }) => (
+                      <GatewayBudgetsSelectionBar
+                        selectedCount={selectedCount}
+                        isSaving={removal.isPending}
+                        disabledReason={bulkDisabledReason}
+                        onClear={clearSelection}
+                        onEdit={() => {
+                          const first = selectedRows[0] ?? pageRows[0];
+                          if (!first) return;
+                          openDialog({
+                            tab,
+                            target: bulkTarget,
+                            count: selectedCount,
+                            name: first.name,
+                            spendLimit: first.spendLimit,
+                            existingBudgetCount: selectAll
+                              ? null
+                              : selectedRows.filter(
+                                  (row) =>
+                                    row.spendLimit !== null && !row.isDefault,
+                                ).length,
+                            onAfterSave: clearSelection,
+                          });
+                        }}
+                        removeLabel={
+                          // Removing a budget falls back to the organization's default while one is set.
+                          defaultBudget ? "Use default budget" : "Remove budget"
+                        }
+                        onRemove={openRemoveDialog}
+                      />
+                    )}
+                  </ConfirmationDialogController>
+                </>
+              )}
+            </GatewayEditBudgetDialogController>
           )}
-        </GatewayEditBudgetDialogController>
+        </GatewayResetBudgetDialogController>
       )}
     </GatewayDefaultBudgetDialogController>
   );

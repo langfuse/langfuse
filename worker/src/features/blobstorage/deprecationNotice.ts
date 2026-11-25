@@ -5,6 +5,7 @@
 // projects; new / enriched-only (EVENTS) projects never receive it.
 
 /** Fixed file name, overwritten each run so the notice is always current. */
+/** @internal */
 export const BLOB_EXPORT_DEPRECATION_NOTICE_FILENAME = "DEPRECATION_NOTICE.txt";
 
 /** `{prefix}{projectId}/DEPRECATION_NOTICE.txt` — fixed key, overwritten each run. */

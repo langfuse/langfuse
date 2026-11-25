@@ -25,9 +25,9 @@ export function ScatterMap({
   if (!query.data) return <ScatterMapLoading fillContainer={fillContainer} />;
   if (query.data.status !== "ready")
     return (
-      <p className="text-muted-foreground rounded-lg border p-4 text-sm">
+      <Banner>
         {query.data.reason ?? "This map has no saved embedding projection."}
-      </p>
+      </Banner>
     );
   return (
     <TopicMapExplorer

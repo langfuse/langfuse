@@ -745,6 +745,7 @@ export const deleteDatasetItemForApi = async ({
  *
  * We take the first 8 bytes of a sha256 digest (16 hex chars), matching the
  * shape of the SDK's own seeded id helper (`sha256(seed).digest()[:8].hex()`).
+ * @internal
  */
 export const createStableExperimentId = ({
   projectId,

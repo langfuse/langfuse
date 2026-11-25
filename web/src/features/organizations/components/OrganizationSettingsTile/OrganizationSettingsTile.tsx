@@ -1,10 +1,4 @@
-import {
-  BookOpen,
-  KeyRound,
-  PlusIcon,
-  Settings,
-  Waypoints,
-} from "@langfuse/icons";
+import { KeyRound, PlusIcon, Settings, Waypoints } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
@@ -98,7 +92,6 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
     <Button
       variant="secondary"
       href={GATEWAY_OVERVIEW_DOCS_URL}
-      icon={BookOpen}
       text="What's the AI Gateway?"
     />
   );

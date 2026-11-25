@@ -474,6 +474,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&web.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let service = InferenceService::for_test(

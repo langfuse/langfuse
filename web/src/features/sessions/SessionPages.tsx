@@ -13,7 +13,11 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+  type TraceDetailPageListEntry,
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
   api,
   shouldRetryResourceQuery,
@@ -527,6 +531,7 @@ type SessionEventsWorkspaceProps = {
   projectId: string;
   navigation?: SessionWorkspaceNavigation;
   treeContent?: React.ReactNode;
+  renderTracePeek?: (entries: TraceDetailPageListEntry[]) => React.ReactNode;
 };
 
 type SessionEventsLayout = React.ComponentType<
@@ -541,7 +546,14 @@ export function SessionEventsPage(
 
 export const SessionEventsWorkspace: React.FC<
   SessionEventsWorkspaceProps & { pageLayout?: SessionEventsLayout }
-> = ({ sessionId, projectId, pageLayout, navigation, treeContent }) => {
+> = ({
+  sessionId,
+  projectId,
+  pageLayout,
+  navigation,
+  treeContent,
+  renderTracePeek,
+}) => {
   const embedded = pageLayout === undefined;
   const modernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
     projectId,
@@ -588,75 +600,97 @@ export const SessionEventsWorkspace: React.FC<
     },
   );
 
-  if (session.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this session." />;
+  function renderWorkspace() {
+    if (session.error?.data?.code === "UNAUTHORIZED")
+      return <ErrorPage message="You do not have access to this session." />;
 
-  if (session.error?.data?.code === "NOT_FOUND")
+    if (session.error?.data?.code === "NOT_FOUND")
+      return (
+        <ErrorPage
+          title="Session not found"
+          message="The session is either still being processed or has been deleted."
+          additionalButton={{
+            label: "Retry",
+            onClick: () => window.location.reload(),
+          }}
+        />
+      );
+
+    if (session.error && !session.data && !session.isFetching) {
+      return (
+        <ErrorPage
+          title="Failed to load session"
+          message="The session could not be loaded. Please try again."
+          additionalButton={{
+            label: "Retry",
+            onClick: () => {
+              session.refetch();
+            },
+          }}
+        />
+      );
+    }
+
+    if (
+      (!session.data || viewSelection.isLoading) &&
+      isModernSessionEnabled &&
+      isSessionTimelineEnabled
+    ) {
+      return navigation?.activeView === "trace" ? (
+        treeContent
+      ) : (
+        <SessionEventsLoadingPage
+          projectId={projectId}
+          sessionId={sessionId}
+          pageLayout={pageLayout}
+        />
+      );
+    }
+
+    if (!session.data) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <Spinner size="xl" variant="muted" />
+        </div>
+      );
+    }
+
     return (
-      <ErrorPage
-        title="Session not found"
-        message="The session is either still being processed or has been deleted."
-        additionalButton={{
-          label: "Retry",
-          onClick: () => window.location.reload(),
-        }}
-      />
-    );
-
-  if (session.error && !session.data && !session.isFetching) {
-    return (
-      <ErrorPage
-        title="Failed to load session"
-        message="The session could not be loaded. Please try again."
-        additionalButton={{
-          label: "Retry",
-          onClick: () => {
-            session.refetch();
-          },
-        }}
-      />
-    );
-  }
-
-  if (
-    (!session.data || viewSelection.isLoading) &&
-    isModernSessionEnabled &&
-    isSessionTimelineEnabled
-  ) {
-    return navigation?.activeView === "trace" ? (
-      treeContent
-    ) : (
-      <SessionEventsLoadingPage
-        projectId={projectId}
+      <LoadedSessionEventsPage
         sessionId={sessionId}
+        projectId={projectId}
+        session={session.data}
+        traces={tracesQuery.data}
+        isTracesSuccess={tracesQuery.isSuccess}
+        viewSelection={viewSelection}
+        embedded={embedded}
+        navigation={navigation}
+        treeContent={treeContent}
         pageLayout={pageLayout}
       />
     );
   }
 
-  if (!session.data) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner size="xl" variant="muted" />
-      </div>
-    );
-  }
-
   return (
-    <LoadedSessionEventsPage
-      sessionId={sessionId}
-      projectId={projectId}
-      session={session.data}
-      traces={tracesQuery.data}
-      isTracesSuccess={tracesQuery.isSuccess}
-      viewSelection={viewSelection}
-      embedded={embedded}
-      navigation={navigation}
-      treeContent={treeContent}
-      pageLayout={pageLayout}
-    />
+    <>
+      {renderWorkspace()}
+      {renderTracePeek?.(
+        tracesQuery.isSuccess
+          ? tracesQuery.data.map(toTraceNavigationEntry)
+          : [],
+      )}
+    </>
   );
 };
+
+function toTraceNavigationEntry(
+  trace: EventSessionTrace,
+): TraceDetailPageListEntry {
+  return {
+    id: trace.id,
+    params: { timestamp: trace.timestamp.toISOString() },
+  };
+}
 
 const noopOpenPeek = () => {};
 
@@ -1020,22 +1054,25 @@ const LoadedSessionEventsPage: React.FC<{
   const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
     usePeekNavigation(peekNavigationConfig);
 
+  const activePeek = (() => {
+    if (embedded) return navigation?.activePeek;
+    if (typeof router.query.peek !== "string") return undefined;
+    return {
+      traceId: router.query.peek,
+      observationId:
+        typeof router.query.observation === "string"
+          ? router.query.observation
+          : undefined,
+    };
+  })();
+
+  const registeredTraces = detailPagelists[detailPageListKeys.traces];
   useEffect(() => {
-    if (embedded) return;
-    if (!isTracesSuccess || !traces) return;
-    const nextList = traces.map((t: EventSessionTrace) => ({
-      id: t.id,
-      params: { timestamp: t.timestamp.toISOString() },
-    }));
-    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
-    setDetailPageList("traces", nextList);
-  }, [
-    embedded,
-    isTracesSuccess,
-    traces,
-    setDetailPageList,
-    detailPagelists.traces,
-  ]);
+    if (embedded || !isTracesSuccess || !traces) return;
+    const nextList = traces.map(toTraceNavigationEntry);
+    if (areDetailPageListsEqual(registeredTraces, nextList)) return;
+    setDetailPageList(detailPageListKeys.traces, nextList);
+  }, [embedded, isTracesSuccess, traces, setDetailPageList, registeredTraces]);
 
   const sessionEventsTableName = "session-events";
   const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
@@ -2112,6 +2149,7 @@ const LoadedSessionEventsPage: React.FC<{
                       ) : (
                         <ModernSession
                           navigation={navigation}
+                          activePeek={activePeek}
                           treeContent={treeContent}
                           viewMode={viewMode}
                           viewTabs={{

@@ -460,5 +460,31 @@ impl AnthropicMessagesCapture {
     }
 }
 
+/// Anthropic Messages keeps the conversation in `messages` and the system prompt in
+/// `system`. The last turn is the user's message after the model last answered; tool
+/// results arrive as `tool_result` blocks of one user message. The system prompt
+/// counts only on the first turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_turn = match member("messages") {
+        Some(messages) => turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            crate::guardrails::text::read_role_message,
+        )?,
+        None => false,
+    };
+    if !had_model_turn && let Some(system) = member("system") {
+        turn.push_member("system", system);
+    }
+    Ok(turn)
+}
+
 #[cfg(test)]
 mod tests;

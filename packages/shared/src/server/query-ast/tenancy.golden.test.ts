@@ -5,11 +5,11 @@ import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
   substituteNamedParams,
-} from "../repositories/goldenHarness";
+} from "../repositories/__tests__/goldenHarness";
 import type { ClickhouseCompilable } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import type { ClickHouseDatabase } from "./schema";
 import { TenancyInjectionPlugin } from "./tenancy";
 

@@ -299,6 +299,7 @@ export type EventFilterOptionsColumn = NonNullable<
   RouterInputs["events"]["filterOptions"]["columns"]
 >[number];
 
+/** @internal */
 export const __test = {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,

@@ -38,6 +38,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
@@ -279,9 +280,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               </CardDescription>
             </div>
           ) : (
-            <CardDescription>
+            <Banner>
               Webhook secret will be generated when the automation is created.
-            </CardDescription>
+            </Banner>
           )}
         </CardContent>
       </Card>

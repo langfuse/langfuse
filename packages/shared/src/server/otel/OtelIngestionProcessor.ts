@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-promise-reject-errors -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
@@ -50,8 +51,7 @@ export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
 
-/** Metadata key under which the AI gateway records the caller's gateway API key id. */
-export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
+export { AI_GATEWAY_KEY_ID_METADATA_KEY } from "../../features/ai-gateway/constants";
 
 /** Metadata key under which the AI gateway marks costs it calculated from model pricing. */
 export const AI_GATEWAY_COST_SOURCE_METADATA_KEY =

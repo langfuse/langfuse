@@ -97,6 +97,7 @@ type ObservedMetadataState = {
  * wins) — enforcing the per-project key cap, the per-key and per-project
  * value caps, and the project-count cap (evict least-recently-updated).
  * Returns null when nothing needs persisting. Exported for tests.
+ * @internal
  */
 export function mergeIntoProject(
   byProject: Record<string, ProjectMetadataPaths>,

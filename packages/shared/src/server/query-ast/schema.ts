@@ -18,6 +18,13 @@
  *
  * Column sets cover the relations the compiler targets, not a full schema
  * dump. Partition / sort keys stay unmodeled until a pass needs them.
+ *
+ * Every physical column of a registered table is either declared here or
+ * listed in {@link UNMODELED_COLUMNS}. `query-ast-registry-ddl.servertest.ts`
+ * checks both directions against the migrated ClickHouse schema: a declared
+ * column must exist with its declared type, and a column a migration adds
+ * fails until it is modeled or listed. The failure prints the `defineTable`
+ * line to paste for each new column.
  */
 
 /**
@@ -393,6 +400,79 @@ export const TABLE_COLUMN_TYPES: Record<
     .filter(([table]) => !LOGICAL_EVENTS_TABLES.has(table))
     .map(([table, spec]) => [table, spec.columns]),
 );
+
+/**
+ * Physical columns of each registry table that are deliberately not
+ * queryable through the AST. A column moves out of this list into the
+ * table's `defineTable` columns when a query needs it. Keyed by every
+ * physical registry table, so registering a table forces a decision for its
+ * columns; the servertest fails on an entry that is also modeled or missing
+ * from ClickHouse.
+ */
+export const UNMODELED_COLUMNS: Record<
+  Exclude<keyof typeof TABLE_REGISTRY, "events" | "events_truncated">,
+  readonly string[]
+> = {
+  traces: [
+    "name",
+    "user_id",
+    "metadata",
+    "release",
+    "version",
+    "public",
+    "bookmarked",
+    "tags",
+    "input",
+    "output",
+    "session_id",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+  ],
+  observations: [
+    "id",
+    "type",
+    "parent_observation_id",
+    "end_time",
+    "name",
+    "metadata",
+    "level",
+    "status_message",
+    "version",
+    "input",
+    "output",
+    "provided_model_name",
+    "internal_model_id",
+    "model_parameters",
+    "provided_usage_details",
+    "provided_cost_details",
+    "total_cost",
+    "completion_start_time",
+    "prompt_id",
+    "prompt_name",
+    "prompt_version",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+    "usage_pricing_tier_id",
+    "usage_pricing_tier_name",
+    "tool_definitions",
+    "tool_calls",
+    "tool_call_names",
+  ],
+  events_core: [],
+  events_full: [],
+  scores: [
+    "evaluator_id",
+    "evaluation_rule_id",
+    "long_string_value",
+    "ingestion_api_key",
+    "ingestion_sdk_name",
+    "ingestion_sdk_version",
+  ],
+};
 
 /**
  * Derived coarse runtime column-type map (column name -> category), consumed by

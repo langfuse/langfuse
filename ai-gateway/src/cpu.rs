@@ -3,10 +3,29 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use tokio::sync::Semaphore;
 
-/// Parsing this much JSON takes a few tens of microseconds, about what a hand-off
-/// to the blocking pool costs, so smaller inputs run inline. Larger ones would hold
-/// an async worker past the ~100 µs a task should run between awaits.
-pub(crate) const INLINE_INPUT_BYTES: usize = 64 * 1024;
+/// The kinds of CPU-bound request work, which differ in how much input runs within
+/// the ~100 µs a task should run between awaits. Larger inputs would hold an async
+/// worker past that, so they move to the blocking pool.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CpuJob {
+    /// Parsing the request body, at roughly 7 GB/s for ASCII and 3 GB/s for
+    /// non-ASCII text, so 256 KiB takes under ~100 µs either way.
+    ParseRequest,
+    /// Finding a conversation's last turn, which reads its structure at about the
+    /// speed of parsing it.
+    FindLastTurn,
+    /// Scanning the last turn with guardrails, at roughly 0.5 GB/s.
+    ScanGuardrails,
+}
+
+impl CpuJob {
+    pub(crate) const fn inline_bytes(self) -> usize {
+        match self {
+            Self::ParseRequest | Self::FindLastTurn => 256 * 1024,
+            Self::ScanGuardrails => 64 * 1024,
+        }
+    }
+}
 
 /// Runs large CPU-bound jobs on Tokio's blocking pool. Jobs share a permit per
 /// half core, so large bodies cannot occupy every core while the async workers
@@ -28,16 +47,17 @@ impl CpuWork {
         }
     }
 
-    /// Runs `work` over an input of `input_bytes`: inline up to `INLINE_INPUT_BYTES`,
+    /// Runs `work` over an input of `input_bytes`: inline up to the job's inline size,
     /// otherwise on the blocking pool once a permit is free. `None` when the job
     /// did not complete, which only happens when it panicked or the runtime is
     /// shutting down.
     pub(crate) async fn run<T: Send + 'static>(
         &self,
+        job: CpuJob,
         input_bytes: usize,
         work: impl FnOnce() -> T + Send + 'static,
     ) -> Option<T> {
-        if input_bytes <= INLINE_INPUT_BYTES {
+        if input_bytes <= job.inline_bytes() {
             return Some(work());
         }
         let permit = Arc::clone(&self.permits).acquire_owned().await.ok()?;
@@ -59,11 +79,12 @@ mod tests {
     async fn large_inputs_leave_the_calling_thread_and_small_ones_do_not() {
         let cpu = CpuWork::with_permits(1);
         let caller = std::thread::current().id();
+        let job = CpuJob::ScanGuardrails;
         let small = cpu
-            .run(INLINE_INPUT_BYTES, || std::thread::current().id())
+            .run(job, job.inline_bytes(), || std::thread::current().id())
             .await;
         let large = cpu
-            .run(INLINE_INPUT_BYTES + 1, || std::thread::current().id())
+            .run(job, job.inline_bytes() + 1, || std::thread::current().id())
             .await;
         assert_eq!(small, Some(caller));
         assert!(large.is_some_and(|thread| thread != caller));

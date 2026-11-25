@@ -267,6 +267,7 @@ export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly withFill?: WithFillNode;
 };
 
+/** @internal */
 export function isClickHouseSelectQueryNode(
   node: OperationNode,
 ): node is ClickHouseSelectQueryNode {

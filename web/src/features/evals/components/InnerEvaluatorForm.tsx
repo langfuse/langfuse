@@ -84,7 +84,7 @@ import {
   FlaskConical,
   InfoIcon,
   ListTree,
-  ExternalLink,
+  SquareArrowOutUpRight,
 } from "@langfuse/icons";
 import Link from "next/link";
 import {
@@ -298,7 +298,11 @@ function CodeEvalSourceLink({
         rel="noopener noreferrer"
       >
         Edit source code
-        <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+        <SquareArrowOutUpRight
+          size="base"
+          color="default"
+          __rawClassName="ml-1"
+        />
       </Link>
     </Button>
   ) : (
@@ -308,7 +312,11 @@ function CodeEvalSourceLink({
       title="Only user-managed templates can be edited"
     >
       Edit source code
-      <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+      <SquareArrowOutUpRight
+        size="base"
+        color="default"
+        __rawClassName="ml-1"
+      />
     </Button>
   );
 

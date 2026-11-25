@@ -50,5 +50,5 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

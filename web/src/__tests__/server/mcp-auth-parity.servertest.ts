@@ -24,10 +24,8 @@ import mcpHandler from "@/src/pages/api/public/mcp";
 // route resolves auth through shadowAuth before the transport, so a single POST
 // initialize exercises the connection seam. Value is status only.
 //
-// Auth only ever emits 401/403, so a cell reading past auth carries a transport
-// status instead: node-mocks-http cannot complete a streaming initialize, so an
-// authenticated request lands on 400 here. The signal is 400 (past auth) vs
-// 401/403 (denied); mcp-auth.servertest.ts covers the real 200 over fetch.
+// Auth only ever emits 401/403, so a cell reading past auth carries the
+// transport's status instead: an authenticated initialize completes with 200.
 
 type ApiKeyKind = "project" | "agent" | "org" | "admin";
 const apiKeyKinds: ApiKeyKind[] = ["project", "agent", "org", "admin"];

@@ -142,6 +142,7 @@ const TOAST_LAYER: LayerName = "toast";
  * All checks run against the pointer event's `target`, not
  * `document.activeElement` — `onPointerDownOutside` fires on pointer-down,
  * before focus has moved to the clicked element.
+ * @internal
  */
 export const shouldKeepPeekOpenOnOutsideInteraction = (
   target: EventTarget | null,

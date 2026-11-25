@@ -7,7 +7,7 @@ import {
   traceTranscriptFilterDefinition,
   validateEvaluatorFiltersForTarget,
   type FilterState,
-  type ObservationForEval,
+  type ObservationEvalFilterFields,
 } from "@langfuse/shared";
 import {
   InMemoryFilterService,
@@ -104,7 +104,7 @@ export async function prepareTraceDispatchRules(
 
 /** All predicates must match one observation; selection applies to its trace. */
 export function getMatchingTraceDispatchRuleIds(
-  observation: ObservationForEval,
+  observation: ObservationEvalFilterFields,
   rules: TraceDispatchRule[],
 ): string[] {
   const startedAt = performance.now();

@@ -14,8 +14,11 @@ import {
   createsSummaries,
   executionBadgeTypes,
   executionLabels,
+  formatTopicCost,
   formatTopicRunCost,
   runLabel,
+  estimatedTopicCostDescription,
+  estimatedTopicCostLabel,
   type TopicRunWithCost as Run,
 } from "./topic-run-labels";
 
@@ -188,15 +191,24 @@ export function TopicRunDetails({
     ? Math.min(total, ...counts.map((c) => c.complete))
     : counts.reduce((sum, c) => sum + c.complete, 0);
   const isBusy = busy(execution.status);
-  const costDescription = createsSummaries(execution.input)
-    ? "Estimated provider cost for this run’s priced summaries and embeddings. Excludes topic naming and failed calls. Retries can temporarily inflate the estimate, and replacing or deleting summaries can change it."
-    : "This run reuses stored summaries. Your provider may charge for topic naming. Naming cost is unavailable.";
+  const costs = execution.costBreakdown;
+  const expectsSummaries = createsSummaries(execution.input);
+  const summaryCost = expectsSummaries
+    ? formatTopicCost(costs == null ? costs : costs.summaries)
+    : "No new summaries";
+  const namingCost = costs == null ? costs : costs.naming;
+  const namingValue =
+    !isUpdate && namingCost == null
+      ? "Not part of this run"
+      : formatTopicCost(namingCost);
   const failed = execution.status === "failed";
   const resumable = canWrite && !isBusy && canResume(execution);
+  const exploratory =
+    execution.input.operation === "update" && execution.input.exploratory;
+  const defaultMinimum = exploratory ? 10 : 100;
   const minimum =
     execution.input.operation === "update"
-      ? (execution.input.minimumTraceCount ??
-        (execution.input.exploratory ? 10 : 100))
+      ? (execution.input.minimumTraceCount ?? defaultMinimum)
       : null;
   const name = runLabel(execution.input);
   const meta = [
@@ -204,9 +216,7 @@ export function TopicRunDetails({
     isUpdate
       ? `${formatCount(total)} summaries`
       : `${formatCount(total)} traces`,
-    ...(execution.input.operation === "update" && execution.input.exploratory
-      ? ["small sample"]
-      : []),
+    ...(exploratory ? ["small sample"] : []),
   ].join(" · ");
   const showBar = perTrace && total > 0 && (isBusy || failed);
   const summaryLabel = (() => {
@@ -308,15 +318,19 @@ export function TopicRunDetails({
             <span className="font-mono text-xs">{summaryValue}</span>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2.5">
-          <span className="text-muted-foreground text-xs">
-            Summaries and embeddings
-          </span>
-          <span className="font-mono text-xs">
-            {formatTopicRunCost(execution.input, execution.estimatedCost)}
-          </span>
-        </div>
-        <p className="text-muted-foreground text-xs">{costDescription}</p>
+        <dl className="grid grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 text-xs">
+          <dt className="font-medium">{estimatedTopicCostLabel}</dt>
+          <dd className="text-right font-mono font-medium">
+            {formatTopicRunCost(costs)}
+          </dd>
+          <dt className="text-muted-foreground">Summaries and embeddings</dt>
+          <dd className="text-right font-mono">{summaryCost}</dd>
+          <dt className="text-muted-foreground">Topic naming</dt>
+          <dd className="text-right font-mono">{namingValue}</dd>
+        </dl>
+        <p className="text-muted-foreground text-xs">
+          {estimatedTopicCostDescription}
+        </p>
       </div>
       <div className="flex flex-col">
         <h3 className="text-muted-foreground px-4 pt-3.5 pb-0.5 text-xs font-bold">

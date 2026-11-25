@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { createCommentTool, handleCreateComment } from "./tools/createComment";
 import { getCommentTool, handleGetComment } from "./tools/getComment";
 import { handleListComments, listCommentsTool } from "./tools/listComments";

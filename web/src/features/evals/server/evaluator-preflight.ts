@@ -60,6 +60,7 @@ async function prepareEvaluatorDefinition(params: {
   }
 }
 
+/** @internal */
 export async function getEvaluatorDefinitionConfigurationError(params: {
   projectId: string;
   template: EvaluatorPreflightDefinition;

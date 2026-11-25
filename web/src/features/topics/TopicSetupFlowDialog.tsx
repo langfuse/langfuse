@@ -17,6 +17,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { FormError } from "@/src/components/design-system/FormError/FormError";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -47,13 +48,21 @@ const STEP_NUMBERS: Record<TopicSetupStep, string> = {
 };
 
 const MODEL_ROWS = [
-  { slot: "summary", label: "Summaries" },
+  {
+    slot: "summary",
+    label: "Summaries",
+    hint: "Reads each finished trace and writes one summary per facet. It runs once per trace, so choose a fast, cost-efficient model such as GPT-6 Luna or Claude Haiku 5.5.",
+  },
   {
     slot: "embedding",
     label: "Embeddings",
     hint: "Embeddings turn each summary into a vector, so similar summaries group into topics. The model and dimensions are fixed once the first summaries are embedded, because vectors from different models can't be compared.",
   },
-  { slot: "clustering", label: "Grouping" },
+  {
+    slot: "clustering",
+    label: "Grouping",
+    hint: "Names and describes each topic. Runs when topics change (usually once a day), so a stronger model such as GPT-6.1 Terra or Claude Sonnet 5.5 gives clear names & descriptions.",
+  },
 ] as const satisfies ReadonlyArray<{
   slot: string;
   label: string;
@@ -80,6 +89,8 @@ export type TopicSetupFlowDialogProps = {
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
+  /** Failed model test per slot, listed below the model rows. */
+  slotErrors?: Partial<Record<"summary" | "embedding" | "clustering", string>>;
   onAdvancedOpenChange: (open: boolean) => void;
   onBack: () => void;
   onClusteringChange: (model: JudgeModel) => void;
@@ -125,6 +136,7 @@ export function TopicSetupFlowDialog({
   embedding,
   embeddingProviderGroups,
   error,
+  slotErrors = {},
   onAdvancedOpenChange,
   onBack,
   onClusteringChange,
@@ -271,7 +283,8 @@ export function TopicSetupFlowDialog({
                               ? isRecommendedTopicModel(row.slot, model.model)
                               : false
                           }
-                          disabled={!canWrite}
+                          // A check in flight would report on a replaced model.
+                          disabled={!canWrite || busy}
                           providerGroups={groups[row.slot]}
                           onConfigureProviders={onConfigureProviders}
                           onSelect={onModelChange[row.slot]}
@@ -280,6 +293,17 @@ export function TopicSetupFlowDialog({
                     })}
                   </div>
                 )}
+                {MODEL_ROWS.map((row) => (
+                  <FormError
+                    key={row.slot}
+                    announce
+                    message={
+                      slotErrors[row.slot]
+                        ? `${row.label}: ${slotErrors[row.slot]}`
+                        : null
+                    }
+                  />
+                ))}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
                 ) : null}
@@ -617,36 +641,27 @@ function ReviewRow({
 
 function AddConnectionCallout({ onAdd }: { onAdd: () => void }) {
   return (
-    <div
-      role="alert"
-      className="bg-light-yellow flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg px-4 py-3 text-sm"
+    <Banner
+      variant="warning"
+      actions={[{ text: "Add connection", onClick: onAdd }]}
     >
-      <p>
-        <span className="font-bold">No AI connection in this project yet.</span>{" "}
-        Add one to choose models for analysis.
-      </p>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="text-dark-yellow shrink-0 text-sm font-bold hover:underline"
-      >
-        Add connection
-      </button>
-    </div>
+      No AI connection in this project yet. Add one to choose models for
+      analysis.
+    </Banner>
   );
 }
 
 function AskAdminForConnection({ url }: { url: string }) {
   return (
-    <div className="bg-light-blue flex flex-col gap-3 rounded-lg p-4">
-      <div className="text-dark-blue flex items-center gap-2.5 text-sm font-bold">
-        <Lock size="base" aria-hidden="true" />
-        An admin needs to add an AI connection
-      </div>
-      <p className="text-sm">
+    <Banner
+      variant="info"
+      icon={Lock}
+      title="An admin needs to add an AI connection"
+    >
+      <p>
         You don&apos;t have permission to add one. Share this with an admin:
       </p>
-      <div className="bg-background/60 flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
+      <div className="bg-background/60 mt-2 flex items-center gap-2 rounded-md py-1 pr-1 pl-3">
         <span className="min-w-0 flex-1 truncate font-mono text-xs" title={url}>
           {url}
         </span>
@@ -657,6 +672,6 @@ function AskAdminForConnection({ url }: { url: string }) {
           onClick={() => copyTextToClipboard(url)}
         />
       </div>
-    </div>
+    </Banner>
   );
 }
