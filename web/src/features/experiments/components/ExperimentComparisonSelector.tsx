@@ -1,18 +1,14 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { ExperimentRunBadge } from "./ExperimentRunBadge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   autoComparisonPreferenceChangedProps,
   comparisonChangedProps,
@@ -422,14 +418,10 @@ export function ExperimentComparisonSelector({
                 {option.experimentName}
               </span>
               {row.isBaseline && (
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  BASELINE
-                </Badge>
+                <Badge color="outline" size="sm" text="BASELINE" />
               )}
               {row.isLatest && (
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  LATEST
-                </Badge>
+                <Badge color="outline" size="sm" text="LATEST" />
               )}
               {option.startTime && (
                 <span
@@ -451,25 +443,21 @@ export function ExperimentComparisonSelector({
           if (position >= MAX_VISIBLE_COMPARISON_CHIPS) {
             // One badge stands in for the whole tail; the rest render nothing.
             return position === MAX_VISIBLE_COMPARISON_CHIPS ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip
+                label={hiddenSelectedOptions
+                  .map(
+                    (hidden) =>
+                      `${hidden.experimentName}${hidden.startTime ? ` · ${formatRunRecency(hidden.startTime)}` : ""}`,
+                  )
+                  .join("\n")}
+              >
+                {({ getTriggerProps }) => (
                   <Badge
-                    variant="secondary"
-                    className="shrink-0 px-2 py-0.5 text-xs"
-                  >
-                    +{hiddenSelectedOptions.length}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px]">
-                  {hiddenSelectedOptions.map((hidden) => (
-                    <p key={hidden.experimentId}>
-                      {hidden.experimentName}
-                      {hidden.startTime
-                        ? ` · ${formatRunRecency(hidden.startTime)}`
-                        : ""}
-                    </p>
-                  ))}
-                </TooltipContent>
+                    {...getTriggerProps()}
+                    color="filled"
+                    text={`+${hiddenSelectedOptions.length}`}
+                  />
+                )}
               </Tooltip>
             ) : null;
           }
@@ -499,13 +487,7 @@ export function ExperimentComparisonSelector({
             : undefined;
 
           return (
-            <Badge
-              variant="secondary"
-              className={cn(
-                "flex shrink-0 items-center gap-1 px-2 py-0.5",
-                colorStyles?.badgeClass,
-              )}
-            >
+            <ExperimentRunBadge colorClass={colorStyles?.badgeClass}>
               {colorStyles && (
                 <span
                   className={cn(
@@ -536,7 +518,7 @@ export function ExperimentComparisonSelector({
               >
                 <X size="sm" />
               </button>
-            </Badge>
+            </ExperimentRunBadge>
           );
         }}
       />

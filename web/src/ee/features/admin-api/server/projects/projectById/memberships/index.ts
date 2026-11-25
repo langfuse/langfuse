@@ -1,10 +1,15 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import {
+  deleteProjectMembership,
+  saveProjectMembership,
+} from "@langfuse/shared/memberships";
 import { authorize } from "@/src/features/rbac/authorize";
+import { assertValidProjectOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import {
@@ -16,7 +21,7 @@ import {
 // Schema for request body validation
 const MembershipSchema = z.object({
   userId: z.string(),
-  role: z.enum(Role),
+  role: z.enum(Role).exclude([Role.AI_GATEWAY]),
 });
 
 // Schema for delete request body validation
@@ -169,39 +174,28 @@ async function updateMembership(
   const before = await tx.projectMembership.findUnique({
     where: { projectId_userId: { projectId, userId } },
   });
-  assertAuthorizeMembershipChange({
+  await assertAuthorizeMembershipChange({
+    tx,
     context,
     orgId,
     projectId,
     from: before?.role,
     to: role,
   });
-  const after = await upsertMembership(tx, {
+  const after = await saveProjectMembership(tx, {
+    orgId,
     projectId,
     userId,
     role,
     orgMembershipId,
   });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
-  return after;
-}
-
-function upsertMembership(
-  tx: Prisma.TransactionClient,
-  data: {
-    projectId: string;
-    userId: string;
-    role: Role;
-    orgMembershipId: string;
-  },
-) {
-  return tx.projectMembership.upsert({
-    where: {
-      projectId_userId: { projectId: data.projectId, userId: data.userId },
-    },
-    update: { role: data.role },
-    create: data,
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
   });
+  return after;
 }
 
 /** deleteMembership authorizes and audits removal within its transaction. */
@@ -212,7 +206,8 @@ async function deleteMembership(
   const { projectId, orgId, userId, context } = params;
   await lockProject(tx, projectId, orgId);
   const before = await findMembershipWithOrganization(tx, projectId, userId);
-  assertAuthorizeMembershipChange({
+  await assertAuthorizeMembershipChange({
+    tx,
     context,
     orgId,
     projectId,
@@ -220,10 +215,17 @@ async function deleteMembership(
   });
   if (!before) return false;
   assertMembershipOrganization(before.organizationMembership.orgId, orgId);
-  const membership = await tx.projectMembership.delete({
-    where: { projectId_userId: { projectId, userId: before.userId } },
+  const membership = await deleteProjectMembership(tx, {
+    orgId,
+    projectId,
+    userId: before.userId,
   });
   await auditMembershipDeletion(tx, params, membership);
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
+  });
   return true;
 }
 
@@ -295,13 +297,15 @@ async function lockProject(
   await tx.$queryRaw`SELECT id FROM projects WHERE id = ${projectId} AND org_id = ${orgId} FOR UPDATE`;
 }
 
-function assertAuthorizeMembershipChange({
+async function assertAuthorizeMembershipChange({
+  tx,
   context,
   orgId,
   projectId,
   from,
   to,
 }: {
+  tx: Prisma.TransactionClient;
   context: AuthorizationContext;
   orgId: string;
   projectId: string;
@@ -317,14 +321,7 @@ function assertAuthorizeMembershipChange({
     project,
   );
   if (!membershipAccess.success) throw membershipAccess.error;
-  if (from !== Role.OWNER && to !== Role.OWNER) return;
-  const ownershipAccess = authorize(
-    context,
-    organization,
-    "projectMembers:manageOwnership",
-    project,
-  );
-  if (!ownershipAccess.success) throw ownershipAccess.error;
+  await assertValidProjectOwnershipChange({ tx, context, orgId, from, to });
 }
 
 /** MembershipMutation carries the caller and target for a project membership write. */

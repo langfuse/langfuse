@@ -40,7 +40,8 @@ import {
   getInAppAgentApiAccessScope,
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
-import { hasInternalAccess } from "@/src/features/feature-flags/server";
+import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -228,7 +229,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -245,6 +245,7 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
+        topicsAvailable: canViewTopics(ctx.session, input.projectId),
         model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
@@ -278,7 +279,7 @@ export const inAppAgentRouter = createTRPCRouter({
   decideToolApproval: protectedProjectProcedureWithoutTracing
     .input(DecideToolApprovalInput)
     .mutation(async ({ ctx, input }) => {
-      const projectAvailability = await assertInAppAgentAvailable({
+      await assertInAppAgentAvailable({
         prisma: ctx.prisma,
         projectId: input.projectId,
         user: ctx.session.user,
@@ -288,7 +289,6 @@ export const inAppAgentRouter = createTRPCRouter({
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
         input.projectId,
-        projectAvailability,
       );
 
       await assertInAppAgentRateLimit(rateLimitScope, "in-app-agent-run");
@@ -465,13 +465,14 @@ export const inAppAgentRouter = createTRPCRouter({
    * The project this instance traces assistant turns into, where each
    * conversation is a session. Internal surface only: null when the
    * organization opted out of AI telemetry or tracing is not configured.
+   * Access to the session itself is enforced by the telemetry project.
    */
   telemetryProject: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (
         !hasInternalAccess({
-          isAdmin: ctx.session.user.admin === true,
+          email: ctx.session.user.email,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })
@@ -486,7 +487,6 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
-
       return {
         projectId: projectAvailability.aiTelemetryEnabled
           ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)

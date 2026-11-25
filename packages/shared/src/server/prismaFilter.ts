@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
 import type { FilterState } from "../types";
 import { escapeSqlLikePattern } from "./utils/sqlLike";
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
 import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiments/types/charts";

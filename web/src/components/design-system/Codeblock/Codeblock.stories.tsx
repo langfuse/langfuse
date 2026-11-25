@@ -31,11 +31,11 @@ export const LightThemeTokenRendering = Default.extend({
   play: async ({ args, canvasElement, canvas }) => {
     const preview = canvasElement.querySelector("pre")!;
     await expect(preview).toHaveTextContent(String(args.value));
-    const keyword = preview.querySelector(".token.keyword")!;
+    const keyword = preview.querySelector('[data-token~="keyword"]')!;
     await expect(keyword).toHaveTextContent("const");
-    await expect(preview.querySelector(".token.string")).toHaveTextContent(
-      '"Hello, Langfuse!"',
-    );
+    await expect(
+      preview.querySelector('[data-token~="string"]'),
+    ).toHaveTextContent('"Hello, Langfuse!"');
     const theme = args.theme === "dark" ? themes.vsDark : themes.github;
     const keywordStyle = theme.styles
       .filter((rule) => {
@@ -261,6 +261,8 @@ export const HtmlSafety = Default.extend({
     const preview = canvasElement.querySelector("pre")!;
     await expect(preview.textContent).toBe(args.value);
     await expect(preview.querySelector("script")).toBeNull();
-    await expect(preview.querySelector(".token.tag")).toBeInTheDocument();
+    await expect(
+      preview.querySelector('[data-token~="tag"]'),
+    ).toBeInTheDocument();
   },
 });

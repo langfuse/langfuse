@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
@@ -8,8 +7,8 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SEPARATE_GATEWAY_API_KEYS } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { filterApiKeysByName } from "@/src/features/public-api/components/ApiKeySettingsTable/fns/filterApiKeysByName";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
@@ -34,7 +33,6 @@ export function ConnectedApiKeySettingsTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [includeGatewayKeys, setIncludeGatewayKeys] = useState(false);
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId: scope === "organization" ? entityId : undefined,
   });
   const showGatewayKeyFilter =

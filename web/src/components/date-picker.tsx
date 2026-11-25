@@ -115,7 +115,9 @@ export function isRangeWithinMaxDuration(
   range: RDPDateRange | undefined,
   maxDurationMs: number | undefined,
 ): boolean {
-  if (!range?.from || !range.to || maxDurationMs === undefined) return true;
+  if (!range?.from || !range.to) return true;
+  if (range.to.getTime() < range.from.getTime()) return false;
+  if (maxDurationMs === undefined) return true;
   return range.to.getTime() - range.from.getTime() <= maxDurationMs;
 }
 
@@ -134,6 +136,8 @@ export type TimeRangePickerProps = {
   compact?: boolean;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
+  /** Called after the presets/calendar popover opened or closed. */
+  onAfterOpenChange?: (open: boolean) => void;
 };
 
 export function TimeRangePicker({
@@ -145,6 +149,7 @@ export function TimeRangePicker({
   onTimeRangeChange,
   disabled,
   maxRangeMs,
+  onAfterOpenChange,
 }: TimeRangePickerProps) {
   // Determine the range type
   const rangeType: "named" | "custom" | null = timeRange
@@ -269,30 +274,26 @@ export function TimeRangePicker({
     updateDateRange(newRange);
   };
 
-  const onStartTimeSelection = (date: Date | undefined) => {
-    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
-    const newRange = setNewDateRange(
-      internalDateRange,
-      newDateTime,
-      internalDateRange?.to,
-    );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
-
+  // A minute or hour is typed one digit at a time. The first digit can land
+  // before the other end (10:30 → 10:04 on the way to 10:45). Keep that
+  // candidate so the next key builds on it, and commit only a valid range.
+  const applyTimeEdit = (newRange: RDPDateRange | undefined) => {
     setInternalDateRange(newRange);
     updateDateRange(newRange);
   };
 
+  const onStartTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
+    applyTimeEdit(
+      setNewDateRange(internalDateRange, newDateTime, internalDateRange?.to),
+    );
+  };
+
   const onEndTimeSelection = (date: Date | undefined) => {
     const newDateTime = combineDateAndTime(internalDateRange?.to, date);
-    const newRange = setNewDateRange(
-      internalDateRange,
-      internalDateRange?.from,
-      newDateTime,
+    applyTimeEdit(
+      setNewDateRange(internalDateRange, internalDateRange?.from, newDateTime),
     );
-    if (!isRangeWithinMaxDuration(newRange, maxRangeMs)) return;
-
-    setInternalDateRange(newRange);
-    updateDateRange(newRange);
   };
 
   const onPresetSelection = (value: string) => {
@@ -307,15 +308,17 @@ export function TimeRangePicker({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       setIsOpen(open);
+      onAfterOpenChange?.(open);
       if (open) {
         setTab("presets");
-      } else if (internalDateRange?.from && !internalDateRange.to) {
+      } else {
         // Discard an abandoned first click so the next open starts fresh
-        // instead of extending a left-over start (LFE-8156).
+        // instead of extending a left-over start (LFE-8156), and drop a time
+        // edit that was not committed.
         setInternalDateRange(committedDateRange);
       }
     },
-    [internalDateRange, committedDateRange],
+    [committedDateRange, onAfterOpenChange],
   );
 
   const getDisplayContent = () => {
@@ -455,7 +458,7 @@ export function TimeRangePicker({
                     className="hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm"
                     onClick={() => {
                       onPresetSelection(presetKey);
-                      setIsOpen(false);
+                      handleOpenChange(false);
                     }}
                   >
                     <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">

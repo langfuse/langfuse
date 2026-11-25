@@ -1,14 +1,13 @@
-/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import {
   type ObservationType,
   type ScoreDomain,
   type Prisma,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
@@ -20,7 +19,6 @@ import {
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
-import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -63,12 +61,13 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
-  skills?: SectionSkillsProps["skills"];
+  skills?: React.ComponentProps<typeof IOPreviewPretty>["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
+  traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -119,6 +118,7 @@ export function IOPreview({
   output,
   status,
   outputCorrection,
+  traceOutputCorrection,
   metadata,
   parsedInput,
   parsedOutput,
@@ -196,6 +196,7 @@ export function IOPreview({
     output,
     status,
     outputCorrection,
+    traceOutputCorrection,
     metadata,
     parsedInput,
     parsedOutput,
@@ -253,7 +254,7 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json-beta" ? (
+      {selectedView === "json-beta" && (
         <IOPreviewJSON
           hideMetadata
           input={input}
@@ -262,6 +263,7 @@ export function IOPreview({
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}
@@ -279,13 +281,15 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : selectedView === "json" ? (
+      )}
+      {selectedView === "json" && (
         <IOPreviewJSONSimple
           hideMetadata
           input={input}
           output={output}
           status={status}
           outputCorrection={outputCorrection}
+          traceOutputCorrection={traceOutputCorrection}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           isLoading={isLoading}
@@ -306,7 +310,8 @@ export function IOPreview({
           environment={environment}
           showCorrections={showCorrections}
         />
-      ) : (
+      )}
+      {selectedView !== "json-beta" && selectedView !== "json" && (
         <IOPreviewPretty
           {...sharedProps}
           contentMode={contentMode}

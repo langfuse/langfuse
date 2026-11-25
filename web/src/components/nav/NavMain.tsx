@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
 "use client";
-import { type IconComponent } from "@langfuse/icons";
+import { ArrowUpRight, type IconComponent } from "@langfuse/icons";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -8,19 +8,29 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import {
+  ROUTE_GROUP_BADGES,
+  type Route,
+  type RouteGroup,
+} from "@/src/components/layouts/routes";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 export type NavMainItem = {
   title: string;
-  menuNode?: ReactNode;
+  menuNode?: Route["menuNode"];
   url: string;
   icon?: IconComponent;
   isActive?: boolean;
   label?: string | ReactNode;
+  /** Leaves the current app area; the title shows a trailing ↗. */
+  external?: boolean;
   newTab?: boolean;
+  /** Renders the entry disabled, e.g. until a prerequisite is set up. */
+  disabledReason?: string;
   items?: {
     title: string;
     url: string;
@@ -28,24 +38,6 @@ export type NavMainItem = {
     newTab?: boolean;
   }[];
 };
-
-function NavItemContent({ item }: { item: NavMainItem }) {
-  return (
-    <>
-      {item.icon && <item.icon size="base" />}
-      <span>{item.title}</span>
-      {item.label &&
-        (typeof item.label === "string" ? (
-          <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">
-            {item.label}
-          </span>
-        ) : (
-          // ReactNode
-          item.label
-        ))}
-    </>
-  );
-}
 
 export function NavMain({
   items,
@@ -55,27 +47,16 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
   return (
-    <>
+    <div className="contents [--sidebar-nav-leading-width:32px] [--sidebar-nav-row-height:32px]">
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
             {items.ungrouped.map((item) => (
               <SidebarMenuItem key={item.title}>
-                {item.menuNode || (
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={item.title}
-                    isActive={item.isActive}
-                  >
-                    <Link
-                      href={item.url}
-                      target={item.newTab ? "_blank" : undefined}
-                    >
-                      <NavItemContent item={item} />
-                    </Link>
-                  </SidebarMenuButton>
-                )}
+                <NavMainEntry item={item} isCollapsed={isCollapsed} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -84,30 +65,89 @@ export function NavMain({
       {items.grouped &&
         Object.entries(items.grouped).map(([group, items]) => (
           <SidebarGroup key={group}>
-            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupLabel className="gap-2">
+              {group}
+              {ROUTE_GROUP_BADGES[group as RouteGroup]}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    {item.menuNode || (
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.title}
-                        isActive={item.isActive}
-                      >
-                        <Link
-                          href={item.url}
-                          target={item.newTab ? "_blank" : undefined}
-                        >
-                          <NavItemContent item={item} />
-                        </Link>
-                      </SidebarMenuButton>
-                    )}
+                    <NavMainEntry item={item} isCollapsed={isCollapsed} />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+        ))}
+    </div>
+  );
+}
+
+function NavMainEntry({
+  item,
+  isCollapsed,
+}: {
+  item: NavMainItem;
+  isCollapsed: boolean;
+}) {
+  if (item.menuNode) return item.menuNode({ isCollapsed });
+  if (item.disabledReason) {
+    // The disabled button takes no pointer or focus events, so a focusable
+    // wrapper carries the reason in every sidebar state.
+    return (
+      <Tooltip
+        label={item.disabledReason}
+        placement="right"
+        hoverableContent={false}
+      >
+        {({ getTriggerProps }) => (
+          <span
+            {...getTriggerProps()}
+            role="link"
+            aria-disabled="true"
+            tabIndex={0}
+            className="ring-sidebar-ring block cursor-not-allowed rounded-sm outline-hidden focus-visible:ring-2"
+          >
+            <SidebarMenuButton disabled tabIndex={-1}>
+              <NavItemContent item={item} />
+            </SidebarMenuButton>
+          </span>
+        )}
+      </Tooltip>
+    );
+  }
+  return (
+    <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
+      <Link href={item.url} target={item.newTab ? "_blank" : undefined}>
+        <NavItemContent item={item} />
+      </Link>
+    </SidebarMenuButton>
+  );
+}
+
+function NavItemContent({ item }: { item: NavMainItem }) {
+  return (
+    <>
+      {item.icon && <item.icon size="base" />}
+      {item.external ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate" title={item.title}>
+            {item.title}
+          </span>
+          <ArrowUpRight size="sm" color="tertiary" aria-hidden />
+        </span>
+      ) : (
+        <span>{item.title}</span>
+      )}
+      {item.label &&
+        (typeof item.label === "string" ? (
+          <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">
+            {item.label}
+          </span>
+        ) : (
+          // ReactNode
+          item.label
         ))}
     </>
   );

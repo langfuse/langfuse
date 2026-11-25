@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 /**
  * JsonRowScrollable - Scrollable column content (indent + key + value + badges + copy)
  *
@@ -20,7 +19,6 @@ export interface JsonRowScrollableProps {
   enableCopy?: boolean;
   searchMatch?: SearchMatch;
   isCurrentMatch?: boolean;
-  className?: string;
   jsonPath?: string;
   commentRanges?: CommentRange[];
   sectionKey?: string; // For inline comments - identifies which section (input/output/metadata) this row belongs to
@@ -34,7 +32,6 @@ export function JsonRowScrollable({
   enableCopy = false,
   searchMatch,
   isCurrentMatch = false,
-  className,
   jsonPath,
   commentRanges,
   sectionKey,
@@ -63,7 +60,6 @@ export function JsonRowScrollable({
 
   return (
     <div
-      className={className}
       data-json-path={jsonPath}
       data-section-key={sectionKey}
       data-json-key-value="true"

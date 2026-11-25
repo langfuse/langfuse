@@ -2,6 +2,7 @@ import { DecisionModelStateKeySchema } from "@langfuse/shared";
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { DecisionModelStatePreview } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelStatePreview/DecisionModelStatePreview";
 import { EditableVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/components/EditableVariableMapping/EditableVariableMapping";
+import type { OpenAIDecisionQuestionPreview } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type {
   ActiveVariableMapping,
   VariableFieldState,
@@ -41,6 +42,7 @@ export function DecisionModelStateEditor({
   onAddField,
   onRenameField,
   onRemoveField,
+  sentQuestions,
   sourceObject,
   hasMatchingObservations,
   sourceUnavailableMessage,
@@ -53,6 +55,8 @@ export function DecisionModelStateEditor({
   onAddField: () => void;
   onRenameField: (key: string, next: string) => void;
   onRemoveField: (key: string) => void;
+  /** OpenAI and Gemini post the questions with the state; the preview shows both. */
+  sentQuestions?: OpenAIDecisionQuestionPreview[];
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
@@ -80,7 +84,12 @@ export function DecisionModelStateEditor({
 
       <TextActionButton text="Add field" onClick={onAddField} />
 
-      <DecisionModelStatePreview fields={fields} sourceObject={sourceObject} />
+      <DecisionModelStatePreview
+        fields={fields}
+        sourceObject={sourceObject}
+        questions={sentQuestions}
+        title={sentQuestions ? "Sent to the model" : undefined}
+      />
     </div>
   );
 }

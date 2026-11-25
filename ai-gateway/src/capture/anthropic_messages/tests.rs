@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     capture::{
         ExecutionCapture, InputOmission, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES,
-        ProtocolCapture, ProviderFacts,
+        ProtocolCapture, ProviderFacts, RequestInput,
     },
     providers::{ProviderLimits, ProviderTransport, Route},
     resolution::ApiFormat,
@@ -34,7 +34,7 @@ async fn new_observer(mode: &'static str) -> ExecutionCapture {
         ApiFormat::AnthropicMessages,
         &context,
         &HeaderMap::new(),
-        REQUEST,
+        RequestInput::from_body(REQUEST),
     )
 }
 
@@ -291,7 +291,7 @@ async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode()
             .cloned()
             .unwrap()
     );
-    let input = facts.input.as_ref().unwrap();
+    let input = facts.input_json().unwrap();
     assert_eq!(input["system"][0]["text"], json!("system-canary"));
     assert_eq!(
         input["system"][0]["cache_control"]["type"],
@@ -486,12 +486,84 @@ async fn retained_output_is_bounded_without_affecting_the_relay() {
 }
 
 #[tokio::test]
+async fn gateway_billing_outside_usage_is_kept_in_usage_mode() {
+    let mut observer = new_observer("usage").await;
+    record_response(&mut observer, 200, "application/json");
+    // A Vercel Messages reply, trimmed to its usage and billing.
+    let body = json!({
+        "id": "gen_01M72Z8EE19DG85GY1W3AWST3G", "type": "message", "role": "assistant",
+        "content": [{"type": "text", "text": "Hello! How can I help you today?"}],
+        "model": "amazon/nova-2-lite", "stop_reason": "end_turn", "stop_sequence": null,
+        "usage": {"input_tokens": 47, "output_tokens": 12},
+        "provider_metadata": {
+            "bedrock": {"stopSequence": null},
+            "gateway": {
+                "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+                    {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+                ]}]},
+                "cost": "0.00004851",
+                "inputInferenceCost": "0.00001551",
+                "outputInferenceCost": "0.000033",
+            },
+        },
+    })
+    .to_string();
+    observer.push_bytes(body.as_bytes());
+    observer.end_body();
+    let facts = finalized(&mut observer);
+    assert_eq!(
+        facts.provider_metadata.unwrap()["gateway"]["cost"],
+        "0.00004851"
+    );
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 12);
+}
+
+#[tokio::test]
+async fn streamed_gateway_billing_on_message_delta_is_kept() {
+    let mut observer = new_observer("usage").await;
+    record_response(&mut observer, 200, "text/event-stream");
+    // A streamed Vercel Messages reply, trimmed to its usage and billing: the
+    // cost arrives on `message_delta`, after `message_start` reported zero usage.
+    let gateway = json!({
+        "routing": {"modelAttempts": [{"success": true, "providerAttempts": [
+            {"provider": "bedrock", "credentialType": "system", "success": true, "statusCode": 200},
+        ]}]},
+        "cost": "0.00004851",
+    });
+    for chunk in [
+        event(
+            "message_start",
+            json!({"message": {
+                "id": "gen_01M7306ZKS93RHV6H26RJP8N3W", "type": "message", "role": "assistant",
+                "content": [], "model": "amazon/nova-2-lite", "stop_reason": null,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }}),
+        ),
+        event(
+            "message_delta",
+            json!({
+                "delta": {"stop_reason": "end_turn", "stop_sequence": null},
+                "usage": {"input_tokens": 47, "output_tokens": 12},
+                "provider_metadata": {"gateway": gateway},
+            }),
+        ),
+        event("message_stop", json!({})),
+    ] {
+        observer.push_bytes(chunk.as_bytes());
+    }
+    observer.end_body();
+    let facts = finalized(&mut observer);
+    assert_eq!(facts.provider_metadata.unwrap()["gateway"], gateway);
+    assert_eq!(facts.usage_details.unwrap()["output_tokens"], 12);
+}
+
+#[tokio::test]
 async fn finalized_facts_carry_the_anthropic_api_format_and_native_usage() {
     let mut observer = new_observer("usage").await;
     record_response(&mut observer, 200, "text/event-stream");
     observer.push_bytes(text_stream().as_bytes());
     let (api_format, facts) = observer.protocol.take().unwrap().into_facts();
-    assert_eq!(api_format, "anthropic.messages");
+    assert_eq!(api_format, ApiFormat::AnthropicMessages);
     assert_eq!(
         facts.usage_details.unwrap()["cache_read_input_tokens"],
         json!(16399)
@@ -539,6 +611,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context =
@@ -554,7 +627,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.admit(),
+            provider.admit(None),
             context,
             &headers,
             crate::providers::RequestBody {
@@ -562,6 +635,9 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
                 model_range: crate::providers::model_range(REQUEST).unwrap(),
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
+                input: Some(RequestInput::from_body(REQUEST)),
+                stream_options: crate::providers::StreamOptions::default(),
             },
             Route::AnthropicMessages,
             &mut crate::correlation::RequestCorrelation::default(),
@@ -593,7 +669,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
         metadata["langfuse.gateway.request.api_format"],
         "anthropic.messages"
     );
-    assert_eq!(metadata["langfuse.gateway.response.id"], "msg_1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "msg_1");
     assert_eq!(
         metadata["langfuse.gateway.upstream.request.id"],
         "req_upstream"
@@ -638,12 +714,6 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             at_limit.as_str(),
             Some(InputOmissionReason::ContentEncoding),
         ),
-        (
-            "full",
-            HeaderMap::new(),
-            "not json",
-            Some(InputOmissionReason::InvalidJson),
-        ),
         ("usage", HeaderMap::new(), over_limit.as_str(), None),
     ] {
         let context =
@@ -653,7 +723,7 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
             ApiFormat::AnthropicMessages,
             &context,
             &headers,
-            body.as_bytes(),
+            RequestInput::from_body(body.as_bytes()),
         );
         let facts = &captured(&observer).facts;
         assert_eq!(
@@ -667,4 +737,40 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
         );
         assert_eq!(facts.input.is_some(), mode == "full" && omission.is_none());
     }
+}
+
+fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| match name {
+        "system" => Some(system),
+        "messages" => Some(messages),
+        _ => None,
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_system_prompt_counts_only_on_the_first_turn() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"type":"text","text":"sys"}]"#,
+            r#"[{"role":"user","content":"first"}]"#
+        ),
+        ["first", "sys"]
+    );
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"a","input":{}},{"type":"tool_use","id":"b","input":{}}]},
+            {"role":"user","content":[
+                {"type":"tool_result","tool_use_id":"a","content":"result a"},
+                {"type":"tool_result","tool_use_id":"b","content":[{"type":"text","text":"result b"}]}]}]"#
+        ),
+        ["result a", "result b"]
+    );
 }

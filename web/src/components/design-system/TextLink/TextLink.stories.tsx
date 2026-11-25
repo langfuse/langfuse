@@ -22,3 +22,11 @@ export const WithIcon = meta.story({
     icon: User,
   },
 });
+
+export const External = meta.story({
+  args: {
+    path: "https://langfuse.com/docs",
+    value: "Docs",
+    external: true,
+  },
+});

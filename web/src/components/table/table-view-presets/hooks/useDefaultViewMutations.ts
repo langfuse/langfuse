@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type DefaultViewScope } from "@langfuse/shared/src/server";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 

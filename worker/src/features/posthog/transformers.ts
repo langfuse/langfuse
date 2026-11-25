@@ -5,6 +5,10 @@ import type {
   AnalyticsScoreEvent,
   AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
+import {
+  capOversizedScoreFields,
+  POSTHOG_SCORE_ENCODING,
+} from "../integrations/capOversizedScoreFields";
 
 // UUID v5 namespace for PostHog
 const POSTHOG_UUID_NAMESPACE = "0f6c91df-d035-4813-b838-9741ba38ef0b";
@@ -96,7 +100,8 @@ export const transformScoreForPostHog = (
 
   // Extract posthog_session_id and map to $session_id
 
-  const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
+  const { posthog_session_id, mixpanel_session_id, ...otherProps } =
+    capOversizedScoreFields(score, POSTHOG_SCORE_ENCODING);
 
   return {
     distinctId: score.langfuse_user_id

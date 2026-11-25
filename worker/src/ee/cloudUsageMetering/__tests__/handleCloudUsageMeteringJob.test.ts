@@ -8,14 +8,13 @@ const {
   mockMeterEventsCreate,
   mockUsageMeteringQueueAdd,
   mockSpendAlertQueueAdd,
-  mockObservationCounts,
-  mockTraceCounts,
-  mockScoreCounts,
+  mockLedgerCounts,
   mockLoggerInfo,
   mockLoggerWarn,
   mockLoggerError,
   mockRecordIncrement,
   mockTraceException,
+  mockEnv,
 } = vi.hoisted(() => ({
   mockCronJobsUpsert: vi.fn(),
   mockCronJobsUpdate: vi.fn(),
@@ -23,14 +22,17 @@ const {
   mockMeterEventsCreate: vi.fn(),
   mockUsageMeteringQueueAdd: vi.fn(),
   mockSpendAlertQueueAdd: vi.fn(),
-  mockObservationCounts: vi.fn(),
-  mockTraceCounts: vi.fn(),
-  mockScoreCounts: vi.fn(),
+  mockLedgerCounts: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
   mockRecordIncrement: vi.fn(),
   mockTraceException: vi.fn(),
+  mockEnv: {
+    STRIPE_SECRET_KEY: "sk_test",
+    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: undefined,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual",
+  },
 }));
 
 vi.mock("@langfuse/shared", () => ({
@@ -51,16 +53,17 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/server", () => ({
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  BILLING_SETTLE_MS: (
+    await importOriginal<typeof import("@langfuse/shared/src/server")>()
+  ).BILLING_SETTLE_MS,
   CloudUsageMeteringQueue: {
     getInstance: () => ({ add: mockUsageMeteringQueueAdd }),
   },
   CloudSpendAlertQueue: {
     getInstance: () => ({ add: mockSpendAlertQueueAdd }),
   },
-  getObservationCountsByProjectInCreationInterval: mockObservationCounts,
-  getTraceCountsByProjectInCreationInterval: mockTraceCounts,
-  getScoreCountsByProjectInCreationInterval: mockScoreCounts,
+  getBillableUnitCountsByProjectInWindow: mockLedgerCounts,
   logger: {
     info: mockLoggerInfo,
     warn: mockLoggerWarn,
@@ -80,12 +83,7 @@ vi.mock("stripe", () => ({
   },
 }));
 
-vi.mock("../../../env", () => ({
-  env: {
-    STRIPE_SECRET_KEY: "sk_test",
-    LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: undefined,
-  },
-}));
+vi.mock("../../../env", () => ({ env: mockEnv }));
 
 import { handleCloudUsageMeteringJob } from "../handleCloudUsageMeteringJob";
 import { CloudUsageMeteringDbCronJobStates } from "../constants";
@@ -132,6 +130,7 @@ describe("handleCloudUsageMeteringJob", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(NOW);
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
 
     mockCronJobsUpsert.mockResolvedValue({
       name: "cloud_usage_metering",
@@ -140,6 +139,7 @@ describe("handleCloudUsageMeteringJob", () => {
       jobStartedAt: null,
     });
     mockCronJobsUpdate.mockResolvedValue({});
+    mockMeterEventsCreate.mockResolvedValue({});
     mockOrganizationFindMany.mockResolvedValue([
       {
         id: "org-1",
@@ -148,11 +148,11 @@ describe("handleCloudUsageMeteringJob", () => {
         cloudSpendAlerts: [],
       },
     ]);
-    mockObservationCounts.mockResolvedValue([
-      { projectId: "project-1", count: 5 },
+    mockLedgerCounts.mockResolvedValue([
+      { projectId: "project-1", eventType: "observation", count: 5 },
+      { projectId: "project-1", eventType: "trace", count: 3 },
+      { projectId: "project-1", eventType: "score", count: 2 },
     ]);
-    mockTraceCounts.mockResolvedValue([{ projectId: "project-1", count: 3 }]);
-    mockScoreCounts.mockResolvedValue([{ projectId: "project-1", count: 2 }]);
   });
 
   afterEach(() => {
@@ -304,5 +304,46 @@ describe("handleCloudUsageMeteringJob", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it("meters the ledger units of the org's projects for the hour", async () => {
+    mockOrganizationFindMany.mockResolvedValue([
+      {
+        id: "org-1",
+        cloudConfig: { stripe: { customerId: "cus_1" } },
+        projects: [{ id: "project-1" }, { id: "project-2" }],
+        cloudSpendAlerts: [],
+      },
+    ]);
+    mockLedgerCounts.mockResolvedValue([
+      { projectId: "project-1", eventType: "observation", count: 5 },
+      { projectId: "project-1", eventType: "trace", count: 3 },
+      { projectId: "project-2", eventType: "score", count: 2 },
+      { projectId: "project-2", eventType: "topic_facet_summary", count: 4 },
+      // A project outside every Stripe org is not billed here.
+      { projectId: "chb-project", eventType: "trace", count: 100 },
+    ]);
+
+    await handleCloudUsageMeteringJob(createJob());
+
+    expect(mockLedgerCounts).toHaveBeenCalledWith({
+      windowFrom: INTERVAL_START,
+      windowTo: new Date(INTERVAL_START.getTime() + 3600000),
+    });
+    const valueOf = (eventName: string) =>
+      callsForMeter(eventName)[0]?.[0].payload.value;
+    expect(valueOf("tracing_observations")).toBe("5");
+    expect(valueOf("tracing_events")).toBe("14");
+  });
+
+  it("refuses to meter in legacy write mode", async () => {
+    mockEnv.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    await expect(handleCloudUsageMeteringJob(createJob())).rejects.toThrow(
+      /legacy/,
+    );
+
+    expect(mockCronJobsUpdate).not.toHaveBeenCalled();
+    expect(mockMeterEventsCreate).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 
@@ -246,6 +245,16 @@ export class ObservationTypeMapperRegistry {
       GUARDRAIL: "GUARDRAIL",
       EVALUATOR: "EVALUATOR",
     }),
+
+    // Priority 2.5: the Claude Platform request span wraps the
+    // anthropic.model_request child that carries the actual model call.
+    new CustomAttributeMapper(
+      "ClaudePlatformRequestSpan",
+      2.5,
+      (_attributes, _resourceAttributes, scopeData, spanName) =>
+        isClaudePlatformRequestSpan(scopeData?.name, spanName),
+      () => "SPAN",
+    ),
 
     // Priority 3: OpenTelemetry GenAI operation
     new SimpleAttributeMapper(
@@ -524,6 +533,21 @@ export class ObservationTypeMapperRegistry {
   getMappersForDebugging(): ReadonlyArray<ObservationTypeMapper> {
     return [...this.mappers];
   }
+}
+
+/**
+ * Claude Platform emits anthropic.messages.create for the API request and an
+ * anthropic.model_request child per model call. Both report the same usage, so
+ * only the child is priced.
+ */
+export function isClaudePlatformRequestSpan(
+  scopeName: unknown,
+  spanName?: string,
+): boolean {
+  return (
+    scopeName === "com.anthropic.claude-platform" &&
+    spanName === "anthropic.messages.create"
+  );
 }
 
 /** CMA session creation configures a model without executing a model call. */

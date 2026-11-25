@@ -11,7 +11,7 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
-import { orderByToClickhouseSql } from "../queries";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import {
   shouldSkipObservationsFinal,
@@ -22,6 +22,11 @@ import {
   resolveScoreDataRequirement,
 } from "../queries/clickhouse-sql/score-filter-pushdown";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import {
+  TRACE_EXPORT_FIELDS,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type TraceExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { OrderByState } from "../../interfaces/orderBy";
 import snakeCase from "lodash/snakeCase";
 import { FilterState } from "../../types";
@@ -32,7 +37,10 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
-import { UiColumnMappings, ColumnDefinition } from "../../tableDefinitions";
+import {
+  UiColumnMappings,
+  ColumnDefinition,
+} from "../../tableDefinitions/types";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import {
   convertDateToClickhouseDateTime,
@@ -49,11 +57,11 @@ import {
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordDistribution } from "../instrumentation";
+import { recordDistribution, traceException } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
-import { traceException } from "../instrumentation";
+
 import { prisma } from "../../db";
 
 /**
@@ -1207,33 +1215,22 @@ export const getUserMetrics = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// trace export paths, so the SELECT/WHERE stays in one place.
+// trace export paths, so the SELECT/WHERE stays in one place. Deselected
+// field group columns are dropped; the remaining columns keep their order.
 const buildTracesForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[],
 ) => {
   const traceTable = "traces";
+  const columns = TRACE_EXPORT_FIELDS.filter(({ group }) =>
+    fieldGroups.includes(group),
+  ).map(({ field }) => field);
 
   const query = `
     SELECT
-      id,
-      timestamp,
-      name,
-      environment,
-      project_id,
-      metadata,
-      user_id,
-      session_id,
-      release,
-      version,
-      public as public,
-      bookmarked as bookmarked,
-      tags,
-      input as input,
-      output as output,
-      created_at,
-      updated_at
+      ${columns.join(",\n      ")}
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -1260,9 +1257,15 @@ export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[] = [...TRACE_EXPORT_FIELD_GROUPS],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildTracesForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildTracesForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -1272,12 +1275,14 @@ export const getTracesForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[] = [...TRACE_EXPORT_FIELD_GROUPS],
 ) {
   return queryClickhouseExecRaw({
     ...buildTracesForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
@@ -1447,72 +1452,6 @@ export async function getAgentGraphData(params: {
     },
   });
 }
-
-/**
- * Get trace counts grouped by project and day within a date range.
- *
- * Returns one row per project per day with the count of traces created on that day.
- * Uses half-open interval [startDate, endDate) for filtering.
- *
- * @param startDate - Start of date range (inclusive)
- * @param endDate - End of date range (exclusive)
- * @returns Array of { count, projectId, date } objects
- *
- * @example
- * // Get trace counts for March 1-2, 2024
- * const counts = await getTraceCountsByProjectAndDay({
- *   startDate: new Date('2024-03-01T00:00:00Z'),
- *   endDate: new Date('2024-03-03T00:00:00Z')
- * });
- * // Returns: [
- * //   { count: 1500, projectId: 'proj-123', date: '2024-03-01' },
- * //   { count: 1200, projectId: 'proj-123', date: '2024-03-02' },
- * //   { count: 2300, projectId: 'proj-456', date: '2024-03-01' },
- * //   ...
- * // ]
- *
- * Note: Skips using FINAL (double counting risk) for faster and cheaper
- * queries against clickhouse. Generous 4x overcompensation before blocking allows
- * for usage aggregation to be meaningful.
- *
- */
-export const getTraceCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
-  startDate: Date;
-  endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(timestamp) as date
-    FROM traces
-    WHERE timestamp >= {startDate: DateTime64(3)}
-    AND timestamp < {endDate: DateTime64(3)}
-    GROUP BY project_id, toDate(timestamp)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
-};
 
 // ─── TRACE_FIELD_GROUPS (public-API field selection) ─────────────────────────
 

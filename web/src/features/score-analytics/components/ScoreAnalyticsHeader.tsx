@@ -8,7 +8,7 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
-import { Badge } from "@/src/components/ui/badge";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 export interface ScoreAnalyticsHeaderProps {
@@ -99,14 +99,9 @@ export function ScoreAnalyticsHeader({
           }
         >
           {({ getTriggerProps }) => (
-            <Badge
-              variant="warning"
-              className="cursor-help"
-              tabIndex={0}
-              {...getTriggerProps()}
-            >
-              Beta Feature
-            </Badge>
+            <span tabIndex={0} {...getTriggerProps()} className="inline-flex">
+              <FeatureReleaseStatus status="beta" />
+            </span>
           )}
         </HoverCard>
       </div>

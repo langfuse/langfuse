@@ -1,10 +1,10 @@
-import { ToolSchema } from "@modelcontextprotocol/sdk/types.js";
+import { ToolSchema } from "@modelcontextprotocol/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { isoDateTime } from "@langfuse/shared";
 import { mockServerContext } from "../mcp-helpers";
 
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 import type { ServerContext } from "../../../features/mcp/types";
 
@@ -35,12 +35,16 @@ describe("defineTool", () => {
     ]) {
       expect(pattern.test(timestamp)).toBe(true);
       await run({ timestamp }, context);
-      expect(handler).toHaveBeenLastCalledWith({ timestamp }, context);
+      expect(handler).toHaveBeenLastCalledWith(
+        { timestamp },
+        context,
+        undefined,
+      );
     }
     const invalid = "2024-02-30T06:15Z";
     expect(pattern.test(invalid)).toBe(false);
     await expect(run({ timestamp: invalid }, context)).rejects.toThrow(
-      "Validation failed",
+      z.ZodError,
     );
     expect(handler).toHaveBeenCalledTimes(2);
   });
@@ -94,6 +98,7 @@ describe("defineTool", () => {
       publicKey: "pk-lf-test",
       plan: "oss",
       rateLimitOverrides: [],
+      accessAuditLogEnabled: false,
     };
     const input = {
       id: "score-id",
@@ -130,9 +135,9 @@ describe("defineTool", () => {
       // MCP clients submit unvalidated JSON to the typed handler.
       await expect(
         run(invalid as Parameters<typeof run>[0], context),
-      ).rejects.toThrow("Validation failed");
+      ).rejects.toThrow(z.ZodError);
     }
-    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context);
+    expect(handler).toHaveBeenCalledExactlyOnceWith(input, context, undefined);
   });
 
   it("preserves root type: 'object' for plain object schemas", () => {

@@ -1,18 +1,19 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
-import { ConnectedWidgetForm } from "@/src/features/widgets";
+import { ConnectedWidgetForm } from "@/src/features/widgets/components/ConnectedWidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   asSingleQueryParam,
@@ -133,7 +134,9 @@ function NewWidgetView({ projectId }: { projectId: string }) {
           },
         }}
       >
-        <NoDataOrLoading isLoading />
+        <div className="flex h-3/4 min-h-36 w-full items-center justify-center rounded-md">
+          <Skeleton className="h-full w-full" />
+        </div>
       </Page>
     );
   }

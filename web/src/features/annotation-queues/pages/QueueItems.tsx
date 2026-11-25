@@ -3,15 +3,15 @@ import { useState } from "react";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { ClipboardPen, Lock } from "@langfuse/icons";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing";
-import Page from "@/src/components/layouts/page";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import Page from "@/src/components/layouts/Page";
 import {
   SidePanel,
   SidePanelContent,
   SidePanelHeader,
 } from "@/src/components/ui/side-panel";
-import { AnnotationQueueSetupController } from "@/src/features/annotation-queues/components/AnnotationQueueSetupController";
+import { ConnectedAnnotationQueueSetupController } from "@/src/features/annotation-queues/components/ConnectedAnnotationQueueSetupController";
 
 export default function QueueItems({
   projectId,
@@ -66,7 +66,7 @@ export default function QueueItems({
         <div className="flex h-full min-w-0 flex-col overflow-hidden">
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
-        <AnnotationQueueSetupController
+        <ConnectedAnnotationQueueSetupController
           key={`${projectId}:${queueId}`}
           projectId={projectId}
           queueId={queueId}

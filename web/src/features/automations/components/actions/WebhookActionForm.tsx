@@ -36,8 +36,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({
@@ -60,6 +62,7 @@ export const webhookSchema = z.object({
       wasSecret: z.boolean(),
     }),
   ),
+  originalUrl: z.string().optional(),
 });
 
 interface WebhookActionFormProps {
@@ -83,6 +86,12 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     control: form.control,
     name: "webhook.headers",
   });
+
+  const currentUrl = form.watch("webhook.url");
+  const originalUrl = form.watch("webhook.originalUrl");
+  const isUrlChanged =
+    originalUrl !== undefined &&
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   // Filter out headers managed by Langfuse from the user-editable headers
   const customHeaderFields = headerFields.filter((field, index) => {
@@ -128,6 +137,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
+              {isUrlChanged
+                ? " Re-enter the values of secret headers when changing the URL."
+                : ""}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -184,6 +196,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const displayValue = form.watch(
             `webhook.headers.${originalIndex}.displayValue`,
           );
+          const wasSecret = form.watch(
+            `webhook.headers.${originalIndex}.wasSecret`,
+          );
+          const valuePlaceholder =
+            wasSecret && isUrlChanged
+              ? "Re-enter secret value"
+              : displayValue || "Value";
 
           return (
             <div
@@ -213,11 +232,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder={
-                          isSecret && displayValue
-                            ? displayValue
-                            : displayValue || "Value"
-                        }
+                        placeholder={valuePlaceholder}
                         {...field}
                         disabled={disabled}
                         type={isSecret ? "password" : "text"}
@@ -298,9 +313,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             </div>
           </div>
         ) : (
-          <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
+          <Banner>
             Webhook secret will be generated when the automation is created.
-          </div>
+          </Banner>
         )}
       </div>
     </div>

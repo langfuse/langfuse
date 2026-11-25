@@ -66,13 +66,13 @@ pub(super) struct Uploads {
 
 impl Uploads {
     pub(super) fn new(
-        uploader: Uploader,
+        uploader: Arc<Uploader>,
         slots: usize,
         retry: RetryPolicy,
         stats: Arc<Stats>,
     ) -> Self {
         Self {
-            uploader: Arc::new(uploader),
+            uploader,
             slots: Arc::new(Semaphore::new(slots)),
             retry,
             tasks: JoinSet::new(),

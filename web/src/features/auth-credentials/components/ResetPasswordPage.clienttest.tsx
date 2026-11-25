@@ -72,7 +72,7 @@ vi.mock("@/src/env.mjs", async () => {
 });
 
 vi.mock(
-  "@/src/features/auth-credentials/components/ResetPasswordButton",
+  "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton",
   () => ({
     RequestResetPasswordEmailButton: ({
       email,
@@ -177,6 +177,7 @@ describe("ResetPasswordPage re-authentication", () => {
         email: "user@example.com",
         token: "123456",
         password: "Newpass1!",
+        intent: "reset",
       });
     });
     expect(signInMock).toHaveBeenCalledWith("credentials", {

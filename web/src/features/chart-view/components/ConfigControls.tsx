@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/component-file-structure -- Legacy UI usage retained during migration to design-system components. */
 import React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -8,24 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   type AggregationFn,
   type DimensionKey,
   type MetricKey,
-  type TimeGranularity,
 } from "../types";
 import {
   AGGREGATION_LABELS,
   CHART_TYPES,
   DIMENSIONS,
   getMetric,
-  GRANULARITIES,
   METRICS,
 } from "../vocab";
 
@@ -113,35 +107,6 @@ export const BreakdownSelect = React.memo(function BreakdownSelect({
   );
 });
 
-export const GranularitySelect = React.memo(function GranularitySelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: TimeGranularity;
-  onChange: (value: TimeGranularity) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(v) => onChange(v as TimeGranularity)}
-      disabled={disabled}
-    >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Time granularity">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {GRANULARITIES.map((g) => (
-          <SelectItem key={g} value={g}>
-            {g}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-});
-
 export const ChartTypePicker = React.memo(function ChartTypePicker({
   value,
   onChange,
@@ -167,16 +132,15 @@ export const ChartTypePicker = React.memo(function ChartTypePicker({
         {CHART_TYPES.map((ct) => {
           const Icon = ct.icon;
           return (
-            <Tooltip key={ct.value}>
-              <TooltipTrigger asChild>
-                <span className="h-full min-w-0">
+            <Tooltip key={ct.value} label={ct.label}>
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} className="h-full min-w-0">
                   <Tabs.Trigger value={ct.value}>
                     <Icon aria-hidden="true" size="base" />
                     <span className="sr-only">{ct.label}</span>
                   </Tabs.Trigger>
                 </span>
-              </TooltipTrigger>
-              <TooltipContent>{ct.label}</TooltipContent>
+              )}
             </Tooltip>
           );
         })}

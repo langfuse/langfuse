@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 
 export const IN_APP_AGENT_QUESTIONNAIRE_MAX_QUESTIONS = 4;
@@ -119,19 +118,17 @@ export function createInAppAgentQuestionnaireAnswersSchema(
         }
       }
     })
-    .transform(
-      (answers): InAppAgentQuestionnaireResult => ({
-        type: "questionnaireAnswers",
-        answers: questions.map((question, index) => {
-          const answer = toAnswerLabels(question, answers[index]);
-          return {
-            question: question.question,
-            answer,
-            skipped: answer.length === 0,
-          };
-        }),
+    .transform((answers): InAppAgentQuestionnaireResult => ({
+      type: "questionnaireAnswers",
+      answers: questions.map((question, index) => {
+        const answer = toAnswerLabels(question, answers[index]);
+        return {
+          question: question.question,
+          answer,
+          skipped: answer.length === 0,
+        };
       }),
-    );
+    }));
 }
 
 /**

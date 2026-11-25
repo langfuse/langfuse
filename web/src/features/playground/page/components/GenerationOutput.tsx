@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon, Check, Copy, Plus } from "@langfuse/icons";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ThinkingBlock } from "@/src/features/traces";
+import { ThinkingBlock } from "@/src/features/traces/components/ThinkingBlock";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);

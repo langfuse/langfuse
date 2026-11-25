@@ -2,14 +2,11 @@ import { type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Menu } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { useSidebar } from "@/src/components/ui/sidebar";
 import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
-import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { TopbarAccount } from "@/src/components/nav/TopbarAccount";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -28,12 +25,10 @@ export const MobileTopBar = ({
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
 }) => {
-  const { toggleSidebar } = useSidebar();
   const session = useSession();
-  const hasAppSidebar = useHasAppSidebar();
-  const envLabel = useEnvLabel();
+  const appNavigation = useAppNavigation();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  const showHamburger = showSidebarTrigger && hasAppSidebar;
+  const showHamburger = showSidebarTrigger && appNavigation !== null;
 
   return (
     <div className="bg-background flex h-12 items-center gap-2 border-b px-2">
@@ -41,27 +36,22 @@ export const MobileTopBar = ({
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {showHamburger ? (
           <Button
+            ref={appNavigation.mobileNavigationTriggerRef}
             variant="ghost"
             size="icon"
             className="h-9 w-9"
             aria-label="Open menu"
-            onClick={() => toggleSidebar()}
+            onClick={appNavigation.openMobileNavigation}
           >
             <Menu size="lg" color="default" />
           </Button>
         ) : (
           leadingControl
         )}
-        {envLabel.visible && (
-          <EnvLabelBadge
-            region={envLabel.region}
-            onDismiss={envLabel.dismiss}
-          />
-        )}
       </div>
 
       {/* Center: the Langfuse wordmark. */}
-      {hasAppSidebar && <TopbarBrand variant="wordmark" />}
+      {appNavigation && <TopbarBrand variant="wordmark" />}
 
       {/* Right: the assistant launcher (prominent, gradient-bordered so it
           reads as a real entry point here) + account. Balances the left slot

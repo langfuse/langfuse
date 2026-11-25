@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, afterAll, vi } from "vitest";
 import type * as SharedEnvModule from "@langfuse/shared/src/env";
@@ -38,6 +36,7 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const orgIds: string[] = [];
 
@@ -49,44 +48,26 @@ const maybe =
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: true,
-          aiTelemetryEnabled: true,
-          projects: [
-            {
-              id: project.id,
-              role: "ADMIN",
-              retentionDays: 30,
-              deletedAt: null,
-              name: project.name,
-              hasTraces: false,
-              metadata: {},
-              createdAt: project.createdAt.toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: true,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        aiFeaturesEnabled: true,
+        aiTelemetryEnabled: true,
+        projects: [
+          {
+            id: project.id,
+            role: "ADMIN",
+            name: project.name,
+            createdAt: project.createdAt.toISOString(),
+          },
+        ],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });

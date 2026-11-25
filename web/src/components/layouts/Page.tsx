@@ -1,0 +1,72 @@
+import PageHeader, {
+  type PageHeaderProps,
+} from "@/src/components/layouts/page-header";
+import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
+import { MobileTopBar } from "@/src/components/layouts/MobileTopBar";
+import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { cn } from "@/src/utils/tailwind";
+
+type PageContainerProps = {
+  children?: React.ReactNode;
+  headerProps: Omit<PageHeaderProps, "container">;
+  scrollable?: boolean;
+  withPadding?: boolean;
+};
+
+const Page = ({
+  children,
+  headerProps,
+  scrollable = false,
+  withPadding = false,
+}: PageContainerProps) => {
+  // Minimal-chrome mobile shell: a slim sticky top bar (menu + brand + account)
+  // plus a page-title block that lives in the scrollable content. We mount one
+  // header path (rather than CSS-toggle both) so there is a single
+  // controls-slot target for the time-range / refresh portal — two live targets
+  // would fight over the single slot node.
+  const isMobile = useIsMobile();
+
+  return (
+    <PageHeaderControlsSlotProvider>
+      <div
+        className={cn(
+          "flex flex-col",
+          scrollable
+            ? "min-h-screen-with-banner relative flex flex-1"
+            : "h-full",
+        )}
+        id="page"
+      >
+        <header className="sticky top-0 z-50 w-full">
+          {isMobile ? (
+            <MobileTopBar
+              showSidebarTrigger={headerProps.showSidebarTrigger}
+              leadingControl={headerProps.leadingControl}
+            />
+          ) : (
+            <PageHeader
+              {...headerProps}
+              container={false}
+              className={cn("top-0", headerProps.className)}
+            />
+          )}
+        </header>
+        {isMobile && <MobilePageTitle headerProps={headerProps} />}
+        <main
+          className={cn(
+            "flex flex-1 flex-col",
+            scrollable
+              ? "min-h-screen-with-banner relative flex"
+              : "h-full overflow-hidden",
+            withPadding && "p-3",
+          )}
+        >
+          {children}
+        </main>
+      </div>
+    </PageHeaderControlsSlotProvider>
+  );
+};
+
+export default Page;

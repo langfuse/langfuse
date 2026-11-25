@@ -1,10 +1,11 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import Header from "@/src/components/layouts/header";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
+import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { ConnectedGatewayApiKeysTable } from "./components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
+import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
   organizationId,
@@ -17,25 +18,42 @@ export function GatewayApiKeysPage({
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-  /** Managers are redirected to Configuration by the settings route. */
+  /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway API keys" />;
+    return <ConnectedGatewayNotSetUpNotice />;
   }
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1">
-        <Header title="Gateway API keys" className="mb-0!" />
-        <InfoTooltip label="About gateway API keys">
-          {canManageGateway
-            ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
-            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}
-        </InfoTooltip>
-      </div>
-      <ConnectedGatewayApiKeysTable
-        key={organizationId}
-        organizationId={organizationId}
+  const description = (
+    <p className="text-muted-foreground text-sm">
+      {canManageGateway
+        ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
+        : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
+      <Button
+        variant="text"
+        text="How gateway keys work"
+        href={GATEWAY_API_KEYS_DOCS_URL}
       />
-    </div>
+    </p>
+  );
+  // Above the table, so the new key's dialog stays open when the placeholder gives way.
+  return (
+    <CreateGatewayApiKeyDialogController organizationId={organizationId}>
+      {({ openDialog }) => (
+        <ConnectedGatewayApiKeysTable
+          key={organizationId}
+          organizationId={organizationId}
+          description={description}
+          onCreateKey={openDialog}
+          emptyState={
+            canManageGateway ? undefined : (
+              <ConnectedGatewayCreateFirstKeyPlaceholder
+                organizationId={organizationId}
+                onCreateKey={openDialog}
+              />
+            )
+          }
+        />
+      )}
+    </CreateGatewayApiKeyDialogController>
   );
 }
 

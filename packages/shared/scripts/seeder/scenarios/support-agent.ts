@@ -9,7 +9,7 @@ import {
   extractToolsFromObservation,
   ObservationRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { utcDayStartMs } from "./rng";
 import {
@@ -503,6 +503,18 @@ const PLAN: DemoObs[] = [
     input: { thread_id: "thread_7Hf3kX", body: FINAL_REPLY },
     output: { message_id: "msg_9uTb4w", status: "sent" },
     metadata: { provider: "zendesk" },
+  },
+  // Ids are index-based: add new entries at the end so reseeds keep ids.
+  {
+    key: "crm-cases",
+    parentKey: "load-context",
+    type: "TOOL",
+    name: "crm.list-open-cases",
+    start: 1584,
+    end: 1702,
+    input: { customer_id: "cus_LqT4v8", status: "open" },
+    output: [],
+    metadata: { provider: "salesforce" },
   },
 ];
 

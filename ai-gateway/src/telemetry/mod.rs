@@ -29,9 +29,10 @@ use crate::{
     capture::{InferenceFacts, InputOmissionReason},
     resolution::{ControlPlaneConfig, ProjectId, ResolutionError, ResolvedRequestContext},
 };
+pub(crate) use batch::DEFAULT_BATCH_LINGER_MS;
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};
@@ -85,6 +86,10 @@ impl DeliveryContext {
         })
     }
 
+    pub(crate) fn observation_metadata(&self, facts: &InferenceFacts) -> Map<String, Value> {
+        mapping::observation_metadata(facts, &self.generation)
+    }
+
     pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
         crate::correlation::GenerationIds {
             trace_id: self.generation.trace_id.clone(),
@@ -128,6 +133,7 @@ fn crosses_report_threshold(before: u64, after: u64) -> bool {
 
 struct Delivery {
     queue: mpsc::Sender<Message>,
+    uploader: Arc<Uploader>,
     retained: Arc<Semaphore>,
     record_limit: usize,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -141,12 +147,16 @@ impl Telemetry {
     pub(crate) fn new(
         config: &ControlPlaneConfig,
         retained_bytes: usize,
+        batch_linger: Duration,
     ) -> Result<Self, ResolutionError> {
         Ok(Self::with_uploader(
             Uploader::new(config)?,
             MAX_UPLOADS,
             retained_bytes,
-            BatchPolicy::default(),
+            BatchPolicy {
+                linger: batch_linger,
+                ..BatchPolicy::default()
+            },
             RetryPolicy::default(),
         ))
     }
@@ -177,13 +187,15 @@ impl Telemetry {
     ) -> Self {
         let (queue, receiver) = mpsc::channel(MAX_QUEUED_RECORDS);
         let stats = Arc::new(Stats::default());
+        let uploader = Arc::new(uploader);
         let worker = tokio::spawn(worker::run_worker(
             receiver,
             Batches::new(policy),
-            Uploads::new(uploader, uploads, retry, stats.clone()),
+            Uploads::new(uploader.clone(), uploads, retry, stats.clone()),
         ));
         Self(Arc::new(Delivery {
             queue,
+            uploader,
             retained: Arc::new(Semaphore::new(bytes)),
             record_limit: MAX_RECORD_BYTES.min(bytes),
             worker: Mutex::new(Some(worker)),
@@ -205,25 +217,26 @@ impl Telemetry {
             let permits = u32::try_from(bytes + credentials).ok()?;
             self.0.retained.clone().try_acquire_many_owned(permits).ok()
         };
-        let mut size = serialized_size(&span, limit);
-        if size.is_none() && mapping::omit_input(&mut span, InputOmissionReason::RecordLimit) {
-            size = serialized_size(&span, limit);
-        }
-        let Some(mut bytes) = size else {
-            self.0.stats.record_dropped(1, "size");
-            return;
+        // A record that does not fit loses its input, then its output, so usage and
+        // cost are still delivered.
+        let omit_content = |span: &mut Value, reason| {
+            mapping::omit_input(span, reason) || mapping::omit_output(span, reason)
         };
-        let mut retained = acquire(bytes);
-        if retained.is_none()
-            && mapping::omit_input(&mut span, InputOmissionReason::TelemetryBuffer)
-            && let Some(reduced) = serialized_size(&span, limit)
-        {
-            bytes = reduced;
-            retained = acquire(bytes);
-        }
-        let Some(retained) = retained else {
-            self.0.stats.record_dropped(1, "bytes");
-            return;
+        let (bytes, retained) = loop {
+            let Some(bytes) = serialized_size(&span, limit) else {
+                if omit_content(&mut span, InputOmissionReason::RecordLimit) {
+                    continue;
+                }
+                self.0.stats.record_dropped(1, "size");
+                return;
+            };
+            if let Some(retained) = acquire(bytes) {
+                break (bytes, retained);
+            }
+            if !omit_content(&mut span, InputOmissionReason::TelemetryBuffer) {
+                self.0.stats.record_dropped(1, "bytes");
+                return;
+            }
         };
         let item = Pending::new(span, bytes, link, retained);
         match self.0.queue.try_send(Message::Record(context.grant, item)) {
@@ -233,8 +246,13 @@ impl Telemetry {
         }
     }
 
-    /// Stop accepting work, flush open batches, and finish uploads within the existing
-    /// process drain deadline.
+    /// Open a pooled connection to Web so the first export skips connection setup.
+    /// Returns whether Web answered.
+    pub(crate) async fn open_connection(&self) -> bool {
+        self.0.uploader.open_connection().await
+    }
+
+    /// Stop accepting work, flush open batches, and finish uploads before `deadline`.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0
@@ -284,7 +302,7 @@ impl Write for SizeCounter {
 
 pub(crate) fn debug_record(facts: &InferenceFacts) {
     tracing::debug!(
-        api_format = facts.api_format,
+        api_format = facts.api_format.as_str(),
         outcome = facts.outcome.as_str(),
         http_status = facts.http_status,
         duration_ms = u64::try_from(facts.duration_ms).unwrap_or(u64::MAX),

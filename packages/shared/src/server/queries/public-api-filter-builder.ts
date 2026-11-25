@@ -1,4 +1,3 @@
-import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
@@ -16,7 +15,7 @@ import type { EventsTableFilterState } from "../../types";
 import type {
   UiColumnMappings,
   ColumnDefinition,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
@@ -129,28 +128,15 @@ export function createPublicApiTracesColumnMapping(
 }
 
 /**
- * Factory function to create public API column mappings for events/observations tables.
- * Eliminates duplication between events and observations filter mappings.
+ * Public API simple filter mappings for the legacy observations table. It
+ * does not carry `user_id` or `session_id`, so those filters read the joined
+ * traces CTE `t`.
  */
-export function createPublicApiObservationsColumnMapping(
-  tableName: "events_proto" | "observations",
-  tablePrefix: "e" | "o",
-  parentFieldName: "parent_span_id" | "parent_observation_id",
-): ApiColumnMapping[] {
-  // user_id and session_id are denormalized onto events_core/events_full, so
-  // the events_proto path filters directly without joining the traces CTE.
-  // The legacy observations table does not carry either field, so that path
-  // still joins traces.
-  const traceFieldMapping =
-    tableName === "events_proto"
-      ? {
-          clickhouseTable: tableName,
-          clickhousePrefix: tablePrefix,
-        }
-      : {
-          clickhouseTable: "traces",
-          clickhousePrefix: "t",
-        };
+export function createPublicApiObservationsColumnMapping(): ApiColumnMapping[] {
+  const traceFieldMapping = {
+    clickhouseTable: "traces",
+    clickhousePrefix: "t",
+  };
   const userIdMapping: ApiColumnMapping = {
     id: "userId",
     clickhouseSelect: "user_id",
@@ -170,76 +156,66 @@ export function createPublicApiObservationsColumnMapping(
       id: "traceId",
       clickhouseSelect: "trace_id",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "name",
       clickhouseSelect: "name",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "level",
       clickhouseSelect: "level",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "type",
       clickhouseSelect: "type",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "parentObservationId",
-      clickhouseSelect: parentFieldName,
+      clickhouseSelect: "parent_observation_id",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
-    ...(tableName === "events_proto"
-      ? [
-          {
-            id: "isRootObservation",
-            clickhouseSelect: eventsTableIsRootObservationSql,
-            filterType: "BooleanFilter",
-            clickhouseTable: tableName,
-          },
-        ]
-      : []),
     {
       id: "fromStartTime",
       clickhouseSelect: "start_time",
       operator: ">=",
       filterType: "DateTimeFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "toStartTime",
       clickhouseSelect: "start_time",
       operator: "<",
       filterType: "DateTimeFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "version",
       clickhouseSelect: "version",
       filterType: "StringFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
     {
       id: "environment",
       clickhouseSelect: "environment",
       filterType: "StringOptionsFilter",
-      clickhouseTable: tableName,
-      clickhousePrefix: tablePrefix,
+      clickhouseTable: "observations",
+      clickhousePrefix: "o",
     },
   ];
 }
@@ -381,8 +357,32 @@ export function convertApiProvidedFilterToClickhouseFilter(
   return filterList;
 }
 
+type FilterColumn = {
+  clickhouseTable: string;
+  field: string;
+  tablePrefix?: string;
+};
+
+const qualifiedField = (filter: FilterColumn) =>
+  filter.tablePrefix ? `${filter.tablePrefix}.${filter.field}` : filter.field;
+
+/**
+ * Whether an advanced filter and a simple filter target the same column, so
+ * the advanced one replaces the simple one. A column reaches a filter either
+ * as a bare field plus `tablePrefix` or already qualified (`e.start_time`);
+ * both forms name the same column. Equal bare fields match whatever their
+ * prefixes: `tablePrefix` is a query alias, not part of the column identity.
+ */
+const sameColumn = (advanced: FilterColumn, simple: FilterColumn): boolean =>
+  advanced.clickhouseTable === simple.clickhouseTable &&
+  (advanced.field === simple.field ||
+    qualifiedField(advanced) === qualifiedField(simple));
+
 /**
  * Derives a merged FilterList from simple API parameters and advanced filter JSON.
+ * Simple filters come from the endpoint's named query params (`userId`,
+ * `fromStartTime`, `environment`, ...); advanced filters from its `filter`
+ * JSON param.
  * Advanced filters take precedence over simple filters when targeting the same field.
  *
  * @param simpleFilterProps - Object containing simple query parameters (e.g., { userId: "123", name: "test" })
@@ -413,14 +413,11 @@ export function deriveFilters<T extends BaseQueryType>(
     filterParamsMapping,
   );
 
-  // tablePrefix is a query alias, not part of a physical column identity.
   simpleFilters
     .filter(
       (simpleFilter) =>
-        !filterList.some(
-          (advancedFilter) =>
-            advancedFilter.clickhouseTable === simpleFilter.clickhouseTable &&
-            advancedFilter.field === simpleFilter.field,
+        !filterList.some((advancedFilter) =>
+          sameColumn(advancedFilter, simpleFilter),
         ),
     )
     .forEach((f) => filterList.push(f));

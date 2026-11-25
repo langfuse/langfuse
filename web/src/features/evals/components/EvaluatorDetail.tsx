@@ -3,8 +3,8 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/features/evals/components/EvalLogTable";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
-import Page from "@/src/components/layouts/page";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import Page from "@/src/components/layouts/Page";
 import { LevelCountsDisplay } from "@/src/components/LevelCountsDisplay";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/EvaluatorPausedCallout";
@@ -13,8 +13,7 @@ import {
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AlertTriangle } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -126,14 +125,11 @@ export const EvaluatorDetail = () => {
         <div className="flex h-full flex-col overflow-hidden">
           {filterValidation && !filterValidation.isValid && (
             <div className="mx-3 mt-3">
-              <Alert variant="destructive" icon={AlertTriangle}>
-                <Alert.Title>Unsupported filters</Alert.Title>
-                <Alert.Description>
-                  This evaluator contains deprecated or unsupported filters. The
-                  filters must be removed. Until the filters are removed, the
-                  evaluator is paused and will not be run.{" "}
-                </Alert.Description>
-              </Alert>
+              <Banner variant="error" title="Unsupported filters">
+                This evaluator contains deprecated or unsupported filters. The
+                filters must be removed. Until the filters are removed, the
+                evaluator is paused and will not be run.
+              </Banner>
             </div>
           )}
           {existingEvaluator.blockedAt && (

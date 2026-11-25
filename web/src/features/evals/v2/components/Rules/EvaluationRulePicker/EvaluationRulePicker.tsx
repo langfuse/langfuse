@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Check, Plus } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Command,
   CommandEmpty,
@@ -41,9 +41,7 @@ function EvaluationRulePickerOption({ rule }: { rule: EvaluationRule }) {
           {rule.name}
         </span>
         {rule.enabled !== undefined ? (
-          <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
-            {rule.enabled ? "Active" : "Inactive"}
-          </Badge>
+          <Badge color="filled" text={rule.enabled ? "Active" : "Inactive"} />
         ) : null}
       </div>
       {hasMetadata ? (

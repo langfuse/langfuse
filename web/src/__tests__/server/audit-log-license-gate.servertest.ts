@@ -27,7 +27,23 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
-import { auditLog } from "@/src/features/audit-logs/server";
+// The plan resolver in @langfuse/shared reads shared's own env.
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
+          return mocks.cloudRegion;
+        if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
+
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
@@ -36,12 +52,13 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 /**
  * Audit log records are an enterprise feature, so they are only persisted when
- * the instance is licensed for them. They are staged for ClickHouse on Cloud
- * only, where the relay runs. The actor log line that mirrors each record is
- * operator telemetry and stays on every plan.
+ * the instance is licensed for them, and every persisted record is staged for
+ * ClickHouse unless staging is switched off. The actor log line that mirrors
+ * each record is operator telemetry and stays on every plan.
  */
 describe("audit log license gate", () => {
   let orgId: string;
@@ -88,7 +105,7 @@ describe("audit log license gate", () => {
       action: "update",
       resourceType: "job",
       resourceId: resourceIds[1],
-      session: { user: { id: userId }, orgId, projectId },
+      session: { ...createSession({ user: { id: userId } }), orgId, projectId },
     });
     await auditLog({
       action: "delete",
@@ -114,11 +131,20 @@ describe("audit log license gate", () => {
   };
 
   describe("self-hosted", () => {
-    it("persists records with an enterprise license key, without staging them", async () => {
-      mocks.licenseKey = "langfuse_ee_test";
+    it.each([
+      ["an enterprise", "langfuse_ee_test"],
+      ["a government", "lf_gov_test"],
+    ])(
+      "persists and stages records with %s license key",
+      async (_label, licenseKey) => {
+        mocks.licenseKey = licenseKey;
 
-      expect(await auditAllActorShapes()).toEqual({ persisted: 3, staged: 0 });
-    });
+        expect(await auditAllActorShapes()).toEqual({
+          persisted: 3,
+          staged: 3,
+        });
+      },
+    );
 
     it("persists no records without a license key", async () => {
       expect(await auditAllActorShapes()).toEqual({ persisted: 0, staged: 0 });

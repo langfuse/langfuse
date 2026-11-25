@@ -79,7 +79,7 @@ describe("createObservationEvalSchedulerDeps", () => {
     expect(getLLMQueueInstance).not.toHaveBeenCalled();
   });
 
-  it("includes a mapping override on the observation eval payload", async () => {
+  it("includes batch-run fields on the observation eval payload", async () => {
     const { createObservationEvalSchedulerDeps } =
       await import("../createSchedulerDeps");
     const variableMapping = [
@@ -94,6 +94,7 @@ describe("createObservationEvalSchedulerDeps", () => {
       evalTemplateType: EvalTemplateType.LLM_AS_JUDGE,
       evaluatorId: "evaluator-1",
       variableMapping,
+      batchActionId: "batch-action-1",
     });
 
     expect(addToLLMQueue).toHaveBeenCalledWith(
@@ -102,6 +103,7 @@ describe("createObservationEvalSchedulerDeps", () => {
         payload: expect.objectContaining({
           evaluatorId: "evaluator-1",
           variableMapping,
+          batchActionId: "batch-action-1",
         }),
       }),
       { delay: 0 },

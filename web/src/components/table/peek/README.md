@@ -134,7 +134,7 @@ The peek state architecture separates the persisting context provider from the r
 
 #### PeekTableStateProvider
 
-**Location:** [`contexts/PeekTableStateContext.tsx`](./contexts/PeekTableStateContext.tsx)
+**Location:** [`contexts/PeekTableStateProvider.tsx`](./contexts/PeekTableStateProvider.tsx)
 
 - Provides persistent state storage across peek item navigation
 - Stores filters, sorting, pagination, and search state
@@ -386,7 +386,7 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 
 ## Related Files
 
-- Peek state context: [`contexts/PeekTableStateContext.tsx`](./contexts/PeekTableStateContext.tsx)
+- Peek state context: [`contexts/PeekTableStateProvider.tsx`](./contexts/PeekTableStateProvider.tsx)
 - Pagination hook: [`web/src/hooks/usePaginationState.ts`](../../../hooks/usePaginationState.ts)
 - Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)

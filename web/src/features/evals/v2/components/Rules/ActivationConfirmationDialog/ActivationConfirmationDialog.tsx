@@ -1,21 +1,19 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
-import type {
-  ActivationConfirmationState,
-  ActivationEstimateState,
-} from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import type { ActivationEstimateState } from "@/src/features/evals/v2/hooks/useActivationEstimate";
+import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
 import { ActivationCostEstimateDetails } from "./components/ActivationCostEstimateDetails/ActivationCostEstimateDetails";
 
 export function ActivationConfirmationDialog({
   confirmation,
   estimate,
-  onOpenChange,
   onSamplingChange,
   onConfirm,
 }: {
-  confirmation: ActivationConfirmationState;
+  confirmation: Pick<
+    ActivationConfirmationRequest,
+    "title" | "description" | "confirmLabel"
+  > & { isConfirming: boolean };
   estimate: ActivationEstimateState;
-  onOpenChange: (open: boolean) => void;
   onSamplingChange?: (sampling: number) => void;
   onConfirm: () => void;
 }) {
@@ -27,27 +25,31 @@ export function ActivationConfirmationDialog({
     estimate.matchingObservations === 0;
 
   return (
-    <ConfirmDialog
-      open={confirmation.open}
-      onOpenChange={onOpenChange}
+    <Dialog
+      closeOnInteractionOutside
       title={confirmation.title}
-      description={hasCostDetails ? undefined : confirmation.description}
-      confirmLabel={confirmation.confirmLabel}
-      confirmVariant="default"
-      size={hasOnlyUnavailableEstimates ? "default" : "lg"}
-      loading={confirmation.isConfirming}
-      loadingText="Validating rule..."
-      onConfirm={onConfirm}
+      size={hasOnlyUnavailableEstimates ? "sm" : "md"}
+      actions={[
+        {
+          label: confirmation.confirmLabel,
+          loading: confirmation.isConfirming,
+          onClick: onConfirm,
+        },
+      ]}
     >
-      {hasCostDetails ? (
-        <ActivationCostEstimateDetails
-          estimates={estimate.estimates}
-          unavailableEstimateCount={estimate.unavailableEstimateCount}
-          matchingObservations={estimate.matchingObservations}
-          sampling={estimate.sampling ?? 1}
-          onSamplingChange={onSamplingChange}
-        />
-      ) : null}
-    </ConfirmDialog>
+      <Dialog.Body>
+        {hasCostDetails ? (
+          <ActivationCostEstimateDetails
+            estimates={estimate.estimates}
+            unavailableEstimateCount={estimate.unavailableEstimateCount}
+            matchingObservations={estimate.matchingObservations}
+            sampling={estimate.sampling ?? 1}
+            onSamplingChange={onSamplingChange}
+          />
+        ) : (
+          <p className="text-muted-foreground">{confirmation.description}</p>
+        )}
+      </Dialog.Body>
+    </Dialog>
   );
 }

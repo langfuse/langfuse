@@ -1,11 +1,11 @@
 import { isoDateTime } from "@langfuse/shared";
 import { z } from "zod";
-import { PostDatasetRunItemsV1Body } from "@/src/features/public-api/server";
-import { createDatasetRunItemForApi } from "@/src/features/datasets/server";
+import { PostDatasetRunItemsV1Body } from "@/src/features/public-api/types/datasets";
+import { createDatasetRunItemForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
-import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
+import { rejectLegacyDatasetRunTools } from "../legacy-run-tools-guard";
 
 const CreateDatasetRunItemBaseSchema = z.object({
   runName: z.string(),
@@ -45,7 +45,7 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
           "mcp.dataset_run_name": input.runName,
         },
         fn: async () => {
-          rejectDatasetRunToolsInEventsOnlyMode();
+          rejectLegacyDatasetRunTools(context.projectId);
           const auth = await getMcpPublicApiAuth(context);
           return await createDatasetRunItemForApi({
             body: input,

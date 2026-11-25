@@ -56,7 +56,7 @@ export type LegendPosition = "auto" | "below" | "none";
  * because additivity is a property of the metric's aggregation, decided upstream
  * of the chart. (LFE-10498, LFE-10549)
  */
-export type LegendSummaryMode = "sum" | "none";
+type LegendSummaryMode = "sum" | "none";
 
 /**
  * How clicking a legend entry behaves on a multi-series time chart:
@@ -66,7 +66,7 @@ export type LegendSummaryMode = "sum" | "none";
  *   the plot and greyed in the legend. Pairs with `maxVisibleSeries` to tame
  *   overloaded charts by hiding the long tail by default. (LFE-10549)
  */
-export type LegendInteraction = "highlight" | "toggle";
+type LegendInteraction = "highlight" | "toggle";
 
 export interface FormattedMetric {
   negative?: boolean;
@@ -75,10 +75,17 @@ export interface FormattedMetric {
   suffix?: string;
 }
 
+export type MetricUnit = "USD" | "milliseconds" | "tokens" | "traces";
+
 export type FormatMetricOptions = {
-  unit?: string;
+  unit?: MetricUnit;
   style: "full" | "compact";
   maxCharacters?: number;
+  /**
+   * `"cents"` rounds USD to two decimals and shows non-zero values below one
+   * cent as `<$0.01`. By default values under $5 keep up to six decimals.
+   */
+  usdPrecision?: "cents";
 };
 
 export type MetricFormatterFunction = (
@@ -160,6 +167,8 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. Consumed by LINE_TIME_SERIES. */
+  compactYAxis?: boolean;
   /**
    * Give each bar of a categorical (entity) axis its own palette colour, plus a
    * legend below the plot that names it. Off by default: a dashboard bar chart

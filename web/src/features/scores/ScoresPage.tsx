@@ -1,11 +1,14 @@
 import { useRouter } from "next/router";
 import ScoresTable from "@/src/features/scores/ScoresTable";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
-import { getScoresTabs, SCORES_TABS } from "@/src/features/navigation";
-import { useReadPath } from "@/src/features/events";
+import {
+  getScoresTabs,
+  SCORES_TABS,
+} from "@/src/features/navigation/utils/scores-tabs";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export default function ScoresPage() {
   const router = useRouter();
@@ -32,6 +35,7 @@ export default function ScoresPage() {
     <Page
       headerProps={{
         title: "Scores",
+        divider: false,
         help: {
           description:
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",

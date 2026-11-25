@@ -11,7 +11,10 @@ import { type EvalExecutionMode } from "@langfuse/shared";
 import type {
   EvalTargetObject,
   FilterState,
+  ObservationEvalFilterFields,
+  ObservationForEval,
   ObservationVariableMapping,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 /**
@@ -21,6 +24,17 @@ import type {
  * @see packages/shared/src/features/evals/observationForEval.ts for schema definition
  */
 export { type ObservationForEval } from "@langfuse/shared";
+
+/** One observation as the evaluation scheduler takes it. */
+export interface ObservationForScheduling {
+  /** The fields that rule matching and job creation read. */
+  observation: ObservationEvalFilterFields;
+  /**
+   * The full observation. Called once, for the snapshot upload, and only when
+   * a rule selects the observation.
+   */
+  loadSnapshot: () => ObservationForEval;
+}
 
 /**
  * Observation eval job configuration.
@@ -70,6 +84,14 @@ export type EvaluationRuleWithAssignments = Pick<
   assignments: ObservationEvalAssignment[];
 };
 
+export type TraceTranscriptEvalRule = Omit<
+  EvaluationRuleWithAssignments,
+  "targetObject" | "ruleId"
+> & {
+  targetObject: typeof TopicsTargetObject;
+  ruleId: string;
+};
+
 /**
  * What the scheduler matches an observation against: an evaluation rule, or
  * the legacy job configuration it replaced (still reachable through manual
@@ -104,7 +126,7 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     traceId: string;
     observationId: string;
-    data: Record<string, unknown>;
+    data: ObservationForEval;
   }) => Promise<string>;
 
   /** Enqueue the eval job for execution */
@@ -123,5 +145,7 @@ export interface ObservationEvalSchedulerDeps {
      * evaluator version mapping.
      */
     variableMapping?: ObservationVariableMapping[];
+    /** Batch action of a manual batch run; omitted for live ingestion. */
+    batchActionId?: string;
   }) => Promise<void>;
 }

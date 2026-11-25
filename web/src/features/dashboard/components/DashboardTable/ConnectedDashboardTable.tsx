@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { ConnectedCloneDashboardDialogController } from "@/src/features/dashboard/components/ConnectedCloneDashboardDialogController";
 import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/ui/dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -134,11 +135,7 @@ export function ConnectedDashboardTable() {
   }, [dashboardData, dashboardError, dashboardStatus]);
 
   return (
-    <CloneFirstDialogController
-      projectId={projectId}
-      dashboardId={selectedDashboard?.id ?? ""}
-      dashboardName={selectedDashboard?.name ?? "Dashboard"}
-    >
+    <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => (
         <DialogController
           closeOnInteractionOutside={false}
@@ -190,7 +187,11 @@ export function ConnectedDashboardTable() {
                         attempt: "list_edit",
                         surface: "list",
                       });
-                      openCloneFirstDialog();
+                      openCloneFirstDialog({
+                        projectId,
+                        dashboardId: dashboard.id,
+                        dashboardName: dashboard.name,
+                      });
                     }}
                     onClone={(dashboard) => {
                       cloneDashboard.mutate(
@@ -235,6 +236,6 @@ export function ConnectedDashboardTable() {
           )}
         </DialogController>
       )}
-    </CloneFirstDialogController>
+    </ConnectedCloneDashboardDialogController>
   );
 }

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
+import { subHours } from "date-fns";
 import {
   ScoreDataTypeType,
   ScoreDomain,
@@ -10,6 +11,7 @@ import {
   LISTABLE_SCORE_TYPES,
   ListableScoreDataType,
   ScoreDataTypeEnum,
+  CORRECTION_SCORES_BILLABLE_FROM,
 } from "../../domain/scores";
 import {
   SCORE_EXPORT_CORE_FIELDS,
@@ -17,7 +19,8 @@ import {
   SCORE_EXPORT_GROUP_FIELDS,
   type ScoreExportFieldGroup,
 } from "../../domain/export-field-groups";
-import { InvalidRequestError, InternalServerError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { InternalServerError } from "../../errors/InternalServerError";
 import {
   eventsTableIsRootObservationSql,
   eventsTableTraceNameSql,
@@ -39,29 +42,32 @@ import {
 } from "./clickhouse";
 import {
   FilterList,
-  orderByToClickhouseSql,
   StringOptionsFilter,
   DateTimeFilter,
   NumberFilter,
-  scoreOnlyFiltersAreSeekEligible,
-} from "../queries";
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import { scoreOnlyFiltersAreSeekEligible } from "../queries/clickhouse-sql/score-seek-eligibility";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
+import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import {
-  dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
   scoresTableUiColumnDefinitionsFromEvents,
-} from "../tableMappings";
+} from "../tableMappings/mapScoresTable";
 import {
   convertScoreAggregation,
   convertClickhouseScoreToDomain,
   ScoreAggregation,
 } from "./scores_converters";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+} from "./constants";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -95,7 +101,7 @@ import { promptGenerationEvents } from "./prompt-events";
 import {
   findUiColumnMapping,
   matchesUiColumnMapping,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 
 const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
 const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
@@ -431,19 +437,26 @@ export const getTraceScoresForDatasetRuns = async (
   }));
 };
 
-const experimentItemEventsQuery = (experimentIds: string[]) =>
+const experimentItemEventsQuery = (
+  experimentIds: string[],
+  experimentsStartTime: Date,
+) =>
   getClickhouseKysely()
     .selectFrom("events as e")
     .select(["e.project_id", "e.experiment_id", "e.trace_id"])
     .where("e.experiment_id", "in", experimentIds)
-    .where("e.experiment_id", "!=", literal(""));
+    .where("e.experiment_id", "!=", literal(""))
+    .where("e.start_time", ">=", experimentsStartTime);
 
 const scoresForExperimentItemsQuery = (
   experimentIds: string[],
+  experimentsStartTime: Date,
   skipDedup: boolean,
 ) =>
   getClickhouseKysely()
-    .selectFrom(experimentItemEventsQuery(experimentIds).as("e"))
+    .selectFrom(
+      experimentItemEventsQuery(experimentIds, experimentsStartTime).as("e"),
+    )
     .innerJoin("scores as s", (join) =>
       join
         .onRef("e.trace_id", "=", "s.trace_id")
@@ -481,6 +494,15 @@ const scoresForExperimentItemsQuery = (
       "in",
       AGGREGATABLE_SCORE_TYPES.map((t) => literal(t)),
     )
+    // A score can't predate the experiment it scores.
+    .where(
+      "s.timestamp",
+      ">=",
+      subHours(
+        experimentsStartTime,
+        SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
+      ),
+    )
     .orderBy("s.event_ts", "desc")
     .$call(
       limitBy({
@@ -493,9 +515,15 @@ const scoresForExperimentItemsQuery = (
       }),
     );
 
+/**
+ * Item-level scores of the given experiments. `experimentsStartTime` is their
+ * earliest start (see getExperimentsStartTime); it bounds both the events and
+ * the scores read.
+ */
 export const getScoresForExperimentItems = async (
   projectId: string,
   experimentIds: string[],
+  experimentsStartTime: Date,
 ): Promise<
   Array<
     ScoreByDataType<AggregatableScoreDataType> & {
@@ -509,6 +537,7 @@ export const getScoresForExperimentItems = async (
   const compiled = compileClickhouseQuery(
     scoresForExperimentItemsQuery(
       experimentIds,
+      experimentsStartTime,
       shouldSkipScoresDedup(projectId),
     ),
     projectId,
@@ -1632,7 +1661,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   const tracesCTEParams: Record<string, unknown> = {};
 
   if (needsTracesCTE) {
-    const tracesEventsBuilder = eventsTraceMetadata(projectId);
+    // The trace lookup has no time bound of its own, so restrict it to traces
+    // of the scores in the window: only those can join below. Keeps it from
+    // reading the project's whole trace history.
+    const tracesEventsBuilder = eventsTraceMetadata(projectId).whereRaw(
+      `e.trace_id IN (
+        SELECT s.trace_id
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+      )`,
+    );
 
     if (traceFilterState.length > 0) {
       const cteTraceFilters = new FilterList(
@@ -1779,8 +1818,28 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // The trace join, ORDER BY, and LIMIT/OFFSET run OUTSIDE the subquery, at one
   // level, so pagination follows the requested sort (and a traces-column sort can
   // reference the joined `e`).
-  const orderAndPage = `
-      ${withIdTiebreaker(orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents), orderBy)}
+  const orderByClause = withIdTiebreaker(
+    orderByToClickhouseSql(
+      orderBy ?? null,
+      scoresTableUiColumnDefinitionsFromEvents,
+    ),
+    orderBy,
+  );
+  // The table sorts by day, not by timestamp. Putting the day first keeps the
+  // order but lets ClickHouse read the newest days first and stop after the
+  // page. Only the plain scan reads the table directly, so only it benefits.
+  const sortsByScoreTimestamp =
+    matchedOrderByColumn?.clickhouseTableName === "scores" &&
+    matchedOrderByColumn.clickhouseSelect === "timestamp";
+  const sortKeyOrderByClause =
+    sortsByScoreTimestamp && orderBy
+      ? orderByClause.replace(
+          /^ORDER BY /,
+          `ORDER BY toDate(s.timestamp) ${orderBy.order}, `,
+        )
+      : orderByClause;
+  const orderAndPage = (clause: string) => `
+      ${clause}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}`;
 
   // Projects whose scores are never updated have one row per key, so they
@@ -1796,7 +1855,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ) s
       ${eventsJoin}
       ${outerWhereClause}
-      ${props.select === "count" ? "" : orderAndPage}
+      ${props.select === "count" ? "" : orderAndPage(sortKeyOrderByClause)}
     `;
 
   const dedupCountQuery = () => `
@@ -1845,7 +1904,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       ${eventsJoin}
-      ${orderAndPage}
+      ${orderAndPage(orderByClause)}
     `;
 
   const query = (() => {
@@ -2436,6 +2495,8 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   projectId?: string;
   projectIds?: string[];
 }) => {
+  // Listable types stay a raw row count. CORRECTION rows created at or after
+  // the billing cutoff are included in the same count.
   const query = `
     SELECT
       project_id,
@@ -2445,7 +2506,13 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
     ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
-    AND data_type IN ({dataTypes: Array(String)})
+    AND (
+      data_type IN ({dataTypes: Array(String)})
+      OR (
+        data_type = 'CORRECTION'
+        AND created_at >= {correctionsFrom: DateTime64(3)}
+      )
+    )
     GROUP BY project_id
   `;
 
@@ -2455,6 +2522,9 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      correctionsFrom: convertDateToClickhouseDateTime(
+        CORRECTION_SCORES_BILLABLE_FROM,
+      ),
       ...(projectId ? { projectId } : {}),
       ...(projectIds ? { projectIds } : {}),
     },
@@ -2731,6 +2801,12 @@ const buildAnalyticsScoreTraceAttributesFromEventsCte = (
   },
 });
 
+// Free-form score fields are cut to this many characters for analytics
+// exports. PostHog rejects events over 1MB after re-escaping them, so one
+// score with a runaway comment or metadata value would otherwise fail the
+// export for its whole window.
+const ANALYTICS_SCORE_FIELD_MAX_CHARS = 32_768;
+
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
   projectName: string,
@@ -2765,9 +2841,9 @@ export const getScoresForAnalyticsIntegrations = async function* (
       s.timestamp as timestamp,
       s.name as name,
       s.value as value,
-      s.string_value as string_value,
+      substringUTF8(s.string_value, 1, {maxFieldChars: UInt32}) as string_value,
       s.data_type as data_type,
-      s.comment as comment,
+      substringUTF8(s.comment, 1, {maxFieldChars: UInt32}) as comment,
       s.environment as environment,
       s.trace_id as score_trace_id,
       s.session_id as score_session_id,
@@ -2778,7 +2854,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
-      s.metadata as metadata,
+      mapApply((k, v) -> (k, substringUTF8(v, 1, {maxFieldChars: UInt32})), s.metadata) as metadata,
       t.posthog_session_id as posthog_session_id,
       t.mixpanel_session_id as mixpanel_session_id
     FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
@@ -2801,6 +2877,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
+      maxFieldChars: ANALYTICS_SCORE_FIELD_MAX_CHARS,
     },
     // Tagged explicitly: worker baggage isn't active during the deferred stream send.
     tags: { projectId, surface: "worker", route: "analytics_integration" },
@@ -2919,68 +2996,6 @@ export const getScoreMetadataById = async (
       parseMetadataCHRecordToDomain(row.metadata as Record<string, string>),
     )
     .shift();
-};
-
-/**
- * Get score counts grouped by project and day within a date range.
- *
- * Returns one row per project per day with the count of scores created on that day.
- * Uses half-open interval [startDate, endDate) for filtering based on timestamp.
- *
- * @param startDate - Start of date range (inclusive)
- * @param endDate - End of date range (exclusive)
- * @returns Array of { count, projectId, date } objects
- *
- * @example
- * // Get score counts for March 1-2, 2024
- * const counts = await getScoreCountsByProjectAndDay({
- *   startDate: new Date('2024-03-01T00:00:00Z'),
- *   endDate: new Date('2024-03-03T00:00:00Z')
- * });
- *
- * Note: Skips using FINAL (double counting risk) for faster and cheaper
- * queries against clickhouse. Generous 4x overcompensation before blocking allows
- * for usage aggregation to be meaningful.
- *
- */
-export const getScoreCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
-  startDate: Date;
-  endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(timestamp) as date
-    FROM scores
-    WHERE timestamp >= {startDate: DateTime64(3)}
-    AND timestamp < {endDate: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
-    GROUP BY project_id, toDate(timestamp)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
 };
 
 // ─── Cursor helpers (v3 pagination) ───────────────────────────────────────────
@@ -3114,14 +3129,14 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-      ORDER BY
-          s.timestamp desc, s.event_ts desc
       ${
         // The traces join is not deduplicated, so LIMIT 1 BY also collapses
-        // one score row per unmerged trace version.
+        // one score row per unmerged trace version. Without it the scan reads
+        // the table directly; the day first keeps the order but lets ClickHouse
+        // read the newest days first and stop after the page.
         shouldSkipScoresDedup(projectId) && !needsTraceJoin
-          ? ""
-          : "LIMIT 1 BY s.id, s.project_id"
+          ? "ORDER BY toDate(s.timestamp) desc, s.timestamp desc, s.event_ts desc"
+          : "ORDER BY s.timestamp desc, s.event_ts desc\n      LIMIT 1 BY s.id, s.project_id"
       }
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -3478,8 +3493,13 @@ const buildV3ListQuery = (
       : ""
   }
   ${filterClause ? `AND ${filterClause}` : ""}
-  ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC
-  ${skipDedup ? "" : "LIMIT 1 BY s.id, s.project_id"}
+  ${
+    // Without dedup the scan reads the table directly; the day first keeps the
+    // order but lets ClickHouse read the newest days first and stop after the page.
+    skipDedup
+      ? "ORDER BY toDate(s.timestamp) DESC, s.timestamp DESC, s.id DESC, s.event_ts DESC"
+      : "ORDER BY s.timestamp DESC, s.id DESC, s.event_ts DESC\n  LIMIT 1 BY s.id, s.project_id"
+  }
   LIMIT {limit: Int32}
 `;
 
@@ -3642,7 +3662,7 @@ export async function listScoresV3ForPublicApi(
         scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
       );
     } catch (error) {
-      logger.error("v3 score row dropped from response: conversion error", {
+      logger.warn("v3 score row dropped from response: conversion error", {
         error,
         scoreId: row.id,
         projectId: params.projectId,
@@ -3651,7 +3671,7 @@ export async function listScoresV3ForPublicApi(
   }
   return {
     data: filterAndValidateV3GetScoreList(items, (error) => {
-      logger.error(
+      logger.warn(
         "v3 score row dropped from response: schema validation error",
         {
           issues: error.issues,

@@ -29,7 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -169,7 +169,11 @@ export function AnnotationScoreRow({
   onRemove: () => void;
 }) {
   const [commentOpen, setCommentOpen] = useState(false);
-  const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  // A field update remounts this row. Read the unsaved comment back so a
+  // failed flush does not leave the box empty.
+  const [commentDraft, setCommentDraft] = useState<string | null>(() =>
+    actions.getCommentDraft(fieldKey),
+  );
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
     control: form.control,
@@ -294,7 +298,10 @@ export function AnnotationScoreRow({
                             <CommentField
                               savedComment={score.comment ?? null}
                               localValue={commentDraft ?? score.comment ?? ""}
-                              onValueChange={setCommentDraft}
+                              onValueChange={(value) => {
+                                setCommentDraft(value);
+                                actions.setCommentDraft(fieldKey, value);
+                              }}
                               disabled={config.isArchived || locked}
                               loading={commentSaving}
                               onSave={(newComment) => {
@@ -315,9 +322,7 @@ export function AnnotationScoreRow({
                 </Popover>
               )}
           </div>
-          {showTarget ? (
-            <Badge variant="outline-solid">{target.label}</Badge>
-          ) : null}
+          {showTarget ? <Badge color="outline" text={target.label} /> : null}
         </div>
         {config.description?.trim() && (
           <div className="min-w-0">

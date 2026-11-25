@@ -1,1 +1,1 @@
-export { default } from "@/src/features/external-media-storage/ExternalMediaStoragePage";
+export { default } from "@/src/ee/features/external-media-storage/ExternalMediaStoragePage";

@@ -1,8 +1,10 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ReactNode } from "react";
 import { Clock, Coins } from "@langfuse/icons";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import {
   DecisionModelResultView,
   type DecisionModelQuestionResult,
@@ -113,16 +115,15 @@ function RawOutputView({ rawOutput }: { rawOutput: unknown | null }) {
   }
 
   return (
-    <PrettyJsonView
-      json={rawOutput}
-      currentView="json"
-      isLoading={false}
-      showNullValues={true}
-      stickyTopLevelKey={false}
-      showObservationTypeBadge={false}
-      scrollable={true}
-      className="max-h-96"
-    />
+    <div className="max-h-96 overflow-y-auto">
+      <PrettyJsonView
+        json={rawOutput}
+        currentView="json"
+        showNullValues
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+      />
+    </div>
   );
 }
 
@@ -193,10 +194,9 @@ function CodeResultView({
 
 function RunErrorView({ message }: { message: string }) {
   return (
-    <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-      <p className="text-destructive text-sm font-bold">Test run failed</p>
-      <p className="text-sm">{message}</p>
-    </div>
+    <Banner variant="error" title="Test run failed">
+      {message}
+    </Banner>
   );
 }
 

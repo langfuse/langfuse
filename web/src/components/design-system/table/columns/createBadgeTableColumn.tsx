@@ -2,14 +2,17 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type IconComponent } from "@langfuse/icons";
 
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
+import {
+  badgeVariantToColor,
+  type BadgeVariant,
+} from "./utils/badgeVariantColor";
 
-type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 type SemanticBadgeVariant = Extract<
   BadgeVariant,
   "destructive" | "error" | "success" | "warning"
@@ -79,23 +82,18 @@ export function createBadgeTableColumn<TData extends RowData>({
         range === "semantic" || range === "decorative"
           ? getBadge(value, context)
           : (getBadge?.(value, context) ?? { value, variant: "secondary" });
-      const Icon = badge.icon;
 
       return (
         <Badge
-          variant={
+          color={badgeVariantToColor(
             badge.variant === "unknown"
               ? "default"
-              : (badge.variant ?? "secondary")
-          }
-          className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
-          title={badge.value}
-        >
-          {Icon && <Icon size="sm" aria-hidden />}
-          <span className="truncate" title={badge.value}>
-            {badge.value}
-          </span>
-        </Badge>
+              : (badge.variant ?? "secondary"),
+          )}
+          size="md"
+          text={badge.value}
+          leadingIcon={badge.icon}
+        />
       );
     },
   });

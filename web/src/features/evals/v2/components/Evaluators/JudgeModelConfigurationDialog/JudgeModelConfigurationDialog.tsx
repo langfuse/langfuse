@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ModelParameterSettings } from "@/src/components/ModelParameters";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useModelParams } from "@/src/features/playground";
+import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
 

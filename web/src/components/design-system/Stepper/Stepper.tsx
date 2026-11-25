@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { ChevronDown } from "@langfuse/icons";
+import { Check, ChevronDown, Info } from "@langfuse/icons";
 
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -16,6 +17,11 @@ const markerVariants = cva(
       size: {
         default: "size-7 text-sm",
         sm: "size-5 text-xs",
+      },
+      status: {
+        current: null,
+        complete: null,
+        upcoming: "bg-background text-muted-foreground border-border border",
       },
     },
   },
@@ -36,6 +42,11 @@ const titleVariants = cva("font-bold", {
       default: "text-lg",
       sm: "text-sm",
     },
+    status: {
+      current: null,
+      complete: null,
+      upcoming: "text-muted-foreground",
+    },
   },
 });
 
@@ -51,11 +62,15 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
+  /** Shown in an info tooltip beside the title, outside the collapse control. */
+  tooltipText?: string;
   description?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "sm";
+  /** Complete swaps the number for a check; upcoming mutes the step. */
+  status?: "current" | "complete" | "upcoming";
   compactBottomSpacing?: boolean;
-  children: ReactNode;
+  children?: ReactNode;
 } & (
   | {
       /** Toggles the body from the step header; on by default. */
@@ -82,9 +97,11 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
+  tooltipText,
   description,
   variant = "filled",
   size = "default",
+  status = "current",
   compactBottomSpacing = false,
   isCollapsible = true,
   defaultOpen = true,
@@ -94,6 +111,7 @@ export function Stepper({
 }: StepperProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
+  const hasBody = Boolean(description) || Boolean(children);
 
   const toggle = () => {
     const nextOpen = !expanded;
@@ -104,7 +122,13 @@ export function Stepper({
   return (
     <div className="group/step flex gap-1.5">
       <div className="flex flex-col items-center">
-        <div className={markerVariants({ variant, size })}>{number}</div>
+        <div className={cn(markerVariants({ variant, size, status }))}>
+          {status === "complete" ? (
+            <Check size="sm" aria-label="Completed" />
+          ) : (
+            number
+          )}
+        </div>
         <div className="bg-border my-1 w-px flex-1 group-last/step:hidden" />
       </div>
 
@@ -114,30 +138,44 @@ export function Stepper({
           compactBottomSpacing ? "pb-3" : "pb-8",
         )}
       >
-        {isCollapsible ? (
-          <button
-            type="button"
-            className={headerVariants({ size })}
-            aria-label={`Step ${number}: ${title}`}
-            aria-expanded={expanded}
-            onClick={toggle}
-          >
-            <ChevronDown
-              size="base"
-              color="tertiary"
-              __rawClassName={cn(
-                "translate-y-px transition-transform",
-                !expanded && "-rotate-90",
+        <div className={headerVariants({ size })}>
+          {isCollapsible ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5"
+              aria-label={`Step ${number}: ${title}`}
+              aria-expanded={expanded}
+              onClick={toggle}
+            >
+              <ChevronDown
+                size="base"
+                color="tertiary"
+                __rawClassName={cn(
+                  "translate-y-px transition-transform",
+                  !expanded && "-rotate-90",
+                )}
+              />
+              <span className={titleVariants({ size, status })}>{title}</span>
+            </button>
+          ) : (
+            <span className={titleVariants({ size, status })}>{title}</span>
+          )}
+          {tooltipText ? (
+            <Tooltip label={tooltipText}>
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  aria-label={`About ${title}`}
+                  className="inline-flex cursor-help items-center"
+                >
+                  <Info aria-hidden size="base" color="muted" />
+                </button>
               )}
-            />
-            <span className={titleVariants({ size })}>{title}</span>
-          </button>
-        ) : (
-          <div className={headerVariants({ size })}>
-            <span className={titleVariants({ size })}>{title}</span>
-          </div>
-        )}
-        {expanded && (
+            </Tooltip>
+          ) : null}
+        </div>
+        {expanded && hasBody ? (
           <div
             className={cn(
               "flex flex-col",
@@ -149,7 +187,7 @@ export function Stepper({
             ) : null}
             {children}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

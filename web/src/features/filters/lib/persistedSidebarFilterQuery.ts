@@ -83,12 +83,63 @@ export function readPersistedSidebarFilterQuery(params: {
   const { storageKey, contextId } = params;
   if (typeof window === "undefined") return "";
 
-  const persistedState = parsePersistedSidebarFilterQueryState(
-    sessionStorage.getItem(storageKey),
-  );
+  try {
+    const persistedState = parsePersistedSidebarFilterQueryState(
+      sessionStorage.getItem(storageKey),
+    );
 
-  return getPersistedSidebarFilterQueryForContext({
-    state: persistedState,
-    contextId,
+    return getPersistedSidebarFilterQueryForContext({
+      state: persistedState,
+      contextId,
+    });
+  } catch (error) {
+    console.warn("Error reading from session storage", error);
+    return "";
+  }
+}
+
+export function writePersistedSidebarFilterQuery(params: {
+  storageKey: string;
+  contextId: string | null;
+  query: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const { storageKey, contextId, query } = params;
+  try {
+    sessionStorage.setItem(
+      storageKey,
+      JSON.stringify(createPersistedSidebarFilterQueryState(contextId, query)),
+    );
+  } catch (error) {
+    console.warn("Error writing to session storage", error);
+  }
+}
+
+/** Carry committed filters only for an explicit in-page context change. */
+export function carryPersistedSidebarFilterQuery(params: {
+  tableName: string;
+  fromContextId: string;
+  toContextId: string;
+  urlQuery: string | null | undefined;
+}): void {
+  const { tableName, fromContextId, toContextId, urlQuery } = params;
+  if (fromContextId === toContextId) return;
+  const query =
+    typeof urlQuery === "string"
+      ? urlQuery
+      : readPersistedSidebarFilterQuery({
+          storageKey: buildSidebarFilterQueryStorageKey({
+            tableName,
+            contextId: fromContextId,
+          }),
+          contextId: fromContextId,
+        });
+  writePersistedSidebarFilterQuery({
+    storageKey: buildSidebarFilterQueryStorageKey({
+      tableName,
+      contextId: toContextId,
+    }),
+    contextId: toContextId,
+    query,
   });
 }

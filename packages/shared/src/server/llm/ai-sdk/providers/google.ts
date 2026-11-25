@@ -1,9 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { EmbeddingModel, LanguageModel } from "ai";
 
 import type { TranslatedProviderOptions } from "./types";
 import { ensureBaseURLSuffix, isPlainObject } from "./utils";
+
+export const GOOGLE_API_KEY_HEADER = "X-Goog-Api-Key";
 
 /**
  * The stored Google AI Studio base URL is an origin-style prefix without the

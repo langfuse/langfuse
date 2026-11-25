@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -31,14 +31,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import {
@@ -58,7 +54,7 @@ import {
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -208,9 +204,14 @@ export function PromptEditorContent({
             aria-hidden="true"
             className="bg-secondary text-secondary-foreground flex h-9 w-full items-center gap-2 rounded-md border px-2 shadow-lg"
           >
-            <Badge variant="tertiary" className="h-5 shrink-0">
-              {ROLES.find((role) => role.value === activeMessage.role)?.label}
-            </Badge>
+            <Badge
+              color="filled"
+              size="md"
+              text={
+                ROLES.find((role) => role.value === activeMessage.role)
+                  ?.label ?? ""
+              }
+            />
             <span
               className="min-w-0 truncate text-xs"
               title={activeMessage.content || "Empty message"}
@@ -258,7 +259,7 @@ function SortablePromptMessage({
     .filter(Boolean)
     .join(" ");
   const roleBadge = (
-    <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
+    <BadgeShell color="filled" size="md">
       {warningReason ? (
         <TriangleAlert
           size="sm"
@@ -271,7 +272,7 @@ function SortablePromptMessage({
         />
       ) : null}
       {ROLES.find((role) => role.value === message.role)?.label}
-    </Badge>
+    </BadgeShell>
   );
   const {
     attributes,
@@ -342,13 +343,16 @@ function SortablePromptMessage({
             </Button>
             {messageCount > 1 || message.role !== "user" || warningReason ? (
               warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
+                <Tooltip label={warningReason} delay={0}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex"
+                      tabIndex={0}
+                    >
                       {roleBadge}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
+                  )}
                 </Tooltip>
               ) : (
                 roleBadge

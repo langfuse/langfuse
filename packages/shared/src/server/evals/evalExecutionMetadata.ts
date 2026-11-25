@@ -9,7 +9,8 @@ export function buildEvalExecutionData(
         type: "TEST";
         evaluatorId?: string | null;
         targetTraceId: string;
-        targetObservationId: string;
+        /** Null when the test evaluates a trace transcript. */
+        targetObservationId: string | null;
       }
     | {
         type: "JOB";
@@ -22,6 +23,8 @@ export function buildEvalExecutionData(
         targetTraceId: string | null;
         targetObservationId: string | null;
         targetDatasetItemId: string | null;
+        /** Set when the execution belongs to a manual batch evaluation run. */
+        batchActionId?: string;
       },
 ) {
   // Keep old workers and legacy trace/observation sinks compatible during the
@@ -59,6 +62,7 @@ export function buildEvalExecutionData(
             params.targetObservationId,
           [EvalExecutionMetadataKey.TARGET_DATASET_ITEM_ID]:
             params.targetDatasetItemId,
+          [EvalExecutionMetadataKey.BATCH_ACTION_ID]: params.batchActionId,
         };
 
   const evaluationContext: EvalExecutionContext =

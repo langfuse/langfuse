@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
@@ -44,6 +44,7 @@ export default function NewMonitorPage() {
         withPadding
         headerProps={{
           title: "New Alert",
+          hideTitleRow: true,
           breadcrumb: [
             { name: "Alerts", href: `/project/${projectId}/alerts` },
           ],

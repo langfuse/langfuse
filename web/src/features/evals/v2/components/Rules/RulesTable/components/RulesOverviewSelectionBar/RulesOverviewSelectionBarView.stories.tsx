@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ComponentProps } from "react";
 import preview from "../../../../../../../../../.storybook/preview";
 import { RulesOverviewSelectionBarView } from "./RulesOverviewSelectionBarView";
@@ -10,13 +10,10 @@ const defaultArgs = {
   hasWriteAccess: true,
   statusChangePending: false,
   deletePending: false,
-  deleteDialogOpen: false,
   onClear: fn(),
   onEnable: fn(),
   onDisable: fn(),
-  onDelete: fn(),
-  onDeleteDialogOpenChange: fn(),
-  onConfirmDelete: fn(),
+  onConfirmDelete: fn(async () => {}),
 } satisfies ComponentProps<typeof RulesOverviewSelectionBarView>;
 
 export const Default = meta.story({
@@ -31,8 +28,21 @@ export const ReadOnly = meta.story({
 });
 
 export const DeleteConfirmation = meta.story({
+  name: "(Test) Delete confirmation",
   args: {
     ...defaultArgs,
-    deleteDialogOpen: true,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+    const dialog = await body.findByRole("dialog", {
+      name: "Delete evaluation rules?",
+    });
+    await waitFor(() => expect(dialog).toBeVisible());
+    await expect(
+      within(dialog).getByText(
+        "This permanently deletes 3 rules and its evaluator assignments.",
+      ),
+    ).toBeVisible();
   },
 });

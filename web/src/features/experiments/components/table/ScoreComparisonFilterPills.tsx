@@ -1,11 +1,6 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { GitCompareArrows, X } from "@langfuse/icons";
 import {
   describeScoreComparisonFilter,
@@ -39,27 +34,20 @@ export const ScoreComparisonFilterPills = ({
           comparisonName,
         });
         return (
-          <Badge
-            key={`${filter.level}-${filter.scoreKey}`}
-            variant="secondary"
-            className="flex max-w-full items-center gap-1 px-2 py-1 text-xs"
-          >
+          <BadgeShell key={`${filter.level}-${filter.scoreKey}`} color="filled">
             <GitCompareArrows size="sm" />
             <span className="truncate" title={label}>
               {label}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground shrink-0 cursor-default underline decoration-dotted">
+            <Tooltip label="Comparing one experiment's score against another's is not something the items query can express, so this narrows the items loaded on the current page. Page through to check the rest of the run.">
+              {({ getTriggerProps }) => (
+                <span
+                  {...getTriggerProps()}
+                  className="text-muted-foreground shrink-0 cursor-default underline decoration-dotted"
+                >
                   this page
                 </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[280px]">
-                Comparing one experiment&apos;s score against another&apos;s is
-                not something the items query can express, so this narrows the
-                items loaded on the current page. Page through to check the rest
-                of the run.
-              </TooltipContent>
+              )}
             </Tooltip>
             <Button
               variant="ghost"
@@ -72,7 +60,7 @@ export const ScoreComparisonFilterPills = ({
             >
               <X size="base" color="default" />
             </Button>
-          </Badge>
+          </BadgeShell>
         );
       })}
     </div>

@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import crypto from "node:crypto";
 import { type NextApiRequest } from "next";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -168,6 +169,8 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      // The admin key carries no org.
+      accessAuditLogEnabled: null,
     },
   };
 }

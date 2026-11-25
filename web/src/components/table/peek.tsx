@@ -6,18 +6,18 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { Separator } from "@/src/components/ui/separator";
 import { type LayerName } from "@/src/context/LayerContext/layers";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
-import { type ListEntry } from "@/src/features/navigate-detail-pages";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { cn } from "@/src/utils/tailwind";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { getPathnameWithoutBasePath } from "@/src/utils/api";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -26,7 +26,7 @@ const PEEK_VIEW_EXPANDED = "expanded";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
-  "TRACE" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
+  "TRACE" | "SESSION" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
 >;
 
 /**
@@ -82,8 +82,11 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: React.ComponentProps<typeof PeekHeader>["titleTabs"];
   defaultWidthTarget?: HTMLElement | null;
   widthStorageKey?: string;
+  maxWidthPx?: number;
   /**
    * Item-specific header actions (star / publish / delete …), shared with the
    * full detail page so the peek and the page expose the same controls.
@@ -101,7 +104,12 @@ type TablePeekViewProps = Pick<
   /**
    * The content to display in the peek view.
    */
-  children: React.ReactNode;
+  /** A render callback takes ownership of the header as well as the body. */
+  children:
+    | React.ReactNode
+    | ((
+        headerProps: React.ComponentProps<typeof PeekHeader>,
+      ) => React.ReactNode);
   /**
    * Optional footer content to display at the bottom of the peek view.
    * Useful for navigation controls or contextual actions.
@@ -190,7 +198,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   // replace (not push) so toggling expand/collapse doesn't spam history.
   const setExpanded = useCallback(
     (expanded: boolean) => {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(
+        new URL(router.asPath, window.location.origin).search,
+      );
       const currentlyExpanded =
         params.get(PEEK_VIEW_PARAM) === PEEK_VIEW_EXPANDED;
       // No-op when the flag already matches: skip the redundant shallow
@@ -256,6 +266,8 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     preventDefault: () => void;
   }) => {
     if (
+      (typeof router.query.sessionPeek === "string" &&
+        document.querySelector("[data-session-trace-peek]") !== null) ||
       shouldKeepPeekOpenOnOutsideInteraction(event.target, ignoredSelectors)
     ) {
       event.preventDefault();
@@ -266,6 +278,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     // Open is driven by row clicks / detail-page navigation; we only react to
     // close requests (Escape, swipe-down, click-outside, the close button).
     if (open) return;
+    // A stale URL parameter alone must not block dismissal.
+    if (
+      typeof router.query.sessionPeek === "string" &&
+      document.querySelector("[data-session-trace-peek]") !== null
+    )
+      return;
     props.closePeek();
   };
 
@@ -278,27 +296,27 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const expandPeek = props.expandPeek;
   const openInNewTab = expandPeek ? () => expandPeek(true) : undefined;
 
-  const header = (
-    <PeekHeader
-      itemType={props.itemType}
-      title={resolvedTitle}
-      itemId={itemId}
-      detailNavigationKey={props.detailNavigationKey}
-      resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      actions={props.actions}
-      actionsMenu={props.actionsMenu}
-      expand={
-        isHandheld || props.hideExpandToggle
-          ? undefined
-          : {
-              isExpanded: panel.isExpanded,
-              onToggle: panel.toggleExpanded,
-            }
-      }
-      openInNewTab={openInNewTab}
-      onClose={props.closePeek}
-    />
-  );
+  const headerProps: React.ComponentProps<typeof PeekHeader> = {
+    itemType: props.itemType,
+    title: resolvedTitle,
+    titleTabs: props.titleTabs,
+    itemId,
+    detailNavigationKey: props.detailNavigationKey,
+    resolveDetailNavigationPath: props.resolveDetailNavigationPath,
+    actions: props.actions,
+    actionsMenu: props.actionsMenu,
+    expand:
+      isHandheld || props.hideExpandToggle
+        ? undefined
+        : {
+            isExpanded: panel.isExpanded,
+            onToggle: panel.toggleExpanded,
+          },
+    openInNewTab,
+    onClose: props.closePeek,
+  };
+  const header =
+    typeof children === "function" ? null : <PeekHeader {...headerProps} />;
 
   const content = (
     <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -306,7 +324,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         className="flex-1 overflow-auto"
         key={preserveContentAcrossItems ? undefined : itemId}
       >
-        {children}
+        {typeof children === "function" ? children(headerProps) : children}
       </div>
       {footer && (
         <>
@@ -337,6 +355,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               but give portaled child dialogs the same non-modal host as desktop. */}
           <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
             <DrawerContent
+              data-peek-content=""
+              style={
+                props.maxWidthPx !== undefined
+                  ? { maxWidth: props.maxWidthPx, marginLeft: "auto" }
+                  : undefined
+              }
               portalLayer="modal"
               size="full"
               className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
@@ -360,7 +384,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
             <SheetPrimitive.Content
               aria-describedby={undefined}
               data-peek-content=""
-              style={panel.panelStyle}
+              style={{
+                ...panel.panelStyle,
+                ...(props.maxWidthPx !== undefined
+                  ? { maxWidth: props.maxWidthPx, minWidth: 0 }
+                  : {}),
+              }}
               onPointerDownOutside={preventDismissOnKeptOpen}
               onInteractOutside={preventDismissOnKeptOpen}
               // Never close because focus moved out (e.g. into a portaled

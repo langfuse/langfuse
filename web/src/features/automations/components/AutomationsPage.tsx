@@ -10,7 +10,7 @@ import { WebhookSecretRender } from "@/src/features/automations/components/Webho
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "@langfuse/icons";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/ErrorPage";
 
 export default function AutomationsPage() {
   const router = useRouter();

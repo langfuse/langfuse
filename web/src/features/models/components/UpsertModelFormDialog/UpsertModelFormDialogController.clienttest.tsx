@@ -19,13 +19,21 @@ const upsertMutateAsync = vi.fn().mockResolvedValue({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    useUtils: () => ({ models: { invalidate: vi.fn() } }),
+    useUtils: () => ({
+      models: { invalidate: vi.fn() },
+      organizationModels: { invalidate: vi.fn() },
+    }),
     models: {
       upsert: {
         useMutation: () => ({
           mutateAsync: upsertMutateAsync,
           isPending: false,
         }),
+      },
+    },
+    organizationModels: {
+      upsert: {
+        useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
       },
     },
   },
@@ -43,7 +51,7 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
 }));
 
-vi.mock("@/src/components/editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   CodeMirrorEditor: () => null,
 }));
 
@@ -92,6 +100,7 @@ const modelData = (
   pricingTiers: GetModelResult["pricingTiers"],
 ): GetModelResult => ({
   id: "model-1",
+  scope: "PROJECT",
   projectId: "p1",
   modelName: "gpt-realtime-2.1",
   matchPattern: "(?i)^(gpt-realtime-2.1)$",
@@ -124,7 +133,7 @@ const openEditDialog = (pricingTiers: GetModelResult["pricingTiers"]) => {
   render(
     <UpsertModelFormDialogController
       action="edit"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={modelData(pricingTiers)}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}
@@ -137,7 +146,7 @@ const openCloneDialog = (matchPattern: string) => {
   render(
     <UpsertModelFormDialogController
       action="clone"
-      projectId="p1"
+      owner={{ scope: "project", projectId: "p1" }}
       modelData={{ ...modelData([defaultTier]), matchPattern }}
     >
       {({ openDialog }) => <button onClick={openDialog}>Open editor</button>}

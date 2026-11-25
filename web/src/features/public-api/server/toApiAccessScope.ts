@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InternalServerError } from "@langfuse/shared";
 import {
   type ApiAccessLevel,
@@ -34,6 +33,8 @@ function adminScope(target: TargetResource): ApiAccessScope {
     publicKey: "ADMIN_API_KEY",
     isIngestionSuspended: false,
     isInAppAgentKey: false,
+    // The admin key carries no org.
+    accessAuditLogEnabled: null,
   };
 }
 
@@ -53,6 +54,7 @@ function apiKeyScope(
     publicKey: principal.publicKey,
     isIngestionSuspended: org.isIngestionSuspended,
     isInAppAgentKey: principal.isInAppAgentKey,
+    accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
     accessLevel: apiKeyAccessLevel(principal, target.projectId),
   };
 }

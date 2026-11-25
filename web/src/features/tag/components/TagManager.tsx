@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Command, CommandGroup, CommandItem, CommandList } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {

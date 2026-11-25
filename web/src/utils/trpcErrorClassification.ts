@@ -7,14 +7,22 @@ import {
   type ToastErrorAnalytics,
   type ToastOperation,
 } from "@/src/features/notifications/toastAnalytics";
+import {
+  isTrpcNonJsonBodyError,
+  readAnnotatedResponseStatus,
+} from "@/src/utils/trpcResponseParseError";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 import { getTrpcToastOperation } from "@/src/utils/trpcToastOperation";
-
-type SyntaxErrorWithResponseStatus = SyntaxError & { responseStatus?: number };
 
 /**
  * BAD_REQUEST is normally a client bug. These procedures also use it for
  * rejected user-configured values, so they belong to the user-input bucket.
+ *
+ * `members.create` uses BAD_REQUEST only when the address is already an
+ * organization or project member, or a pending invite for that email
+ * already exists. The invite form shows the sentence on the email field.
+ * `prompts.exportAll` uses BAD_REQUEST only when the project has more than
+ * 10,000 prompt versions. The export dialog shows that sentence inline.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
@@ -22,18 +30,15 @@ export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "models.upsert",
   "aiGateway.createConnection",
   "aiGateway.updateConnection",
+  "members.create",
+  "prompts.exportAll",
 ] as const;
 
 const FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
 
 const getResponseStatus = (error: TRPCClientError<any>): number | undefined => {
-  if (
-    error.cause instanceof SyntaxError &&
-    typeof (error.cause as SyntaxErrorWithResponseStatus).responseStatus ===
-      "number"
-  ) {
-    return (error.cause as SyntaxErrorWithResponseStatus).responseStatus;
-  }
+  const annotated = readAnnotatedResponseStatus(error.cause);
+  if (annotated !== undefined) return annotated;
 
   return error.meta?.response instanceof Response
     ? error.meta.response.status
@@ -111,10 +116,7 @@ export const classifyTrpcToastError = (
   const path = getPath(error);
   const httpStatus = getHttpStatus(error);
 
-  if (
-    error.cause instanceof SyntaxError &&
-    ![414, 431].includes(httpStatus ?? 0)
-  ) {
+  if (isTrpcNonJsonBodyError(error) && ![414, 431].includes(httpStatus ?? 0)) {
     return classify({
       errorOrigin: "network",
       errorCategory: "transient",

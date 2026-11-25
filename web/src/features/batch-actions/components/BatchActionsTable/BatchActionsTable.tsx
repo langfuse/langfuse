@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -153,7 +153,7 @@ export function BatchActionsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="batchActions"
       columns={columns}
       data={data}

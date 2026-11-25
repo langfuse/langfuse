@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseOutboundUrl } from "./server/outbound-url/parse";
 import { parseBlockedCidr } from "./server/webhooks/parseBlockedCidr";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
@@ -60,9 +61,8 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Internal Topics PoC controls; not a supported self-hosting configuration.
-  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+  // Internal trace evals beta control; not a supported self-hosting configuration.
+  LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
     .default("")
     .transform((value) =>
@@ -71,7 +71,7 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: z
+  LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS_EXPERIMENTAL: z
     .string()
     .default("")
     .transform((value) =>
@@ -80,11 +80,6 @@ const EnvSchema = z.object({
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10800),
   // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
   // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
   VERCEL_URL: z.string().optional(),
@@ -252,13 +247,70 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TOPICS_TRACE_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
   LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
     .default(1),
   LANGFUSE_CODE_EVAL_DISPATCHER: z
-    .enum(["insecure-local", "aws-lambda"])
+    .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET: z.string().min(32).optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value == null || value.trim() === "") return {};
+
+      let json: unknown;
+      try {
+        json = JSON.parse(value);
+      } catch {
+        json = undefined;
+      }
+      const parsed = z.record(z.string(), z.string()).safeParse(json);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "LANGFUSE_CODE_EVAL_EXTERNAL_HEADERS must be a JSON object of string header names and values",
+        });
+        return z.NEVER;
+      }
+      return parsed.data;
+    }),
+  LANGFUSE_CODE_EVAL_EXTERNAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(15_000)
+    .default(10_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_CONNECT_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(15_000)
+    .default(3_000),
+  LANGFUSE_CODE_EVAL_EXTERNAL_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .default(3),
+  LANGFUSE_CODE_EVAL_EXTERNAL_LANGUAGES: z
+    .string()
+    .default("PYTHON,TYPESCRIPT")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((language) => language.trim().toUpperCase())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(["PYTHON", "TYPESCRIPT"])).min(1)),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
@@ -316,6 +368,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(2_147_483_647)
+    .default(2_000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),
@@ -331,11 +389,6 @@ const EnvSchema = z.object({
     .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
-  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(10_000), // 10 seconds
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -374,6 +427,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(30_000),
+  // Intermediate role that customer storage roles trust. Integrations can use
+  // IAM role auth only when this is set.
+  LANGFUSE_CROSS_ACCOUNT_ROLE_ARN: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
@@ -444,8 +500,6 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE: z.enum(["AES256", "aws:kms"]).optional(),
-  LANGFUSE_S3_CORE_DATA_EXPORT_SSE_KMS_KEY_ID: z.string().optional(),
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -467,6 +521,12 @@ const EnvSchema = z.object({
     .default(20_000),
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
+  // Sends ClickHouse query() parameters as multipart/form-data body parts
+  // instead of URL query-string entries, so parameter values stay out of
+  // request URLs (proxy access logs, HTTP client spans).
+  LANGFUSE_CLICKHOUSE_MULTIPART_QUERY_PARAMS: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
@@ -545,7 +605,9 @@ const EnvSchema = z.object({
   // including provider default hosts and Langfuse AI. Bedrock checks
   // bedrock-runtime.<region>.<partition>, or the host of
   // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
-  // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
+  // set. AI Gateway Bedrock connections also call bedrock.<region>.amazonaws.com
+  // to test credentials and list models. Ignored on Langfuse Cloud, same as the
+  // LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
@@ -821,9 +883,37 @@ const EnvSchema = z.object({
     ),
 });
 
+const ValidatedEnvSchema = EnvSchema.superRefine((env, ctx) => {
+  if (env.LANGFUSE_CODE_EVAL_DISPATCHER !== "external") return;
+
+  if (!env.LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_SIGNING_SECRET is required when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+
+  let endpoint: URL | undefined;
+  try {
+    endpoint = parseOutboundUrl(env.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT ?? "");
+  } catch {
+    endpoint = undefined;
+  }
+  if (!endpoint || !["http:", "https:"].includes(endpoint.protocol)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT must be an http(s) URL without credentials when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+});
+
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.parse(removeEmptyEnvVariables(process.env));

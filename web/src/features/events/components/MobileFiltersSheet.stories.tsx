@@ -1,11 +1,11 @@
 import preview from "../../../../.storybook/preview";
 import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
-import { ChevronDown, RefreshCw } from "@langfuse/icons";
+import { RefreshCw } from "@langfuse/icons";
 
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { ControlsContext } from "@/src/components/table/data-table-controls";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 
@@ -27,38 +27,28 @@ import { Input } from "@/src/components/ui/input";
 
 const fakeSearch = <Input placeholder="Search traces…" className="h-9" />;
 
-// Compact time-range + refresh cluster, as EventsTable builds it for the header
-// row (label-only time range, refresh split with a chevron).
+// Compact time-range + manual refresh, as EventsTable builds it for the header
+// row. The interval selector is hidden below the `md` breakpoint.
 const fakeHeaderControls = (
   <div className="flex min-w-0 items-center gap-1">
     <Button variant="outline" size="sm" className="h-8 min-w-0">
       <span className="truncate">Past 24 hours</span>
     </Button>
-    <div className="flex items-center">
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8 rounded-r-none border-r-0"
-      >
-        <RefreshCw size="base" color="default" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-auto rounded-l-none border-l-0 px-2"
-      >
-        <ChevronDown size="base" color="default" />
-      </Button>
-    </div>
+    <Button
+      variant="outline"
+      size="icon"
+      className="h-8 w-8"
+      aria-label="Refresh"
+    >
+      <RefreshCw size="base" color="default" />
+    </Button>
   </div>
 );
 
 const fakePresets = (
   <div className="flex flex-wrap gap-2">
     {["Quality", "Slow", "Cost"].map((chip) => (
-      <Badge key={chip} variant="outline" className="cursor-pointer">
-        {chip}
-      </Badge>
+      <Badge key={chip} color="outline" text={chip} />
     ))}
   </div>
 );

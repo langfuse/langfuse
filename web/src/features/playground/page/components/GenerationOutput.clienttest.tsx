@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 
 import { GenerationOutput } from "./GenerationOutput";
 
-vi.mock("../context", () => ({
+vi.mock("../context/PlaygroundProvider", () => ({
   usePlaygroundContext: () => ({
     output: "customer-generated output",
     outputReasoning: "",

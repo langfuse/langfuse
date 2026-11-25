@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
 import { Pencil, Trash } from "@langfuse/icons";
 
@@ -7,11 +6,11 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { type RouterOutput } from "@/src/utils/types";
 
 const EXCLUDE_GATEWAY_KEYS = "exclude-gateway";
@@ -125,7 +124,7 @@ export function ApiKeySettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="API keys"
       columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
@@ -177,5 +176,5 @@ type GatewayKeyFilter = {
 };
 
 type SettingsTableFilter = NonNullable<
-  SettingsTableProps<ApiKeySettingsTableRow>["filters"]
+  TableCardProps<ApiKeySettingsTableRow>["filters"]
 >[number];

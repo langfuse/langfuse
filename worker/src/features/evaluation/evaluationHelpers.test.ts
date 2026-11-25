@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import {
   compilePersistedEvalOutputDefinition,
   buildEvalOutputResultSchema,
@@ -16,6 +17,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
+import { completeEvalExecution } from "./evalCompletion";
+import {
+  createMockEvalExecutionDeps,
+  type EvalExecutionDeps,
+} from "./evalExecutionDeps";
 import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
 import {
   buildEvalExecutionSpanAttributes,
@@ -208,24 +214,6 @@ describe("evaluation helpers", () => {
         schema.safeParse({
           score: ["correct", "correct"],
           reasoning: "Duplicate categories should be rejected.",
-        }).success,
-      ).toBe(false);
-    });
-
-    it("should reject duplicate categorical multi-match values", () => {
-      const schema = buildEvalOutputResultSchema(
-        createCategoricalEvalOutputDefinition({
-          scoreDescription: "Choose all matching categories",
-          reasoningDescription: "Explain the selected categories",
-          categories: ["correct", "partial"],
-          shouldAllowMultipleMatches: true,
-        }),
-      );
-
-      expect(
-        schema.safeParse({
-          score: ["correct", "correct"],
-          reasoning: "This should be invalid.",
         }).success,
       ).toBe(false);
     });
@@ -531,6 +519,7 @@ describe("evaluation helpers", () => {
   });
 
   describe("buildEvalScoreWritePayloads", () => {
+    const scoreTimestamp = new Date("2026-01-01T23:59:00.000Z");
     const evaluationContext = {
       evaluationRuleId: "rule-1",
       evaluatorExecutionIsTest: false,
@@ -538,6 +527,7 @@ describe("evaluation helpers", () => {
 
     it("should build stable code eval score IDs when different score names reorder", () => {
       const originalPayloads = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -559,6 +549,7 @@ describe("evaluation helpers", () => {
         evaluationContext,
       });
       const reorderedPayloads = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -586,6 +577,7 @@ describe("evaluation helpers", () => {
 
     it("should build distinct deterministic code eval score IDs for duplicate score names", () => {
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -647,6 +639,7 @@ describe("evaluation helpers", () => {
         }),
       ];
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -683,6 +676,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 0,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -720,6 +714,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 0,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.BOOLEAN,
@@ -762,6 +757,7 @@ describe("evaluation helpers", () => {
         occurrenceIndex: 1,
       });
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.CATEGORICAL,
@@ -802,6 +798,7 @@ describe("evaluation helpers", () => {
 
     it("should merge returned score metadata with execution metadata", () => {
       const result = buildEvalScoreWritePayloads({
+        scoreTimestamp,
         scores: [
           {
             dataType: ScoreDataTypeEnum.NUMERIC,
@@ -852,6 +849,43 @@ describe("evaluation helpers", () => {
       expect(result[1].event.body).toMatchObject({
         evaluatorId: "evaluator-1",
         evaluationRuleId: "legacy-rule-1",
+      });
+    });
+  });
+
+  describe("completeEvalExecution", () => {
+    it("completes the job without writing scores when the evaluator returns none", async () => {
+      const uploadScore = vi.fn<EvalExecutionDeps["uploadScore"]>();
+      const updateJobExecution =
+        vi.fn<EvalExecutionDeps["updateJobExecution"]>();
+
+      const result = await completeEvalExecution({
+        projectId: "project-1",
+        jobExecutionId: "job-1",
+        scoreTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+        traceId: "trace-1",
+        observationId: "obs-1",
+        environment: "production",
+        executionType: EvalTemplateType.CODE,
+        deps: createMockEvalExecutionDeps({ uploadScore, updateJobExecution }),
+        result: {
+          scores: [],
+          executionTraceId: "exec-trace-1",
+          metadata: {},
+          evaluationContext: { evaluatorExecutionIsTest: false },
+        },
+      });
+
+      expect(result).toEqual({ scoreCount: 0 });
+      expect(uploadScore).not.toHaveBeenCalled();
+      expect(updateJobExecution).toHaveBeenCalledWith({
+        id: "job-1",
+        projectId: "project-1",
+        data: expect.objectContaining({
+          status: JobExecutionStatus.COMPLETED,
+          jobOutputScoreId: undefined,
+          executionTraceId: "exec-trace-1",
+        }),
       });
     });
   });

@@ -1,6 +1,7 @@
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
+import { PageHeaderControlsSlotProvider } from "@/src/components/layouts/page-header-controls-slot";
 import { MobileTopBar } from "@/src/components/layouts/MobileTopBar";
 import { MobilePageTitle } from "@/src/components/layouts/MobilePageTitle";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -31,36 +32,38 @@ const ContainerPage = ({
   const isMobile = useIsMobile();
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-1 flex-col",
-        fullHeight
-          ? "h-screen-with-banner overflow-hidden"
-          : "min-h-screen-with-banner",
-      )}
-    >
-      <header className="sticky top-0 z-50 w-full">
-        {isMobile ? (
-          <MobileTopBar
-            showSidebarTrigger={headerProps.showSidebarTrigger}
-            leadingControl={headerProps.leadingControl}
-          />
-        ) : (
-          <PageHeader {...headerProps} container />
-        )}
-      </header>
-      {isMobile && <MobilePageTitle headerProps={headerProps} />}
-      <main
+    <PageHeaderControlsSlotProvider>
+      <div
         className={cn(
-          "relative flex min-h-0 flex-1 flex-col p-3",
-          extendRight
-            ? rightExtendedContainerLayoutClassName
-            : containerLayoutClassName,
+          "relative flex flex-1 flex-col",
+          fullHeight
+            ? "h-screen-with-banner overflow-hidden"
+            : "min-h-screen-with-banner",
         )}
       >
-        {children}
-      </main>
-    </div>
+        <header className="sticky top-0 z-50 w-full">
+          {isMobile ? (
+            <MobileTopBar
+              showSidebarTrigger={headerProps.showSidebarTrigger}
+              leadingControl={headerProps.leadingControl}
+            />
+          ) : (
+            <PageHeader {...headerProps} container />
+          )}
+        </header>
+        {isMobile && <MobilePageTitle headerProps={headerProps} />}
+        <main
+          className={cn(
+            "relative flex min-h-0 flex-1 flex-col p-3",
+            extendRight
+              ? rightExtendedContainerLayoutClassName
+              : containerLayoutClassName,
+          )}
+        >
+          {children}
+        </main>
+      </div>
+    </PageHeaderControlsSlotProvider>
   );
 };
 

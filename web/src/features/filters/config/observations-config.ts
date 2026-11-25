@@ -1,11 +1,12 @@
 import { observationsTableCols } from "@langfuse/shared";
 import {
+  dropNumericMetadataFilters,
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
@@ -21,6 +22,8 @@ export const observationFilterConfig: FilterConfig = {
   tableName: "observations",
 
   columnDefinitions: observationsTableCols,
+
+  migrateFilterState: dropNumericMetadataFilters,
 
   defaultExpanded: ["environment", "name"],
 

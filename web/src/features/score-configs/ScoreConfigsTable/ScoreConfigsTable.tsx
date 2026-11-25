@@ -18,15 +18,15 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/helpers";
 
 export type ScoreConfigTableRow = {
   id: string;
@@ -172,7 +172,7 @@ export function ScoreConfigsTable({
     [archiveAction],
   );
 
-  const toolbarActions: SettingsTableProps<ScoreConfigTableRow>["toolbarActions"] =
+  const toolbarActions: TableCardProps<ScoreConfigTableRow>["toolbarActions"] =
     [
       {
         id: "add-score-config",
@@ -187,7 +187,7 @@ export function ScoreConfigsTable({
     ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="score configs"
       columns={columns}
       actions={actions}

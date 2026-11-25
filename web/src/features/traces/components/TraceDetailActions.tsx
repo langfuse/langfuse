@@ -1,142 +1,134 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import {
-  Download,
-  FileText,
-  Loader2,
-  MoreVertical,
-  TrashIcon,
-} from "@langfuse/icons";
-
-import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import {
-  HeaderActionMenuRow,
-  HeaderActionMenuRows,
-} from "@/src/components/HeaderActionMenuRow";
-import {
-  DropdownMenu,
-  type DropdownMenuItemDefinition,
-} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Download, FileText, MoreVertical, TrashIcon } from "@langfuse/icons";
+import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
+import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
+import { TopicsTranscriptDialogController } from "@/src/features/traces/components/TopicsTranscriptDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
-import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
-import { cn } from "@/src/utils/tailwind";
+import { useRouter } from "next/router";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
+import { useSessionScopeActions } from "@/src/features/traces/hooks/useSessionScopeActions";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
 >;
 
-type TraceDetailActionsLayout = "toolbar" | "menu";
-
 type TraceDetailActionsProps = {
-  /** Undefined while the trace loads: the actions render disabled in place. */
   trace: TraceDetailData | undefined;
   traceContext: "fullscreen" | "peek";
   shareUrl?: string;
   timestamp?: Date;
   deleteRedirectUrl?: string;
   onAfterDelete?: (deletedTraceId: string) => void;
-  layout?: TraceDetailActionsLayout;
-  /** `trace` is the previous trace, kept while the next one loads. */
   isPlaceholderData?: boolean;
+  children: (actions: readonly EntityDetailHeaderAction[]) => React.ReactNode;
 };
 
-/**
- * Trace-level header actions shared by the peek and the standalone trace page.
- *
- * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
- * holding Make Public, Copy trace ID, Copy trace name and Delete. `layout="menu"`
- * renders the same actions as full-width labeled rows for the mobile header
- * menu.
- *
- * Delete always targets the whole trace. Behavior differs only by surface:
- * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
- * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
- *   receives the deleted trace id so the peek can stay open if K/J-navigation
- *   already moved on to another trace. We invalidate broadly because the peek
- *   is hosted over many different lists, each backed by a different query.
- */
+/** Owns trace workflows; the shared header renders their action definitions. */
 export function TraceDetailActions({
   trace,
-  layout = "toolbar",
-  isPlaceholderData = false,
+  children,
   ...props
 }: TraceDetailActionsProps) {
-  if (!trace) return <DisabledTraceDetailActions layout={layout} />;
-  const { key, ...stale } = staleProps(isPlaceholderData, {
-    remountOnStale: true,
+  const router = useRouter();
+  const projectId = trace?.projectId ?? "";
+  const { isV4 } = useReadPath();
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId },
+  );
+  const { isSessionScope } = resolveTraceScope({
+    unifiedTraceSessionViewEnabled,
+    isV4,
+    isProjectMember,
+    sessionId: trace?.sessionId,
+    aggregation: router.query.aggregation,
+    context: props.traceContext,
   });
+  if (!trace)
+    return children([
+      {
+        id: "download-json",
+        type: "button",
+        label: "Download JSON",
+        icon: Download,
+        iconOnly: true,
+        disabled: true,
+        onClick: () => {},
+      },
+      {
+        id: "trace-options",
+        type: "dropdown",
+        label: "More actions",
+        icon: MoreVertical,
+        iconOnly: true,
+        placement: "trailing",
+        disabled: true,
+        items: [],
+      },
+    ]);
+  // Scope switches must keep the detail body's controller ancestry unchanged.
   return (
     <TraceTranscriptDialogController
-      key={key}
       projectId={trace.projectId}
       traceId={trace.id}
       timestamp={trace.timestamp}
     >
-      {({ openDialog }) => (
-        <LoadedTraceDetailActions
-          trace={trace}
-          layout={layout}
-          stale={stale}
-          onShowTranscript={openDialog}
-          {...props}
-        />
+      {({ openDialog: openTranscriptDialog }) => (
+        <TopicsTranscriptDialogController
+          projectId={trace.projectId}
+          traceId={trace.id}
+          timestamp={trace.timestamp}
+        >
+          {({ openDialog: openTopicsTranscriptDialog }) => (
+            <LoadedTraceDetailActions
+              trace={trace}
+              isSessionScope={isSessionScope}
+              {...props}
+              onShowTranscript={openTranscriptDialog}
+              onShowTopicsTranscript={openTopicsTranscriptDialog}
+            >
+              {children}
+            </LoadedTraceDetailActions>
+          )}
+        </TopicsTranscriptDialogController>
       )}
     </TraceTranscriptDialogController>
   );
 }
 
-function DisabledTraceDetailActions({
-  layout,
-}: {
-  layout: TraceDetailActionsLayout;
-}) {
-  const downloadIcon = <Download size="base" />;
-
-  if (layout === "menu") {
-    return (
-      <div className="flex w-full flex-col gap-0.5">
-        <HeaderActionMenuRow
-          label="Download JSON"
-          icon={downloadIcon}
-          disabled
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-row items-center gap-1">
-      <HeaderActionButton label="Download JSON" icon={downloadIcon} disabled />
-      <HeaderActionButton
-        label="More actions"
-        icon={<MoreVertical size="base" />}
-        disabled
-      />
-    </div>
-  );
-}
-
 function LoadedTraceDetailActions({
   trace,
+  isSessionScope,
   traceContext,
   shareUrl,
   timestamp,
   deleteRedirectUrl,
   onAfterDelete,
-  layout,
-  stale,
+  isPlaceholderData,
   onShowTranscript,
-}: Omit<TraceDetailActionsProps, "trace" | "layout" | "isPlaceholderData"> & {
+  onShowTopicsTranscript,
+  children,
+}: Omit<TraceDetailActionsProps, "trace"> & {
   trace: TraceDetailData;
-  layout: TraceDetailActionsLayout;
-  stale: Omit<ReturnType<typeof staleProps>, "key">;
+  isSessionScope: boolean;
   onShowTranscript?: () => void;
+  onShowTopicsTranscript?: () => void;
 }) {
+  const sessionActions = useSessionScopeActions({
+    projectId: trace.projectId,
+    sessionId: trace.sessionId ?? "",
+    isPlaceholderData,
+    enabled: isSessionScope,
+  });
   const shareItems = useShareMenuItems({
     kind: "trace",
     projectId: trace.projectId,
@@ -150,18 +142,6 @@ function LoadedTraceDetailActions({
     observations: trace.observations,
     traceContext,
   });
-
-  const idItems = [
-    { id: trace.id, name: "trace ID" },
-    ...(trace.name ? [{ id: trace.name, name: "trace name" }] : []),
-  ];
-
-  const downloadIcon = isDownloading ? (
-    <Loader2 size="base" __rawClassName="animate-spin" />
-  ) : (
-    <Download size="base" />
-  );
-
   return (
     <DeleteTraceDialogController
       projectId={trace.projectId}
@@ -172,7 +152,10 @@ function LoadedTraceDetailActions({
     >
       {({ disabled: deleteDisabled, openDialog: openDeleteDialog }) => (
         <ConnectedDetailHeaderActionsMenuController
-          idItems={idItems}
+          idItems={[
+            { id: trace.id, name: "trace ID" },
+            ...(trace.name ? [{ id: trace.name, name: "trace name" }] : []),
+          ]}
           projectId={trace.projectId}
           renderMenu={(copyItems) => {
             const items: DropdownMenuItemDefinition[] = [
@@ -185,8 +168,20 @@ function LoadedTraceDetailActions({
                       id: "show-trace-transcript",
                       title: "Show trace transcript",
                       icon: FileText,
-                      badge: <InternalFeatureBadge />,
+                      badge: <FeatureReleaseStatus status="internal" />,
                       onClick: onShowTranscript,
+                    },
+                  ]
+                : []),
+              ...(onShowTopicsTranscript
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "show-topics-transcript",
+                      title: "Show topics transcript",
+                      icon: FileText,
+                      badge: <FeatureReleaseStatus status="internal" />,
+                      onClick: onShowTopicsTranscript,
                     },
                   ]
                 : []),
@@ -201,51 +196,37 @@ function LoadedTraceDetailActions({
                 onClick: openDeleteDialog,
               },
             ];
-
-            if (layout === "menu") {
-              return (
-                <div
-                  inert={stale.inert}
-                  className={cn(
-                    "flex w-full flex-col gap-0.5",
-                    stale.className,
-                  )}
-                >
-                  <HeaderActionMenuRow
-                    label="Download JSON"
-                    icon={downloadIcon}
-                    disabled={isDownloading}
-                    onClick={() => handleDownload()}
-                  />
-                  <HeaderActionMenuRows items={items} />
-                </div>
-              );
-            }
-
-            return (
-              <div
-                inert={stale.inert}
-                className={cn(
-                  "flex flex-row items-center gap-1",
-                  stale.className,
-                )}
-              >
-                <HeaderActionButton
-                  label="Download JSON"
-                  icon={downloadIcon}
-                  disabled={isDownloading}
-                  onClick={() => handleDownload()}
-                />
-                <DropdownMenu items={items} placement="bottom-end">
-                  {({ getTriggerProps }) => (
-                    <HeaderActionButton
-                      label="More actions"
-                      icon={<MoreVertical size="base" />}
-                      {...getTriggerProps()}
-                    />
-                  )}
-                </DropdownMenu>
-              </div>
+            return children(
+              isSessionScope
+                ? sessionActions
+                : [
+                    {
+                      id: "download-json",
+                      type: "button",
+                      label: "Download JSON",
+                      icon: Download,
+                      isLoading: isDownloading,
+                      iconOnly: true,
+                      disabled: isDownloading || isPlaceholderData,
+                      onClick: () => {
+                        handleDownload();
+                      },
+                    },
+                    {
+                      id: JSON.stringify([
+                        "trace-options",
+                        trace.id,
+                        isPlaceholderData,
+                      ]),
+                      type: "dropdown",
+                      label: "More actions",
+                      icon: MoreVertical,
+                      iconOnly: true,
+                      placement: "trailing",
+                      disabled: isPlaceholderData,
+                      items,
+                    },
+                  ],
             );
           }}
         />

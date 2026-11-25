@@ -1,5 +1,5 @@
 import { Separator } from "@/src/components/ui/separator";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { MessagePlaceholderComponent } from "./MessagePlaceholderComponent";
 
 export const MessagePlaceholders = () => {

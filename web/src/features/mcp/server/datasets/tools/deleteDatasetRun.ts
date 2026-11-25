@@ -1,8 +1,8 @@
-import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server";
-import { DeleteDatasetRunV1Response } from "@/src/features/public-api/server";
+import { deleteDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { DeleteDatasetRunV1Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
+import { rejectLegacyDatasetRunTools } from "../legacy-run-tools-guard";
 import { DeleteDatasetRunMcpInput } from "../schema";
 
 export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
@@ -21,7 +21,7 @@ export const [deleteDatasetRunTool, handleDeleteDatasetRun] = defineTool({
         "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
-        rejectDatasetRunToolsInEventsOnlyMode();
+        rejectLegacyDatasetRunTools(context.projectId);
         const result = await deleteDatasetRunByIdForApi({
           projectId: context.projectId,
           orgId: context.orgId,

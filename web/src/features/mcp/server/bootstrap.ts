@@ -23,13 +23,15 @@ import { metricsFeature } from "./metrics";
 import { modelsFeature } from "./models";
 import { llmConnectionsFeature } from "./llmConnections";
 import { mediaFeature } from "./media";
-import { evalsFeature } from "./evals";
+import { batchEvaluationsFeature, evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
 import { feedbackFeature } from "./feedback";
 import { experimentsFeature } from "./experiments";
-import { externalMediaStorageFeature } from "./externalMediaStorage";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { monitorsFeature } from "./monitors";
+import { topicsFeature } from "./topics";
 import { v4MigrationFeature } from "./v4Migration";
+import { appsFeature } from "./apps";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -45,12 +47,15 @@ const MCP_FEATURES = [
   llmConnectionsFeature,
   mediaFeature,
   evalsFeature,
+  batchEvaluationsFeature,
   dashboardWidgetsFeature,
   feedbackFeature,
   experimentsFeature,
   externalMediaStorageFeature,
   monitorsFeature,
+  topicsFeature,
   v4MigrationFeature,
+  appsFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
 type McpFeature = (typeof MCP_FEATURES)[number];

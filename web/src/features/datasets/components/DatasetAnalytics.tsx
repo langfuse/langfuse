@@ -1,7 +1,7 @@
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { RESOURCE_METRICS } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { MultiSelectKeyValues } from "@/src/features/scores";
+import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSelectKeyValues";
 
 export function DatasetAnalytics(props: {
   scoreOptions: { key: string; value: string }[];

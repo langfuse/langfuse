@@ -14,10 +14,10 @@ import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 
