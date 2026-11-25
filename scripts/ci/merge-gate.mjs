@@ -61,6 +61,7 @@ function allowedFilteredSkips(event, ref, needs, fork) {
   for (const [job, output] of [
     ["test-worker-llm-connections", "llm_connections"],
     ["test-ai-gateway-e2e", "ai_gateway"],
+    ["tests-worker", "worker"],
   ]) {
     if (
       selection?.result === "success" &&
