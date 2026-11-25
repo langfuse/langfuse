@@ -21,8 +21,26 @@ import waitForExpect from "wait-for-expect";
 
 const maybe = eventsTableAvailable ? describe : describe.skip;
 
-describe("gateway guardrail events repository liveness", () => {
-  it("does not hang when the events table is unavailable", () => {});
+describe("gateway guardrail events repository short-circuits", () => {
+  it("returns empty results without querying ClickHouse when guardrailIds is empty", async () => {
+    const now = new Date("2026-11-10T00:00:00Z");
+    expect(
+      await getGatewayGuardrailFlaggedCountsFromEvents({
+        projectId: "unused",
+        guardrailIds: [],
+        since: now,
+      }),
+    ).toEqual([]);
+    expect(
+      await getGatewayGuardrailFlaggedTimeSeriesFromEvents({
+        projectId: "unused",
+        fromTimestamp: now,
+        toTimestamp: now,
+        granularity: "day",
+        guardrailIds: [],
+      }),
+    ).toEqual([]);
+  });
 });
 
 maybe("gateway guardrail events queries", () => {

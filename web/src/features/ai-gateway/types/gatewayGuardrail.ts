@@ -355,9 +355,8 @@ export function compileGuardrailConfigPatterns(config: {
 }
 
 /**
- * Estimates Thompson NFA compiled bytes for a set of ASCII regex patterns
- * (approximating the #20633 validator's 8-byte state + 8-byte transition model
- * until the WASM validator lands on main).
+ * Estimates compiled Thompson NFA bytes for a set of ASCII regex patterns
+ * using an 8-byte state + 8-byte transition model.
  */
 export function estimateCompiledPatternsBytes(
   patterns: readonly string[],

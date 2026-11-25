@@ -40,10 +40,13 @@ import {
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
+  GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
+  compileGuardrailConfigPatterns,
+  estimateCompiledPatternsBytes,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
   parseContainsWordsText,
@@ -104,6 +107,20 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
             code: "custom",
             path: ["containsText"],
             message: error,
+          });
+          return;
+        }
+        const compiledBytes = estimateCompiledPatternsBytes(
+          compileGuardrailConfigPatterns({
+            containsWords: parseContainsWordsText(values.containsText),
+          }),
+        );
+        if (compiledBytes > GATEWAY_GUARDRAIL_MAX_RULE_BYTES) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["containsText"],
+            message:
+              "Keyword list is too large for one guardrail. Remove some entries or split across guardrails.",
           });
         }
         return;
