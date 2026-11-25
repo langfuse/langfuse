@@ -300,17 +300,20 @@ export class GatewayGuardrailService {
       params.text.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
       GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
     );
-    if (
-      !result.valid &&
-      result.error &&
-      isCompiledSizeLimitError(result.error)
-    ) {
+    if (!result.valid) {
       return {
-        ...result,
-        error: GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+        valid: false,
+        error:
+          result.error?.code === "size_limit_exceeded"
+            ? GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE
+            : (result.error?.message ?? "Enter a valid regular expression"),
+        matches: [],
       };
     }
-    return result;
+    return {
+      valid: true,
+      matches: result.matches,
+    };
   }
 
   async create(
@@ -917,14 +920,6 @@ function normalizeGuardrailConfig(input: {
   };
 }
 
-function isCompiledSizeLimitError(error: string): boolean {
-  return (
-    error.includes("exceeded limit of") ||
-    error.includes("over the limit of") ||
-    error.includes("too large to compile")
-  );
-}
-
 function validateGuardrailPatterns(config: {
   presets: string[];
   secretPrefixes?: string[];
@@ -937,12 +932,12 @@ function validateGuardrailPatterns(config: {
     max_set_bytes: GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
   });
   if (!report.ok) {
-    const rawError =
+    const error =
       report.rules.find((rule) => rule.error)?.error ?? report.set_error;
     throw new InvalidRequestError(
-      !rawError || isCompiledSizeLimitError(rawError)
+      !error || error.code === "size_limit_exceeded"
         ? GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE
-        : rawError,
+        : error.message,
     );
   }
   return patterns;

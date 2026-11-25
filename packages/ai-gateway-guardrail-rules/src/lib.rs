@@ -33,6 +33,34 @@ pub struct Limits {
     pub max_set_bytes: u32,
 }
 
+/// Machine-readable reason a guardrail pattern or rule set failed validation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "snake_case"))]
+pub enum ValidationErrorCode {
+    EmptyPattern,
+    MatchesEmptyString,
+    UnicodeNotAllowed,
+    SyntaxError,
+    SizeLimitExceeded,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
+pub struct ValidationError {
+    pub code: ValidationErrorCode,
+    pub message: String,
+}
+
+impl ValidationError {
+    fn new(code: ValidationErrorCode, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, tsify::Tsify))]
 pub struct RuleResult {
@@ -42,7 +70,7 @@ pub struct RuleResult {
         serde(skip_serializing_if = "Option::is_none"),
         tsify(optional)
     )]
-    pub error: Option<String>,
+    pub error: Option<ValidationError>,
     #[cfg_attr(
         feature = "wasm",
         serde(skip_serializing_if = "Option::is_none"),
@@ -61,7 +89,7 @@ pub struct Report {
         serde(skip_serializing_if = "Option::is_none"),
         tsify(optional)
     )]
-    pub set_error: Option<String>,
+    pub set_error: Option<ValidationError>,
     #[cfg_attr(
         feature = "wasm",
         serde(skip_serializing_if = "Option::is_none"),
@@ -88,7 +116,7 @@ pub struct PreviewResult {
         serde(skip_serializing_if = "Option::is_none"),
         tsify(optional)
     )]
-    pub error: Option<String>,
+    pub error: Option<ValidationError>,
     pub matches: Vec<MatchSpan>,
 }
 
@@ -101,7 +129,7 @@ struct AsciiNormalizer {
 }
 
 impl AsciiNormalizer {
-    fn rewrite_ast(&mut self, ast: &mut Ast) -> Result<(), String> {
+    fn rewrite_ast(&mut self, ast: &mut Ast) -> Result<(), ValidationError> {
         match ast {
             Ast::Empty(_) | Ast::Dot(_) => Ok(()),
             Ast::Flags(set) => filter_flags(&mut set.flags, &mut self.case_insensitive),
@@ -140,9 +168,10 @@ impl AsciiNormalizer {
                 }
                 Ok(())
             }
-            Ast::ClassUnicode(_) => Err(
-                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only".into(),
-            ),
+            Ast::ClassUnicode(_) => Err(ValidationError::new(
+                ValidationErrorCode::UnicodeNotAllowed,
+                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only",
+            )),
             Ast::ClassPerl(perl) => {
                 let span = perl.span;
                 let ascii = perl_to_ascii(perl);
@@ -179,7 +208,7 @@ impl AsciiNormalizer {
         }
     }
 
-    fn rewrite_class_set(&self, set: &mut ClassSet) -> Result<(), String> {
+    fn rewrite_class_set(&self, set: &mut ClassSet) -> Result<(), ValidationError> {
         match set {
             ClassSet::Item(item) => self.rewrite_class_item(item),
             ClassSet::BinaryOp(op) => {
@@ -189,7 +218,7 @@ impl AsciiNormalizer {
         }
     }
 
-    fn rewrite_class_item(&self, item: &mut ClassSetItem) -> Result<(), String> {
+    fn rewrite_class_item(&self, item: &mut ClassSetItem) -> Result<(), ValidationError> {
         match item {
             ClassSetItem::Empty(_) => Ok(()),
             ClassSetItem::Literal(lit) => {
@@ -214,9 +243,10 @@ impl AsciiNormalizer {
                 }
                 Ok(())
             }
-            ClassSetItem::Unicode(_) => Err(
-                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only".into(),
-            ),
+            ClassSetItem::Unicode(_) => Err(ValidationError::new(
+                ValidationErrorCode::UnicodeNotAllowed,
+                r"Unicode character classes (\p{..}) are not allowed: rules are ASCII-only",
+            )),
             ClassSetItem::Perl(perl) => {
                 *item = ClassSetItem::Ascii(perl_to_ascii(perl));
                 Ok(())
@@ -232,7 +262,10 @@ impl AsciiNormalizer {
     }
 }
 
-fn filter_flags(flags: &mut ast::Flags, case_insensitive: &mut bool) -> Result<(), String> {
+fn filter_flags(
+    flags: &mut ast::Flags,
+    case_insensitive: &mut bool,
+) -> Result<(), ValidationError> {
     let mut positive = Vec::new();
     let mut negative = Vec::new();
     let mut negated = false;
@@ -240,7 +273,10 @@ fn filter_flags(flags: &mut ast::Flags, case_insensitive: &mut bool) -> Result<(
         match item.kind {
             FlagsItemKind::Negation => negated = true,
             FlagsItemKind::Flag(Flag::Unicode) if !negated => {
-                return Err("the `u` flag is not allowed: rules are ASCII-only".into());
+                return Err(ValidationError::new(
+                    ValidationErrorCode::UnicodeNotAllowed,
+                    "the `u` flag is not allowed: rules are ASCII-only",
+                ));
             }
             FlagsItemKind::Flag(Flag::Unicode) => {}
             FlagsItemKind::Flag(Flag::CaseInsensitive) => {
@@ -345,11 +381,13 @@ fn fold_ascii_range(range: &ast::ClassSetRange) -> Option<ClassSetItem> {
     Some(ClassSetItem::Union(ast::ClassSetUnion { span, items }))
 }
 
-fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
+fn parse_to_hir(pattern: &str) -> Result<Hir, ValidationError> {
     let mut ast = ast::parse::ParserBuilder::new()
         .build()
         .parse(pattern)
-        .map_err(|error| describe(&error))?;
+        .map_err(|error| {
+            ValidationError::new(ValidationErrorCode::SyntaxError, describe(&error))
+        })?;
     let mut normalizer = AsciiNormalizer {
         case_insensitive: false,
     };
@@ -359,22 +397,30 @@ fn parse_to_hir(pattern: &str) -> Result<Hir, String> {
         .utf8(true)
         .build()
         .translate(pattern, &ast)
-        .map_err(|error| describe(&error))
+        .map_err(|error| ValidationError::new(ValidationErrorCode::SyntaxError, describe(&error)))
 }
 
 fn compile_bounded_nfa(
     hirs: &[&Hir],
     limit: u32,
     what: &str,
-) -> Result<(thompson::NFA, u32), String> {
+) -> Result<(thompson::NFA, u32), ValidationError> {
     let nfa = thompson::Compiler::new()
         .configure(thompson::Config::new().nfa_size_limit(Some(limit as usize)))
         .build_many_from_hir(hirs)
-        .map_err(|error| describe(&error))?;
+        .map_err(|error| {
+            let code = if error.size_limit().is_some() {
+                ValidationErrorCode::SizeLimitExceeded
+            } else {
+                ValidationErrorCode::SyntaxError
+            };
+            ValidationError::new(code, describe(&error))
+        })?;
     let bytes = u32::try_from(nfa.memory_usage()).unwrap_or(u32::MAX);
     if bytes > limit {
-        return Err(format!(
-            "{what} compiles to {bytes} bytes, over the limit of {limit}"
+        return Err(ValidationError::new(
+            ValidationErrorCode::SizeLimitExceeded,
+            format!("{what} compiles to {bytes} bytes, over the limit of {limit}"),
         ));
     }
     Ok((nfa, bytes))
@@ -395,13 +441,22 @@ fn describe(error: &dyn std::error::Error) -> String {
         .to_owned()
 }
 
-fn check_rule(pattern: &str, max_rule_bytes: u32) -> Result<(Hir, thompson::NFA, u32), String> {
+fn check_rule(
+    pattern: &str,
+    max_rule_bytes: u32,
+) -> Result<(Hir, thompson::NFA, u32), ValidationError> {
     if pattern.is_empty() {
-        return Err("pattern is empty".into());
+        return Err(ValidationError::new(
+            ValidationErrorCode::EmptyPattern,
+            "pattern is empty",
+        ));
     }
     let hir = parse_to_hir(pattern)?;
     if hir.properties().minimum_len() == Some(0) {
-        return Err("pattern matches the empty string".into());
+        return Err(ValidationError::new(
+            ValidationErrorCode::MatchesEmptyString,
+            "pattern matches the empty string",
+        ));
     }
     let (nfa, bytes) = compile_bounded_nfa(&[&hir], max_rule_bytes, "rule")?;
     Ok((hir, nfa, bytes))
@@ -453,7 +508,7 @@ fn check_rules(patterns: &[String], max_rule_bytes: u32) -> (Vec<RuleResult>, Ve
     (rules, hirs, all_valid)
 }
 
-fn check_set(hirs: &[Hir], max_set_bytes: u32) -> (Option<u32>, Option<String>) {
+fn check_set(hirs: &[Hir], max_set_bytes: u32) -> (Option<u32>, Option<ValidationError>) {
     if hirs.is_empty() {
         return (None, None);
     }
@@ -489,7 +544,10 @@ pub fn preview(pattern: &str, text: &str, max_rule_bytes: u32) -> PreviewResult 
         Err(error) => {
             return PreviewResult {
                 valid: false,
-                error: Some(describe(&error)),
+                error: Some(ValidationError::new(
+                    ValidationErrorCode::SyntaxError,
+                    describe(&error),
+                )),
                 matches: Vec::new(),
             };
         }
@@ -540,7 +598,7 @@ fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSp
 pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String> {
     let hirs: Vec<Hir> = patterns
         .iter()
-        .map(|pattern| parse_to_hir(pattern.as_ref()))
+        .map(|pattern| parse_to_hir(pattern.as_ref()).map_err(|error| error.message))
         .collect::<Result<_, _>>()?;
     meta::Builder::new()
         .configure(
@@ -558,7 +616,7 @@ pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String>
 /// extraction, using the same ASCII-only translation as [`validate`].
 #[cfg(feature = "gateway")]
 pub fn compile_captures(pattern: &str) -> Result<meta::Regex, String> {
-    let hir = parse_to_hir(pattern)?;
+    let hir = parse_to_hir(pattern).map_err(|error| error.message)?;
     meta::Builder::new()
         .configure(
             meta::Config::new()
@@ -608,7 +666,7 @@ mod tests {
         max_set_bytes: 512 * 1024,
     };
 
-    fn error(pattern: &str) -> Option<String> {
+    fn error(pattern: &str) -> Option<ValidationError> {
         check_rule(pattern, RFC_LIMITS.max_rule_bytes).err()
     }
 
@@ -638,26 +696,27 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unicode_lookaround_backreferences_and_empty_matches() {
-        for pattern in [
-            r"\p{L}+",
-            r"[\p{L}]+",
-            r"(?u:\w)+",
-            r"(?iu)abc",
-            r"foo(?=bar)",
-            r"(?<=x)y",
-            r"(a)\1",
-            "",
-            "(?i)",
-            "()",
-            "(?:)",
-            "x?",
-            r"\d*",
-            r"\b",
-            "^$",
-            "a|",
+    fn rejects_unicode_lookaround_backreferences_and_empty_matches_with_typed_codes() {
+        for (pattern, expected_code) in [
+            (r"\p{L}+", ValidationErrorCode::UnicodeNotAllowed),
+            (r"[\p{L}]+", ValidationErrorCode::UnicodeNotAllowed),
+            (r"(?u:\w)+", ValidationErrorCode::UnicodeNotAllowed),
+            (r"(?iu)abc", ValidationErrorCode::UnicodeNotAllowed),
+            (r"foo(?=bar)", ValidationErrorCode::SyntaxError),
+            (r"(?<=x)y", ValidationErrorCode::SyntaxError),
+            (r"(a)\1", ValidationErrorCode::SyntaxError),
+            ("", ValidationErrorCode::EmptyPattern),
+            ("(?i)", ValidationErrorCode::MatchesEmptyString),
+            ("()", ValidationErrorCode::MatchesEmptyString),
+            ("(?:)", ValidationErrorCode::MatchesEmptyString),
+            ("x?", ValidationErrorCode::MatchesEmptyString),
+            (r"\d*", ValidationErrorCode::MatchesEmptyString),
+            (r"\b", ValidationErrorCode::MatchesEmptyString),
+            ("^$", ValidationErrorCode::MatchesEmptyString),
+            ("a|", ValidationErrorCode::MatchesEmptyString),
         ] {
-            assert!(error(pattern).is_some(), "{pattern}");
+            let err = error(pattern).unwrap_or_else(|| panic!("expected error for {pattern}"));
+            assert_eq!(err.code, expected_code, "{pattern}");
         }
     }
 
@@ -701,7 +760,10 @@ mod tests {
         let oversized_rule = r"\w{1,500}".repeat(5);
         let report = validate(std::slice::from_ref(&oversized_rule), &RFC_LIMITS);
         assert!(!report.ok);
-        assert!(report.rules[0].error.is_some());
+        assert_eq!(
+            report.rules[0].error.as_ref().map(|err| err.code),
+            Some(ValidationErrorCode::SizeLimitExceeded)
+        );
 
         // Org total > 512 KiB compiled (each rule fits under 128 KiB).
         let medium_rule = r"\w{1,250}".to_string();
@@ -711,7 +773,10 @@ mod tests {
         let set_report = validate(&oversized_set, &RFC_LIMITS);
         assert!(!set_report.ok);
         assert!(set_report.rules.iter().all(|r| r.error.is_none()));
-        assert!(set_report.set_error.is_some());
+        assert_eq!(
+            set_report.set_error.as_ref().map(|err| err.code),
+            Some(ValidationErrorCode::SizeLimitExceeded)
+        );
 
         // Tighter caller-supplied limits reject rules that pass under RFC_LIMITS.
         let ssn = vec![r"\b\d{3}-\d{2}-\d{4}\b".to_string()];
@@ -722,12 +787,24 @@ mod tests {
             max_rule_bytes: ssn_bytes - 1,
             ..RFC_LIMITS
         };
-        assert!(!validate(&ssn, &tighter_rule).ok);
+        assert_eq!(
+            validate(&ssn, &tighter_rule).rules[0]
+                .error
+                .as_ref()
+                .map(|err| err.code),
+            Some(ValidationErrorCode::SizeLimitExceeded)
+        );
         let tighter_set = Limits {
             max_set_bytes: ssn_bytes - 1,
             ..RFC_LIMITS
         };
-        assert!(!validate(&ssn, &tighter_set).ok);
+        assert_eq!(
+            validate(&ssn, &tighter_set)
+                .set_error
+                .as_ref()
+                .map(|err| err.code),
+            Some(ValidationErrorCode::SizeLimitExceeded)
+        );
     }
 
     #[test]
@@ -767,7 +844,10 @@ mod tests {
 
         let invalid = preview(r"(?u:\w)+", "abc", RFC_LIMITS.max_rule_bytes);
         assert!(!invalid.valid);
-        assert!(invalid.error.is_some());
+        assert_eq!(
+            invalid.error.as_ref().map(|err| err.code),
+            Some(ValidationErrorCode::UnicodeNotAllowed)
+        );
         assert!(invalid.matches.is_empty());
     }
 

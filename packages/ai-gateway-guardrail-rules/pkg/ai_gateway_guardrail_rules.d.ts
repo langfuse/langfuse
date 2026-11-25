@@ -23,25 +23,35 @@ export interface Limits {
 }
 
 /**
+ * Machine-readable reason a guardrail pattern or rule set failed validation.
+ */
+export type ValidationErrorCode = "empty_pattern" | "matches_empty_string" | "unicode_not_allowed" | "syntax_error" | "size_limit_exceeded";
+
+/**
  * Result of validating a pattern and matching it against sample text.
  */
 export interface PreviewResult {
     valid: boolean;
-    error?: string;
+    error?: ValidationError;
     matches: MatchSpan[];
 }
 
 export interface Report {
     ok: boolean;
     rules: RuleResult[];
-    set_error?: string;
+    set_error?: ValidationError;
     set_bytes?: number;
 }
 
 export interface RuleResult {
     index: number;
-    error?: string;
+    error?: ValidationError;
     compiled_bytes?: number;
+}
+
+export interface ValidationError {
+    code: ValidationErrorCode;
+    message: string;
 }
 
 
