@@ -50,5 +50,5 @@ export const [
         };
       },
     }),
-  destructiveHint: false,
+  annotations: { destructiveHint: false },
 });

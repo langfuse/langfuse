@@ -47,11 +47,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
 } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useEvaluatorPromptSample } from "@/src/features/evals/v2/hooks/useEvaluatorPromptSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
@@ -73,7 +74,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
+  const sampleObject = useEvaluatorPromptSample({ projectId, store });
   return <PromptEditorContent store={store} sampleObject={sampleObject} />;
 }
 
@@ -91,16 +92,21 @@ export function PromptEditorContent({
       promptMessages: state.promptMessages,
       promptMessageIds: state.promptMessageIds,
       variableFields: state.variableFields,
+      targetObject: state.targetObject,
       promptPreviewEnabled: state.promptPreviewEnabled,
       actions: state.actions,
     })),
+  );
+  const variableFields = variableFieldsForTarget(
+    state.targetObject,
+    state.variableFields,
   );
   const combinedPrompt = state.promptMessages
     .map(({ content }) => content)
     .join("\n\n");
   const combinedPrepared = preparePromptEditorState({
     prompt: combinedPrompt,
-    variableFields: state.variableFields,
+    variableFields,
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
@@ -157,7 +163,7 @@ export function PromptEditorContent({
               combinedPrepared={combinedPrepared}
               prepared={preparePromptEditorState({
                 prompt: message.content,
-                variableFields: state.variableFields,
+                variableFields,
                 promptPreviewEnabled: state.promptPreviewEnabled,
                 sampleObject,
               })}

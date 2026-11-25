@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useRouter } from "next/router";
 import { type UrlUpdateType } from "use-query-params";
 import { useExperimentComparisonAutoSelect } from "@/src/features/experiments/hooks/useExperimentComparisonAutoSelect";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  autoComparisonPreferenceChangedProps,
   comparisonChangedProps,
   type ExperimentComparisonSource,
 } from "@/src/features/experiments/lib/analytics";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
-import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
-import { getExperimentColorStyles } from "./table/types";
-import { cn } from "@/src/utils/tailwind";
+import { ConnectedExperimentComparisonSelect } from "./ConnectedExperimentComparisonSelect";
 
 type ExperimentSelectionControlsProps = {
   projectId: string;
@@ -85,6 +85,7 @@ export function ExperimentSelectionControls({
 
   // Mounted once per results page, so the default comparison is decided here
   // rather than in the state hook that every consumer of the URL calls.
+  const autoSelectId = useId();
   const { isAutoSelectEnabled, setIsAutoSelectEnabled } =
     useExperimentComparisonAutoSelect({
       projectId,
@@ -117,50 +118,52 @@ export function ExperimentSelectionControls({
     captureComparisonChanged,
   ]);
 
-  // The same marker the cells put in front of a value, so the run whose values
-  // are plain is named as the baseline here. Absent when the cells show no
-  // colour at all, which is what an empty colour order means.
-  const baselineMarkerClass =
-    baselineId && colorExperimentIds.includes(baselineId)
-      ? getExperimentColorStyles(baselineId, colorExperimentIds).markerClass
-      : undefined;
-
   return (
     <div className="flex w-[56dvw] min-w-0 flex-row gap-3">
-      <div className="flex min-w-0 items-center">
-        <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center gap-1.5 rounded-l-md border px-3 text-xs">
-          {baselineMarkerClass && (
-            <span
-              className={cn(
-                "block h-3 w-0.5 shrink-0 rounded-full",
-                baselineMarkerClass,
-              )}
-            />
-          )}
-          Baseline
-        </div>
-        <div className="w-full max-w-64 min-w-0 flex-1">
-          <ExperimentBaselineControls
-            projectId={projectId}
-            baselineId={baselineId}
-            baselineName={baselineName}
-            onBaselineChange={onBaselineChange}
-            onBaselineClear={onBaselineClear}
-          />
-        </div>
+      <div className="w-full max-w-80 min-w-0 flex-1">
+        <ExperimentBaselineControls
+          projectId={projectId}
+          baselineId={baselineId}
+          baselineName={baselineName}
+          onBaselineChange={onBaselineChange}
+          onBaselineClear={onBaselineClear}
+        />
       </div>
 
-      <div className="w-full min-w-0 flex-1">
-        <ExperimentComparisonSelector
-          projectId={projectId}
-          baselineExperimentId={baselineId}
-          selectedIds={comparisonIds}
-          colorExperimentIds={colorExperimentIds}
-          selectedExperimentCount={selectedExperimentCount}
-          onSelectedIdsChange={onComparisonIdsChange}
-          isAutoSelectEnabled={isAutoSelectEnabled}
-          onAutoSelectEnabledChange={setIsAutoSelectEnabled}
-        />
+      <div className="flex w-full min-w-0 flex-1 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <ConnectedExperimentComparisonSelect
+            projectId={projectId}
+            baselineExperimentId={baselineId}
+            selectedIds={comparisonIds}
+            colorExperimentIds={colorExperimentIds}
+            selectedExperimentCount={selectedExperimentCount}
+            onSelectedIdsChange={onComparisonIdsChange}
+          />
+        </div>
+        <label
+          htmlFor={autoSelectId}
+          className="flex shrink-0 cursor-pointer items-center gap-2 text-xs whitespace-nowrap"
+          title="Auto-select a comparison experiment by default"
+        >
+          <Checkbox
+            id={autoSelectId}
+            size="sm"
+            checked={isAutoSelectEnabled}
+            onCheckedChange={(checked) => {
+              const isEnabled = checked === true;
+              capture(
+                "experiment:auto_comparison_preference_changed",
+                autoComparisonPreferenceChangedProps({
+                  tableName: "experiment-items",
+                  isEnabled,
+                }),
+              );
+              setIsAutoSelectEnabled(isEnabled);
+            }}
+          />
+          Auto-select comparison
+        </label>
       </div>
     </div>
   );

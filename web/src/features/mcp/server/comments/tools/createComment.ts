@@ -38,8 +38,7 @@ export const [createCommentTool, handleCreateComment] = defineTool({
   action: "comments:CUD",
   baseSchema: CreateCommentToolBaseSchema,
   inputSchema: CreateCommentToolSchema,
-  readOnlyHint: false,
-  destructiveHint: false,
+  annotations: { readOnlyHint: false, destructiveHint: false },
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.comments.create",

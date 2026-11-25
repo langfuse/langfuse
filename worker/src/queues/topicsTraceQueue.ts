@@ -12,6 +12,7 @@ import {
 import { isFinalBullmqAttempt } from "../features/integrations/bullmqAttempts";
 import { retryLLMRateLimitError } from "../features/utils/retry-handler";
 import { processTopicsTrace } from "../features/topics/processTopicsTrace";
+import { withTopicsOrg } from "../features/topics/orgContext";
 
 // Retries 1, 6 and 16 minutes after the first attempt; nothing runs after 30 minutes.
 const TOPICS_TRACE_RETRY_SCHEDULE = {
@@ -49,26 +50,28 @@ export const topicsTraceQueueProcessorBuilder =
         });
       throw error;
     };
-    return processTopicsTrace(event, {
-      attempt,
-      scheduleRetry: async (facetIds) => {
-        const retry = await retryLLMRateLimitError(
-          { data: { ...job.data, payload: { ...event, facetIds } } },
-          {
-            table: null,
-            idField: "traceId",
-            queue: TopicsTraceQueue.getInstance({ shardName }),
-            queueName: shardName,
-            jobName: QueueJobs.TopicsTraceJob,
-            schedule: TOPICS_TRACE_RETRY_SCHEDULE,
-          },
-        );
-        // BullMQ's attempts then rerun only the failed facets, not the stored ones.
-        if (retry.outcome === "queue_unavailable")
-          await job
-            .updateData({ ...job.data, payload: { ...event, facetIds } })
-            .catch(() => {});
-        return retry.outcome;
-      },
-    }).catch(countLastFailure);
+    return withTopicsOrg(event.projectId, () =>
+      processTopicsTrace(event, {
+        attempt,
+        scheduleRetry: async (facetIds) => {
+          const retry = await retryLLMRateLimitError(
+            { data: { ...job.data, payload: { ...event, facetIds } } },
+            {
+              table: null,
+              idField: "traceId",
+              queue: TopicsTraceQueue.getInstance({ shardName }),
+              queueName: shardName,
+              jobName: QueueJobs.TopicsTraceJob,
+              schedule: TOPICS_TRACE_RETRY_SCHEDULE,
+            },
+          );
+          // BullMQ's attempts then rerun only the failed facets, not the stored ones.
+          if (retry.outcome === "queue_unavailable")
+            await job
+              .updateData({ ...job.data, payload: { ...event, facetIds } })
+              .catch(() => {});
+          return retry.outcome;
+        },
+      }),
+    ).catch(countLastFailure);
   };

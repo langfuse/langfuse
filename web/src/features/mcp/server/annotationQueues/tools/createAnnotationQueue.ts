@@ -33,8 +33,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
     action: "annotationQueues:CUD",
     baseSchema: CreateAnnotationQueueBaseSchema,
     inputSchema: CreateAnnotationQueueBody,
-    readOnlyHint: false,
-    destructiveHint: false,
+    annotations: { readOnlyHint: false, destructiveHint: false },
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.annotation_queues.create",

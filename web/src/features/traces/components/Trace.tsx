@@ -60,6 +60,7 @@ import { useSessionTraceData } from "../hooks/useSessionTraceData";
 import { type TraceDataTrace, type TraceScope } from "../types/traceScope";
 import { ErrorPage } from "@/src/components/ErrorPage";
 import { SessionTracePeek } from "./SessionTracePeek/SessionTracePeek";
+import { type TraceDetailPageListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useIsSessionTracePeek } from "./SessionTracePeek/SessionTracePeekNavigationProvider";
 
 export type TraceProps = {
@@ -503,6 +504,8 @@ function TraceContent({
     typeof router.query.sessionPeek === "string"
       ? router.query.sessionPeek
       : null;
+  const tracePeekParams = new URLSearchParams(tracePeek ?? "");
+  const peekTraceId = tracePeekParams.get("peek");
   const openTracePeek = (search: string) => {
     if (isSessionTracePeek) {
       const params = new URLSearchParams(search);
@@ -573,14 +576,33 @@ function TraceContent({
     <DesktopTraceContent desktopLayout={desktopLayout} />
   );
 
+  function renderTracePeek(entries: TraceDetailPageListEntry[]) {
+    if (!showMessagesTab || isSessionTracePeek || !tracePeek) return null;
+    return (
+      <SessionTracePeek
+        projectId={projectId}
+        search={tracePeek}
+        onClose={closeTracePeek}
+        traceEntries={entries}
+      />
+    );
+  }
+
   const sessionWorkspace =
     showMessagesTab && scope.type === "session" ? (
       <SessionEventsWorkspace
         key={`${projectId}:${scope.sessionId}`}
         projectId={projectId}
         sessionId={scope.sessionId}
+        renderTracePeek={renderTracePeek}
         navigation={{
           activeView,
+          activePeek: peekTraceId
+            ? {
+                traceId: peekTraceId,
+                observationId: tracePeekParams.get("observation") ?? undefined,
+              }
+            : undefined,
           onViewChange: (value) =>
             setTraceView(
               value === "messages" ? "messages" : undefined,
@@ -678,13 +700,7 @@ function TraceContent({
   const workspace = (
     <>
       {content}
-      {showMessagesTab && !isSessionTracePeek && tracePeek && (
-        <SessionTracePeek
-          projectId={projectId}
-          search={tracePeek}
-          onClose={closeTracePeek}
-        />
-      )}
+      {!sessionWorkspace && renderTracePeek([])}
     </>
   );
 

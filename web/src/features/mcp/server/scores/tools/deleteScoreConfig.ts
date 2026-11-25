@@ -24,5 +24,5 @@ export const [deleteScoreConfigTool, handleDeleteScoreConfig] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

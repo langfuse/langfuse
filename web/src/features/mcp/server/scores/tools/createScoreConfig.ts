@@ -36,7 +36,7 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   action: "scoreConfigs:CUD",
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
-  destructiveHint: false,
+  annotations: { destructiveHint: false },
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.create",

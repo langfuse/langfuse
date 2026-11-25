@@ -1,7 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { MoreHorizontal, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
+import { AsyncMultiSelectTagInput } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
@@ -36,33 +36,38 @@ export const UserAssignmentSection = ({
   onRemove,
 }: UserAssignmentSectionProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const selectedUsers = users.filter((user) =>
-    selectedUserIds.includes(user.id),
-  );
-  const handleUsersChange = (users: typeof searchResults) => {
-    const userIds = users.map((user) => user.id);
-    onChange(userIds);
-  };
+  const selectedUsers = selectedUserIds.map((id) => {
+    const user = users.find((user) => user.id === id);
+    return { value: id, label: user?.name || user?.email || id };
+  });
 
   const hasMoreAssignedUsers = totalAssignedUsers > assignedUsers.length;
 
   return (
     <div className="space-y-4" ref={containerRef}>
-      {/* User Selection Combobox */}
-      <MultiSelectCombobox
-        selectedItems={selectedUsers}
-        onItemsChange={handleUsersChange}
-        searchQuery={searchQuery}
-        onSearchChange={onSearchChange}
-        searchResults={searchResults.filter(
-          (user) => !selectedUserIds.includes(user.id),
-        )}
-        isLoading={isLoading}
+      <AsyncMultiSelectTagInput
+        aria-label="Users to assign"
+        value={selectedUsers}
+        onValueChange={(selection) =>
+          onChange(selection.map(({ value }) => value))
+        }
+        search={{
+          value: searchQuery,
+          onValueChange: onSearchChange,
+          placeholder: "Search users to add...",
+        }}
+        options={searchResults
+          .filter((user) => !selectedUserIds.includes(user.id))
+          .map((user) => ({
+            value: user.id,
+            label: user.name || user.email,
+            secondaryLabel: user.name ? user.email : undefined,
+          }))}
+        loading={isLoading ? { message: "Loading users..." } : undefined}
         disabled={!canWrite}
         placeholder="Search users to add..."
-        hasMoreResults={hasMoreResults}
-        getItemKey={(user) => user.id}
-        onOpenChange={(open) => {
+        emptyMessage="No users found."
+        onAfterOpenChange={(open) => {
           if (open) {
             setTimeout(() => {
               containerRef.current?.scrollIntoView({
@@ -72,53 +77,12 @@ export const UserAssignmentSection = ({
             }, 100);
           }
         }}
-        renderSelectedItem={(user, onRemove) => {
-          const userLabel = user.name || user.email;
-
-          return (
-            <div className="bg-muted flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
-              <span className="max-w-32 truncate" title={userLabel}>
-                {userLabel}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
-                onClick={onRemove}
-              >
-                <X size="base" color="default" />
-              </Button>
-            </div>
-          );
-        }}
-        renderItem={(user, isSelected, onToggle) => {
-          const userName = user.name || "Unnamed User";
-
-          return (
-            <div
-              className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors"
-              onClick={onToggle}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-3">
-                  <p className="truncate text-xs font-bold" title={userName}>
-                    {userName}
-                  </p>
-                  <p
-                    className="text-muted-foreground truncate text-xs"
-                    title={user.email}
-                  >
-                    {user.email}
-                  </p>
-                </div>
-              </div>
-              {isSelected && (
-                <div className="text-muted-foreground text-xs">✓</div>
-              )}
-            </div>
-          );
-        }}
       />
+      {hasMoreResults && !isLoading && (
+        <p className="text-muted-foreground text-xs">
+          More results available, refine your search.
+        </p>
+      )}
 
       {/* Assigned Users Section */}
       {totalAssignedUsers > 0 && (

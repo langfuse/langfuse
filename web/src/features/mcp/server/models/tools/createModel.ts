@@ -150,5 +150,5 @@ export const [createModelTool, handleCreateModel] = defineTool({
         };
       },
     }),
-  destructiveHint: false,
+  annotations: { destructiveHint: false },
 });

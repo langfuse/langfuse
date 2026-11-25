@@ -9,8 +9,11 @@ import {
 } from "../AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 
 type MultiSelectTagInputProps<V extends string> = Omit<
-  React.ComponentProps<typeof AsyncMultiSelectTagInput<V>>,
-  "value" | "onValueChange" | "search" | "loading"
+  Extract<
+    React.ComponentProps<typeof AsyncMultiSelectTagInput<V>>,
+    { options: MultiSelectTagOption<V>[] }
+  >,
+  "value" | "onValueChange" | "search" | "loading" | "groups"
 > & {
   value: V[];
   onValueChange: (newValue: V[]) => void;

@@ -26,5 +26,5 @@ export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
         return { message: "Evaluator successfully deleted" };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

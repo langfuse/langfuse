@@ -44,5 +44,5 @@ export const [
         }
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

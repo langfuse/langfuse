@@ -32,7 +32,7 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
       "The run named runName is created on the item's dataset if missing, else reused unchanged." +
       " Fails with not-found on v4 events-only deployments; read results with listExperimentItems there.",
     action: "datasets:CUD",
-    destructiveHint: false,
+    annotations: { destructiveHint: false },
     baseSchema: CreateDatasetRunItemBaseSchema,
     inputSchema: PostDatasetRunItemsV1Body,
     handler: async (input, context) =>

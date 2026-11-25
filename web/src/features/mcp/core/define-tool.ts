@@ -14,6 +14,7 @@ import {
 import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import type {
   Tool,
+  ToolAnnotations,
   ServerContext as McpRequestContext,
 } from "@modelcontextprotocol/server";
 import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
@@ -63,14 +64,11 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Action the caller must hold to run this tool. */
   action: ApiAction;
 
-  /** Hint: This tool only reads data, does not modify anything */
-  readOnlyHint?: boolean;
-
-  /** Hint: This tool has destructive effects (delete, overwrite) */
-  destructiveHint?: boolean;
-
-  /** Hint: This tool is expensive to run (slow, rate-limited) */
-  expensiveHint?: boolean;
+  /**
+   * MCP tool annotations (a display title and behavior hints such as
+   * `readOnlyHint`), published as given in `tools/list`.
+   */
+  annotations?: ToolAnnotations;
 
   /** Renders results with an MCP App UI resource in hosts that support it. */
   ui?: McpAppToolUi;
@@ -104,11 +102,7 @@ export interface ToolDefinition<TName extends string = string> {
   description: string;
   action: ApiAction;
   inputSchema: Tool["inputSchema"];
-  annotations?: {
-    readOnlyHint?: boolean;
-    destructiveHint?: boolean;
-    expensiveHint?: boolean;
-  };
+  annotations?: ToolAnnotations;
   _meta?: ReturnType<typeof toMcpAppToolMeta>;
 }
 
@@ -201,9 +195,7 @@ export function defineTool<TInput, const TName extends string>(
     action,
     baseSchema,
     inputSchema,
-    readOnlyHint,
-    destructiveHint,
-    expensiveHint,
+    annotations,
     ui,
   } = options;
 
@@ -242,22 +234,9 @@ export function defineTool<TInput, const TName extends string>(
     description,
     action,
     inputSchema: jsonSchemaObject,
+    ...(annotations ? { annotations } : {}),
     ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
-
-  // Advertise every hint that is set, including explicit `false`: clients
-  // treat a missing destructiveHint on a write tool as destructive.
-  if (
-    readOnlyHint !== undefined ||
-    destructiveHint !== undefined ||
-    expensiveHint !== undefined
-  ) {
-    toolDefinition.annotations = {
-      readOnlyHint,
-      destructiveHint,
-      expensiveHint,
-    };
-  }
 
   const wrappedHandler: ToolHandler<TInput> = async (
     rawInput: unknown,

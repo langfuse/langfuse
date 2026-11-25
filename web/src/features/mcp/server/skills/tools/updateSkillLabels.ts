@@ -40,5 +40,5 @@ export const [updateSkillLabelsTool, handleUpdateSkillLabels] = defineTool({
           },
         }),
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

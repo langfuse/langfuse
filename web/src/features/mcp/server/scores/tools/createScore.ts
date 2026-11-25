@@ -87,7 +87,7 @@ export const [createScoreTool, handleCreateScore] = defineTool({
   action: "scores:save",
   baseSchema: CreateScoreBaseSchema,
   inputSchema: PostScoreBodyV1,
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.create",

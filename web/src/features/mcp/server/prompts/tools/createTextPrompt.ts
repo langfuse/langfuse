@@ -129,5 +129,5 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
     });
   },
   // Moving labels and replacing tags changes existing prompt versions.
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

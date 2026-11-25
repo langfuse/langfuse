@@ -110,5 +110,4 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
         return result;
       },
     }),
-  expensiveHint: true,
 });

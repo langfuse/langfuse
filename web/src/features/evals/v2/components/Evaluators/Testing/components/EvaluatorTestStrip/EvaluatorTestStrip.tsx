@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "@langfuse/icons";
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
-import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
+import { EvaluatorTestResult } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestResult/EvaluatorTestResult";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
 import {
@@ -11,51 +10,6 @@ import {
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { useStore } from "zustand";
-
-function readVariables(result: unknown) {
-  if (!result || typeof result !== "object" || !("variables" in result)) {
-    return [];
-  }
-  const variables = (result as { variables?: unknown }).variables;
-  if (!Array.isArray(variables)) return [];
-  return variables.flatMap((item) => {
-    if (!item || typeof item !== "object" || !("var" in item)) return [];
-    const variable = item as { var: unknown; value?: unknown };
-    return [{ name: String(variable.var), value: variable.value }];
-  });
-}
-
-function scoreText(state: TestResultPanelState) {
-  if (state.status === "llm-success") return state.score;
-  if (state.status === "code-success") {
-    return state.scores.map((score) => score.value).join(", ");
-  }
-  if (state.status === "decision-success") {
-    return state.results
-      .map((result) => {
-        if (result.type === "choice") return result.choice;
-        if (result.type === "score") return String(result.score);
-        return String(result.probability);
-      })
-      .join(", ");
-  }
-  if (state.status === "running") return "…";
-  return "";
-}
-
-function reasoningText(state: TestResultPanelState) {
-  if (state.status === "llm-success") return state.reasoning;
-  if (state.status === "code-success") {
-    const comments = state.scores
-      .map((score) => score.comment)
-      .filter((comment): comment is string => Boolean(comment));
-    return comments.length > 0 ? comments.join("\n") : null;
-  }
-  if (state.status === "request-error" || state.status === "run-error") {
-    return state.message;
-  }
-  return null;
-}
 
 /**
  * Bottom test row for the trace-detail sample view. The collapsed row keeps
@@ -88,14 +42,11 @@ export function EvaluatorTestStrip({
     isPending: testPending,
     result: testResult,
   });
-  const variables = readVariables(testResult);
-  const score = scoreText(panelState);
-  const reasoning = reasoningText(panelState);
   const showResult = open && panelState.status !== "empty";
 
   return (
-    <div className="flex flex-col">
-      <div className="flex h-12 items-center justify-between gap-3 px-6">
+    <div className="flex min-h-0 flex-col">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-6">
         <button
           type="button"
           className="inline-flex items-center gap-1 text-sm"
@@ -122,42 +73,7 @@ export function EvaluatorTestStrip({
         />
       </div>
       {showResult ? (
-        <div className="ph-no-capture grid grid-cols-3 gap-4 px-3 pt-1 pb-3">
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Variable result</p>
-            {variables.length > 0 ? (
-              variables.map((variable) => (
-                <div key={variable.name} className="mt-2 min-w-0">
-                  <span className="bg-muted rounded px-1 font-mono text-xs">{`{{${variable.name}}}`}</span>
-                  <div className="mt-2 max-h-48 overflow-auto">
-                    <PrettyJsonView
-                      json={variable.value}
-                      currentView="pretty"
-                      scrollable
-                      borderless
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground mt-2 text-sm">
-                {panelState.status === "running"
-                  ? "Running…"
-                  : "No variable result."}
-              </p>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Score</p>
-            <p className="mt-2 text-2xl font-bold">{score || "—"}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-xs">Model reasoning</p>
-            <p className="mt-2 text-sm whitespace-pre-wrap">
-              {reasoning || "—"}
-            </p>
-          </div>
-        </div>
+        <EvaluatorTestResult state={panelState} testResult={testResult} />
       ) : null}
     </div>
   );

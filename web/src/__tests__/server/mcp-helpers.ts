@@ -270,11 +270,10 @@ export async function createPromptInDb(params: {
  * Helper to check if a tool has the correct MCP annotations.
  */
 export function verifyToolAnnotations(
-  toolDefinition: { annotations?: Record<string, boolean> },
+  toolDefinition: { annotations?: Record<string, unknown> },
   expectedAnnotations: {
     readOnlyHint?: boolean;
     destructiveHint?: boolean;
-    expensiveHint?: boolean;
   },
 ): void {
   const annotations = toolDefinition.annotations ?? {};
@@ -287,10 +286,6 @@ export function verifyToolAnnotations(
     expect(annotations.destructiveHint).toBe(
       expectedAnnotations.destructiveHint,
     );
-  }
-
-  if (expectedAnnotations.expensiveHint !== undefined) {
-    expect(annotations.expensiveHint).toBe(expectedAnnotations.expensiveHint);
   }
 }
 

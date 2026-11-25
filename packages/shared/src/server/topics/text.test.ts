@@ -8,7 +8,11 @@ import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText, getTopicTextResponseMetadata } from "./text";
+import {
+  generateTopicText,
+  getTopicTextResponseMetadata,
+  TOPICS_REASONING_OUTPUT_TOKENS,
+} from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -565,6 +569,40 @@ describe("generateTopicText", () => {
     },
   );
 
+  it("records why InvokeModel output could not be parsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          choices: [
+            { finish_reason: "stop", message: { content: '{"summary": "Acc' } },
+          ],
+          usage: {
+            prompt_tokens: 50,
+            completion_tokens: 40,
+            total_tokens: 90,
+            completion_tokens_details: { reasoning_tokens: 30 },
+          },
+        }),
+      ),
+    );
+    const error = await generateTopicText({
+      model: bedrockModel("summary", "us.openai.gpt-6-luna"),
+      system: [{ text: "Summarize.", cache: true }],
+      input: "Hi",
+      schema: z.object({ summary: z.string() }),
+      maxOutputTokens: 256,
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(getTopicTextResponseMetadata(error)).toEqual({
+      "langfuse.topics.response.finish_reason": "stop",
+      "langfuse.topics.response.text_characters": 16,
+      "langfuse.topics.response.max_output_tokens": 256,
+      "langfuse.topics.response.output_tokens": 40,
+      "langfuse.topics.response.reasoning_tokens": 30,
+    });
+  });
+
   it("reports the InvokeModel HTTP status so throttling is classified", async () => {
     vi.stubGlobal(
       "fetch",
@@ -594,6 +632,7 @@ describe("generateTopicText", () => {
     ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
     ["https://eu.api.openai.com.example.com/v1", "gpt-6-luna", "none", true],
     ["https://gateway.example/openai/v1", "Prod:gpt-5-mini", "minimal", true],
+    ["https://maas.example/compatible-mode/v1", "qwen4-max", undefined, false],
   ] as const)(
     "generates and traces Topics on %s / %s",
     async (baseURL, model, reasoning, completionTokens) => {
@@ -658,7 +697,10 @@ describe("generateTopicText", () => {
       expect(body.max_completion_tokens).toBe(
         completionTokens ? 256 : undefined,
       );
-      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      // Without a known reasoning setting, the model's own reasoning gets headroom.
+      expect(body.max_tokens).toBe(
+        completionTokens ? undefined : TOPICS_REASONING_OUTPUT_TOKENS,
+      );
       expect(body.reasoning_effort).toBe(reasoning);
       expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({
