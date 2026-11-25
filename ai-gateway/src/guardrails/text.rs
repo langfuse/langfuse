@@ -256,6 +256,13 @@ enum TurnPart {
         member: &'static str,
         read: ReadItem,
     },
+    /// A whole member resent on later turns (such as Anthropic `system` or
+    /// Responses `instructions`): skipped by last-turn `block`/`log` scans,
+    /// included by earlier-turn local `redact` scans.
+    EarlierMember {
+        member: &'static str,
+        read: ReadItem,
+    },
     /// The items of a member's array from byte `start` on, each read by `read`.
     /// Model items before byte `tail` are skipped: only trailing ones, such as an
     /// assistant prefill, come from the caller.
@@ -277,6 +284,14 @@ impl LastTurn {
     /// Adds all of member `name`, whose JSON is `raw`.
     pub(crate) fn push_member(&mut self, name: &'static str, raw: &str) {
         self.push_member_with(name, raw, collect);
+    }
+
+    /// Adds member `name` for earlier-turn redaction only (not counted in last-turn bytes).
+    pub(crate) fn push_earlier_member(&mut self, name: &'static str) {
+        self.parts.push(TurnPart::EarlierMember {
+            member: name,
+            read: collect,
+        });
     }
 
     /// Adds member `name`, whose JSON is `raw`, read by `read`.
@@ -353,6 +368,7 @@ impl LastTurn {
                     let raw: &RawValue = serde_json::from_str(raw).map_err(|_| Unreadable)?;
                     read(raw, sink)?;
                 }
+                TurnPart::EarlierMember { .. } => {}
                 TurnPart::Items {
                     member: name,
                     start,
@@ -394,24 +410,30 @@ impl LastTurn {
         sink: &mut dyn FnMut(TextLeaf<'_>),
     ) -> Result<(), Unreadable> {
         for part in &self.parts {
-            let TurnPart::Items {
-                member: name,
-                start,
-                tail,
-                classify,
-                read,
-            } = *part
-            else {
-                continue;
-            };
-            let Some(raw) = member(name) else { continue };
-            for_each(raw, |item: &RawValue| {
-                let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
-                if offset < start || (offset < tail && classify(item)? == TurnItem::Model) {
-                    read(item, sink)?;
+            match *part {
+                TurnPart::Member { .. } => {}
+                TurnPart::EarlierMember { member: name, read } => {
+                    let Some(raw) = member(name) else { continue };
+                    let raw: &RawValue = serde_json::from_str(raw).map_err(|_| Unreadable)?;
+                    read(raw, sink)?;
                 }
-                Ok(())
-            })?;
+                TurnPart::Items {
+                    member: name,
+                    start,
+                    tail,
+                    classify,
+                    read,
+                } => {
+                    let Some(raw) = member(name) else { continue };
+                    for_each(raw, |item: &RawValue| {
+                        let offset = item.get().as_ptr().addr() - raw.as_ptr().addr();
+                        if offset < start || (offset < tail && classify(item)? == TurnItem::Model) {
+                            read(item, sink)?;
+                        }
+                        Ok(())
+                    })?;
+                }
+            }
         }
         Ok(())
     }

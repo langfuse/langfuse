@@ -384,11 +384,12 @@ pub(super) fn guardrail_turn<'a>(
     let continues = ["previous_response_id", "conversation"]
         .into_iter()
         .any(|name| member(name).is_some_and(|value| value != "null"));
-    if !had_model_item
-        && !continues
-        && let Some(instructions) = member("instructions")
-    {
-        turn.push_member("instructions", instructions);
+    if let Some(instructions) = member("instructions") {
+        if had_model_item || continues {
+            turn.push_earlier_member("instructions");
+        } else {
+            turn.push_member("instructions", instructions);
+        }
     }
     // Variables fill a stored prompt with new caller text on every request.
     if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {

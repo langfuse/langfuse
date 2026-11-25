@@ -761,18 +761,20 @@ fn scan_local(
         budget,
     );
 
-    let mut unreadable = turn
+    let unreadable = turn
         .as_ref()
         .map_or(true, |turn| state.scan_last_turn(turn, scanned));
-    if !unreadable
+    let earlier_unreadable = if !unreadable
         && !state.budget_exhausted
         && has_local_redact
         && let Ok(turn) = turn
     {
-        unreadable = state.scan_earlier_turns(turn, scanned);
-    }
+        state.scan_earlier_turns(turn, scanned)
+    } else {
+        false
+    };
 
-    state.finish(unreadable)
+    state.finish(unreadable, earlier_unreadable)
 }
 
 struct ScanState<'g, 'b> {
@@ -969,16 +971,22 @@ impl<'g, 'b> ScanState<'g, 'b> {
         .is_err()
     }
 
-    fn finish(mut self, unreadable: bool) -> Result<LocalScan, ResolutionError> {
+    fn finish(
+        mut self,
+        unreadable: bool,
+        earlier_unreadable: bool,
+    ) -> Result<LocalScan, ResolutionError> {
         if self.budget_exhausted {
             return Err(ResolutionError::Busy);
         }
         let mut matched = vec![false; self.active_indices.len()];
         for (slot, &index) in self.active_indices.iter().enumerate() {
-            if matches!(
-                self.guardrails.get(index).map(|guardrail| &guardrail.kind),
-                Some(GuardrailKind::FailClosed)
-            ) {
+            let Some(guardrail) = self.guardrails.get(index) else {
+                continue;
+            };
+            let fail_closed = matches!(guardrail.kind, GuardrailKind::FailClosed)
+                || (earlier_unreadable && guardrail.is_local_redact());
+            if fail_closed {
                 if let Some(entry) = matched.get_mut(slot) {
                     *entry = true;
                 }
@@ -2140,5 +2148,45 @@ mod tests {
             Some(&tight_budget),
         );
         assert!(matches!(result, Err(ResolutionError::Busy)));
+    }
+
+    #[test]
+    fn redacts_anthropic_system_prompt_on_later_turns_and_isolates_earlier_unreadability() {
+        // 1. Anthropic `system` is still redacted on turn 2 while `log` stays last-turn only.
+        let body = r#"{"system":"support email a@example.com","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"},{"role":"user","content":"follow up"}]}"#;
+        let outcome = check_request(
+            &[
+                guardrail("log-email", GuardrailAction::Log, &[EMAIL]),
+                redact_guardrail("redact-email", "[EMAIL]", &[EMAIL]),
+            ],
+            ApiFormat::AnthropicMessages,
+            body.as_bytes(),
+            &scanned(body, &["system", "messages"]),
+        );
+        assert!(outcome.blocking().is_none());
+        let (findings, edits, _) = outcome.into_parts();
+        let ids: Vec<&str> = findings.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(ids, ["redact-email"]);
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        assert_eq!(rewritten["system"], "support email [EMAIL]");
+
+        // 2. An unreadable earlier turn fails closed only the local redact rule, not unrelated last-turn rules.
+        let malformed_history = r#"{"messages":[{"role":"user","content":"bad \ud83d"},{"role":"assistant","content":"ok"},{"role":"user","content":"clean"}]}"#;
+        let outcome = check_request(
+            &[
+                guardrail("block-ssn", GuardrailAction::Block, &[SSN]),
+                redact_guardrail("redact-email", "[EMAIL]", &[EMAIL]),
+            ],
+            ApiFormat::OpenAiChatCompletions,
+            malformed_history.as_bytes(),
+            &scanned(malformed_history, &["messages"]),
+        );
+        assert_eq!(
+            outcome.blocking().map(|finding| finding.id.as_str()),
+            Some("redact-email")
+        );
+        let ids: Vec<String> = outcome.into_findings().into_iter().map(|f| f.id).collect();
+        assert_eq!(ids, ["redact-email"]);
     }
 }

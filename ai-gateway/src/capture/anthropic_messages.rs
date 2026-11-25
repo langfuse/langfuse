@@ -480,8 +480,12 @@ pub(super) fn guardrail_turn<'a>(
         )?,
         None => false,
     };
-    if !had_model_turn && let Some(system) = member("system") {
-        turn.push_member("system", system);
+    if let Some(system) = member("system") {
+        if had_model_turn {
+            turn.push_earlier_member("system");
+        } else {
+            turn.push_member("system", system);
+        }
     }
     Ok(turn)
 }
