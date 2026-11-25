@@ -89,8 +89,9 @@ export function createMcpServer(context: ServerContext): Server {
         },
       },
       instructions: getMcpServerInstructions(),
-      // 2025-era requests get JSON responses, which cannot carry the SDK's
-      // server-to-client prompts, so tools never ask for input there.
+      // A stateless 2025-era request carries no client capabilities (those
+      // are only declared in `initialize`), so there is nothing to check a
+      // server-to-client prompt against; tools never ask for input there.
       inputRequired: { legacyShim: false },
     },
   );
