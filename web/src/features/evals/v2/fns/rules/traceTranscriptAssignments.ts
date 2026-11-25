@@ -44,6 +44,19 @@ export function variableFieldsForTarget(
   );
 }
 
+function readsOnlyThreads(mapping: ObservationVariableMapping[]) {
+  return (
+    mapping.length > 0 &&
+    mapping.every(
+      (entry) => entry.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN,
+    )
+  );
+}
+
+/**
+ * An assignment without an override inherits the evaluator's mapping (null)
+ * when that mapping already reads threads; otherwise it stores the converted one.
+ */
 export function traceTranscriptAssignments(
   assignments: {
     evaluatorId: string;
@@ -51,10 +64,19 @@ export function traceTranscriptAssignments(
     defaultVariableMapping?: ObservationVariableMapping[] | null;
   }[],
 ) {
-  return assignments.map((assignment) => ({
-    evaluatorId: assignment.evaluatorId,
-    variableMapping: traceTranscriptMapping(
-      assignment.variableMapping ?? assignment.defaultVariableMapping ?? [],
-    ),
-  }));
+  return assignments.map((assignment) => {
+    const defaultMapping = assignment.defaultVariableMapping ?? [];
+    if (
+      assignment.variableMapping === null &&
+      readsOnlyThreads(defaultMapping)
+    ) {
+      return { evaluatorId: assignment.evaluatorId, variableMapping: null };
+    }
+    return {
+      evaluatorId: assignment.evaluatorId,
+      variableMapping: traceTranscriptMapping(
+        assignment.variableMapping ?? defaultMapping,
+      ),
+    };
+  });
 }
