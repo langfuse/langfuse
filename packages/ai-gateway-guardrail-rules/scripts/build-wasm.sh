@@ -18,6 +18,10 @@ if [[ "$("$WASM_BINDGEN" --version)" != "wasm-bindgen $WASM_BINDGEN_VERSION" ]];
   exit 1
 fi
 
+# The committed module comes from Cargo.toml's release profile alone; CI sets
+# profile overrides such as CARGO_PROFILE_RELEASE_LTO for faster builds.
+while IFS= read -r name; do unset "$name"; done < <(compgen -e | grep '^CARGO_PROFILE_' || true)
+
 # Panic messages embed source paths; remap them so the binary does not depend
 # on the checkout or cargo home location.
 export RUSTFLAGS="--remap-path-prefix=$PWD=/ai-gateway-guardrail-rules --remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo"
