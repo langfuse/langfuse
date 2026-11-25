@@ -465,24 +465,31 @@ async function resolveModelSettings(
 ): Promise<{ settings: ResolvedModelSettings; keys: LlmApiKeys[] }> {
   const candidates = await findProjectLlmApiKeyCandidates({ projectId });
   const keys: LlmApiKeys[] = [];
-  const slot = (
-    requested: TopicsModelSettings[TopicsModelSlotName],
-  ): ConnectionSlot => {
+  const slot = (name: TopicsModelSlotName): ConnectionSlot => {
+    const requested = settings[name];
     if (!requested) return null;
     const key = effectiveConnection(candidates, requested.provider);
-    if (!key)
+    if (!key) {
+      logger.error("Topics setup model test failed", {
+        projectId,
+        slot: name,
+        provider: requested.provider,
+        model: requested.model,
+        kind: "connection_not_found",
+      });
       throw new InvalidRequestError(
         "LLM connection not found in this project.",
       );
+    }
     keys.push(key);
     return { llmApiKeyId: key.id, model: requested.model };
   };
   return {
     settings: {
-      summary: slot(settings.summary),
-      embedding: slot(settings.embedding),
+      summary: slot("summary"),
+      embedding: slot("embedding"),
       embeddingDimensions: settings.embeddingDimensions,
-      clustering: slot(settings.clustering),
+      clustering: slot("clustering"),
     },
     keys,
   };

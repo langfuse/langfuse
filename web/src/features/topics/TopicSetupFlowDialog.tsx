@@ -17,6 +17,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { FormError } from "@/src/components/design-system/FormError/FormError";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -282,7 +283,8 @@ export function TopicSetupFlowDialog({
                               ? isRecommendedTopicModel(row.slot, model.model)
                               : false
                           }
-                          disabled={!canWrite}
+                          // A check in flight would report on a replaced model.
+                          disabled={!canWrite || busy}
                           providerGroups={groups[row.slot]}
                           onConfigureProviders={onConfigureProviders}
                           onSelect={onModelChange[row.slot]}
@@ -291,18 +293,17 @@ export function TopicSetupFlowDialog({
                     })}
                   </div>
                 )}
-                {MODEL_ROWS.map((row) =>
-                  slotErrors[row.slot] ? (
-                    <p
-                      key={row.slot}
-                      role="alert"
-                      className="text-destructive text-sm"
-                    >
-                      <span className="font-bold">{row.label}:</span>{" "}
-                      {slotErrors[row.slot]}
-                    </p>
-                  ) : null,
-                )}
+                {MODEL_ROWS.map((row) => (
+                  <FormError
+                    key={row.slot}
+                    announce
+                    message={
+                      slotErrors[row.slot]
+                        ? `${row.label}: ${slotErrors[row.slot]}`
+                        : null
+                    }
+                  />
+                ))}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
                 ) : null}
