@@ -47,8 +47,15 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
         },
       ]}
     >
-      <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
-        <Dialog.Body>
+      <Dialog.Body>
+        <Form
+          id={formId}
+          actions={[]}
+          onSubmit={(event) => {
+            event.stopPropagation();
+            return form.handleSubmit(props.onSubmit)(event);
+          }}
+        >
           {props.gatewayOrganizationName ? (
             <Banner variant="warning" title="This turns off the AI Gateway">
               {`This project receives the AI Gateway traces of ${props.gatewayOrganizationName}. Deleting it turns off the AI Gateway for the organization until you select a new ingestion project.`}
@@ -66,8 +73,8 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
             label="Project name"
             placeholder={props.confirmMessage}
           />
-        </Dialog.Body>
-      </form>
+        </Form>
+      </Dialog.Body>
     </Dialog>
   );
 }
