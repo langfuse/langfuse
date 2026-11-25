@@ -369,6 +369,14 @@ describe("RuleService", () => {
         null,
       );
       expect(remapped.rule.id).toBe(created.rule.id);
+      await traceService.attach({
+        projectId,
+        ruleId: created.rule.id,
+        assignment: {
+          evaluatorId: second.id,
+          variableMapping: threadsMapping("$[1].currentTurn"),
+        },
+      });
 
       await expect(
         prisma.evaluationRule.count({ where: { projectId } }),
@@ -387,7 +395,7 @@ describe("RuleService", () => {
         ),
       ).toEqual({
         [first.id]: threadsMapping("$[0].currentTurn"),
-        [second.id]: threadsMapping("$[1].messages"),
+        [second.id]: threadsMapping("$[1].currentTurn"),
       });
     });
   });

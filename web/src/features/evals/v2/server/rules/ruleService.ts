@@ -418,10 +418,6 @@ export class RuleService {
     return { action: "created" as const, rule };
   }
 
-  /**
-   * Attaches the evaluator to a rule that already matches. A trace rule that
-   * has the evaluator with another mapping gets only that mapping replaced.
-   */
   private async attachEvaluatorToMatchingRule(
     projectId: string,
     matchingRule: NonNullable<
@@ -436,29 +432,15 @@ export class RuleService {
     const current = matchingRule.assignments.find(
       ({ evaluatorId }) => evaluatorId === assignment.evaluatorId,
     );
-    if (!current) {
-      return this.attach({ projectId, ruleId: matchingRule.id, assignment });
-    }
     if (
-      assignment.variableMapping === null ||
-      stableJsonStringify(current.variableMapping) ===
-        stableJsonStringify(assignment.variableMapping)
+      current &&
+      (assignment.variableMapping === null ||
+        stableJsonStringify(current.variableMapping) ===
+          stableJsonStringify(assignment.variableMapping))
     ) {
       return this.get(projectId, matchingRule.id);
     }
-    return this.update({
-      projectId,
-      ruleId: matchingRule.id,
-      evaluatorMappings: matchingRule.assignments.map((existing) =>
-        existing.evaluatorId === assignment.evaluatorId
-          ? assignment
-          : {
-              evaluatorId: existing.evaluatorId,
-              variableMapping:
-                existing.variableMapping as ObservationVariableMapping[],
-            },
-      ),
-    });
+    return this.attach({ projectId, ruleId: matchingRule.id, assignment });
   }
 
   async update(input: RuleServiceUpdateInput) {
@@ -824,12 +806,17 @@ export class RuleService {
               targetObject: rule.targetObject,
               assignments: [params.assignment],
             });
-      await repository.attachEvaluator({
+      const write = {
         prisma,
         projectId: params.projectId,
         ruleId: params.ruleId,
         assignment: assignment!,
-      });
+      };
+      if (rule.targetObject === TopicsTargetObject) {
+        await repository.upsertEvaluatorAssignment(write);
+      } else {
+        await repository.attachEvaluator(write);
+      }
       if (params.enableRule) {
         this.assertLegacyRuleCanBeEnabled(rule.targetObject, true);
         await assertActiveRuleLimitNotExceeded({

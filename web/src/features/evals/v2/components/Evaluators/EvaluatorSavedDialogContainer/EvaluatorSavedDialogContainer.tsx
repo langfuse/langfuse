@@ -160,9 +160,6 @@ export function EvaluatorSavedDialogContainer({
   const attach = api.evalsV2.rules.attach.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.attach"),
   });
-  const updateRule = api.evalsV2.rules.update.useMutation({
-    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
-  });
   const createOrAttachFromEvaluatorFilters =
     api.evalsV2.rules.createOrAttachFromEvaluatorFilters.useMutation({
       onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
@@ -193,32 +190,17 @@ export function EvaluatorSavedDialogContainer({
     const isAlreadyAttached = currentAssignments.some(
       (assignment) => assignment.evaluationRule.id === rule.id,
     );
-    if (isTraceTranscript && isAlreadyAttached) {
-      // Trace assignments store explicit mappings: replace only this
-      // evaluator's and keep the rule's other assignments as they are.
-      const latestRule = await utils.client.evalsV2.rules.get.query({
-        projectId,
-        ruleId: rule.id,
-      });
-      await updateRule.mutateAsync({
-        projectId,
-        ruleId: rule.id,
-        evaluatorMappings: latestRule.assignments.map((assignment) => ({
-          evaluatorId: assignment.evaluator.id,
-          variableMapping:
-            assignment.evaluator.id === evaluator.id
-              ? traceMapping
-              : assignment.variableMapping,
-        })),
-      });
-    } else if (!isAlreadyAttached) {
+    // Re-attaching to a trace rule replaces only this evaluator's mapping.
+    if (!isAlreadyAttached || isTraceTranscript) {
       await attach.mutateAsync({
         projectId,
         ruleId: rule.id,
         evaluatorId: evaluator.id,
         variableMapping: isTraceTranscript ? traceMapping : null,
-        enableRule: !rule.enabled,
+        enableRule: !isAlreadyAttached && !rule.enabled,
       });
+    }
+    if (!isAlreadyAttached) {
       capture("evaluation_rules:attach_evaluator", {
         evaluatorCount: 1,
         source: "evaluator_create",
@@ -677,7 +659,6 @@ export function EvaluatorSavedDialogContainer({
         }
         isSubmitting={
           attach.isPending ||
-          updateRule.isPending ||
           createOrAttachFromEvaluatorFilters.isPending ||
           backfill.isScheduling ||
           isCompleting

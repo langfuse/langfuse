@@ -645,6 +645,30 @@ export function attachEvaluator(params: {
   });
 }
 
+export function upsertEvaluatorAssignment(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  ruleId: string;
+  assignment: RuleAssignmentInput;
+}) {
+  const variableMapping = jsonValue(params.assignment.variableMapping);
+  return params.prisma.evaluationRuleEvaluatorAssignment.upsert({
+    where: {
+      evaluationRuleId_evaluatorId: {
+        evaluationRuleId: params.ruleId,
+        evaluatorId: params.assignment.evaluatorId,
+      },
+    },
+    create: {
+      projectId: params.projectId,
+      evaluationRuleId: params.ruleId,
+      evaluatorId: params.assignment.evaluatorId,
+      variableMapping,
+    },
+    update: { variableMapping },
+  });
+}
+
 export async function detachEvaluator(params: {
   prisma: RulePrisma;
   projectId: string;
