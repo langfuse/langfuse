@@ -14,6 +14,8 @@ import { env } from "@/src/env.mjs";
 import {
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
@@ -1109,8 +1111,9 @@ describe("aiGateway guardrails tRPC", () => {
       });
     expect(oversizedPreview.valid).toBe(false);
     expect(oversizedPreview.errorCode).toBe("size_limit_exceeded");
-    expect(oversizedPreview.error).toContain("128 KiB");
-    expect(oversizedPreview.error).toContain("external guardrail provider");
+    expect(oversizedPreview.error).toBe(
+      GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+    );
 
     // Creates, updates, and resolves a valid custom regex (including `.`, `\S`, and negated classes)
     const created = await ownerCaller.aiGateway.guardrails.create({
@@ -1164,12 +1167,31 @@ describe("aiGateway guardrails tRPC", () => {
       } catch (error) {
         expect(error).toMatchObject({
           code: "BAD_REQUEST",
-          message: expect.stringContaining("512 KiB"),
+          message: GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
         });
         hitOrgLimit = true;
         break;
       }
     }
     expect(hitOrgLimit).toBe(true);
+
+    // Unchanged rule config on an already-stored oversized guardrail still allows editing name/action/targets
+    const legacyOversized = await createGuardrail({
+      organizationId: orgId,
+      name: "Legacy oversized",
+      config: { presets: [], customRegex: String.raw`\w{1,1500}` },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const renamedLegacy = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: legacyOversized.id,
+      type: "REGEX",
+      name: "Legacy oversized renamed",
+      action: "LOG",
+      customRegex: String.raw`\w{1,1500}`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(renamedLegacy.name).toBe("Legacy oversized renamed");
+    expect(renamedLegacy.action).toBe("LOG");
   });
 });

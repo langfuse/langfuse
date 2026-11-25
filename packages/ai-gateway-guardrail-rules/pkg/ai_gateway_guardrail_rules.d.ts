@@ -20,6 +20,10 @@ export interface PreviewResult {
     valid: boolean;
     error?: ValidationError;
     matches: MatchSpan[];
+    /**
+     * True when preview stopped early to stay within the per-call scan budget.
+     */
+    truncated: boolean;
 }
 
 export interface Report {

@@ -56,6 +56,7 @@ test("wasm32 preview returns UTF-16 match spans and typed validation errors", ()
   const text = "😀 ORD-123456 and ORD-999999";
   const result = preview(String.raw`ORD-\d{6}`, text, RULE_LIMIT_BYTES);
   assert.equal(result.valid, true);
+  assert.equal(result.truncated, false);
   assert.deepEqual(
     result.matches.map(({ start, end }) => text.slice(start, end)),
     ["ORD-123456", "ORD-999999"],
@@ -63,7 +64,15 @@ test("wasm32 preview returns UTF-16 match spans and typed validation errors", ()
 
   const invalid = preview(String.raw`(?u:\w)+`, text, RULE_LIMIT_BYTES);
   assert.equal(invalid.valid, false);
+  assert.equal(invalid.truncated, false);
   assert.equal(invalid.error?.code, "unicode_not_allowed");
   assert.ok(invalid.error?.message);
   assert.deepEqual(invalid.matches, []);
+
+  const adversarial =
+    Array.from({ length: 80 }, (_, i) => `.+X${i}`).join("|") + "|.";
+  const bounded = preview(adversarial, "é".repeat(4000), RULE_LIMIT_BYTES);
+  assert.equal(bounded.valid, true);
+  assert.equal(bounded.truncated, true);
+  assert.ok(bounded.matches.length > 0);
 });

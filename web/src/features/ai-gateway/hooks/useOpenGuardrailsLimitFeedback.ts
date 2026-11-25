@@ -26,12 +26,16 @@ export function useOpenGuardrailsLimitFeedback() {
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
 
   return (reason: GatewayGuardrailsLimitFeedbackReason = "count") => {
+    const resolvedReason: GatewayGuardrailsLimitFeedbackReason =
+      typeof reason === "string" && reason in FEEDBACK_MESSAGES
+        ? reason
+        : "count";
     setAiAgentOpen(false);
     setMigrationPanelOpen(false);
     openWithMode("form", {
       messageType: "Feedback",
       topic: "Platform",
-      message: FEEDBACK_MESSAGES[reason],
+      message: FEEDBACK_MESSAGES[resolvedReason],
     });
   };
 }

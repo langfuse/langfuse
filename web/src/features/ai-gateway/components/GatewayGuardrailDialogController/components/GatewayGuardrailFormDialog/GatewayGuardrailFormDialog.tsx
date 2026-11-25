@@ -1389,39 +1389,29 @@ function CustomRegexField({
         )}
       />
       {errorMessage ? (
-        <p className="text-destructive text-sm">
-          {errorMessage}
-          {showDocsLink ? (
-            <>
-              {" "}
-              <a
-                href={GATEWAY_GUARDRAILS_DOCS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-destructive inline-flex items-center gap-1 underline underline-offset-2 hover:opacity-80"
-              >
-                Read docs
-                <SquareArrowOutUpRight
+        <div className="flex flex-col gap-1">
+          <p className="text-destructive text-sm">{errorMessage}</p>
+          {showDocsLink || showSupportLink ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {showDocsLink ? (
+                <Button
+                  variant="text"
                   size="sm"
-                  color="inherit"
-                  aria-hidden="true"
+                  text="Read docs"
+                  href={GATEWAY_GUARDRAILS_DOCS_URL}
                 />
-              </a>
-            </>
+              ) : null}
+              {showSupportLink ? (
+                <Button
+                  variant="text"
+                  size="sm"
+                  text="Contact support"
+                  onClick={onContactSupport}
+                />
+              ) : null}
+            </div>
           ) : null}
-          {showSupportLink ? (
-            <>
-              {showDocsLink ? " · " : " "}
-              <button
-                type="button"
-                onClick={onContactSupport}
-                className="text-destructive underline underline-offset-2 hover:opacity-80"
-              >
-                Contact support
-              </button>
-            </>
-          ) : null}
-        </p>
+        </div>
       ) : null}
     </div>
   );

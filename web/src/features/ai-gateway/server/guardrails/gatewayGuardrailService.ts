@@ -523,13 +523,18 @@ export class GatewayGuardrailService {
           containsWords: params.containsWords ?? [],
           customRegex: params.customRegex,
         });
-        const compiledPatterns = validateGuardrailPatterns(regexConfig);
-        await assertOrgSizeLimit(
-          repo,
-          params.organizationId,
-          compiledPatterns,
-          existing.id,
-        );
+        const ruleConfigChanged =
+          !existingConfig.success ||
+          !isSameRegexRuleConfig(existingConfig.data, regexConfig);
+        if (ruleConfigChanged) {
+          const compiledPatterns = validateGuardrailPatterns(regexConfig);
+          await assertOrgSizeLimit(
+            repo,
+            params.organizationId,
+            compiledPatterns,
+            existing.id,
+          );
+        }
         config = regexConfig;
       }
 
@@ -924,6 +929,41 @@ function normalizeGuardrailConfig(input: {
     ...(containsWords.length > 0 ? { containsWords } : {}),
     ...(customRegex !== undefined ? { customRegex } : {}),
   };
+}
+
+function isSameStringSet(a: readonly string[], b: readonly string[]): boolean {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  if (setA.size !== setB.size) return false;
+  for (const value of setA) {
+    if (!setB.has(value)) return false;
+  }
+  return true;
+}
+
+function isSameRegexRuleConfig(
+  existing: {
+    presets: readonly string[];
+    secretPrefixes: readonly string[];
+    containsWords: readonly string[];
+    customRegex?: string;
+  },
+  next: {
+    presets: readonly string[];
+    secretPrefixes?: readonly string[];
+    containsWords?: readonly string[];
+    customRegex?: string;
+  },
+): boolean {
+  return (
+    isSameStringSet(existing.presets, next.presets) &&
+    isSameStringSet(existing.secretPrefixes, next.secretPrefixes ?? []) &&
+    isSameStringSet(
+      existing.containsWords.map((word) => word.toLowerCase()),
+      (next.containsWords ?? []).map((word) => word.toLowerCase()),
+    ) &&
+    (existing.customRegex ?? undefined) === (next.customRegex ?? undefined)
+  );
 }
 
 function formatRegexValidationError(error: ValidationError): string {

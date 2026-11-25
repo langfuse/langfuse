@@ -6,7 +6,7 @@ import {
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 
 const PREVIEW_DEBOUNCE_MS = 200;
 
@@ -46,6 +46,7 @@ export function useGatewayGuardrailRegexPreview(params: {
       text: boundedText,
     },
     {
+      ...sendAsPostOption,
       enabled: canQuery,
       retry: false,
     },

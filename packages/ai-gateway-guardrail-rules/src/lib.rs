@@ -11,6 +11,7 @@
 //! enforced in [`compile_set`] / [`compile_captures`] (gateway).
 use regex_automata::{
     Input,
+    hybrid::{dfa as hybrid_dfa, regex as hybrid_regex},
     nfa::thompson::{self, pikevm::PikeVM},
 };
 #[cfg(feature = "gateway")]
@@ -104,6 +105,8 @@ pub struct PreviewResult {
     )]
     pub error: Option<ValidationError>,
     pub matches: Vec<MatchSpan>,
+    /// True when preview stopped early to stay within the per-call scan budget.
+    pub truncated: bool,
 }
 
 /// Rewrites an AST so `regex-syntax` translates it with `unicode(true)` and
@@ -531,16 +534,29 @@ fn check_set(hirs: &[Hir], max_bytes: u32) -> (Option<u32>, Option<ValidationErr
     }
 }
 
-/// Validates `pattern` against `max_bytes` and returns all non-empty matches in
-/// `text` as UTF-16 code-unit offsets using linear-time PikeVM.
+const MAX_PREVIEW_MATCHES: usize = 200;
+const MAX_PREVIEW_SCAN_BYTES: usize = 512 * 1024;
+const PREVIEW_DFA_CACHE_CAPACITY: usize = 1024 * 1024;
+const MAX_PREVIEW_PIKEVM_STEPS: usize = 1_000_000;
+
+/// Validates `pattern` against `max_bytes` and returns non-empty matches in
+/// `text` as UTF-16 code-unit offsets.
+///
+/// Uses a lazy DFA with a bounded per-call scan budget (and a bounded PikeVM
+/// fallback if the DFA cache thrashes) so pathological alternation patterns
+/// cannot turn multi-match iteration into quadratic work on the caller's thread.
 pub fn preview(pattern: &str, text: &str, max_bytes: u32) -> PreviewResult {
-    let nfa = match check_pattern(pattern).and_then(|hir| compile_bounded_nfa(&[&hir], max_bytes)) {
-        Ok((nfa, _)) => nfa,
+    let (hir, fwd_nfa) = match check_pattern(pattern).and_then(|hir| {
+        let (nfa, _) = compile_bounded_nfa(&[&hir], max_bytes)?;
+        Ok((hir, nfa))
+    }) {
+        Ok(compiled) => compiled,
         Err(error) => {
             return PreviewResult {
                 valid: false,
                 error: Some(error),
                 matches: Vec::new(),
+                truncated: false,
             };
         }
     };
@@ -549,32 +565,129 @@ pub fn preview(pattern: &str, text: &str, max_bytes: u32) -> PreviewResult {
             valid: true,
             error: None,
             matches: Vec::new(),
+            truncated: false,
         };
     }
-    let vm = match PikeVM::new_from_nfa(nfa) {
-        Ok(vm) => vm,
-        Err(error) => {
-            return PreviewResult {
-                valid: false,
-                error: Some(ValidationError::new(
-                    ValidationErrorCode::SyntaxError,
-                    describe(&error),
-                )),
-                matches: Vec::new(),
-            };
-        }
-    };
-    let mut cache = vm.create_cache();
-    let byte_spans: Vec<(usize, usize)> = vm
-        .find_iter(&mut cache, Input::new(text.as_bytes()))
-        .filter(|m| m.start() < m.end())
-        .map(|m| (m.start(), m.end()))
-        .collect();
+
+    let (byte_spans, truncated) = collect_bounded_matches(&hir, fwd_nfa, text, max_bytes);
     PreviewResult {
         valid: true,
         error: None,
         matches: byte_spans_to_utf16(text, &byte_spans),
+        truncated,
     }
+}
+
+fn build_preview_hybrid(hir: &Hir, max_bytes: u32) -> Option<hybrid_regex::Regex> {
+    let limit = Some(max_bytes as usize);
+    let fwd_nfa = thompson::Compiler::new()
+        .configure(
+            thompson::Config::new()
+                .which_captures(thompson::WhichCaptures::None)
+                .nfa_size_limit(limit),
+        )
+        .build_from_hir(hir)
+        .ok()?;
+    let rev_nfa = thompson::Compiler::new()
+        .configure(
+            thompson::Config::new()
+                .reverse(true)
+                .which_captures(thompson::WhichCaptures::None)
+                .nfa_size_limit(limit),
+        )
+        .build_from_hir(hir)
+        .ok()?;
+    let dfa_config = hybrid_dfa::Config::new()
+        .cache_capacity(PREVIEW_DFA_CACHE_CAPACITY)
+        .minimum_cache_clear_count(Some(2));
+    let fwd_dfa = hybrid_dfa::Builder::new()
+        .configure(dfa_config.clone())
+        .build_from_nfa(fwd_nfa)
+        .ok()?;
+    let rev_dfa = hybrid_dfa::Builder::new()
+        .configure(dfa_config)
+        .build_from_nfa(rev_nfa)
+        .ok()?;
+    Some(hybrid_regex::Builder::new().build_from_dfas(fwd_dfa, rev_dfa))
+}
+
+fn collect_bounded_matches(
+    hir: &Hir,
+    fwd_nfa: thompson::NFA,
+    text: &str,
+    max_bytes: u32,
+) -> (Vec<(usize, usize)>, bool) {
+    let bytes = text.as_bytes();
+    let nfa_states = fwd_nfa.states().len().max(1);
+    let hybrid = build_preview_hybrid(hir, max_bytes);
+    let mut hybrid_cache = hybrid.as_ref().map(hybrid_regex::Regex::create_cache);
+    let mut pikevm: Option<(PikeVM, regex_automata::nfa::thompson::pikevm::Cache)> = None;
+
+    let mut spans = Vec::new();
+    let mut cursor = 0usize;
+    let mut scanned_bytes = 0usize;
+    let mut pikevm_steps = 0usize;
+    let mut use_hybrid = hybrid.is_some();
+
+    while cursor < bytes.len() {
+        let remaining = bytes.len() - cursor;
+        if spans.len() >= MAX_PREVIEW_MATCHES {
+            return (spans, true);
+        }
+        if !spans.is_empty() && scanned_bytes.saturating_add(remaining) > MAX_PREVIEW_SCAN_BYTES {
+            return (spans, true);
+        }
+
+        let input = Input::new(bytes).range(cursor..);
+        let found = if use_hybrid {
+            let re = hybrid.as_ref().expect("hybrid present when use_hybrid");
+            let cache = hybrid_cache
+                .as_mut()
+                .expect("cache present when use_hybrid");
+            match re.try_search(cache, &input) {
+                Ok(found) => {
+                    scanned_bytes = scanned_bytes.saturating_add(remaining);
+                    found
+                }
+                Err(_) => {
+                    use_hybrid = false;
+                    continue;
+                }
+            }
+        } else {
+            let next_steps = pikevm_steps.saturating_add(nfa_states.saturating_mul(remaining));
+            if next_steps > MAX_PREVIEW_PIKEVM_STEPS {
+                return (spans, true);
+            }
+            pikevm_steps = next_steps;
+            let (vm, cache) = match pikevm.as_mut() {
+                Some(pair) => pair,
+                None => match PikeVM::new_from_nfa(fwd_nfa.clone()) {
+                    Ok(vm) => {
+                        let cache = vm.create_cache();
+                        pikevm.insert((vm, cache))
+                    }
+                    Err(_) => return (spans, true),
+                },
+            };
+            vm.find(cache, input)
+        };
+
+        let Some(matched) = found else {
+            break;
+        };
+        if matched.start() < matched.end() {
+            spans.push((matched.start(), matched.end()));
+            cursor = matched.end();
+        } else {
+            // Defense-in-depth: empty matches are rejected at validation time,
+            // but advance by one UTF-8 character so the loop always makes progress.
+            let next_char = text[cursor..].chars().next().map_or(1, char::len_utf8);
+            cursor = cursor.saturating_add(next_char);
+        }
+    }
+
+    (spans, false)
 }
 
 fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSpan> {
@@ -838,16 +951,32 @@ mod tests {
                     MatchSpan { start: 3, end: 13 },
                     MatchSpan { start: 18, end: 28 },
                 ],
+                truncated: false,
             }
         );
 
         let invalid = preview(r"(?u:\w)+", "abc", RULE_LIMIT_BYTES);
         assert!(!invalid.valid);
+        assert!(!invalid.truncated);
         assert_eq!(
             invalid.error.as_ref().map(|err| err.code),
             Some(ValidationErrorCode::UnicodeNotAllowed)
         );
         assert!(invalid.matches.is_empty());
+
+        // Pathological leftmost-first alternation stops once the scan budget is exhausted.
+        let mut alts = Vec::new();
+        for i in 0..80 {
+            alts.push(format!(".+X{i}"));
+        }
+        alts.push(".".to_owned());
+        let adversarial = alts.join("|");
+        let text = "é".repeat(4_000);
+        let bounded = preview(&adversarial, &text, RULE_LIMIT_BYTES);
+        assert!(bounded.valid);
+        assert!(bounded.truncated);
+        assert!(!bounded.matches.is_empty());
+        assert!(bounded.matches.len() <= MAX_PREVIEW_MATCHES);
     }
 
     #[test]
