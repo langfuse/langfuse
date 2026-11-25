@@ -314,6 +314,7 @@ describe("processTopicsTrace", () => {
     failedWith("platform");
 
     // The customer's trace is over the size limit; the log keeps its length per project.
+    vi.mocked(recordIncrement).mockClear();
     const warn = vi.spyOn(logger, "warn");
     vi.mocked(summarizeAssembledTrace).mockResolvedValueOnce({
       outcome: "summarized",
@@ -322,7 +323,15 @@ describe("processTopicsTrace", () => {
       failedStage: "summary",
     });
     await processTopicsTrace(event, { scheduleRetry });
-    failedWith("customer");
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.trace_outcomes",
+      1,
+      expect.objectContaining({
+        outcome: "failed",
+        reason: "input_too_large",
+        owner: "customer",
+      }),
+    );
     expect(warn).toHaveBeenCalledWith(
       "Topics summary failed for trace",
       expect.objectContaining({ projectId: "project", characters: 600_000 }),
