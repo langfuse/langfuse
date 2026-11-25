@@ -1,27 +1,27 @@
 /**
- * Whether a newly measured container width should be published to the grid.
- *
- * Short resizes commit on every sample so the grid tracks its own box. Once
- * the resize outlives `settleMs * 3`, commits drop to the settle interval so
- * a long window drag does not rebuild every chart at frame rate. The caller
- * still commits the final width when the container stops changing.
+ * Scale that makes a grid laid out at `committedWidth` fill `liveWidth`.
+ * The grid stays on the committed layout and this scale is applied with CSS,
+ * so charts are not laid out again until the container size settles.
+ */
+export function containerWidthScale(
+  committedWidth: number,
+  liveWidth: number,
+): number {
+  if (committedWidth <= 0 || liveWidth <= 0) return 1;
+  return liveWidth / committedWidth;
+}
+
+/**
+ * Publish a container width to React only once the resize has settled.
+ * Intermediate samples stay on the CSS scale so a resize does not re-render
+ * every chart.
  */
 export function nextContainerWidthCommit(args: {
-  now: number;
-  gestureStartedAt: number;
-  lastCommittedAt: number;
   pendingWidth: number;
   committedWidth: number | null;
-  settleMs: number;
+  settled: boolean;
 }): { kind: "commit"; width: number } | { kind: "defer" } {
+  if (!args.settled) return { kind: "defer" };
   if (args.committedWidth === args.pendingWidth) return { kind: "defer" };
-
-  const followWindowMs = args.settleMs * 3;
-  const withinFollowWindow = args.now - args.gestureStartedAt <= followWindowMs;
-  const coarseIntervalElapsed =
-    args.now - args.lastCommittedAt >= args.settleMs;
-  if (withinFollowWindow || coarseIntervalElapsed) {
-    return { kind: "commit", width: args.pendingWidth };
-  }
-  return { kind: "defer" };
+  return { kind: "commit", width: args.pendingWidth };
 }

@@ -1,55 +1,46 @@
 // @vitest-environment node
 
-import { nextContainerWidthCommit } from "./containerWidthCommit";
-
-const settleMs = 200;
+import {
+  containerWidthScale,
+  nextContainerWidthCommit,
+} from "./containerWidthCommit";
 
 describe("nextContainerWidthCommit", () => {
-  it("publishes every changed sample during the follow window", () => {
+  it("defers every sample until the resize has settled", () => {
     const decision = nextContainerWidthCommit({
-      now: 360,
-      gestureStartedAt: 0,
-      lastCommittedAt: 344,
       pendingWidth: 980,
-      committedWidth: 988,
-      settleMs,
-    });
-
-    expect(decision).toEqual({ kind: "commit", width: 980 });
-  });
-
-  it("skips a sample that does not change the committed width", () => {
-    const decision = nextContainerWidthCommit({
-      now: 16,
-      gestureStartedAt: 0,
-      lastCommittedAt: 0,
-      pendingWidth: 1000,
-      committedWidth: 1000,
-      settleMs,
+      committedWidth: 1100,
+      settled: false,
     });
 
     expect(decision).toEqual({ kind: "defer" });
   });
 
-  it("coarsens samples after the follow window until the settle interval elapses", () => {
-    const held = nextContainerWidthCommit({
-      now: 700,
-      gestureStartedAt: 0,
-      lastCommittedAt: 600,
-      pendingWidth: 700,
-      committedWidth: 760,
-      settleMs,
-    });
-    const due = nextContainerWidthCommit({
-      now: 800,
-      gestureStartedAt: 0,
-      lastCommittedAt: 600,
-      pendingWidth: 640,
-      committedWidth: 760,
-      settleMs,
+  it("publishes the settled width once", () => {
+    const decision = nextContainerWidthCommit({
+      pendingWidth: 980,
+      committedWidth: 1100,
+      settled: true,
     });
 
-    expect(held).toEqual({ kind: "defer" });
-    expect(due).toEqual({ kind: "commit", width: 640 });
+    expect(decision).toEqual({ kind: "commit", width: 980 });
+  });
+
+  it("skips a settled sample that matches the committed width", () => {
+    const decision = nextContainerWidthCommit({
+      pendingWidth: 1100,
+      committedWidth: 1100,
+      settled: true,
+    });
+
+    expect(decision).toEqual({ kind: "defer" });
+  });
+});
+
+describe("containerWidthScale", () => {
+  it("fills the live container from the committed layout width", () => {
+    expect(containerWidthScale(1212, 1368)).toBeCloseTo(1368 / 1212);
+    expect(containerWidthScale(1212, 1212)).toBe(1);
+    expect(containerWidthScale(0, 1368)).toBe(1);
   });
 });

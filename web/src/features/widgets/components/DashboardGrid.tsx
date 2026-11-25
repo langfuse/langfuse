@@ -14,83 +14,98 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { nextContainerWidthCommit } from "./containerWidthCommit";
+import {
+  containerWidthScale,
+  nextContainerWidthCommit,
+} from "./containerWidthCommit";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 /**
  * Container width for react-grid-layout.
  *
- * WidthProvider re-renders every chart on each resize frame. A trailing
- * debounce avoids that during a window drag, but it also holds the previous
- * width while this container's own box is still changing, then snaps. Samples
- * are coalesced to one animation frame. `nextContainerWidthCommit` decides
- * which of those samples become a React update. The last measured width is
- * always committed `delayMs` after the container stops changing.
+ * Publishing a new width re-renders the grid and every chart in it. While
+ * the container's own width is changing, the committed layout stays put and
+ * is scaled with CSS to fill the box. One React update runs `delayMs` after
+ * the width stops changing. Width-only observation avoids a feedback loop
+ * from the height written to keep the scaled layout from overlapping content
+ * below it.
  */
 function useDebouncedContainerWidth(delayMs: number) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
 
   useEffect(() => {
-    const element = containerRef.current;
-    if (!element) return;
+    const container = containerRef.current;
+    const grid = gridRef.current;
+    if (!container || !grid) return;
 
     let frame = 0;
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    let gestureStartedAt: number | null = null;
-    let lastCommittedAt = 0;
-    let committedWidth: number | null = null;
+    let committedWidth = 0;
+    let lastObservedWidth = -1;
 
-    const commit = (next: number, now: number) => {
+    const measure = () => Math.round(container.clientWidth);
+
+    const paintScale = () => {
+      frame = 0;
+      const live = measure();
+      const scale = containerWidthScale(committedWidth, live);
+      if (Math.abs(scale - 1) < 0.001) {
+        grid.style.transform = "";
+        container.style.height = "";
+        return;
+      }
+      grid.style.transformOrigin = "top left";
+      grid.style.transform = `scale(${scale})`;
+      container.style.height = `${Math.round(grid.scrollHeight * scale)}px`;
+    };
+
+    const publish = (next: number) => {
       committedWidth = next;
-      lastCommittedAt = now;
+      lastObservedWidth = next;
+      grid.style.transform = "";
+      container.style.height = "";
       setWidth((current) => (current === next ? current : next));
     };
 
-    const measure = () => Math.round(element.clientWidth);
-
-    const sample = (now: number) => {
-      frame = 0;
-      const next = measure();
-      if (gestureStartedAt === null) gestureStartedAt = now;
-
-      const decision = nextContainerWidthCommit({
-        now,
-        gestureStartedAt,
-        lastCommittedAt,
-        pendingWidth: next,
-        committedWidth,
-        settleMs: delayMs,
-      });
-      if (decision.kind === "commit") commit(decision.width, now);
-    };
-
     const schedule = () => {
-      if (frame === 0) frame = requestAnimationFrame(sample);
+      const live = measure();
+      if (live === lastObservedWidth) return;
+      lastObservedWidth = live;
+      if (frame === 0) frame = requestAnimationFrame(paintScale);
       clearTimeout(settleTimer);
       settleTimer = setTimeout(() => {
         if (frame !== 0) {
           cancelAnimationFrame(frame);
           frame = 0;
         }
-        gestureStartedAt = null;
-        commit(measure(), performance.now());
+        const settled = measure();
+        const decision = nextContainerWidthCommit({
+          pendingWidth: settled,
+          committedWidth,
+          settled: true,
+        });
+        if (decision.kind === "commit") publish(decision.width);
+        else paintScale();
       }, delayMs);
     };
 
-    commit(measure(), performance.now());
+    publish(measure());
     const observer = new ResizeObserver(schedule);
-    observer.observe(element);
+    observer.observe(container);
 
     return () => {
       if (frame !== 0) cancelAnimationFrame(frame);
       clearTimeout(settleTimer);
       observer.disconnect();
+      grid.style.transform = "";
+      container.style.height = "";
     };
   }, [delayMs]);
 
-  return { containerRef, width };
+  return { containerRef, gridRef, width };
 }
 
 // Hook to detect screen size
@@ -159,7 +174,7 @@ export function DashboardGrid({
     activeKey: activeChartKey,
     onActiveKeyChange: setActiveChartKey,
   };
-  const { containerRef, width } = useDebouncedContainerWidth(200);
+  const { containerRef, gridRef, width } = useDebouncedContainerWidth(200);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
   );
@@ -307,36 +322,38 @@ export function DashboardGrid({
     );
   }
 
-  // Render grid layout for larger screens
+  // Desktop grid. Small screens render the stacked layout above.
   return (
-    <div ref={containerRef} className="w-full min-w-0">
-      {width !== null && (
-        <Responsive
-          className="layout"
-          width={width}
-          layouts={{ lg: layout }}
-          cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-          margin={[GRID_GAP, GRID_GAP]}
-          containerPadding={[0, 0]}
-          rowHeight={rowHeight}
-          isDraggable={canEdit}
-          isResizable={canEdit}
-          onDragStop={handleLayoutChange} // Save immediately when drag stops
-          onResizeStop={handleLayoutChange} // Save immediately when resize stops
-          draggableHandle=".drag-handle"
-          useCSSTransforms
-        >
-          {widgets.map((widget) => (
-            <div
-              key={widget.id}
-              data-placement-id={widget.id}
-              className="max-h-full max-w-full"
-            >
-              {renderPlacement(widget)}
-            </div>
-          ))}
-        </Responsive>
-      )}
+    <div ref={containerRef} className="w-full min-w-0 overflow-hidden">
+      <div ref={gridRef} style={width != null ? { width } : undefined}>
+        {width !== null && (
+          <Responsive
+            className="layout"
+            width={width}
+            layouts={{ lg: layout }}
+            cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
+            margin={[GRID_GAP, GRID_GAP]}
+            containerPadding={[0, 0]}
+            rowHeight={rowHeight}
+            isDraggable={canEdit}
+            isResizable={canEdit}
+            onDragStop={handleLayoutChange} // Save immediately when drag stops
+            onResizeStop={handleLayoutChange} // Save immediately when resize stops
+            draggableHandle=".drag-handle"
+            useCSSTransforms
+          >
+            {widgets.map((widget) => (
+              <div
+                key={widget.id}
+                data-placement-id={widget.id}
+                className="max-h-full max-w-full"
+              >
+                {renderPlacement(widget)}
+              </div>
+            ))}
+          </Responsive>
+        )}
+      </div>
     </div>
   );
 }
