@@ -1857,7 +1857,7 @@ struct BedrockGuardrailCase {
     expected_message: Option<&'static str>,
     expected_bedrock_calls: usize,
     expected_provider_calls: usize,
-    expected_findings: Option<serde_json::Value>,
+    expected_findings: Vec<(&'static str, &'static str)>,
 }
 
 async fn start_fake_bedrock(
@@ -1893,7 +1893,7 @@ async fn start_fake_bedrock(
     .await
 }
 
-fn recorded_guardrail_findings(payload: &serde_json::Value) -> Option<serde_json::Value> {
+fn assert_recorded_guardrails(payload: &serde_json::Value, expected: &[(&str, &str)]) {
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     let metadata: serde_json::Value = serde_json::from_str(
         span["attributes"]
@@ -1905,7 +1905,32 @@ fn recorded_guardrail_findings(payload: &serde_json::Value) -> Option<serde_json
             .unwrap(),
     )
     .unwrap();
-    metadata.get("langfuse.gateway.guardrails").cloned()
+    let guardrail_keys: Vec<&String> = metadata
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|key| key.starts_with("langfuse.gateway.guardrails."))
+        .collect();
+    if expected.is_empty() {
+        assert!(guardrail_keys.is_empty(), "{guardrail_keys:?}");
+        return;
+    }
+    let expected_outcome = if expected.iter().any(|(_, action)| *action == "block") {
+        "block"
+    } else {
+        "log"
+    };
+    assert_eq!(
+        metadata["langfuse.gateway.guardrails.outcome"],
+        serde_json::json!(expected_outcome)
+    );
+    assert_eq!(guardrail_keys.len(), 1 + expected.len());
+    for (id, action) in expected {
+        assert_eq!(
+            metadata[format!("langfuse.gateway.guardrails.{id}")],
+            serde_json::json!(action)
+        );
+    }
 }
 
 async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
@@ -1989,10 +2014,7 @@ async fn run_bedrock_guardrail_case(case: BedrockGuardrailCase) {
     telemetry
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
         .await;
-    assert_eq!(
-        recorded_guardrail_findings(&uploads.try_recv().unwrap()),
-        case.expected_findings
-    );
+    assert_recorded_guardrails(&uploads.try_recv().unwrap(), &case.expected_findings);
 }
 
 #[tokio::test]
@@ -2065,9 +2087,11 @@ async fn bedrock_guardrails_evaluate_last_turn_and_fail_closed_on_errors() {
                 .then_some(r#"Request blocked by guardrail "Bedrock safety""#),
             expected_bedrock_calls: 1,
             expected_provider_calls: provider_calls,
-            expected_findings: expect_finding.then(|| {
-                serde_json::json!([{"id": "g-bedrock", "action": action, "location": "request"}])
-            }),
+            expected_findings: if expect_finding {
+                vec![("g-bedrock", action)]
+            } else {
+                Vec::new()
+            },
         })
         .await;
     }
@@ -2117,10 +2141,7 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
             Some(r#"Request blocked by guardrail "Bedrock safety""#),
             1,
             0,
-            serde_json::json!([
-                {"id": "g-regex-log", "action": "log", "location": "request"},
-                {"id": "g-bedrock", "action": "block", "location": "request"},
-            ]),
+            vec![("g-regex-log", "log"), ("g-bedrock", "block")],
         ),
         (
             "my ssn is 123-45-6789",
@@ -2129,9 +2150,7 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
             Some(r#"Request blocked by guardrail "No SSNs""#),
             0,
             0,
-            serde_json::json!([
-                {"id": "g-regex-block", "action": "block", "location": "request"},
-            ]),
+            vec![("g-regex-block", "block")],
         ),
         (
             "mail me at jane@example.com",
@@ -2140,9 +2159,7 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
             None,
             1,
             1,
-            serde_json::json!([
-                {"id": "g-regex-log", "action": "log", "location": "request"},
-            ]),
+            vec![("g-regex-log", "log")],
         ),
     ] {
         run_bedrock_guardrail_case(BedrockGuardrailCase {
@@ -2155,7 +2172,7 @@ async fn mixed_regex_and_bedrock_guardrails_preserve_order_and_skip_bedrock_on_l
             expected_message,
             expected_bedrock_calls: bedrock_calls,
             expected_provider_calls: provider_calls,
-            expected_findings: Some(expected_findings),
+            expected_findings,
         })
         .await;
     }
