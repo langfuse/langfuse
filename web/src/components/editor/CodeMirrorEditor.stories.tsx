@@ -94,12 +94,13 @@ export const TypesFirstCharacter = meta.story({
 
     let reconfiguredAfterMount = false;
     const dispatch = view.dispatch.bind(view);
-    view.dispatch = (...input: Parameters<EditorView["dispatch"]>) => {
+    const wrappedDispatch: EditorView["dispatch"] = ((...input: unknown[]) => {
       if (input.some(isReconfigureSpec)) {
         reconfiguredAfterMount = true;
       }
-      dispatch(...input);
-    };
+      (dispatch as (...args: unknown[]) => void)(...input);
+    }) as EditorView["dispatch"];
+    view.dispatch = wrappedDispatch;
 
     await userEvent.click(editor);
     await userEvent.keyboard("hello");
