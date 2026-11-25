@@ -4386,45 +4386,14 @@ export const getGatewaySpendSinceFromEvents = async (params: {
   }));
 };
 
-const GATEWAY_GUARDRAIL_MAX_WITH_FILL_BUCKETS = 50_000;
-const GATEWAY_GUARDRAIL_MAX_WITH_FILL_TO_MS = Date.UTC(2106, 0, 1);
-
 const GATEWAY_GUARDRAIL_TIME_BUCKETS = {
-  day: {
-    bucket: toDate,
-    step: () => interval(1, "day"),
-    approxStepMs: 24 * 60 * 60 * 1000,
-  },
-  week: {
-    bucket: toMonday,
-    step: () => interval(1, "week"),
-    approxStepMs: 7 * 24 * 60 * 60 * 1000,
-  },
-  month: {
-    bucket: toStartOfMonth,
-    step: () => interval(1, "month"),
-    approxStepMs: 28 * 24 * 60 * 60 * 1000,
-  },
+  day: { bucket: toDate, step: () => interval(1, "day") },
+  week: { bucket: toMonday, step: () => interval(1, "week") },
+  month: { bucket: toStartOfMonth, step: () => interval(1, "month") },
 } as const;
 
 export type GatewayGuardrailTimeBucket =
   keyof typeof GATEWAY_GUARDRAIL_TIME_BUCKETS;
-
-function canWithFillGuardrailBuckets(
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  granularity: GatewayGuardrailTimeBucket,
-) {
-  const fromMs = fromTimestamp.getTime();
-  const toMs = toTimestamp.getTime();
-  const { approxStepMs } = GATEWAY_GUARDRAIL_TIME_BUCKETS[granularity];
-  return (
-    fromMs >= 0 &&
-    fromMs <= toMs &&
-    toMs <= GATEWAY_GUARDRAIL_MAX_WITH_FILL_TO_MS &&
-    (toMs - fromMs) / approxStepMs <= GATEWAY_GUARDRAIL_MAX_WITH_FILL_BUCKETS
-  );
-}
 
 /**
  * Number of gateway requests that matched each guardrail since `since`.
@@ -4506,11 +4475,11 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
   }
 
   const { bucket, step } = GATEWAY_GUARDRAIL_TIME_BUCKETS[params.granularity];
-  const fillBuckets = canWithFillGuardrailBuckets(
-    params.fromTimestamp,
-    params.toTimestamp,
-    params.granularity,
-  );
+  const fill = withFill({
+    from: bucket(params.fromTimestamp),
+    to: bucket(params.toTimestamp),
+    step: step(),
+  });
 
   if (params.groupByGuardrail && params.guardrailIds !== undefined) {
     const keyToGuardrailId = new Map(
@@ -4545,15 +4514,7 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
       .where((eb) => eb(aliasRef<string>("guardrail_key"), "in", guardrailKeys))
       .groupBy([aliasRef("time_dimension"), aliasRef("guardrail_key")])
       .orderBy(aliasRef("time_dimension"), "asc")
-      .$if(fillBuckets, (qb) =>
-        qb.$call(
-          withFill({
-            from: bucket(params.fromTimestamp),
-            to: bucket(params.toTimestamp),
-            step: step(),
-          }),
-        ),
-      );
+      .$call(fill);
 
     const { sql: query, params: queryParams } = compileClickhouseQuery(
       builder,
@@ -4604,15 +4565,7 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
     )
     .groupBy(aliasRef("time_dimension"))
     .orderBy(aliasRef("time_dimension"), "asc")
-    .$if(fillBuckets, (qb) =>
-      qb.$call(
-        withFill({
-          from: bucket(params.fromTimestamp),
-          to: bucket(params.toTimestamp),
-          step: step(),
-        }),
-      ),
-    );
+    .$call(fill);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,

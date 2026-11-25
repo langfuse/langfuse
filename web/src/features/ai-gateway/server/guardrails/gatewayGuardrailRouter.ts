@@ -75,6 +75,9 @@ const bulkTargetInput = z.discriminatedUnion("type", [
   }),
 ]);
 
+const MIN_TIME_SERIES_TIMESTAMP = new Date("1970-01-01T00:00:00.000Z");
+const MAX_TIME_SERIES_TIMESTAMP = new Date("2100-01-01T00:00:00.000Z");
+
 export const gatewayGuardrailRouter = createTRPCRouter({
   list: protectedOrganizationProcedure
     .input(
@@ -120,23 +123,34 @@ export const gatewayGuardrailRouter = createTRPCRouter({
 
   getFlaggedTimeSeries: protectedOrganizationProcedure
     .input(
-      organizationInput.extend({
-        fromTimestamp: z.date(),
-        toTimestamp: z.date(),
-        granularity: z.enum(["day", "week", "month"]),
-        selection: z
-          .discriminatedUnion("type", [
-            z.object({
-              type: z.literal("ids"),
-              ids: z.array(z.string().min(1)).max(100),
-            }),
-            z.object({
-              type: z.literal("matching"),
-              searchQuery: z.string().trim().optional(),
-            }),
-          ])
-          .optional(),
-      }),
+      organizationInput
+        .extend({
+          fromTimestamp: z
+            .date()
+            .min(MIN_TIME_SERIES_TIMESTAMP)
+            .max(MAX_TIME_SERIES_TIMESTAMP),
+          toTimestamp: z
+            .date()
+            .min(MIN_TIME_SERIES_TIMESTAMP)
+            .max(MAX_TIME_SERIES_TIMESTAMP),
+          granularity: z.enum(["day", "week", "month"]),
+          selection: z
+            .discriminatedUnion("type", [
+              z.object({
+                type: z.literal("ids"),
+                ids: z.array(z.string().min(1)).max(100),
+              }),
+              z.object({
+                type: z.literal("matching"),
+                searchQuery: z.string().trim().optional(),
+              }),
+            ])
+            .optional(),
+        })
+        .refine(
+          ({ fromTimestamp, toTimestamp }) => fromTimestamp <= toTimestamp,
+          "fromTimestamp must be before or equal to toTimestamp",
+        ),
     )
     .query(async ({ input, ctx }) => {
       requireGatewayGuardrailsRead({
