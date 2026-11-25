@@ -195,6 +195,109 @@ export const SearchableWithBadges = meta.story({
   },
 });
 
+const modelOptions = [
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
+] satisfies ComponentProps<typeof SelectInput>["options"];
+
+export const WithoutSelection = meta.story({
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+});
+
+export const Clearable = meta.story({
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+    clearAction: { label: "Clear selection", onClear: fn() },
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-72">
+        <SelectInput
+          {...args}
+          value={value}
+          clearAction={{
+            label: "Clear selection",
+            onClear: () => {
+              setValue("");
+              args.clearAction?.onClear();
+            },
+          }}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
+export const Disabled = meta.story({
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    disabled: true,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+});
+
+export const TestClearReplacesCaret = meta.story({
+  name: "(Test) Clear replaces the caret",
+  args: {
+    value: "gpt-4.1",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+    clearAction: { label: "Clear selection", onClear: fn() },
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("combobox");
+
+    await expect(
+      canvasElement.querySelector("[data-select-indicator='caret']"),
+    ).toBeNull();
+    await expect(
+      canvasElement.querySelector("[data-select-indicator='clear']"),
+    ).not.toBeNull();
+    await expect(trigger.querySelector("svg")).toBeNull();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear selection" }),
+    );
+    await expect(args.clearAction?.onClear).toHaveBeenCalledOnce();
+    await expect(
+      canvasElement.ownerDocument.body.querySelector("[role='listbox']"),
+    ).toBeNull();
+  },
+});
+
 export const Empty = meta.story({
   name: "(Test) Empty",
   args: {

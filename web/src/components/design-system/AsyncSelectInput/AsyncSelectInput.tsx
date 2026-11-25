@@ -10,9 +10,9 @@ import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { cn } from "@/src/utils/tailwind";
 import { assertUnreachable } from "@/src/utils/types";
 import { type SelectDropdown } from "../SelectDropdown/SelectDropdown";
-import { InputControl } from "../internal/InputControl/InputControl";
+import type { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
-import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 
 type SelectedOption<V extends string> = Pick<
   Extract<
@@ -38,7 +38,7 @@ export function AsyncSelectInput<V extends string>({
   error,
   muted,
   prefix,
-  trailingAction,
+  clearAction,
   ref,
   ...triggerProps
 }: Pick<
@@ -53,7 +53,8 @@ export function AsyncSelectInput<V extends string>({
   | "onBlur"
 > & {
   prefix?: React.ComponentProps<typeof InputControl>["prefix"];
-  trailingAction?: React.ComponentProps<typeof InputControl>["trailingAction"];
+  /** Shown in place of the caret when `value` is set. */
+  clearAction?: { label: string; onClear: () => void };
   value: SelectedOption<V> | null;
   onValueChange: (option: SelectedOption<V>) => void;
   placeholder: string;
@@ -178,12 +179,15 @@ export function AsyncSelectInput<V extends string>({
       onOpenChange={handleOpenChange}
     >
       <PopoverPrimitive.Anchor asChild>
-        <InputControl
-          contentLayout="spread"
+        <SelectControl
           error={error}
           disabled={triggerProps.disabled}
           prefix={prefix}
-          trailingAction={trailingAction}
+          clear={
+            value && clearAction
+              ? { label: clearAction.label, onClear: clearAction.onClear }
+              : undefined
+          }
         >
           <PopoverPrimitive.Trigger
             ref={ref}
@@ -204,9 +208,8 @@ export function AsyncSelectInput<V extends string>({
             >
               {value?.label ?? placeholder}
             </span>
-            <DropdownIndicator color={error ? "destructive" : "tertiary"} />
           </PopoverPrimitive.Trigger>
-        </InputControl>
+        </SelectControl>
       </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
         <InputDropdown.Content
