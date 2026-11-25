@@ -141,3 +141,62 @@ export const OverflowAlignment = meta.story({
     }
   },
 });
+
+export const OverflowWidthDependsOnCount = meta.story({
+  name: "(Test) Overflow Width Depends On Count",
+  args: {
+    ...CallerOwnedItems.input.args,
+    alignment: "center",
+    renderOverflow: ({ overflowItemCount }) => (
+      <button
+        type="button"
+        // Wide when few items overflow, narrow when many do — the same
+        // +N width coupling chart legends have.
+        style={{ width: overflowItemCount >= 3 ? 24 : 96 }}
+      >
+        +{overflowItemCount}
+      </button>
+    ),
+  },
+  render: (args) => {
+    const [forceWideOverflow, setForceWideOverflow] = useState(false);
+
+    return (
+      <div className="space-y-4">
+        <button type="button" onClick={() => setForceWideOverflow(true)}>
+          Widen overflow
+        </button>
+        <div className="w-[220px] min-w-0 overflow-hidden">
+          <OverflowList
+            {...args}
+            renderOverflow={
+              forceWideOverflow
+                ? ({ overflowItemCount }) => (
+                    <button type="button" style={{ width: 200 }}>
+                      +{overflowItemCount}
+                    </button>
+                  )
+                : args.renderOverflow
+            }
+          />
+        </div>
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => {
+      expect(canvas.getByRole("button", { name: /^\+\d+$/ })).toBeVisible();
+    });
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Widen overflow" }),
+    );
+    await waitFor(() => {
+      expect(
+        canvas.queryByRole("button", { name: "First" }),
+      ).not.toBeInTheDocument();
+      expect(canvas.getByRole("button", { name: "+4" })).toBeVisible();
+    });
+  },
+});
