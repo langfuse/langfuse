@@ -21,6 +21,7 @@
 - CloudWatch metrics: `recordGauge` batches values; windowed measurements can
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
+- Shadow-run metrics: inside `shadowRunContext(name)`, `recordIncrement`, `recordGauge`, `recordHistogram` and `recordDistribution` send a stat as `langfuse.shadow.<rest>` instead of `langfuse.<rest>`, in Datadog and CloudWatch, so production series exclude it. The marker is an OpenTelemetry context value: it follows async work, survives `startNewTrace`, and is not carried by request headers or queue jobs.
 - Server cache utilities: `src/server/cache/*`
 - Blob storage clients: `StorageServiceFactory.getInstance` in
   `src/server/services/StorageService.ts` takes one `credentials` value:

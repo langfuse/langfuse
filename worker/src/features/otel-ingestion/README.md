@@ -79,7 +79,7 @@ Native errors reject the job without falling back to TypeScript processing.
 
 With TypeScript as the direct writer, `LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE` (0 to 1, default 0) selects a share of batches that the Rust path processes as well, and the worker compares the two. The Rust run writes rows to `events_native_test` only. It uploads no media and makes no evaluation or trace-activity write.
 
-**Setup.** Run [`otel-shadow-table.sql`](../../../../packages/shared/clickhouse/scripts/otel-shadow-table.sql) in the ingestion writer's database before raising the rate; `pnpm --filter=shared run ch:dev-tables` does it locally. It is not a migration, so drop and recreate the table after a migration changes the `events_full` columns. Rows expire early on the next UTC day.
+**Setup.** Run `otel-shadow-table.sql`, one of the shared package's ClickHouse scripts, in the ingestion writer's database before raising the rate; `pnpm --filter=shared run ch:dev-tables` does it locally. It is not a migration, so drop and recreate the table after a migration changes the `events_full` columns. Rows expire early on the next UTC day.
 
 **Reading a comparison.** Metrics use the prefix `langfuse.ingestion.otel.shadow.`; the Rust run's own metrics are named `langfuse.shadow.*`.
 

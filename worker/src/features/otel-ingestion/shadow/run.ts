@@ -76,6 +76,7 @@ type TypeScriptRun = {
 };
 
 type RustRun = {
+  recorded: Recorded;
   /** Where the Rust run stopped; absent when it completed. */
   failedAt?: "prepare" | "process";
   error?: string;
@@ -142,11 +143,11 @@ export function admitOtelShadowBatch(
  * performs no other write.
  */
 export async function withOtelShadow(sample: Sample, direct: DirectStep) {
-  const recorded = newRecorded();
+  const { step, recorded } = recordTypeScriptWrites(direct);
   const startedAt = performance.now();
   let error: string | undefined;
   try {
-    return await processOtelEvents(recordTypeScriptWrites(direct, recorded));
+    return await processOtelEvents(step);
   } catch (failure) {
     error = errorClass(failure);
     throw failure;
@@ -156,12 +157,13 @@ export async function withOtelShadow(sample: Sample, direct: DirectStep) {
   }
 }
 
-/** The direct step with its event and evaluation writes recorded as they happen. */
-function recordTypeScriptWrites(
-  direct: DirectStep,
-  recorded: Recorded,
-): DirectStep {
-  return {
+/** The direct step, and a record that fills as its event and evaluation writes happen. */
+function recordTypeScriptWrites(direct: DirectStep): {
+  step: DirectStep;
+  recorded: Recorded;
+} {
+  const recorded = newRecorded();
+  const step: DirectStep = {
     ...direct,
     ingestionService: {
       createEventRecord: (...args) =>
@@ -178,6 +180,7 @@ function recordTypeScriptWrites(
     },
     evalWrites: () => recordEvalWrites(recorded, direct.evalWrites()),
   };
+  return { step, recorded };
 }
 
 /** Start the Rust run and its comparison in the background, unless too many are going. */
@@ -188,9 +191,8 @@ function startRustComparison(sample: Sample, typeScript: TypeScriptRun): void {
   }
   rustRuns++;
   admission.started++;
-  const recorded = newRecorded();
-  runRust(sample, recorded)
-    .then((run) => report(sample, typeScript, recorded, run))
+  runRust(sample)
+    .then((rust) => report(sample, typeScript, rust))
     .finally(() => rustRuns--)
     .catch((failure) =>
       logger.warn("OTEL shadow comparison failed", {
@@ -271,14 +273,15 @@ const dryEvalWrites: EvalWrites = {
 };
 
 /**
- * The Rust run's writes. Rows go to the events_native_test writer; media and
- * evaluation writes are counted and answered without touching storage.
+ * The Rust run's writes, and a record that fills as they happen. Rows go to
+ * the events_native_test writer; media and evaluation writes are counted and
+ * answered without touching storage.
  */
 function shadowRustWrites(
-  recorded: Recorded,
   writer: ReturnType<typeof ClickhouseWriter.getNativeTestInstance>,
-): RustOtelWrites {
-  return {
+): { writes: RustOtelWrites; recorded: Recorded } {
+  const recorded = newRecorded();
+  const writes: RustOtelWrites = {
     uploadMedia: async ({ contentBytes, sha256Hash }) => {
       recorded.mediaUploads++;
       return {
@@ -300,9 +303,10 @@ function shadowRustWrites(
       });
     },
   };
+  return { writes, recorded };
 }
 
-async function runRust(sample: Sample, recorded: Recorded): Promise<RustRun> {
+async function runRust(sample: Sample): Promise<RustRun> {
   // Taken before the first await: a run that outlives shutdown must not create
   // a new writer.
   const writer = ClickhouseWriter.getNativeTestInstance();
@@ -313,6 +317,7 @@ async function runRust(sample: Sample, recorded: Recorded): Promise<RustRun> {
         { name: SHADOW_RUN, startNewTrace: true },
         async (span): Promise<RustRun> => {
           span.setAttribute("fileKey", sample.context.fileKey);
+          const { writes, recorded } = shadowRustWrites(writer);
           const startedAt = performance.now();
           let failedAt: RustRun["failedAt"] = "prepare";
           let prepareMs: number | undefined;
@@ -331,19 +336,20 @@ async function runRust(sample: Sample, recorded: Recorded): Promise<RustRun> {
               await processRustOtelEvents({
                 batch,
                 context: { ...sample.context, now: new Date().toISOString() },
-                writes: shadowRustWrites(recorded, writer),
+                writes,
               });
             } finally {
               await batch.dispose();
             }
             return {
+              recorded,
               prepareMs,
               processMs: performance.now() - startedAt - prepareMs,
             };
           } catch (error) {
             const rustError = errorClass(error);
             span.setStatus({ code: SpanStatusCode.ERROR, message: rustError });
-            return { failedAt, error: rustError, prepareMs };
+            return { recorded, failedAt, error: rustError, prepareMs };
           }
         },
       ),
@@ -368,16 +374,15 @@ function compareEvalWrites(typeScript: Recorded, rust: Recorded) {
 function recordDurations(
   sample: Sample,
   typeScript: TypeScriptRun,
-  rust: Recorded,
-  run: RustRun,
+  rust: RustRun,
   writeMode: string,
 ): void {
   // Only TypeScript performs real uploads and evaluation writes, so durations
   // compare like for like on batches without any.
   const sideEffects =
     typeScript.recorded.evalWrites.length +
-      rust.evalWrites.length +
-      rust.mediaUploads >
+      rust.recorded.evalWrites.length +
+      rust.recorded.mediaUploads >
     0
       ? "some"
       : "none";
@@ -398,23 +403,22 @@ function recordDurations(
     record("ts", "prepare", sample.typeScriptPreparationMs);
     record("ts", "process", typeScript.processMs);
   }
-  if (run.failedAt === undefined) {
-    record("rust", "prepare", run.prepareMs);
-    record("rust", "process", run.processMs);
+  if (rust.failedAt === undefined) {
+    record("rust", "prepare", rust.prepareMs);
+    record("rust", "process", rust.processMs);
   }
 }
 
 function report(
   sample: Sample,
   typeScript: TypeScriptRun,
-  rust: Recorded,
-  run: RustRun,
+  rust: RustRun,
 ): void {
   const { projectId, fileKey } = sample.context;
-  const bothOk = typeScript.error === undefined && run.failedAt === undefined;
+  const bothOk = typeScript.error === undefined && rust.failedAt === undefined;
   // A failed side stopped part-way, so its writes say nothing about parity.
   const evalWrites = bothOk
-    ? compareEvalWrites(typeScript.recorded, rust)
+    ? compareEvalWrites(typeScript.recorded, rust.recorded)
     : { onlyTypeScript: [], onlyRust: [], snapshotFields: [] };
   const evalWritesMatch =
     evalWrites.onlyTypeScript.length + evalWrites.onlyRust.length === 0;
@@ -425,20 +429,20 @@ function report(
   };
   const result = batchResult(
     typeScript.error === undefined,
-    run.failedAt === undefined,
+    rust.failedAt === undefined,
   );
   const writeMode = v4WritesToLegacyTables(env) ? "dual" : "events_only";
 
   recordIncrement(`${METRIC_PREFIX}batch`, 1, {
     result,
     ts_error: typeScript.error ?? "none",
-    rust_error: run.error ?? "none",
-    rust_stage: run.failedAt ?? "none",
+    rust_error: rust.error ?? "none",
+    rust_stage: rust.failedAt ?? "none",
     eval_writes: parity(evalWritesMatch),
     eval_snapshots: parity(snapshotsMatch),
     write_mode: writeMode,
   });
-  recordDurations(sample, typeScript, rust, run, writeMode);
+  recordDurations(sample, typeScript, rust, writeMode);
 
   if (!bothOk || !evalWritesMatch || !snapshotsMatch) {
     logger.warn("OTEL shadow batch differs", {
@@ -446,10 +450,10 @@ function report(
       fileKey,
       result,
       typeScriptError: typeScript.error,
-      rustError: run.error,
-      rustStage: run.failedAt,
+      rustError: rust.error,
+      rustStage: rust.failedAt,
       typeScriptRows: typeScript.recorded.rows.length,
-      rustRows: rust.rows.length,
+      rustRows: rust.recorded.rows.length,
       evalWritesOnlyTypeScript: evalWrites.onlyTypeScript.slice(0, 5),
       evalWritesOnlyRust: evalWrites.onlyRust.slice(0, 5),
       evalSnapshotFields: evalWrites.snapshotFields,
@@ -459,7 +463,7 @@ function report(
     queueRowVerification({
       projectId,
       fileKey,
-      rows: typeScript.recorded.rows.concat(rust.rows),
+      rows: typeScript.recorded.rows.concat(rust.recorded.rows),
     });
   }
 }
