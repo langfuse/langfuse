@@ -128,7 +128,7 @@ const dashboardDefinitionBaseSchema = z
       .array(classicPlacementBaseSchema)
       .optional()
       .describe(
-        "Deprecated classic placement list. When provided with blocks it must match the classic entries in order.",
+        "Deprecated classic placement list. On create, match the classic entries in blocks. On update, you may edit only widgets and echo the current blocks from getDashboard.",
       ),
   })
   .describe("Supply version 1 with blocks, or supply the legacy widgets list.");
@@ -377,7 +377,7 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
 export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   name: "updateDashboard",
   description:
-    "Update dashboard metadata, filters, or classic placements. Supply version 1 blocks with all previously returned Markdown and multi-query widgets unchanged, or use a legacy widgets-only layout.",
+    "Update dashboard metadata, filters, or classic placements. Keep existing inline widgets unchanged. Edit version 1 blocks, send a widgets-only layout, or edit widgets on a getDashboard response and echo the current blocks.",
   action: "dashboards:CUD",
   baseSchema: dashboardPatchBaseSchema,
   inputSchema: DashboardIdQuery.extend(

@@ -112,11 +112,14 @@ function toLayoutEdit(definition: NonNullable<DashboardInput["definition"]>) {
   if (!("version" in definition)) {
     return { widgets: definition.widgets.map(toInternalPlacement) };
   }
+  const blocks = definition.blocks.map((block) =>
+    "type" in block ? toInternalPlacement(block) : block,
+  );
   return {
-    widgets: definition.blocks
-      .filter((block) => "type" in block)
-      .map(toInternalPlacement),
-    expectedInlineBlocks: definition.blocks.filter((block) => "kind" in block),
+    widgets:
+      definition.widgets?.map(toInternalPlacement) ??
+      blocks.filter((block) => "type" in block),
+    blocks,
   };
 }
 
@@ -201,7 +204,7 @@ export async function createPublicDashboard(params: {
   const definition = params.input.definition
     ? toLayoutEdit(params.input.definition)
     : undefined;
-  if (definition?.expectedInlineBlocks?.length) {
+  if (definition?.blocks?.some((block) => "kind" in block)) {
     throw new ForbiddenError(
       "Project API keys cannot create Markdown or multi-query chart widgets.",
     );

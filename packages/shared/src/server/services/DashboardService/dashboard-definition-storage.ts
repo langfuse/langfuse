@@ -319,7 +319,7 @@ export async function patchPublicDashboard(
     description?: string;
     filters?: DashboardDomain["filters"];
     definition?: DashboardDefinition & {
-      expectedInlineBlocks?: StoredInlineDashboardWidget[];
+      blocks?: z.infer<typeof DashboardDefinitionV1Schema>["blocks"];
     };
   },
 ) {
@@ -329,8 +329,9 @@ export async function patchPublicDashboard(
     let result = current;
     if (patch.definition) {
       const layout = editableLayout(current.definition);
-      const expected = patch.definition.expectedInlineBlocks;
-      if (expected) {
+      const { widgets, blocks } = patch.definition;
+      if (blocks) {
+        const expected = blocks.filter((block) => "kind" in block);
         const saved = knownInlineBlocks(layout);
         if (
           expected.length !== saved.length ||
@@ -354,6 +355,21 @@ export async function patchPublicDashboard(
         )
           throw new LangfuseConflictError(
             "Saved dashboard widgets changed. Reload the dashboard and try again.",
+          );
+        // An older client may edit widgets on the response object and echo blocks.
+        // The echoed blocks must still describe the layout locked by this transaction.
+        if (
+          !isDeepStrictEqual(
+            widgets,
+            blocks.filter((block) => "type" in block),
+          ) &&
+          !(
+            "blocks" in before.definition &&
+            isDeepStrictEqual(blocks, before.definition.blocks)
+          )
+        )
+          throw new LangfuseConflictError(
+            "The dashboard layout changed. Reload the dashboard and try again.",
           );
       }
       result = await replaceClassicLayout(

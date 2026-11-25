@@ -7319,9 +7319,11 @@ paths:
         Update a dashboard's name, description, definition, or filters.
 
         A legacy `widgets` definition updates classic placements while
-        preserving inline widgets. A version 1 definition uses `blocks` as the
-        complete supported layout; `widgets` may be omitted or must match the
-        classic placements in `blocks`.
+        preserving inline widgets. For a version 1 edit, update `blocks` and
+        omit `widgets` or mirror the classic placements there. A client may
+        also edit only `widgets` on a definition returned by GET and echo
+        `blocks` unchanged. If the echoed layout has since changed, PATCH
+        returns `409`; fetch the current definition before retrying.
 
         Project API credentials may round-trip existing inline widgets unchanged
         while editing classic placements. If a saved widget has a newer
@@ -16171,8 +16173,10 @@ components:
       title: unstableDashboardDefinitionV1Input
       type: object
       description: |-
-        `blocks` is authoritative. When `widgets` is supplied, it must match the
-        classic placements in `blocks`. Placement and widget IDs must be unique.
+        Supply the complete layout in `blocks`. On create, `widgets` must match
+        the classic placements when supplied. On update, clients editing only
+        `widgets` may echo the current `blocks` returned by GET. Placement and
+        widget IDs must be unique.
         Existing inline widgets must be echoed without changing their content,
         revision, order, or anchor; public credentials cannot mutate them.
       properties:

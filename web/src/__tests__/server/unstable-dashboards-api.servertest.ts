@@ -184,10 +184,7 @@ describe("unstable dashboard API", () => {
         path,
         {
           name: "Expanded chart",
-          definition: {
-            version: "1",
-            blocks: [moved, note, chart, tabbedChart, converted],
-          },
+          definition: { ...read.body.definition, widgets: [moved] },
         },
         auth,
       );
@@ -196,6 +193,28 @@ describe("unstable dashboard API", () => {
         widgets: [moved],
         blocks: [moved, note, chart, tabbedChart, converted],
       });
+      const competingEdit = await makeAPICall(
+        "PATCH",
+        path,
+        {
+          name: "Overwritten",
+          definition: {
+            ...read.body.definition,
+            widgets: [{ ...placement, width: 3 }],
+          },
+        },
+        auth,
+      );
+      expect(competingEdit.status).toBe(409);
+      const duplicate = await makeAPICall(
+        "PATCH",
+        path,
+        {
+          definition: { ...accepted.body.definition, widgets: [moved, moved] },
+        },
+        auth,
+      );
+      expect(duplicate.status).toBe(400);
 
       for (const blocks of [
         [moved, note, chart, tabbedChart],
@@ -352,6 +371,24 @@ describe("unstable dashboard API", () => {
           expect(entry).not.toHaveProperty("definition.blocks");
         }
       }
+      const definition = updated.body.definition;
+      if (!("blocks" in definition))
+        throw new Error("Expected a version 1 layout");
+      const blocks = definition.blocks.map((block) =>
+        block.id === placement.id ? moved : block,
+      );
+      const movedByBlocks = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { definition: { version: "1", blocks } },
+        auth,
+      );
+      expect(movedByBlocks.body.definition).toEqual({
+        version: "1",
+        blocks,
+        widgets: [moved],
+      });
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
     }

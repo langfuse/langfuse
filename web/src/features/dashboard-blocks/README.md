@@ -103,7 +103,9 @@ The unstable dashboards API and its MCP tools expose the same dashboard definiti
 
 To move a classic chart using the v1 API, GET the dashboard, update the chart placement in `blocks`, then PATCH the definition with `version` and `blocks`. If you also send `widgets`, keep it equal to the classic placements in `blocks`. Preserve the saved inline widget IDs, configurations, anchors and revisions. An API key may read or echo those widgets during the staff pilot. Standalone inline widgets require an opted-in employee to create, change or remove them. Dashboard editors can still remove a converted Home placement using its widget menu. An API client that echoes outdated widget revisions receives HTTP 409 and can fetch the dashboard again before retrying. Attempts to edit protected widgets through the public API return HTTP 403.
 
-An older `{widgets}` client can save its layout without knowing which inline widgets exist. A reader encountering an unsupported future root receives the classic projection. Its stored definition can be edited by a server that understands that version.
+An older `{widgets}` client can save its layout without knowing which inline widgets exist. A client that edits only `widgets` on the full GET response can also PATCH that response. The server compares the echoed `blocks` with the saved layout under a row lock. A concurrent move or resize returns HTTP 409, so the client can reload before reapplying its edit. Creating a dashboard with both arrays requires a matching mirror.
+
+A reader encountering an unsupported future root receives the classic projection. Its stored definition can be edited by a server that understands that version.
 
 ## Evolving a definition
 

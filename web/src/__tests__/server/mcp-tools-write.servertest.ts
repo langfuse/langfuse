@@ -171,6 +171,7 @@ import {
   handleUpdateDashboard,
   handleUpdateDashboardWidget,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
+import { DashboardSchema } from "@/src/features/public-api/types/unstable-dashboards";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -1836,6 +1837,26 @@ describe("MCP Write Tools", () => {
         y: 0,
         width: 6,
         height: 6,
+      });
+
+      const snapshot = (await handleGetDashboard(
+        { dashboardId: dashboard.id },
+        setup.context,
+      )) as { definition: unknown };
+      const definition = DashboardSchema.shape.definition.parse(
+        snapshot.definition,
+      );
+      const resized = { ...definition.widgets[0], height: 3 };
+      await expect(
+        handleUpdateDashboard(
+          {
+            dashboardId: dashboard.id,
+            definition: { ...definition, widgets: [resized] },
+          },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        definition: { widgets: [resized], blocks: [resized] },
       });
 
       await expect(
