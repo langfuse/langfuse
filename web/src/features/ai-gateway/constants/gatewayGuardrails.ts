@@ -19,12 +19,15 @@ export const GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH = 100;
 export const GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH = 500;
 export const GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH = 4_000;
 
-export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES = 128 * 1024;
-export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES = 512 * 1024;
-export const GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE =
-  "This guardrail exceeds the 128 KiB compiled size limit. Simplify the pattern, use an external guardrail provider, or contact support if you need more capacity.";
-export const GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE =
-  "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail, use an external guardrail provider, or contact support if you need more capacity.";
+const BYTES_PER_KIB = 1024;
+export const GATEWAY_GUARDRAIL_MAX_RULE_KIB = 128;
+export const GATEWAY_GUARDRAIL_MAX_ORG_KIB = 512;
+export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES =
+  GATEWAY_GUARDRAIL_MAX_RULE_KIB * BYTES_PER_KIB;
+export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES =
+  GATEWAY_GUARDRAIL_MAX_ORG_KIB * BYTES_PER_KIB;
+export const GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE = `This guardrail exceeds the ${GATEWAY_GUARDRAIL_MAX_RULE_KIB} KiB compiled size limit. Simplify the pattern, use an external guardrail provider, or contact support if you need more capacity.`;
+export const GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE = `Your organization's guardrails exceed the ${GATEWAY_GUARDRAIL_MAX_ORG_KIB} KiB combined size limit. Simplify or remove an existing guardrail, use an external guardrail provider, or contact support if you need more capacity.`;
 
 export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   GatewayGuardrailAction,

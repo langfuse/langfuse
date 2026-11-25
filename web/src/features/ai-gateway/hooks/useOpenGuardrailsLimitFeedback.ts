@@ -1,4 +1,8 @@
-import { GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import {
+  GATEWAY_GUARDRAIL_MAX_ORG_KIB,
+  GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+  GATEWAY_GUARDRAIL_MAX_RULE_KIB,
+} from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -11,10 +15,8 @@ export type GatewayGuardrailsLimitFeedbackReason =
 const FEEDBACK_MESSAGES: Record<GatewayGuardrailsLimitFeedbackReason, string> =
   {
     count: `We reached the limit of ${GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION} AI Gateway guardrails and would love to share why we need more:\n\n`,
-    rule_size:
-      "We reached the 128 KiB compiled size limit for an AI Gateway regex guardrail and would love to share our use case:\n\n",
-    org_size:
-      "We reached the 512 KiB combined compiled size limit for AI Gateway guardrails and would love to share why we need more capacity:\n\n",
+    rule_size: `We reached the ${GATEWAY_GUARDRAIL_MAX_RULE_KIB} KiB compiled size limit for an AI Gateway regex guardrail and would love to share our use case:\n\n`,
+    org_size: `We reached the ${GATEWAY_GUARDRAIL_MAX_ORG_KIB} KiB combined compiled size limit for AI Gateway guardrails and would love to share why we need more capacity:\n\n`,
   };
 
 /** Opens the support drawer prefilled as feedback about a guardrail limit. */

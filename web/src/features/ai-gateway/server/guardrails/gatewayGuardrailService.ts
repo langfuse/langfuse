@@ -960,10 +960,10 @@ async function assertOrgSizeLimit(
     existingPatterns.push(...compileGuardrailConfigPatterns(parsed.data));
   }
 
-  // `newPatterns` already passed the 128 KiB per-rule check. Check the org
-  // total against 512 KiB without re-rejecting existing rules between 128 KiB
-  // and 512 KiB, and drop uncompilable legacy stored patterns (which the
-  // gateway also skips) so a stale row cannot block unrelated saves.
+  // `newPatterns` already passed the per-rule limit check. Check the org total
+  // without re-rejecting existing rules above the per-rule cap, and drop
+  // uncompilable legacy stored patterns (which the gateway also skips) so a
+  // stale row cannot block unrelated saves.
   const orgLimits = {
     max_rule_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
     max_set_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
