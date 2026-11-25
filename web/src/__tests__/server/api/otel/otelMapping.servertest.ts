@@ -8229,6 +8229,49 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolEvents.length).toBe(1);
     });
 
+    it.each([
+      ["ai.operationId", { intValue: 0 }],
+      ["operation.name", { boolValue: true }],
+    ])(
+      "should map a span whose %s is not text to span-create",
+      async (key, value) => {
+        const otelSpans = [
+          {
+            resource: { attributes: [] },
+            scopeSpans: [
+              {
+                scope: { name: "ai" },
+                spans: [
+                  {
+                    traceId: {
+                      data: [
+                        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                      ],
+                    },
+                    spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                    name: "tool-execution",
+                    startTimeUnixNano: 1000000000,
+                    endTimeUnixNano: 2000000000,
+                    attributes: [{ key, value }],
+                    status: {},
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+
+        const events = await convertOtelSpanToIngestionEvent(
+          otelSpans[0],
+          new Set(),
+          publicKey,
+        );
+
+        const spanEvents = events.filter((e) => e.type === "span-create");
+        expect(spanEvents.length).toBe(1);
+      },
+    );
+
     it("should map Vercel AI SDK generation WITH model to generation-create", async () => {
       const otelSpans = [
         {
