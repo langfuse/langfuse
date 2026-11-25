@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import {
   multiQueryConfigV2Schema,
@@ -9,16 +9,13 @@ import {
   type MultiQueryTab,
   type SavedMultiQueryConfig,
 } from "@langfuse/shared/dashboards";
-import {
-  PlusIcon,
-  PauseIcon,
-  PlayIcon,
-  RefreshCw,
-  EllipsisVertical,
-} from "@langfuse/icons";
+import { PauseIcon, PlayIcon, RefreshCw, PencilIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
+import { WidgetNameDialog } from "./WidgetNameDialog";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { VisualizationFrame } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
@@ -41,9 +38,17 @@ import {
   type MultiQueryWidgetContext,
 } from "./useMultiQueryWidget";
 
+type TabNameRequest = {
+  title: string;
+  submitLabel: string;
+  initialName: string;
+  onConfirm: (name: string) => void;
+};
+
 const noInvalidSources: ReadonlySet<string> = new Set();
 
 export function MultiQueryEditor({
+  children,
   initial,
   initialTabId,
   projectId,
@@ -55,6 +60,7 @@ export function MultiQueryEditor({
   savePending = false,
   saveError,
 }: MultiQueryWidgetContext & {
+  children: ReactNode;
   initial: SavedMultiQueryConfig | undefined;
   initialTabId?: string;
   onSave: (
@@ -72,6 +78,8 @@ export function MultiQueryEditor({
     defaultValues: initialDraft,
   });
   const config = watch();
+  const widgetTitle = useRef<HTMLButtonElement>(null);
+  const tabBar = useRef<HTMLDivElement>(null);
   const [tabId, setTabId] = useState(
     () =>
       initialDraft.tabs.find((tab) => tab.id === initialTabId)?.id ??
@@ -185,34 +193,37 @@ export function MultiQueryEditor({
     setVisited((prev) => new Set([...prev, id]));
     track("multi_query_tab_selected");
   };
-  const add = (duplicate = false) => {
+  const add = (name: string, source?: MultiQueryTab) => {
     const id = nextEditorId("tab", config.tabs);
-    const tab = duplicate
-      ? {
-          ...structuredClone(active),
-          id,
-          label: (active.label + " copy").slice(0, 200),
-        }
-      : createEditorTab(id, "Tab " + (config.tabs.length + 1));
+    const tab = source
+      ? { ...structuredClone(source), id, label: name }
+      : createEditorTab(id, name);
     setValue("tabs", [...config.tabs, tab]);
     select(id);
     track(
-      duplicate ? "multi_query_tab_duplicated" : "multi_query_tab_added",
+      source ? "multi_query_tab_duplicated" : "multi_query_tab_added",
       config.tabs.length + 1,
     );
   };
-  const remove = () => {
-    const tabs = config.tabs.filter((t) => t.id !== active.id);
-    select(tabs[Math.max(0, config.tabs.indexOf(active) - 1)]!.id);
+  const remove = (tab: MultiQueryTab) => {
+    const tabs = config.tabs.filter((t) => t.id !== tab.id);
+    if (tab.id === active.id)
+      select(tabs[Math.max(0, config.tabs.indexOf(tab) - 1)]!.id);
     setValue("tabs", tabs);
     setInvalidFilters((prev) => {
       const next = new Map(prev);
-      next.delete(active.id);
+      next.delete(tab.id);
+      return next;
+    });
+    // An available id can be reused by a later tab.
+    setUnverified((prev) => {
+      const next = new Set(prev);
+      next.delete(tab.id);
       return next;
     });
     track("multi_query_tab_removed", tabs.length);
   };
-  const move = (unit: string) => {
+  const move = (unit: string, name: string) => {
     const id = nextEditorId("tab", config.tabs);
     const [original, moved] = splitMultiQueryTabByUnit(
       active,
@@ -223,7 +234,7 @@ export function MultiQueryEditor({
     setValue(
       "tabs",
       config.tabs.flatMap((t) =>
-        t.id === active.id ? [original, moved] : [t],
+        t.id === active.id ? [original, { ...moved, label: name }] : [t],
       ),
     );
     select(id);
@@ -248,92 +259,109 @@ export function MultiQueryEditor({
       setSubmitError("The chart could not be saved. Try again.");
     }
   };
-  return (
+  const duplicateDisabled = (id: string) => {
+    if (config.tabs.length >= 9)
+      return { reason: "This widget has nine tabs." };
+    if (invalidFilters.get(id)?.size)
+      return {
+        reason: "Finish the series filters before duplicating this tab.",
+      };
+  };
+  const renderEditor = (openDialog: (request: TabNameRequest) => void) => (
     <div className="ph-no-capture flex h-[min(75vh,54rem)] min-h-80 min-w-0 flex-col gap-3">
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        {config.tabs.length > 1 && (
-          <div className="min-w-0 flex-1">
-            <Tabs value={active.id} onValueChange={select}>
-              <Tabs.List
-                variant="underline"
-                overflow="menu"
-                aria-label="Widget tabs"
-              >
-                {config.tabs.map((t) => (
-                  <Tabs.Trigger
-                    key={t.id}
-                    value={t.id}
-                    label={t.label || "Untitled tab"}
-                  />
-                ))}
-              </Tabs.List>
-            </Tabs>
-          </div>
-        )}
-        <Button
-          text="Add tab"
-          size="sm"
-          variant="ghost"
-          icon={PlusIcon}
-          disabled={config.tabs.length >= 9}
-          onClick={() => add()}
-        />
-        <DropdownMenu
-          noCapture
-          ariaLabel="Tab actions"
-          items={[
-            {
-              id: "duplicate",
-              type: "item",
-              title: "Duplicate tab",
-              disabled:
-                config.tabs.length >= 9 || !activeFiltersComplete
-                  ? {
-                      reason:
-                        config.tabs.length >= 9
-                          ? "This widget has nine tabs."
-                          : "Finish the series filters before duplicating this tab.",
-                    }
+      <div ref={tabBar} className="min-w-0 shrink-0">
+        <Tabs value={active.id} onValueChange={select}>
+          <TabBar
+            label="Widget tabs"
+            createAction={{
+              label: "Add tab",
+              disabledReason:
+                config.tabs.length >= 9
+                  ? "This widget has nine tabs."
                   : undefined,
-              onClick: () => add(true),
-            },
-            ...(config.tabs.length > 1
-              ? [
-                  {
-                    id: "first",
-                    type: "item" as const,
-                    title: "Make first tab",
-                    disabled:
-                      config.tabs[0]!.id === active.id
-                        ? { reason: "This tab already opens first." }
-                        : undefined,
-                    onClick: () => {
-                      setValue("tabs", [
-                        active,
-                        ...config.tabs.filter((t) => t.id !== active.id),
-                      ]);
-                      track("multi_query_tab_reordered");
+              onClick: () =>
+                openDialog({
+                  title: "Add tab",
+                  initialName: "",
+                  submitLabel: "Add tab",
+                  onConfirm: add,
+                }),
+            }}
+            tabs={config.tabs.map((tab, index) => {
+              const rename = () =>
+                openDialog({
+                  title: "Rename tab",
+                  initialName: tab.label,
+                  submitLabel: "Rename",
+                  onConfirm: (label) => {
+                    if (label === tab.label) return;
+                    changeTab({ ...tab, label });
+                    track("multi_query_tab_renamed");
+                  },
+                });
+              return {
+                value: tab.id,
+                label: tab.label,
+                onRename: rename,
+                noCapture: true,
+                menu: {
+                  label: tab.label + " options",
+                  alwaysVisible: active.id === tab.id,
+                  items: [
+                    {
+                      id: "rename",
+                      type: "item",
+                      title: "Rename tab",
+                      icon: PencilIcon,
+                      onClick: rename,
                     },
-                  },
-                  {
-                    id: "remove",
-                    type: "item" as const,
-                    title: "Remove tab",
-                    onClick: remove,
-                  },
-                ]
-              : []),
-          ]}
-        >
-          {({ getTriggerProps }) => (
-            <IconButton
-              {...getTriggerProps()}
-              label="Tab actions"
-              icon={EllipsisVertical}
-              size="sm"
-            />
-          )}
-        </DropdownMenu>
+                    {
+                      id: "duplicate",
+                      type: "item",
+                      title: "Duplicate tab",
+                      disabled: duplicateDisabled(tab.id),
+                      onClick: () =>
+                        openDialog({
+                          title: "Duplicate tab",
+                          initialName: tab.label.slice(0, 195) + " copy",
+                          submitLabel: "Duplicate tab",
+                          onConfirm: (name) => add(name, tab),
+                        }),
+                    },
+                    ...(config.tabs.length > 1
+                      ? [
+                          {
+                            id: "first",
+                            type: "item" as const,
+                            title: "Make first tab",
+                            disabled:
+                              index === 0
+                                ? {
+                                    reason: "This tab already opens first.",
+                                  }
+                                : undefined,
+                            onClick: () => {
+                              setValue("tabs", [
+                                tab,
+                                ...config.tabs.filter((t) => t.id !== tab.id),
+                              ]);
+                              track("multi_query_tab_reordered");
+                            },
+                          },
+                          {
+                            id: "remove",
+                            type: "item" as const,
+                            title: "Remove tab",
+                            onClick: () => remove(tab),
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              };
+            })}
+          />
+        </Tabs>
       </div>
       <div className="md:hidden">
         <Tabs value={mobileArea} onValueChange={setMobileArea}>
@@ -347,15 +375,6 @@ export function MultiQueryEditor({
         <div
           className={`${mobileArea === "series" ? "flex" : "hidden"} min-h-0 min-w-0 flex-col gap-3 overflow-y-auto md:flex`}
         >
-          <label className="flex flex-col gap-1 text-xs">
-            Widget title
-            <Input
-              aria-label="Chart title"
-              value={config.title}
-              maxLength={200}
-              onChange={(e) => setValue("title", e.target.value)}
-            />
-          </label>
           <details
             className="text-xs"
             open={config.description ? true : undefined}
@@ -388,7 +407,6 @@ export function MultiQueryEditor({
                       changeInvalid(t.id, sourceId, invalid)
                     }
                     track={track}
-                    multipleTabs={config.tabs.length > 1}
                   />
                 </div>
               </div>
@@ -483,7 +501,14 @@ export function MultiQueryEditor({
                     config.tabs.length >= 9 ||
                     !multiQueryTabSchema.safeParse(active).success
                   }
-                  onClick={() => move(unit)}
+                  onClick={() =>
+                    openDialog({
+                      title: "Move to new tab",
+                      initialName: unitName(unit),
+                      submitLabel: "Move series",
+                      onConfirm: (name) => move(unit, name),
+                    })
+                  }
                 />
               ))}
             </div>
@@ -529,5 +554,69 @@ export function MultiQueryEditor({
         />
       </div>
     </div>
+  );
+  return (
+    <Dialog
+      title={
+        <DialogController
+          renderDialog={({ closeDialog }) => (
+            <WidgetNameDialog
+              title="Rename widget"
+              fieldLabel="Widget name"
+              initialName={config.title}
+              submitLabel="Rename"
+              onClose={closeDialog}
+              returnFocus={() => widgetTitle.current?.focus()}
+              onConfirm={(name) => {
+                if (name === config.title) return;
+                setValue("title", name);
+                track("multi_query_widget_renamed");
+              }}
+            />
+          )}
+        >
+          {({ openDialog }) => (
+            <button
+              type="button"
+              ref={widgetTitle}
+              onClick={() => openDialog()}
+              aria-label={`Rename widget, ${config.title}`}
+              disabled={savePending}
+              className="hover:bg-accent focus-visible:ring-ring inline-flex max-w-full items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:outline-hidden"
+            >
+              <span className="truncate" title={config.title}>
+                {config.title}
+              </span>
+              <PencilIcon size="sm" color="muted" aria-hidden />
+            </button>
+          )}
+        </DialogController>
+      }
+      size="xxl"
+      noCapture
+      requireExplicitClose={savePending}
+    >
+      <Dialog.Body>
+        {children}
+        <DialogController<TabNameRequest>
+          renderDialog={({ state, closeDialog }) => (
+            <WidgetNameDialog
+              {...state}
+              fieldLabel="Tab name"
+              onClose={closeDialog}
+              returnFocus={() => {
+                tabBar.current
+                  ?.querySelector<HTMLElement>(
+                    '[role="tab"][aria-selected="true"]',
+                  )
+                  ?.focus();
+              }}
+            />
+          )}
+        >
+          {({ openDialog }) => renderEditor(openDialog)}
+        </DialogController>
+      </Dialog.Body>
+    </Dialog>
   );
 }

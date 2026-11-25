@@ -17,7 +17,15 @@ const MultiQueryEditor = dynamic(
     import("./multi-query/MultiQueryEditor").then(
       (module) => module.MultiQueryEditor,
     ),
-  { loading: () => <Skeleton className="h-80 w-full" /> },
+  {
+    loading: () => (
+      <Dialog title="Opening widget editor" size="xxl" noCapture>
+        <Dialog.Body>
+          <Skeleton className="h-80 w-full" />
+        </Dialog.Body>
+      </Dialog>
+    ),
+  },
 );
 
 export function DashboardBlockEditor({
@@ -151,76 +159,65 @@ export function DashboardBlockEditor({
       </Dialog>
     );
   }
-  const chartTitle = request.block
-    ? "Edit multi-query chart"
-    : "New multi-query chart";
   return (
-    <Dialog
-      title={request.preset ? "Edit Home card" : chartTitle}
-      size="xxl"
-      noCapture
-      requireExplicitClose={mutation.isPending}
+    <MultiQueryEditor
+      initialTabId={recipe?.initialTabId ?? request.initialTabId}
+      initial={
+        request.block?.kind === "multiQuery"
+          ? request.block.config
+          : recipe?.config
+      }
+      projectId={projectId}
+      dateRange={dateRange}
+      filterState={filterState}
+      readPath={readPath}
+      savePending={mutation.isPending}
+      saveError={error}
+      onSave={(config, activeTabId) => {
+        if (!request.preset)
+          return save({ kind: "multiQuery", config }, activeTabId);
+        if (!canEdit || mutation.isPending) return;
+        mutation.mutate(
+          {
+            projectId,
+            dashboardId,
+            blockPatch: {
+              op: "convertPreset",
+              id,
+              expectedRevision: 0,
+              sourcePreset: request.preset.source,
+              config,
+            },
+          },
+          { onSuccess: () => finishSave(activeTabId) },
+        );
+      }}
+      onCancel={onCancel}
     >
-      <Dialog.Body>
-        {!request.block && !request.preset && placementOptions.length > 1 && (
-          <DashboardBlockPlacement
-            value={beforePlacementId}
-            options={placementOptions}
-            disabled={mutation.isPending}
-            onChange={updatePlacement}
-          />
-        )}
-        {recipe && (
-          <div className="mb-3 space-y-1 px-1 text-sm">
-            <p>
-              Saving replaces this Home card with an editable widget in the same
-              position. You can restore the Home card from the widget menu.
-            </p>
-            {recipe.limitations.length > 0 && (
-              <ul className="text-muted-foreground list-disc space-y-1 pl-5">
-                {recipe.limitations.map((limitation) => (
-                  <li key={limitation}>{limitation}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-        <MultiQueryEditor
-          initialTabId={recipe?.initialTabId ?? request.initialTabId}
-          initial={
-            request.block?.kind === "multiQuery"
-              ? request.block.config
-              : recipe?.config
-          }
-          projectId={projectId}
-          dateRange={dateRange}
-          filterState={filterState}
-          readPath={readPath}
-          savePending={mutation.isPending}
-          saveError={error}
-          onSave={(config, activeTabId) => {
-            if (!request.preset)
-              return save({ kind: "multiQuery", config }, activeTabId);
-            if (!canEdit || mutation.isPending) return;
-            mutation.mutate(
-              {
-                projectId,
-                dashboardId,
-                blockPatch: {
-                  op: "convertPreset",
-                  id,
-                  expectedRevision: 0,
-                  sourcePreset: request.preset.source,
-                  config,
-                },
-              },
-              { onSuccess: () => finishSave(activeTabId) },
-            );
-          }}
-          onCancel={onCancel}
+      {!request.block && !request.preset && placementOptions.length > 1 && (
+        <DashboardBlockPlacement
+          value={beforePlacementId}
+          options={placementOptions}
+          disabled={mutation.isPending}
+          onChange={updatePlacement}
         />
-      </Dialog.Body>
-    </Dialog>
+      )}
+      {recipe && (
+        <div className="mb-3 space-y-1 px-1 text-sm">
+          <p>
+            Saving replaces this Home card with an editable widget in the same
+            position. You can restore the Home card from the widget menu.
+          </p>
+          {recipe.limitations.length > 0 && (
+            <ul className="text-muted-foreground list-disc space-y-1 pl-5">
+              {recipe.limitations.map((limitation) => (
+                <li key={limitation}>{limitation}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </MultiQueryEditor>
   );
 }
 

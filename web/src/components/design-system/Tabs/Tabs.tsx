@@ -331,6 +331,7 @@ type TabsTriggerProps = {
   (
     | {
         value: string;
+        onRename?: () => void;
         href?: never;
         active?: never;
         onClick?: never;
@@ -383,6 +384,16 @@ function TabsTrigger(props: TabsTriggerProps) {
     ) : (
       <TabsPrimitive.Trigger
         value={props.value}
+        aria-keyshortcuts={props.onRename ? "F2" : undefined}
+        onDoubleClick={props.onRename}
+        onKeyDown={
+          props.onRename &&
+          ((event) => {
+            if (event.key !== "F2") return;
+            event.preventDefault();
+            props.onRename?.();
+          })
+        }
         disabled={Boolean(disabled)}
         title={nativeTitle}
         className={className}

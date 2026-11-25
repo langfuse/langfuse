@@ -10,6 +10,7 @@ import { Dialog } from "./Dialog";
 type Size = NonNullable<React.ComponentProps<typeof Dialog>["size"]>;
 
 const allSizes = Object.keys({
+  xs: true,
   sm: true,
   default: true,
   md: true,

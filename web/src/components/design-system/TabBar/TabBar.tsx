@@ -21,12 +21,18 @@ export function TabBar({
     value: string;
     label: string;
     noCapture?: boolean;
+    onRename?: () => void;
     menu?: {
       label: string;
+      alwaysVisible?: boolean;
       items: ComponentProps<typeof DropdownMenu>["items"];
     };
   })[];
-  createAction?: { label: string; onClick: () => void };
+  createAction?: {
+    label: string;
+    onClick: () => void;
+    disabledReason?: string;
+  };
   manageAction?: { label: string; onClick: () => void };
 }) {
   const scrollerRef = useRevealActiveTab();
@@ -58,7 +64,10 @@ export function TabBar({
                           // Without hover the button stays visible, so it takes
                           // its own slot after the label at a touch-sized target.
                           "pointer-coarse:static pointer-coarse:-ml-3 pointer-coarse:translate-y-0 pointer-coarse:before:hidden",
-                          !triggerProps["aria-expanded"] &&
+                          menu.alwaysVisible &&
+                            "static mr-1 -ml-2 translate-y-0 before:hidden",
+                          !menu.alwaysVisible &&
+                            !triggerProps["aria-expanded"] &&
                             "opacity-0 group-focus-within/tab:opacity-100 group-hover/tab:opacity-100 pointer-coarse:opacity-100",
                         )}
                       >
@@ -78,16 +87,28 @@ export function TabBar({
         </Tabs.List>
       </div>
       {createAction && (
-        <Tooltip label={createAction.label}>
-          {({ getTriggerProps }) => (
-            <IconButton
-              icon={Plus}
-              label={createAction.label}
-              size="sm"
-              {...getTriggerProps({ onClick: createAction.onClick })}
-            />
+        <div
+          className={cn(
+            "ml-1 shrink-0",
+            createAction.disabledReason && "opacity-50",
           )}
-        </Tooltip>
+        >
+          <Tooltip label={createAction.disabledReason ?? createAction.label}>
+            {({ getTriggerProps }) => (
+              <IconButton
+                icon={Plus}
+                label={createAction.label}
+                size="sm"
+                aria-disabled={createAction.disabledReason ? true : undefined}
+                {...getTriggerProps({
+                  onClick: createAction.disabledReason
+                    ? undefined
+                    : createAction.onClick,
+                })}
+              />
+            )}
+          </Tooltip>
+        </div>
       )}
       {manageAction && (
         <div className="flex flex-1 shrink-0 justify-end pl-2">

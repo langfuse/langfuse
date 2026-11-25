@@ -18,6 +18,7 @@ const dialogContentVariants = cva(
   {
     variants: {
       size: {
+        xs: "top-1/2 left-1/2 h-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg",
         sm: "sm:max-w-md",
         default: "sm:max-w-lg",
         md: "sm:max-w-2xl",
@@ -57,7 +58,10 @@ type DialogProps = {
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
-  title: string;
+  title: string | React.ReactElement;
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof DialogPrimitive.Content
+  >["onCloseAutoFocus"];
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -69,6 +73,7 @@ type DialogProps = {
 function DialogRoot({
   actions,
   noCapture,
+  onCloseAutoFocus,
   children,
   closeLabel,
   hideCloseButton = false,
@@ -114,6 +119,7 @@ function DialogRoot({
           dialogContentVariants({ size }),
           noCapture && "ph-no-capture",
         )}
+        onCloseAutoFocus={onCloseAutoFocus}
         onOpenAutoFocus={(event) => {
           // Radix otherwise focuses Cancel because it is the first tabbable.
           // Prefer the rightmost safe action, falling back to Cancel rather

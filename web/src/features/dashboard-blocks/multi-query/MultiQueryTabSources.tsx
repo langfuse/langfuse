@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { type MultiQueryTab } from "@langfuse/shared/dashboards";
 import { BracesIcon, PlusIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -21,7 +21,6 @@ export function MultiQueryTabSources({
   invalidSources,
   onInvalidChange,
   track,
-  multipleTabs,
 }: {
   tab: MultiQueryTab;
   context: MultiQueryWidgetContext;
@@ -29,9 +28,7 @@ export function MultiQueryTabSources({
   invalidSources: ReadonlySet<string>;
   onInvalidChange: (id: string, invalid: boolean) => void;
   track: (action: string, count?: number) => void;
-  multipleTabs: boolean;
 }) {
-  const labelBeforeEdit = useRef(tab.label);
   const [expanded, setExpanded] = useState(
     tab.queries.length === 1 ? tab.queries[0]!.id : "",
   );
@@ -83,26 +80,6 @@ export function MultiQueryTabSources({
     onChange({ ...tab, display: { ...tab.display, ...next } });
   return (
     <>
-      {multipleTabs && (
-        <label className="flex flex-col gap-1 text-xs">
-          Tab name
-          <Input
-            aria-label="Tab name"
-            maxLength={200}
-            value={tab.label}
-            onFocus={() => {
-              labelBeforeEdit.current = tab.label;
-            }}
-            onBlur={() => {
-              if (labelBeforeEdit.current !== tab.label)
-                track("multi_query_tab_renamed");
-            }}
-            onChange={(event) =>
-              onChange({ ...tab, label: event.target.value })
-            }
-          />
-        </label>
-      )}
       <div className="flex flex-wrap items-center gap-1">
         <h3 className="mr-auto text-sm font-bold">Series</h3>
         <Button
