@@ -59,6 +59,7 @@ export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
 export * from "./utils/math";
 export * from "./features/entitlements/plans";
+export * from "./features/entitlements/enterpriseTrial";
 export * from "./features/entitlements/entitlements";
 export * from "./features/entitlements/stripeProducts";
 export * from "./interfaces/rate-limits";
@@ -92,6 +93,7 @@ export {
 export * from "./features/evals/observationForEval";
 export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
 export * from "./features/evals/traceTranscriptEval";
+export { toEvalVariables } from "./server/transcript/eval-threads";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";

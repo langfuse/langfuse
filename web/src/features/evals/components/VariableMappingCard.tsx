@@ -50,7 +50,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -231,7 +231,7 @@ export const VariableMappingCard = ({
                 rel="noopener noreferrer"
               >
                 Edit prompt
-                <ExternalLink
+                <SquareArrowOutUpRight
                   size="base"
                   color="default"
                   __rawClassName="ml-1"
@@ -246,7 +246,11 @@ export const VariableMappingCard = ({
               title="Only user-managed templates can be edited"
             >
               Edit prompt
-              <ExternalLink size="base" color="default" __rawClassName="ml-1" />
+              <SquareArrowOutUpRight
+                size="base"
+                color="default"
+                __rawClassName="ml-1"
+              />
             </Button>
           )}
         </div>

@@ -56,7 +56,7 @@ describe("parseFlags", () => {
     ).toEqual([]);
   });
 
-  it.each(["langfuseTopics", "dashboardBlockAuthoring"] as const)(
+  it.each(["traceTranscriptEvals", "dashboardBlockAuthoring"] as const)(
     "requires personal opt-in for %s and ignores organization defaults",
     (flag) => {
       const context = {

@@ -18,6 +18,7 @@ export function SessionReviewLeadingProvider({
 }
 
 /** Renders above the session/review split when a workspace provides a slot. */
+/** @internal */
 export function SessionReviewLeading({ children }: { children: ReactNode }) {
   const target = useContext(SessionReviewLeadingContext);
   if (!target) return children;

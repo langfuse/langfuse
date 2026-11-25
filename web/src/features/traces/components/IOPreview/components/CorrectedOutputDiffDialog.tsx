@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import React from "react";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -109,16 +110,11 @@ const CorrectedOutputDiffBody = ({
     <DialogBody>
       {actualOutputTooLarge ? (
         <div className="space-y-4">
-          <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
-            <p className="text-foreground font-bold">
-              Original output too large to diff
-            </p>
-            <p className="mt-1">
-              The original output is too large to load here, so it cannot be
-              compared side by side. Your correction is shown below and will be
-              saved as-is.
-            </p>
-          </div>
+          <Banner title="Original output too large to diff">
+            The original output is too large to load here, so it cannot be
+            compared side by side. Your correction is shown below and will be
+            saved as-is.
+          </Banner>
           <div>
             <p className="mb-1 text-sm font-bold">Corrected Output</p>
             <pre className="ph-no-capture bg-muted/30 max-h-[50vh] overflow-auto rounded-md border p-3 text-xs break-words whitespace-pre-wrap">

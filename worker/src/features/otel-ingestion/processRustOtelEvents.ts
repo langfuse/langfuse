@@ -9,9 +9,11 @@ import type {
   RustOtelBatch,
 } from "@langfuse/native";
 import {
-  convertEventRecordToObservationForEval,
+  completeObservationForEval,
+  convertEventRecordToObservationEvalFilterFields,
   isMediaContentType,
   MediaAssociationOrigin,
+  observationEvalFilterRecordColumns,
   MediaContentType,
 } from "@langfuse/shared";
 import {
@@ -35,7 +37,7 @@ import { env, v4WritesToLegacyTables } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { TableName } from "../../services/ClickhouseWriter/types";
 import { fetchEvalRules, type EvalRules } from "../evaluation/fetchEvalRules";
-import { serializeOtelLookups } from "./serializeOtelLookups";
+import { encodeOtelLookups, type OtelLookupResult } from "./encodeOtelLookups";
 import {
   createEvalSchedulerDeps,
   scheduleEvals,
@@ -86,7 +88,7 @@ export async function processRustOtelEvents(params: {
       rules,
       projectId,
     );
-    await writeRecordsAndScheduleEvals(finalized, rules, context);
+    await writeRecordsAndScheduleEvals(processing, finalized, rules, context);
     return prepared.mediaRequests.length > 0 ? "present" : "absent";
   } finally {
     await processing.dispose();
@@ -135,7 +137,7 @@ async function waitForServiceWork<T extends readonly Promise<unknown>[]>(
 async function completeOrFinalizeBatch(
   processing: RustOtelBatch,
   mediaResults: OtelMediaResolution[],
-  lookups: object[],
+  lookups: OtelLookupResult[],
   { evalConfigs, sampledTraceIds }: EvalRuleResolution,
   projectId: string,
 ): Promise<FinalizedOtelBatch> {
@@ -143,16 +145,19 @@ async function completeOrFinalizeBatch(
     env.LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED === "true"
       ? env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES
       : undefined;
-  const includeEvaluationRows =
+  // With rules, Rust returns these columns of every row for matching.
+  const evaluationFilterColumns =
     evalConfigs.observationRules.length > 0 ||
-    evalConfigs.traceTranscriptRules.length > 0;
+    evalConfigs.traceTranscriptRules.length > 0
+      ? observationEvalFilterRecordColumns
+      : undefined;
   const traceActivityIds =
     sampledTraceIds.length > 0 ? sampledTraceIds : undefined;
   const completion = await processing.complete(
     mediaResults,
-    serializeOtelLookups(lookups),
+    encodeOtelLookups(lookups),
     overflowLimitBytes,
-    includeEvaluationRows,
+    evaluationFilterColumns,
     traceActivityIds,
   );
   if (completion.finalized) {
@@ -166,7 +171,7 @@ async function completeOrFinalizeBatch(
   );
   return processing.finalize(
     overflowResults,
-    includeEvaluationRows,
+    evaluationFilterColumns,
     traceActivityIds,
   );
 }
@@ -252,8 +257,44 @@ function recordIngestionCounts(records: FinalizedEvent[]): void {
   });
 }
 
+type EvaluationFilterRow = Parameters<
+  typeof convertEventRecordToObservationEvalFilterFields
+>[0];
+
+/**
+ * Parse the columns that evaluation rule filters read, one row per event. They
+ * carry no input or output; Rust keeps the full rows until a rule selects one.
+ */
+function parseEvaluationFilterRows(
+  texts: string[] | undefined,
+): EvaluationFilterRow[] {
+  return (
+    texts?.flatMap((text): EvaluationFilterRow[] => JSON.parse(text)) ?? []
+  );
+}
+
+/** Validate an event's filter fields; load the rest of its row once a rule selects it. */
+function observationForScheduling(
+  processing: RustOtelBatch,
+  filterRow: EvaluationFilterRow,
+  index: number,
+) {
+  const filterFields =
+    convertEventRecordToObservationEvalFilterFields(filterRow);
+  return {
+    observation: filterFields,
+    // The taken row holds the columns the filter row lacks.
+    loadSnapshot: () =>
+      completeObservationForEval(
+        filterFields,
+        processing.takeEvaluationRow(index) as EventRecordInsertType,
+      ),
+  };
+}
+
 async function writeRecordsAndScheduleEvals(
-  { events: records, evaluationRows }: FinalizedOtelBatch,
+  processing: RustOtelBatch,
+  { events: records, evaluationFilterRows }: FinalizedOtelBatch,
   {
     traceDispatchSamplingRate,
     sampledTraceIds,
@@ -266,6 +307,9 @@ async function writeRecordsAndScheduleEvals(
   const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, evalConfigs)
     : null;
+  const filterRows = schedulerDeps
+    ? parseEvaluationFilterRows(evaluationFilterRows)
+    : [];
   const writer = ClickhouseWriter.getNativeInstance();
   recordIngestionCounts(records);
   await Promise.all(
@@ -282,9 +326,7 @@ async function writeRecordsAndScheduleEvals(
       const matchedRuleIds = schedulerDeps
         ? await scheduleEvals({
             parseObservation: () =>
-              convertEventRecordToObservationForEval(
-                evaluationRows[index] as EventRecordInsertType,
-              ),
+              observationForScheduling(processing, filterRows[index], index),
             environment: record.environment,
             traceActivity,
             rules: evalConfigs,
@@ -407,10 +449,10 @@ async function uploadRequestedMedia(
 async function resolveLookups(
   lookupRequests: OtelLookupRequest[],
   { projectId, fileKey }: OtelProcessingContext,
-): Promise<object[]> {
+): Promise<OtelLookupResult[]> {
   const prompts = new PromptService(prisma, redis);
   const skills = new SkillCacheService(prisma, redis);
-  const lookups: object[] = [];
+  const lookups: OtelLookupResult[] = [];
   // Resolve up to 64 lookup requests at a time; event payloads stay in Rust.
   for (let offset = 0; offset < lookupRequests.length; offset += 64) {
     lookups.push(

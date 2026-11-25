@@ -26,10 +26,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/Page";
 
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
+import { useEnvironmentFilter } from "@/src/hooks/useEnvironmentFilter";
+import { convertSelectedEnvironmentsToFilter } from "@/src/utils/environmentFilter";
 import {
   useReadPath,
   type ResolvedReadPath,
@@ -52,7 +50,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Button } from "@/src/components/ui/button";
 import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
 import { DashboardBlocksCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksCanvas";
-import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
+import { ConnectedHomeDashboardSelect } from "@/src/features/dashboard/components/ConnectedHomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
@@ -378,7 +376,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
           ),
           actionButtonsRight: (
             <>
-              <HomeDashboardSelect
+              <ConnectedHomeDashboardSelect
                 projectId={projectId}
                 value={dashboardId}
                 defaultDashboardId={appliedDefaultId}
@@ -438,7 +436,7 @@ function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
                   Dashboard
                 </span>
                 <div className="[&_[role=combobox]]:w-full [&_[role=combobox]]:max-w-none">
-                  <HomeDashboardSelect
+                  <ConnectedHomeDashboardSelect
                     projectId={projectId}
                     value={dashboardId}
                     defaultDashboardId={appliedDefaultId}

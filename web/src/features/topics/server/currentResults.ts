@@ -1,6 +1,7 @@
-import { type FilterState, InvalidRequestError } from "@langfuse/shared";
+import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
+  reportedTopicSummaryState,
   topicTimeRangeSchema,
   type TopicAssignment,
   type TopicFacet,
@@ -58,7 +59,7 @@ function resolveTopicResult(
     stored.summaryProcessedAt === summary.processedAt
       ? stored
       : undefined;
-  let outcome: string = summary.state;
+  let outcome: string = reportedTopicSummaryState(summary.state);
   if (summary.state === "complete") outcome = "awaiting_map";
   if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
   return { assignment, outcome };
@@ -136,7 +137,7 @@ async function resolveFacetMaps(
     ? rules.filter((rule) => rule.id === scope.ruleId)
     : rules;
   if (scope.ruleId && !scoped.length)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   const enabledFacetIds = scoped.length
     ? new Set(scoped.flatMap((rule) => rule.facetIds))
     : null;

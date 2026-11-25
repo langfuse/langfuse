@@ -1,9 +1,26 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+allow-indexing-slicing-in-tests = true
 allow-panic-in-tests = true
 allow-dbg-in-tests = true
 allow-print-in-tests = true
 
 disallowed-methods = [
   { path = "std::process::exit", reason = "skips Drop, so shutdown and telemetry flushing would not run; return ExitCode instead" },
+  { path = "std::thread::sleep", reason = "blocks a Tokio worker thread; use tokio::time::sleep instead" },
+  { path = "std::fs::read", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking or justify startup-only use" },
+  { path = "std::fs::read_to_string", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking or justify startup-only use" },
+  { path = "std::fs::write", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::fs::metadata", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::fs::read_dir", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::fs::File::open", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::fs::File::create", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::fs::OpenOptions::open", reason = "blocks a Tokio worker thread on filesystem I/O; offload to spawn_blocking" },
+  { path = "std::net::TcpStream::connect", reason = "blocks a Tokio worker thread on network I/O; use tokio::net::TcpStream instead" },
+  { path = "std::net::TcpStream::connect_timeout", reason = "blocks a Tokio worker thread on network I/O; use tokio::net::TcpStream with tokio::time::timeout instead" },
+  { path = "std::net::TcpListener::bind", reason = "blocks a Tokio worker thread on network I/O; use tokio::net::TcpListener instead" },
+  { path = "std::net::UdpSocket::bind", reason = "blocks a Tokio worker thread on network I/O; use tokio::net::UdpSocket instead" },
+  { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "performs blocking DNS resolution on a Tokio worker thread; use tokio::net::lookup_host instead" },
+  { path = "tokio::runtime::Handle::block_on", reason = "panics or blocks a Tokio worker thread; .await directly or run on a dedicated blocking thread" },
+  { path = "tokio::task::block_in_place", reason = "stalls a Tokio worker thread and panics on current-thread runtimes; use tokio::task::spawn_blocking or CpuWork instead" },
 ]

@@ -51,6 +51,7 @@ const NOTIFIED_EVENT_COPY: Record<
 };
 
 /** NOTIFIED_EVENTS lists the toggleable project-notification events, in schema order. */
+/** @internal */
 export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
   (value) => ({ value, ...NOTIFIED_EVENT_COPY[value] }),
 );

@@ -10,6 +10,7 @@ import { TopicCostEstimate } from "./TopicCostEstimate";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
 import { useTopicTraceFilter } from "./useTopicTraceFilter";
+import { useTopicsCapture } from "./useTopicsCapture";
 import { NewMapDialogView } from "./NewMapDialogView";
 
 type NewMapForm = {
@@ -44,6 +45,7 @@ export function NewMapDialog({
   const { name, filter, facetIds, samplingPercent } = form.watch();
   const setFilter = (next: FilterState) => form.setValue("filter", next);
   const utils = api.useUtils();
+  const capture = useTopicsCapture();
 
   const traceFilter = useTopicTraceFilter({
     projectId,
@@ -57,7 +59,14 @@ export function NewMapDialog({
     { enabled: !filterError, retry: false },
   );
   const createRule = api.topics.saveRule.useMutation({
-    onSuccess: () => Promise.all([utils.topics.maps.invalidate({ projectId })]),
+    onSuccess: () =>
+      Promise.all([
+        utils.topics.maps.invalidate({ projectId }),
+        utils.topics.ruleMapCosts.invalidate(
+          { projectId },
+          { refetchType: "none" },
+        ),
+      ]),
   });
   const startRuleSetup = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
@@ -70,6 +79,11 @@ export function NewMapDialog({
       filter: values.filter,
       facetIds: values.facetIds,
       sampling: values.samplingPercent / 100,
+    });
+    capture("topics:map_created", {
+      filterCount: values.filter.length,
+      facetCount: values.facetIds.length,
+      samplePercent: values.samplingPercent,
     });
     // The rule exists either way: the error toast reports a failed start,
     // and the page then shows the rule's building state.

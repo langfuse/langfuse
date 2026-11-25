@@ -29,6 +29,7 @@ use crate::{
     capture::{InferenceFacts, InputOmissionReason},
     resolution::{ControlPlaneConfig, ProjectId, ResolutionError, ResolvedRequestContext},
 };
+pub(crate) use batch::DEFAULT_BATCH_LINGER_MS;
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
 pub(crate) use context::agent_client_metadata;
@@ -146,12 +147,16 @@ impl Telemetry {
     pub(crate) fn new(
         config: &ControlPlaneConfig,
         retained_bytes: usize,
+        batch_linger: Duration,
     ) -> Result<Self, ResolutionError> {
         Ok(Self::with_uploader(
             Uploader::new(config)?,
             MAX_UPLOADS,
             retained_bytes,
-            BatchPolicy::default(),
+            BatchPolicy {
+                linger: batch_linger,
+                ..BatchPolicy::default()
+            },
             RetryPolicy::default(),
         ))
     }

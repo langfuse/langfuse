@@ -743,8 +743,7 @@ pub struct JsonParseCache {
     /// Parses of attribute values, by position in `attributes`.
     by_position: Vec<Option<CachedParse>>,
     /// Parses of strings that are not span attributes. Nothing looks them up: they are held
-    /// until the event is built so `parse` can lend them out instead of giving each caller
-    /// its own copy.
+    /// until the event is built so `parse` can return a reference to them.
     others: Vec<Value>,
 }
 

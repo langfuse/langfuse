@@ -39,47 +39,6 @@ describe("ControlledFeaturePreviewModal", () => {
     mocks.isV4 = true;
   });
 
-  it("locks Topics on for staff and hides it after opting out of internal view", () => {
-    const session = {
-      user: {
-        email: "member@clickhouse.com",
-        featureFlags: testFeatureFlags({
-          internalFeatures: true,
-          langfuseTopics: false,
-        }),
-      },
-      environment: { enableExperimentalFeatures: false },
-    } as Session;
-    vi.mocked(useSession).mockReturnValue({
-      data: session,
-      status: "authenticated",
-      update: vi.fn(),
-    });
-    const modal = <ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />;
-    const { rerender } = render(modal);
-    fireEvent.click(screen.getByRole("button", { name: /Langfuse Topics/ }));
-
-    const toggle = screen.getByRole("switch", {
-      name: "Toggle Langfuse Topics",
-    });
-    expect(toggle).toBeChecked();
-    expect(toggle).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Langfuse Topics Enabled" }),
-    ).toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(mocks.mutate).not.toHaveBeenCalled();
-
-    session.user!.featureFlags.internalFeatures = false;
-    rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
-    expect(
-      screen.queryByRole("button", { name: /Langfuse Topics/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("switch", { name: "Toggle Langfuse Topics" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("keeps session previews unavailable on the legacy read path despite stored opt-ins", () => {
     mocks.isV4 = false;
     vi.mocked(useSession).mockReturnValue({

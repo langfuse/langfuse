@@ -4,6 +4,7 @@ import { api } from "@/src/utils/api";
 
 // A project can have several endpoints; the integration counts as active as
 // soon as one of them is enabled.
+/** @internal */
 export function getWebCalloutsStatus(
   endpoints: { enabled: boolean }[],
 ): Status | undefined {

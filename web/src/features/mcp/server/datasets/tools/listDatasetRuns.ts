@@ -42,5 +42,5 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

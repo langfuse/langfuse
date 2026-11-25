@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import {
   getV4MigrationDataTool,
   handleGetV4MigrationData,

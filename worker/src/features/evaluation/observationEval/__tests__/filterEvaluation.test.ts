@@ -58,6 +58,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     await scheduleObservationEvals({
       observation,
+      loadSnapshot: () => observation,
       configs: [config],
       schedulerDeps: deps,
     });
@@ -758,6 +759,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });
@@ -846,6 +848,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: deps,
       });

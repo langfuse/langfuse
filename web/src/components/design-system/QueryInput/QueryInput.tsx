@@ -59,7 +59,6 @@ import {
   sourceAtomForNode,
 } from "../internal/QueryInput/fns/queryInputDom";
 import { optionDomId } from "../internal/QueryInput/fns/optionDomId";
-export { optionDomId } from "../internal/QueryInput/fns/optionDomId";
 
 type QueryToken = React.ComponentProps<typeof QueryTokens>["tokens"][number];
 

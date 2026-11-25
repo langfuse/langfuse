@@ -1,37 +1,27 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
-import { useState } from "react";
+import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { useDeleteModelDefinition } from "@/src/features/models/hooks/useModelDefinitionApi";
+import {
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
 
 export const DeleteModelButton = ({
   modelData,
-  projectId,
+  owner,
   onSuccess,
 }: {
   modelData: GetModelResult;
-  projectId: string;
+  owner: ModelOwner;
   onSuccess?: () => void;
 }) => {
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [error, setError] = useState<string | undefined>();
-  const mut = api.models.delete.useMutation({
-    onSuccess: () => {
-      utils.models.invalidate();
-      setError(undefined);
-      onSuccess?.();
-    },
-    onError: (error) => setError(error.message),
-  });
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const { remove, isPending, error, reset } = useDeleteModelDefinition(owner);
+  const hasAccess = useCanEditModels(owner);
 
   return (
     <ConfirmationDialogController
@@ -40,18 +30,16 @@ export const DeleteModelButton = ({
       confirmLabel="Delete model"
       variant="destructive"
       error={error}
-      loading={mut.isPending}
+      loading={isPending}
       onConfirm={async () => {
         capture("models:delete_button_click");
         try {
-          await mut.mutateAsync({
-            projectId,
-            modelId: modelData.id,
-          });
+          await remove(modelData.id);
         } catch (error) {
           reportTrpcErrorWithoutToast(error, "models");
           throw error;
         }
+        onSuccess?.();
       }}
     >
       {({ openDialog }) => (
@@ -61,7 +49,7 @@ export const DeleteModelButton = ({
           disabled={!hasAccess}
           className="border-dark-red/30 flex items-center"
           onClick={() => {
-            setError(undefined);
+            reset();
             openDialog();
           }}
         >

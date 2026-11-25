@@ -17,7 +17,6 @@ export function canOpenPersonalFeaturePreviews({
     session?.user?.v4BetaEnabled === true ||
     canShowDashboardBlockPreview(session) ||
     isInternalViewEnabled(session) ||
-    session?.user?.featureFlags.langfuseTopics === true ||
     session?.user?.featureFlags.traceTranscriptEvals === true
   );
 }

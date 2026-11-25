@@ -1,107 +1,118 @@
-//! `collect_lookup_requests` lists model, prompt, and skill keys for Node.
+//! `collect_lookup_requests` lists each distinct model, prompt, and skill key once for Node.
 //! `enrich_inner` applies Node's returned values and builds `OtelStorageRow`s.
 //!
 //! `overflow_requests_inner` lists oversized fields for upload.
 //! `finalize_inner` applies overflow-upload results and returns `PreparedEvent` handles
 //! plus requested evaluation snapshots.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use base64::Engine;
 use sha2::{Digest, Sha256};
 
+use crate::native_memory::retained_size;
 use crate::native_task::NativeResult;
+use crate::otel::types::{SkillAvailableInput, SkillResourceInput};
 use crate::otel::{value::Value, OwnedEvent};
 use crate::otel_enrichment;
 use crate::PreparedEvent;
 
 use super::{
-    failure, BatchRows, EnrichedStorageRow, FinalizedOtelBatch, FinalizedOtelEvent, OtelCompletion,
-    OtelLookupRequest, OtelOverflowRequest, Pipeline,
+    failure, BatchRows, EnrichedStorageRow, EvaluationRequest, EvaluationRows, FinalizedOtelBatch,
+    FinalizedOtelEvent, OtelCompletion, OtelLookupRequest, OtelOverflowRequest, Pipeline,
 };
 
-pub(super) fn collect_lookup_requests(state: &Pipeline) -> Vec<OtelLookupRequest> {
+/// Everything the worker reads from a lookup request to resolve it. Events whose keys are
+/// equal get the same result, so they share one request.
+#[derive(PartialEq, Eq, Hash)]
+struct LookupKey<'a> {
+    event_type: &'a str,
+    model_name: Option<&'a str>,
+    prompt_name: Option<&'a str>,
+    prompt_version: Option<u64>,
+    skills_available: &'a [SkillAvailableInput],
+    skills_resource_loaded: &'a [SkillResourceInput],
+}
+
+/// Which lookup request each event shares.
+#[derive(Default)]
+pub(super) struct LookupPlan {
+    /// Number of distinct requests handed to Node.
+    pub(super) requests: usize,
+    /// For every event that needs a lookup, in event order, the position of its request.
+    pub(super) request_of: Vec<u32>,
+}
+
+/// List each distinct lookup request once, naming the first span that makes it.
+pub(super) fn collect_lookup_requests(state: &Pipeline) -> (Vec<OtelLookupRequest>, LookupPlan) {
     let BatchRows::Prepared(events) = &state.rows else {
         unreachable!("lookups precede completion")
     };
-    events
-        .iter()
-        .filter(|event| needs_lookup(event))
-        .map(|event| OtelLookupRequest {
-            span_id: event.span_id.clone(),
-            event_type: event.event_type.clone(),
-            model_name: event.provided_model_name.clone(),
-            prompt_name: event.prompt_name.clone(),
-            prompt_version: event.prompt_version_lookup,
-            skills_available: event
-                .skills_available
-                .iter()
-                .map(|skill| super::OtelSkillAvailable {
-                    name: skill.name.clone(),
-                    version: skill.version,
-                })
-                .collect(),
-            skills_resource_loaded: event
-                .skills_resource_loaded
-                .iter()
-                .map(|skill| super::OtelSkillResourceLoaded {
-                    skill_name: skill.skill_name.clone(),
-                    file_path: skill.file_path.clone(),
-                    skill_version: skill.skill_version,
-                })
-                .collect(),
-        })
-        .collect()
-}
-
-/// Lookup results for the events that need one, in event order.
-pub(super) struct Lookups {
-    /// Each distinct result once; the events of a batch mostly share a few.
-    results: Vec<Value>,
-    /// Position in `results` of every lookup.
-    pub(super) indexes: Vec<usize>,
-}
-
-/// Read `{"results": [...], "indexes": [...]}`. The worker sends JSON text so that the main
-/// thread serializes once instead of converting every nested value before the task starts.
-pub(super) fn parse_lookups(lookups_json: &str) -> NativeResult<Lookups> {
-    let invalid = || failure("invalid OTEL lookup results");
-    let Value::Object(mut document) =
-        crate::otel::value::parse(lookups_json).map_err(|_| invalid())?
-    else {
-        return Err(invalid());
+    let mut positions = HashMap::new();
+    let mut requests = Vec::new();
+    let mut request_of = Vec::new();
+    for event in events.iter().filter(|event| needs_lookup(event)) {
+        let key = LookupKey {
+            event_type: &event.event_type,
+            model_name: event.provided_model_name.as_deref(),
+            prompt_name: event.prompt_name.as_deref(),
+            prompt_version: event.prompt_version_lookup.map(f64::to_bits),
+            skills_available: &event.skills_available,
+            skills_resource_loaded: &event.skills_resource_loaded,
+        };
+        let position = *positions.entry(key).or_insert_with(|| {
+            requests.push(lookup_request(event));
+            requests.len() as u32 - 1
+        });
+        request_of.push(position);
+    }
+    let plan = LookupPlan {
+        requests: requests.len(),
+        request_of,
     };
-    let (Some(Value::Array(results)), Some(Value::Array(indexes))) = (
-        document.swap_remove("results"),
-        document.swap_remove("indexes"),
-    ) else {
-        return Err(invalid());
-    };
-    let indexes = indexes
-        .iter()
-        .map(|index| {
-            index
-                .as_u64()
-                .and_then(|index| usize::try_from(index).ok())
-                .filter(|index| *index < results.len())
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(invalid)?;
-    Ok(Lookups { results, indexes })
+    (requests, plan)
 }
 
-pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &Lookups) -> NativeResult<()> {
+fn lookup_request(event: &OwnedEvent) -> OtelLookupRequest {
+    OtelLookupRequest {
+        span_id: event.span_id.clone(),
+        event_type: event.event_type.clone(),
+        model_name: event.provided_model_name.clone(),
+        prompt_name: event.prompt_name.clone(),
+        prompt_version: event.prompt_version_lookup,
+        skills_available: event
+            .skills_available
+            .iter()
+            .map(|skill| super::OtelSkillAvailable {
+                name: skill.name.clone(),
+                version: skill.version,
+            })
+            .collect(),
+        skills_resource_loaded: event
+            .skills_resource_loaded
+            .iter()
+            .map(|skill| super::OtelSkillResourceLoaded {
+                skill_name: skill.skill_name.clone(),
+                file_path: skill.file_path.clone(),
+                skill_version: skill.skill_version,
+            })
+            .collect(),
+    }
+}
+
+/// Apply one lookup result per distinct request to every event that shares the request.
+pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeResult<()> {
     let BatchRows::Prepared(events) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
         return Err(failure("OTEL batch already enriched"));
     };
-    let mut indexes = lookups.indexes.iter();
+    let mut requests = state.lookups.request_of.iter();
     let mut rows = Vec::with_capacity(events.len());
     let mut regexes = otel_enrichment::PricingRegexCache::default();
     for mut event in events {
         let lookup = if needs_lookup(&event) {
-            &lookups.results[*indexes.next().expect("validated lookup count")]
+            &lookups[*requests.next().expect("validated lookup count") as usize]
         } else {
             &Value::Null
         };
@@ -133,7 +144,7 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &Lookups) -> NativeRes
 pub(super) fn finalize_or_request_overflow(
     state: &mut Pipeline,
     overflow_limit_bytes: Option<f64>,
-    include_evaluation_rows: bool,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<OtelCompletion> {
     let overflow_requests = overflow_limit_bytes
@@ -144,7 +155,7 @@ pub(super) fn finalize_or_request_overflow(
         Some(finalize_inner(
             state,
             Vec::new(),
-            include_evaluation_rows,
+            evaluation,
             trace_activity_ids,
         )?)
     } else {
@@ -211,7 +222,7 @@ pub(super) fn overflow_text<'a>(
 pub(super) fn finalize_inner(
     state: &mut Pipeline,
     overflow: Vec<super::OtelMediaResolution>,
-    include_evaluation_rows: bool,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<FinalizedOtelBatch> {
     super::validate_results(
@@ -220,11 +231,16 @@ pub(super) fn finalize_inner(
         "incomplete overflow results",
     )?;
     let rows = state.rows.ready()?;
-    let evaluation_rows = if include_evaluation_rows {
-        evaluation_rows(rows)?
-    } else {
-        Vec::new()
+    let evaluation = match evaluation {
+        Some((store, filter_columns)) => Some((store, filter_columns, evaluation_rows(rows)?)),
+        None => None,
     };
+    let evaluation_filter_rows = evaluation
+        .as_ref()
+        .map(|(_, filter_columns, rows)| {
+            evaluation_filter_rows(rows, filter_columns, EVALUATION_FILTER_TEXT_BYTES)
+        })
+        .transpose()?;
     let BatchRows::Ready(mut rows) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
         unreachable!("ready rows checked")
@@ -272,16 +288,77 @@ pub(super) fn finalize_inner(
             })
         })
         .collect::<NativeResult<Vec<_>>>()?;
+    let retained = evaluation
+        .iter()
+        .flat_map(|(_, _, rows)| rows)
+        .map(retained_size)
+        .sum::<usize>();
     state.memory.resize(
         events
             .iter()
             .map(|event| event.event.row.retained_bytes())
-            .sum(),
+            .sum::<usize>()
+            + retained,
     );
+    if let Some((store, filter_columns, rows)) = evaluation {
+        *store
+            .lock()
+            .map_err(|_| failure("OTEL processing lock poisoned"))? = EvaluationRows {
+            rows,
+            filter_columns,
+            retained,
+            memory: Some(state.memory.clone()),
+        };
+    }
     Ok(FinalizedOtelBatch {
         events,
-        evaluation_rows,
+        evaluation_filter_rows,
     })
+}
+
+/// The filter columns of one evaluation row.
+struct EvaluationFilterRow<'a> {
+    row: &'a serde_json::Value,
+    columns: &'a [String],
+}
+
+impl serde::Serialize for EvaluationFilterRow<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(
+            self.columns
+                .iter()
+                .filter_map(|column| Some((column, self.row.get(column)?))),
+        )
+    }
+}
+
+/// Longest filter-row text handed to Node. JavaScript cannot hold a string much longer than
+/// 512 MiB, and the filter columns of a large batch can add up to more than that.
+const EVALUATION_FILTER_TEXT_BYTES: usize = 64 * 1024 * 1024;
+
+/// Serialize `columns` of each row as JSON arrays of consecutive rows. A new array starts when
+/// the next row would take the current one past `text_bytes`.
+fn evaluation_filter_rows(
+    rows: &[serde_json::Value],
+    columns: &[String],
+    text_bytes: usize,
+) -> NativeResult<Vec<String>> {
+    let mut texts: Vec<String> = Vec::new();
+    for row in rows {
+        let row = serde_json::to_string(&EvaluationFilterRow { row, columns }).map_err(failure)?;
+        match texts.last_mut() {
+            // Count the separating comma and the closing bracket.
+            Some(text) if text.len() + row.len() + 2 <= text_bytes => {
+                text.push(',');
+                text.push_str(&row);
+            }
+            _ => texts.push(format!("[{row}")),
+        }
+    }
+    for text in &mut texts {
+        text.push(']');
+    }
+    Ok(texts)
 }
 
 fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serde_json::Value>> {
@@ -319,4 +396,37 @@ pub(super) fn needs_lookup(event: &OwnedEvent) -> bool {
                 .is_some_and(|version| version != 0.0 && !version.is_nan()))
         || !event.skills_available.is_empty()
         || !event.skills_resource_loaded.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::evaluation_filter_rows;
+
+    #[test]
+    fn filter_rows_span_several_texts_within_the_size_limit() {
+        let rows: Vec<Value> = (0..5)
+            .map(|index| json!({ "span_id": format!("span-{index}"), "input": "payload" }))
+            .collect();
+        let expected: Vec<Value> = (0..5)
+            .map(|index| json!({ "span_id": format!("span-{index}") }))
+            .collect();
+
+        let columns = ["span_id".to_owned()];
+        let one = evaluation_filter_rows(&rows, &columns, usize::MAX).unwrap();
+        assert_eq!(one.len(), 1);
+
+        // One row takes 20 bytes, so 45 bytes hold two rows with brackets and a comma.
+        let texts = evaluation_filter_rows(&rows, &columns, 45).unwrap();
+        assert_eq!(texts.len(), 3);
+        assert!(texts.iter().all(|text| text.len() <= 45));
+        for texts in [one, texts] {
+            let parsed: Vec<Value> = texts
+                .iter()
+                .flat_map(|text| serde_json::from_str::<Vec<Value>>(text).unwrap())
+                .collect();
+            assert_eq!(parsed, expected);
+        }
+    }
 }

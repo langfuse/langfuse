@@ -1398,6 +1398,7 @@ export function V4MigrationHeaderContent({
 // Project API keys are NOT created as a side effect: credentials only exist
 // after an explicit click on the separate "Create keys for project access"
 // action, and secrets never enter the agent prompt.
+/** @internal */
 export function V4MigrationAgentUpgradeSection({
   projectId,
 }: {

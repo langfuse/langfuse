@@ -42,8 +42,8 @@ export function TopicRefreshMapDialogView({
         <ul className="flex list-disc flex-col gap-1 pl-5">
           <li>Topics may be renamed, merged or split.</li>
           <li>
-            Naming runs on your clustering model from Topics settings, so it
-            uses tokens on that LLM connection.
+            This refresh reuses saved summaries and embeddings. Only naming
+            topics uses your clustering model.
           </li>
           <li>You can refresh this map again in {COOLDOWN_MINUTES} minutes.</li>
         </ul>

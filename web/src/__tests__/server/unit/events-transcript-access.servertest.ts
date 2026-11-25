@@ -4,8 +4,10 @@ import type * as TopicsServer from "@langfuse/shared/topics/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { env } from "@/src/env.mjs";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
-import { parseFlagsWithOrganizationDefaults } from "@/src/features/feature-flags/server/parseFlags";
+import {
+  getFeaturePreviewOptOutFlag,
+  parseFlagsWithOrganizationDefaults,
+} from "@/src/features/feature-flags/utils";
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const mocks = vi.hoisted(() => {

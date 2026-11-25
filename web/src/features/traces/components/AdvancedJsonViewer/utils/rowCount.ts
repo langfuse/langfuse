@@ -81,6 +81,7 @@ export function countJsonRows(data: unknown): number {
  *
  * @example
  * exceedsRowThreshold(largeObject, 2500) // true if >2500 rows
+ * @internal
  */
 export function exceedsRowThreshold(data: unknown, threshold: number): boolean {
   return countJsonRows(data) > threshold;

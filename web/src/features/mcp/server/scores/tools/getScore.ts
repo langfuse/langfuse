@@ -50,5 +50,5 @@ export const [getScoreTool, handleGetScore] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

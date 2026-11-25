@@ -1,6 +1,16 @@
 import { env } from "../../env";
 import { type IngestionEntityTypes } from "../clickhouse/schemaUtils";
 import { safeBlobKeySegment } from "../services/safeBlobKeySegment";
+import { createW3CTraceId } from "../utils/traceId";
+
+/**
+ * Eval score event-upload key:
+ * `evals/score/<hash>/<projectId>/<scoreId>/<eventId>.json`.
+ * Checked before the standard shape, which would otherwise read `evals` as the
+ * project id.
+ */
+const EVAL_SCORE_EVENT_KEY_REGEX =
+  /^evals\/score\/[0-9a-f]{3}\/([^/]+)\/([^/]+)\/([^/]+)\.json$/;
 
 /**
  * Standard event-upload key: `<projectId>/<entityType>/<eventBodyId>/<eventId>.json`
@@ -29,21 +39,23 @@ export type ParsedEventKey =
       entityType: string;
       eventBodyId: string;
       eventId: string;
+      bucketPrefix: string;
     }
   | { kind: "otel"; projectId: string };
 
 /**
  * Parses an S3 event-upload key (relative to `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`)
- * into its structured form. Returns `null` if the key matches neither shape.
+ * into its structured form. Returns `null` if the key matches no known shape.
  *
  * Used by the admin replay endpoint and the operator replay script.
  *
  * The returned `eventBodyId` is the literal segment as it sits in S3 —
  * whatever form the original producer wrote (raw, sanitized + hashed, or any
- * future shape). Feed it to `rawEventBucketPrefix` to reconstruct the prefix
- * verbatim; do NOT pass it through `safeBlobKeySegment` /
+ * future shape). Do NOT pass it through `safeBlobKeySegment` /
  * `buildEventBucketPrefix`, which would remap it to a different S3 path than
- * the one this caller observed.
+ * the one this caller observed. `bucketPrefix` is the key's own directory,
+ * including `LANGFUSE_S3_EVENT_UPLOAD_PREFIX`, so the event file is read back
+ * from exactly the key that was parsed.
  *
  * `entityType` is returned as a raw string and is NOT validated against
  * `IngestionEntityTypes` here — callers that route by entity type (queue
@@ -54,6 +66,18 @@ export function parseEventKey(key: string): ParsedEventKey | null {
   if (otel) {
     return { kind: "otel", projectId: otel[1]! };
   }
+  const evalScore = key.match(EVAL_SCORE_EVENT_KEY_REGEX);
+  if (evalScore) {
+    const [, projectId, scoreId, eventId] = evalScore;
+    return {
+      kind: "standard",
+      projectId: projectId!,
+      entityType: "score",
+      eventBodyId: scoreId!,
+      eventId: eventId!,
+      bucketPrefix: keyBucketPrefix(key, eventId!),
+    };
+  }
   const standard = key.match(STANDARD_EVENT_KEY_REGEX);
   if (standard) {
     const [, projectId, entityType, eventBodyId, eventId] = standard;
@@ -63,9 +87,29 @@ export function parseEventKey(key: string): ParsedEventKey | null {
       entityType: entityType!,
       eventBodyId: eventBodyId!,
       eventId: eventId!,
+      bucketPrefix: keyBucketPrefix(key, eventId!),
     };
   }
   return null;
+}
+
+/**
+ * Builds the S3 key prefix (ending in "/") for eval score events:
+ * `<prefix>evals/score/<hash>/<projectId>/<scoreId>/`.
+ *
+ * The hash of `[projectId, scoreId]` sits left of the project id so one
+ * project's burst of eval scores spreads over up to 4096 S3 partitions
+ * instead of throttling a single `<projectId>/score/` prefix. Mirrors the
+ * trace-batch transcript key in `traceBatch/storage.ts`.
+ */
+export function buildEvalScoreBucketPrefix(params: {
+  projectId: string;
+  scoreId: string;
+}): string {
+  const hash = createW3CTraceId(
+    JSON.stringify([params.projectId, params.scoreId]),
+  ).slice(0, 3);
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}evals/score/${hash}/${safeBlobKeySegment(params.projectId)}/${safeBlobKeySegment(params.scoreId)}/`;
 }
 
 /**
@@ -104,10 +148,10 @@ export function buildEventBucketPrefix(params: {
  * point isn't legacy compatibility — it's that the caller has already
  * observed the literal S3-side string and we must reproduce it byte-for-byte.
  *
- * Use this from replay-style call sites that consume `parseEventKey` output
- * (admin replay endpoint, operator replay script, rolling-deploy consumer
- * fallback). For fresh writes from a user-supplied entity ID where the path
- * still needs to be constructed, use `buildEventBucketPrefix`.
+ * Use this from the rolling-deploy consumer fallback. Replay call sites take
+ * `bucketPrefix` from `parseEventKey` output instead. For fresh writes from a
+ * user-supplied entity ID where the path still needs to be constructed, use
+ * `buildEventBucketPrefix`.
  */
 export function rawEventBucketPrefix(params: {
   projectId: string;
@@ -115,4 +159,8 @@ export function rawEventBucketPrefix(params: {
   rawEntityIdSegment: string;
 }): string {
   return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${params.projectId}/${params.entityType}/${params.rawEntityIdSegment}/`;
+}
+
+function keyBucketPrefix(key: string, eventId: string): string {
+  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${key.slice(0, -`${eventId}.json`.length)}`;
 }

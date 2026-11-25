@@ -1,6 +1,6 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTopicsCapture } from "./useTopicsCapture";
 
 const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
@@ -57,7 +57,7 @@ export function useMobileTopicsVisualization() {
 function usePersistedResultsView<
   T extends TopicsResultsView | MobileTopicsVisualization,
 >(storageKey: string, views: readonly T[], surface?: "mobile") {
-  const capture = usePostHogClientCapture();
+  const capture = useTopicsCapture();
   const [stored, setStored] = useLocalStorage<T>(storageKey, "treemap" as T);
   const view = views.includes(stored) ? stored : ("treemap" as T);
   function selectView(nextView: T) {
