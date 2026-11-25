@@ -323,17 +323,6 @@ export class ClickhouseWriter<
     );
   }
 
-  private settleRows<Row>(
-    queueItems: ClickhouseWriterQueueItem<Row>[],
-    status: "inserted" | "dropped",
-    rows: Row[] | undefined,
-    error?: unknown,
-  ): void {
-    queueItems.forEach((item, index) => {
-      this.settleRow(item, status, rows?.[index] ?? item.data, error);
-    });
-  }
-
   private settlePendingCallbacks(error: Error): void {
     for (const tableName of Object.values(TableName)) {
       const entityQueue = this.queue[tableName];
@@ -361,7 +350,9 @@ export class ClickhouseWriter<
         `${this.logPrefix}ClickhouseWriter settled ${pendingRows.length} queued ${tableName} callback(s) during shutdown`,
         { error },
       );
-      this.settleRows(pendingRows, "dropped", undefined, error);
+      for (const item of pendingRows) {
+        this.settleRow(item, "dropped", item.data, error);
+      }
     }
   }
 
@@ -406,7 +397,14 @@ export class ClickhouseWriter<
     try {
       const processingStartTime = Date.now();
 
-      let recordsToWrite = queueItems.map((item) => item.data);
+      const observedIndices: number[] = [];
+      let recordsToWrite =
+        this.pendingRowCallbacks === 0
+          ? queueItems.map((item) => item.data)
+          : queueItems.map((item, index) => {
+              if (item.onTerminal) observedIndices.push(index);
+              return item.data;
+            });
       if (prepare) {
         recordsToWrite = recordsToWrite.map((record) =>
           prepare(tableName, record),
@@ -518,8 +516,10 @@ export class ClickhouseWriter<
         },
       );
 
-      if (this.pendingRowCallbacks > 0) {
-        this.settleRows(queueItems, "inserted", recordsToWrite);
+      for (const index of observedIndices) {
+        // A split retries the prefix. The requeued suffix gets its own receipts when it flushes.
+        if (index >= queueItems.length) break;
+        this.settleRow(queueItems[index], "inserted", recordsToWrite[index]);
       }
 
       // Log processing time
