@@ -32,7 +32,7 @@ import { instrumentAsync, recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
   AI_GATEWAY_GUARDRAIL_METADATA_PREFIX,
-  AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY,
+  AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../../features/ai-gateway/constants";
@@ -4599,7 +4599,7 @@ export const getGatewayGuardrailFlaggedTimeSeriesFromEvents = async (params: {
           )
         : has(
             eb.ref("e.metadata_names"),
-            literal(AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY),
+            literal(AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY),
           ),
     )
     .groupBy(aliasRef("time_dimension"))

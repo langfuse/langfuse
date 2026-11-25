@@ -316,33 +316,31 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 }
 
 /// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
-/// a scalar `.flagged` marker so ClickHouse filters on `events_core.metadata_names`
-/// via `idx_metadata_names` without reading `metadata_values` or parsing JSON.
+/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// so ClickHouse filters on `events_core.metadata_names` via `idx_metadata_names`
+/// without reading `metadata_values` or parsing JSON.
 fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     let mut metadata = Map::new();
     let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
         return metadata;
     };
-    if guardrails.is_empty() {
-        return metadata;
-    }
-    metadata.insert("langfuse.gateway.guardrails.flagged".into(), json!(true));
+    let mut blocked = false;
+    let mut matched = false;
     for finding in guardrails {
         if let (Some(id), Some(action)) = (
             finding.get("id").and_then(Value::as_str),
             finding.get("action").and_then(Value::as_str),
         ) {
-            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
-            let mut details = Map::new();
-            details.insert("action".into(), json!(action));
-            if let Some(location) = finding.get("location").and_then(Value::as_str) {
-                details.insert("location".into(), json!(location));
+            matched = true;
+            if action == "block" {
+                blocked = true;
             }
-            metadata.insert(
-                format!("langfuse.gateway.guardrails.{id}.finding"),
-                Value::Object(details),
-            );
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
         }
+    }
+    if matched {
+        let outcome = if blocked { "block" } else { "log" };
+        metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
 }

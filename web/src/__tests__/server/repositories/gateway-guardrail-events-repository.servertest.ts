@@ -7,7 +7,7 @@ const eventsTableAvailable = vi.hoisted(
 
 import {
   AI_GATEWAY_GUARDRAIL_METADATA_PREFIX,
-  AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY,
+  AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "@langfuse/shared";
 import {
@@ -32,15 +32,15 @@ maybe("gateway guardrail events queries", () => {
       startTime: string,
       guardrails: Array<{ id: string; action: "block" | "log" }>,
     ) => {
+      const outcome = guardrails.some((g) => g.action === "block")
+        ? "block"
+        : "log";
       const metadata: Record<string, string> = {
-        [AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY]: "true",
+        [AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY]: outcome,
       };
       for (const guardrail of guardrails) {
         metadata[`${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${guardrail.id}`] =
           guardrail.action;
-        metadata[
-          `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}${guardrail.id}.finding.location`
-        ] = "request";
       }
       return createEvent({
         project_id: projectId,
@@ -69,10 +69,10 @@ maybe("gateway guardrail events queries", () => {
         service_name: "other-service",
         start_time: new Date("2026-11-10T10:00:00Z"),
         metadata_names: [
-          AI_GATEWAY_GUARDRAILS_FLAGGED_METADATA_KEY,
+          AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY,
           `${AI_GATEWAY_GUARDRAIL_METADATA_PREFIX}g1`,
         ],
-        metadata_values: ["true", "block"],
+        metadata_values: ["block", "block"],
       }),
     ]);
 

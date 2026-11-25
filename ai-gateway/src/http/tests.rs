@@ -1833,16 +1833,17 @@ fn assert_guardrail_generation(payload: &serde_json::Value, action: &str, level:
     let metadata: serde_json::Value =
         serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
     assert_eq!(
-        metadata["langfuse.gateway.guardrails.flagged"],
-        serde_json::json!(true),
+        metadata["langfuse.gateway.guardrails.outcome"],
+        serde_json::json!(action),
     );
     assert_eq!(
         metadata[format!("langfuse.gateway.guardrails.g-{action}")],
         serde_json::json!(action),
     );
-    assert_eq!(
-        metadata[format!("langfuse.gateway.guardrails.g-{action}.finding")],
-        serde_json::json!({"action": action, "location": "request"}),
+    assert!(
+        metadata
+            .get(format!("langfuse.gateway.guardrails.g-{action}.finding").as_str())
+            .is_none(),
     );
 }
 
