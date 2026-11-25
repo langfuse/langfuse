@@ -122,7 +122,7 @@ describe("Topics MCP tools access", () => {
     const byTopic = [
       {
         type: "stringOptions",
-        column: "topicId",
+        column: "topicStableId",
         operator: "any of",
         value: [owner.topicId],
       },

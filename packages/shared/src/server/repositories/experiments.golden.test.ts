@@ -5,11 +5,11 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 vi.mock("./clickhouse", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+  const { buildClickhouseMock } = await import("./__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 

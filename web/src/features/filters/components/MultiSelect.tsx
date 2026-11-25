@@ -1,6 +1,6 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, array-callback-return */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, Loader2 } from "@langfuse/icons";
+import { Check, Loader2, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
@@ -8,7 +8,6 @@ import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
-  InputCommandEmpty,
   InputCommandGroup,
   InputCommandInput,
   InputCommandItem,
@@ -22,8 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
-import { Input } from "@/src/components/ui/input";
-import { useRef, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 /** Rows span the menu edge to edge, so their hover meets the separators. */
@@ -32,15 +30,6 @@ const itemClassName = "rounded-none px-3";
 
 /** compactSelectAllLimit is the most options a compact select shows Select All for. */
 const compactSelectAllLimit = 100;
-
-const getFreeTextInput = (
-  isCustomSelectEnabled: boolean,
-  values: string[],
-  optionValues: Set<string>,
-): string | undefined =>
-  isCustomSelectEnabled
-    ? Array.from(values.values()).find((value) => !optionValues.has(value))
-    : undefined;
 
 export function MultiSelect({
   title,
@@ -63,6 +52,7 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
+  /** isCustomSelectEnabled offers the typed search text as a custom value. */
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
   /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
@@ -70,31 +60,51 @@ export function MultiSelect({
   onOpenChange?: (open: boolean) => void;
   isLoading?: boolean;
 }) {
+  const [search, setSearch] = useState("");
   const selectedValues = useMemo(() => new Set(values), [values]);
-  const optionValues = new Set(options.map((option) => option.value));
-  const freeTextInput = getFreeTextInput(
-    isCustomSelectEnabled,
-    values,
-    optionValues,
-  );
-  const [freeText, setFreeText] = useState(freeTextInput || "");
 
   // Merge options with selected values that might not be in options
   // This ensures selected values are always visible and removable
   const mergedOptions = useMemo(() => {
     const optionSet = new Set(options.map((o) => o.value));
-    const missingSelectedOptions: FilterOption[] = values
+    const missingSelectedOptions: FilterOption[] = Array.from(selectedValues)
       .filter((v) => !optionSet.has(v) && v.length > 0)
       .map((v) => ({ value: v }));
     return [...options, ...missingSelectedOptions];
-  }, [options, values]);
+  }, [options, selectedValues]);
 
   const selectableOptions = useMemo(
     () => mergedOptions.filter((option) => option.value.length > 0),
     [mergedOptions],
   );
 
+  const trimmedSearch = search.trim();
+  const query = trimmedSearch.toLowerCase();
+
+  const filteredOptions = useMemo(() => {
+    if (!query) return selectableOptions;
+    return selectableOptions.filter(
+      (option) =>
+        option.value.toLowerCase().includes(query) ||
+        (option.displayValue ?? "").toLowerCase().includes(query),
+    );
+  }, [selectableOptions, query]);
+
+  // Offer the typed text as a custom value unless it matches an option value
+  // (case-sensitively) or an existing display label.
+  const showCustomValue =
+    isCustomSelectEnabled &&
+    !isLoading &&
+    trimmedSearch.length > 0 &&
+    !selectableOptions.some(
+      (option) =>
+        option.value === trimmedSearch ||
+        (option.displayValue !== undefined &&
+          option.displayValue.toLowerCase() === query),
+    );
+
   const showSelectAll =
+    !query &&
     selectableOptions.length > 0 &&
     !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
@@ -104,6 +114,11 @@ export function MultiSelect({
       selectedValues.has(option.value),
     );
   }, [selectableOptions, selectedValues]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) setSearch("");
+    onOpenChange?.(open);
+  };
 
   const handleSelectAll = useCallback(() => {
     const newSelectedValues = new Set(selectedValues);
@@ -119,59 +134,40 @@ export function MultiSelect({
       );
     }
     const filterValues = Array.from(newSelectedValues);
-    onValueChange(filterValues.length ? filterValues : []);
+    onValueChange(filterValues.length > 0 ? filterValues : []);
   }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
 
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const handleDebouncedChange = (value: string) => {
-    const freeTextInput = getFreeTextInput(
-      isCustomSelectEnabled,
-      values,
-      optionValues,
-    );
-
-    if (!!freeTextInput) {
-      selectedValues.delete(freeTextInput);
-      selectedValues.add(value);
-      selectedValues.delete("");
-      const filterValues = Array.from(selectedValues);
-      onValueChange(filterValues.length ? filterValues : []);
-    }
-  };
-
-  function getSelectedOptions() {
-    const selectedOptions = mergedOptions.filter(
-      ({ value }) =>
-        selectedValues.has(value) &&
-        (!freeTextInput || value !== freeTextInput),
-    );
-    const liveCustomOption: FilterOption[] =
-      freeTextInput && freeText ? [{ value: freeText }] : [];
-
-    return [...selectedOptions, ...liveCustomOption];
-  }
+  const handleAddCustomValue = useCallback(() => {
+    if (trimmedSearch.length === 0) return;
+    const nextSelectedValues = new Set(selectedValues);
+    nextSelectedValues.add(trimmedSearch);
+    onValueChange(Array.from(nextSelectedValues));
+    setSearch("");
+  }, [trimmedSearch, selectedValues, onValueChange]);
 
   const selectedBadges =
     selectedValues.size > labelTruncateCutOff ? (
       <Tag text={`${selectedValues.size} selected`} />
     ) : (
-      getSelectedOptions().map((option) => {
-        const displayValue =
-          option.displayValue ??
-          (option.value === "" ? "(empty)" : option.value);
-        return (
-          <span
-            key={option.value}
-            className={cn("flex min-w-0", option.value === "" && "italic")}
-          >
-            <Tag text={displayValue} />
-          </span>
-        );
-      })
+      mergedOptions
+        .filter(({ value }) => selectedValues.has(value))
+        .map((option) => {
+          const displayValue =
+            option.displayValue ??
+            (option.value === "" ? "(empty)" : option.value);
+          return (
+            <span
+              key={option.value}
+              className={cn("flex min-w-0", option.value === "" && "italic")}
+            >
+              <Tag text={displayValue} />
+            </span>
+          );
+        })
     );
 
   return (
-    <Popover onOpenChange={onOpenChange}>
+    <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -210,10 +206,12 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="ph-no-capture w-[200px] p-0" align="center">
-        <InputCommand>
+        <InputCommand shouldFilter={false}>
           <InputCommandInput
             placeholder={title}
             variant="bottom"
+            value={search}
+            onValueChange={setSearch}
             disabled={isLoading}
           />
           <InputCommandList>
@@ -230,15 +228,19 @@ export function MultiSelect({
                 Loading…
               </div>
             )}
-            {/* if isCustomSelectEnabled we always show custom select hence never empty */}
-            {!isCustomSelectEnabled && !isLoading && (
-              <InputCommandEmpty>No results found.</InputCommandEmpty>
+            {!isLoading && filteredOptions.length === 0 && !showCustomValue && (
+              <div className="text-muted-foreground py-6 text-center text-sm">
+                {isCustomSelectEnabled
+                  ? "Enter custom value"
+                  : "No results found."}
+              </div>
             )}
             <InputCommandGroup className={groupClassName}>
               {showSelectAll && (
                 <>
                   <InputCommandItem
                     key="select-all"
+                    value="__select-all__"
                     className={itemClassName}
                     onSelect={handleSelectAll}
                     disabled={isLoading}
@@ -260,29 +262,27 @@ export function MultiSelect({
                   <InputCommandSeparator className="mx-0" />
                 </>
               )}
-              {mergedOptions.map((option) => {
-                if (option.value.length === 0) return;
+              {filteredOptions.map((option) => {
                 const isSelected = selectedValues.has(option.value);
-                const displayValue =
-                  option.displayValue ??
-                  (option.value === "" ? "(empty)" : option.value);
-                const displayTitle =
-                  option.displayValue ??
-                  (option.value === "" ? "(empty)" : option.value);
+                const displayValue = option.displayValue ?? option.value;
 
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    value={option.value}
                     className={itemClassName}
                     disabled={isLoading}
                     onSelect={() => {
+                      const nextSelectedValues = new Set(selectedValues);
                       if (isSelected) {
-                        selectedValues.delete(option.value);
+                        nextSelectedValues.delete(option.value);
                       } else {
-                        selectedValues.add(option.value);
+                        nextSelectedValues.add(option.value);
                       }
-                      const filterValues = Array.from(selectedValues);
-                      onValueChange(filterValues.length ? filterValues : []);
+                      const filterValues = Array.from(nextSelectedValues);
+                      onValueChange(
+                        filterValues.length > 0 ? filterValues : [],
+                      );
                     }}
                   >
                     <div
@@ -296,11 +296,8 @@ export function MultiSelect({
                       <Check size="base" />
                     </div>
                     <div
-                      className={cn(
-                        "overflow-x-hidden text-ellipsis whitespace-nowrap",
-                        option.value === "" && "text-muted-foreground italic",
-                      )}
-                      title={displayTitle}
+                      className="overflow-x-hidden text-ellipsis whitespace-nowrap"
+                      title={displayValue}
                     >
                       {displayValue}
                     </div>
@@ -325,65 +322,22 @@ export function MultiSelect({
                 );
               })}
             </InputCommandGroup>
-            {isCustomSelectEnabled && (
-              <InputCommandGroup forceMount={true} className={groupClassName}>
-                <InputCommandSeparator className="mx-0" />
+            {showCustomValue && (
+              <InputCommandGroup className={groupClassName}>
+                {filteredOptions.length > 0 && (
+                  <InputCommandSeparator className="mx-0" />
+                )}
                 <InputCommandItem
-                  key="freeTextField"
+                  key="__custom__"
+                  value={trimmedSearch}
                   className={itemClassName}
                   disabled={isLoading}
-                  onSelect={() => {
-                    const freeTextInput = getFreeTextInput(
-                      isCustomSelectEnabled,
-                      values,
-                      optionValues,
-                    );
-
-                    if (!!freeTextInput) {
-                      selectedValues.delete(freeTextInput);
-                    } else {
-                      selectedValues.add(freeText);
-                    }
-                    selectedValues.delete("");
-                    const filterValues = Array.from(selectedValues);
-                    onValueChange(filterValues.length ? filterValues : []);
-                  }}
+                  onSelect={handleAddCustomValue}
                 >
-                  <div
-                    className={cn(
-                      "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
-                      getFreeTextInput(
-                        isCustomSelectEnabled,
-                        values,
-                        optionValues,
-                      ) ||
-                        (optionValues.has(freeText) &&
-                          selectedValues.has(freeText))
-                        ? "bg-control-fill border-control-fill text-primary-foreground"
-                        : "opacity-50 [&_svg]:invisible",
-                    )}
-                  >
-                    <Check size="base" />
+                  <Plus size="base" __rawClassName="mr-2 opacity-50" />
+                  <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
+                    Use &ldquo;{trimmedSearch}&rdquo;
                   </div>
-                  <Input
-                    type="text"
-                    disabled={isLoading}
-                    value={freeText}
-                    onChange={(e) => {
-                      setFreeText(e.target.value);
-                      if (debounceTimeout.current) {
-                        clearTimeout(debounceTimeout.current);
-                      }
-                      debounceTimeout.current = setTimeout(() => {
-                        handleDebouncedChange(e.target.value);
-                      }, 500);
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                    placeholder="Enter custom value"
-                    className="h-5 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
-                  />
                 </InputCommandItem>
               </InputCommandGroup>
             )}
@@ -392,6 +346,7 @@ export function MultiSelect({
                 <InputCommandSeparator className="mx-0" />
                 <InputCommandGroup className={groupClassName}>
                   <InputCommandItem
+                    value="__clear__"
                     disabled={isLoading}
                     onSelect={() => onValueChange([])}
                     className={cn(itemClassName, "justify-center text-center")}

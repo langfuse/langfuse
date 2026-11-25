@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createModelParametersBatch,
   modelParametersFixtures,
-} from "./OtelIngestionProcessor.modelParameters.fixtures";
+} from "./__tests__/OtelIngestionProcessor.modelParameters.fixtures";
 import { OtelIngestionProcessor } from "./OtelIngestionProcessor";
 
 describe("OtelIngestionProcessor model parameters", () => {

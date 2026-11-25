@@ -63,7 +63,7 @@ describe("nightly Topics refits against storage", () => {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: {},
   });
 

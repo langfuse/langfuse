@@ -4,7 +4,7 @@ import { prisma } from "../../db";
 import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
-} from "../repositories/goldenHarness";
+} from "../repositories/__tests__/goldenHarness";
 import { topicMatchingTraceIdsQuery } from "./trace-selection";
 
 const FIXED_PROJECT_ID = "golden-project";

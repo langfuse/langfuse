@@ -150,7 +150,7 @@ const summaryFixture: TopicSummary = {
     embedding_input: 0.0001,
     total: 0.0011,
   },
-  processedAt: "2026-09-16T00:01:00.000Z",
+  createdAt: "2026-09-16T00:01:00.000Z",
   metadata: {},
 };
 
@@ -163,7 +163,7 @@ const assignmentFixture: TopicAssignment = {
   environment: summaryFixture.environment,
   traceName: summaryFixture.traceName,
   unitStartTime: summaryFixture.unitStartTime,
-  summaryProcessedAt: summaryFixture.processedAt,
+  summaryProcessedAt: summaryFixture.createdAt,
   coordinates: null,
   runId: "published-run",
   ruleId: "rule-a",
@@ -172,7 +172,7 @@ const assignmentFixture: TopicAssignment = {
   distance: null,
   runnerUpDistance: null,
   origin: "online",
-  assignedAt: "2026-09-17T01:00:00.000Z",
+  createdAt: "2026-09-17T01:00:00.000Z",
 };
 
 const timeRange = {
@@ -181,11 +181,11 @@ const timeRange = {
 };
 
 describe("Topics clustering capacity", () => {
-  const { unitStartTime, processedAt, metadata, ...summary } = summaryFixture;
+  const { unitStartTime, createdAt, metadata, ...summary } = summaryFixture;
   const row = {
     ...summary,
     unitStartTimeMs: String(Date.parse(unitStartTime)),
-    processedAtMs: String(Date.parse(processedAt)),
+    createdAtMs: String(Date.parse(createdAt)),
     metadataJson: JSON.stringify(metadata),
   };
   const embedding = {
@@ -707,7 +707,7 @@ describe("Topics summary storage", () => {
         sessionId: identity.sessionId ?? "",
         traceName: inserted.trace_name,
         unitStartTimeMs: Date.parse(summary.unitStartTime).toString(),
-        processedAtMs: Date.parse(inserted.created_at).toString(),
+        createdAtMs: Date.parse(inserted.created_at).toString(),
         providedUsageDetails: clickhouseNumberMap(summary.providedUsageDetails),
         usageDetails: clickhouseNumberMap(summary.usageDetails),
         providedCostDetails: clickhouseNumberMap(summary.providedCostDetails),
@@ -816,7 +816,7 @@ describe("Topics classifications", () => {
         topic_stable_id: "",
         topic_id: "",
         summary_processed_at: row.summaryProcessedAt,
-        created_at: row.assignedAt,
+        created_at: row.createdAt,
         coordinates: [],
       });
       mocks.query.mockResolvedValue([
@@ -830,7 +830,7 @@ describe("Topics classifications", () => {
           coordinates: [],
           unitStartTimeMs: Date.parse(row.unitStartTime).toString(),
           summaryProcessedAtMs: Date.parse(row.summaryProcessedAt).toString(),
-          assignedAtMs: Date.parse(row.assignedAt).toString(),
+          createdAtMs: Date.parse(row.createdAt).toString(),
         },
       ]);
       expect(
