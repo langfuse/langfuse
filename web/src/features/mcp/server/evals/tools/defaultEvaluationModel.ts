@@ -136,7 +136,7 @@ export const [getDefaultEvaluationModelTool, handleGetDefaultEvaluationModel] =
           ),
         }),
       }),
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });
 
 export const [setDefaultEvaluationModelTool, handleSetDefaultEvaluationModel] =
@@ -185,7 +185,7 @@ export const [setDefaultEvaluationModelTool, handleSetDefaultEvaluationModel] =
           }
         },
       }),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
   });
 
 export const [
@@ -210,5 +210,5 @@ export const [
         return { message: "Default evaluation model successfully deleted" };
       },
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

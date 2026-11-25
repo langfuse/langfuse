@@ -50,6 +50,5 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
           return { data };
         },
       }),
-    destructiveHint: true,
-    expensiveHint: true,
+    annotations: { destructiveHint: true },
   });

@@ -100,7 +100,7 @@ This design:
 
 ### Tool Annotations
 
-Tools include hints for clients about their behavior:
+Tools include hints for clients about their behavior, set through the `annotations` option of `defineTool`. It takes the MCP spec's `ToolAnnotations` (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and publishes them as given:
 
 - **`readOnlyHint: true`**: Safe operations that don't modify data
 - **`destructiveHint: true`**: Operations that modify data in ways that are non-revertable. If an operation only creates entities, without updating existing, it can omit this.
