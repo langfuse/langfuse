@@ -11,6 +11,8 @@ vi.mock("../../env", () => ({ env: mockEnv }));
 import {
   ClientCredentialsTokenSource,
   FileTokenSource,
+  TOKEN_FILE_RECHECK_MS,
+  TOKEN_RENEWAL_MARGIN_SECONDS,
   initializeClickhouseAuth,
   resetClickhouseAuthForTests,
 } from "./auth";
@@ -117,11 +119,33 @@ describe("ClientCredentialsTokenSource", () => {
 
     // The platform replaces the secret while the first token is still valid.
     writeFileSync(path, "secret-b\n");
-    await vi.advanceTimersByTimeAsync(55 * 60_000);
+    await vi.advanceTimersByTimeAsync(
+      (3600 - TOKEN_RENEWAL_MARGIN_SECONDS) * 1000,
+    );
 
     expect(sentSecret(1)).toBe("secret-b");
     source.close();
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("renews a token that outlives the longest timer delay only once that delay has passed", async () => {
+    const thirtyDaysInSeconds = 30 * 24 * 3600;
+    fetchMock.mockImplementation(async () =>
+      tokenResponse("token-a", thirtyDaysInSeconds),
+    );
+    const source = new ClientCredentialsTokenSource({
+      tokenUrl: "https://idp.example.com/oauth2/token",
+      clientId: "langfuse",
+      clientSecret: "s3cret",
+      authMethod: "client_secret_post",
+    });
+    await source.initialize();
+
+    // Node runs a timer with a delay above 2^31 - 1 ms after 1 ms.
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    source.close();
   });
 });
 
@@ -183,17 +207,23 @@ describe("FileTokenSource", () => {
     expect(source.currentToken()).toBe("token-a");
 
     writeFileSync(path, "token-b\n");
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(TOKEN_FILE_RECHECK_MS);
 
     expect(source.currentToken()).toBe("token-b");
 
     // A file caught halfway through a rewrite is empty.
     writeFileSync(path, "");
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(TOKEN_FILE_RECHECK_MS);
 
     expect(source.currentToken()).toBe("token-b");
     expect(() => new FileTokenSource(path).currentToken()).toThrow(
       "the file is empty",
     );
+
+    // After a failed read the file is left alone until the next recheck.
+    writeFileSync(path, "token-c\n");
+    expect(source.currentToken()).toBe("token-b");
+    vi.advanceTimersByTime(TOKEN_FILE_RECHECK_MS);
+    expect(source.currentToken()).toBe("token-c");
   });
 });

@@ -287,7 +287,7 @@ describe("ClickHouseClientManager JWT authentication", () => {
     expect(config).not.toHaveProperty("password");
   });
 
-  it("replaces the client when the token changes and closes the old one after its request timeout", () => {
+  it("replaces the client when the token changes and leaves the old one open", async () => {
     vi.useFakeTimers();
     const first = clickhouseClient({ request_timeout: 60_000 });
 
@@ -299,10 +299,13 @@ describe("ClickHouseClientManager JWT authentication", () => {
     expect(mocks.createClient.mock.calls[1][0].access_token).toBe("token-b");
     expect(clickhouseClient({ request_timeout: 60_000 })).toBe(second);
 
-    // In-flight requests on the old client may run until its own timeout.
-    vi.advanceTimersByTime(60_000);
+    // A response can stream on the old client for longer than its request
+    // timeout, and closing the client would cut it.
+    vi.advanceTimersByTime(24 * 3_600_000);
     expect(mocks.close).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(5 * 60_000);
+
+    // By now the old client is forgotten: shutdown closes only the current one.
+    await ClickHouseClientManager.getInstance().closeAllConnections();
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,7 +33,10 @@ func TestClientCredentialsToken(t *testing.T) {
 		if got := r.PostForm.Encode(); got != "audience=clickhouse&grant_type=client_credentials&scope=ch.write" {
 			t.Errorf("form = %q", got)
 		}
-		_, _ = w.Write([]byte(`{"access_token":"token-` + string(rune('0'+requests.Load())) + `","expires_in":600}`))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": fmt.Sprintf("token-%d", requests.Load()),
+			"expires_in":   600,
+		})
 	}))
 	defer server.Close()
 

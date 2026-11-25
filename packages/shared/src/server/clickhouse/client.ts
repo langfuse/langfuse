@@ -11,7 +11,6 @@ import {
 } from "./compatibility";
 import { stringifyJsonWithSanitizedSurrogates } from "./json";
 import { getClickhouseAuth } from "./auth";
-import { logger } from "../logger";
 
 export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
@@ -52,10 +51,10 @@ type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
 const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
 /**
- * A client replaced after a credential change stays open this long past its
- * request timeout, so requests already running on it can finish.
+ * Shutdown closes a client replaced after a credential change for this long
+ * past its request timeout. Later only a streamed response can still use it.
  */
-const REPLACED_CLIENT_CLOSE_MARGIN_MS = 5 * 60_000;
+const REPLACED_CLIENT_SHUTDOWN_MARGIN_MS = 5 * 60_000;
 
 type CachedClient = {
   client: ClickhouseClientType;
@@ -71,7 +70,7 @@ type CachedClient = {
 export class ClickHouseClientManager {
   private static instance: ClickHouseClientManager;
   private clientMap: Map<string, CachedClient> = new Map();
-  /** Clients replaced after a credential change, waiting to be closed. */
+  /** Clients replaced after a credential change that shutdown still closes. */
   private replacedClients: Set<ClickhouseClientType> = new Set();
 
   /**
@@ -210,7 +209,7 @@ export class ClickHouseClientManager {
     const cached = this.clientMap.get(key);
     if (cached && cached.authFingerprint !== auth.fingerprint) {
       this.clientMap.delete(key);
-      this.closeReplacedClient(cached);
+      this.retireClient(cached);
     }
     if (!this.clientMap.has(key)) {
       const activeSpan = getCurrentSpan();
@@ -289,17 +288,18 @@ export class ClickHouseClientManager {
     return this.clientMap.get(key)!.client;
   }
 
-  private closeReplacedClient(replaced: CachedClient): void {
+  /**
+   * A replaced client is not closed while the process runs. Closing ends all
+   * its connections, also one that still carries a streamed response, and the
+   * request timeout does not bound a response: it is an idle timeout. The
+   * client's idle connections end on their own through keep-alive.
+   */
+  private retireClient(replaced: CachedClient): void {
     this.replacedClients.add(replaced.client);
-    const timer = setTimeout(() => {
-      // closeAllConnections may already have closed it.
-      if (!this.replacedClients.delete(replaced.client)) return;
-      replaced.client.close().catch((error: unknown) => {
-        logger.warn("Failed to close replaced ClickHouse client", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }, replaced.requestTimeoutMs + REPLACED_CLIENT_CLOSE_MARGIN_MS);
+    const timer = setTimeout(
+      () => this.replacedClients.delete(replaced.client),
+      replaced.requestTimeoutMs + REPLACED_CLIENT_SHUTDOWN_MARGIN_MS,
+    );
     timer.unref();
   }
 

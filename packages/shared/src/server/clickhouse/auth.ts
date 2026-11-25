@@ -44,14 +44,16 @@ interface ClickhouseTokenSource {
 }
 
 /** Renew this long before expiry so a request cannot arrive with a token that expired in transit. */
-const TOKEN_RENEWAL_MARGIN_SECONDS = 300;
+export const TOKEN_RENEWAL_MARGIN_SECONDS = 300;
 /** Lifetime assumed when the token endpoint reports none and the token is opaque. */
 const DEFAULT_TOKEN_LIFETIME_SECONDS = 300;
 /** How often a token file is re-read even when its token has not expired. */
-const TOKEN_FILE_RECHECK_MS = 30_000;
+export const TOKEN_FILE_RECHECK_MS = 30_000;
 const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_RETRY_INITIAL_DELAY_MS = 1_000;
 const TOKEN_RETRY_MAX_DELAY_MS = 60_000;
+/** Node runs a timer with a longer delay after 1 ms. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 class ClickhouseAuthError extends Error {
   constructor(message: string) {
@@ -152,6 +154,8 @@ export class FileTokenSource implements ClickhouseTokenSource {
           path: this.path,
           error: problem,
         });
+        // The next read waits for the recheck interval, like one after a success.
+        this.cached = { ...cached, readAtMs: now };
         return cached.token;
       }
       throw new ClickhouseAuthError(
@@ -271,7 +275,8 @@ export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
         this.renewalTimer = null;
         this.renew().catch(() => {});
       },
-      Math.max(0, delayMs),
+      // A token that lives longer than the cap is renewed when the cap is reached.
+      Math.min(Math.max(0, delayMs), MAX_TIMER_DELAY_MS),
     );
     this.renewalTimer.unref();
   }
