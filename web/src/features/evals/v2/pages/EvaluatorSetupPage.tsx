@@ -38,6 +38,7 @@ import { TraceSampleSelectorContainer } from "@/src/features/evals/v2/components
 import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleScopeSwitcher/SampleScopeSwitcher";
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -188,6 +189,7 @@ export function EvaluatorSetupPage(
         mode: "edit";
         projectId: string;
         initialEvaluator: InitialEvaluator;
+        initialTargetObject?: EvaluatorTargetObject;
       },
 ) {
   const { projectId } = props;
@@ -240,6 +242,8 @@ export function EvaluatorSetupPage(
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      initialTargetObject:
+        props.mode === "edit" ? props.initialTargetObject : undefined,
       defaultModel: projectDefaultModel.defaultModel,
       mode: props.mode,
     }),
@@ -630,12 +634,19 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition, mappings } = prepareEvaluatorDraft(
+      const { definition } = prepareEvaluatorDraft(
         applyFallbackDecisionModel(state, fallbackDecisionModel),
       );
       if (!definition) return;
       const { name, description } = metadata;
       const isTraceTranscript = state.targetObject === TopicsTargetObject;
+      const { mappings: testedMappings } = prepareEvaluatorDraft({
+        ...applyFallbackDecisionModel(state, fallbackDecisionModel),
+        variableFields: variableFieldsForTarget(
+          state.targetObject,
+          state.variableFields,
+        ),
+      });
       const offerRuleAttachment = async (
         evaluator: { id: string },
         { initialRuleId }: { initialRuleId?: string } = {},
@@ -661,7 +672,7 @@ export function EvaluatorSetupPage(
             : EvalTargetObject.EVENT,
           variableMapping: isTraceTranscript
             ? observationVariableMappingList.catch([]).parse(
-                mappings.map(({ variable, fieldState }) => ({
+                testedMappings.map(({ variable, fieldState }) => ({
                   templateVariable: variable,
                   ...fieldState,
                 })),
@@ -798,9 +809,13 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(
-      applyFallbackDecisionModel(state, fallbackDecisionModel),
-    );
+    const { definition } = prepareEvaluatorDraft({
+      ...applyFallbackDecisionModel(state, fallbackDecisionModel),
+      variableFields: variableFieldsForTarget(
+        state.targetObject,
+        state.variableFields,
+      ),
+    });
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     const isTraceTest = state.targetObject === TopicsTargetObject;
