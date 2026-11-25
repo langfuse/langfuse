@@ -936,17 +936,31 @@ async function assertOrgSizeLimit(
     organizationId,
     excludeId,
   });
-  const allPatterns: string[] = [];
+  const existingPatterns: string[] = [];
   for (const row of existing) {
     const parsed = GatewayRegexGuardrailConfigSchema.safeParse(row.config);
     if (!parsed.success) continue;
-    allPatterns.push(...compileGuardrailConfigPatterns(parsed.data));
+    existingPatterns.push(...compileGuardrailConfigPatterns(parsed.data));
   }
-  allPatterns.push(...newPatterns);
-  const report = validateRegexRules(allPatterns, {
-    max_rule_bytes: GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
+
+  // `newPatterns` already passed the 128 KiB per-rule check. Check the org
+  // total against 512 KiB without re-rejecting existing rules between 128 KiB
+  // and 512 KiB, and drop uncompilable legacy stored patterns (which the
+  // gateway also skips) so a stale row cannot block unrelated saves.
+  const orgLimits = {
+    max_rule_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
     max_set_bytes: GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
-  });
+  };
+  let report = validateRegexRules(
+    [...existingPatterns, ...newPatterns],
+    orgLimits,
+  );
+  if (!report.ok && !report.set_error && existingPatterns.length > 0) {
+    const validExisting = existingPatterns.filter(
+      (_, index) => !report.rules[index]?.error,
+    );
+    report = validateRegexRules([...validExisting, ...newPatterns], orgLimits);
+  }
   if (!report.ok) {
     throw new InvalidRequestError(
       "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail and try again.",
