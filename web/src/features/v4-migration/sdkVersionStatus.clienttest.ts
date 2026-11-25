@@ -423,7 +423,12 @@ describe("v4 migration SDK status", () => {
     );
     expect(
       getSdkSectionState(state).series.map((row) => row.publicKey),
-    ).toEqual(["pk-lf-older-clean", "pk-lf-still-legacy"]);
+    ).toEqual([
+      "pk-lf-older-clean",
+      "pk-lf-still-legacy",
+      "pk-lf-1234567890a5016c",
+    ]);
+    expect(getSdkSectionState(state).actionableCount).toBe(2);
     expect(
       getOtelSectionState(state).series.map((row) => row.publicKey),
     ).toEqual([""]);
@@ -473,7 +478,8 @@ describe("v4 migration SDK status", () => {
     ).toEqual(["pk-lf-migrated-a", "pk-lf-migrated-b"]);
     expect(
       getSdkSectionState(state).series.map((row) => row.publicKey),
-    ).toEqual(["pk-lf-still-legacy"]);
+    ).toEqual(["pk-lf-still-legacy", "pk-lf-migrated-a", "pk-lf-migrated-b"]);
+    expect(getSdkSectionState(state).actionableCount).toBe(1);
     expect(
       getOtelSectionState(state).series.map((row) => row.publicKey),
     ).toEqual(["pk-lf-otel-delayed"]);

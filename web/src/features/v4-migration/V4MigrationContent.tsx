@@ -37,10 +37,12 @@ import {
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
   getMigratedKeySeries,
+  getMigratedSeriesByKey,
   getOtelSectionState,
   getSdkSectionState,
   isActionableSdkSeries,
   type V4MigrationSdkState,
+  type MigratedKeySeries,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -370,9 +372,9 @@ export function allRemainingActionsAreMigratedKeys(
   if (
     status.sdk.status === "checking" ||
     status.sdk.status === "error" ||
-    getSdkSectionState(status.sdk).series.length > 0 ||
-    getOtelSectionState(status.sdk).series.length > 0 ||
-    getCustomInstrumentationSectionState(status.sdk).series.length > 0
+    getSdkSectionState(status.sdk).actionableCount > 0 ||
+    getOtelSectionState(status.sdk).delayedCount > 0 ||
+    getCustomInstrumentationSectionState(status.sdk).actionableCount > 0
   ) {
     return false;
   }
@@ -392,6 +394,7 @@ function SdkUsageSeriesRows({
   series,
   needsAction,
   suffix,
+  migratedByKey,
   unknownSeriesLabel = "Custom instrumentation",
   hideMissingApiKey = false,
   projectId,
@@ -401,6 +404,8 @@ function SdkUsageSeriesRows({
   /** Drives the per-row status icon; the suffix carries the text meaning. */
   needsAction: (series: V4MigrationSdkUsageSeries) => boolean;
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
+  /** Required rows whose key later sent on the new ingestion API. */
+  migratedByKey?: Map<string, MigratedKeySeries>;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
   /** Omits the empty-key fallback when it is not useful to the user. */
@@ -439,11 +444,34 @@ function SdkUsageSeriesRows({
               )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
             : null;
 
+        const seriesKey = `${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`;
+        const migrated = migratedByKey?.get(seriesKey);
+        if (migrated) {
+          return (
+            <li key={seriesKey} className="py-2 text-sm">
+              <div className="text-muted-foreground flex items-start gap-1.5">
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="mt-0.5 text-green-600"
+                  aria-hidden="true"
+                />
+                <span>
+                  <span title={usage.publicKey}>
+                    {truncatePublicKey(usage.publicKey)}
+                  </span>{" "}
+                  now uses the new ingestion API (
+                  {ingestionModeLabel(migrated.successor.deliveryMode)}) · last
+                  legacy event{" "}
+                  {formatCompactRelativeTime(new Date(usage.lastSeen))}
+                </span>
+              </div>
+            </li>
+          );
+        }
+
         return (
-          <li
-            key={`${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
-            className="py-2 text-sm"
-          >
+          <li key={seriesKey} className="py-2 text-sm">
             {/* Action line: what it is and what to do about it. */}
             <div className="text-muted-foreground flex items-center gap-1.5">
               {needsAction(usage) ? (
@@ -527,15 +555,24 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (
+    section.series.length === 0 &&
+    section.status !== "checking" &&
+    section.status !== "error"
+  ) {
+    return null;
+  }
+  if (section.status === "no_data") return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
+  const allMigrated = !isTransient && section.actionableCount === 0;
 
   return (
     <Section
       title="Update SDK"
       analyticsSection="sdk"
+      statusVariant={allMigrated ? "done" : "action"}
       count={
         isTransient || section.actionableCount === 0
           ? undefined
@@ -550,33 +587,36 @@ export function V4MigrationSdkSection({
       }
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {section.status === "checking" ? (
-          "Checking the latest traces for this project…"
-        ) : section.status === "error" ? (
-          "We could not check the latest traces for this project. Try again later."
-        ) : (
-          <>
-            {section.actionableCount} detected SDK{" "}
-            {section.actionableCount === 1
-              ? "configuration needs"
-              : "configurations need"}{" "}
-            an update, based on ingestion seen in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
-            <ExternalLink
-              href={SDK_UPGRADE_URL}
-              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
-            >
-              upgrade path
-            </ExternalLink>
-            .
-          </>
-        )}
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {section.status === "checking" ? (
+            "Checking the latest traces for this project…"
+          ) : section.status === "error" ? (
+            "We could not check the latest traces for this project. Try again later."
+          ) : (
+            <>
+              {section.actionableCount} detected SDK{" "}
+              {section.actionableCount === 1
+                ? "configuration needs"
+                : "configurations need"}{" "}
+              an update, based on ingestion seen in the last{" "}
+              {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
+              <ExternalLink
+                href={SDK_UPGRADE_URL}
+                analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+              >
+                upgrade path
+              </ExternalLink>
+              .
+            </>
+          )}
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="sdk"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={isActionableSdkSeries}
         suffix={(usage) => {
           if (usage.v4MigrationStatus === "upgrade_required") {
@@ -608,34 +648,40 @@ export function V4MigrationOtelSection({
   if (
     sdk.status === "checking" ||
     sdk.status === "error" ||
-    section.delayedCount === 0
+    section.series.length === 0
   )
     return null;
+
+  const allMigrated = section.delayedCount === 0;
 
   return (
     <Section
       title="Update OTel Instrumentation"
       analyticsSection="otel"
-      count={section.delayedCount}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.delayedCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Your OpenTelemetry data is using delayed ingestion. For real-time
-        ingestion, upgrade your integration or, if you use OpenTelemetry
-        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
-        your OTLP exporter.{" "}
-        <ExternalLink
-          href={OTEL_V4_MIGRATION_URL}
-          analytics={{ section: "otel", link: "otel_migration_docs" }}
-        >
-          Migration guide
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Your OpenTelemetry data is using delayed ingestion. For real-time
+          ingestion, upgrade your integration or, if you use OpenTelemetry
+          directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue>{" "}
+          on your OTLP exporter.{" "}
+          <ExternalLink
+            href={OTEL_V4_MIGRATION_URL}
+            analytics={{ section: "otel", link: "otel_migration_docs" }}
+          >
+            Migration guide
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="otel"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={(usage) => usage.actionLevel === "required"}
         suffix={(usage) =>
           usage.deliveryMode === "delayed" ? (
@@ -669,96 +715,53 @@ export function V4MigrationCustomInstrumentationSection({
   )
     return null;
 
+  const allMigrated = section.actionableCount === 0;
+
   return (
     <Section
       title="Upgrade Instrumentation"
       analyticsSection="custom_instrumentation"
-      count={section.series.length}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.actionableCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Data is arriving through the ingestion API without a Langfuse SDK
-        header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to the latest version of{" "}
-        <ExternalLink
-          href={SDK_OVERVIEW_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "sdk_overview_docs",
-          }}
-        >
-          any Langfuse SDK
-        </ExternalLink>
-        , or use the{" "}
-        <ExternalLink
-          href={OTEL_INTEGRATION_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "otel_integration_docs",
-          }}
-        >
-          OpenTelemetry endpoint
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Data is arriving through the ingestion API without a Langfuse SDK
+          header, so this looks like custom instrumentation or a very old SDK
+          version. Please upgrade to the latest version of{" "}
+          <ExternalLink
+            href={SDK_OVERVIEW_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "sdk_overview_docs",
+            }}
+          >
+            any Langfuse SDK
+          </ExternalLink>
+          , or use the{" "}
+          <ExternalLink
+            href={OTEL_INTEGRATION_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "otel_integration_docs",
+            }}
+          >
+            OpenTelemetry endpoint
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         unknownSeriesLabel="Custom instrumentation"
         hideMissingApiKey
         analyticsSection="custom_instrumentation"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={() => true}
         suffix={() => null}
       />
-    </Section>
-  );
-}
-
-export function V4MigrationMigratedKeysSection({
-  sdk,
-  defaultOpen,
-}: {
-  sdk: V4MigrationSdkState;
-  defaultOpen?: boolean;
-}) {
-  const series = getMigratedKeySeries(sdk);
-  if (series.length === 0) return null;
-
-  return (
-    <Section
-      title="Migrated"
-      analyticsSection="migrated"
-      count={series.length}
-      statusVariant="done"
-      defaultOpen={defaultOpen}
-    >
-      <ul className="divide-y">
-        {series.map(({ required, successor }) => (
-          <li
-            key={`${required.source}:${required.sdkName}:${required.sdkVersion}:${required.publicKey}`}
-            className="text-muted-foreground flex items-start gap-1.5 py-2 text-sm"
-          >
-            <CircleCheck
-              size="sm"
-              color="inherit"
-              __rawClassName="mt-0.5 text-green-600"
-              aria-hidden="true"
-            />
-            <span>
-              <span title={required.publicKey}>
-                {truncatePublicKey(required.publicKey)}
-              </span>{" "}
-              now uses the new ingestion API (
-              {ingestionModeLabel(successor.deliveryMode)}) · last legacy event{" "}
-              {formatCompactRelativeTime(new Date(required.lastSeen))}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="text-muted-foreground pt-2 text-sm leading-relaxed">
-        Everything looks good. This banner will disappear automatically once no
-        legacy traffic has been seen for {V4_MIGRATION_LOOKBACK_DAYS} days.
-      </p>
     </Section>
   );
 }
@@ -1499,6 +1502,13 @@ export function V4MigrationHeaderContent({
               : ""}{" "}
           <V4MigrationDocsLink />
         </p>
+        {remainingActionsAreMigrated ? (
+          <p>
+            Everything looks good. This banner will disappear automatically once
+            no legacy traffic has been seen for {V4_MIGRATION_LOOKBACK_DAYS}{" "}
+            days.
+          </p>
+        ) : null}
         {showActionPrompt && <V4MigrationDeadlineNote />}
       </div>
     </>
@@ -1721,7 +1731,7 @@ export function V4MigrationDetailsContent({
       sdkStatus: migrationData.sdk.status,
       sdkActionableCount: sdkSection.actionableCount,
       delayedOtelCount: otelSection.delayedCount,
-      customInstrumentationCount: customSection.series.length,
+      customInstrumentationCount: customSection.actionableCount,
       evalsCount:
         migrationData.evals.status === "loaded"
           ? migrationData.evals.count
@@ -1827,8 +1837,6 @@ export function V4MigrationDetailsContent({
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
           />
-          <V4MigrationMigratedKeysSection sdk={migrationData.sdk} />
-
           {!evalsClean && (
             <V4MigrationEvalsSection
               state={migrationData.evals}

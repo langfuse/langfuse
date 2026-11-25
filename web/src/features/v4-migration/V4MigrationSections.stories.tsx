@@ -11,7 +11,6 @@ import {
   V4MigrationEvalsSection,
   V4MigrationExperimentsSection,
   V4MigrationIntegrationsSection,
-  V4MigrationMigratedKeysSection,
   V4MigrationOtelSection,
   V4MigrationSdkSection,
 } from "./V4MigrationContent";
@@ -335,7 +334,6 @@ function MigrationPanelPreview({
         <V4MigrationSdkSection sdk={sdk} defaultOpen />
         <V4MigrationOtelSection sdk={sdk} defaultOpen />
         <V4MigrationCustomInstrumentationSection sdk={sdk} defaultOpen />
-        <V4MigrationMigratedKeysSection sdk={sdk} defaultOpen />
         <V4MigrationDetectedInstrumentationSection sdk={sdk} />
       </div>
     </div>
@@ -440,12 +438,6 @@ export const UpgradeInstrumentation = meta.story({
       sdk={customInstrumentationState}
       defaultOpen
     />
-  ),
-});
-
-export const MigratedKeys = meta.story({
-  render: () => (
-    <V4MigrationMigratedKeysSection sdk={migratedKeysState} defaultOpen />
   ),
 });
 

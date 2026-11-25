@@ -85,6 +85,16 @@ const migratedRequiredKeys = (sdk: V4MigrationSdkState): Set<string> =>
     getMigratedKeySeries(sdk).map((series) => usageSeriesKey(series.required)),
   );
 
+export const getMigratedSeriesByKey = (
+  sdk: V4MigrationSdkState,
+): Map<string, MigratedKeySeries> =>
+  new Map(
+    getMigratedKeySeries(sdk).map((series) => [
+      usageSeriesKey(series.required),
+      series,
+    ]),
+  );
+
 export const getV4MigrationSdkState = (params: {
   summary: SdkUsageSummary | undefined;
   isLoading: boolean;
@@ -186,10 +196,11 @@ export const getSdkSectionState = (
   const series = sdk.sdkUsageSeries.filter(
     (usage) =>
       usage.remediationType === "update_sdk" &&
-      usage.actionLevel === "required" &&
-      !migrated.has(usageSeriesKey(usage)),
+      usage.actionLevel === "required",
   );
-  const actionableCount = series.filter(isActionableSdkSeries).length;
+  const actionableCount = series.filter(
+    (usage) => !migrated.has(usageSeriesKey(usage)),
+  ).length;
 
   return {
     status:
@@ -206,19 +217,24 @@ export const getSdkSectionState = (
 };
 
 export type V4MigrationCustomInstrumentationSectionState = {
-  /** Every series here is an offender; the section hides when empty. */
+  /** Required custom-instrumentation rows, including ones that later migrated. */
   series: V4MigrationSdkUsageSeries[];
+  /** Rows that still need an instrumentation change. */
+  actionableCount: number;
 };
 
 export const getCustomInstrumentationSectionState = (
   sdk: V4MigrationSdkState,
-): V4MigrationCustomInstrumentationSectionState => ({
-  series: sdk.sdkUsageSeries.filter(
-    (usage) =>
-      isCustomInstrumentationSeries(usage) &&
-      !migratedRequiredKeys(sdk).has(usageSeriesKey(usage)),
-  ),
-});
+): V4MigrationCustomInstrumentationSectionState => {
+  const migrated = migratedRequiredKeys(sdk);
+  const series = sdk.sdkUsageSeries.filter(isCustomInstrumentationSeries);
+  return {
+    series,
+    actionableCount: series.filter(
+      (usage) => !migrated.has(usageSeriesKey(usage)),
+    ).length,
+  };
+};
 
 export type V4MigrationOtelSectionState = {
   /** Delayed OTel exporter series requiring action, most recently seen first. */
@@ -231,14 +247,11 @@ export const getOtelSectionState = (
 ): V4MigrationOtelSectionState => {
   const migrated = migratedRequiredKeys(sdk);
   const series = sdk.sdkUsageSeries.filter(
-    (usage) =>
-      isOtelExporterSeries(usage) &&
-      usage.actionLevel === "required" &&
-      !migrated.has(usageSeriesKey(usage)),
+    (usage) => isOtelExporterSeries(usage) && usage.actionLevel === "required",
   );
   return {
     series,
-    delayedCount: series.filter((usage) => usage.actionLevel === "required")
+    delayedCount: series.filter((usage) => !migrated.has(usageSeriesKey(usage)))
       .length,
   };
 };
