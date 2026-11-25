@@ -1676,6 +1676,15 @@ describe(
       const resource = buildFocusedResourceSpans({})[0];
       const scope = resource.scopeSpans![0];
       const span = scope.spans![0];
+      const withAttribute = (
+        spanId: string,
+        key: string,
+        value: Record<string, unknown>,
+      ) => ({
+        ...span,
+        spanId: createBufferId(spanId),
+        attributes: [...(span.attributes ?? []), { key, value }],
+      });
       const bytes = Buffer.from(
         JSON.stringify([
           {
@@ -1684,17 +1693,16 @@ describe(
               {
                 ...scope,
                 spans: [
-                  {
-                    ...span,
-                    attributes: [
-                      ...(span.attributes ?? []),
-                      // Puts the completion start time in year 33713.
-                      {
-                        key: "ai.response.msToFirstChunk",
-                        value: { doubleValue: 1e15 },
-                      },
-                    ],
-                  },
+                  // Puts the completion start time in year 33713.
+                  withAttribute(FIRST_SPAN_ID, "ai.response.msToFirstChunk", {
+                    doubleValue: 1e15,
+                  }),
+                  // Year 10000 in UTC.
+                  withAttribute(
+                    SECOND_SPAN_ID,
+                    "langfuse.observation.completion_start_time",
+                    { stringValue: "9999-12-31T23:30:00-05:00" },
+                  ),
                 ],
               },
             ],
@@ -1709,11 +1717,13 @@ describe(
       expectRawNativeParity(comparison);
       for (const result of Object.values(comparison)) {
         expect(
-          result.storedRows.map((row) => [
-            row.span_id,
-            row.completion_start_time,
-          ]),
-        ).toEqual([[FIRST_SPAN_ID, null]]);
+          result.storedRows
+            .map((row) => [row.span_id, row.completion_start_time])
+            .sort(),
+        ).toEqual([
+          [FIRST_SPAN_ID, null],
+          [SECOND_SPAN_ID, null],
+        ]);
       }
     });
 

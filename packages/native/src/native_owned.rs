@@ -62,8 +62,12 @@ impl IntoPrepared<DateTime64Micros> for String {
     }
 }
 
-// A nullable datetime column stores null for a value ClickHouse cannot hold, so an optional
-// timestamp never fails its row.
+/// The first and the last microsecond of years 0000-9999.
+const STORABLE_DATETIME_MICROS: std::ops::RangeInclusive<i64> =
+    -62_167_219_200_000_000..=253_402_300_799_999_999;
+
+// A nullable datetime column stores null for text that is not a datetime or that lies outside
+// years 0000-9999, as the TypeScript path does. An optional timestamp never fails its row.
 impl IntoPrepared<Option<DateTime64Micros>> for String {
     fn into_prepared(self) -> Result<Option<DateTime64Micros>, String> {
         Some(self).into_prepared()
@@ -74,6 +78,7 @@ impl IntoPrepared<Option<DateTime64Micros>> for Option<String> {
     fn into_prepared(self) -> Result<Option<DateTime64Micros>, String> {
         Ok(self
             .and_then(|value| parse_datetime_text(&value, "datetime").ok())
+            .filter(|micros| STORABLE_DATETIME_MICROS.contains(micros))
             .map(DateTime64Micros))
     }
 }
@@ -267,14 +272,25 @@ mod tests {
     #[test]
     fn only_a_nullable_datetime_column_accepts_a_time_clickhouse_cannot_hold() {
         let year_33713 = || "+33713-01-25T16:35:30.686Z".to_owned();
-        let nullable: Option<DateTime64Micros> =
-            into_prepared(Some(year_33713()), "completion_start_time").unwrap();
-        assert!(nullable.is_none());
-        let nullable: Option<DateTime64Micros> = into_prepared(year_33713(), "end_time").unwrap();
-        assert!(nullable.is_none());
-        let stored: Option<DateTime64Micros> =
-            into_prepared("2026-01-25 16:35:30.686".to_owned(), "end_time").unwrap();
-        assert_eq!(stored.map(|time| time.0), Some(1_769_358_930_686_000));
+        let nullable = |text: &str| -> Option<i64> {
+            let prepared: Option<DateTime64Micros> =
+                into_prepared(Some(text.to_owned()), "completion_start_time").unwrap();
+            prepared.map(|time| time.0)
+        };
+        assert_eq!(nullable(&year_33713()), None);
+        // Chrono reads a signed year, so these parse and are outside the stored range.
+        assert_eq!(nullable("+10000-01-01 00:00:00.000"), None);
+        assert_eq!(nullable("-0001-12-31 23:59:59.999"), None);
+        assert_eq!(
+            nullable("9999-12-31 23:59:59.999999"),
+            Some(253_402_300_799_999_999)
+        );
+        assert_eq!(
+            nullable("0000-01-01 00:00:00.000"),
+            Some(-62_167_219_200_000_000)
+        );
+        let end_time: Option<DateTime64Micros> = into_prepared(year_33713(), "end_time").unwrap();
+        assert!(end_time.is_none());
         let required: Result<DateTime64Micros, String> = into_prepared(year_33713(), "start_time");
         assert!(required.is_err());
     }

@@ -43,16 +43,21 @@ const nullableTimestampColumns = PreparedEvent.columns()
   .map(({ name }) => name);
 
 /**
- * Nulls each optional timestamp ClickHouse cannot store. One such value would
- * fail the insert of every row sent with it.
+ * Returns the event row with each optional timestamp ClickHouse cannot store
+ * set to null. One such value would fail the insert of every row sent with it.
  */
-function clearUnstorableTimestamps(eventRecord: Record<string, unknown>): void {
-  for (const column of nullableTimestampColumns) {
+function withoutUnstorableTimestamps<T extends Record<string, unknown>>(
+  eventRecord: T,
+): T {
+  const unstorable = nullableTimestampColumns.filter((column) => {
     const value = eventRecord[column];
-    if (typeof value === "string" && hasUnstorableYear(value)) {
-      eventRecord[column] = null;
-    }
-  }
+    return typeof value === "string" && hasUnstorableYear(value);
+  });
+  if (unstorable.length === 0) return eventRecord;
+  return {
+    ...eventRecord,
+    ...Object.fromEntries(unstorable.map((column) => [column, null])),
+  };
 }
 
 /**
@@ -140,9 +145,8 @@ export async function processOtelEvents({
       // Step 1: Create enriched event record (required for both evals and writes)
       let eventRecord;
       try {
-        eventRecord = await ingestionService.createEventRecord(
-          eventInput,
-          fileKey,
+        eventRecord = withoutUnstorableTimestamps(
+          await ingestionService.createEventRecord(eventInput, fileKey),
         );
       } catch (error) {
         traceException(error);
@@ -153,8 +157,6 @@ export async function processOtelEvents({
 
         return;
       }
-
-      clearUnstorableTimestamps(eventRecord);
 
       // Step 2: Keep transcript matches even if observation scheduling fails.
       const traceActivity = isTraceDispatchSampled(
