@@ -45,7 +45,7 @@ const operands: FormulaOperand[] = [
 ];
 const suggestions = (marked: string) => {
   const caret = marked.indexOf("|");
-  const value = marked.replace("|", "");
+  const value = marked.replaceAll("|", "");
   return formulaSuggestions(
     value,
     caret,
