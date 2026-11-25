@@ -162,6 +162,32 @@ describe("ClickhouseWriter", () => {
     ).toThrow("Native ClickHouse writer only accepts events_full");
   });
 
+  it("writes shadow rows to events_native_test and nowhere else", async () => {
+    clickhouseClientMock.exec.mockResolvedValue({ stream: Readable.from([]) });
+    const shadowWriter =
+      ClickhouseWriter.getNativeTestInstance(clickhouseClientMock);
+
+    expect(() =>
+      shadowWriter.addToQueue(
+        TableName.EventsFull,
+        preparedEvent("shadow") as never,
+      ),
+    ).toThrow("only accepts events_native_test");
+
+    shadowWriter.addToQueue(
+      TableName.EventsNativeTest,
+      preparedEvent("shadow"),
+    );
+    await ClickhouseWriter.shutdownAll();
+
+    expect(clickhouseClientMock.exec).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        query: "INSERT INTO events_native_test FORMAT Native",
+      }),
+    );
+    expect(clickhouseClientMock.insert).not.toHaveBeenCalled();
+  });
+
   it("should initialize with correct values", () => {
     expect(writer.batchSize).toBe(
       env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE,

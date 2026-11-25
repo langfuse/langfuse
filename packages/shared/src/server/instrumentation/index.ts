@@ -81,9 +81,13 @@ const newTraceRootContext = () => {
       opentelemetry.propagation.createBaggage(),
   );
   const route = active.getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
-  return route === undefined
-    ? root
-    : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
+  const withRoute =
+    route === undefined
+      ? root
+      : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
+  return active.getValue(SHADOW_RUN_CONTEXT_KEY) === true
+    ? withRoute.setValue(SHADOW_RUN_CONTEXT_KEY, true)
+    : withRoute;
 };
 
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
@@ -346,6 +350,35 @@ function buildCloudWatchKey(
   return suffix ? `${stat}.${suffix}` : stat;
 }
 
+const SHADOW_RUN_CONTEXT_KEY = opentelemetry.createContextKey(
+  "langfuse.shadow_run",
+);
+
+/**
+ * A context for work that repeats production processing for comparison.
+ * Metrics recorded under it get the `shadow.` prefix, so production series do
+ * not include them. The prefix follows a context value, which request headers
+ * and queue jobs cannot set; the baggage entry only marks log lines and spans.
+ */
+export const shadowRunContext = (
+  name: string,
+  parent: opentelemetry.Context = opentelemetry.ROOT_CONTEXT,
+): opentelemetry.Context =>
+  opentelemetry.propagation
+    .setBaggage(
+      parent,
+      (
+        opentelemetry.propagation.getBaggage(parent) ??
+        opentelemetry.propagation.createBaggage()
+      ).setEntry("langfuse.shadow_run", { value: name }),
+    )
+    .setValue(SHADOW_RUN_CONTEXT_KEY, true);
+
+const metricName = (stat: string): string =>
+  opentelemetry.context.active().getValue(SHADOW_RUN_CONTEXT_KEY) === true
+    ? `shadow.${stat}`
+    : stat;
+
 export const recordGauge = (
   stat: string,
   value?: number | undefined,
@@ -355,10 +388,11 @@ export const recordGauge = (
       }
     | undefined,
 ) => {
+  const name = metricName(stat);
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 0, true);
+    sendCloudWatchMetric(buildCloudWatchKey(name, tags), value ?? 0, true);
   }
-  dd.dogstatsd.gauge(stat, value, tags);
+  dd.dogstatsd.gauge(name, value, tags);
 };
 
 export const recordIncrement = (
@@ -366,10 +400,11 @@ export const recordIncrement = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
+  const name = metricName(stat);
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(buildCloudWatchKey(stat, tags), value ?? 1, false);
+    sendCloudWatchMetric(buildCloudWatchKey(name, tags), value ?? 1, false);
   }
-  dd.dogstatsd.increment(stat, value, tags);
+  dd.dogstatsd.increment(name, value, tags);
 };
 
 export const recordHistogram = (
@@ -377,7 +412,7 @@ export const recordHistogram = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
-  dd.dogstatsd.histogram(stat, value, tags);
+  dd.dogstatsd.histogram(metricName(stat), value, tags);
 };
 
 export const recordDistribution = (
@@ -385,7 +420,7 @@ export const recordDistribution = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
-  dd.dogstatsd.distribution(stat, value, tags);
+  dd.dogstatsd.distribution(metricName(stat), value, tags);
 };
 
 /**

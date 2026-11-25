@@ -7,7 +7,9 @@ import {
   recordHistogram,
   recordIncrement,
   buildClickHouseLogComment,
+  shadowRunContext,
 } from "@langfuse/shared/src/server";
+import { context as otelContext } from "@opentelemetry/api";
 
 import type { PreparedEvent } from "@langfuse/native";
 
@@ -17,6 +19,7 @@ import { instrumentAsync } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import {
   jsonWriteStrategyFactory,
+  nativeTestWriteStrategyFactory,
   nativeWriteStrategyFactory,
   type ClickhouseWriteStrategy,
   type ClickhouseWriteStrategyFactory,
@@ -47,6 +50,8 @@ export class ClickhouseWriter<
   private static instance: ClickhouseWriter<JsonWriterPayloadMap> | null = null;
   private static nativeInstance: ClickhouseWriter<NativeWriterPayloadMap> | null =
     null;
+  private static nativeTestInstance: ClickhouseWriter<NativeTestWriterPayloadMap> | null =
+    null;
   private client: ClickhouseClientType | null;
   private readonly strategyFactory: ClickhouseWriteStrategyFactory<
     PayloadMap[TableName]
@@ -72,7 +77,8 @@ export class ClickhouseWriter<
     this.strategyFactory = strategyFactory;
     this.allowedTable = allowedTable;
     this.logger = logger.child({ format: strategyFactory.format });
-    this.logPrefix = strategyFactory.format === "native" ? "[native] " : "";
+    this.logPrefix =
+      strategyFactory.format === "json" ? "" : `[${strategyFactory.format}] `;
     this.batchSize = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE;
     this.writeInterval = env.LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS;
     this.maxAttempts = env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS;
@@ -88,6 +94,7 @@ export class ClickhouseWriter<
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
+      [TableName.EventsNativeTest]: [],
       [TableName.TopicFacetSummaries]: [],
       [TableName.TopicAssignments]: [],
     };
@@ -130,14 +137,44 @@ export class ClickhouseWriter<
     return instance;
   }
 
+  /**
+   * Get the singleton writer of the Rust shadow run. It accepts prepared events
+   * for events_native_test only, so it can never insert into events_full. Its
+   * flushes run under a shadow context, whichever caller creates or stops it.
+   */
+  public static getNativeTestInstance(
+    client?: ClickhouseClientType,
+  ): ClickhouseWriter<NativeTestWriterPayloadMap> {
+    let instance = ClickhouseWriter.nativeTestInstance;
+    if (!instance) {
+      instance = otelContext.with(
+        shadowRunContext("otel-rust-shadow-writer"),
+        () =>
+          new ClickhouseWriter<NativeTestWriterPayloadMap>(
+            client,
+            nativeTestWriteStrategyFactory,
+            TableName.EventsNativeTest,
+          ),
+      );
+      ClickhouseWriter.nativeTestInstance = instance;
+    } else if (client) {
+      instance.client = client;
+    }
+    return instance;
+  }
+
   /** Stop every writer instance created in this process. */
   public static async shutdownAll(): Promise<void> {
     await Promise.all([
       ClickhouseWriter.instance?.shutdown(),
       ClickhouseWriter.nativeInstance?.shutdown(),
+      otelContext.with(shadowRunContext("otel-rust-shadow-writer"), () =>
+        ClickhouseWriter.nativeTestInstance?.shutdown(),
+      ),
     ]);
     ClickhouseWriter.instance = null;
     ClickhouseWriter.nativeInstance = null;
+    ClickhouseWriter.nativeTestInstance = null;
   }
 
   private start() {
@@ -618,6 +655,12 @@ type JsonWriterPayloadMap = {
 
 type NativeWriterPayloadMap = {
   [T in TableName]: T extends TableName.EventsFull ? PreparedEvent : never;
+};
+
+type NativeTestWriterPayloadMap = {
+  [T in TableName]: T extends TableName.EventsNativeTest
+    ? PreparedEvent
+    : never;
 };
 
 type ClickhouseQueue<PayloadMap extends WriterPayloadMap> = {

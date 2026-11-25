@@ -50,7 +50,9 @@ import {
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
   TopicsTraceQueue,
+  shadowRunContext,
 } from "@langfuse/shared/src/server";
+import { context as otelContext } from "@opentelemetry/api";
 import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import {
   monitorProcessorTtl,
@@ -112,6 +114,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { EventsDispatchTranscriptCleaner } from "./features/eventsDispatch/transcriptCleaner";
+import { OtelShadowRowVerifier } from "./features/otel-ingestion/shadow/verifyRows";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
@@ -867,6 +870,22 @@ export let eventsDispatchTranscriptCleaner: EventsDispatchTranscriptCleaner | nu
 if (env.LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED === "true") {
   eventsDispatchTranscriptCleaner = new EventsDispatchTranscriptCleaner();
   eventsDispatchTranscriptCleaner.start();
+}
+
+// Compares the rows of OTEL batches the Rust shadow also processed.
+export let otelShadowRowVerifier: OtelShadowRowVerifier | null = null;
+
+if (env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE > 0) {
+  // The shadow's metrics are told apart through the OpenTelemetry context,
+  // which does nothing while the SDK is disabled.
+  const marker = shadowRunContext("startup-check");
+  if (!otelContext.with(marker, () => otelContext.active() === marker)) {
+    throw new Error(
+      "LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE requires the OpenTelemetry SDK; unset OTEL_SDK_DISABLED",
+    );
+  }
+  otelShadowRowVerifier = new OtelShadowRowVerifier();
+  otelShadowRowVerifier.start();
 }
 
 // Batch trace deletion cleaner for supplementary trace deletion

@@ -54,6 +54,10 @@ import {
 } from "../features/otel-ingestion/prepareOtelBatch";
 import { processRustOtelEvents } from "../features/otel-ingestion/processRustOtelEvents";
 import { productionRustOtelWrites } from "../features/otel-ingestion/otelWrites";
+import {
+  isOtelShadowSampled,
+  withOtelShadow,
+} from "../features/otel-ingestion/shadow/run";
 import { productionEvalWrites } from "../features/evaluation/scheduleEvals";
 
 /**
@@ -555,6 +559,8 @@ export const otelIngestionQueueProcessorBuilder = (
     let mediaPresence: OtelMediaPresence | undefined;
     let inputByteLength: number | undefined;
     let inputPreparationDurationMs: number | undefined;
+    // The downloaded input, kept only for batches the Rust shadow also processes.
+    let shadowInput: Buffer | undefined;
     const span = getCurrentSpan();
     try {
       const projectId = job.data.payload.authCheck.scope.projectId;
@@ -638,6 +644,9 @@ export const otelIngestionQueueProcessorBuilder = (
       const needsTypeScriptSpans =
         !retainNativeBatch || writesToLegacyTables || !envForcesDirect;
       let parsedSpans: ResourceSpan[] | undefined;
+      const extractMedia =
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+        Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET);
       if (earlyMediaEnabled) {
         const bytes = await eventStorage.downloadBytes(fileKey);
         const preparationStartedAt = performance.now();
@@ -653,9 +662,7 @@ export const otelIngestionQueueProcessorBuilder = (
           orgId: job.data.payload.authCheck.scope.orgId,
           propagatedHeaders: job.data.payload.propagatedHeaders,
           retainNativeBatch,
-          extractMedia:
-            env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
-            Boolean(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+          extractMedia,
         });
         if ("error" in prepared) {
           logger.warn("Dropping OTEL event due to masking failure", {
@@ -666,6 +673,13 @@ export const otelIngestionQueueProcessorBuilder = (
             propagatedHeaders: job.data.payload.propagatedHeaders,
           });
           return;
+        }
+        if (isOtelShadowSampled(projectId, fileKey)) {
+          shadowInput = Buffer.from(
+            bytes.buffer,
+            bytes.byteOffset,
+            bytes.byteLength,
+          );
         }
         if (retainNativeBatch) {
           earlyBatch = prepared.batch;
@@ -943,18 +957,18 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
+      const nativeContext = {
+        projectId,
+        fileKey,
+        isLangfuseInternal,
+        ingestionApiKey: attribution.ingestionApiKey,
+        ingestionSdkName: attribution.ingestionSdkName,
+        ingestionSdkVersion: attribution.ingestionSdkVersion,
+      };
       if (retainNativeBatch && earlyBatch && shouldWriteToEventsTable) {
         const directMediaPresence = await processRustOtelEvents({
           batch: earlyBatch,
-          context: {
-            projectId,
-            fileKey,
-            now: fallbackTime,
-            isLangfuseInternal,
-            ingestionApiKey: attribution.ingestionApiKey,
-            ingestionSdkName: attribution.ingestionSdkName,
-            ingestionSdkVersion: attribution.ingestionSdkVersion,
-          },
+          context: { ...nativeContext, now: fallbackTime },
           writes: productionRustOtelWrites(),
         });
         mediaPresence = combineOtelMediaPresence(
@@ -967,7 +981,7 @@ export const otelIngestionQueueProcessorBuilder = (
             "OTEL resource spans missing for TypeScript processing",
           );
         }
-        const directMediaPresence = await processOtelEvents({
+        const direct = {
           processor,
           resourceSpans: parsedSpans,
           ingestionService: getIngestionService(),
@@ -978,7 +992,19 @@ export const otelIngestionQueueProcessorBuilder = (
           earlyBatch,
           mediaPath,
           inputByteLength,
-        });
+        };
+        const directMediaPresence =
+          shadowInput && shouldWriteToEventsTable
+            ? await withOtelShadow(
+                {
+                  input: shadowInput,
+                  context: nativeContext,
+                  extractMedia,
+                  typeScriptPreparationMs: inputPreparationDurationMs,
+                },
+                direct,
+              )
+            : await processOtelEvents(direct);
         if (directMediaPresence) {
           mediaPresence = combineOtelMediaPresence(
             mediaPresence,
