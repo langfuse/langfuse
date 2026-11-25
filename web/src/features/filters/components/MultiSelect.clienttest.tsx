@@ -1,6 +1,40 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
+import { type FilterOption } from "@langfuse/shared";
 
 import { MultiSelect } from "./MultiSelect";
+
+/** Keeps `values` in state, as callers do, so selections round-trip. */
+function ControlledMultiSelect({
+  initialValues,
+  options,
+  onValueChange,
+}: {
+  initialValues: string[];
+  options: FilterOption[];
+  onValueChange?: (values: string[]) => void;
+}) {
+  const [values, setValues] = useState(initialValues);
+  return (
+    <MultiSelect
+      values={values}
+      options={options}
+      onValueChange={(next) => {
+        setValues(next);
+        onValueChange?.(next);
+      }}
+      isCustomSelectEnabled
+    />
+  );
+}
+
+const userOptions: FilterOption[] = [{ value: "user-1" }, { value: "user-2" }];
+
+function optionRowsWithText(text: string) {
+  return screen
+    .getAllByRole("option")
+    .filter((row) => row.textContent?.trim() === text);
+}
 
 vi.stubGlobal(
   "ResizeObserver",
@@ -55,5 +89,226 @@ describe("MultiSelect", () => {
     );
 
     expect(screen.getByText("6 selected")).toBeInTheDocument();
+  });
+
+  it("lists a selected custom value once, in the custom value row", () => {
+    render(
+      <ControlledMultiSelect
+        initialValues={["ghost-user"]}
+        options={userOptions}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(optionRowsWithText("ghost-user")).toHaveLength(0);
+    expect(screen.getByPlaceholderText("Enter custom value")).toHaveValue(
+      "ghost-user",
+    );
+  });
+
+  it("selects the same values every time Select All is used", () => {
+    const onValueChange = vi.fn();
+    render(
+      <ControlledMultiSelect
+        initialValues={["ghost-user"]}
+        options={userOptions}
+        onValueChange={onValueChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+
+    fireEvent.click(screen.getByText("Select All"));
+    const firstSelectAll = onValueChange.mock.lastCall?.[0];
+    fireEvent.click(screen.getByText("Deselect All"));
+    fireEvent.click(screen.getByText("Select All"));
+
+    expect(onValueChange.mock.lastCall?.[0]).toEqual(firstSelectAll);
+  });
+
+  it("keeps a selected custom value through Deselect All", () => {
+    const onValueChange = vi.fn();
+    render(
+      <ControlledMultiSelect
+        initialValues={["ghost-user", "user-1"]}
+        options={userOptions}
+        onValueChange={onValueChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+
+    fireEvent.click(screen.getByText("Select All"));
+    fireEvent.click(screen.getByText("Deselect All"));
+
+    expect(onValueChange.mock.lastCall?.[0]).toEqual(["ghost-user"]);
+  });
+
+  it("shows a custom value that the caller replaces", () => {
+    const { rerender } = render(
+      <MultiSelect
+        values={["first-value"]}
+        options={[]}
+        onValueChange={vi.fn()}
+        isCustomSelectEnabled
+      />,
+    );
+    rerender(
+      <MultiSelect
+        values={["second-value"]}
+        options={[]}
+        onValueChange={vi.fn()}
+        isCustomSelectEnabled
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByPlaceholderText("Enter custom value")).toHaveValue(
+      "second-value",
+    );
+  });
+
+  it("keeps typing when an earlier custom value comes back from the caller", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      const { rerender } = render(
+        <MultiSelect
+          values={["a"]}
+          options={[]}
+          onValueChange={onValueChange}
+          isCustomSelectEnabled
+        />,
+      );
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+
+      fireEvent.change(input, { target: { value: "ab" } });
+      vi.advanceTimersByTime(500);
+      expect(onValueChange).toHaveBeenLastCalledWith(["ab"]);
+      fireEvent.change(input, { target: { value: "abc" } });
+      rerender(
+        <MultiSelect
+          values={["ab"]}
+          options={[]}
+          onValueChange={onValueChange}
+          isCustomSelectEnabled
+        />,
+      );
+
+      expect(input).toHaveValue("abc");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps an edited custom value in place among other missing values", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      render(
+        <ControlledMultiSelect
+          initialValues={["first", "second"]}
+          options={[]}
+          onValueChange={onValueChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+
+      fireEvent.change(input, { target: { value: "edited" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(onValueChange).toHaveBeenLastCalledWith(["edited", "second"]);
+      expect(input).toHaveValue("edited");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the remaining custom value after the edited one is unchecked", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      render(
+        <ControlledMultiSelect
+          initialValues={["first", "second"]}
+          options={[]}
+          onValueChange={onValueChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+      fireEvent.change(input, { target: { value: "edited" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      const customRow = input.closest('[role="option"]');
+      if (!customRow) throw new Error("custom value row not found");
+      fireEvent.click(customRow);
+
+      expect(onValueChange).toHaveBeenLastCalledWith(["second"]);
+      expect(input).toHaveValue("second");
+      expect(optionRowsWithText("second")).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("follows a committed custom value when the caller selects it again later", () => {
+    vi.useFakeTimers();
+    try {
+      const onValueChange = vi.fn();
+      const view = (values: string[]) => (
+        <MultiSelect
+          values={values}
+          options={[]}
+          onValueChange={onValueChange}
+          isCustomSelectEnabled
+        />
+      );
+      const { rerender } = render(view(["a"]));
+      fireEvent.click(screen.getByRole("button"));
+      const input = screen.getByPlaceholderText("Enter custom value");
+      fireEvent.change(input, { target: { value: "ab" } });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      rerender(view(["ab"]));
+      rerender(view(["other"]));
+      rerender(view(["ab"]));
+
+      expect(input).toHaveValue("ab");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the custom value row once a selected value turns up in the options", () => {
+    const { rerender } = render(
+      <MultiSelect
+        values={["user-1"]}
+        options={[]}
+        onValueChange={vi.fn()}
+        isCustomSelectEnabled
+      />,
+    );
+    rerender(
+      <MultiSelect
+        values={["user-1"]}
+        options={userOptions}
+        onValueChange={vi.fn()}
+        isCustomSelectEnabled
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByPlaceholderText("Enter custom value")).toHaveValue("");
+    expect(optionRowsWithText("user-1")).toHaveLength(1);
   });
 });

@@ -77,17 +77,39 @@ export function MultiSelect({
     values,
     optionValues,
   );
+  // The custom value row's text: the selected custom value, or a draft the
+  // user is typing.
   const [freeText, setFreeText] = useState(freeTextInput || "");
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const committedFreeText = useRef<string | undefined>(undefined);
+  const [syncedFreeTextInput, setSyncedFreeTextInput] = useState(freeTextInput);
+  if (freeTextInput !== syncedFreeTextInput) {
+    // Follow custom values the caller sets, but not the echo of one this
+    // component committed (skipped once) or one arriving while the user is
+    // still typing.
+    setSyncedFreeTextInput(freeTextInput);
+    if (freeTextInput !== undefined) {
+      if (freeTextInput === committedFreeText.current) {
+        committedFreeText.current = undefined;
+      } else if (!debounceTimeout.current) {
+        setFreeText(freeTextInput);
+      }
+    } else if (optionValues.has(freeText)) {
+      // The custom value turned up in the options and is listed there now.
+      setFreeText("");
+    }
+  }
 
-  // Merge options with selected values that might not be in options
-  // This ensures selected values are always visible and removable
+  // Merge options with selected values that might not be in options, so they
+  // stay visible and removable. The custom value row already shows the
+  // custom value, so it is not listed again.
   const mergedOptions = useMemo(() => {
     const optionSet = new Set(options.map((o) => o.value));
     const missingSelectedOptions: FilterOption[] = values
-      .filter((v) => !optionSet.has(v) && v.length > 0)
+      .filter((v) => !optionSet.has(v) && v.length > 0 && v !== freeTextInput)
       .map((v) => ({ value: v }));
     return [...options, ...missingSelectedOptions];
-  }, [options, values]);
+  }, [options, values, freeTextInput]);
 
   const selectableOptions = useMemo(
     () => mergedOptions.filter((option) => option.value.length > 0),
@@ -105,15 +127,15 @@ export function MultiSelect({
     );
   }, [selectableOptions, selectedValues]);
 
+  // Select All and Deselect All act on the listed options only. The custom
+  // value keeps its own checkbox, and Clear filters removes everything.
   const handleSelectAll = useCallback(() => {
     const newSelectedValues = new Set(selectedValues);
     if (allSelectedState) {
-      // Deselect all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.delete(option.value),
       );
     } else {
-      // Select all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.add(option.value),
       );
@@ -122,8 +144,8 @@ export function MultiSelect({
     onValueChange(filterValues.length ? filterValues : []);
   }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
 
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const handleDebouncedChange = (value: string) => {
+    debounceTimeout.current = null;
     const freeTextInput = getFreeTextInput(
       isCustomSelectEnabled,
       values,
@@ -131,10 +153,12 @@ export function MultiSelect({
     );
 
     if (!!freeTextInput) {
-      selectedValues.delete(freeTextInput);
-      selectedValues.add(value);
-      selectedValues.delete("");
-      const filterValues = Array.from(selectedValues);
+      committedFreeText.current = value;
+      // Replace the custom value in place, so it stays the first value
+      // missing from the options and keeps the custom value row.
+      const filterValues = Array.from(
+        new Set(values.map((v) => (v === freeTextInput ? value : v))),
+      ).filter((v) => v !== "");
       onValueChange(filterValues.length ? filterValues : []);
     }
   };
@@ -343,6 +367,9 @@ export function MultiSelect({
                       selectedValues.delete(freeTextInput);
                     } else {
                       selectedValues.add(freeText);
+                      // A draft that names a listed option selects that
+                      // option, which is shown in its own row.
+                      if (optionValues.has(freeText)) setFreeText("");
                     }
                     selectedValues.delete("");
                     const filterValues = Array.from(selectedValues);
@@ -352,13 +379,7 @@ export function MultiSelect({
                   <div
                     className={cn(
                       "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
-                      getFreeTextInput(
-                        isCustomSelectEnabled,
-                        values,
-                        optionValues,
-                      ) ||
-                        (optionValues.has(freeText) &&
-                          selectedValues.has(freeText))
+                      freeTextInput
                         ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",
                     )}
