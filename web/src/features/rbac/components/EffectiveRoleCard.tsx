@@ -1,6 +1,7 @@
 import { type Role } from "@langfuse/shared";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RoleWithIcon } from "@/src/features/rbac/components/RoleWithIcon";
 
@@ -33,13 +34,12 @@ export function EffectiveRoleCard({
             <span className="text-muted-foreground text-right text-xs">
               {role !== "NONE" &&
                 (onViewPermissions ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="text"
+                    size="sm"
+                    text={rolePermissionCountLabel(role)}
                     onClick={() => onViewPermissions(role)}
-                    className="hover:text-foreground underline-offset-2 hover:underline"
-                  >
-                    {rolePermissionCountLabel(role)}
-                  </button>
+                  />
                 ) : (
                   rolePermissionCountLabel(role)
                 ))}

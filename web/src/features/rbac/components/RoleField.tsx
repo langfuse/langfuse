@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ArrowUpRight } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 import { type SystemRole } from "@langfuse/shared/src/db";
 import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Select,
   SelectContent,
@@ -88,17 +88,14 @@ export function RoleField({
         </SelectContent>
       </Select>
       {!(value === "NONE" && noneLabel) && (
-        <button
-          type="button"
-          onClick={() => setPermissionsRole(value)}
-          className="text-muted-foreground hover:text-foreground w-fit text-xs"
-        >
-          View{" "}
-          <span className="inline-flex items-center gap-0.5 underline">
-            {rolePermissionCountLabel(value)}
-            <ArrowUpRight size="sm" />
-          </span>
-        </button>
+        <span className="w-fit">
+          <Button
+            variant="text"
+            size="sm"
+            text={`View ${rolePermissionCountLabel(value)}`}
+            onClick={() => setPermissionsRole(value)}
+          />
+        </span>
       )}
       <RolePermissionPopup
         open={permissionsRole !== null}
