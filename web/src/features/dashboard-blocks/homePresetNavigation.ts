@@ -1,21 +1,28 @@
 import { type NextRouter } from "next/router";
-import type { HomePresetDraft } from "./dashboard-block-context";
+import type {
+  DashboardBlocksContextValue,
+  HomePresetDraft,
+} from "./dashboard-block-context";
 
 type PendingEdit = {
   projectId: string;
   dashboardId: string;
   preset: HomePresetDraft;
+  preview: Pick<
+    DashboardBlocksContextValue,
+    "dateRange" | "filterState" | "readPath"
+  >;
 };
 
-// Keep model names and score selections in this browser tab while Next navigates.
+// Home's reader filters and card selections belong only to this editor visit.
 let pending: PendingEdit | undefined;
 
 export async function openPresetInDashboardCopy(
-  router: NextRouter,
+  router: Pick<NextRouter, "push">,
   edit: PendingEdit,
-  range: { from: Date; to: Date } | undefined,
 ) {
   pending = edit;
+  const range = edit.preview.dateRange;
   let navigated = false;
   try {
     navigated = await router.push({
@@ -26,7 +33,6 @@ export async function openPresetInDashboardCopy(
         ...(range && {
           dateRange: `${range.from.getTime()}-${range.to.getTime()}`,
         }),
-        ...(router.query.filter && { filter: router.query.filter }),
       },
     });
   } finally {
@@ -37,9 +43,9 @@ export async function openPresetInDashboardCopy(
 export function getPendingPresetEdit(projectId: string, dashboardId: string) {
   if (pending?.projectId !== projectId || pending.dashboardId !== dashboardId)
     return;
-  return pending.preset;
+  return pending;
 }
 
-export function clearPendingPresetEdit(preset: HomePresetDraft) {
-  if (pending?.preset === preset) pending = undefined;
+export function clearPendingPresetEdit(edit: PendingEdit) {
+  if (pending === edit) pending = undefined;
 }

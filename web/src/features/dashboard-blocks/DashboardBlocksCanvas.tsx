@@ -64,11 +64,16 @@ function ManagedDashboardCanvas({
               dashboardId,
               dashboardName,
               onOpenCopy: (copyId) =>
-                openPresetInDashboardCopy(
-                  router,
-                  { projectId, dashboardId: copyId, preset },
-                  gridProps.dateRange,
-                ),
+                openPresetInDashboardCopy(router, {
+                  projectId,
+                  dashboardId: copyId,
+                  preset,
+                  preview: {
+                    dateRange: gridProps.dateRange,
+                    filterState: gridProps.filterState,
+                    readPath: gridProps.readPath,
+                  },
+                }),
             });
           }}
         />

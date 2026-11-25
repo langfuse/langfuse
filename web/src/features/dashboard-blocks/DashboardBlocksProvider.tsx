@@ -81,16 +81,17 @@ export function DashboardBlocksProvider({
   children: ReactNode;
 }) {
   const capture = usePostHogClientCapture();
-  const [presetInCopy] = useState(() =>
+  const [pendingEdit] = useState(() =>
     getPendingPresetEdit(projectId, dashboardId),
   );
+  const presetInCopy = pendingEdit?.preset;
   const dismissPreset = useRef(presetInCopy?.source.presetId);
   const [savedPresetTabs, setSavedPresetTabs] = useState<
     ReadonlyMap<string, string>
   >(() => new Map());
   useEffect(() => {
-    if (presetInCopy) clearPendingPresetEdit(presetInCopy);
-  }, [presetInCopy]);
+    if (pendingEdit) clearPendingPresetEdit(pendingEdit);
+  }, [pendingEdit]);
   const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
   const {
     capabilities,
@@ -225,9 +226,9 @@ export function DashboardBlocksProvider({
             projectId={projectId}
             dashboardId={dashboardId}
             canEdit={allowed}
-            readPath={readPath}
-            dateRange={dateRange}
-            filterState={filterState}
+            {...(pendingEdit && preset === pendingEdit.preset
+              ? pendingEdit.preview
+              : { readPath, dateRange, filterState })}
             placementOptions={placementOptions}
             onPlacementChanged={onPlacementChanged}
             onPreview={() => track("preview", kind, isNew)}
