@@ -78,8 +78,8 @@ export function MultiQueryEditor({
     () => new Set([tabId]),
   );
   const [invalidFilters, setInvalidFilters] = useState<
-    Record<string, ReadonlySet<string>>
-  >({});
+    Map<string, ReadonlySet<string>>
+  >(() => new Map());
   const [unverified, setUnverified] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -89,7 +89,7 @@ export function MultiQueryEditor({
   const capture = usePostHogClientCapture();
   const active = config.tabs.find((t) => t.id === tabId) ?? config.tabs[0]!;
   const context = { projectId, dateRange, filterState, readPath };
-  const activeFiltersComplete = !invalidFilters[active.id]?.size;
+  const activeFiltersComplete = !invalidFilters.get(active.id)?.size;
   const runtime = useMultiQueryWidget(
     active,
     context,
@@ -97,7 +97,9 @@ export function MultiQueryEditor({
   );
   const plotUnits = incompatibleTabUnits(active, readPath);
   const schema = multiQueryConfigV2Schema.safeParse(config);
-  const firstInvalidTab = config.tabs.find((t) => invalidFilters[t.id]?.size);
+  const firstInvalidTab = config.tabs.find(
+    (t) => invalidFilters.get(t.id)?.size,
+  );
   const schemaIssue = !schema.success ? schema.error.issues[0] : undefined;
   const schemaTab =
     schemaIssue?.path[0] === "tabs" && typeof schemaIssue.path[1] === "number"
@@ -200,7 +202,11 @@ export function MultiQueryEditor({
     const tabs = config.tabs.filter((t) => t.id !== active.id);
     select(tabs[Math.max(0, config.tabs.indexOf(active) - 1)]!.id);
     setValue("tabs", tabs);
-    setInvalidFilters((prev) => ({ ...prev, [active.id]: noInvalidSources }));
+    setInvalidFilters((prev) => {
+      const next = new Map(prev);
+      next.delete(active.id);
+      return next;
+    });
     track("multi_query_tab_removed", tabs.length);
   };
   const move = (unit: string) => {
@@ -222,12 +228,12 @@ export function MultiQueryEditor({
   };
   const changeInvalid = (tabId: string, sourceId: string, invalid: boolean) => {
     setInvalidFilters((prev) => {
-      const previous = prev[tabId] ?? noInvalidSources;
+      const previous = prev.get(tabId) ?? noInvalidSources;
       if (previous.has(sourceId) === invalid) return prev;
       const next = new Set(previous);
       if (invalid) next.add(sourceId);
       else next.delete(sourceId);
-      return { ...prev, [tabId]: next };
+      return new Map(prev).set(tabId, next);
     });
   };
   const save = async () => {
@@ -372,7 +378,9 @@ export function MultiQueryEditor({
                     tab={t}
                     context={context}
                     onChange={changeTab}
-                    invalidSources={invalidFilters[t.id] ?? noInvalidSources}
+                    invalidSources={
+                      invalidFilters.get(t.id) ?? noInvalidSources
+                    }
                     onInvalidChange={(sourceId, invalid) =>
                       changeInvalid(t.id, sourceId, invalid)
                     }

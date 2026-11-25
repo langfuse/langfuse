@@ -30,8 +30,8 @@ export function useMultiQueryWidget(
   const dateRange = context.dateRange ?? fallbackRange;
   const [refreshKey, setRefreshKey] = useState(0);
   const [hiddenByTab, setHiddenByTab] = useState<
-    Record<string, ReadonlySet<string>>
-  >({});
+    Map<string, ReadonlySet<string>>
+  >(() => new Map());
   const config = multiQueryTabAsChart(tab);
   let plan: MultiQueryPlan | undefined;
   let validationError: string | null = null;
@@ -54,12 +54,12 @@ export function useMultiQueryWidget(
         !source.hidden && source.metrics.some((metric) => !metric.hidden),
     ) || Boolean(tab.formulas?.some((formula) => !formula.hidden));
   return {
-    hiddenSeries: hiddenByTab[tab.id] ?? noHiddenSeries,
+    hiddenSeries: hiddenByTab.get(tab.id) ?? noHiddenSeries,
     toggleSeries: (id: string) => {
       setHiddenByTab((previous) => {
-        const next = new Set(previous[tab.id]);
+        const next = new Set(previous.get(tab.id));
         if (!next.delete(id)) next.add(id);
-        return { ...previous, [tab.id]: next };
+        return new Map(previous).set(tab.id, next);
       });
     },
     hasVisibleMetrics,
