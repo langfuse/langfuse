@@ -9,7 +9,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
-import { Check, Copy, ExternalLink } from "@langfuse/icons";
+import { Check, Copy, SquareArrowOutUpRight } from "@langfuse/icons";
 import Link from "next/link";
 
 /**
@@ -133,7 +133,7 @@ export function ExperimentScoreHover({
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 hover:underline"
               >
-                <ExternalLink size="sm" />
+                <SquareArrowOutUpRight size="sm" />
                 View execution trace
               </Link>
             )}

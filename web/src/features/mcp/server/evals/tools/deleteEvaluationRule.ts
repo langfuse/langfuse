@@ -24,5 +24,5 @@ export const [deleteEvaluationRuleTool, handleDeleteEvaluationRule] =
           return { message: "Evaluation rule successfully deleted" };
         },
       }),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
   });

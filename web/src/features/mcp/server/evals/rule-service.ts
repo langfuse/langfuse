@@ -7,29 +7,14 @@ import {
   toStoredMappingList,
 } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { EvalTemplateType, InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
 import {
-  McpEvaluatorType,
   EvaluationRuleResponseSchema,
   type EvaluationRuleAssignmentInput,
 } from "./rule-schema";
-
-function isMcpEvaluatorType(type: EvalTemplateType) {
-  return (
-    type === EvalTemplateType.DECISION_MODEL || isPublicApiEvaluatorType(type)
-  );
-}
-
-function toMcpEvaluatorType(type: EvalTemplateType) {
-  return McpEvaluatorType.parse(
-    type === EvalTemplateType.DECISION_MODEL
-      ? "decision_model"
-      : toPublicEvaluatorType(type),
-  );
-}
 
 export function createMcpRuleService(context: ServerContext) {
   return new RuleService(prisma, ({ action, ruleId }) =>
@@ -66,7 +51,7 @@ export async function assertRuleAssignmentsReplaceableViaMcp(
 ) {
   const rule = await service.get(projectId, ruleId);
   const hidden = rule.assignments.filter(
-    (assignment) => !isMcpEvaluatorType(assignment.evaluator.type),
+    (assignment) => !isPublicApiEvaluatorType(assignment.evaluator.type),
   );
   if (hidden.length > 0) {
     throw new InvalidRequestError(
@@ -85,11 +70,13 @@ export function toMcpEvaluationRule(
     sampling: rule.sampling,
     filter: rule.filter,
     evaluators: rule.assignments
-      .filter((assignment) => isMcpEvaluatorType(assignment.evaluator.type))
+      .filter((assignment) =>
+        isPublicApiEvaluatorType(assignment.evaluator.type),
+      )
       .map((assignment) => ({
         evaluatorId: assignment.evaluator.id,
         evaluatorName: assignment.evaluator.name,
-        evaluatorType: toMcpEvaluatorType(assignment.evaluator.type),
+        evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
         variableMapping:
           assignment.variableMapping === null
             ? null

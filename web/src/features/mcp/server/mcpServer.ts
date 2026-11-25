@@ -23,7 +23,7 @@ import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
-import { toolRegistry } from "./registry";
+import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
 import { registerSkillResources } from "./skills/resources";
 import { registerResources } from "./resources";
 import {
@@ -61,8 +61,7 @@ export const getMcpServerInstructions = (): string =>
  * Creates a fresh MCP server for each request with context captured in closures.
  * This follows the stateless pattern where no server state persists between requests.
  *
- * Tools are dynamically loaded from the global registry, eliminating hardcoded tool lists.
- * Features register themselves at application startup via the bootstrap module.
+ * Tools come from the feature modules listed in `tools.ts`.
  *
  * @param context - Server context from authenticated request (captured in closures)
  * @returns Configured MCP Server instance
@@ -101,7 +100,9 @@ export function createMcpServer(context: ServerContext): Server {
 
   // ListTools handler - dynamically load from registry
   server.setRequestHandler("tools/list", async (_request, ctx) => {
-    const definitions = await toolRegistry.getToolDefinitions(context);
+    const definitions = (await getEnabledTools(context)).map(
+      (tool) => tool.definition,
+    );
     const tools = clientMayRenderApps(ctx)
       ? definitions
       : definitions.filter((definition) => !isAppTool(definition));
@@ -124,11 +125,11 @@ export function createMcpServer(context: ServerContext): Server {
       toolName: name,
     });
 
-    // Look up tool in registry and apply feature gates. Direct calls should
-    // fail the same way as absent tools when a gated feature is disabled.
-    const registeredTool = await toolRegistry.getEnabledTool(name, context);
+    // Tools of disabled features and tools the context may not call fail the
+    // same way as absent tools.
+    const registeredTool = await getEnabledTool(name, context);
 
-    if (!registeredTool) {
+    if (!registeredTool || !canCallTool(registeredTool, context)) {
       throw new ProtocolError(
         ProtocolErrorCode.InvalidParams,
         `Unknown tool: ${name}`,

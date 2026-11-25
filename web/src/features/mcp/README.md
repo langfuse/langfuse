@@ -53,6 +53,8 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
 MCP requests are limited to 4.5 MB and 50,000 object members/array elements combined.
 
+Each feature module (`server/<feature>/index.ts`) lists its tools; `MCP_FEATURES` in `server/tools.ts` lists the features the server offers.
+
 ### Stateless Design
 
 The Langfuse MCP server uses a **stateless per-request architecture**:
@@ -100,7 +102,7 @@ This design:
 
 ### Tool Annotations
 
-Tools include hints for clients about their behavior:
+Tools include hints for clients about their behavior, set through the `annotations` option of `defineTool`. It takes the MCP spec's `ToolAnnotations` (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and publishes them as given:
 
 - **`readOnlyHint: true`**: Safe operations that don't modify data
 - **`destructiveHint: true`**: Operations that modify data in ways that are non-revertable. If an operation only creates entities, without updating existing, it can omit this.

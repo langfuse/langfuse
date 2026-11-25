@@ -10,6 +10,7 @@ import { api } from "@/src/utils/api";
  */
 export function useGatewayAnalyticsLabels(organizationId: string): {
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
+  apiKeyOwnerById: ReadonlyMap<string, string | null>;
   isPending: boolean;
   hasGatewayKeys: boolean | undefined;
 } {
@@ -24,8 +25,16 @@ export function useGatewayAnalyticsLabels(organizationId: string): {
     }),
     [data],
   );
+  const apiKeyOwnerById = useMemo(
+    () =>
+      new Map<string, string | null>(
+        (data?.apiKeys ?? []).map((key) => [key.id, key.ownerUserId]),
+      ),
+    [data],
+  );
   return {
     labels,
+    apiKeyOwnerById,
     isPending,
     hasGatewayKeys: data ? data.apiKeys.length > 0 : undefined,
   };

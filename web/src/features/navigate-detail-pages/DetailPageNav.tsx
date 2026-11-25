@@ -17,14 +17,26 @@ const SHORTCUT_PULSE_MS = 160;
 
 type ShortcutPulse = "previous" | "next" | null;
 
-/** A dialog that does not contain this nav. The peek that hosts the nav does not count. */
+function isEarlierOrClosedPeek(dialog: Element, owningPeek: Element | null) {
+  if (!dialog.hasAttribute("data-peek-content")) return false;
+  if (dialog.getAttribute("data-state") === "closed") return true;
+  return (
+    owningPeek?.compareDocumentPosition(dialog) ===
+    Node.DOCUMENT_POSITION_PRECEDING
+  );
+}
+
+/** A dialog above this nav. Stacked peeks are portaled in opening order. */
 function dialogOutsideNav(root: HTMLElement | null): boolean {
   if (typeof document === "undefined") return false;
+  const owningPeek = root?.closest("[data-peek-content]") ?? null;
   const dialogs = document.querySelectorAll(
     '[role="dialog"]:not([aria-hidden="true"])',
   );
   for (const dialog of dialogs) {
-    if (!root || !dialog.contains(root)) return true;
+    if (root && dialog.contains(root)) continue;
+    if (isEarlierOrClosedPeek(dialog, owningPeek)) continue;
+    return true;
   }
   return false;
 }

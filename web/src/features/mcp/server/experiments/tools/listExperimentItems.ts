@@ -69,5 +69,5 @@ export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

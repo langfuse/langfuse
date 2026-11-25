@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { BookOpen } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupNoticeState } from "./useTopicSettings";
@@ -74,7 +73,6 @@ export function TopicSetupNotice({
             <Button
               variant="outline"
               text="Learn more"
-              icon={BookOpen}
               href="https://langfuse.com/topics"
             />
           </div>

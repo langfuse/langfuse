@@ -4,9 +4,8 @@ import { type EvalTemplate } from "@langfuse/shared";
 import {
   CheckIcon,
   Cog,
-  ExternalLink,
+  SquareArrowOutUpRight,
   AlertCircle,
-  ExternalLinkIcon,
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
@@ -245,7 +244,7 @@ export const TemplateSelector = ({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  <ExternalLinkIcon size="base" />
+                                  <SquareArrowOutUpRight size="base" />
                                   Configure default model
                                 </Link>
                               </TooltipContent>
@@ -341,7 +340,7 @@ export const TemplateSelector = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
-                                <ExternalLinkIcon size="base" />
+                                <SquareArrowOutUpRight size="base" />
                                 Configure default model
                               </Link>
                             </TooltipContent>
@@ -395,7 +394,7 @@ export const TemplateSelector = ({
                   }}
                 >
                   Create custom evaluator
-                  <ExternalLink size="base" __rawClassName="ml-auto" />
+                  <SquareArrowOutUpRight size="base" __rawClassName="ml-auto" />
                 </InputCommandItem>
                 {!hasDefaultModel && (
                   <InputCommandItem
@@ -408,7 +407,10 @@ export const TemplateSelector = ({
                     }}
                   >
                     Configure default model
-                    <ExternalLink size="base" __rawClassName="ml-auto" />
+                    <SquareArrowOutUpRight
+                      size="base"
+                      __rawClassName="ml-auto"
+                    />
                   </InputCommandItem>
                 )}
               </InputCommandGroup>

@@ -18,17 +18,6 @@ const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
-// Route the portal into the `popover` overlay layer (above `modal`). null
-// until mounted → falls back to <body>, SSR-parity. Layer order, not z-index,
-// stacks it. An explicit `container` prop still overrides the default.
-const DropdownMenuPortal = ({
-  ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Portal>) => {
-  const container = useLayerContainer("popover");
-  return <DropdownMenuPrimitive.Portal container={container} {...props} />;
-};
-DropdownMenuPortal.displayName = "DropdownMenuPortal";
-
 const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
@@ -618,7 +607,6 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuGroup,
-  DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

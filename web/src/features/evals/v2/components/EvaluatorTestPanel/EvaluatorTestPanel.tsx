@@ -51,7 +51,9 @@ export function EvaluatorTestPanel({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {sampleSelector}
           </div>
-          <div className="shrink-0 border-t">{testSection}</div>
+          <div className="flex max-h-1/2 min-h-0 shrink-0 flex-col border-t">
+            {testSection}
+          </div>
         </>
       ) : null}
       {open && !pinTestSection ? (

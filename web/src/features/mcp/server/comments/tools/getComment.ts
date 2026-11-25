@@ -34,5 +34,5 @@ export const [getCommentTool, handleGetComment] = defineTool({
         return url ? { ...comment, url } : comment;
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

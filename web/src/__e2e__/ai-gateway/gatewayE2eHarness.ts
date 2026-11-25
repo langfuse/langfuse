@@ -19,6 +19,7 @@ import type {
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
+import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -118,6 +119,11 @@ type GatewayKeySpendLimit = Parameters<
   Admin["caller"]["aiGateway"]["createApiKey"]
 >[0]["spendLimit"];
 
+type GatewayKeyGuardrail = {
+  action: "BLOCK" | "LOG";
+  presets: GatewayGuardrailPreset[];
+};
+
 type ConnectionSpec = Omit<CreateConnectionInput, "orgId" | "name"> & {
   /** Provider model ids the suite calls. Connections whose key may not list models get them as custom models. */
   models: string[];
@@ -164,6 +170,7 @@ let gatewayConfigPrepared = false;
 let connectionSnapshots: ConnectionSnapshot[] = [];
 let createdConnectionId: string | null = null;
 const apiKeyIds = new Set<string>();
+const guardrailIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
@@ -296,8 +303,17 @@ export function requiredEnv(name: string) {
 
 export async function withGatewayApiKey(
   apiFormat: GatewayApiFormat,
-  run: (key: { secretKey: string; id: string }) => Promise<void>,
-  options: { spendLimit?: GatewayKeySpendLimit } = {},
+  run: (key: {
+    secretKey: string;
+    id: string;
+    /** Ids of `options.guardrails`, in order. */
+    guardrailIds: string[];
+  }) => Promise<void>,
+  options: {
+    spendLimit?: GatewayKeySpendLimit;
+    /** Assigned to the key only; there are no guardrail routes yet, so rows are written directly. */
+    guardrails?: GatewayKeyGuardrail[];
+  } = {},
 ) {
   const { provider } = suite.connection;
   const gatewayKey = await suite.admin.caller.aiGateway.createApiKey({
@@ -311,8 +327,29 @@ export async function withGatewayApiKey(
     spendLimit: options.spendLimit,
   });
   apiKeyIds.add(gatewayKey.id);
+  const keyGuardrailIds: string[] = [];
 
   try {
+    for (const guardrail of options.guardrails ?? []) {
+      const { id } = await prisma.gatewayGuardrail.create({
+        data: {
+          organizationId: ORGANIZATION_ID,
+          name: `e2e-${guardrail.action.toLowerCase()}-${randomBytes(3).toString("hex")}`,
+          action: guardrail.action,
+          config: { presets: guardrail.presets },
+          assignments: {
+            create: {
+              organizationId: ORGANIZATION_ID,
+              scope: "API_KEY",
+              apiKeyId: gatewayKey.id,
+            },
+          },
+        },
+        select: { id: true },
+      });
+      guardrailIds.add(id);
+      keyGuardrailIds.push(id);
+    }
     const listedKeys = await suite.admin.caller.aiGateway.listApiKeys({
       orgId: ORGANIZATION_ID,
     });
@@ -320,8 +357,18 @@ export async function withGatewayApiKey(
       listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
     ).toBe(true);
 
-    await run({ secretKey: gatewayKey.secretKey, id: gatewayKey.id });
+    await run({
+      secretKey: gatewayKey.secretKey,
+      id: gatewayKey.id,
+      guardrailIds: keyGuardrailIds,
+    });
   } finally {
+    if (keyGuardrailIds.length > 0) {
+      await prisma.gatewayGuardrail.deleteMany({
+        where: { id: { in: keyGuardrailIds } },
+      });
+      keyGuardrailIds.forEach((id) => guardrailIds.delete(id));
+    }
     await suite.admin.caller.aiGateway.revokeApiKey({
       orgId: ORGANIZATION_ID,
       id: gatewayKey.id,
@@ -449,6 +496,7 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
     90_000,
     POLL_INTERVAL_MS,
   );
+  return { traceId: traceId!, observationId: observationId! };
 }
 
 export async function gatewayControlPlaneRequest(input: {
@@ -654,6 +702,11 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 }
 
 async function cleanUpTestArtifacts() {
+  if (guardrailIds.size > 0) {
+    await prisma.gatewayGuardrail.deleteMany({
+      where: { id: { in: [...guardrailIds] } },
+    });
+  }
   if (apiKeyIds.size > 0) {
     await prisma.apiKey.deleteMany({
       where: { id: { in: [...apiKeyIds] } },

@@ -435,7 +435,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
   ].join(" "),
   baseSchema: RenderWidgetBaseSchema,
   inputSchema: RenderWidgetInputSchema,
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
   ui: { resourceUri: WIDGET_APP_RESOURCE_URI },
   handler: async (input, context) =>
     runMcpTool({

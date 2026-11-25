@@ -24,6 +24,8 @@ pub struct GatewayConfig {
     pub request_limits: RequestLimits,
     pub memory_budget_source: MemoryBudgetSource,
     pub execution_limits: ExecutionLimits,
+    /// Per-call deadline for external guardrail providers (such as AWS Bedrock).
+    pub external_guardrail_timeout: Duration,
     pub outbound_policy: OutboundPolicy,
     /// LLM connection whitelist entries that do not parse and so exempt nothing.
     pub ignored_whitelist_entries: Vec<String>,
@@ -79,6 +81,7 @@ const DEFAULT_REQUEST_OVERHEAD_BYTES: usize = MIB;
 const DEFAULT_MAX_EXECUTION_SECONDS: u32 = 10 * 60;
 const DEFAULT_STALL_TIMEOUT_SECONDS: u32 = 120;
 const DEFAULT_SHUTDOWN_TIMEOUT_SECONDS: u64 = 10;
+const DEFAULT_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS: u64 = 3;
 /// Memory bounds per instance. Admission is limited only by the memory budget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RequestLimits {
@@ -180,6 +183,9 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        config.external_guardrail_timeout = external_guardrail_timeout(
+            read_env("LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS")?.as_deref(),
+        )?;
         let web_url = read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?;
         let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?;
         config.control_plane = control_plane(
@@ -277,6 +283,9 @@ impl GatewayConfig {
             request_limits: RequestLimits::default(),
             memory_budget_source: MemoryBudgetSource::Default,
             execution_limits: ExecutionLimits::default(),
+            external_guardrail_timeout: Duration::from_secs(
+                DEFAULT_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS,
+            ),
             outbound_policy: OutboundPolicy::default(),
             ignored_whitelist_entries: Vec::new(),
             spend_counters: None,
@@ -539,6 +548,16 @@ fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
         DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
         1..=300,
         "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
+    )
+    .map(Duration::from_secs)
+}
+
+fn external_guardrail_timeout(value: Option<&str>) -> Result<Duration, GatewayConfigError> {
+    integer_setting(
+        value,
+        DEFAULT_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS,
+        1..=60,
+        "LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS must be an integer from 1 to 60",
     )
     .map(Duration::from_secs)
 }
@@ -1036,6 +1055,33 @@ mod tests {
             assert_eq!(
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300"
+            );
+        }
+    }
+
+    #[test]
+    fn external_guardrail_timeout_is_read_in_seconds_within_bounds() {
+        assert_eq!(
+            GatewayConfig::from_values(None, None, None, None, None)
+                .unwrap()
+                .external_guardrail_timeout,
+            Duration::from_secs(3)
+        );
+        assert_eq!(
+            external_guardrail_timeout(None).unwrap(),
+            Duration::from_secs(3)
+        );
+        for value in [1, 3, 60] {
+            assert_eq!(
+                external_guardrail_timeout(Some(&value.to_string())).unwrap(),
+                Duration::from_secs(value)
+            );
+        }
+        for value in ["", "0", "61", "-1", "1.5", "secret-that-must-not-appear"] {
+            let error = external_guardrail_timeout(Some(value)).err().unwrap();
+            assert_eq!(
+                error.to_string(),
+                "LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS must be an integer from 1 to 60"
             );
         }
     }

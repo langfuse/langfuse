@@ -17,6 +17,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { FormError } from "@/src/components/design-system/FormError/FormError";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -88,6 +89,8 @@ export type TopicSetupFlowDialogProps = {
   embedding: JudgeModel | null;
   embeddingProviderGroups: Array<[string, string[]]>;
   error: string | null;
+  /** Failed model test per slot, listed below the model rows. */
+  slotErrors?: Partial<Record<"summary" | "embedding" | "clustering", string>>;
   onAdvancedOpenChange: (open: boolean) => void;
   onBack: () => void;
   onClusteringChange: (model: JudgeModel) => void;
@@ -133,6 +136,7 @@ export function TopicSetupFlowDialog({
   embedding,
   embeddingProviderGroups,
   error,
+  slotErrors = {},
   onAdvancedOpenChange,
   onBack,
   onClusteringChange,
@@ -279,7 +283,8 @@ export function TopicSetupFlowDialog({
                               ? isRecommendedTopicModel(row.slot, model.model)
                               : false
                           }
-                          disabled={!canWrite}
+                          // A check in flight would report on a replaced model.
+                          disabled={!canWrite || busy}
                           providerGroups={groups[row.slot]}
                           onConfigureProviders={onConfigureProviders}
                           onSelect={onModelChange[row.slot]}
@@ -288,6 +293,17 @@ export function TopicSetupFlowDialog({
                     })}
                   </div>
                 )}
+                {MODEL_ROWS.map((row) => (
+                  <FormError
+                    key={row.slot}
+                    announce
+                    message={
+                      slotErrors[row.slot]
+                        ? `${row.label}: ${slotErrors[row.slot]}`
+                        : null
+                    }
+                  />
+                ))}
                 {error ? (
                   <p className="text-destructive text-sm">{error}</p>
                 ) : null}

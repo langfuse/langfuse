@@ -36,5 +36,5 @@ export const [updateSkillTagsTool, handleUpdateSkillTags] = defineTool({
           },
         }),
     }),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });
