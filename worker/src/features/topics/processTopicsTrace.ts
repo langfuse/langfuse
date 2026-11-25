@@ -170,9 +170,11 @@ function storeSummaries(rows: TopicSummary[]): TopicSummary[] {
     });
   for (const row of valid) {
     writer.addToQueue(TableName.TopicFacetSummaries, topicSummaryRecord(row));
+    // Only projects with Topics enabled emit this, so projectId stays a bounded tag.
     recordIncrement("langfuse.topics.facet_summaries", 1, {
       source: "trace_queue",
       state: row.state,
+      projectId: row.projectId,
     });
   }
   return valid;
