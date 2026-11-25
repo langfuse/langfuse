@@ -534,7 +534,7 @@ jobs:
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation (!cancelled() lets the condition evaluate despite the
     # skipped dependency). Changes confined to worker/ skip the suite: see the
-    # web_ui filter in .github/ci-paths.yml.
+    # web_ui path filter.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     timeout-minutes: 10
     env:
@@ -589,8 +589,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    # Changes confined to worker/ skip the build: see the web_ui filter in
-    # .github/ci-paths.yml.
+    # Changes confined to worker/ skip the build: see the web_ui path filter.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     timeout-minutes: 10
     env:
@@ -1050,8 +1049,7 @@ jobs:
     needs:
       - pre-job
       - llm-connections-filter
-    # Changes confined to worker/ skip the suite: see the web_ui filter in
-    # .github/ci-paths.yml.
+    # Changes confined to worker/ skip the suite: see the web_ui path filter.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     env:
       VITEST_MAX_WORKERS: "6"
@@ -1455,8 +1453,7 @@ jobs:
     # pre-job only runs on push events; everywhere else it resolves as skipped
     # at run creation (!cancelled() lets the condition evaluate despite the
     # skipped dependency). The web build and Playwright run exclude the worker,
-    # so changes confined to worker/ skip the suite: see the web_ui filter in
-    # .github/ci-paths.yml.
+    # so changes confined to worker/ skip the suite: see the web_ui path filter.
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && needs.llm-connections-filter.outputs.web_ui == 'true' }}
     env:
       NODE_ENV: test
