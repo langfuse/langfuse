@@ -3,15 +3,14 @@ import { useId } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayFanOutDiagram } from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/GatewayFanOutDiagram";
 import diagramStyles from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/gatewayFanOutDiagram.module.css";
-import { type GatewaySetupSwitchboardProps } from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { cn } from "@/src/utils/tailwind";
 
-export type GatewaySetupHeroProps = Pick<
-  GatewaySetupSwitchboardProps,
-  "providers"
->;
+export type GatewaySetupHeroProps = {
+  providers: ReadonlyArray<{ provider: GatewayProvider; isConnected: boolean }>;
+};
 
 /** Overview banner while the gateway is not set up. */
 export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {

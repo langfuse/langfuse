@@ -2,10 +2,6 @@ import { expect } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { GatewaySetupHero } from "./GatewaySetupHero";
-import { GatewaySetupSwitchboard } from "./GatewaySetupSwitchboard";
-import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
-
-const HERO_PROVIDERS = getGatewaySetupHeroProviders(new Set());
 
 const meta = preview.meta({
   component: GatewaySetupHero,
@@ -34,31 +30,6 @@ export const DiagramLabelsInside = meta.story({
       await expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(
         diagram?.right ?? 0,
       );
-    }
-  },
-});
-
-/** Every provider plus "More soon". */
-export const SwitchboardWithAllRows = meta.story({
-  name: "(Test) All switchboard rows stay inside the diagram",
-  args: { providers: [] },
-  render: () => (
-    <div className="mx-auto aspect-[440/200] w-full max-w-xl">
-      <GatewaySetupSwitchboard
-        providers={HERO_PROVIDERS}
-        unconnectedVariant="placeholder"
-        comingSoonLabel="More soon"
-      />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const pills = [...canvasElement.querySelectorAll('rect[rx="4"]')];
-    await expect(pills).toHaveLength(HERO_PROVIDERS.length + 1);
-    for (const pill of pills) {
-      const top = Number(pill.getAttribute("y"));
-      const bottom = top + Number(pill.getAttribute("height"));
-      await expect(top).toBeGreaterThanOrEqual(0);
-      await expect(bottom).toBeLessThanOrEqual(200);
     }
   },
 });
