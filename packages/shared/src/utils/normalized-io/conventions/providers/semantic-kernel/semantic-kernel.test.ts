@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
-import { semanticKernelEventContentFixture } from "./fixtures";
+import { semanticKernelEventContentFixture } from "./__tests__/fixtures";
 
 describe("Semantic Kernel normalized I/O", () => {
   it.each([semanticKernelEventContentFixture])(
