@@ -5,8 +5,7 @@ import * as z from "zod";
 
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { FormField } from "@/src/components/design-system/FormField/FormField";
-import { Input } from "@/src/components/design-system/Input/Input";
+import { Form } from "@/src/components/design-system/Form/Form";
 
 type DeleteProjectForm = {
   name: string;
@@ -61,22 +60,12 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
             expect, please reach out to support.
           </p>
           <p>{`To confirm, type "${props.confirmMessage}" in the input box`}</p>
-          <FormField control={form.control} name="name" label="Project name">
-            {(field) => (
-              <Input
-                placeholder={props.confirmMessage}
-                id={field.id}
-                name={field.name}
-                value={field.value}
-                onChange={(event) => field.onChange(event.target.value)}
-                onBlur={field.onBlur}
-                ref={field.ref}
-                aria-describedby={field.inputDescribedById}
-                aria-invalid={Boolean(field.error)}
-                error={Boolean(field.error)}
-              />
-            )}
-          </FormField>
+          <Form.InputField
+            control={form.control}
+            name="name"
+            label="Project name"
+            placeholder={props.confirmMessage}
+          />
         </Dialog.Body>
       </form>
     </Dialog>
