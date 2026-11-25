@@ -1,3 +1,5 @@
+// Pins that the dedup pass reads only the latest version per key.
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {

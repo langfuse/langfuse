@@ -1,3 +1,5 @@
+// Pins that the AST registry and eventsObservationsView SQL strings agree.
+
 import { describe, expect, it } from "vitest";
 
 import {

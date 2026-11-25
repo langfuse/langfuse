@@ -1,3 +1,5 @@
+// Random startup delay so workers booting together spread their Redis setup.
+
 import { logger, sleep } from "@langfuse/shared/src/server";
 
 /**

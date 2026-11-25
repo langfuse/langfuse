@@ -1,3 +1,6 @@
+// Pins when score reads emit the selective-seek phase, its SQL, its parity
+// with FINAL, and the skip-dedup plain scan.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // A hand-written exec-seam mock (no importOriginal) records each query and keeps
