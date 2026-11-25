@@ -484,6 +484,7 @@ function GroupMembersDialog({
 
   return (
     <Dialog
+      noCapture
       title={group ? `Members of ${group.displayName}` : "Group members"}
       size="md"
       closeLabel="Done"
@@ -595,6 +596,7 @@ function GroupNameDialog({
   const trimmed = name.trim();
   return (
     <Dialog
+      noCapture
       title={title}
       size="sm"
       actions={[
@@ -707,6 +709,7 @@ function DeleteGroupDialogController({
   const remove = useDeleteGroup();
   return (
     <ConfirmationDialogController<Group>
+      noCapture
       title={(group) => `Delete ${group.displayName}?`}
       text={(group) =>
         `${group.members.length} ${

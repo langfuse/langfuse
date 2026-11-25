@@ -166,6 +166,7 @@ function GroupRoleDialog({
 
   return (
     <Dialog
+      noCapture
       title={roleKind}
       closeLabel="Cancel"
       actions={[

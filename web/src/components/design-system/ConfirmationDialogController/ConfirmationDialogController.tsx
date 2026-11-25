@@ -25,6 +25,7 @@ function ConfirmationDialogController<TValue = undefined>({
   disabled = false,
   error,
   loading: externalLoading = false,
+  noCapture,
   onAfterDismiss,
   onConfirm,
   text,
@@ -40,6 +41,8 @@ function ConfirmationDialogController<TValue = undefined>({
   disabled?: boolean;
   error?: string;
   loading?: boolean;
+  /** Blocks the dialog from session replay, for titles or text with customer data. */
+  noCapture?: boolean;
   onAfterDismiss?: () => void;
   onConfirm: ConfirmationDialogValueCallback<TValue, void | Promise<void>>;
   text: ConfirmationDialogContent<TValue>;
@@ -80,6 +83,7 @@ function ConfirmationDialogController<TValue = undefined>({
       }}
       renderDialog={({ closeDialog }) => (
         <Dialog
+          noCapture={noCapture}
           title={resolvedTitle}
           actions={[
             {

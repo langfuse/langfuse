@@ -313,6 +313,7 @@ function RoleDialog({
 
   return (
     <Dialog
+      noCapture
       title={roleKind}
       size="default"
       closeLabel="Cancel"

@@ -21,9 +21,10 @@ export function RoleCellTrigger({
   return (
     <button
       type="button"
+      // The label and hint name the member's groups.
       className={cn(
         selectTriggerClassName,
-        "hover:bg-muted w-auto max-w-full min-w-0",
+        "ph-no-capture hover:bg-muted w-auto max-w-full min-w-0",
       )}
       aria-label={label}
       onClick={onClick}
