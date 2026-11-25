@@ -1,5 +1,14 @@
-import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  type EvalTemplateType,
+  EvalTemplateTypeEnum,
+  TopicsTargetObject,
+} from "@langfuse/shared";
+import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+
+function costUnit(targetObject: EvaluatorTargetObject | undefined) {
+  return targetObject === TopicsTargetObject ? "trace" : "observation";
+}
 
 export function formatEvaluatorCostCalculation({
   matchingObservations,
@@ -8,7 +17,7 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd,
   evaluatorType,
   period = "week",
-  unit = "observation",
+  targetObject,
 }: {
   matchingObservations: number;
   sampling: number;
@@ -16,7 +25,7 @@ export function formatEvaluatorCostCalculation({
   estimatedCostUsd: number | null;
   evaluatorType: EvalTemplateType;
   period?: "week" | "selection";
-  unit?: "observation" | "trace";
+  targetObject?: EvaluatorTargetObject;
 }) {
   if (evaluatorType === EvalTemplateTypeEnum.CODE) {
     return {
@@ -27,6 +36,7 @@ export function formatEvaluatorCostCalculation({
   }
 
   const isSelection = period === "selection";
+  const unit = costUnit(targetObject);
   const items = isSelection
     ? `${numberFormatter(matchingObservations, 0)} ${unit}s`
     : `${numberFormatter(matchingObservations, 0)} matching ${unit}s`;

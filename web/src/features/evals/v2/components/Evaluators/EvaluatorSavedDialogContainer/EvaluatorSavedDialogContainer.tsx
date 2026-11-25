@@ -594,7 +594,7 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
-      unit={analyticsTarget}
+      targetObject={evaluator.targetObject}
       backfill={
         backfill.enabled
           ? {
@@ -671,7 +671,7 @@ export function EvaluatorSavedDialogContainer({
         backfillContent={backfillContent}
         warning={overrideWarning}
         costSummary={costSummary}
-        unit={isTraceTranscript ? "traces" : "observations"}
+        targetObject={evaluator.targetObject}
         canSubmit={
           !isEstimating &&
           !isCompleting &&

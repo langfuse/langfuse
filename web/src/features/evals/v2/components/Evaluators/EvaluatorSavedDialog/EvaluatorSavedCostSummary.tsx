@@ -9,6 +9,7 @@ import {
 import { EvaluatorCostCalculationTooltipContent } from "@/src/features/evals/v2/components/EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
 import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
 import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
+import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorSavedCostSummary({
@@ -20,7 +21,7 @@ export function EvaluatorSavedCostSummary({
   onSamplingChange,
   evaluatorType,
   backfill,
-  unit = "observation",
+  targetObject,
 }: {
   estimates: ActivationEstimate[];
   unavailableEstimateCount: number;
@@ -38,7 +39,7 @@ export function EvaluatorSavedCostSummary({
         testRunCostUsd: number | null;
         isEstimating: boolean;
       };
-  unit?: "observation" | "trace";
+  targetObject?: EvaluatorTargetObject;
 }) {
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
@@ -133,7 +134,7 @@ export function EvaluatorSavedCostSummary({
                       testRunCostUsd: estimate?.testRunCostUsd ?? null,
                       estimatedCostUsd,
                       evaluatorType,
-                      unit,
+                      targetObject,
                     })}
                   />
                 </InfoTooltip>

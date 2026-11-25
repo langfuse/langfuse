@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import type { ReactNode } from "react";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -16,11 +17,11 @@ import {
 } from "@/src/components/ui/dialog";
 import { RadioGroup } from "@/src/components/design-system/RadioGroup/RadioGroup";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { cn } from "@/src/utils/tailwind";
 import styles from "./EvaluatorSavedDialog.module.css";
 
 export type EvaluatorSavedMode = "test-filters" | "different-scope";
-type EvaluatorSavedUnit = "observations" | "traces";
 
 const modeOptions = [
   {
@@ -43,7 +44,7 @@ export function EvaluatorSavedDialog({
   backfillContent,
   warning,
   costSummary,
-  unit = "observations",
+  targetObject,
   canSubmit,
   isSubmitting,
   primaryActionLabel,
@@ -60,7 +61,7 @@ export function EvaluatorSavedDialog({
   backfillContent?: ReactNode;
   warning?: ReactNode;
   costSummary: ReactNode;
-  unit?: EvaluatorSavedUnit;
+  targetObject?: EvaluatorTargetObject;
   canSubmit: boolean;
   isSubmitting: boolean;
   primaryActionLabel: string;
@@ -71,6 +72,7 @@ export function EvaluatorSavedDialog({
   onOpenAutoFocus?: () => void;
   onCloseAnimationEnd?: () => void;
 }) {
+  const unit = targetObject === TopicsTargetObject ? "traces" : "observations";
   return (
     <Dialog
       open={open}
