@@ -9,7 +9,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
 
 use crate::{
-    capture::{ExecutionCapture, RequestInput},
+    capture::{ExecutionCapture, GatewayRejection, RequestInput},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
     cpu::{CpuJob, CpuWork},
@@ -481,30 +481,20 @@ impl InferenceService {
         let Some(telemetry) = &self.telemetry else {
             return;
         };
-        let body = request.body().clone();
-        let parse_bytes = if body.len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES {
-            body.len()
-        } else {
-            0
-        };
-        // Hold the body reservation inside the parse job so cancellation
-        // cannot free memory budget while the blocking worker still holds it.
-        let Some((input, _reservation)) = self
-            .cpu
-            .run(CpuJob::ParseRequest, parse_bytes, move || {
-                let input = RequestInput::from_body(&body);
-                (input, reservation)
-            })
-            .await
+        let Some((input, _reservation)) =
+            RequestInput::parse_on_cpu(&self.cpu, request.body().clone(), reservation).await
         else {
             return;
         };
-        let api_format = context.connection().api_format();
-        let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
-        capture.deliver_to(telemetry.clone(), context, headers, correlation);
-        capture.set_provider_model(context.connection().provider_model());
-        capture.record_guardrails(guardrails);
-        capture.reject(crate::http::resolution_rejection(error));
+        record_rejection(
+            telemetry,
+            context,
+            headers,
+            input,
+            correlation,
+            crate::http::resolution_rejection(error),
+            guardrails,
+        );
     }
 
     pub(crate) async fn forward(
@@ -572,4 +562,22 @@ impl InferenceService {
     pub(crate) fn available_memory(&self) -> usize {
         self.memory_budget.available_permits()
     }
+}
+
+/// Records the refused request as a generation, like one the provider answered.
+fn record_rejection(
+    telemetry: &crate::telemetry::Telemetry,
+    context: &ResolvedRequestContext,
+    headers: &HeaderMap,
+    input: RequestInput,
+    correlation: &mut RequestCorrelation,
+    rejection: GatewayRejection,
+    guardrails: &[Finding],
+) {
+    let api_format = context.connection().api_format();
+    let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
+    capture.deliver_to(telemetry.clone(), context, headers, correlation);
+    capture.set_provider_model(context.connection().provider_model());
+    capture.record_guardrails(guardrails);
+    capture.reject(rejection);
 }

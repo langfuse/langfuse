@@ -519,6 +519,15 @@ pub(crate) struct RequestInput {
 }
 
 impl RequestInput {
+    /// Skips parsing the body when telemetry delivery is disabled or
+    /// `IngestionMode::None`, while still preserving `body_bytes` for metrics.
+    pub(crate) fn omitted(body_bytes: usize) -> Self {
+        Self {
+            members: None,
+            body_bytes,
+        }
+    }
+
     /// Parses the top-level members of a validated JSON request body, unless
     /// the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
     pub(crate) fn from_body(body: &[u8]) -> Self {
@@ -538,6 +547,26 @@ impl RequestInput {
             members,
             body_bytes: body.len(),
         }
+    }
+
+    /// Parses `body` on `cpu` while holding `reservation` inside the job so
+    /// request cancellation cannot release memory budget before the blocking
+    /// worker drops the body and parsed members.
+    pub(crate) async fn parse_on_cpu<R: Send + 'static>(
+        cpu: &crate::cpu::CpuWork,
+        body: axum::body::Bytes,
+        reservation: R,
+    ) -> Option<(Self, R)> {
+        let parse_bytes = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body.len()
+        } else {
+            0
+        };
+        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
+            let input = Self::from_body(&body);
+            (input, reservation)
+        })
+        .await
     }
 }
 

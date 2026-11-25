@@ -17,10 +17,10 @@ use tokio::time::Instant;
 
 pub use crate::transport::ProviderError;
 use crate::{
-    capture::{ExecutionCapture, MAX_INPUT_CAPTURE_BYTES, RelayOutcome, RequestInput},
+    capture::{ExecutionCapture, RelayOutcome, RequestInput},
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
-    cpu::{CpuJob, CpuWork},
+    cpu::CpuWork,
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{
         ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
@@ -222,26 +222,20 @@ impl ProviderTransport {
         if !route.captures_generation() {
             return Ok((ExecutionCapture::unobserved(), reservation));
         }
-        let body_for_capture = body.clone();
-        let parse_bytes = if body_for_capture.len() <= MAX_INPUT_CAPTURE_BYTES {
-            body_for_capture.len()
+        let delivery = self
+            .telemetry
+            .as_ref()
+            .filter(|_| context.ingestion_mode() != IngestionMode::None);
+        let (input, reservation) = if delivery.is_some() {
+            RequestInput::parse_on_cpu(&self.cpu, body.clone(), reservation)
+                .await
+                .ok_or(ProviderError::Configuration)?
         } else {
-            0
+            (RequestInput::omitted(body.len()), reservation)
         };
-        // Hold the body reservation inside the parse job so cancellation
-        // cannot free memory budget while the blocking worker still holds it.
-        let (input, reservation) = self
-            .cpu
-            .run(CpuJob::ParseRequest, parse_bytes, move || {
-                (RequestInput::from_body(&body_for_capture), reservation)
-            })
-            .await
-            .ok_or(ProviderError::Configuration)?;
         let mut capture =
             ExecutionCapture::for_request(route.api_format(), context, headers, input);
-        if let Some(telemetry) = &self.telemetry
-            && context.ingestion_mode() != IngestionMode::None
-        {
+        if let Some(telemetry) = delivery {
             capture.deliver_to(telemetry.clone(), context, headers, correlation);
         }
         Ok((capture, reservation))
