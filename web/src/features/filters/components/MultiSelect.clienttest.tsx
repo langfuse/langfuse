@@ -162,11 +162,11 @@ describe("MultiSelect", () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
-  it("preserves pending custom text edits across intervening option clicks and Select All", () => {
+  it("preserves pending custom text edits across intervening option clicks, Select All, and unmount", () => {
     vi.useFakeTimers();
     try {
       const onValuesChange = vi.fn();
-      render(
+      const { unmount } = render(
         <ControlledMultiSelect
           initialValues={["custom-old"]}
           options={[{ value: "user-1" }, { value: "user-2" }]}
@@ -192,6 +192,12 @@ describe("MultiSelect", () => {
       fireEvent.click(within(dialog).getByText("Select All"));
       expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
         new Set(["user-1", "user-2", "custom-final"]),
+      );
+
+      fireEvent.change(customInput, { target: { value: "custom-unmount" } });
+      unmount();
+      expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+        new Set(["user-1", "user-2", "custom-unmount"]),
       );
     } finally {
       vi.useRealTimers();
