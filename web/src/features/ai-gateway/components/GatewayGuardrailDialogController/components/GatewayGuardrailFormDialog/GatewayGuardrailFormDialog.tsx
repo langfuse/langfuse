@@ -27,8 +27,11 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
@@ -469,15 +472,12 @@ export function GatewayGuardrailFormDialog({
                 {externalTemplate ? (
                   <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
                     {externalTemplate.description}{" "}
-                    <a
-                      href={externalTemplate.docsHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-link hover:text-link-hover inline-flex items-center gap-0.5 underline"
-                    >
-                      {externalTemplate.docsLabel}
-                      <SquareArrowOutUpRight size="sm" aria-hidden />
-                    </a>
+                    <TextLink
+                      path={externalTemplate.docsHref}
+                      value={externalTemplate.docsLabel}
+                      icon={SquareArrowOutUpRight}
+                      external
+                    />
                   </p>
                 ) : null}
                 <Form
@@ -806,15 +806,12 @@ function BedrockGuardrailFields({
         content={
           <span>
             Use{" "}
-            <a
-              href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-link hover:text-link-hover inline-flex items-center gap-0.5 underline"
-            >
-              Amazon Bedrock API keys
-              <SquareArrowOutUpRight size="sm" aria-hidden />
-            </a>
+            <TextLink
+              path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+              value="Amazon Bedrock API keys"
+              icon={SquareArrowOutUpRight}
+              external
+            />
             . Needs{" "}
             <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
               bedrock:ApplyGuardrail
@@ -831,10 +828,9 @@ function BedrockGuardrailFields({
             registerLabelTooltip={getTriggerProps}
           >
             {({ id, inputDescribedById, error, ...field }) => (
-              <Input
+              <PasswordInput
                 {...field}
                 id={id}
-                type="password"
                 autoComplete="new-password"
                 aria-describedby={inputDescribedById}
                 aria-invalid={Boolean(error)}
@@ -1009,13 +1005,13 @@ function PresetMultiSelectField({
             }
           >
             {({ getTriggerProps }) => (
-              <button
-                type="button"
+              <IconButton
                 {...getTriggerProps()}
-                aria-label="About Detect"
-              >
-                <Info aria-hidden size="base" color="muted" />
-              </button>
+                icon={Info}
+                label="About Detect"
+                size="xs"
+                variant="toolbar"
+              />
             )}
           </CustomTooltip>
         ) : null}
@@ -1096,13 +1092,13 @@ function ContainsWordListField({
             }
           >
             {({ getTriggerProps }) => (
-              <button
-                type="button"
+              <IconButton
                 {...getTriggerProps()}
-                aria-label="About Words or phrases"
-              >
-                <Info aria-hidden size="base" color="muted" />
-              </button>
+                icon={Info}
+                label="About Words or phrases"
+                size="xs"
+                variant="toolbar"
+              />
             )}
           </CustomTooltip>
         </div>

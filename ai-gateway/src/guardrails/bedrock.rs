@@ -192,7 +192,10 @@ impl BedrockFailure {
     fn status(&self) -> Option<u16> {
         match self {
             Self::HttpStatus(status) => Some(status.as_u16()),
-            _ => None,
+            Self::Transport
+            | Self::ResponseTooLarge
+            | Self::InvalidResponse
+            | Self::UnexpectedAction => None,
         }
     }
 }
@@ -362,7 +365,7 @@ mod tests {
             sample_guardrail("g5", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads = ExternalPayloads::serialize(&refs, "hello world");
+        let payloads = ExternalPayloads::for_guardrails(&refs, "hello world");
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
         assert_eq!(results, vec![true, false, true, true, true]);
     }

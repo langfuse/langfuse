@@ -93,7 +93,7 @@ impl Guardrails {
             let bytes = turn.as_ref().map_or(0, LastTurn::bytes);
             let has_external = guardrails.iter().any(Guardrail::is_external);
             let turn_text_reservation = (has_external && bytes > 0)
-                .then(|| MemoryReservation::try_reserve(&self.memory_budget, bytes, "guardrails"))
+                .then(|| MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails"))
                 .transpose()?;
             let (mut local, scanning) = self
                 .cpu
@@ -154,13 +154,13 @@ impl Guardrails {
         }
         // Reserve for the serialized provider payload while `turn_text` is
         // still live, then release `turn_text` and its budget before awaiting I/O.
-        let payload_reservation = MemoryReservation::try_reserve(
+        let payload_reservation = MemoryReservation::from_budget(
             &self.memory_budget,
             turn_bytes.saturating_add(64),
             "guardrails",
         )?;
         let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
-        let payloads = ExternalPayloads::serialize(&guardrails, &turn_text);
+        let payloads = ExternalPayloads::for_guardrails(&guardrails, &turn_text);
         drop(turn_text);
         drop(turn_text_reservation);
         let started = std::time::Instant::now();

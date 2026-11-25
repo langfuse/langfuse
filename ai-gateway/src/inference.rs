@@ -87,7 +87,7 @@ pub(crate) struct MemoryReservation {
 
 impl MemoryReservation {
     /// Reserve temporary working memory from `budget` without waiting.
-    pub(crate) fn try_reserve(
+    pub(crate) fn from_budget(
         budget: &Arc<Semaphore>,
         bytes: usize,
         phase: &'static str,

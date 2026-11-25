@@ -25,7 +25,7 @@ pub(crate) struct ExternalPayloads {
 }
 
 impl ExternalPayloads {
-    pub(crate) fn serialize(guardrails: &[&Guardrail], text: &str) -> Self {
+    pub(crate) fn for_guardrails(guardrails: &[&Guardrail], text: &str) -> Self {
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
