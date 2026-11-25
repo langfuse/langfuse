@@ -141,8 +141,12 @@ pub(crate) fn retain_evaluation_value(
 ///
 /// Consumes wrappers and reuses their payload allocations.
 pub fn any_value_to_json(value: Value) -> Value {
-    let Value::Object(mut object) = value else {
-        return value;
+    let mut object = match value {
+        Value::Object(object) => object,
+        // Text passes through: the decoder hands on a wrapper too deep to parse as its JSON text.
+        Value::Null | Value::String(_) => return value,
+        // Any other value without a wrapper is read as its JSON text, like an unrecognized wrapper.
+        value => return Value::String(javascript_json_stringify(&value).into()),
     };
 
     if object.is_empty() {
@@ -1213,6 +1217,20 @@ mod tests {
                     {"key": "payload", "value": {"nested": {"stringValue": "keep"}}}
                 ]),
                 json!({"payload": r#"{"nested":{"stringValue":"keep"}}"#}),
+            ),
+            (
+                json!([
+                    {"key": "number", "value": 5},
+                    {"key": "flag", "value": false},
+                    {"key": "list", "value": ["a", 1]},
+                    {"key": "wrapped", "value": {"arrayValue": {"values": [1, null]}}}
+                ]),
+                json!({
+                    "number": "5",
+                    "flag": "false",
+                    "list": r#"["a",1]"#,
+                    "wrapped": ["1", null]
+                }),
             ),
         ] {
             let expected = expected.as_object().unwrap().clone();
