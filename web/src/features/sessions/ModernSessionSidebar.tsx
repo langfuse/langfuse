@@ -332,6 +332,7 @@ export function ModernSessionSidebar(
         state: "loaded";
         traces: ModernSessionSidebarTrace[];
         activeTraceId: string | undefined;
+        peekTraceId?: string;
         search: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
@@ -727,6 +728,7 @@ export function ModernSessionSidebar(
                   >
                     {props.observationLayout === "flat" && (
                       <SessionSidebarTraceCard
+                        isPeeked={trace.id === props.peekTraceId}
                         title={trace.name ?? "Trace"}
                         isActive={trace.id === activeTraceId}
                         number={sidebarTrace.turnNumber}
