@@ -37,9 +37,11 @@ export type ChColumnType =
   | "Float64"
   | "Decimal(18,12)"
   | "DateTime64(3)"
+  | "DateTime64(3, 'UTC')"
   | "DateTime64(6)"
   | "UInt8"
   | "UInt16"
+  | "UInt32"
   | "UInt64"
   | "Bool"
   | "Nullable(UInt16)"
@@ -72,13 +74,16 @@ type TsTypeOfColumn<T extends ChColumnType> = T extends "String"
     ? string | null
     : T extends "Float64" | "Decimal(18,12)"
       ? number
-      : T extends "UInt8" | "UInt16" | "UInt64"
+      : T extends "UInt8" | "UInt16" | "UInt32" | "UInt64"
         ? number
         : T extends "Bool"
           ? boolean
           : T extends "Nullable(UInt16)"
             ? number | null
-            : T extends "DateTime64(3)" | "DateTime64(6)"
+            : T extends
+                  | "DateTime64(3)"
+                  | "DateTime64(3, 'UTC')"
+                  | "DateTime64(6)"
               ? Date
               : T extends "Nullable(DateTime64(6))"
                 ? Date | null
@@ -106,11 +111,13 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
   "Decimal(18,12)": "number",
   UInt8: "number",
   UInt16: "number",
+  UInt32: "number",
   UInt64: "number",
   // ClickHouse stores Bool as UInt8, so numeric aggregates accept it.
   Bool: "number",
   "Nullable(UInt16)": "number",
   "DateTime64(3)": "date",
+  "DateTime64(3, 'UTC')": "date",
   "DateTime64(6)": "date",
   "Nullable(DateTime64(6))": "date",
   "Array(String)": "array",
@@ -358,6 +365,73 @@ const TABLE_REGISTRY = {
       metadata: "Map(String, String)",
     },
   }),
+  // No dedup: definition reads take `LIMIT 1 BY project_id, id`; the naming
+  // cost sum reads every row.
+  topics: defineTable({
+    columns: {
+      project_id: "String",
+      id: "String",
+      stable_id: "String",
+      created_by_run_id: "String",
+      created_at: "DateTime64(3, 'UTC')",
+      name: "String",
+      description: "String",
+      radius: "Float64",
+      labels: "Array(String)",
+      cost_details: "Map(String, Decimal(18,12))",
+    },
+  }),
+  // No dedup: the latest-summary key spans facet versions and is computed
+  // from trace_id or session_id; cost sums and counts read every row.
+  topic_facet_summaries: defineTable({
+    columns: {
+      project_id: "String",
+      facet_id: "String",
+      facet_version: "UInt32",
+      trace_id: "String",
+      session_id: "String",
+      unit_hash: "UInt64",
+      unit_type: "String",
+      rule_ids: "Array(String)",
+      environment: "String",
+      trace_name: "String",
+      unit_start_time: "DateTime64(3, 'UTC')",
+      trigger_type: "String",
+      execution_id: "String",
+      summary: "String",
+      transcript_id: "String",
+      transcript_version: "String",
+      transcript_bytes: "UInt32",
+      summary_model: "String",
+      embedding_model: "String",
+      provided_usage_details: "Map(String, UInt64)",
+      usage_details: "Map(String, UInt64)",
+      provided_cost_details: "Map(String, Decimal(18,12))",
+      cost_details: "Map(String, Decimal(18,12))",
+      total_cost: "Decimal(18,12)",
+      created_at: "DateTime64(3, 'UTC')",
+    },
+  }),
+  // No dedup: each read keys the latest row differently (per source, per
+  // run and trace), never by the engine key, which includes origin.
+  topic_assignments: defineTable({
+    columns: {
+      project_id: "String",
+      facet_id: "String",
+      rule_id: "String",
+      clustering_run_id: "String",
+      facet_version: "UInt32",
+      trace_id: "String",
+      session_id: "String",
+      environment: "String",
+      trace_name: "String",
+      unit_start_time: "DateTime64(3, 'UTC')",
+      summary_processed_at: "DateTime64(3, 'UTC')",
+      topic_stable_id: "String",
+      topic_id: "String",
+      created_at: "DateTime64(3, 'UTC')",
+    },
+  }),
 } as const;
 
 type RowOf<Cols extends Record<string, ChColumnType>> = {
@@ -472,6 +546,26 @@ export const UNMODELED_COLUMNS: Record<
     "ingestion_sdk_name",
     "ingestion_sdk_version",
   ],
+  // Column types the registry has no `ChColumnType` for (Enum8, float
+  // arrays, `Nullable(Float32)`, tuple arrays), `metadata` (a String here
+  // and a Map on scores, sharing one `COLUMN_DATA_TYPES` entry), and
+  // columns no Topics read selects.
+  topics: ["centroid", "representative_summaries", "metadata"],
+  topic_facet_summaries: [
+    "processing_state",
+    "embedding",
+    "calculated_input_cost",
+    "calculated_output_cost",
+    "calculated_total_cost",
+    "metadata",
+  ],
+  topic_assignments: [
+    "unit_hash",
+    "distance",
+    "runner_up_distance",
+    "origin",
+    "coordinates",
+  ],
 };
 
 /**
@@ -518,12 +612,16 @@ const BIND_TYPE: Record<ChColumnType, string> = {
   "Decimal(18,12)": "Decimal(18, 12)",
   UInt8: "UInt8",
   UInt16: "UInt16",
+  UInt32: "UInt32",
   UInt64: "UInt64",
   Bool: "Bool",
   // A bound value is never NULL; NULL checks compile to `IS NULL`.
   "Nullable(String)": "String",
   "Nullable(UInt16)": "UInt16",
   "DateTime64(3)": "DateTime64(3)",
+  // Binds with the zone, so the UTC string of a `Date` parses as UTC on any
+  // server timezone.
+  "DateTime64(3, 'UTC')": "DateTime64(3, 'UTC')",
   "DateTime64(6)": "DateTime64(6)",
   "Nullable(DateTime64(6))": "DateTime64(6)",
   "Array(String)": "Array(String)",
