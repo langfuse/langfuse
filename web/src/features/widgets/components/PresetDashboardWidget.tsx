@@ -291,6 +291,7 @@ export function PresetDashboardWidget({
     hasRbacCUDAccess && onEditPreset
       ? (selection) => ({
           ...actions,
+          inline: true,
           buttons: [
             {
               id: "edit",

@@ -10,6 +10,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 export type DataCardActions = {
+  inline?: boolean;
   draggable?: boolean;
   buttons?: {
     id: string;
@@ -23,7 +24,7 @@ export type DataCardActions = {
 
 export function DataCardActionBar({
   actions,
-  inline = false,
+  inline = actions.inline,
 }: {
   actions: DataCardActions;
   inline?: boolean;
