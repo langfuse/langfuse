@@ -38,7 +38,6 @@ export function CategoricalScoreInput({
   categories,
   value,
   disabled,
-  name,
   analyticsData,
   onValueChange,
   isActive = true,
@@ -48,7 +47,6 @@ export function CategoricalScoreInput({
   categories: (ScoreConfigCategoryDomain & { isOutdated: boolean })[];
   value: string;
   disabled: boolean;
-  name: string;
   analyticsData: AnnotationAnalyticsContext;
   onValueChange: (value: string, numericValue?: number) => void;
   isActive?: boolean;
@@ -76,19 +74,16 @@ export function CategoricalScoreInput({
       ? { disabled: true as const, disabledReason: "Outdated category" }
       : { disabled: false as const }),
   }));
-  const pickerProps = {
-    "aria-label": name,
-    disabled: disabled || !isActive,
-    placeholder: "Select category",
-    emptyMessage: "No category found.",
-  };
   const useCombobox = shouldUseCombobox(categories);
 
   return (
     <>
       {useCombobox ? (
         <AsyncSelectInput
-          {...pickerProps}
+          aria-label={config.name}
+          disabled={disabled || !isActive}
+          placeholder="Select category"
+          emptyMessage="No category found."
           value={options.find((option) => option.value === value) ?? null}
           onValueChange={(option) => onValueChange(option.value)}
           options={

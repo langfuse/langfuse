@@ -6,7 +6,7 @@ type TagInputProps = ComponentProps<typeof AsyncMultiSelectTagInput<string>>;
 
 type ExperimentComparisonSelectProps = Pick<
   TagInputProps,
-  "value" | "onValueChange" | "onOpenChange"
+  "value" | "onValueChange" | "onAfterOpenChange"
 > & {
   groups: NonNullable<TagInputProps["groups"]>;
   searchQuery: string;

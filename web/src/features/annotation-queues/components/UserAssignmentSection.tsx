@@ -67,7 +67,7 @@ export const UserAssignmentSection = ({
         disabled={!canWrite}
         placeholder="Search users to add..."
         emptyMessage="No users found."
-        onOpenChange={(open) => {
+        onAfterOpenChange={(open) => {
           if (open) {
             setTimeout(() => {
               containerRef.current?.scrollIntoView({

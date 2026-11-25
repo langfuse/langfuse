@@ -29,6 +29,9 @@ function InteractiveBaselineSelect(args: Props) {
 const meta = preview.meta({
   component: ExperimentBaselineSelect,
   render: (args) => <InteractiveBaselineSelect {...args} />,
+});
+
+export const Default = meta.story({
   args: {
     baselineId: "production",
     onBaselineChange: fn(),
@@ -66,5 +69,3 @@ const meta = preview.meta({
     ],
   },
 });
-
-export const Default = meta.story({});

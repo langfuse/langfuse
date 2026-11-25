@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { type ComponentProps, useCallback, useMemo, useState } from "react";
 import { type MultiSelectTagOption } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { ExperimentComparisonSelect } from "./ExperimentComparisonSelect";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
@@ -204,6 +204,50 @@ export function ConnectedExperimentComparisonSelect({
 
   const isMaxReached = selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS;
 
+  const groupProps: ComponentProps<
+    typeof ExperimentComparisonSelect
+  >["groups"] = groups.map((group) => ({
+    id: group.datasetKey,
+    label: group.label,
+    caption:
+      group.datasetKey === baselineDatasetKey
+        ? undefined
+        : {
+            text: "other dataset",
+            description:
+              "Runs on another dataset scored different items, so their values are not comparable.",
+          },
+    expanded:
+      isSearchActive ||
+      (expandedOverrides[group.datasetKey] ??
+        group.datasetKey === (baselineDatasetKey ?? groups[0]?.datasetKey)),
+    onExpandedChange: isSearchActive
+      ? undefined
+      : (expanded) =>
+          setExpandedOverrides((previous) => ({
+            ...previous,
+            [group.datasetKey]: expanded,
+          })),
+    options: group.options.map((option) => {
+      const id = option.experimentId;
+      const badges: string[] = [];
+      if (id === baselineExperimentId) badges.push("BASELINE");
+      if (id === latestExperimentId) badges.push("LATEST");
+      return {
+        value: id,
+        label: option.experimentName,
+        color: markerColorsById.get(id),
+        secondaryLabel: formatRunRecency(option.startTime),
+        description: option.startTime.toLocaleString(),
+        badges,
+        disabled:
+          isLoading ||
+          id === baselineExperimentId ||
+          (isMaxReached && !selectedIds.includes(id)),
+      };
+    }),
+  }));
+
   return (
     <ExperimentComparisonSelect
       value={selectedOptions}
@@ -211,49 +255,9 @@ export function ConnectedExperimentComparisonSelect({
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       isLoading={isLoading}
-      onOpenChange={handleOpenChange}
+      onAfterOpenChange={handleOpenChange}
       selectionLimitReached={isMaxReached}
-      groups={groups.map((group) => ({
-        id: group.datasetKey,
-        label: group.label,
-        caption:
-          group.datasetKey === baselineDatasetKey
-            ? undefined
-            : {
-                text: "other dataset",
-                description:
-                  "Runs on another dataset scored different items, so their values are not comparable.",
-              },
-        expanded:
-          isSearchActive ||
-          (expandedOverrides[group.datasetKey] ??
-            group.datasetKey === (baselineDatasetKey ?? groups[0]?.datasetKey)),
-        onExpandedChange: isSearchActive
-          ? undefined
-          : (expanded) =>
-              setExpandedOverrides((previous) => ({
-                ...previous,
-                [group.datasetKey]: expanded,
-              })),
-        options: group.options.map((option) => {
-          const id = option.experimentId;
-          const badges: string[] = [];
-          if (id === baselineExperimentId) badges.push("BASELINE");
-          if (id === latestExperimentId) badges.push("LATEST");
-          return {
-            value: id,
-            label: option.experimentName,
-            color: markerColorsById.get(id),
-            secondaryLabel: formatRunRecency(option.startTime),
-            description: option.startTime.toLocaleString(),
-            badges,
-            disabled:
-              isLoading ||
-              id === baselineExperimentId ||
-              (isMaxReached && !selectedIds.includes(id)),
-          };
-        }),
-      }))}
+      groups={groupProps}
     />
   );
 }

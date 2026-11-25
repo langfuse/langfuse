@@ -25,6 +25,9 @@ function InteractiveHomeDashboardSelect(args: Props) {
 const meta = preview.meta({
   component: HomeDashboardSelect,
   render: (args) => <InteractiveHomeDashboardSelect {...args} />,
+});
+
+export const Default = meta.story({
   args: {
     value: "home",
     currentDashboardName: "Langfuse Home",
@@ -52,5 +55,3 @@ const meta = preview.meta({
     ],
   },
 });
-
-export const Default = meta.story({});

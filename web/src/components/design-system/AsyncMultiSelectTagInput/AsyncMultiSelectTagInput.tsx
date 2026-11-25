@@ -55,7 +55,7 @@ type AsyncMultiSelectTagInputProps<V> = {
   "aria-invalid"?: boolean;
   loading?: { message: string };
   label?: string;
-  onOpenChange?: (open: boolean) => void;
+  onAfterOpenChange?: (open: boolean) => void;
   /**
    * Prefer `"trigger"` (the default) to match the full input width, including
    * its prefix. Use `"wide"` or `"extra-wide"` when options need more room.
@@ -85,7 +85,7 @@ export function AsyncMultiSelectTagInput<V extends string>({
   "aria-invalid": ariaInvalid,
   loading,
   label,
-  onOpenChange,
+  onAfterOpenChange,
   dropdownWidth = "trigger",
 }: AsyncMultiSelectTagInputProps<V>) {
   const container = useLayerContainer("popover");
@@ -96,7 +96,7 @@ export function AsyncMultiSelectTagInput<V extends string>({
   const handleOpenChange = (nextOpen: boolean) => {
     if (disabled) return;
     setOpen(nextOpen);
-    onOpenChange?.(nextOpen);
+    onAfterOpenChange?.(nextOpen);
     if (!nextOpen) search.onValueChange("");
   };
   const value = selected.map((option) => option.value);
@@ -179,7 +179,6 @@ export function AsyncMultiSelectTagInput<V extends string>({
             title={option.description ?? visibleLabel}
             checked={isSelected}
             badges={option.badges?.map((text) => ({
-              size: "sm",
               text,
             }))}
           />

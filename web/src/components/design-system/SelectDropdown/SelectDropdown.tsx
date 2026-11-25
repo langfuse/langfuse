@@ -19,9 +19,7 @@ type SelectOption<V> = {
     description?: string;
     badges?: { label: string; value: string }[];
   };
-  badges?: Array<
-    Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
-  >;
+  badges?: Array<Pick<React.ComponentProps<typeof Badge>, "text" | "title">>;
 } & (
   | { disabled?: false; disabledReason?: never }
   | { disabled: true; disabledReason: string }
