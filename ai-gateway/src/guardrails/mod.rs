@@ -1398,13 +1398,32 @@ fn apply_external_outputs(
         );
     }
     // Joined single-block fallback when leaf count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
+    // Partition the joined output by each original leaf's line count so multiline
+    // leaves still map back 1:1 when anonymization preserves line structure.
     if ext_match.outputs.len() == 1
-        && leaves.iter().all(|leaf| !leaf.text.contains('\n'))
         && let Some(single) = ext_match.outputs.first()
     {
         let lines: Vec<&str> = single.split('\n').collect();
-        if lines.len() == leaves.len() {
-            return merge_masked_outputs(leaves, lines.into_iter(), per_leaf_masked);
+        let expected_lines: usize = leaves
+            .iter()
+            .map(|leaf| leaf.text.bytes().filter(|&b| b == b'\n').count() + 1)
+            .sum();
+        if lines.len() == expected_lines {
+            let mut cursor = 0usize;
+            let mut reconstructed = Vec::with_capacity(leaves.len());
+            for leaf in leaves {
+                let count = leaf.text.bytes().filter(|&b| b == b'\n').count() + 1;
+                let Some(slice) = lines.get(cursor..cursor + count) else {
+                    return false;
+                };
+                reconstructed.push(slice.join("\n"));
+                cursor += count;
+            }
+            return merge_masked_outputs(
+                leaves,
+                reconstructed.iter().map(String::as_str),
+                per_leaf_masked,
+            );
         }
     }
     false
@@ -1924,6 +1943,82 @@ mod tests {
         assert_eq!(
             outcome.blocking().map(|finding| finding.id.as_str()),
             Some("br")
+        );
+    }
+
+    #[test]
+    fn bedrock_redact_handles_joined_multiline_outputs_and_offset_fallback() {
+        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
+        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
+        let members = scanned(body, &["messages"]);
+
+        // 1. Joined single-block output maps back across multiline leaves by line count.
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        outputs: vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()],
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        assert_eq!(edits.len(), 1);
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        assert_eq!(
+            rewritten["messages"][0]["content"][0]["text"],
+            "line 1\ncall {PHONE}"
+        );
+        assert_eq!(
+            rewritten["messages"][0]["content"][1]["text"],
+            "line 3\nline 4"
+        );
+
+        // 2. Unmappable offsets fall back to retained literal match strings.
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        matches: vec!["555-0199".into()],
+                        offsets: vec![(0, 99..120)],
+                        assessment_count: 1,
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        assert_eq!(
+            rewritten["messages"][0]["content"][0]["text"],
+            "line 1\ncall [PII]"
         );
     }
 

@@ -259,13 +259,7 @@ impl ProviderTransport {
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
         let redactions = std::mem::take(&mut permit.redactions);
-        let mut capture = self.start_capture(
-            route,
-            &context,
-            headers,
-            redact_captured_input(input, &body, &redactions),
-            correlation,
-        );
+        let input = redact_captured_input(input, &body, &redactions)?;
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = upstream_body(
             route,
@@ -276,6 +270,7 @@ impl ProviderTransport {
             provider_model,
             redactions,
         )?;
+        let mut capture = self.start_capture(route, &context, headers, input, correlation);
         capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.record_guardrails(&permit.guardrails);
         capture.set_provider_model(provider_model);
@@ -464,24 +459,24 @@ fn upstream_body(
 
 /// Splices `redactions` into a copy of the caller body (without upstream-only
 /// model or `stream_options` rewrites) and re-parses it for trace capture.
+/// Fails closed instead of falling back to the unredacted input so FULL
+/// ingestion cannot persist secrets that a `redact` guardrail scrubbed.
 fn redact_captured_input(
     input: Option<crate::capture::RequestInput>,
     body: &[u8],
     redactions: &[crate::guardrails::redact::BodyEdit],
-) -> Option<crate::capture::RequestInput> {
-    if redactions.is_empty() {
-        return input;
+) -> Result<Option<crate::capture::RequestInput>, ProviderError> {
+    if redactions.is_empty() || input.is_none() {
+        return Ok(input);
     }
-    let original = input?;
     let mut edits: Vec<(Range<usize>, &[u8])> = redactions
         .iter()
         .map(|edit| (edit.range.clone(), edit.replacement.as_slice()))
         .collect();
-    let redacted = splice_body_edits(body, &mut edits).ok();
-    redacted
-        .as_deref()
-        .and_then(crate::capture::RequestInput::from_redacted_body)
-        .or(Some(original))
+    let redacted = splice_body_edits(body, &mut edits)?;
+    crate::capture::RequestInput::from_redacted_body(&redacted)
+        .map(Some)
+        .ok_or(ProviderError::Configuration)
 }
 
 /// Replaces the model bytes, applies `extra` and any guardrail `redactions` in

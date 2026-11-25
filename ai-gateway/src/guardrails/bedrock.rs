@@ -335,7 +335,8 @@ fn collect_matched_items(
             && start < end
         {
             result.offsets.push((assessment_index, start..end));
-        } else if let Some(matched) = item.matched_text
+        }
+        if let Some(matched) = item.matched_text
             && !matched.is_empty()
         {
             result.matches.push(matched);
