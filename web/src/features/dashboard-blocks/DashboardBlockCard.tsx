@@ -202,6 +202,10 @@ export function DashboardBlockCard({
           variant: "destructive",
           onClick: () => confirm("remove"),
         } as const;
+        const dragActions = draggable ? { draggable } : undefined;
+        const classicActions = canRemove
+          ? { draggable, menu: [removeAction] }
+          : dragActions;
         const actions: DataCardActions | undefined = editable
           ? {
               draggable,
@@ -246,11 +250,7 @@ export function DashboardBlockCard({
                 removeAction,
               ],
             }
-          : canRemove
-            ? { draggable, menu: [removeAction] }
-            : draggable
-              ? { draggable }
-              : undefined;
+          : classicActions;
         const cardActions =
           editable && editOnly
             ? {
