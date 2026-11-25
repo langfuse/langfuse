@@ -126,5 +126,19 @@ impl OpenAiDecisionsCapture {
     }
 }
 
+/// A decision has no conversation: all of `input`, a string or a list of message
+/// items, is scanned.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["input"];
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> crate::guardrails::text::LastTurn {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    if let Some(input) = member("input") {
+        turn.push_member("input", input);
+    }
+    turn
+}
+
 #[cfg(test)]
 mod tests;

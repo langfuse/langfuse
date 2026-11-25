@@ -86,6 +86,8 @@ pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
     spend_limits: Option<crate::spend::SpendRecording>,
+    /// `log` guardrails the request matched, recorded on its generation.
+    pub(crate) guardrails: Vec<crate::guardrails::Finding>,
 }
 
 impl RequestPermit {
@@ -166,6 +168,7 @@ impl ProviderTransport {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
             spend_limits,
+            guardrails: Vec::new(),
         }
     }
 
@@ -247,6 +250,7 @@ impl ProviderTransport {
             provider_model,
         )?;
         capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
+        capture.record_guardrails(&permit.guardrails);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
             context.connection(),

@@ -13,9 +13,9 @@ Topics turns v4 traces into facet summaries, embeddings and topic assignments. T
 
 ## Enablement and models
 
-Topics requires `LANGFUSE_TOPICS_ENABLED=true`, on Langfuse Cloud and self-hosted alike; it then applies to every project. Keep web and worker configuration aligned. Processing runs only for projects that turn automatic processing on with all three models configured. Trace and project deletion clean Topics data independently of these gates.
+Topics is available on every deployment. Automatic processing runs only for projects that enable it and configure all three models. Trace and project deletion clean Topics data regardless of project settings.
 
-Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Summarizing, for automatic intake and for setup backfills and snapshots alike, runs through the [trace dispatcher and the events-dispatch consumer](../traceDispatch/README.md), so `LANGFUSE_EVENTS_DISPATCH_ENABLED` and one worker with `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` are required.
+Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Summarizing, for automatic intake and for setup backfills and snapshots alike, runs through the [trace dispatcher and the events-dispatch consumer](../traceDispatch/README.md), so it requires events dispatch and its queue consumer (both on by default).
 
 Project settings resolve three LLM connections: summary, embedding and clustering (naming). Pass the resolved `TopicsModels` explicitly; credentials must not enter persisted execution or batch state. Model validation and connection lifecycle belong to [model-config.ts](../../../../packages/shared/src/server/topics/model-config.ts). The embedding model and dimensions are locked once embedded summaries exist. Discovery and later assignment must use the same embedding purpose and normalization; equal dimensions alone do not make vector spaces compatible. An execution whose frozen summary or embedding model differs from current settings must be restarted. Changing the naming model affects subsequent naming; it does not rename unchanged definitions.
 

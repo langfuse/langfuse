@@ -1718,6 +1718,135 @@ async fn spend_limit_rejections_are_recorded_as_error_generations() {
     assert_eq!(provider.calls(), 0);
 }
 
+/// Resolves the key with a `block` guardrail for SSNs and a `log` guardrail for emails.
+async fn guardrail_resolution() -> Response<Body> {
+    let bytes = to_bytes(resolution_response("provider-secret").into_body(), 4096)
+        .await
+        .unwrap();
+    let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    body["guardrails"] = serde_json::json!([
+        {"id": "g-block", "name": "No SSNs", "action": "block", "patterns": [r"\b\d{3}-\d{2}-\d{4}\b"]},
+        {"id": "g-log", "name": "Emails", "action": "log", "patterns": [r"\b[a-z]+@example\.com\b"]},
+    ]);
+    Response::new(Body::from(body.to_string()))
+}
+
+#[tokio::test]
+async fn guardrails_block_or_mark_requests_whose_last_turn_matches() {
+    for (input, status, action, level) in [
+        (
+            "my ssn is 123-45-6789",
+            StatusCode::BAD_REQUEST,
+            "block",
+            "ERROR",
+        ),
+        (
+            "mail me at jane@example.com",
+            StatusCode::OK,
+            "log",
+            "WARNING",
+        ),
+    ] {
+        let (sent, mut uploads) = tokio::sync::mpsc::unbounded_channel();
+        let web = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            async move {
+                if request.uri().path().ends_with("/resolve") {
+                    return guardrail_resolution().await;
+                }
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(crate::test_support::upload_json(&bytes)).unwrap();
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let provider = FakeServer::start(|_| async {
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"id":"resp_1","status":"completed","output":[]}"#,
+                ))
+                .unwrap()
+        })
+        .await;
+        let telemetry = crate::telemetry::Telemetry::for_test(
+            &crate::resolution::ControlPlaneConfig::new(&web.url, "service-key").unwrap(),
+        );
+        let gateway = Gateway::start(Some(
+            InferenceService::for_test(
+                web.control_plane(),
+                ProviderTransport::for_test(
+                    format!("{}/v1", provider.url),
+                    ProviderLimits::default(),
+                )
+                .with_telemetry(telemetry.clone()),
+            )
+            .with_telemetry(telemetry.clone()),
+        ))
+        .await;
+        let response = gateway
+            .post()
+            .bearer_auth("gateway-key")
+            .body(
+                serde_json::json!({"model": "Production key:gpt-4.1", "input": input}).to_string(),
+            )
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status, "{action}");
+        if action == "block" {
+            let body: serde_json::Value =
+                serde_json::from_str(&response.text().await.unwrap()).unwrap();
+            assert_eq!(body["error"]["code"], "guardrail_blocked");
+            assert_eq!(
+                body["error"]["message"],
+                r#"Request blocked by guardrail "No SSNs""#
+            );
+            assert_eq!(provider.calls(), 0);
+        } else {
+            response.bytes().await.unwrap();
+            assert_eq!(provider.calls(), 1);
+        }
+        telemetry
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+            .await;
+        let payload = uploads
+            .try_recv()
+            .unwrap_or_else(|_| panic!("no generation for {action}"));
+        assert_guardrail_generation(&payload, action, level);
+    }
+}
+
+fn assert_guardrail_generation(payload: &serde_json::Value, action: &str, level: &str) {
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attribute = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .and_then(|attribute| attribute["value"]["stringValue"].as_str())
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(attribute("langfuse.observation.level"), level, "{action}");
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
+    assert_eq!(
+        metadata["langfuse.gateway.guardrails.outcome"],
+        serde_json::json!(action),
+    );
+    assert_eq!(
+        metadata[format!("langfuse.gateway.guardrails.g-{action}")],
+        serde_json::json!(action),
+    );
+    assert!(
+        metadata
+            .get(format!("langfuse.gateway.guardrails.g-{action}.finding").as_str())
+            .is_none(),
+    );
+}
+
 #[tokio::test]
 async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
@@ -1949,9 +2078,13 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         (r#"{"model":"m","stream":null}"#, false),
         (r#"{"model":"m"}"#, false),
     ] {
-        let request = parse_request_body(Bytes::from_static(body.as_bytes()), false)
-            .ok()
-            .unwrap();
+        let request = parse_request_body(
+            Bytes::from_static(body.as_bytes()),
+            ApiFormat::OpenAiChatCompletions,
+            false,
+        )
+        .ok()
+        .unwrap();
         assert_eq!(request.streaming, streaming, "{body}");
         assert_eq!(&body.as_bytes()[request.model_range], br#""m""#);
     }
@@ -1962,7 +2095,12 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         r#"["m"]"#,
     ] {
         assert!(
-            parse_request_body(Bytes::from_static(body.as_bytes()), false).is_err(),
+            parse_request_body(
+                Bytes::from_static(body.as_bytes()),
+                ApiFormat::OpenAiChatCompletions,
+                false
+            )
+            .is_err(),
             "{body}"
         );
     }
@@ -1971,9 +2109,13 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
 #[test]
 fn the_parse_locates_stream_options_for_the_usage_rewrite() {
     let body = br#"{"model":"m","stream":true,"stream_options": {"include_obfuscation":false} }"#;
-    let request = parse_request_body(Bytes::from_static(body), false)
-        .ok()
-        .unwrap();
+    let request = parse_request_body(
+        Bytes::from_static(body),
+        ApiFormat::OpenAiChatCompletions,
+        false,
+    )
+    .ok()
+    .unwrap();
     let StreamOptions::At(range) = request.stream_options else {
         panic!("stream_options not located");
     };
@@ -1985,9 +2127,13 @@ fn the_parse_locates_stream_options_for_the_usage_rewrite() {
             StreamOptions::Duplicated,
         ),
     ] {
-        let request = parse_request_body(Bytes::from_static(body.as_bytes()), false)
-            .ok()
-            .unwrap();
+        let request = parse_request_body(
+            Bytes::from_static(body.as_bytes()),
+            ApiFormat::OpenAiChatCompletions,
+            false,
+        )
+        .ok()
+        .unwrap();
         assert_eq!(request.stream_options, expected, "{body}");
     }
 }

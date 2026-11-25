@@ -48,7 +48,9 @@ const gatewayAddBudgetFormSchema = z.object({
 type GatewayAddBudgetFormValues = z.infer<typeof gatewayAddBudgetFormSchema>;
 
 type TargetPicker = {
-  options: ComponentProps<typeof AsyncMultiSelectTagInput<string>>["options"];
+  options: NonNullable<
+    ComponentProps<typeof AsyncMultiSelectTagInput<string>>["options"]
+  >;
   search: string;
   onSearchChange: (query: string) => void;
   isLoading: boolean;

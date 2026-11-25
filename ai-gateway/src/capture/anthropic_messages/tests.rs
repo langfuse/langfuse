@@ -611,6 +611,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     let telemetry = crate::telemetry::Telemetry::new(
         &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
         crate::telemetry::DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(crate::telemetry::DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     let context =
@@ -736,4 +737,40 @@ async fn full_mode_marks_requests_it_cannot_record_as_input() {
         );
         assert_eq!(facts.input.is_some(), mode == "full" && omission.is_none());
     }
+}
+
+fn guardrail_scan(system: &str, messages: &str) -> Vec<String> {
+    let mut texts = Vec::new();
+    let member = |name: &str| match name {
+        "system" => Some(system),
+        "messages" => Some(messages),
+        _ => None,
+    };
+    guardrail_turn(member)
+        .unwrap()
+        .read(member, &mut |text: &str| texts.push(text.to_owned()))
+        .unwrap();
+    texts
+}
+
+#[test]
+fn the_system_prompt_counts_only_on_the_first_turn() {
+    assert_eq!(
+        guardrail_scan(
+            r#"[{"type":"text","text":"sys"}]"#,
+            r#"[{"role":"user","content":"first"}]"#
+        ),
+        ["first", "sys"]
+    );
+    assert_eq!(
+        guardrail_scan(
+            r#""sys""#,
+            r#"[{"role":"user","content":"old"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"a","input":{}},{"type":"tool_use","id":"b","input":{}}]},
+            {"role":"user","content":[
+                {"type":"tool_result","tool_use_id":"a","content":"result a"},
+                {"type":"tool_result","tool_use_id":"b","content":[{"type":"text","text":"result b"}]}]}]"#
+        ),
+        ["result a", "result b"]
+    );
 }

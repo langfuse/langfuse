@@ -186,6 +186,7 @@ export class GatewayResolveService {
               })
             : null,
         spend_limits: spendLimits,
+        guardrails: context.guardrails,
         pricing,
       };
     });

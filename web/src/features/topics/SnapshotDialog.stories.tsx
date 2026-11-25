@@ -18,7 +18,7 @@ import {
   type SnapshotSummarize,
 } from "./SnapshotDialogView";
 import { TopicTraceFilterSection } from "./TopicTraceFilterSection";
-import { costEstimateFixture } from "./topicCostEstimateFixture";
+import { costEstimateFixture } from "@/.storybook/fixtures/topicCostEstimateFixture";
 import {
   topicsFilterRegistry,
   useTopicTraceFilterState,

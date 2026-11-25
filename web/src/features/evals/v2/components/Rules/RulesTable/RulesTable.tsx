@@ -290,6 +290,7 @@ function RulesTableContent({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
+              targetObject={row.original.targetObject}
               onUpgrade={
                 upgradeRequired
                   ? () => {

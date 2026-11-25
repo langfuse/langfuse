@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   DEFAULT_TOPIC_FACETS,
@@ -38,14 +37,13 @@ function caller(userId: string, memberships: [string, string, Role][]) {
   const session = createSession({
     user: {
       id: userId,
-      featureFlags: testFeatureFlags({ langfuseTopics: true }),
+      featureFlags: testFeatureFlags(),
     },
     organizations: memberships.map(([orgId, projectId, role]) => ({
       id: orgId,
       role,
       projects: [{ id: projectId }],
     })),
-    environment: { topicsEnabled: true },
   });
   return appRouter.createCaller({
     ...createInnerTRPCContext({ session, headers: {} }),
@@ -163,10 +161,6 @@ function topicsProcedures(type?: "query" | "mutation") {
 }
 
 describe("Topics tRPC access", () => {
-  const original = {
-    enabled: sharedEnv.LANGFUSE_TOPICS_ENABLED,
-    region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  };
   let userId: string;
   let a: Awaited<ReturnType<typeof topicsProject>>;
   let b: Awaited<ReturnType<typeof topicsProject>>;
@@ -179,13 +173,6 @@ describe("Topics tRPC access", () => {
     ).id;
     a = await topicsProject(userId);
     b = await topicsProject(userId);
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = "true";
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-  });
-
-  afterAll(() => {
-    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED = original.enabled;
-    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
   });
 
   it("lets VIEWER read but rejects every write without changing state", async () => {

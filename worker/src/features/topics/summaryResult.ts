@@ -8,13 +8,19 @@ export type TopicModelUsage = Pick<
   | "costDetails"
 >;
 
+export const MAX_TOPIC_SUMMARY_CHARACTERS = 2000;
+
 export function topicSummaryOutputError(output: {
   summary: string;
   status: "applicable" | "not_applicable" | "insufficient_input";
 }): string | undefined {
   const summary = output.summary.trim();
   // Models sometimes add text to a non-applicable result; callers keep the status and drop the text.
-  if (output.status === "applicable" && (!summary || summary.length > 2000))
+  // An empty applicable summary is stored as insufficient input before this check.
+  if (
+    output.status === "applicable" &&
+    summary.length > MAX_TOPIC_SUMMARY_CHARACTERS
+  )
     return "Applicable facet summary must contain a concise summary.";
 }
 

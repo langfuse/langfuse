@@ -171,6 +171,33 @@ impl ProtocolCapture {
     }
 }
 
+/// The top-level members of a request in `api_format` that hold the conversation
+/// guardrails scan.
+pub(crate) fn guardrail_members(api_format: ApiFormat) -> &'static [&'static str] {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiResponses => openai_responses::GUARDRAIL_MEMBERS,
+        ApiFormat::AnthropicMessages => anthropic_messages::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiEmbeddings => openai_embeddings::GUARDRAIL_MEMBERS,
+        ApiFormat::OpenAiDecisions => openai_decisions::GUARDRAIL_MEMBERS,
+    }
+}
+
+/// Finds the request's last turn in the members of [`guardrail_members`] that
+/// `member` returns.
+pub(crate) fn guardrail_turn<'a>(
+    api_format: ApiFormat,
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => openai_chat_completions::guardrail_turn(member),
+        ApiFormat::OpenAiResponses => openai_responses::guardrail_turn(member),
+        ApiFormat::AnthropicMessages => anthropic_messages::guardrail_turn(member),
+        ApiFormat::OpenAiEmbeddings => Ok(openai_embeddings::guardrail_turn(member)),
+        ApiFormat::OpenAiDecisions => Ok(openai_decisions::guardrail_turn(member)),
+    }
+}
+
 /// Owned before dispatch and moved into the response body. Drop also covers a
 /// cancelled provider future before response headers have arrived.
 pub(crate) struct ExecutionCapture {
@@ -329,6 +356,16 @@ impl ExecutionCapture {
 
     pub(crate) fn set_provider_model(&mut self, model: &str) {
         self.provider_model = bounded_string(model);
+    }
+
+    /// Lists the guardrails the request matched in the generation's metadata, by id,
+    /// action and location, so generations can be filtered by each.
+    pub(crate) fn record_guardrails(&mut self, guardrails: &[crate::guardrails::Finding]) {
+        if !guardrails.is_empty()
+            && let Some(metadata) = self.metadata.as_object_mut()
+        {
+            metadata.insert("guardrails".into(), json!(guardrails));
+        }
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {

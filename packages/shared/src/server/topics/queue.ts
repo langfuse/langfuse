@@ -3,7 +3,6 @@ import { Queue } from "bullmq";
 import { QueueJobs, QueueName, type TQueueJobTypes } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "../redis/redis";
 import { logger } from "../logger";
-import { isTopicsEnabled } from "./config";
 import { readTopicExecutionSummary } from "./execution-store";
 import type { TopicExecutionSummary } from "../../topics";
 
@@ -34,7 +33,6 @@ function createTopicsQueue<Job extends TopicsUpdateJob | TopicsSetupJob>(
 export class TopicsUpdateQueue {
   private static instance: Queue<TopicsUpdateJob> | null = null;
   static getInstance(): Queue<TopicsUpdateJob> | null {
-    if (!isTopicsEnabled()) return null;
     if (!this.instance)
       this.instance = createTopicsQueue(QueueName.TopicsUpdate);
     return this.instance;
@@ -44,7 +42,6 @@ export class TopicsUpdateQueue {
 export class TopicsSetupQueue {
   private static instance: Queue<TopicsSetupJob> | null = null;
   static getInstance(): Queue<TopicsSetupJob> | null {
-    if (!isTopicsEnabled()) return null;
     if (!this.instance)
       this.instance = createTopicsQueue(QueueName.TopicsSetup);
     return this.instance;

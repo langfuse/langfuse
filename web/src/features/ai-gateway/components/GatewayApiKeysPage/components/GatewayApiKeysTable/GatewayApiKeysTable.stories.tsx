@@ -8,6 +8,7 @@ import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 const meta = preview.meta({ component: GatewayApiKeysTable });
 
 const onEdit = fn();
+const onResetBudget = fn();
 const onRevoke = fn();
 const onPageChange = fn();
 
@@ -64,6 +65,7 @@ const actions = {
   lastUsed: { status: "success", isTracked: true },
   spend: { status: "success" },
   onEdit,
+  onResetBudget,
   onRevoke,
   onCreateKey: fn(),
   pagination: {
@@ -78,6 +80,7 @@ const actions = {
   | "lastUsed"
   | "spend"
   | "onEdit"
+  | "onResetBudget"
   | "onRevoke"
   | "onCreateKey"
   | "pagination"

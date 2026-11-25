@@ -9,7 +9,6 @@ describe("trace evals project allowlist", () => {
   it("enables only listed projects, only on Langfuse Cloud", async () => {
     vi.stubEnv("DOCKER_BUILD", undefined);
     vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
-    vi.stubEnv("LANGFUSE_TOPICS_ENABLED", "true");
     vi.stubEnv(
       "LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS",
       " project-a, ,project-b ",

@@ -12,29 +12,22 @@ import { Check, Copy } from "@langfuse/icons";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { cn } from "@/src/utils/tailwind";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
+  copyButton?: {
+    onCopy: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  };
   controlButtons?: React.ReactNode;
-  /** Hosts that render their own copy control (e.g. inside the content box)
-      suppress the header's. */
-  hideCopyButton?: boolean;
-  /** Reveal the right-side controls only while hovering the hosting section
-      (requires a `group/iosection` ancestor). */
-  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnCopy,
+  copyButton,
   controlButtons,
-  hideCopyButton = false,
-  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -46,17 +39,9 @@ export function MarkdownJsonViewHeader({
         {titleIcon}
         {title}
       </div>
-      <div
-        className={cn(
-          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
-          // pointer-coarse: touch devices have no hover, so the controls
-          // stay visible there instead of being unreachable.
-          hoverRevealControls &&
-            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
-        )}
-      >
+      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1 opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
         {controlButtons}
-        {!hideCopyButton && (
+        {copyButton && (
           <Button
             title="Copy to clipboard"
             variant="ghost"
@@ -64,7 +49,7 @@ export function MarkdownJsonViewHeader({
             type="button"
             onClick={(event) => {
               setIsCopied(true);
-              handleOnCopy(event);
+              copyButton.onCopy(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
             className="text-muted-foreground hover:text-foreground hover:bg-transparent"

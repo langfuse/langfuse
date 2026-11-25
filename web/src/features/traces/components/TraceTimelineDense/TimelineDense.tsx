@@ -262,7 +262,8 @@ export type TimelineDenseProps = {
    * observation, so this must not keep its own copy. See SelectionContext.
    */
   selectedId: string | null;
-  onSelect: (nodeId: string) => void;
+  /** Absent for a read-only chart: rows keep hover and zoom, not the pointer. */
+  onSelect?: (nodeId: string) => void;
   /** Hover, for prefetching the observation the user is about to open. */
   onHover?: (nodeId: string) => void;
   /**
@@ -1323,7 +1324,7 @@ export function TimelineDense({
    */
   const selectRowOnClick = (event: { detail: number }, nodeId: string) => {
     if (event.detail > 1 || focusedByTap.current) return;
-    onSelect(nodeId);
+    onSelect?.(nodeId);
   };
 
   const focused =
@@ -1600,7 +1601,8 @@ export function TimelineDense({
                         // Clicking selects, and the bar is the part that looks
                         // like it would: the row is clickable across its full
                         // width, but only the bar reads as a thing.
-                        "absolute cursor-pointer rounded-[1px]",
+                        "absolute rounded-[1px]",
+                        onSelect && "cursor-pointer",
                         barClass,
                         isSelected && "ring-foreground/80 ring-1",
                       )}
@@ -1684,7 +1686,8 @@ export function TimelineDense({
                 <div
                   key={node.id}
                   className={cn(
-                    "absolute inset-x-0 cursor-pointer",
+                    "absolute inset-x-0",
+                    onSelect && "cursor-pointer",
                     rowWashClass({
                       selected: node.id === selectedId,
                       focused: node.index === focusIndex,

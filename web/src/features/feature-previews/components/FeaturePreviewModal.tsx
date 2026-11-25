@@ -58,14 +58,6 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
-    flag: "langfuseTopics",
-    description:
-      "Discover common topics across traces, with summaries and an interactive topic map.",
-    details:
-      "Choose traces and facets, run the topic pipeline, and explore the resulting clusters and trace summaries.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-  },
-  {
     flag: "traceTranscriptEvals",
     description:
       "Evaluate a whole trace from its conversation transcript instead of a single observation.",

@@ -4,9 +4,9 @@ Web owns configuration, map and snapshot controls, and result exploration. Proce
 
 ## Access
 
-Topics is a beta feature for every project once the deployment sets `LANGFUSE_TOPICS_ENABLED=true`. [topicsAccess.ts](topicsAccess.ts) is the shared visibility gate for the page, sidebar, in-app agent, and tRPC routes: the deployment switch (from the session environment), on Langfuse Cloud also Internal view or the `langfuseTopics` personal flag, and `topics:read`. Mutations additionally require `topics:CUD`. Personal-toggle rules belong to the [feature flags docs](../feature-flags/README.md).
+Topics is a beta feature available on every deployment. The page, sidebar, in-app agent, and tRPC routes use [topicsAccess.ts](topicsAccess.ts) to check `topics:read`. Mutations additionally require `topics:CUD`.
 
-The [public API adapter](server/publicApi.ts) checks only the deployment switch: API keys are project-scoped and have no user session. Its resource contract is defined in [Fern](../../../../fern/apis/server/definition/unstable/topics.yml).
+The [public API](server/publicApi.ts) and MCP tools accept project-scoped API keys with `topics:read`. The public API resource contract is defined in [Fern](../../../../fern/apis/server/definition/unstable/topics.yml).
 
 ## Results and maps
 

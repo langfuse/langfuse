@@ -7,16 +7,9 @@ import {
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
 export {
-  DEFAULT_PYTHON_CODE_EVAL_SOURCE,
-  DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
-  PREVIOUS_PYTHON_CODE_EVAL_CONTRACTS,
-  PREVIOUS_TYPESCRIPT_CODE_EVAL_CONTRACTS,
-  PYTHON_CODE_EVAL_CONTRACT,
-  TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
-  isDefaultCodeEvalSource,
   type CodeEvalSourceCodeLanguage,
 } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 
