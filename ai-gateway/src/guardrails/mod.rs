@@ -134,30 +134,12 @@ impl Guardrails {
                 drop(turn_text_reservation);
                 Vec::new()
             };
-            let finalize_bytes = if external_outcomes
-                .iter()
-                .any(|(_, outcome)| matches!(outcome, ExternalOutcome::Anonymized(_)))
-            {
-                bytes
-            } else {
-                0
-            };
-            let (outcome, finalizing) = self
-                .cpu
-                .run(CpuJob::ScanGuardrails, finalize_bytes, {
-                    let guardrails = Arc::clone(&guardrails);
-                    let budget = Arc::clone(&self.memory_budget);
-                    move || {
-                        let started = std::time::Instant::now();
-                        let outcome =
-                            local.into_outcome(&guardrails, &external_outcomes, Some(&budget));
-                        (outcome, started.elapsed())
-                    }
-                })
-                .await
-                .ok_or(ResolutionError::Busy)?;
-            total_duration += finalizing;
-            let outcome = outcome?;
+            let outcome = finalize_outcome(
+                local,
+                &guardrails,
+                &external_outcomes,
+                Some(&self.memory_budget),
+            )?;
             crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
             Ok(outcome)
         }
@@ -589,91 +571,6 @@ impl LocalScan {
         self.turn_text.clear();
     }
 
-    fn into_outcome(
-        mut self,
-        guardrails: &[Guardrail],
-        external_outcomes: &[(usize, ExternalOutcome)],
-        budget: Option<&Arc<Semaphore>>,
-    ) -> Result<Outcome, ResolutionError> {
-        let mut fail_closed_redact = self.local_fail_closed.clone();
-        if self.unreadable {
-            fail_closed_redact.fill(true);
-        }
-        for (slot, outcome) in external_outcomes {
-            if outcome.is_match()
-                && let Some(entry) = self.matched.get_mut(*slot)
-            {
-                *entry = true;
-            }
-            if matches!(outcome, ExternalOutcome::Blocked | ExternalOutcome::Failed)
-                && let Some(entry) = fail_closed_redact.get_mut(*slot)
-            {
-                *entry = true;
-            }
-        }
-
-        let redactions = if self.unreadable || self.any_blocking(guardrails, &fail_closed_redact) {
-            Vec::new()
-        } else {
-            if !self.external_blocks.is_empty() {
-                self.apply_external_anonymizations(
-                    guardrails,
-                    external_outcomes,
-                    &mut fail_closed_redact,
-                    budget,
-                )?;
-            }
-            self.local_redactions
-        };
-
-        let mut findings = Vec::new();
-        let mut blocked_index = None;
-        for (slot, (&index, &matched)) in self.active_indices.iter().zip(&self.matched).enumerate()
-        {
-            if !self.unreadable && !matched {
-                continue;
-            }
-            let Some(guardrail) = guardrails.get(index) else {
-                continue;
-            };
-            let blocks = guardrail.action == GuardrailAction::Block
-                || (matches!(
-                    guardrail.action,
-                    GuardrailAction::Redact | GuardrailAction::Enforce
-                ) && fail_closed_redact.get(slot).copied().unwrap_or(false));
-            if blocks && blocked_index.is_none() {
-                blocked_index = Some(findings.len());
-            }
-            let finding_action = if guardrail.action == GuardrailAction::Enforce {
-                if blocks {
-                    GuardrailAction::Block
-                } else {
-                    GuardrailAction::Redact
-                }
-            } else {
-                guardrail.action
-            };
-            findings.push(Finding {
-                id: guardrail.id.clone(),
-                name: guardrail.name.clone(),
-                action: finding_action,
-                location: GuardrailLocation::Request,
-            });
-        }
-
-        let (redactions, redaction_reservations) = if blocked_index.is_some() {
-            (Vec::new(), Vec::new())
-        } else {
-            (redactions, self.redaction_reservations)
-        };
-        Ok(Outcome {
-            findings,
-            blocked_index,
-            redactions,
-            redaction_reservations,
-        })
-    }
-
     fn any_blocking(&self, guardrails: &[Guardrail], fail_closed_redact: &[bool]) -> bool {
         self.active_indices
             .iter()
@@ -692,6 +589,92 @@ impl LocalScan {
                 }
             })
     }
+}
+
+/// Combines local regex scan results and external guardrail outcomes into the
+/// final [`Outcome`], preserving guardrail resolution order.
+fn finalize_outcome(
+    mut local: LocalScan,
+    guardrails: &[Guardrail],
+    external_outcomes: &[(usize, ExternalOutcome)],
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<Outcome, ResolutionError> {
+    let mut fail_closed_redact = local.local_fail_closed.clone();
+    if local.unreadable {
+        fail_closed_redact.fill(true);
+    }
+    for (slot, outcome) in external_outcomes {
+        if outcome.is_match()
+            && let Some(entry) = local.matched.get_mut(*slot)
+        {
+            *entry = true;
+        }
+        if matches!(outcome, ExternalOutcome::Blocked | ExternalOutcome::Failed)
+            && let Some(entry) = fail_closed_redact.get_mut(*slot)
+        {
+            *entry = true;
+        }
+    }
+
+    let redactions = if local.unreadable || local.any_blocking(guardrails, &fail_closed_redact) {
+        Vec::new()
+    } else {
+        if !local.external_blocks.is_empty() {
+            local.apply_external_anonymizations(
+                guardrails,
+                external_outcomes,
+                &mut fail_closed_redact,
+                budget,
+            )?;
+        }
+        local.local_redactions
+    };
+
+    let mut findings = Vec::new();
+    let mut blocked_index = None;
+    for (slot, (&index, &matched)) in local.active_indices.iter().zip(&local.matched).enumerate() {
+        if !local.unreadable && !matched {
+            continue;
+        }
+        let Some(guardrail) = guardrails.get(index) else {
+            continue;
+        };
+        let blocks = guardrail.action == GuardrailAction::Block
+            || (matches!(
+                guardrail.action,
+                GuardrailAction::Redact | GuardrailAction::Enforce
+            ) && fail_closed_redact.get(slot).copied().unwrap_or(false));
+        if blocks && blocked_index.is_none() {
+            blocked_index = Some(findings.len());
+        }
+        let finding_action = if guardrail.action == GuardrailAction::Enforce {
+            if blocks {
+                GuardrailAction::Block
+            } else {
+                GuardrailAction::Redact
+            }
+        } else {
+            guardrail.action
+        };
+        findings.push(Finding {
+            id: guardrail.id.clone(),
+            name: guardrail.name.clone(),
+            action: finding_action,
+            location: GuardrailLocation::Request,
+        });
+    }
+
+    let (redactions, redaction_reservations) = if blocked_index.is_some() {
+        (Vec::new(), Vec::new())
+    } else {
+        (redactions, local.redaction_reservations)
+    };
+    Ok(Outcome {
+        findings,
+        blocked_index,
+        redactions,
+        redaction_reservations,
+    })
 }
 
 /// Runs the local regex guardrails against `turn` and, when any active external
@@ -1278,16 +1261,15 @@ mod tests {
         body: &[u8],
         scanned: &ScannedMembers,
     ) -> Outcome {
-        scan_local(
+        let local = scan_local(
             guardrails,
             body,
             scanned,
             &last_turn(api_format, body, scanned),
             None,
         )
-        .unwrap()
-        .into_outcome(guardrails, &[], None)
-        .unwrap()
+        .unwrap();
+        finalize_outcome(local, guardrails, &[], None).unwrap()
     }
 
     fn apply_edits(body: &str, edits: &[BodyEdit]) -> String {
@@ -1546,19 +1528,19 @@ mod tests {
             .map(|block| block.text.as_str())
             .collect();
         assert_eq!(block_texts, ["Hi Alice, call 555-0199", "mail [EMAIL]"]);
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Anonymized(vec![
-                        "Hi {NAME}, call {PHONE}".into(),
-                        "mail [EMAIL]".into(),
-                    ]),
-                )],
-                None,
-            )
-            .unwrap();
+        let outcome = finalize_outcome(
+            local,
+            &guardrails,
+            &[(
+                0,
+                ExternalOutcome::Anonymized(vec![
+                    "Hi {NAME}, call {PHONE}".into(),
+                    "mail [EMAIL]".into(),
+                ]),
+            )],
+            None,
+        )
+        .unwrap();
         assert!(outcome.blocking().is_none());
         let (findings, edits, _) = outcome.into_parts();
         assert_eq!(findings.len(), 2);
@@ -1583,9 +1565,7 @@ mod tests {
                 None,
             )
             .unwrap();
-            let outcome = local
-                .into_outcome(&guardrails, &[(0, external)], None)
-                .unwrap();
+            let outcome = finalize_outcome(local, &guardrails, &[(0, external)], None).unwrap();
             let blocking = outcome.blocking().expect("expected blocking finding");
             assert_eq!(blocking.id, "br");
             assert_eq!(blocking.action, GuardrailAction::Block);
@@ -1607,18 +1587,16 @@ mod tests {
             None,
         )
         .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Anonymized(vec![
-                        "line 1\ncall {PHONE}\nline 3\nline 4".into(),
-                    ]),
-                )],
-                None,
-            )
-            .unwrap();
+        let outcome = finalize_outcome(
+            local,
+            &guardrails,
+            &[(
+                0,
+                ExternalOutcome::Anonymized(vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()]),
+            )],
+            None,
+        )
+        .unwrap();
         assert!(outcome.blocking().is_none());
         let (_, edits, _) = outcome.into_parts();
         assert_eq!(edits.len(), 1);
@@ -1648,24 +1626,24 @@ mod tests {
             None,
         )
         .unwrap();
-        let outcome = local
-            .into_outcome(
-                &pair,
-                &[
-                    (
-                        0,
-                        ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call 555-0199".into()]),
-                    ),
-                    (
-                        1,
-                        ExternalOutcome::Anonymized(vec![
-                            "mail alice@example.com or call {PHONE}".into(),
-                        ]),
-                    ),
-                ],
-                None,
-            )
-            .unwrap();
+        let outcome = finalize_outcome(
+            local,
+            &pair,
+            &[
+                (
+                    0,
+                    ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call 555-0199".into()]),
+                ),
+                (
+                    1,
+                    ExternalOutcome::Anonymized(vec![
+                        "mail alice@example.com or call {PHONE}".into(),
+                    ]),
+                ),
+            ],
+            None,
+        )
+        .unwrap();
         let blocking = outcome
             .blocking()
             .expect("expected conflicting outputs to block");
