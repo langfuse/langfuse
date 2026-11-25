@@ -61,6 +61,8 @@ const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Typography",
   "ThemeTokens/Layout",
   "ThemeTokens/Charts",
+  // Hidden backing stories for the Form Elements docs page (`tags: ["!dev"]`).
+  "FormElements",
 ] as const;
 
 /**
