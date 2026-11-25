@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import {
+  assertUnreachable,
   EvalTemplateType,
   extractVariables,
   InternalServerError,
@@ -280,6 +281,8 @@ export function toEvaluatorServiceDefinition(
           definition.outputDefinition,
         ),
       });
+    default:
+      return assertUnreachable(definition);
   }
 }
 
