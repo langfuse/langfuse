@@ -1336,11 +1336,7 @@ fn apply_external_outputs(
         return false;
     }
     if outputs.len() == texts.len() {
-        return merge_masked_outputs(
-            texts,
-            outputs.iter().map(String::as_str),
-            per_text_masked,
-        );
+        return merge_masked_outputs(texts, outputs.iter().map(String::as_str), per_text_masked);
     }
     // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
     // Partition the joined output by each original text's line count so multiline
@@ -1802,7 +1798,9 @@ mod tests {
                 None,
             )
             .unwrap();
-            let outcome = local.into_outcome(&guardrails, &[(0, external)], None).unwrap();
+            let outcome = local
+                .into_outcome(&guardrails, &[(0, external)], None)
+                .unwrap();
             let blocking = outcome.blocking().expect("expected blocking finding");
             assert_eq!(blocking.id, "br");
             assert_eq!(blocking.action, GuardrailAction::Block);
@@ -1883,7 +1881,9 @@ mod tests {
                 None,
             )
             .unwrap();
-        let blocking = outcome.blocking().expect("expected conflicting outputs to block");
+        let blocking = outcome
+            .blocking()
+            .expect("expected conflicting outputs to block");
         assert_eq!(blocking.id, "br-phone");
         assert_eq!(blocking.action, GuardrailAction::Block);
     }

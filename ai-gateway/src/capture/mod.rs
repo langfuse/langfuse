@@ -550,7 +550,10 @@ impl RequestInput {
         }
         let removed: usize = redactions.iter().map(|edit| edit.range.len()).sum();
         let added: usize = redactions.iter().map(|edit| edit.replacement.len()).sum();
-        let new_body_bytes = self.body_bytes.saturating_sub(removed).saturating_add(added);
+        let new_body_bytes = self
+            .body_bytes
+            .saturating_sub(removed)
+            .saturating_add(added);
         self.body_bytes = new_body_bytes;
         if new_body_bytes > MAX_INPUT_CAPTURE_BYTES {
             self.members = None;

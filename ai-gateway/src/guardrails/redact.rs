@@ -39,10 +39,7 @@ pub(crate) struct BodyEdit {
 
 /// Splices disjoint byte edits into `source` in one preallocated pass.
 /// Returns `None` if any edit range is inverted, out of bounds, or overlapping.
-pub(crate) fn splice_bytes(
-    source: &[u8],
-    edits: &mut [(Range<usize>, &[u8])],
-) -> Option<Vec<u8>> {
+pub(crate) fn splice_bytes(source: &[u8], edits: &mut [(Range<usize>, &[u8])]) -> Option<Vec<u8>> {
     edits.sort_by_key(|(range, _)| range.start);
     let removed: usize = edits.iter().map(|(range, _)| range.len()).sum();
     let added: usize = edits.iter().map(|(_, bytes)| bytes.len()).sum();
