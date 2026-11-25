@@ -92,6 +92,7 @@ const EvaluatorBase = z.object({
   versionCreatedBy: PublicApiCreator.nullable(),
 });
 
+/** @internal */
 export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: EvaluatorChatPrompt,

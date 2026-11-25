@@ -46,6 +46,7 @@ export const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
  * this covers the silent deaths — OOM, a killed thread, an extension — where
  * nothing is reported at all. Generous on purpose: it is a liveness check, not
  * a performance budget.
+ * @internal
  */
 export const PARSE_DEADLINE_MS = 30_000;
 

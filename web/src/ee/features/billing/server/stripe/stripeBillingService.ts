@@ -64,6 +64,7 @@ export type BillingSubscriptionInfo = {
   hasValidPaymentMethod: boolean;
 };
 
+/** @internal */
 export class BillingService {
   constructor(
     private stripe: Stripe,

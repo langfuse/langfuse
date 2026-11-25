@@ -135,14 +135,20 @@ export type CompletionPlan = {
 };
 
 const SECTION_SUGGESTIONS = "Suggestions";
+/** @internal */
 export const SECTION_FIELDS = "Fields";
+/** @internal */
 export const SECTION_MATCHING_FILTERS = "Matching filters";
+/** @internal */
 export const SECTION_VALUES = "Observed values";
 const SECTION_OPERATORS = "Operators";
 const SECTION_PATTERNS = "Patterns";
 const SECTION_PRESENCE = "Presence";
+/** @internal */
 export const SECTION_RECENT = "Recent searches";
+/** @internal */
 export const SECTION_MATCH_OPS = "Match operators";
+/** @internal */
 export const SECTION_COMPARE_OPS = "Comparisons";
 const SECTION_KEYS = "Observed keys";
 const SECTION_SCORE_NAMES = "Score names";
@@ -2262,6 +2268,7 @@ export function applyPick(
 }
 
 /** Flat option list in render order (keyboard navigation walks this). */
+/** @internal */
 export function flattenOptions(
   plan: CompletionPlan | null,
 ): CompletionOption[] {
