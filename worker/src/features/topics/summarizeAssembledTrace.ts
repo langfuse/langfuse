@@ -331,6 +331,7 @@ async function summarizeTraceFacets(params: {
   // The caller lists built-in facets first, so the cached prompt prefix stays stable.
   const keyed = keyTopicTraceFacets(facets);
   const errors = new Map<string, TopicsProviderUnavailable>();
+  const withoutSummary = new Set<string>();
   let generated:
     | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
     | undefined;
@@ -345,6 +346,18 @@ async function summarizeTraceFacets(params: {
       );
       const outputs = generated.output as Record<string, FacetOutput>;
       for (const { key } of keyed) {
+        // An applicable status without a description says nothing; keep it as insufficient input.
+        if (
+          outputs[key]?.status === "applicable" &&
+          !outputs[key].summary.trim()
+        ) {
+          outputs[key] = {
+            ...outputs[key],
+            status: "insufficient_input",
+            summary: "",
+          };
+          withoutSummary.add(key);
+        }
         const message = outputs[key]
           ? topicSummaryOutputError(outputs[key])
           : "The model response is missing a facet.";
@@ -377,7 +390,12 @@ async function summarizeTraceFacets(params: {
     const { key } = keyed[index];
     const error = errors.get(key);
     if (error) outcome(facet, "invalid_output", "rule");
-    else outcome(facet, outputs[key].status, "model");
+    else
+      outcome(
+        facet,
+        outputs[key].status,
+        withoutSummary.has(key) ? "rule" : "model",
+      );
     return error ? { error } : { output: outputs[key] };
   });
   const counts: Record<string, number> = {};

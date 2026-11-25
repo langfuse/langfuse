@@ -367,6 +367,44 @@ describe("summarizeAssembledTrace", () => {
     expect(state.embed).not.toHaveBeenCalled();
   });
 
+  it("stores an applicable result without a summary as insufficient input instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: { intent_1: { summary: " ", status: "applicable" } },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    const [written] = summaries;
+    expect(written).toMatchObject({ state: "insufficient_input", summary: "" });
+    expect(state.embed).not.toHaveBeenCalled();
+    // Counted as our rule's decision, so the rate stays visible.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "insufficient_input",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,
@@ -377,7 +415,7 @@ describe("summarizeAssembledTrace", () => {
     state.facets.mockReturnValue([facet, issues]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: { summary: "x".repeat(2001), status: "applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -565,7 +603,7 @@ describe("summarizeAssembledTrace", () => {
     ]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: { summary: "x".repeat(2001), status: "applicable" },
         tone_3: { summary: "", status: "not_applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
@@ -689,7 +727,7 @@ describe("summarizeAssembledTrace", () => {
 
   it("attributes invalid summary output to the failed summary stage", async () => {
     state.summarize.mockResolvedValue({
-      output: { intent_1: { summary: "  ", status: "applicable" } },
+      output: { intent_1: { summary: "x".repeat(2001), status: "applicable" } },
       ...usage,
     });
     await expect(

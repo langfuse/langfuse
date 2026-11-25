@@ -14,7 +14,8 @@ export function topicSummaryOutputError(output: {
 }): string | undefined {
   const summary = output.summary.trim();
   // Models sometimes add text to a non-applicable result; callers keep the status and drop the text.
-  if (output.status === "applicable" && (!summary || summary.length > 2000))
+  // An empty applicable summary is stored as insufficient input before this check.
+  if (output.status === "applicable" && summary.length > 2000)
     return "Applicable facet summary must contain a concise summary.";
 }
 
