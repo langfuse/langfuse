@@ -146,9 +146,13 @@ export function splitTurn({
       (message) => message.observationId === id && message.traceId === traceId,
     ),
   );
-  const firstGeneration = currentContributors.find(
-    ({ type }) => type === "GENERATION",
-  );
+  const firstGeneration =
+    currentContributors.find(({ type }) => type === "GENERATION") ??
+    contributors.find(
+      ({ type, traceId }) =>
+        type === "GENERATION" && traceId === currentTraceId,
+    ) ??
+    contributors.find(({ type }) => type === "GENERATION");
   return {
     conversationHistory: messages
       .slice(0, turnStart)
