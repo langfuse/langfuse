@@ -8,7 +8,11 @@ import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText, getTopicTextResponseMetadata } from "./text";
+import {
+  generateTopicText,
+  getTopicTextResponseMetadata,
+  TOPICS_REASONING_OUTPUT_TOKENS,
+} from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -660,7 +664,9 @@ describe("generateTopicText", () => {
         completionTokens ? 256 : undefined,
       );
       // Without a known reasoning setting, the model's own reasoning gets headroom.
-      expect(body.max_tokens).toBe(completionTokens ? undefined : 256 + 4_096);
+      expect(body.max_tokens).toBe(
+        completionTokens ? undefined : TOPICS_REASONING_OUTPUT_TOKENS,
+      );
       expect(body.reasoning_effort).toBe(reasoning);
       expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({

@@ -27,7 +27,8 @@ import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWri
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
-const REASONING_HEADROOM_TOKENS = 4_096;
+/** Output floor when Topics cannot turn reasoning off; common models cap output at or above it. */
+export const TOPICS_REASONING_OUTPUT_TOKENS = 4_096;
 
 // Error identity and lifetime are preserved, including for frozen SDK errors.
 const responseMetadataByError = new WeakMap<
@@ -65,8 +66,19 @@ const RAW_FINISH_REASONS = new Set([
  * use InvokeModel at the same regional endpoint and model ID.
  */
 export async function generateTopicText<T>(
-  params: TopicTextParams<T>,
+  requested: TopicTextParams<T>,
 ): Promise<TopicTextResult & TopicTextUsageDetails> {
+  // Reasoning we cannot turn off spends output tokens before the JSON starts.
+  const params =
+    topicReasoning(requested.model) === undefined
+      ? {
+          ...requested,
+          maxOutputTokens: Math.max(
+            requested.maxOutputTokens,
+            TOPICS_REASONING_OUTPUT_TOKENS,
+          ),
+        }
+      : requested;
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
   let responseMetadata: TopicTextResponseMetadata | undefined;
@@ -278,11 +290,6 @@ async function generateWithConnection<T>(
     const total = isOpenRouter ? openRouterCost(body) : undefined;
     return total === undefined ? {} : { total };
   };
-  const reasoning = topicReasoning(params.model);
-  // Reasoning we cannot turn off spends output tokens before the JSON starts.
-  const maxOutputTokens =
-    params.maxOutputTokens +
-    (reasoning === undefined ? REASONING_HEADROOM_TOKENS : 0);
   const result = await generateLLMText({
     model: { adapter: params.model.adapter, id: params.model.model },
     connection: params.model.connection,
@@ -294,8 +301,8 @@ async function generateWithConnection<T>(
     // caching can reuse it across traces.
     messages: topicMessages(params),
     output: Output.object({ schema: params.schema }),
-    maxOutputTokens,
-    reasoning,
+    maxOutputTokens: params.maxOutputTokens,
+    reasoning: topicReasoning(params.model),
     // Bedrock ignores portable reasoning for OpenAI models; their default effort
     // is not none.
     ...(isBedrockGPT(params.model)
@@ -325,7 +332,7 @@ async function generateWithConnection<T>(
           usage: topicUsage(finalStep.usage, finalStep.response.body),
           providedCostDetails: suppliedCosts(finalStep.response.body),
         },
-        responseAttributes(finalStep, text.length, maxOutputTokens),
+        responseAttributes(finalStep, text.length, params.maxOutputTokens),
       );
     },
   });

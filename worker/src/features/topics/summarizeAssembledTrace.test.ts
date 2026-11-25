@@ -38,6 +38,7 @@ vi.mock("./llm/models", () => ({
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 
 const transcript: Transcript = {
   threads: [
@@ -415,7 +416,10 @@ describe("summarizeAssembledTrace", () => {
     state.facets.mockReturnValue([facet, issues]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "x".repeat(2001), status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -603,7 +607,10 @@ describe("summarizeAssembledTrace", () => {
     ]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "x".repeat(2001), status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         tone_3: { summary: "", status: "not_applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
@@ -727,7 +734,12 @@ describe("summarizeAssembledTrace", () => {
 
   it("attributes invalid summary output to the failed summary stage", async () => {
     state.summarize.mockResolvedValue({
-      output: { intent_1: { summary: "x".repeat(2001), status: "applicable" } },
+      output: {
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
+      },
       ...usage,
     });
     await expect(

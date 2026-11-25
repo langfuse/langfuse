@@ -332,6 +332,7 @@ async function summarizeTraceFacets(params: {
   const keyed = keyTopicTraceFacets(facets);
   const errors = new Map<string, TopicsProviderUnavailable>();
   const withoutSummary = new Set<string>();
+  let outputs: Record<string, FacetOutput> = {};
   let generated:
     | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
     | undefined;
@@ -344,20 +345,21 @@ async function summarizeTraceFacets(params: {
         config,
         params.metadata,
       );
-      const outputs = generated.output as Record<string, FacetOutput>;
+      // An applicable status without a description says nothing; keep it as insufficient input.
+      outputs = Object.fromEntries(
+        Object.entries(generated.output as Record<string, FacetOutput>).map(
+          ([key, output]): [string, FacetOutput] => {
+            if (output.status !== "applicable" || output.summary.trim())
+              return [key, output];
+            withoutSummary.add(key);
+            return [
+              key,
+              { ...output, status: "insufficient_input", summary: "" },
+            ];
+          },
+        ),
+      );
       for (const { key } of keyed) {
-        // An applicable status without a description says nothing; keep it as insufficient input.
-        if (
-          outputs[key]?.status === "applicable" &&
-          !outputs[key].summary.trim()
-        ) {
-          outputs[key] = {
-            ...outputs[key],
-            status: "insufficient_input",
-            summary: "",
-          };
-          withoutSummary.add(key);
-        }
         const message = outputs[key]
           ? topicSummaryOutputError(outputs[key])
           : "The model response is missing a facet.";
@@ -385,7 +387,6 @@ async function summarizeTraceFacets(params: {
         throw error;
     });
   const result = generated!;
-  const outputs = result.output as Record<string, FacetOutput>;
   const results = facets.map((facet, index): TraceFacetResult => {
     const { key } = keyed[index];
     const error = errors.get(key);
