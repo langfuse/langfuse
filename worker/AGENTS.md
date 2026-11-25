@@ -21,7 +21,7 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-dispatch recording.
-- OTEL durable writes: the direct processors receive their writes as arguments (`src/features/otel-ingestion/otelWrites.ts`, `EvalWrites` in `scheduleEvals.ts`, `MediaWrites` in `resolveExtractedMedia.ts`). `processRustOtelEvents.ts` reaches storage, queues and the events table only through them; add a new write to those types instead of calling it directly.
+- OTEL durable writes: the direct processors receive their writes as arguments (`RustOtelWrites` in `otelWrites.ts`, `EvalWrites` in `scheduleEvals.ts`, `MediaWrites` in `resolveExtractedMedia.ts`). `processRustOtelEvents.ts` reaches storage, queues and the events table only through them; add a new write to those types instead of calling it directly.
 - Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
   `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
   observation and transcript rules. Create scheduler dependencies once per batch.
