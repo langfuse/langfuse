@@ -1,8 +1,8 @@
 /**
  * The v2 score views' query on the query AST ({@link buildScores}): its FROM,
  * joins and WHERE, read from the score registry entries. The
- * view-independent steps (dimension and metric mapping, outer clauses) stay
- * on {@link QueryBuilder}, which dispatches the score views here.
+ * view-independent steps (dimension and metric mapping, outer clauses) are in
+ * `viewQuerySteps.ts`; `QueryBuilder` dispatches the score views here.
  */
 import type { SelectQueryBuilder, Expression, SqlBool } from "kysely";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -55,7 +55,7 @@ import {
   validateAndProcessOrderBy,
   validateFilters,
   withRequiredDimensions,
-} from "./queryBuilder";
+} from "./viewQuerySteps";
 
 /**
  * A dashboard filter on a v2 score view: the lowering and condition, the
