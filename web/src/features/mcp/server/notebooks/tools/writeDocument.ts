@@ -4,7 +4,6 @@ import {
   MAX_NOTEBOOK_DOCUMENT_BYTES,
   notebookDocumentId,
   notebookDocumentLabel,
-  notebookDocumentWidth,
 } from "@/src/features/notebooks/schema";
 import { writeDocument } from "@/src/features/notebooks/server/notebookService";
 import { defineHaloOnlyTool } from "../../../core/define-halo-only-tool";
@@ -28,12 +27,7 @@ const writeDocumentSchema = z.object({
   label: notebookDocumentLabel
     .optional()
     .describe(
-      "Add a new document to Inbox, Tabs, or Table with this title. Omit documentId.",
-    ),
-  width: notebookDocumentWidth
-    .optional()
-    .describe(
-      "Document width. Contained limits the reading column; full uses the available reader width. Omit to keep the existing width or use contained for a new document.",
+      "Add a new document to Inbox or Tabs with this title. Omit documentId.",
     ),
   ...updateNotebookLayoutSchema.omit({ notebookId: true }).partial().shape,
   markdown: z
@@ -58,14 +52,14 @@ export const [writeDocumentTool, handleWriteDocument] = defineHaloOnlyTool({
   action: "notebooks:CUD",
   spanName: "mcp.notebooks.write_document",
   description:
-    "Stage a notebook document without publishing. Usually pass notebookId and markdown; this replaces main. Pass documentId to replace another document, or label to add one to Inbox, Tabs, or Table. Use blocks or jsonl instead of markdown for structured content. Pass documentId and width alone to change width. Prefer update_notebook_layout for layout changes.",
+    "Stage a notebook document without publishing. Usually pass notebookId and markdown; this replaces main. Pass documentId to replace another document, or label to add one to Inbox or Tabs. Use blocks or jsonl instead of markdown for structured content. Prefer update_notebook_layout for layout changes.",
   baseSchema: writeDocumentSchema,
   inputSchema: writeDocumentSchema.superRefine((input, ctx) => {
     const bodyCount = [input.markdown, input.blocks, input.jsonl].filter(
       (value) => value !== undefined,
     ).length;
     if (input.layout) {
-      if (bodyCount || input.documentId || input.label || input.width) {
+      if (bodyCount || input.documentId || input.label) {
         ctx.addIssue({
           code: "custom",
           message: "A layout update cannot also edit a document.",
@@ -73,15 +67,10 @@ export const [writeDocumentTool, handleWriteDocument] = defineHaloOnlyTool({
       }
       return;
     }
-    const widthOnly =
-      bodyCount === 0 &&
-      input.documentId !== undefined &&
-      input.width !== undefined;
-    if (bodyCount !== 1 && !widthOnly) {
+    if (bodyCount !== 1) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "Pass exactly one of markdown, blocks or jsonl, or set width for an existing document.",
+        message: "Pass exactly one of markdown, blocks or jsonl.",
       });
     }
     if (input.documentId !== undefined && input.label !== undefined) {

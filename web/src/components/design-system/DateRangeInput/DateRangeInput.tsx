@@ -30,6 +30,7 @@ type DateRangeInputProps<V extends string> = {
   onPresetChange: (value: V) => void;
   onCustomChange: (range: { from: Date; to: Date }) => void;
   id?: string;
+  "aria-label"?: string;
   "aria-describedby"?: string;
   disabled?: boolean;
 };
@@ -43,6 +44,7 @@ function DateRangeInput<V extends string>({
   onPresetChange,
   onCustomChange,
   id,
+  "aria-label": ariaLabel = "Date range",
   "aria-describedby": ariaDescribedBy,
   disabled,
 }: DateRangeInputProps<V>) {
@@ -128,7 +130,7 @@ function DateRangeInput<V extends string>({
         <Popover.Trigger
           id={id}
           disabled={disabled}
-          aria-label="Date range"
+          aria-label={ariaLabel}
           aria-describedby={ariaDescribedBy}
         >
           <span

@@ -30,6 +30,7 @@ export function normalizeBlock(
       props: { children: block.props.children.map(normalizeBlock) },
     };
   }
-  if (block.schema === "chart@1") return { ...block, id };
+  if (block.schema === "chart@1" || block.schema === "table@1")
+    return { ...block, id };
   return assertUnreachable(block);
 }

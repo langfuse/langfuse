@@ -1,8 +1,10 @@
 import { useRouter } from "next/router";
+import { useState } from "react";
 import { z } from "zod";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import Page from "@/src/components/layouts/Page";
 import {
@@ -86,7 +88,7 @@ function ConnectedNotebookReader({
   draftDocumentId,
   version,
 }: RouterInput["notebooks"]["view"]) {
-  const router = useRouter();
+  const [showControlledVariables, setShowControlledVariables] = useState(false);
   const { notebook, onDocumentChange, onVersionChange } = useNotebookReader({
     projectId,
     notebookId,
@@ -98,6 +100,22 @@ function ConnectedNotebookReader({
   const title = view?.title || "Notebook";
   const versionHistory = view && (
     <NotebookVersionHistory view={view} onVersionChange={onVersionChange} />
+  );
+  const headerActions = (
+    <>
+      {view?.layout.bindings?.some(({ kind }) => kind === "write") && (
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={showControlledVariables}
+            onCheckedChange={(checked) =>
+              setShowControlledVariables(checked === true)
+            }
+          />
+          Show element-controlled variables
+        </label>
+      )}
+      {versionHistory}
+    </>
   );
 
   const content = (() => {
@@ -131,16 +149,16 @@ function ConnectedNotebookReader({
     }
     return (
       <NotebookReader
+        key={`${notebookId}:${view.version ?? "draft"}`}
         view={view}
+        showControlledVariables={showControlledVariables}
         isLoadingDocument={notebook.isPlaceholderData}
-        tableDocumentOpen={
-          Boolean(documentId || draftDocumentId) &&
-          router.query.table !== "list"
-        }
         onDocumentChange={onDocumentChange}
-        renderChart={(block) => (
+        renderChart={(block, values, filters) => (
           <ConnectedNotebookChart
             block={block}
+            values={values}
+            filters={filters}
             projectId={projectId}
             notebookId={notebookId}
             documentId={view.documentId}
@@ -158,15 +176,15 @@ function ConnectedNotebookReader({
         headerProps={{
           title,
           titleLayout:
-            view?.layout.kind === "inbox" || view?.layout.kind === "table"
+            view?.layout.kind === "inbox" || view?.layout.width === "full"
               ? "full"
               : "reading",
           divider: view?.layout.kind !== "tabs",
           titleBadges: view?.isDraft ? (
             <Badge text="Draft" size="sm" />
           ) : undefined,
-          actionButtonsRight: versionHistory,
-          mobileActionButtons: versionHistory,
+          actionButtonsRight: view ? headerActions : undefined,
+          mobileActionButtons: view ? headerActions : undefined,
           breadcrumb: view
             ? [
                 {

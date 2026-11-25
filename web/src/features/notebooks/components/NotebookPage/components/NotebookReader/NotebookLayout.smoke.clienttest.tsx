@@ -3,9 +3,10 @@ import { useState, type ComponentProps } from "react";
 import {
   notebookLayoutSchema,
   storedNotebookBlockSchema,
+  storedNotebookLayoutSchema,
 } from "@/src/features/notebooks/schema";
 import { NotebookChart } from "../NotebookChart/NotebookChart";
-import { promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
+import { promptExperimentsTableLayout as promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
 import { supportDashboard } from "@/.storybook/fixtures/notebooks/supportDashboard";
 import { NotebookReader } from "./NotebookReader";
 
@@ -23,9 +24,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("opens a document in a peek while keeping the notebook table visible", () => {
+it("opens a legacy table notebook in Inbox and can switch documents", () => {
   const snapshot = promptExperiments.publications[0].documents;
-  const layout = notebookLayoutSchema.parse({
+  const layout = storedNotebookLayoutSchema.parse({
     kind: "table",
     documents: snapshot.map(({ id, title, properties }) => ({
       documentId: id,
@@ -45,9 +46,7 @@ it("opens a document in a peek while keeping the notebook table visible", () => 
           documents: snapshot.map(({ id }) => ({ id, url: null })),
           blocks: document.blocks,
           version: 1,
-          width: "contained",
         }}
-        tableDocumentOpen={selected !== null}
         isLoadingDocument={false}
         onDocumentChange={setSelected}
         renderChart={() => null}
@@ -55,34 +54,16 @@ it("opens a document in a peek while keeping the notebook table visible", () => 
     );
   }
   render(<Reader />);
-  expect(screen.getByText("Pass rate (%)")).toBeInTheDocument();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Sort by Pass rate (%)" }),
-  );
-  const row = screen.getByRole("row", { name: "Extra retrieval context" });
-  expect(screen.getAllByRole("row")[1]).toBe(row);
-  fireEvent.click(row);
-  const peek = screen.getByRole("dialog", { name: "Document preview" });
-  expect(
-    within(peek).getByRole("heading", { name: "Extra retrieval context" }),
-  ).toBeInTheDocument();
-  expect(row).toHaveAttribute("aria-selected", "true");
-  expect(screen.getByText("Pass rate (%)")).toBeInTheDocument();
-  const resizeHandle = within(peek).getByRole("separator", {
-    name: "Resize peek view",
+  expect(layout.kind).toBe("inbox");
+  const navigation = screen.getByRole("navigation", {
+    name: "Notebook documents",
   });
-  const initialWidth = Number(resizeHandle.getAttribute("aria-valuenow"));
-  fireEvent.keyDown(resizeHandle, { key: "ArrowRight" });
-  const resizedWidth = Number(resizeHandle.getAttribute("aria-valuenow"));
-  expect(resizedWidth).toBeLessThan(initialWidth);
-  fireEvent.click(within(peek).getByRole("button", { name: "Close" }));
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(row).toHaveAttribute("aria-selected", "false");
-  expect(screen.getAllByRole("row")[1]).toBe(row);
-  fireEvent.click(screen.getByRole("row", { name: "Baseline" }));
+  fireEvent.click(
+    within(navigation).getByRole("button", { name: /Extra retrieval context/ }),
+  );
   expect(
-    screen.getByRole("separator", { name: "Resize peek view" }),
-  ).toHaveAttribute("aria-valuenow", String(resizedWidth));
+    screen.getByRole("heading", { name: "Extra retrieval context" }),
+  ).toBeInTheDocument();
 });
 
 it("renders a scalar metric and distinguishes zero from missing data", () => {
@@ -150,7 +131,6 @@ it("shows only the configured inbox properties without a visibility menu", () =>
         })),
         blocks: [],
         version: null,
-        width: "contained",
       }}
       isLoadingDocument={false}
       onDocumentChange={onDocumentChange}
@@ -200,68 +180,71 @@ it("shows only the configured inbox properties without a visibility menu", () =>
   expect(onDocumentChange).not.toHaveBeenCalled();
 });
 
-it.each(["default", "inbox", "tabs"] as const)(
-  "uses %s document navigation",
-  (kind) => {
-    const onDocumentChange = vi.fn();
-    const documents = [
-      { id: "main", url: null },
-      { id: "detail", url: null },
-    ];
-    const layout: ComponentProps<typeof NotebookReader>["view"]["layout"] =
-      kind === "default"
-        ? { kind }
-        : {
-            kind,
-            documents: [
-              { documentId: "main", label: "Overview" },
-              { documentId: "detail", label: "Details" },
-            ],
-          };
-    function Reader() {
-      const [documentId, setDocumentId] = useState("main");
-      return (
-        <NotebookReader
-          view={{
-            layout,
-            documentId,
-            documents,
-            blocks: [],
-            version: null,
-            width: documentId === "main" ? "contained" : "full",
-          }}
-          isLoadingDocument={false}
-          onDocumentChange={(id, version) => {
-            onDocumentChange(id, version);
-            if (id !== null) setDocumentId(id);
-          }}
-          renderChart={() => null}
-        />
-      );
-    }
-
-    render(<Reader />);
-    const body = screen.getByText("This document is empty.");
-    expect(body.parentElement).toHaveClass("max-w-4xl", "px-4", "sm:px-6");
-    if (kind === "default") {
-      expect(screen.queryByText("Details")).not.toBeInTheDocument();
-      return;
-    }
-    const entry = screen.getByRole(kind === "tabs" ? "tab" : "button", {
-      name: "Details",
-    });
-    if (kind === "tabs") {
-      fireEvent.keyDown(entry, { key: "Enter" });
-    } else {
-      fireEvent.click(entry);
-    }
-    expect(onDocumentChange).toHaveBeenCalledWith("detail", null);
-    const fullBody = screen.getByText("This document is empty.");
-    expect(fullBody.parentElement).toHaveClass("max-w-none", "px-4", "sm:px-6");
-    expect(fullBody.parentElement).not.toHaveClass("max-w-4xl");
-    expect(entry).toHaveAttribute(
-      kind === "tabs" ? "aria-selected" : "aria-current",
-      "true",
+it.each([
+  { kind: "default", wide: false },
+  { kind: "default", wide: true },
+  { kind: "inbox", wide: true },
+  { kind: "tabs", wide: false },
+  { kind: "tabs", wide: true },
+] as const)("uses $kind navigation with wide=$wide", ({ kind, wide }) => {
+  const onDocumentChange = vi.fn();
+  const documents = [
+    { id: "main", url: null },
+    { id: "detail", url: null },
+  ];
+  const layout: ComponentProps<typeof NotebookReader>["view"]["layout"] =
+    kind === "default"
+      ? { kind, width: wide ? "full" : "contained" }
+      : {
+          kind,
+          ...(kind === "tabs" ? { width: wide ? "full" : "contained" } : {}),
+          documents: [
+            { documentId: "main", label: "Overview" },
+            { documentId: "detail", label: "Details" },
+          ],
+        };
+  function Reader() {
+    const [documentId, setDocumentId] = useState("main");
+    return (
+      <NotebookReader
+        view={{
+          layout,
+          documentId,
+          documents,
+          blocks: [],
+          version: null,
+        }}
+        isLoadingDocument={false}
+        onDocumentChange={(id, version) => {
+          onDocumentChange(id, version);
+          if (id !== null) setDocumentId(id);
+        }}
+        renderChart={() => null}
+      />
     );
-  },
-);
+  }
+
+  render(<Reader />);
+  const body = screen.getByText("This document is empty.");
+  expect(body.parentElement).toHaveClass("px-4");
+  expect(body.parentElement?.classList.contains("max-w-4xl")).toBe(!wide);
+  if (kind === "default") {
+    expect(screen.queryByText("Details")).not.toBeInTheDocument();
+    return;
+  }
+  const entry = screen.getByRole(kind === "tabs" ? "tab" : "button", {
+    name: "Details",
+  });
+  if (kind === "tabs") {
+    fireEvent.keyDown(entry, { key: "Enter" });
+  } else {
+    fireEvent.click(entry);
+  }
+  expect(onDocumentChange).toHaveBeenCalledWith("detail", null);
+  const activeBody = screen.getByText("This document is empty.");
+  expect(activeBody.parentElement?.classList.contains("max-w-4xl")).toBe(!wide);
+  expect(entry).toHaveAttribute(
+    kind === "tabs" ? "aria-selected" : "aria-current",
+    "true",
+  );
+});

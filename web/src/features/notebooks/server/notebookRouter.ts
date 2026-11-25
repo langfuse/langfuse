@@ -13,7 +13,12 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { validateQuery } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { z } from "zod";
-import { notebookDocumentId, notebookVersion } from "../schema";
+import {
+  notebookDocumentId,
+  notebookVariableValue,
+  notebookVersion,
+} from "../schema";
+import { matchesNotebookVariable, resolveNotebookPort } from "../ports";
 import { findNotebookBlock } from "./fns/findNotebookBlock";
 import { listNotebooks, readDocument } from "./notebookService";
 
@@ -79,6 +84,7 @@ export const notebookRouter = createTRPCRouter({
         staged: draftDocumentId !== undefined,
         preferStaged: !documentId && !version,
         respectLayout: true,
+        includeSelectionDomains: true,
       });
       const { jsonl: _jsonl, ...view } = document;
       return view;
@@ -86,7 +92,16 @@ export const notebookRouter = createTRPCRouter({
 
   chart: notebookDocument
     .input(
-      z.object({ blockId: notebookDocumentId, staged: z.boolean().optional() }),
+      z.object({
+        blockId: notebookDocumentId,
+        staged: z.boolean().optional(),
+        values: z
+          .strictObject({
+            filter: notebookVariableValue.optional(),
+            timeRange: notebookVariableValue.optional(),
+          })
+          .optional(),
+      }),
     )
     .query(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
@@ -111,6 +126,70 @@ export const notebookRouter = createTRPCRouter({
         org.projects.some(({ id }) => id === input.projectId),
       );
       const { config, schema: _schema, ...query } = block.props.query;
+      for (const binding of document.layout.bindings ?? []) {
+        if (
+          binding.kind !== "read" ||
+          binding.to.documentId !== document.documentId ||
+          binding.to.elementId !== block.id
+        )
+          continue;
+        const port = resolveNotebookPort(document.blocks, binding.to);
+        const variable = document.layout.variables?.find(
+          ({ id }) => id === binding.variableId,
+        );
+        const portId = binding.to.portId;
+        const value =
+          portId === "filter" || portId === "timeRange"
+            ? input.values?.[portId]
+            : undefined;
+        if (
+          !variable ||
+          port?.direction !== "input" ||
+          port.type !== variable.type ||
+          !matchesNotebookVariable(variable, value)
+        ) {
+          throw new InvalidRequestError(
+            "Chart requires a valid bound variable value.",
+          );
+        }
+        const source = document.layout.bindings?.find(
+          (candidate) =>
+            candidate.kind === "write" && candidate.variableId === variable.id,
+        );
+        if (source?.kind === "write") {
+          const sourceDocument =
+            source.from.documentId === document.documentId
+              ? document
+              : await readDocument({
+                  ...input,
+                  documentId: source.from.documentId,
+                  version: document.version ?? undefined,
+                  staged: document.isDraft,
+                  respectLayout: true,
+                });
+          const output = resolveNotebookPort(
+            sourceDocument.blocks,
+            source.from,
+          );
+          if (
+            output?.direction !== "output" ||
+            !output.choices.some((choice) => choice.value === value)
+          ) {
+            throw new InvalidRequestError("Selected value is unavailable.");
+          }
+        }
+        if (portId === "timeRange" && value && typeof value === "object") {
+          query.fromTimestamp = value.start;
+          query.toTimestamp = value.end;
+        }
+        if (portId === "filter" && typeof value === "string") {
+          query.filters = query.filters.map((filter, index) =>
+            index === block.props.bindFilter && filter.type === "string"
+              ? { ...filter, value }
+              : filter,
+          );
+        }
+      }
       const { effectiveFromTimestamp } = clampToDataAccessDays({
         plan: org?.plan ?? null,
         fromTimestamp: query.fromTimestamp,

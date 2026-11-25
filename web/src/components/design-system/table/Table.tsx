@@ -4,6 +4,7 @@ import {
   type ColumnDef,
   type ColumnOrderState,
   type OnChangeFn,
+  type RowSelectionState,
   type VisibilityState,
   flexRender,
   getCoreRowModel,
@@ -13,6 +14,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import DocPopup, { DocPopupTrigger } from "@/src/components/layouts/doc-popup";
@@ -47,6 +49,11 @@ export interface TableProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowLabel?: (row: TData) => string;
   selectedRowId?: string | null;
+  selection?: {
+    value: RowSelectionState;
+    onChange: OnChangeFn<RowSelectionState>;
+    getLabel: (row: TData) => string;
+  };
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -75,6 +82,7 @@ export function Table<TData extends object>({
   onRowClick,
   getRowLabel,
   selectedRowId,
+  selection,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -82,10 +90,32 @@ export function Table<TData extends object>({
   rowHeight,
   topBorder = true,
 }: TableProps<TData>) {
+  const getSelectionLabel = selection?.getLabel;
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
-    if (!actions) return columns;
+    const leadingColumns: ColumnDef<TData>[] = getSelectionLabel
+      ? [
+          {
+            id: "__selection",
+            header: "",
+            size: 44,
+            enableResizing: false,
+            enableHiding: false,
+            cell: ({ row }) => (
+              <Checkbox
+                aria-label={getSelectionLabel(row.original)}
+                checked={row.getIsSelected()}
+                onCheckedChange={(checked) =>
+                  row.toggleSelected(checked === true)
+                }
+              />
+            ),
+          },
+        ]
+      : [];
+    if (!actions) return [...leadingColumns, ...columns];
 
     return [
+      ...leadingColumns,
       ...columns,
       {
         id: "__actions",
@@ -153,7 +183,13 @@ export function Table<TData extends object>({
         ),
       },
     ];
-  }, [actions, actionsDisabledReason, actionsVisibility, columns]);
+  }, [
+    actions,
+    actionsDisabledReason,
+    actionsVisibility,
+    columns,
+    getSelectionLabel,
+  ]);
   const table = useReactTable({
     data: data.status === "success" ? data.data : NO_ROWS,
     columns: tableColumns,
@@ -161,7 +197,17 @@ export function Table<TData extends object>({
     getRowId: (row, index) =>
       "id" in row && typeof row.id === "string" ? row.id : String(index),
     columnResizeMode: "onChange",
-    state: { columnVisibility, columnOrder },
+    state: {
+      columnVisibility,
+      columnOrder:
+        selection && columnOrder
+          ? ["__selection", ...columnOrder.filter((id) => id !== "__selection")]
+          : columnOrder,
+      rowSelection: selection?.value ?? {},
+    },
+    enableRowSelection: Boolean(selection),
+    enableMultiRowSelection: false,
+    onRowSelectionChange: selection?.onChange,
     onColumnVisibilityChange,
     onColumnOrderChange,
   });

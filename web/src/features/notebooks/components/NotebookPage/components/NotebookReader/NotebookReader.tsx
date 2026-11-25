@@ -1,20 +1,23 @@
 import { Fragment, useState, type ComponentProps } from "react";
 import { ArrowUpDown, Check } from "@langfuse/icons";
-import { type CellContext } from "@tanstack/react-table";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-
+import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TableCard } from "@/src/components/TableCard/TableCard";
-import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { readingColumnClassName } from "@/src/components/layouts/reading-column";
-import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
-import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import {
   type NotebookPropertySchema,
   type NotebookPropertyValues,
+  type NotebookVariableValue,
 } from "@/src/features/notebooks/schema";
+import {
+  matchesNotebookVariable,
+  resolveNotebookPort,
+} from "@/src/features/notebooks/ports";
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { NotebookBlocks } from "./components/NotebookBlocks/NotebookBlocks";
@@ -81,26 +84,56 @@ export function NotebookReader({
   isLoadingDocument,
   onDocumentChange,
   renderChart,
-  tableDocumentOpen = false,
+  showControlledVariables = false,
 }: {
   view: Pick<
     RouterOutput["notebooks"]["view"],
-    "blocks" | "documentId" | "documents" | "layout" | "version" | "width"
+    | "blocks"
+    | "documentId"
+    | "documents"
+    | "layout"
+    | "selectionDomains"
+    | "version"
   >;
   isLoadingDocument: boolean;
   onDocumentChange: (documentId: string | null, version: number | null) => void;
   renderChart: ComponentProps<typeof NotebookBlocks>["renderChart"];
-  tableDocumentOpen?: boolean;
+  showControlledVariables?: boolean;
 }) {
-  const { blocks, documentId, documents, layout, version, width } = view;
+  const { blocks, documentId, documents, layout, version } = view;
+  const wide = layout.kind === "inbox" || layout.width === "full";
+  const [overrides, setOverrides] = useState<
+    ReadonlyMap<string, NotebookVariableValue | undefined>
+  >(new Map());
+  const variables = layout.variables ?? [];
+  const bindings = layout.bindings ?? [];
+  const writes = bindings.filter((binding) => binding.kind === "write");
+  const selectionDomains = new Map(
+    view.selectionDomains?.map(({ variableId, choices }) => [
+      variableId,
+      choices,
+    ]),
+  );
+  for (const { from, variableId } of writes) {
+    if (from.documentId !== documentId || selectionDomains.has(variableId))
+      continue;
+    const port = resolveNotebookPort(blocks, from);
+    if (port?.direction === "output")
+      selectionDomains.set(variableId, port.choices);
+  }
+  const valueOf = (variable: (typeof variables)[number]) =>
+    overrides.has(variable.id)
+      ? overrides.get(variable.id)
+      : variable.defaultValue;
+  const setValue = (id: string, value: NotebookVariableValue | undefined) =>
+    setOverrides((current) => new Map(current).set(id, value));
+  const labelOf = (value: NotebookVariableValue | undefined) =>
+    value === undefined
+      ? "Not set"
+      : typeof value === "object"
+        ? `${value.start} – ${value.end}`
+        : String(value);
   const [sort, setSort] = useState("");
-  const [peekExpanded, setPeekExpanded] = useState(false);
-  const peek = usePeekPanelState({
-    isOpen: layout.kind === "table" && tableDocumentOpen,
-    isExpanded: peekExpanded,
-    onExpandedChange: setPeekExpanded,
-    widthStorageKey: "notebook-peek-width",
-  });
   const metadata =
     layout.kind === "default"
       ? layout.document
@@ -114,6 +147,142 @@ export function NotebookReader({
       if (displayValue === undefined) return [];
       return [{ field, value: metadata?.properties?.[field.id] }];
     },
+  );
+  const visibleVariables = variables.filter(
+    ({ id }) =>
+      showControlledVariables ||
+      !writes.some(({ variableId }) => variableId === id),
+  );
+  const variablesToolbar = visibleVariables.length > 0 && (
+    <div
+      className="shrink-0 border-b"
+      role="group"
+      aria-label="Notebook variables"
+    >
+      <div
+        className={cn(
+          "flex min-h-9 flex-wrap items-center gap-x-4 gap-y-2 py-2 text-sm",
+          wide ? "px-4" : readingColumnClassName,
+        )}
+      >
+        {visibleVariables.map((variable) => {
+          const source = writes.find(
+            (binding) => binding.variableId === variable.id,
+          );
+          const value = valueOf(variable);
+          if (source) {
+            const choices = selectionDomains.get(variable.id);
+            const selected = choices?.find((choice) => choice.value === value);
+            let placeholder = "Select a value";
+            if (!choices) placeholder = "Choices unavailable";
+            else if (!choices.length) placeholder = "No choices available";
+            else if (!selected && value !== undefined)
+              placeholder = "Selection unavailable";
+            return (
+              <div
+                key={variable.id}
+                className="flex min-w-0 items-center gap-2"
+              >
+                <span>{variable.name}</span>
+                <SelectInput
+                  aria-label={variable.name}
+                  disabled={!choices?.length}
+                  options={choices ?? []}
+                  placeholder={placeholder}
+                  value={selected?.value ?? ""}
+                  onValueChange={(next) => {
+                    if (choices?.some(({ value }) => value === next))
+                      setValue(variable.id, next);
+                  }}
+                  noCapture
+                />
+              </div>
+            );
+          }
+          if (variable.type === "dateRange") {
+            return (
+              <div key={variable.id} className="max-w-full min-w-0">
+                <DateRangeInput
+                  aria-label={variable.name}
+                  value="custom"
+                  customValue="custom"
+                  presets={[]}
+                  onPresetChange={() => {}}
+                  range={
+                    typeof value === "object"
+                      ? { from: new Date(value.start), to: new Date(value.end) }
+                      : undefined
+                  }
+                  onCustomChange={({ from, to }) =>
+                    setValue(variable.id, {
+                      start: from.toISOString(),
+                      end: to.toISOString(),
+                    })
+                  }
+                />
+              </div>
+            );
+          }
+          if (variable.type === "boolean") {
+            return (
+              <div key={variable.id} className="flex items-center gap-2">
+                <span>{variable.name}</span>
+                <SelectInput
+                  aria-label={variable.name}
+                  placeholder="Not set"
+                  value={
+                    value === undefined
+                      ? "unset"
+                      : value === true
+                        ? "true"
+                        : "false"
+                  }
+                  options={[
+                    { value: "unset", label: "Not set" },
+                    { value: "true", label: "True" },
+                    { value: "false", label: "False" },
+                  ]}
+                  onValueChange={(selected) =>
+                    setValue(
+                      variable.id,
+                      selected === "unset" ? undefined : selected === "true",
+                    )
+                  }
+                />
+              </div>
+            );
+          }
+          return (
+            <div key={variable.id} className="w-48 max-w-full">
+              <Input
+                aria-label={variable.name}
+                prefix={{ label: variable.name }}
+                placeholder="Not set"
+                type={variable.type === "number" ? "number" : "text"}
+                step={variable.type === "number" ? "any" : undefined}
+                maxLength={2048}
+                value={
+                  typeof value === "number" || typeof value === "string"
+                    ? value
+                    : ""
+                }
+                onChange={(event) => {
+                  const text = event.target.value;
+                  setValue(
+                    variable.id,
+                    text === ""
+                      ? undefined
+                      : variable.type === "number"
+                        ? event.target.valueAsNumber
+                        : text,
+                  );
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
   const documentContent = (() => {
     if (isLoadingDocument) {
@@ -132,17 +301,122 @@ export function NotebookReader({
         <p className="text-muted-foreground text-sm">This document is empty.</p>
       );
     }
-    return <NotebookBlocks blocks={blocks} renderChart={renderChart} />;
+    return (
+      <NotebookBlocks
+        blocks={blocks}
+        renderTable={(table) => {
+          const variableIds = new Set(
+            writes
+              .filter(
+                ({ from }) =>
+                  from.documentId === documentId &&
+                  from.elementId === table.id &&
+                  from.portId === "selection",
+              )
+              .map(({ variableId }) => variableId),
+          );
+          const targets = variables.filter(
+            ({ id, type }) => variableIds.has(id) && type === "string",
+          );
+          const selectedRow = table.props.rows.find(({ id }) =>
+            targets.some((variable) => valueOf(variable) === id),
+          );
+          return (
+            <div data-notebook-table className="min-w-0">
+              <TableCard<(typeof table.props.rows)[number]>
+                tableName="notebook-inline-table"
+                data={{ status: "success", data: table.props.rows }}
+                selection={
+                  targets.length > 0
+                    ? {
+                        value: selectedRow ? { [selectedRow.id]: true } : {},
+                        getLabel: ({ id, cells }) => String(cells[0] ?? id),
+                        onChange: (update) =>
+                          setOverrides((current) => {
+                            const currentRow = table.props.rows.find(({ id }) =>
+                              targets.some(
+                                (variable) =>
+                                  (current.has(variable.id)
+                                    ? current.get(variable.id)
+                                    : variable.defaultValue) === id,
+                              ),
+                            );
+                            const selection =
+                              typeof update === "function"
+                                ? update(
+                                    currentRow ? { [currentRow.id]: true } : {},
+                                  )
+                                : update;
+                            const next = table.props.rows.find(
+                              ({ id }) => selection[id] === true,
+                            );
+                            const overrides = new Map(current);
+                            for (const { id } of targets)
+                              overrides.set(id, next?.id);
+                            return overrides;
+                          }),
+                      }
+                    : undefined
+                }
+                columns={table.props.columns.map((header, index) => ({
+                  id: `column-${index}`,
+                  accessorKey: `column-${index}`,
+                  header,
+                  accessorFn: (row) => row.cells[index],
+                }))}
+              />
+            </div>
+          );
+        }}
+        renderChart={(block) => {
+          const values: NonNullable<Parameters<typeof renderChart>[1]> = {};
+          const labels: string[] = [];
+          for (const binding of bindings) {
+            if (
+              binding.kind !== "read" ||
+              binding.to.documentId !== documentId ||
+              binding.to.elementId !== block.id
+            )
+              continue;
+            const portId = binding.to.portId;
+            const variable = variables.find(
+              ({ id }) => id === binding.variableId,
+            );
+            const value = variable && valueOf(variable);
+            const source = writes.find(
+              ({ variableId }) => variableId === binding.variableId,
+            );
+            const choice = selectionDomains
+              .get(binding.variableId)
+              ?.find((candidate) => candidate.value === value);
+            if (
+              !variable ||
+              !matchesNotebookVariable(variable, value) ||
+              (source && !choice)
+            ) {
+              return (
+                <div className="rounded-md border p-4 text-sm">
+                  <strong>{block.props.title ?? "Chart"}</strong>
+                  <p>
+                    {value === undefined
+                      ? `Select ${variable?.name ?? "a value"} to view this chart.`
+                      : `${variable?.name ?? "Value"} is unavailable.`}
+                  </p>
+                </div>
+              );
+            }
+            if (portId === "filter" || portId === "timeRange")
+              values[portId] = value;
+            labels.push(`${variable.name}: ${choice?.label ?? labelOf(value)}`);
+          }
+          return renderChart(block, labels.length ? values : undefined, labels);
+        }}
+      />
+    );
   })();
   const documentPanel = (
     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-      <div
-        className={cn(
-          readingColumnClassName,
-          "py-6",
-          { contained: null, full: "max-w-none" }[width],
-        )}
-      >
+      <div className={cn(wide ? "px-4" : readingColumnClassName, "py-6")}>
         {!isLoadingDocument &&
           (metadata?.title || headerProperties.length > 0) && (
             <header className="mb-6 space-y-3">
@@ -201,8 +475,8 @@ export function NotebookReader({
           <div className="shrink-0 border-b">
             <div
               className={cn(
-                readingColumnClassName,
-                "flex items-center pt-1 pb-2 sm:h-9 sm:px-2 sm:py-0",
+                wide ? "px-4" : readingColumnClassName,
+                "flex items-center pt-1 pb-2 sm:h-9 sm:py-0",
               )}
             >
               <Tabs.List
@@ -231,22 +505,11 @@ export function NotebookReader({
     );
     const propertySchema = layout.propertySchema;
     const visibleFields =
-      propertySchema?.fields.filter(
-        ({ id }) =>
-          layout.kind === "table" ||
-          propertySchema.visibleByDefault?.includes(id),
+      propertySchema?.fields.filter(({ id }) =>
+        propertySchema.visibleByDefault?.includes(id),
       ) ?? [];
     const [direction, fieldId] = sort.split(":");
     const sortField = visibleFields.find(({ id }) => id === fieldId);
-    const sortByTitle = layout.kind === "table" && fieldId === "__title";
-    if (sortByTitle) {
-      entries.sort((a, b) => {
-        const order = (a.title ?? a.label ?? a.documentId).localeCompare(
-          b.title ?? b.label ?? b.documentId,
-        );
-        return direction === "desc" ? -order : order;
-      });
-    }
     if (sortField) {
       const options =
         "options" in sortField
@@ -293,92 +556,6 @@ export function NotebookReader({
         }
         return direction === "desc" ? -order : order;
       });
-    }
-    if (layout.kind === "table") {
-      const rows = entries.map((entry) => ({ ...entry, id: entry.documentId }));
-      type Entry = (typeof rows)[number];
-      return (
-        <>
-          <div className="min-h-0 min-w-0 overflow-auto p-4">
-            <TableCard
-              tableName="notebook-documents"
-              columns={[
-                createTextTableColumn<Entry>({
-                  id: "__title",
-                  accessorFn: (entry) =>
-                    entry.title ?? entry.label ?? entry.documentId,
-                  header: "Document",
-                  size: 280,
-                  enableSorting: true,
-                }),
-                ...visibleFields.map((field) => ({
-                  ...createTextTableColumn<Entry>({
-                    id: field.id,
-                    accessorFn: (entry) =>
-                      formatProperty(entry.properties?.[field.id], field.type),
-                    header: field.label,
-                    enableSorting: true,
-                  }),
-                  ...("options" in field && {
-                    cell: ({ row }: CellContext<Entry, unknown>) =>
-                      renderProperty(
-                        field,
-                        row.original.properties?.[field.id],
-                      ),
-                  }),
-                })),
-              ]}
-              data={{ status: "success", data: rows }}
-              orderBy={
-                sortByTitle || sortField
-                  ? {
-                      column: fieldId,
-                      order: direction === "desc" ? "DESC" : "ASC",
-                    }
-                  : null
-              }
-              setOrderBy={(order) =>
-                setSort(
-                  order ? `${order.order.toLowerCase()}:${order.column}` : "",
-                )
-              }
-              onRowClick={(entry) =>
-                onDocumentChange(entry.documentId, version)
-              }
-              getRowLabel={(entry) =>
-                entry.title ?? entry.label ?? entry.documentId
-              }
-              selectedRowId={tableDocumentOpen ? documentId : null}
-            />
-          </div>
-          <Sheet
-            modal={false}
-            open={tableDocumentOpen}
-            onOpenChange={(open) => {
-              if (!open) onDocumentChange(null, version);
-            }}
-          >
-            <SheetContent
-              aria-describedby={undefined}
-              style={peek.panelStyle}
-              className={cn(
-                "flex max-w-none flex-col gap-0 p-0 max-sm:w-full! sm:max-w-none",
-                peek.isResizing && "select-none",
-              )}
-              onInteractOutside={(event) => event.preventDefault()}
-            >
-              <SheetTitle className="shrink-0 border-b px-4 py-3 pr-12 text-sm">
-                Document preview
-              </SheetTitle>
-              {documentPanel}
-              <div
-                {...peek.resizeHandleProps}
-                className="hover:bg-muted-foreground/30 focus-visible:bg-muted-foreground/40 absolute inset-y-0 -left-1 z-20 hidden w-3 cursor-ew-resize touch-none sm:block"
-              />
-            </SheetContent>
-          </Sheet>
-        </>
-      );
     }
     return (
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -495,5 +672,10 @@ export function NotebookReader({
     );
   })();
 
-  return <div className="flex min-h-0 flex-1 flex-col">{notebookContent}</div>;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {variablesToolbar}
+      {notebookContent}
+    </div>
+  );
 }

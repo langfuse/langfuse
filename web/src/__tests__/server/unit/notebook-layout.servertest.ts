@@ -1,8 +1,83 @@
 import { notebookLayoutSchema } from "@/src/features/notebooks/schema";
 import { collectNotebookValidationErrors } from "@/src/features/notebooks/server/fns/collectNotebookValidationErrors";
 import { encodeDocument } from "@/src/features/notebooks/server/fns/encodeDocument";
+import { promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
 
 describe("notebook layouts", () => {
+  it("validates the single-document prompt experiments notebook", () => {
+    const { layout, publications, variables, bindings } = promptExperiments;
+    const documents = publications[0].documents.map(({ id, blocks }) => ({
+      documentId: id,
+      jsonl: blocks.map((block) => JSON.stringify(block)).join("\n"),
+    }));
+    expect(
+      collectNotebookValidationErrors(
+        documents,
+        notebookLayoutSchema.parse({ kind: layout, variables, bindings }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("validates selection bindings without checking live membership", () => {
+    const table = {
+      id: "runs",
+      schema: "table@1",
+      props: { columns: ["Run"], rows: [{ id: "one", cells: ["Run one"] }] },
+    };
+    const snapshot = [{ documentId: "main", jsonl: JSON.stringify(table) }];
+    const write = {
+      kind: "write" as const,
+      variableId: "run",
+      from: { documentId: "main", elementId: "runs", portId: "selection" },
+    };
+    const layout = notebookLayoutSchema.parse({
+      kind: "default",
+      variables: [
+        { id: "run", name: "Run", type: "string", defaultValue: "unavailable" },
+      ],
+      bindings: [write],
+    });
+    expect(collectNotebookValidationErrors(snapshot, layout)).toEqual([]);
+    expect(
+      collectNotebookValidationErrors(snapshot, {
+        ...layout,
+        bindings: [write, write],
+      }),
+    ).toMatchObject([
+      { message: expect.stringContaining("already has a selection source") },
+    ]);
+    expect(
+      collectNotebookValidationErrors(snapshot, {
+        ...layout,
+        bindings: [{ kind: "read", variableId: "run", to: write.from }],
+      }),
+    ).toMatchObject([
+      {
+        documentId: "main",
+        message: expect.stringContaining("Invalid read binding"),
+      },
+    ]);
+  });
+
+  it("rejects date range defaults with reversed endpoints", () => {
+    expect(
+      notebookLayoutSchema.safeParse({
+        kind: "default",
+        variables: [
+          {
+            id: "range",
+            name: "Range",
+            type: "dateRange",
+            defaultValue: {
+              start: "2026-01-02T00:00:00Z",
+              end: "2026-01-01T00:00:00Z",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   const main = { documentId: "main", label: "Overview" };
   const detail = { documentId: "detail", label: "Investigation" };
   const documents = [
@@ -16,7 +91,7 @@ describe("notebook layouts", () => {
     ).toMatchObject([{ documentId: "detail" }]);
   });
 
-  it.each(["inbox", "tabs", "table"] as const)(
+  it.each(["inbox", "tabs"] as const)(
     "validates %s references against the snapshot",
     (kind) => {
       expect(
@@ -35,6 +110,17 @@ describe("notebook layouts", () => {
   );
 
   it("rejects duplicate references and custom layouts", () => {
+    expect(
+      notebookLayoutSchema.safeParse({ kind: "table", documents: [main] })
+        .success,
+    ).toBe(false);
+    expect(
+      notebookLayoutSchema.safeParse({
+        kind: "inbox",
+        width: "full",
+        documents: [main],
+      }).success,
+    ).toBe(false);
     expect(
       notebookLayoutSchema.safeParse({ kind: "tabs", documents: [main, main] })
         .success,

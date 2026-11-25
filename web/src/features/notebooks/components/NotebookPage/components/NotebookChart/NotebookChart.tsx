@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   type Visualization,
   VisualizationFrame,
@@ -15,9 +16,11 @@ type ChartState =
 export function NotebookChart({
   block,
   state,
+  filters,
 }: {
   block: Extract<NotebookBlock, { schema: "chart@1" }>;
   state: ChartState;
+  filters?: readonly string[];
 }) {
   const { title, query, display } = block.props;
   const isBigNumber = display.kind === "big-number";
@@ -87,11 +90,23 @@ export function NotebookChart({
   })();
 
   return (
-    <figure className="bg-background flex min-w-0 flex-1 flex-col gap-3 rounded-lg border p-4">
-      <figcaption className="text-sm font-medium wrap-break-word">
-        {title || "Chart"}
+    <figure className="bg-background flex min-w-0 flex-1 flex-col gap-3 rounded-lg border">
+      <figcaption>
+        {!!filters?.length && (
+          <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-t-lg border-b px-4 py-2">
+            <span className="text-muted-foreground text-xs font-medium">
+              Chart filters
+            </span>
+            {filters.map((filter, index) => (
+              <Badge key={index} text={filter} size="sm" />
+            ))}
+          </div>
+        )}
+        <div className="px-4 pt-4 text-sm font-medium wrap-break-word">
+          {title || "Chart"}
+        </div>
       </figcaption>
-      {content}
+      <div className="min-w-0 px-4 pb-4">{content}</div>
     </figure>
   );
 }

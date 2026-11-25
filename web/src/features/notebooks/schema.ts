@@ -11,7 +11,7 @@ export const notebookDocumentId = z
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/);
 export const notebookVersion = z.number().int().min(1).max(2_147_483_647);
 
-export const notebookLayoutKind = z.enum(["default", "inbox", "tabs", "table"]);
+export const notebookLayoutKind = z.enum(["default", "inbox", "tabs"]);
 export const notebookDocumentWidth = z.enum(["contained", "full"]);
 export type NotebookDocumentWidth = z.infer<typeof notebookDocumentWidth>;
 
@@ -21,6 +21,69 @@ export const notebookDocumentLabel = z
   .min(1)
   .max(120)
   .refine((value) => !value.includes("\0"), "NUL characters are not allowed.");
+
+const dateRange = z
+  .strictObject({
+    start: z.iso.datetime({ offset: true }),
+    end: z.iso.datetime({ offset: true }),
+  })
+  .refine(
+    ({ start, end }) => Date.parse(start) < Date.parse(end),
+    "Start must precede end.",
+  );
+
+const variableBase = z.strictObject({
+  id: notebookDocumentId,
+  name: notebookDocumentLabel,
+});
+const variable = z.discriminatedUnion("type", [
+  variableBase.extend({
+    type: z.literal("string"),
+    defaultValue: z.string().max(2048).optional(),
+  }),
+  variableBase.extend({
+    type: z.literal("number"),
+    defaultValue: z.number().optional(),
+  }),
+  variableBase.extend({
+    type: z.literal("boolean"),
+    defaultValue: z.boolean().optional(),
+  }),
+  variableBase.extend({
+    type: z.literal("dateRange"),
+    defaultValue: dateRange.optional(),
+  }),
+]);
+export type NotebookVariable = z.infer<typeof variable>;
+export const notebookVariableValue = z.union([
+  z.string().max(2048),
+  z.number(),
+  z.boolean(),
+  dateRange,
+]);
+export type NotebookVariableValue = z.infer<typeof notebookVariableValue>;
+
+const portRef = z.strictObject({
+  documentId: notebookDocumentId,
+  elementId: notebookDocumentId,
+  portId: notebookDocumentId,
+});
+const binding = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("read"),
+    variableId: notebookDocumentId,
+    to: portRef,
+  }),
+  z.strictObject({
+    kind: z.literal("write"),
+    variableId: notebookDocumentId,
+    from: portRef,
+  }),
+]);
+const notebookWiringShape = {
+  variables: z.array(variable).max(100).optional(),
+  bindings: z.array(binding).max(500).optional(),
+};
 const propertyDefinition = z.discriminatedUnion("type", [
   z.strictObject({
     id: notebookDocumentId,
@@ -96,21 +159,21 @@ export const notebookLayoutSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({
       kind: z.literal("default"),
+      width: notebookDocumentWidth.optional(),
+      ...notebookWiringShape,
       document: documentMetadata.optional(),
       propertySchema: notebookPropertySchema.optional(),
     }),
     z.strictObject({
       kind: z.literal("inbox"),
+      ...notebookWiringShape,
       documents: layoutDocuments,
       propertySchema: notebookPropertySchema.optional(),
     }),
     z.strictObject({
       kind: z.literal("tabs"),
-      documents: layoutDocuments,
-      propertySchema: notebookPropertySchema.optional(),
-    }),
-    z.strictObject({
-      kind: z.literal("table"),
+      width: notebookDocumentWidth.optional(),
+      ...notebookWiringShape,
       documents: layoutDocuments,
       propertySchema: notebookPropertySchema.optional(),
     }),
@@ -166,6 +229,18 @@ export const notebookLayoutSchema = z
     }
   });
 export type NotebookLayout = z.infer<typeof notebookLayoutSchema>;
+
+export const storedNotebookLayoutSchema = z.preprocess((layout) => {
+  if (
+    typeof layout === "object" &&
+    layout !== null &&
+    "kind" in layout &&
+    layout.kind === "table"
+  ) {
+    return { ...layout, kind: "inbox" };
+  }
+  return layout;
+}, notebookLayoutSchema);
 
 const linkAttrs = z.strictObject({
   href: z.string(),
@@ -301,6 +376,7 @@ const storedChartBlock = z.strictObject({
   props: z
     .strictObject({
       title: z.string().max(250).optional(),
+      bindFilter: z.number().int().nonnegative().optional(),
       query: MetricsQueryObjectV2.safeExtend({
         schema: z.literal("metrics@2"),
       }).strict(),
@@ -344,6 +420,32 @@ const inputChartBlock = storedChartBlock.extend({
   id: notebookDocumentId.optional(),
 });
 
+const storedTableBlock = z.strictObject({
+  id: notebookDocumentId,
+  schema: z.literal("table@1"),
+  props: z
+    .strictObject({
+      columns: z.array(notebookDocumentLabel).min(1).max(20),
+      rows: z
+        .array(
+          z.strictObject({
+            id: notebookDocumentId,
+            cells: z.array(z.union([z.string().max(2048), z.number()])).max(20),
+          }),
+        )
+        .max(500),
+    })
+    .refine(
+      ({ columns, rows }) =>
+        new Set(rows.map(({ id }) => id)).size === rows.length &&
+        rows.every(({ cells }) => cells.length === columns.length),
+      "Table rows must have unique IDs and match the column count.",
+    ),
+});
+const inputTableBlock = storedTableBlock.extend({
+  id: notebookDocumentId.optional(),
+});
+
 const rowBlock = z.strictObject({
   id: notebookDocumentId,
   schema: z.literal("row@1"),
@@ -351,11 +453,15 @@ const rowBlock = z.strictObject({
 const inputRowBlock = rowBlock.extend({ id: notebookDocumentId.optional() });
 
 export type NotebookBlock =
-  | z.infer<typeof storedTextBlock | typeof storedChartBlock>
+  | z.infer<
+      typeof storedTextBlock | typeof storedChartBlock | typeof storedTableBlock
+    >
   | (z.infer<typeof rowBlock> & { props: { children: NotebookBlock[] } });
 
 type NotebookInputBlock =
-  | z.infer<typeof inputTextBlock | typeof inputChartBlock>
+  | z.infer<
+      typeof inputTextBlock | typeof inputChartBlock | typeof inputTableBlock
+    >
   | (z.infer<typeof inputRowBlock> & {
       props: { children: NotebookInputBlock[] };
     });
@@ -364,6 +470,7 @@ export const storedNotebookBlockSchema: z.ZodType<NotebookBlock> =
   z.discriminatedUnion("schema", [
     storedTextBlock,
     storedChartBlock,
+    storedTableBlock,
     rowBlock.extend({
       props: z.strictObject({
         get children(): z.ZodType<NotebookBlock[]> {
@@ -377,6 +484,7 @@ export const notebookInputBlockSchema: z.ZodType<NotebookInputBlock> =
   z.discriminatedUnion("schema", [
     inputTextBlock,
     inputChartBlock,
+    inputTableBlock,
     inputRowBlock.extend({
       props: z.strictObject({
         get children(): z.ZodType<NotebookInputBlock[]> {

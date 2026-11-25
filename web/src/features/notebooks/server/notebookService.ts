@@ -7,6 +7,8 @@ import {
 } from "@langfuse/shared";
 import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
+import { ZodError } from "zod";
+import { resolveNotebookPort } from "../ports";
 import {
   MAIN_NOTEBOOK_DOCUMENT,
   MAX_NOTEBOOK_DOCUMENTS,
@@ -14,6 +16,7 @@ import {
   notebookDocumentWidth,
   notebookLayoutKind,
   notebookLayoutSchema,
+  storedNotebookLayoutSchema,
   type NotebookDocumentWidth,
   type NotebookLayout,
 } from "../schema";
@@ -85,7 +88,7 @@ async function readNotebookLayout(db: Db, notebookId: string, number: number) {
     select: { layout: true },
   });
   if (!snapshot) throw new LangfuseNotFoundError("Notebook version not found.");
-  return notebookLayoutSchema.parse(snapshot.layout);
+  return storedNotebookLayoutSchema.parse(snapshot.layout);
 }
 
 async function isNotebookDirty(
@@ -281,7 +284,7 @@ async function findCandidate(
     throw new LangfuseNotFoundError("Document not found.");
   return {
     documents: candidate.documents,
-    layout: notebookLayoutSchema.parse(candidate.layout),
+    layout: storedNotebookLayoutSchema.parse(candidate.layout),
   };
 }
 
@@ -429,6 +432,7 @@ type ReadTarget = NotebookKey & {
   staged?: boolean;
   preferStaged?: boolean;
   respectLayout?: boolean;
+  includeSelectionDomains?: boolean;
 };
 
 export async function readDocument(input: ReadTarget) {
@@ -493,6 +497,59 @@ export async function readDocument(input: ReadTarget) {
       select: { number: true, publishedAt: true },
       orderBy: { number: "desc" },
     });
+    const blocks = parseDocument(document.jsonl);
+    const selectionDomains: {
+      variableId: string;
+      choices: { value: string; label: string }[];
+    }[] = [];
+    if (input.includeSelectionDomains) {
+      const writes = (layout.bindings ?? [])
+        .filter((binding) => binding.kind === "write")
+        .filter(({ from }) => layoutDocumentIds.has(from.documentId));
+      const sourceIds = [
+        ...new Set(
+          writes.flatMap(({ from }) =>
+            from.documentId === documentId ? [] : [from.documentId],
+          ),
+        ),
+      ];
+      const blocksByDocument = new Map([[documentId, blocks]]);
+      if (sourceIds.length > 0) {
+        const sources = await tx.notebookVersionDocument.findMany({
+          where: {
+            notebookId: notebook.id,
+            version,
+            documentId: { in: sourceIds },
+          },
+          select: { documentId: true, jsonl: true },
+        });
+        for (const source of sources) {
+          try {
+            blocksByDocument.set(
+              source.documentId,
+              parseDocument(source.jsonl),
+            );
+          } catch (error) {
+            if (
+              !(
+                error instanceof InvalidRequestError ||
+                error instanceof ZodError
+              )
+            )
+              throw error;
+          }
+        }
+      }
+      for (const { from, variableId } of writes) {
+        const port = resolveNotebookPort(
+          blocksByDocument.get(from.documentId) ?? [],
+          from,
+        );
+        if (port?.direction === "output") {
+          selectionDomains.push({ variableId, choices: port.choices });
+        }
+      }
+    }
     return {
       projectId: notebook.projectId,
       notebookId: notebook.id,
@@ -512,7 +569,8 @@ export async function readDocument(input: ReadTarget) {
       versions: versions.flatMap(({ number, publishedAt }) =>
         publishedAt ? [{ number, publishedAt }] : [],
       ),
-      blocks: parseDocument(document.jsonl),
+      blocks,
+      ...(input.includeSelectionDomains ? { selectionDomains } : {}),
       jsonl: document.jsonl,
     };
   };
@@ -584,7 +642,7 @@ async function saveEdit(
     if (command.kind === "add") {
       if (layout.kind === "default") {
         throw new InvalidRequestError(
-          "Only Inbox, Tabs, and Table layouts can add documents.",
+          "Only Inbox and Tabs layouts can add documents.",
         );
       }
       const count = await tx.notebookVersionDocument.count({

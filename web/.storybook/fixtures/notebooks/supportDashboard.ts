@@ -161,6 +161,7 @@ export const supportDashboard = {
   id: "northstar-support-dashboard",
   title: "Support assistant dashboard",
   layout: "tabs",
+  width: "full",
   propertySchema: {
     version: 1,
     fields: [
@@ -177,7 +178,6 @@ export const supportDashboard = {
       documents: [
         {
           id: "main",
-          width: "full",
           title: "Weekly production review",
           properties: {
             reportingPeriod: "16–22 Nov 2026",
@@ -216,7 +216,6 @@ export const supportDashboard = {
         },
         {
           id: "quality",
-          width: "full",
           title: "Answer quality and audit findings",
           blocks: [
             text(
@@ -244,7 +243,6 @@ export const supportDashboard = {
         },
         {
           id: "latency-cost",
-          width: "full",
           title: "Latency and generation spend",
           blocks: [
             text(

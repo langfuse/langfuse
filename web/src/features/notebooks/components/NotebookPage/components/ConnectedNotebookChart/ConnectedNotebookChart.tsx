@@ -6,14 +6,16 @@ import { NotebookChart } from "../NotebookChart/NotebookChart";
 
 export function ConnectedNotebookChart({
   block,
+  values,
+  filters,
   ...snapshot
 }: Pick<
   RouterInput["notebooks"]["chart"],
-  "projectId" | "notebookId" | "documentId" | "version" | "staged"
+  "projectId" | "notebookId" | "documentId" | "version" | "staged" | "values"
 > &
-  Pick<ComponentProps<typeof NotebookChart>, "block">) {
+  Pick<ComponentProps<typeof NotebookChart>, "block" | "filters">) {
   const chart = api.notebooks.chart.useQuery(
-    { ...snapshot, blockId: block.id },
+    { ...snapshot, blockId: block.id, values },
     { refetchOnMount: "always", meta: { silentAllErrors: true } },
   );
 
@@ -23,5 +25,5 @@ export function ConnectedNotebookChart({
     return { type: "loading" };
   })();
 
-  return <NotebookChart block={block} state={state} />;
+  return <NotebookChart block={block} state={state} filters={filters} />;
 }

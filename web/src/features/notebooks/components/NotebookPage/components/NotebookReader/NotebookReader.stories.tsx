@@ -1,10 +1,11 @@
 import { type ComponentProps } from "react";
 import { buildNotebookPath } from "@langfuse/shared";
 import { useArgs } from "storybook/preview-api";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { readingColumnClassName } from "@/src/components/layouts/reading-column";
 import { notebookLayoutSchema } from "@/src/features/notebooks/schema";
 import { cn } from "@/src/utils/tailwind";
@@ -57,6 +58,9 @@ function fixtureView(
       fixture.layout === "default"
         ? {
             kind: "default",
+            width: fixture.width,
+            variables: fixture.variables,
+            bindings: fixture.bindings,
             propertySchema: fixture.propertySchema,
             document: {
               title: document.title,
@@ -65,6 +69,7 @@ function fixtureView(
           }
         : {
             kind: fixture.layout,
+            ...(fixture.layout === "tabs" ? { width: fixture.width } : {}),
             propertySchema: fixture.propertySchema,
             documents: snapshot.map(({ id, title, properties }) => ({
               documentId: id,
@@ -75,7 +80,6 @@ function fixtureView(
     ),
     documents,
     blocks: document.blocks,
-    width: document.width ?? "contained",
     version,
     versions: fixture.publications.map(({ number, publishedAt }) => ({
       number,
@@ -93,10 +97,26 @@ function startingArgs(
   return {
     fixture,
     view: fixtureView(fixture, version, null),
-    renderChart: (block) => (
+    renderChart: (block, values, filters) => (
       <NotebookChart
         block={block}
-        state={{ type: "ready", rows: fixture.chartRows[block.id] ?? [] }}
+        filters={filters}
+        state={{
+          type: "ready",
+          rows: (
+            (typeof values?.filter === "string"
+              ? fixture.chartRowsBySelection?.[values.filter]?.[block.id]
+              : fixture.chartRows[block.id]) ?? []
+          ).filter((row) => {
+            const range = values?.timeRange;
+            if (typeof range !== "object") return true;
+            if (typeof row.time_dimension !== "string") return true;
+            const time = Date.parse(row.time_dimension);
+            return (
+              time >= Date.parse(range.start) && time < Date.parse(range.end)
+            );
+          }),
+        }}
       />
     ),
   };
@@ -125,7 +145,7 @@ const meta = preview.meta({
             className={cn(
               "flex min-h-11 items-center gap-2 px-4 py-1",
               args.view.layout.kind !== "inbox" &&
-                args.view.layout.kind !== "table" &&
+                args.view.layout.width !== "full" &&
                 readingColumnClassName,
             )}
           >
@@ -133,13 +153,25 @@ const meta = preview.meta({
               {args.fixture.title}
             </h1>
             {args.view.isDraft && <Badge text="Draft" size="sm" />}
-            <div className="ml-auto shrink-0">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {args.view.layout.bindings?.some(
+                ({ kind }) => kind === "write",
+              ) && (
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={args.showControlledVariables ?? false}
+                    onCheckedChange={(checked) =>
+                      updateArgs({ showControlledVariables: checked === true })
+                    }
+                  />
+                  Show element-controlled variables
+                </label>
+              )}
               <NotebookVersionHistory
                 view={args.view}
                 onVersionChange={(version) => {
                   updateArgs({
                     view: fixtureView(args.fixture, version, null),
-                    tableDocumentOpen: false,
                   });
                   args.onVersionChange(version);
                 }}
@@ -149,14 +181,14 @@ const meta = preview.meta({
         </header>
         <main className="flex min-h-0 flex-1 flex-col">
           <NotebookReader
+            key={`${args.fixture.id}:${args.view.version ?? "draft"}`}
             view={args.view}
-            tableDocumentOpen={args.tableDocumentOpen}
+            showControlledVariables={args.showControlledVariables}
             isLoadingDocument={args.isLoadingDocument}
             renderChart={args.renderChart}
             onDocumentChange={(documentId, version) => {
               updateArgs({
                 view: fixtureView(args.fixture, version, documentId),
-                tableDocumentOpen: documentId !== null,
               });
               args.onDocumentChange(documentId, version);
             }}
@@ -176,4 +208,78 @@ export const SupportDashboard = meta.story({
 });
 export const PromptExperiments = meta.story({
   args: startingArgs(promptExperiments, 1),
+  decorators: [
+    (Story) => (
+      <div className="md:[&_[data-notebook-table]]:col-span-full md:[&_div:has(>[data-notebook-table])]:grid md:[&_div:has(>[data-notebook-table])]:grid-cols-2">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const variablesToolbar = () =>
+      canvas.queryByRole("group", { name: "Notebook variables" });
+    await expect(variablesToolbar()).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Date range" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("combobox", { name: "Run" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getAllByText("Select Run to view this chart."),
+    ).toHaveLength(2);
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Baseline" }));
+    const charts = canvas.getAllByRole("figure");
+    await expect(charts).toHaveLength(2);
+    for (const chart of charts) {
+      await expect(within(chart).getByText("Chart filters")).toBeVisible();
+      await expect(within(chart).getByText("Run: Baseline")).toBeVisible();
+      await expect(within(chart).getByText(/^Date range:/)).toBeVisible();
+    }
+    await userEvent.click(
+      canvas.getByRole("checkbox", {
+        name: "Show element-controlled variables",
+      }),
+    );
+    const runInput = canvas.getByRole("combobox", { name: "Run" });
+    await expect(runInput).toHaveTextContent("Baseline");
+    await userEvent.click(runInput);
+    const options = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      await options.findByRole("option", { name: "Compact retrieval" }),
+    );
+    await expect(
+      canvas.getByRole("checkbox", { name: "Compact retrieval" }),
+    ).toBeChecked();
+    await expect(
+      canvas.getByRole("checkbox", { name: "Baseline" }),
+    ).not.toBeChecked();
+    await expect(canvas.getAllByText("Run: Compact retrieval")).toHaveLength(2);
+    await userEvent.click(
+      canvas.getByRole("checkbox", { name: "Policy-first answers" }),
+    );
+    await expect(canvas.getAllByText("Run: Policy-first answers")).toHaveLength(
+      2,
+    );
+    await expect(canvas.queryByText("Run: Baseline")).not.toBeInTheDocument();
+    await expect(runInput).toHaveTextContent("Policy-first answers");
+    await userEvent.click(
+      canvas.getByRole("checkbox", {
+        name: "Show element-controlled variables",
+      }),
+    );
+    await expect(variablesToolbar()).toBeVisible();
+    await expect(
+      canvas.queryByRole("combobox", { name: "Run" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getAllByText("Run: Policy-first answers")).toHaveLength(
+      2,
+    );
+    await userEvent.click(
+      canvas.getByRole("checkbox", { name: "Policy-first answers" }),
+    );
+    await expect(
+      canvas.getAllByText("Select Run to view this chart."),
+    ).toHaveLength(2);
+  },
 });

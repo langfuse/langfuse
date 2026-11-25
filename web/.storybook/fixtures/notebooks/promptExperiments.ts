@@ -1,15 +1,17 @@
 import {
   bullets,
+  chart,
   heading,
   type NotebookFixture,
   paragraph,
   text,
+  timeSeriesRows,
 } from "./supportAssistantFixtures";
 
-export const promptExperiments = {
+export const promptExperimentsTableLayout = {
   id: "prompt-experiments",
   title: "Prompt experiment results",
-  layout: "table",
+  layout: "inbox",
   propertySchema: {
     version: 1,
     fields: [
@@ -215,4 +217,144 @@ export const promptExperiments = {
     },
   ],
   chartRows: {},
+} satisfies NotebookFixture;
+
+const experiments = promptExperimentsTableLayout.publications[0].documents;
+const window = {
+  fromTimestamp: "2026-11-23T09:00:00Z",
+  toTimestamp: "2026-11-23T15:00:00Z",
+};
+const metrics = [
+  {
+    id: "latency",
+    title: "p95 latency (ms)",
+    measure: "latency",
+    aggregation: "p95",
+    field: "p95_latency",
+  },
+  {
+    id: "cost",
+    title: "Total cost (USD)",
+    measure: "totalCost",
+    aggregation: "sum",
+    field: "sum_totalCost",
+  },
+] as const;
+
+export const promptExperiments = {
+  id: "prompt-experiments",
+  title: "Prompt experiment results",
+  layout: "default",
+  variables: [
+    { id: "run", name: "Run", type: "string" },
+    {
+      id: "date-range",
+      name: "Date range",
+      type: "dateRange",
+      defaultValue: {
+        start: "2026-11-23T00:00:00Z",
+        end: "2026-11-24T00:00:00Z",
+      },
+    },
+  ],
+  bindings: [
+    {
+      kind: "write",
+      variableId: "run",
+      from: {
+        documentId: "main",
+        elementId: "experiments",
+        portId: "selection",
+      },
+    },
+    ...metrics.map(({ id }) => ({
+      kind: "read" as const,
+      variableId: "run",
+      to: { documentId: "main", elementId: id, portId: "filter" },
+    })),
+    ...metrics.map(({ id }) => ({
+      kind: "read" as const,
+      variableId: "date-range",
+      to: { documentId: "main", elementId: id, portId: "timeRange" },
+    })),
+  ],
+  publications: [
+    {
+      number: 1,
+      publishedAt: new Date(window.toTimestamp),
+      documents: [
+        {
+          id: "main",
+          title: "Prompt experiment results",
+          blocks: [
+            {
+              id: "experiments",
+              schema: "table@1",
+              props: {
+                columns: [
+                  "Experiment",
+                  "Pass rate (%)",
+                  "p95 latency (s)",
+                  "Cost / 1K (USD)",
+                  "Evaluated",
+                ],
+                rows: experiments.map(({ id, title, properties }) => ({
+                  id,
+                  cells: [
+                    title,
+                    properties.passRate,
+                    properties.latency,
+                    properties.cost,
+                    properties.evaluated,
+                  ],
+                })),
+              },
+            },
+            ...metrics.map(({ id, title, measure, aggregation }) => {
+              const block = chart(id, title, "line", {
+                ...window,
+                view: "observations",
+                metrics: [{ measure, aggregation }],
+                dimensions: [],
+                filters: [
+                  {
+                    type: "string",
+                    column: "name",
+                    operator: "=",
+                    value: "unselected",
+                  },
+                ],
+                timeDimension: { granularity: "hour" },
+              });
+              return { ...block, props: { ...block.props, bindFilter: 0 } };
+            }),
+          ],
+        },
+      ],
+    },
+  ],
+  chartRows: {},
+  chartRowsBySelection: Object.fromEntries(
+    experiments.map(({ id, properties }) => [
+      id,
+      {
+        latency: timeSeriesRows(
+          window.fromTimestamp,
+          "hour",
+          metrics[0].field,
+          [0.9, 1.04, 0.98, 1.12, 0.92, 1].map((scale) =>
+            Math.round(properties.latency * 1000 * scale),
+          ),
+        ),
+        cost: timeSeriesRows(
+          window.fromTimestamp,
+          "hour",
+          metrics[1].field,
+          [0.08, 0.11, 0.09, 0.12, 0.1, 0.1].map((scale) =>
+            Number((properties.cost * scale).toFixed(2)),
+          ),
+        ),
+      },
+    ]),
+  ),
 } satisfies NotebookFixture;

@@ -17,7 +17,6 @@ type FixtureDocument = {
   id: string;
   title: string;
   blocks: NotebookBlock[];
-  width?: NotebookDocumentWidth;
   properties?: NotebookPropertyValues;
 };
 type FixtureDocuments = [
@@ -34,10 +33,14 @@ export type NotebookFixture = {
   id: string;
   title: string;
   layout: NotebookLayout["kind"];
+  width?: NotebookDocumentWidth;
   propertySchema?: NotebookPropertySchema;
+  variables?: NotebookLayout["variables"];
+  bindings?: NotebookLayout["bindings"];
   publications: [Publication, ...Publication[]];
   draft?: FixtureDocuments;
   chartRows: Record<string, ChartRow[]>;
+  chartRowsBySelection?: Record<string, Record<string, ChartRow[]>>;
 };
 
 export function text(id: string, ...content: NotebookTextBlockNode[]) {

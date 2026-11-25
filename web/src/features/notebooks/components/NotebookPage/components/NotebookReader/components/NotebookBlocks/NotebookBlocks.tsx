@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   type NotebookBlock,
   type NotebookTextNode,
+  type NotebookVariableValue,
 } from "@/src/features/notebooks/schema";
 import { assertUnreachable } from "@/src/utils/types";
 
@@ -105,9 +106,20 @@ function renderTextNode(node: NotebookTextNode): ReactNode {
 export function NotebookBlocks({
   blocks,
   renderChart,
+  renderTable,
 }: {
   blocks: NotebookBlock[];
-  renderChart: (block: ChartBlock) => ReactNode;
+  renderChart: (
+    block: ChartBlock,
+    values?: {
+      filter?: NotebookVariableValue;
+      timeRange?: NotebookVariableValue;
+    },
+    filters?: readonly string[],
+  ) => ReactNode;
+  renderTable?: (
+    block: Extract<NotebookBlock, { schema: "table@1" }>,
+  ) => ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -125,6 +137,9 @@ export function NotebookBlocks({
         if (block.schema === "chart@1") {
           return <Fragment key={block.id}>{renderChart(block)}</Fragment>;
         }
+        if (block.schema === "table@1") {
+          return <Fragment key={block.id}>{renderTable?.(block)}</Fragment>;
+        }
         if (block.schema === "row@1") {
           return (
             <div key={block.id} className="flex flex-wrap gap-4">
@@ -133,7 +148,11 @@ export function NotebookBlocks({
                   key={child.id}
                   className="flex min-w-[min(100%,20rem)] flex-1 basis-0 flex-col"
                 >
-                  <NotebookBlocks blocks={[child]} renderChart={renderChart} />
+                  <NotebookBlocks
+                    blocks={[child]}
+                    renderChart={renderChart}
+                    renderTable={renderTable}
+                  />
                 </div>
               ))}
             </div>

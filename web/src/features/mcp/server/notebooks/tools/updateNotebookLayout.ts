@@ -4,6 +4,7 @@ import {
   notebookDocumentId,
   notebookDocumentLabel,
   notebookLayoutKind,
+  notebookDocumentWidth,
   notebookLayoutSchema,
 } from "@/src/features/notebooks/schema";
 import { updateNotebookLayout } from "@/src/features/notebooks/server/notebookService";
@@ -16,11 +17,28 @@ export const updateNotebookLayoutSchema = z.object({
   layout: z
     .strictObject({
       kind: notebookLayoutKind,
+      width: notebookDocumentWidth
+        .optional()
+        .describe("Notebook width for Default or Tabs. Omit for Inbox."),
+      variables: z
+        .array(z.looseObject({}))
+        .max(100)
+        .optional()
+        .describe(
+          "Notebook variables: [{id, name, type: 'string' | 'number' | 'boolean' | 'dateRange', defaultValue?}]. A dateRange value is {start, end}.",
+        ),
+      bindings: z
+        .array(z.looseObject({}))
+        .max(500)
+        .optional()
+        .describe(
+          "Bindings: [{kind: 'read', variableId, to: {documentId, elementId, portId}} or {kind: 'write', variableId, from: {documentId, elementId, portId}}].",
+        ),
       propertySchema: z
         .looseObject({})
         .optional()
         .describe(
-          "Versioned property schema: {version: 1, fields: [{id, label, type, options?}], visibleByDefault?}. Table shows every field.",
+          "Versioned property schema: {version: 1, fields: [{id, label, type, options?}], visibleByDefault?}.",
         ),
       documents: z
         .array(
@@ -35,7 +53,7 @@ export const updateNotebookLayoutSchema = z.object({
         .optional(),
     })
     .describe(
-      "Replace the notebook's top-level layout instead of writing a body. For Inbox, Tabs, and Table, list the existing document IDs and titles in display order. Each document may provide values keyed by property ID. For Default, omit documents.",
+      "Replace the notebook's top-level layout instead of writing a body. For Inbox and Tabs, list the existing document IDs and titles in display order. Each document may provide values keyed by property ID. For Default, omit documents.",
     ),
 });
 
@@ -58,7 +76,7 @@ export const [updateNotebookLayoutTool, handleUpdateNotebookLayout] =
     action: "notebooks:CUD",
     spanName: "mcp.notebooks.update_notebook_layout",
     description:
-      "Stage a notebook layout change without editing document bodies or publishing. Use get_notebook for existing document IDs. For example, pass layout: {kind: 'tabs', documents: [{documentId: 'main', title: 'Overview'}]}.",
+      "Stage a notebook layout and its variable bindings without editing document bodies or publishing. A table@1 exposes a string 'selection' output with its row IDs. A chart@1 exposes a dateRange 'timeRange' input and a string 'filter' input if bindFilter identifies a string equality filter. Bindings reference document, element and port IDs. Run validate_notebook before publishing.",
     baseSchema: updateNotebookLayoutSchema,
     destructiveHint: true,
     handler: stageNotebookLayout,
