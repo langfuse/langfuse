@@ -4,10 +4,11 @@ import { useRouter } from "next/router";
 import { buildTracePath } from "@langfuse/shared";
 import {
   detailPageListKeys,
-  DetailPageListsProvider,
   type TraceDetailPageListEntry,
 } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { DetailPageListsOverride } from "@/src/features/navigate-detail-pages/DetailPageListsOverride";
 import { SessionTracePeekNavigationProvider } from "./SessionTracePeekNavigationProvider";
+import { buildSessionTracePeekNavigationPath } from "./fns/buildSessionTracePeekNavigationPath";
 
 export function SessionTracePeek({
   projectId,
@@ -40,7 +41,7 @@ export function SessionTracePeek({
 
   return (
     <div ref={containerRef} data-session-trace-peek={traceId ? "" : undefined}>
-      <DetailPageListsProvider
+      <DetailPageListsOverride
         overrides={{ [detailPageListKeys.sessionTraces]: traceEntries }}
       >
         <SessionTracePeekNavigationProvider
@@ -59,14 +60,13 @@ export function SessionTracePeek({
             detailNavigationKey={
               canNavigate ? detailPageListKeys.sessionTraces : undefined
             }
-            resolveDetailNavigationPath={({ id, params }) => {
-              const next = new URLSearchParams({
-                peek: decodeURIComponent(id),
-                aggregation: "trace",
-              });
-              if (params?.timestamp) next.set("timestamp", params.timestamp);
-              return `${router.pathname}?${next.toString()}`;
-            }}
+            resolveDetailNavigationPath={(entry) =>
+              buildSessionTracePeekNavigationPath(
+                router.pathname,
+                search,
+                entry,
+              )
+            }
             disableScopeToggle
             maxWidthPx={maxWidthPx}
             expandPeek={() => {
@@ -83,7 +83,7 @@ export function SessionTracePeek({
             }}
           />
         </SessionTracePeekNavigationProvider>
-      </DetailPageListsProvider>
+      </DetailPageListsOverride>
     </div>
   );
 }

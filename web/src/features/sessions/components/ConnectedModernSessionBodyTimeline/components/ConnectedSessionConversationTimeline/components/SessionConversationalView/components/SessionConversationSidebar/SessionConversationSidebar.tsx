@@ -53,6 +53,22 @@ const SIDEBAR_SCROLL_PADDING = 16;
 
 type ActivePeek = { traceId: string; observationId: string | undefined };
 
+function filterSidebarTraces(
+  traces: SessionConversationSidebarTrace[],
+  search: string,
+) {
+  const query = search.toLowerCase();
+  if (!query) return traces;
+  return traces.flatMap((turn) => {
+    if ((turn.trace.name ?? "").toLowerCase().includes(query)) return [turn];
+    const transcriptRows = turn.transcriptRows?.filter((row) =>
+      `${row.role} ${row.label}`.toLowerCase().includes(query),
+    );
+    if (transcriptRows?.length === 0) return [];
+    return [{ ...turn, transcriptRows: transcriptRows ?? turn.transcriptRows }];
+  });
+}
+
 function selectPeekedTurnId(
   traces: SessionConversationSidebarTrace[],
   activePeek: ActivePeek | undefined,
@@ -101,13 +117,14 @@ export function SessionConversationSidebar(
     };
   },
 ) {
-  const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
+  const allTraces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activePeek = props.state === "loaded" ? props.activePeek : undefined;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
-  const peekedTurnId = selectPeekedTurnId(traces, activePeek);
+  const peekedTurnId = selectPeekedTurnId(allTraces, activePeek);
   const appliedSearch =
     props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
+  const traces = filterSidebarTraces(allTraces, appliedSearch);
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{

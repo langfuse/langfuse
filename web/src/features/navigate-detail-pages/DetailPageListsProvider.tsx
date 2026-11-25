@@ -46,7 +46,9 @@ interface ListContextType {
   ) => void;
 }
 
-const DetailPageLists = createContext<ListContextType | undefined>(undefined);
+export const DetailPageLists = createContext<ListContextType | undefined>(
+  undefined,
+);
 
 export function useDetailPageLists(): ListContextType {
   const context = useContext(DetailPageLists);
@@ -66,11 +68,7 @@ export function useFirstDetailPageListEntry<
   return detailPagelists[key]?.[0] as TEntry | undefined;
 }
 
-export function DetailPageListsProvider(
-  props: PropsWithChildren<{ overrides?: Record<string, ListEntry[]> }>,
-) {
-  const parent = useContext(DetailPageLists);
-  const { overrides } = props;
+export function DetailPageListsProvider(props: PropsWithChildren) {
   const [detailPagelists, setLists] = useState<
     Record<string, Array<ListEntry>>
   >({});
@@ -82,16 +80,10 @@ export function DetailPageListsProvider(
     [],
   );
 
-  const contextValue = useMemo(() => {
-    if (!overrides) return { detailPagelists, setDetailPageList };
-    return {
-      detailPagelists: {
-        ...(parent?.detailPagelists ?? detailPagelists),
-        ...overrides,
-      },
-      setDetailPageList: parent?.setDetailPageList ?? setDetailPageList,
-    };
-  }, [parent, detailPagelists, overrides, setDetailPageList]);
+  const contextValue = useMemo(
+    () => ({ detailPagelists, setDetailPageList }),
+    [detailPagelists, setDetailPageList],
+  );
 
   return (
     <DetailPageLists.Provider value={contextValue}>
