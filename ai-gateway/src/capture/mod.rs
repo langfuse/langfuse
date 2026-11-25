@@ -509,8 +509,9 @@ impl RawRequest {
     }
 }
 
-/// The caller body's top-level members, parsed once when the request arrives and
-/// handed to capture, so capture does not parse the body again.
+/// The caller body's top-level members, parsed when capture starts (after
+/// resolution, spend limits, and guardrails) so the gateway does not hold a
+/// second copy of the body across pre-upstream waits or uncaptured requests.
 pub(crate) struct RequestInput {
     /// `None` when the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
     members: Option<BTreeMap<String, Box<RawValue>>>,
@@ -518,99 +519,54 @@ pub(crate) struct RequestInput {
 }
 
 impl RequestInput {
-    /// Copies the members of a body of `body_bytes`, unless the body is too large to capture.
-    pub(crate) fn from_members<'a>(
-        members: impl IntoIterator<Item = (String, &'a RawValue)>,
-        body_bytes: usize,
-    ) -> Self {
-        let members = (body_bytes <= MAX_INPUT_CAPTURE_BYTES).then(|| {
-            members
-                .into_iter()
-                .map(|(key, value)| (key, value.to_owned()))
-                .collect()
-        });
+    /// Skips parsing the body when telemetry delivery is disabled or
+    /// `IngestionMode::None`, while still preserving `body_bytes` for metrics.
+    pub(crate) fn omitted(body_bytes: usize) -> Self {
         Self {
-            members,
+            members: None,
             body_bytes,
         }
     }
 
-    /// Patches only the redacted `scanned` members in place so FULL ingestion
-    /// records the scrubbed prompt without re-parsing untouched members (such as
-    /// `tools` or `metadata`). Returns `false` if any edit fails to map cleanly,
-    /// allowing the caller to fail closed rather than persist unredacted input.
-    pub(crate) fn apply_redactions(
-        &mut self,
-        body: &[u8],
-        scanned: &crate::guardrails::ScannedMembers,
-        redactions: &[crate::guardrails::redact::BodyEdit],
-    ) -> bool {
-        if redactions.is_empty() {
-            return true;
+    /// Parses the top-level members of a validated JSON request body, unless
+    /// the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
+    pub(crate) fn from_body(body: &[u8]) -> Self {
+        let members = (body.len() <= MAX_INPUT_CAPTURE_BYTES)
+            .then(|| {
+                serde_json::from_slice::<BTreeMap<String, &RawValue>>(body)
+                    .ok()
+                    .map(|parsed| {
+                        parsed
+                            .into_iter()
+                            .map(|(key, value)| (key, value.to_owned()))
+                            .collect()
+                    })
+            })
+            .flatten();
+        Self {
+            members,
+            body_bytes: body.len(),
         }
-        // Recompute body size after replacements; drop members if redaction pushed it over the cap.
-        let original_bytes: usize = redactions.iter().map(|edit| edit.range.len()).sum();
-        let replacement_bytes: usize = redactions.iter().map(|edit| edit.replacement.len()).sum();
-        let new_body_bytes = self
-            .body_bytes
-            .saturating_sub(original_bytes)
-            .saturating_add(replacement_bytes);
-        self.body_bytes = new_body_bytes;
-        if new_body_bytes > MAX_INPUT_CAPTURE_BYTES {
-            self.members = None;
-            return true;
-        }
-        let Some(members) = self.members.as_mut() else {
-            return true;
-        };
-
-        // Patch only touched scanned members, converting body offsets to member-relative offsets.
-        let mut applied = 0usize;
-        for (name, member_range) in scanned.members() {
-            let base = member_range.start;
-            let mut relative_edits: Vec<(std::ops::Range<usize>, &[u8])> = redactions
-                .iter()
-                .filter(|edit| edit.range.start >= base && edit.range.end <= member_range.end)
-                .map(|edit| {
-                    (
-                        (edit.range.start - base)..(edit.range.end - base),
-                        edit.replacement.as_slice(),
-                    )
-                })
-                .collect();
-            if relative_edits.is_empty() {
-                continue;
-            }
-            applied = applied.saturating_add(relative_edits.len());
-            let Some(member_bytes) = body.get(member_range.clone()) else {
-                return false;
-            };
-            let Some(spliced) =
-                crate::guardrails::redact::splice_bytes(member_bytes, &mut relative_edits)
-            else {
-                return false;
-            };
-            let Ok(json) = String::from_utf8(spliced) else {
-                return false;
-            };
-            let Ok(raw) = RawValue::from_string(json) else {
-                return false;
-            };
-            members.insert((*name).to_owned(), raw);
-        }
-
-        // Fail closed if any edit did not map into a scanned member.
-        applied == redactions.len()
     }
 
-    #[cfg(test)]
-    pub(crate) fn from_body(body: &[u8]) -> Self {
-        let members: BTreeMap<String, &RawValue> = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
-            serde_json::from_slice(body).unwrap()
+    /// Parses `body` on `cpu` while holding `reservation` inside the job so
+    /// request cancellation cannot release memory budget before the blocking
+    /// worker drops the body and parsed members.
+    pub(crate) async fn parse_on_cpu<R: Send + 'static>(
+        cpu: &crate::cpu::CpuWork,
+        body: axum::body::Bytes,
+        reservation: R,
+    ) -> Option<(Self, R)> {
+        let parse_bytes = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body.len()
         } else {
-            BTreeMap::new()
+            0
         };
-        Self::from_members(members, body.len())
+        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
+            let input = Self::from_body(&body);
+            (input, reservation)
+        })
+        .await
     }
 }
 

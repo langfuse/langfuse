@@ -2708,7 +2708,6 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
         let request = parse_request_body(
             Bytes::from_static(body.as_bytes()),
             ApiFormat::OpenAiChatCompletions,
-            false,
         )
         .ok()
         .unwrap();
@@ -2725,7 +2724,6 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
             parse_request_body(
                 Bytes::from_static(body.as_bytes()),
                 ApiFormat::OpenAiChatCompletions,
-                false
             )
             .is_err(),
             "{body}"
@@ -2736,13 +2734,9 @@ fn only_a_literal_true_stream_member_marks_a_streamed_call() {
 #[test]
 fn the_parse_locates_stream_options_for_the_usage_rewrite() {
     let body = br#"{"model":"m","stream":true,"stream_options": {"include_obfuscation":false} }"#;
-    let request = parse_request_body(
-        Bytes::from_static(body),
-        ApiFormat::OpenAiChatCompletions,
-        false,
-    )
-    .ok()
-    .unwrap();
+    let request = parse_request_body(Bytes::from_static(body), ApiFormat::OpenAiChatCompletions)
+        .ok()
+        .unwrap();
     let StreamOptions::At(range) = request.stream_options else {
         panic!("stream_options not located");
     };
@@ -2757,7 +2751,6 @@ fn the_parse_locates_stream_options_for_the_usage_rewrite() {
         let request = parse_request_body(
             Bytes::from_static(body.as_bytes()),
             ApiFormat::OpenAiChatCompletions,
-            false,
         )
         .ok()
         .unwrap();

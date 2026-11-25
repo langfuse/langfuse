@@ -189,7 +189,7 @@ const summary = {
   facetVersion,
   state: "complete",
   summary: "Requests a refund",
-  processedAt: "2026-09-16T00:00:00Z",
+  createdAt: "2026-09-16T00:00:00Z",
   unitStartTime: "2026-09-16T00:00:00Z",
   embedding: [0.1, 0.9],
   summaryModel: "gpt-4.1-nano",
@@ -495,7 +495,7 @@ describe("Topics published scatter map", () => {
       {
         ...summary,
         summary: "Latest refund summary",
-        processedAt: "2026-09-17T00:00:00Z",
+        createdAt: "2026-09-17T00:00:00Z",
       },
       { ...summary, traceId: "trace-b" },
     ]);
@@ -861,6 +861,8 @@ describe("Topics current results", () => {
       outliers: 1,
       notApplicable: 1,
       insufficientInput: 1,
+      emptyInput: 0,
+      inputTooLarge: 0,
       topics: [
         {
           topicId: "topic-a",
@@ -1371,6 +1373,8 @@ describe("Topics analyses", () => {
         outliers: 1,
         notApplicable: 0,
         insufficientInput: 0,
+        emptyInput: 0,
+        inputTooLarge: 0,
         topics: [{ topicId: "topic-a", count: 3 }],
       },
     ]);

@@ -31,6 +31,7 @@ type FilterSpec = {
   value: string;
 };
 
+/** @internal */
 export function specForField(field: FieldDef): FilterSpec {
   switch (field.kind) {
     case "number":

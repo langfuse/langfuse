@@ -7,6 +7,7 @@ import { type EditorView, ViewPlugin } from "@uiw/react-codemirror";
  * cannot be resolved. Callers that pass `precise: false` (mouse selection,
  * drops) require a non-null result, so fall back to the document start.
  */
+/** @internal */
 export function isCodeMirrorUnstableViewportError(error: unknown): boolean {
   if (!(error instanceof TypeError)) {
     return false;
@@ -52,6 +53,7 @@ function fallbackForUnstableViewport(precise: boolean | undefined) {
   return { pos: null as number | null, side: null };
 }
 
+/** @internal */
 export function wrapEditorViewCoordLookups(view: CoordLookupView): () => void {
   const originalPosAtCoords = view.posAtCoords as PosAtCoordsFn;
   const originalPosAndSideAtCoords =

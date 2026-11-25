@@ -265,4 +265,5 @@ function toLeadingPoint(
   } satisfies DataPoint;
 }
 
+/** @internal */
 export const __test = { leadingWindowRange, toLeadingPoint };

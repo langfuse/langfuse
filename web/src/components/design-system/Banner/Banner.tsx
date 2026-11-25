@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   CircleAlert,
   CircleCheck,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Info,
   TriangleAlert,
   X,
@@ -129,13 +129,7 @@ function BannerActionItem({ action }: { action: BannerAction }) {
       rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
     >
       {action.text}
-      {/* Half a pixel is off the scale on purpose: 0 sits high, 1px sits low. */}
-      <ExternalLink
-        size="sm"
-        color="inherit"
-        aria-hidden="true"
-        __rawClassName="translate-y-[0.5px]"
-      />
+      <SquareArrowOutUpRight size="base" color="inherit" aria-hidden="true" />
     </a>
   );
 }

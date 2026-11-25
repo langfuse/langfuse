@@ -165,6 +165,12 @@ describe("processTopicsTrace", () => {
       "topic_facet_summaries",
       expect.anything(),
     );
+    // The Topics dashboard ranks projects by this tag.
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.facet_summaries",
+      1,
+      { source: "trace_queue", state: "complete", projectId: "project" },
+    );
     // "other" has no map yet; "unmatched" has one but the trace didn't match it.
     const assigned = mocks.addToQueue.mock.calls
       .filter(([table]) => table === "topic_assignments")

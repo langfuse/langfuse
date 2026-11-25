@@ -31,6 +31,7 @@ export type TimeSpan = {
 export type Box = { width: number; height: number };
 
 /** Zooming past 1ms per lane buys nothing and costs float precision. */
+/** @internal */
 export const MAX_ZOOM_PRECISION_MS = 1;
 
 export type ViewTransform = {
@@ -95,6 +96,7 @@ export function createViewTransform(view: TimeSpan, box: Box): ViewTransform {
 /**
  * Zoom about a fixed point in the lane (`anchorRatio` 0 = left edge, 1 = right).
  * `factor > 1` zooms in. The anchored time stays under the cursor/pinch centre.
+ * @internal
  */
 export function zoomView(
   view: TimeSpan,
@@ -115,6 +117,7 @@ export function zoomView(
 }
 
 /** Zoom-to-fit one span, with breathing room on both sides. */
+/** @internal */
 export function zoomToSpan(
   target: TimeSpan,
   space: TimeSpan,

@@ -50,6 +50,7 @@ const MCP_SERVER_INSTRUCTIONS = [
 const MCP_FEEDBACK_INSTRUCTION =
   "To send feedback about Langfuse skills, MCP tools, CLI, docs, or public API, ask the user for permission and show the exact feedback payload; if they want a reply, include only an email address they explicitly provide in the feedback text; exclude secrets, customer/project data, trace payloads, and unrelated context, then call submitFeedback.";
 
+/** @internal */
 export const getMcpServerInstructions = (): string =>
   isProductFeedbackAvailable()
     ? [...MCP_SERVER_INSTRUCTIONS, MCP_FEEDBACK_INSTRUCTION].join("\n")
@@ -89,8 +90,9 @@ export function createMcpServer(context: ServerContext): Server {
         },
       },
       instructions: getMcpServerInstructions(),
-      // 2025-era requests get JSON responses, which cannot carry the SDK's
-      // server-to-client prompts, so tools never ask for input there.
+      // A stateless 2025-era request carries no client capabilities (those
+      // are only declared in `initialize`), so there is nothing to check a
+      // server-to-client prompt against; tools never ask for input there.
       inputRequired: { legacyShim: false },
     },
   );
@@ -205,4 +207,5 @@ function assertToolAuthorized(
   }
 }
 
+/** @internal */
 export const __test = { assertToolAuthorized };

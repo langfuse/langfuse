@@ -36,6 +36,7 @@ function serializeValue(value: unknown): unknown {
   }
 }
 
+/** @internal */
 export const serializeNextAuthMetadata = (
   metadata: unknown,
 ): Record<string, unknown> => {

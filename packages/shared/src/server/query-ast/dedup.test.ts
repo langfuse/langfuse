@@ -5,7 +5,7 @@ import { compileClickhouseQuery, type ClickhouseCompilable } from "./compile";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import { limitBy, useFinal } from "./extensions";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 
 // The dedup pass alone, so the physical `events_core` is read directly and no

@@ -70,6 +70,8 @@ This design:
 - Prevents state leaks between projects
 - Simplifies authentication (project context derived from API key)
 
+`server/transport.ts` serves both protocol eras through the SDK's `createMcpHandler`: 2026-07-28 requests are answered directly (JSON unless a tool streams), 2025-era requests through its stateless legacy fallback, which always responds with SSE (`text/event-stream`).
+
 ### Authentication Flow
 
 ```

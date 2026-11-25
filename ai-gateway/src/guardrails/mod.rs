@@ -411,10 +411,6 @@ impl ScannedMembers {
         self.duplicated = true;
     }
 
-    pub(crate) fn members(&self) -> &[(&'static str, Range<usize>)] {
-        &self.members
-    }
-
     /// Bytes of the members, which decides whether the check leaves the async worker.
     pub(crate) fn len(&self) -> usize {
         self.members.iter().map(|(_, range)| range.len()).sum()

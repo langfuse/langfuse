@@ -23,6 +23,7 @@ type BackendActivityTrackerDependencies = {
   setIfAbsent: (key: string, ttlSeconds: number) => Promise<boolean>;
 };
 
+/** @internal */
 export const createBackendActivityTracker = ({
   capture,
   cloudRegion,

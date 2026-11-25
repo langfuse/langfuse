@@ -463,6 +463,7 @@ async function updateOrgBillingCycleAnchor(orgId: string, anchor?: Date) {
   });
 }
 
+/** @internal */
 export async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",

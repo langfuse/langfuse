@@ -17,12 +17,10 @@ import { randomUUID } from "crypto";
 
 import { parseDbOrg } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import type { ChbCheckoutSession } from "@langfuse/shared/src/server/ee/clickhouseBilling";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  type ChbApiClient,
-  type ChbCheckoutSession,
-} from "@/src/ee/features/billing/server/chb/chbApiClient";
+import type { ChbApiClient } from "@/src/ee/features/billing/server/chb/chbApiClient";
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";

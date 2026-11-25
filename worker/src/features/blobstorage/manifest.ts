@@ -3,6 +3,7 @@
 // written, the export window, and per-file format.
 
 /** Bump on breaking payload changes; additive fields do not require a bump. */
+/** @internal */
 export const BLOB_EXPORT_MANIFEST_VERSION = 1;
 
 export type BlobExportManifestFile = {

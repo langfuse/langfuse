@@ -636,7 +636,6 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
-                input: Some(RequestInput::from_body(REQUEST)),
                 stream_options: crate::providers::StreamOptions::default(),
             },
             Route::AnthropicMessages,
