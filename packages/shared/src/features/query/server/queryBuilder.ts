@@ -35,6 +35,7 @@ import {
 import {
   eventsObservationsView,
   getViewDeclaration,
+  SCORE_V2_RELATIONS,
   scoresBooleanViewV2,
   scoresCategoricalViewV2,
   scoresListableCountViewV2,
@@ -342,9 +343,8 @@ type ScoreFilter = {
   relation: string | undefined;
 };
 
-/** The v2 score views' relations, as `dataModel.ts` names them. */
-const SCORE_TRACES = "events_traces";
-const SCORE_OBSERVATIONS = "events_observations";
+const SCORE_TRACES = SCORE_V2_RELATIONS.traces;
+const SCORE_OBSERVATIONS = SCORE_V2_RELATIONS.observations;
 
 /** The views {@link QueryBuilder.build} compiles through `buildScores`. */
 const SCORE_VIEWS_V2: ReadonlySet<ViewDeclarationType> = new Set([
