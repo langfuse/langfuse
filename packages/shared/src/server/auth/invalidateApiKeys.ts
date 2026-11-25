@@ -40,7 +40,7 @@ function cacheKeysForRows(apiKeys: CachedApiKeyIdentity[]): string[] {
   return keys;
 }
 
-/** invalidateCachedApiKeys replaces every cached credential and gateway resolve entry with a short-lived marker that readers treat as a miss and cache writers cannot overwrite, logging Redis failures instead of throwing */
+/** invalidateCachedApiKeys marks every cached credential and gateway resolve entry of the keys invalidated */
 export async function invalidateCachedApiKeys(
   apiKeys: CachedApiKeyIdentity[],
   identifier: string,

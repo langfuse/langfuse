@@ -351,7 +351,7 @@ async function deleteMatchingApiKeys(
   });
 }
 
-/** DeleteApiKeyParams names an api key and the project or organization it must belong to; isInAppAgentKey left undefined matches both kinds */
+/** DeleteApiKeyParams names an api key and the project or organization it must belong to */
 type DeleteApiKeyParams = { id: string; isInAppAgentKey?: boolean } & (
   | { projectId: string }
   | { orgId: string; userId?: string }

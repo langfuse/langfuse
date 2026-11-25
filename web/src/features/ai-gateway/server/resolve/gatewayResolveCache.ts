@@ -213,7 +213,7 @@ export class GatewayResolveCache {
     }
   }
 
-  /** invalidateApiKey replaces a gateway API key's cached contexts with a short-lived marker that reads as a miss and cache writes cannot overwrite */
+  /** invalidateApiKey marks a gateway API key's cached contexts invalidated */
   async invalidateApiKey(fastHashedSecretKey: string) {
     if (!this.enabled) return;
 
@@ -252,11 +252,8 @@ export async function evictUserGatewayResolveCache(
     where: { orgId: p.orgId, userId: p.userId },
     select: { fastHashedSecretKey: true },
   });
-  await Promise.all(
-    keys.map(
-      ({ fastHashedSecretKey }) =>
-        fastHashedSecretKey &&
-        invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey),
-    ),
+  const hashes = keys.flatMap(
+    ({ fastHashedSecretKey }) => fastHashedSecretKey ?? [],
   );
+  await Promise.all(hashes.map(invalidateGatewayResolveCacheForApiKey));
 }

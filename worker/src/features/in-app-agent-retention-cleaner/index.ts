@@ -85,7 +85,7 @@ export class InAppAgentRetentionCleaner extends PeriodicExclusiveRunner {
               apiKeyId: run.mcpApiKeyId,
               deleteApiKey: async (id) => {
                 const deleted = await deleteApiKey(prisma, {
-                  id: id,
+                  id,
                   projectId: run.projectId,
                   isInAppAgentKey: true,
                 });

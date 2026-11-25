@@ -145,7 +145,7 @@ export class InAppAgentIntegrityRunner extends PeriodicExclusiveRunner {
           deleteApiKey: async (apiKeyId) => {
             const deleted = await deleteApiKey(prisma, {
               id: apiKeyId,
-              projectId: projectId,
+              projectId,
               isInAppAgentKey: true,
             });
             if (deleted) {
