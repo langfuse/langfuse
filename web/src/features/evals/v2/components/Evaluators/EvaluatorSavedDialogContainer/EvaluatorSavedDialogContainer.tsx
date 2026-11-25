@@ -10,6 +10,7 @@ import {
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import type { RuleNeedingOverride } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -53,14 +54,14 @@ type EvaluatorSavedDialogEvaluator = {
 export function EvaluatorSavedDialogContainer({
   projectId,
   evaluator,
-  traceRulesNeedingOverride = [],
+  rulesNeedingOverride = [],
   onboardingAnalytics,
   onDismiss,
   onFinish,
 }: {
   projectId: string;
   evaluator: EvaluatorSavedDialogEvaluator;
-  traceRulesNeedingOverride?: { id: string; name: string }[];
+  rulesNeedingOverride?: RuleNeedingOverride[];
   onboardingAnalytics: ReturnType<typeof createEvalOnboardingAnalytics> | null;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
@@ -629,7 +630,7 @@ export function EvaluatorSavedDialogContainer({
   ) : null;
 
   const overrideWarning =
-    traceRulesNeedingOverride.length > 0 && !overrideWarningDismissed ? (
+    rulesNeedingOverride.length > 0 && !overrideWarningDismissed ? (
       <Callout
         variant="warning"
         align="top"
@@ -638,18 +639,18 @@ export function EvaluatorSavedDialogContainer({
       >
         <div>
           <p>
-            These trace rules inherit this evaluator&apos;s mapping, which
-            can&apos;t read trace messages. Set an override mapping on each:
+            These rules inherit this evaluator&apos;s mapping, but their scope
+            can&apos;t read it. Set an override mapping on each:
           </p>
           <ul className="mt-1 list-disc pl-4">
-            {traceRulesNeedingOverride.map((rule) => (
+            {rulesNeedingOverride.map((rule) => (
               <li key={rule.id}>
                 <TextLink
                   path={getRuleNavigationUrl({
                     projectId,
                     ruleId: rule.id,
-                    targetObject: TopicsTargetObject,
-                    enabled: true,
+                    targetObject: rule.targetObject,
+                    enabled: rule.enabled,
                   })}
                   value={rule.name}
                   external

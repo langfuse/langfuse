@@ -39,7 +39,8 @@ import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluato
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import {
-  traceRulesNeedingOverride,
+  type RuleNeedingOverride,
+  rulesNeedingOverride,
   variableFieldsForTarget,
 } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
@@ -349,7 +350,7 @@ export function EvaluatorSetupPage(
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
     targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
-    traceRulesNeedingOverride: { id: string; name: string }[];
+    rulesNeedingOverride: RuleNeedingOverride[];
   } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
@@ -658,7 +659,7 @@ export function EvaluatorSetupPage(
       ).defaultVariableMapping;
       const offerRuleAttachment = (
         evaluator: { id: string },
-        rulesNeedingOverride: { id: string; name: string }[] = [],
+        overrideRules: RuleNeedingOverride[] = [],
       ) => {
         setSavedEvaluator({
           id: evaluator.id,
@@ -673,7 +674,7 @@ export function EvaluatorSetupPage(
           targetObject: isTraceTranscript
             ? TopicsTargetObject
             : EvalTargetObject.EVENT,
-          traceRulesNeedingOverride: rulesNeedingOverride,
+          rulesNeedingOverride: overrideRules,
         });
       };
 
@@ -713,26 +714,23 @@ export function EvaluatorSetupPage(
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
         // The save already succeeded, so a failed lookup only skips the warning.
-        const rulesNeedingOverride =
+        const overrideRules =
           traceEvalsAvailable && canReadRules && definition.type !== "CODE"
             ? await utils.evalsV2.rules.listRulesForEvaluator
                 .fetch({ projectId, evaluatorId: evaluator.id })
                 .then((assignments) =>
-                  traceRulesNeedingOverride(
-                    defaultVariableMapping,
-                    assignments,
-                  ),
+                  rulesNeedingOverride(defaultVariableMapping, assignments),
                 )
                 .catch(() => [])
             : [];
         // Evaluators opened on Trace messages already have trace rules.
         if (
           shouldOfferRuleAttachment(evaluator) &&
-          (rulesNeedingOverride.length > 0 ||
+          (overrideRules.length > 0 ||
             (isTraceTranscript &&
               props.initialTargetObject !== TopicsTargetObject))
         ) {
-          offerRuleAttachment(evaluator, rulesNeedingOverride);
+          offerRuleAttachment(evaluator, overrideRules);
           return;
         }
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
@@ -1180,9 +1178,7 @@ export function EvaluatorSetupPage(
             <EvaluatorSavedDialogContainer
               projectId={projectId}
               evaluator={savedEvaluator}
-              traceRulesNeedingOverride={
-                savedEvaluator.traceRulesNeedingOverride
-              }
+              rulesNeedingOverride={savedEvaluator.rulesNeedingOverride}
               onboardingAnalytics={onboardingAnalytics}
               onDismiss={async () => {
                 await router.push(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  traceRulesNeedingOverride,
+  rulesNeedingOverride,
   traceTranscriptAssignments,
 } from "./traceTranscriptAssignments";
 
@@ -58,57 +58,43 @@ describe("traceTranscriptAssignments", () => {
     ]);
   });
 
-  it("flags only inheriting trace rules once the evaluator mapping stops reading threads", () => {
+  it("flags inheriting rules whose target cannot read the evaluator mapping", () => {
+    const threadsMapping = [
+      {
+        templateVariable: "input",
+        selectedColumnId: "threads",
+        jsonSelector: "$[0].messages",
+      },
+    ];
+    const traceRule = {
+      id: "trace-inherits",
+      name: "Trace inherits",
+      targetObject: "trace_transcript",
+      enabled: true,
+    };
+    const observationRule = {
+      id: "observations",
+      name: "Observations",
+      targetObject: "event",
+      enabled: true,
+    };
     const assignments = [
+      { variableMapping: null, evaluationRule: traceRule },
       {
-        variableMapping: null,
-        evaluationRule: {
-          id: "trace-inherits",
-          name: "Trace inherits",
-          targetObject: "trace_transcript",
-        },
+        variableMapping: threadsMapping,
+        evaluationRule: { ...traceRule, id: "trace-override" },
       },
-      {
-        variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "threads",
-            jsonSelector: "$[0].messages",
-          },
-        ],
-        evaluationRule: {
-          id: "trace-override",
-          name: "Trace override",
-          targetObject: "trace_transcript",
-        },
-      },
-      {
-        variableMapping: null,
-        evaluationRule: {
-          id: "observations",
-          name: "Observations",
-          targetObject: "event",
-        },
-      },
+      { variableMapping: null, evaluationRule: observationRule },
     ];
 
     expect(
-      traceRulesNeedingOverride(
+      rulesNeedingOverride(
         [{ templateVariable: "input", selectedColumnId: "input" }],
         assignments,
       ),
-    ).toEqual([{ id: "trace-inherits", name: "Trace inherits" }]);
-    expect(
-      traceRulesNeedingOverride(
-        [
-          {
-            templateVariable: "input",
-            selectedColumnId: "threads",
-            jsonSelector: "$[0].messages",
-          },
-        ],
-        assignments,
-      ),
-    ).toEqual([]);
+    ).toEqual([traceRule]);
+    expect(rulesNeedingOverride(threadsMapping, assignments)).toEqual([
+      observationRule,
+    ]);
   });
 });

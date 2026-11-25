@@ -53,19 +53,44 @@ function readsOnlyThreads(mapping: ObservationVariableMapping[]) {
   );
 }
 
-/** Trace rules that inherit an evaluator mapping they cannot run, so each needs an override. */
-export function traceRulesNeedingOverride(
+function mappingFitsTarget(
+  mapping: ObservationVariableMapping[],
+  targetObject: string,
+) {
+  if (targetObject === TopicsTargetObject) return readsOnlyThreads(mapping);
+  return mapping.every(
+    (entry) => entry.selectedColumnId !== TRACE_TRANSCRIPT_EVAL_COLUMN,
+  );
+}
+
+export type RuleNeedingOverride = ReturnType<
+  typeof rulesNeedingOverride
+>[number];
+
+/** Rules that inherit an evaluator mapping their target cannot read, so each needs an override. */
+export function rulesNeedingOverride(
   evaluatorMapping: ObservationVariableMapping[],
   assignments: {
     variableMapping: ObservationVariableMapping[] | null;
-    evaluationRule: { id: string; name: string; targetObject: string };
+    evaluationRule: {
+      id: string;
+      name: string;
+      targetObject: string;
+      enabled: boolean;
+    };
   }[],
 ) {
-  if (readsOnlyThreads(evaluatorMapping)) return [];
   return assignments.flatMap(({ variableMapping, evaluationRule }) =>
-    evaluationRule.targetObject === TopicsTargetObject &&
-    variableMapping === null
-      ? [{ id: evaluationRule.id, name: evaluationRule.name }]
+    variableMapping === null &&
+    !mappingFitsTarget(evaluatorMapping, evaluationRule.targetObject)
+      ? [
+          {
+            id: evaluationRule.id,
+            name: evaluationRule.name,
+            targetObject: evaluationRule.targetObject,
+            enabled: evaluationRule.enabled,
+          },
+        ]
       : [],
   );
 }
