@@ -129,6 +129,11 @@ export const ROUTES: Route[] = [
         icon: Home,
       },
       {
+        title: "Gateway keys",
+        slug: GATEWAY_PAGE_SLUGS.apiKeys,
+        icon: KeyRound,
+      },
+      {
         title: "Connections & Models",
         slug: GATEWAY_PAGE_SLUGS.models,
         icon: Box,
@@ -137,11 +142,6 @@ export const ROUTES: Route[] = [
         title: "Budgets",
         slug: GATEWAY_PAGE_SLUGS.budgets,
         icon: Gauge,
-      },
-      {
-        title: "Gateway keys",
-        slug: GATEWAY_PAGE_SLUGS.apiKeys,
-        icon: KeyRound,
       },
     ] as const
   ).map(({ title, slug, icon }): Route => ({

@@ -161,6 +161,24 @@ export function useGatewayPages(): GatewayPageEntry[] {
       show: visible[GATEWAY_PAGE_SLUGS.overview],
     },
     {
+      title: "Gateway keys",
+      slug: GATEWAY_PAGE_SLUGS.apiKeys,
+      cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
+      content: <GatewayApiKeysPage organizationId={organization.id} />,
+      actions:
+        !access.isSetupStatusPending &&
+        (access.canManageGateway || access.isIngestionConfigured !== false) &&
+        !showsFirstKeyPlaceholder ? (
+          <GatewayApiKeysHeaderActions
+            organizationId={organization.id}
+            canInvite={access.canManageGateway && canInviteMembers}
+          />
+        ) : undefined,
+      hideTitle: showsNotSetUpNotice,
+      show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
+      disabledReason,
+    },
+    {
       title: "Connections & Models",
       slug: GATEWAY_PAGE_SLUGS.models,
       cmdKKeywords: [
@@ -224,24 +242,6 @@ export function useGatewayPages(): GatewayPageEntry[] {
       scrollable: true,
       hideTitle: showsNotSetUpNotice || access.showNotDeployedNotice,
       show: visible[GATEWAY_PAGE_SLUGS.budgets],
-      disabledReason,
-    },
-    {
-      title: "Gateway keys",
-      slug: GATEWAY_PAGE_SLUGS.apiKeys,
-      cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
-      content: <GatewayApiKeysPage organizationId={organization.id} />,
-      actions:
-        !access.isSetupStatusPending &&
-        (access.canManageGateway || access.isIngestionConfigured !== false) &&
-        !showsFirstKeyPlaceholder ? (
-          <GatewayApiKeysHeaderActions
-            organizationId={organization.id}
-            canInvite={access.canManageGateway && canInviteMembers}
-          />
-        ) : undefined,
-      hideTitle: showsNotSetUpNotice,
-      show: visible[GATEWAY_PAGE_SLUGS.apiKeys],
       disabledReason,
     },
   ];
