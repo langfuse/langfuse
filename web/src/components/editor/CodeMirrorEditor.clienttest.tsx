@@ -33,6 +33,16 @@ describe("getPromptVariableDiagnostics", () => {
     );
   });
 
+  it("accepts whitespace around a valid variable name", () => {
+    expect(getPromptVariableDiagnostics("Hello {{ name }}")).toEqual([]);
+    expect(getPromptVariableDiagnostics("Hello {{ my name }}")).toEqual([
+      expect.objectContaining({
+        message:
+          "Variable must start with a letter and can only contain letters and underscores",
+      }),
+    ]);
+  });
+
   it("reports unclosed inner variables inside extra literal braces", () => {
     expect(getPromptVariableDiagnostics("Use {{{placeholder} here")).toEqual([
       expect.objectContaining({
