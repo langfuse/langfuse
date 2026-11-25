@@ -130,6 +130,7 @@ export default {
         "no-unneeded-ternary": "warn",
         "no-nested-ternary": "warn",
         "unicorn/throw-new-error": "warn",
+        "prefer-promise-reject-errors": "warn",
         "no-use-before-define": [
           "warn",
           {
