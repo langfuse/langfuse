@@ -1,12 +1,12 @@
-# Internal cloud trace readiness and dispatch
+# Trace readiness and dispatch
 
-Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). `LANGFUSE_EVENTS_DISPATCH_ENABLED` (cloud only, default off) turns on the whole pipeline; `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` picks the service that runs the consumer and the dispatcher (worker-cpu).
+Ingestion tracks when a trace goes idle, and a dispatcher enqueues ready traces in batches to `events-dispatch-queue`. The [events-dispatch consumer](../eventsDispatch/eventsDispatch.ts) reads each batch from ClickHouse, stores the transcript and enqueues one job per routed consumer (Topics, trace transcript evals). Events dispatch is on by default. Set `LANGFUSE_EVENTS_DISPATCH_ENABLED=false` to disable the pipeline. `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (default on) picks the services that run the consumer and the dispatcher (worker-cpu on Langfuse Cloud); a Redis lock keeps one dispatcher active.
 
 - **Trace dispatch** tracks rule-matched traces in the `{trace-dispatch:<shard>}` maps: ingestion → Redis → dispatcher → events-dispatch jobs. A trace is admitted when it passes its project's rule sampling, using a deterministic trace-ID value.
 
 ## Recording trace-rule selections
 
-Requires cloud, `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
+Requires `LANGFUSE_EVENTS_DISPATCH_ENABLED=true` and direct events-table
 writes. Recording atomically updates keys under `{trace-dispatch:<shard>:<suffix>}`:
 
 | Map              | Contents                                                                                                                                                   | Retention                                                                                            |
@@ -30,7 +30,7 @@ Bytes estimate the weight of accepted events after field overflow.
 Failed writes are unrecorded; retries may double-count. Acceptance precedes the
 ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis state.
 
-The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. Bounds contain no event count, so event-count budgets never apply. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
+The dispatcher reads at most 10,000 oldest due candidates per shard per run, hydrates 50 at a time, and reuses the existing batch selection and byte limits. Bounds contain no event count, so event-count budgets never apply. It enqueues before removing matching revisions, preserving newer ingestion and bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua calls but may repeat; there is no hard five-second deadline. The events-dispatch consumer reads ClickHouse only for traces with at least one routed consumer rule and counts every trace's outcome in `langfuse.events_dispatch.trace_outcomes`. A job that fails its last attempt or is discarded counts all its traces as `outcome:lost`, since the dispatcher already acknowledged them; this is an upper bound when part of the batch was handed off before the failure. Storage is required: a trace whose transcript cannot be stored is not enqueued to its consumers.
 
 `langfuse.trace_dispatch.redis_key_bytes` / `redis_key_entries` sample the recording maps every 60 seconds per reporting worker, summed across shards: `key:pending|due`. Per-trace bounds keys have no index, so it additionally reports `redis_key_bytes{key:bounds,shard:sampled_mean}`, the mean `MEMORY USAGE` of the bounds keys of up to 20 random pending traces per shard; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
@@ -76,11 +76,11 @@ Redis CPU/memory. Queue metrics are under `langfuse.events_dispatch`.
 The gate and the tuning constants live in [eventsDispatch/config.ts](../eventsDispatch/config.ts) (`traceDispatchConfig`, `eventsDispatchConfig`); the env surface is:
 
 - `LANGFUSE_EVENTS_DISPATCH_ENABLED` turns on recording at ingestion, the dispatcher and the consumer.
-- `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (worker-cpu only) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
+- `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` (default on; worker-cpu only on Langfuse Cloud) consumes `events-dispatch-queue`, one job at a time, and runs the dispatcher. Its ClickHouse read settings (60 s limit, 2 threads, block size 512), pending-bytes cap and upload concurrency are constants in `eventsDispatch.ts`.
 - `LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE` (default 120, at most 1,000) caps traces per events-dispatch job.
 - A project's `tracing_readiness_settings.trace_idle_ms` overrides the default idle time (10 minutes, 2 in DEV). Saving refreshes its cache; failed reads fall back to the default.
 
-Cloud guards cover intake, dispatcher execution, worker registration, processing and shared queue access. Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
+Rule sampling is deterministic by trace ID. Consumers recheck active Topics settings and the rule's sample before reading ClickHouse.
 
 Lua atomicity prevents command interleaving, but is not an ACID transaction
 across Redis, BullMQ and ClickHouse and does not roll back writes on a runtime
@@ -164,7 +164,7 @@ dispatch on `schemaVersion`; existing objects are never rewritten.
 
 Serialize the full envelope once. Skip the entire upload if `json.length` exceeds 1,000,000; do not truncate. This measures UTF-16 code units, not UTF-8 bytes, and does not bound assembly or serialization memory. Size skips emit an info log with identifiers, actual length and limit. StorageService owns upload retries and logs: SlowDown at warning level, other failures including request timeouts at error level. Exhausted failures count the trace as failed in `langfuse.events_dispatch.trace_outcomes`.
 
-Deploy with writes disabled. Before enabling, expire the full `<prefix>events-dispatch/trace-transcript/` path after three days: a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. Enable on a small worker rollout and check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
+Configure the event upload bucket to expire transcripts under `<prefix>events-dispatch/trace-transcript/` after three days. Use a bucket lifecycle rule, the transcript cleaner below, or both. The cleaner deletes without a version ID, so on a bucket with versioning or soft delete it only hides objects; there, a lifecycle rule that expires noncurrent versions is still required. A rule for `evals/` alone does not cover this path. During rollout, check size-skip logs, S3 failures and Topics latency. Consumers that require files must schedule only after a successful PUT.
 
 Like temporary span-eval inputs, these objects have no ingestion deletion references. Trace and project deletion do not remove them. They expire after three days (`TRACE_TRANSCRIPT_RETENTION_MS`). `eventsDispatch/transcriptCleaner.ts` lists `<prefix>events-dispatch/trace-transcript/` with the shared event-upload client, under one Redis lock, and deletes older objects. It starts when `LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED=true` and emits `langfuse.events_dispatch.transcript_cleaner.{files_deleted,failures}`.
 
@@ -193,7 +193,7 @@ Redis applied an update without acknowledgement, so the stage difference include
 uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
 the ClickHouse flush. No additional serialization is performed.
 
-`TraceDispatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled in a cloud worker, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
+`TraceDispatchMetricsRunner` starts when the dispatcher or events-dispatch consumer is enabled, independently of the generic queue-metrics flag. It samples the active pipeline's maps every 60 seconds per process and polls the queue every 30 seconds when dispatcher or consumer is enabled, plus collection time. No completed jobs or progressing dispatcher are required. Queue-age collection reads only the next waiting/paused job IDs and their timestamp fields; it never fetches or parses batch payloads. One failed collection does not suppress the others; failed samples are not reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory collection outcomes. Periodic-runner timestamps indicate runner activity, not successful memory collection.
 
 Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
 SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.

@@ -49,6 +49,7 @@ export const scoreOutlierValueQueryMetrics = (): ScoreOutlierQueryMetric[] =>
   queryMetricsFor("value");
 
 /** Resolves an aggregation option, falling back to the metric's default. */
+/** @internal */
 export const resolveScoreOutlierAggregation = (
   metric: ScoreOutlierMetricKey,
   aggregation: string | undefined,

@@ -1,24 +1,22 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import { type GetModelResult } from "@/src/features/models/validation";
+import {
+  type ModelOwner,
+  useCanEditModels,
+} from "@/src/features/models/modelOwner";
 
 export const EditModelButton = ({
   modelData,
-  projectId,
+  owner,
 }: {
   modelData: GetModelResult;
-  projectId: string;
+  owner: ModelOwner;
 }) => {
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
+  const hasAccess = useCanEditModels(owner);
 
   return (
-    <UpsertModelFormDialogController
-      {...{ modelData, projectId, action: "edit" }}
-    >
+    <UpsertModelFormDialogController {...{ modelData, owner, action: "edit" }}>
       {({ openDialog }) => (
         <Button
           variant="outline"

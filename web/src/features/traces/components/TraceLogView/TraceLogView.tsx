@@ -98,24 +98,25 @@ export const TraceLogView = ({
   const {
     roots: contextRoots,
     observations: contextObservations,
-    sessionTraces,
+    scope,
     truncatedAtObservations,
   } = useTraceData();
+  const isSessionScope = scope.type === "session";
   const roots = useMemo(
     () =>
-      sessionTraces
+      isSessionScope
         ? contextRoots.filter((root) => root.traceId === traceId)
         : contextRoots,
-    [contextRoots, sessionTraces, traceId],
+    [contextRoots, isSessionScope, traceId],
   );
   const observations = useMemo(
     () =>
-      sessionTraces
+      isSessionScope
         ? contextObservations.filter(
             (observation) => observation.traceId === traceId,
           )
         : contextObservations,
-    [contextObservations, sessionTraces, traceId],
+    [contextObservations, isSessionScope, traceId],
   );
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
@@ -344,7 +345,7 @@ export const TraceLogView = ({
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {sessionTraces && !!truncatedAtObservations && (
+      {isSessionScope && !!truncatedAtObservations && (
         <div
           role="status"
           className="text-muted-foreground bg-muted/40 shrink-0 border-b px-3 py-2 text-xs"

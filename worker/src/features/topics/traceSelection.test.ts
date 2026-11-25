@@ -139,7 +139,7 @@ describe("Topics trace selection", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );
@@ -216,7 +216,7 @@ describe("Topics trace selection", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );
@@ -371,7 +371,7 @@ describe("Topics setup backfill selection", () => {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: {},
   });
   const select = (
@@ -384,7 +384,6 @@ describe("Topics setup backfill selection", () => {
       idleMs: 60_000,
       now,
       days: 7,
-      sampling: 1,
       seed: "rule",
       summarized: {
         facets: [

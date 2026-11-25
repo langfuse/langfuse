@@ -12,6 +12,7 @@ import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import { getLightweightDeleteModeOverride } from "../clickhouse/lightweightDelete";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
@@ -1199,6 +1200,10 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
+          ...getLightweightDeleteModeOverride(
+            opts.query,
+            env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES,
+          ),
           log_comment: JSON.stringify(normalizedTags),
         },
       });

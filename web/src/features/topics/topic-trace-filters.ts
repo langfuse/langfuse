@@ -1,10 +1,12 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { type TopicTraceQuery } from "./facet-topics";
+import { topicRuleFilterError } from "@langfuse/shared/topics";
 import {
   createFieldRegistry,
   fieldRegistryFromColumns,
   withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
+import { topicsFilterRegistry } from "./useTopicTraceFilter";
 
 export const TOPIC_ASSIGNMENT_OPTIONS = [
   { value: "assigned", displayValue: "In a topic" },
@@ -16,6 +18,12 @@ export const TOPIC_ASSIGNMENT_OPTIONS = [
 export function createTopicTraceRegistry(
   topics: readonly { id: string; name: string }[],
   filters: FilterState = [],
+  {
+    traceFields = false,
+  }: {
+    /** Adds the trace fields a rule filters on, matched on the server. */
+    traceFields?: boolean;
+  } = {},
 ) {
   const topicOptions = withUnavailableTopicOptions(
     buildTopicOptions(topics),
@@ -37,41 +45,83 @@ export function createTopicTraceRegistry(
       options: TOPIC_ASSIGNMENT_OPTIONS,
     },
   ];
-  const baseRegistry = fieldRegistryFromColumns(columns, {
+  const topicRegistry = fieldRegistryFromColumns(columns, {
     id: "topics",
+    fields: {
+      assignment: { aliases: ["state", "status"] },
+    },
+  });
+  const traceRegistry = traceFields ? topicsFilterRegistry : null;
+  // A later alias wins in the registry, so trace fields must not claim a topic field's name.
+  const topicNames = new Set(
+    ["topic", "topicId"]
+      .concat(topicRegistry.fields.flatMap((f) => [f.id, ...f.aliases]))
+      .map((name) => name.toLowerCase()),
+  );
+  // The view reads plain filters, not a predicate.
+  const registry = createFieldRegistry({
+    ...(traceRegistry ?? topicRegistry),
+    id: "topics",
+    predicateSource: null,
+    fields: [
+      ...topicRegistry.fields.map((field) =>
+        field.id === "topicId"
+          ? {
+              ...field,
+              id: "topic",
+              aliases: ["topicId"],
+              filterColumn: "topicId",
+            }
+          : field,
+      ),
+      ...(traceRegistry?.fields ?? []).map((field) => ({
+        ...field,
+        aliases: field.aliases.filter(
+          (alias) => !topicNames.has(alias.toLowerCase()),
+        ),
+      })),
+    ],
+    columns: [...topicRegistry.columns, ...(traceRegistry?.columns ?? [])],
     allowFreeText: true,
     aiFilterPrompt: false,
     defaultSearchType: ["id"],
     freeTextScopeLabel: "topic names and exact trace IDs",
-    searchExamples: ['assignment:"Outlier"', 'topic:"Billing questions"'],
-    fields: {
-      assignment: { aliases: ["state", "status"] },
+    searchExamples: [
+      'topic:"Billing questions"',
+      'assignment:"Outlier"',
+      ...(traceRegistry?.searchExamples ?? []),
+    ],
+    filterStateErrors: (filters) => {
+      const [topicFilters, traceFilters] = splitTopicTraceFilters(filters);
+      const traceError = traceRegistry
+        ? topicRuleFilterError(traceFilters)
+        : traceFilters.length > 0 &&
+          "This view filters by topic and assignment state only.";
+      return [
+        ...(topicFilters.some((filter) => filter.type !== "stringOptions")
+          ? ["Topics and assignment states take exact selections."]
+          : []),
+        ...(traceError ? [traceError] : []),
+      ];
     },
-    filterStateErrors: (filters) =>
-      filters.some((filter) => filter.type !== "stringOptions")
-        ? [
-            "Topics support exact topic and assignment selections. Use the search field for text matching.",
-          ]
-        : [],
-  });
-  const registry = createFieldRegistry({
-    ...baseRegistry,
-    fields: baseRegistry.fields.map((field) =>
-      field.id === "topicId"
-        ? {
-            ...field,
-            id: "topic",
-            aliases: ["topicId"],
-            filterColumn: "topicId",
-          }
-        : field,
-    ),
   });
   return withFieldOptions(
     withFieldOptions(registry, "topic", topicOptions),
     "assignment",
     TOPIC_ASSIGNMENT_OPTIONS,
   );
+}
+
+const TOPIC_COLUMNS = new Set(["topicId", "assignment"]);
+
+/** Topic and assignment filters run on topic results; the rest are tracing filters on the trace. */
+export function splitTopicTraceFilters(
+  filters: FilterState,
+): [FilterState, FilterState] {
+  return [
+    filters.filter((filter) => TOPIC_COLUMNS.has(filter.column)),
+    filters.filter((filter) => !TOPIC_COLUMNS.has(filter.column)),
+  ];
 }
 
 export function selectTopicTraceFilters(
@@ -116,7 +166,7 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   const phrase = searchQuery?.trim() ?? "";
   return rows.filter((row) => {
     if (phrase && !matchesSearch(row, phrase)) return false;
-    return filters.every((filter) => {
+    return splitTopicTraceFilters(filters)[0].every((filter) => {
       if (filter.type !== "stringOptions") return false;
       if (filter.column !== "topicId" && filter.column !== "assignment")
         return false;
@@ -145,7 +195,12 @@ const STATUSES_BY_ASSIGNMENT = {
   assigned: ["assigned"],
   outlier: ["outlier"],
   awaiting_map: ["awaiting_map"],
-  no_topic: ["not_applicable", "insufficient_input"],
+  no_topic: [
+    "not_applicable",
+    "insufficient_input",
+    "empty_input",
+    "input_too_large",
+  ],
 } as const;
 type ServerStatus =
   (typeof STATUSES_BY_ASSIGNMENT)[keyof typeof STATUSES_BY_ASSIGNMENT][number];
@@ -178,6 +233,8 @@ export function topicTraceQuery(
   { assignedOnly = false }: { assignedOnly?: boolean } = {},
 ): TopicTraceQuery | null {
   const query: TopicTraceQuery = assignedOnly ? { assigned: true } : {};
+  const traceFilters = splitTopicTraceFilters(filters)[1];
+  if (traceFilters.length > 0) query.filter = traceFilters;
   const topicSelection = selection(filters, "topicId");
   let include = topicSelection.include;
   const phrase = searchQuery?.trim() ?? "";
@@ -226,6 +283,7 @@ export function topicTraceQuery(
   return query;
 }
 
+/** @internal */
 export function getTopicAssignment(outcome: string) {
   if (
     outcome === "assigned" ||

@@ -10,7 +10,7 @@ import {
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain } from "@langfuse/shared";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
@@ -58,7 +58,8 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Learn more <ExternalLink size="sm" __rawClassName="ml-1" />
+                Learn more{" "}
+                <SquareArrowOutUpRight size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -126,7 +127,8 @@ export const GitHubDispatchActionForm: React.FC<
                 rel="noopener noreferrer"
                 className="text-primary inline-flex items-center hover:underline"
               >
-                Create token <ExternalLink size="sm" __rawClassName="ml-1" />
+                Create token{" "}
+                <SquareArrowOutUpRight size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />

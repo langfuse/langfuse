@@ -39,9 +39,11 @@ export const unregisterInFlightBlobExport = (handle: symbol): void => {
   inFlightExports.delete(handle);
 };
 
+/** @internal */
 export const getInFlightBlobExportCount = (): number => inFlightExports.size;
 
 // Test helper — clear leaked state between tests.
+/** @internal */
 export const resetInFlightBlobExports = (): void => {
   inFlightExports.clear();
 };

@@ -24,6 +24,5 @@ export const [getV4MigrationDataTool, handleGetV4MigrationData] = defineTool({
           projectId: context.projectId,
         }),
     }),
-  readOnlyHint: true,
-  expensiveHint: true,
+  annotations: { readOnlyHint: true },
 });

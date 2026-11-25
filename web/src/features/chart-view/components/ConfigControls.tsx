@@ -14,14 +14,12 @@ import {
   type AggregationFn,
   type DimensionKey,
   type MetricKey,
-  type TimeGranularity,
 } from "../types";
 import {
   AGGREGATION_LABELS,
   CHART_TYPES,
   DIMENSIONS,
   getMetric,
-  GRANULARITIES,
   METRICS,
 } from "../vocab";
 
@@ -102,35 +100,6 @@ export const BreakdownSelect = React.memo(function BreakdownSelect({
         {DIMENSIONS.map((d) => (
           <SelectItem key={d.key} value={d.key}>
             {d.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-});
-
-export const GranularitySelect = React.memo(function GranularitySelect({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: TimeGranularity;
-  onChange: (value: TimeGranularity) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(v) => onChange(v as TimeGranularity)}
-      disabled={disabled}
-    >
-      <SelectTrigger className={TRIGGER_CLASS} aria-label="Time granularity">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {GRANULARITIES.map((g) => (
-          <SelectItem key={g} value={g}>
-            {g}
           </SelectItem>
         ))}
       </SelectContent>

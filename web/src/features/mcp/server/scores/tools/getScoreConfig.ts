@@ -23,5 +23,5 @@ export const [getScoreConfigTool, handleGetScoreConfig] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

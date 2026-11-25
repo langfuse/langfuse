@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import capitalize from "lodash/capitalize";
 import router from "next/router";
 import { useState, useEffect, useMemo, useRef } from "react";

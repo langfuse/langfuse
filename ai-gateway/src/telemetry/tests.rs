@@ -124,6 +124,7 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
     let telemetry = Telemetry::new(
         &ControlPlaneConfig::new(&format!("{}/app", web.url), "test-service-key").unwrap(),
         DEFAULT_RETAINED_BYTES,
+        Duration::from_millis(DEFAULT_BATCH_LINGER_MS),
     )
     .unwrap();
     telemetry.record(grant().await, facts("project-1"));

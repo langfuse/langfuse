@@ -109,7 +109,10 @@ describe("TracePanelDetail", () => {
     // The loaded list is capped, so it holds only "in-list" — and the tree built
     // from it knows only that node plus the synthetic TRACE node.
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: null,
       trace: { id: "t", projectId: "p" },
+      scope: { type: "trace", trace: { id: "t", projectId: "p" } },
       observations: [observation("in-list")],
       nodeMap: new Map([
         ["in-list", { id: "in-list", type: "SPAN" }],
@@ -159,7 +162,15 @@ describe("TracePanelDetail", () => {
   it("opens a session observation using its own trace, not the anchor trace", () => {
     mockUseSelection.mockReturnValue({ selectedNodeId: "foreign-observation" });
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: "session",
       trace: { id: "anchor", projectId: "p" },
+      scope: {
+        type: "session",
+        projectId: "p",
+        sessionId: "session",
+        traces: [],
+      },
       observations: [
         { ...observation("foreign-observation"), traceId: "other-trace" },
       ],
@@ -176,8 +187,15 @@ describe("TracePanelDetail", () => {
   it("shows the selected session trace wrapper instead of fetching it as an observation", () => {
     mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: "session",
       trace: { id: "anchor", projectId: "p" },
-      sessionTraces: [{ id: "other", projectId: "p" }],
+      scope: {
+        type: "session",
+        projectId: "p",
+        sessionId: "session",
+        traces: [{ id: "other", projectId: "p" }],
+      },
       observations: [],
       serverScores: [],
       corrections: [],
@@ -197,8 +215,15 @@ describe("TracePanelDetail", () => {
     const timestamp = new Date("2026-08-12T00:00:00.000Z");
     mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: "session",
       trace: { id: "anchor", projectId: "p" },
-      sessionTraces: [{ id: "other", projectId: "p", timestamp }],
+      scope: {
+        type: "session",
+        projectId: "p",
+        sessionId: "session",
+        traces: [{ id: "other", projectId: "p", timestamp }],
+      },
       observations: [],
       serverScores: [],
       corrections: [],
@@ -240,8 +265,15 @@ describe("TracePanelDetail", () => {
   it("loads a message trace missing from the capped session tree", () => {
     mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: "session",
       trace: { id: "anchor", projectId: "p", sessionId: "session" },
-      sessionTraces: [{ id: "anchor", projectId: "p" }],
+      scope: {
+        type: "session",
+        projectId: "p",
+        sessionId: "session",
+        traces: [{ id: "anchor", projectId: "p" }],
+      },
       observations: [],
       serverScores: [],
       corrections: [],
@@ -262,8 +294,15 @@ describe("TracePanelDetail", () => {
   it("shows errors instead of synthetic empty trace details", () => {
     mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
     mockUseTraceData.mockReturnValue({
+      projectId: "p",
+      sessionId: "session",
       trace: { id: "anchor", projectId: "p" },
-      sessionTraces: [{ id: "other", projectId: "p" }],
+      scope: {
+        type: "session",
+        projectId: "p",
+        sessionId: "session",
+        traces: [{ id: "other", projectId: "p" }],
+      },
       observations: [],
       serverScores: [],
       corrections: [],

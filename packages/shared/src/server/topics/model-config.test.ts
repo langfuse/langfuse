@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "../llm/types";
+import { logger } from "../logger";
 import {
   getEnabledTopicsModels,
   prepareTopicsModelSettings,
@@ -214,11 +215,30 @@ describe("prepareTopicsModelSettings", () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
+  it("logs failed model checks without the provider's message, which can echo credentials", async () => {
+    const error = vi.spyOn(logger, "error");
+    mocks.current.mockResolvedValue({ enabled: true });
+    mocks.generateText.mockRejectedValue(
+      new Error("Incorrect API key provided: sk-proj-****_2gA"),
+    );
+    mocks.embed.mockResolvedValue({
+      embeddings: [Array(1536).fill(0.1), Array(1536).fill(0.1)],
+    });
+
+    await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
+      "Incorrect API key provided",
+    );
+    const logged = JSON.stringify(error.mock.calls);
+    expect(logged).not.toContain("sk-proj");
+    // Our own check messages stay in the log.
+    expect(logged).toContain("instead of 1024");
+  });
+
   it.each([
     ["model", { embedding: slot("openai", "text-embedding-3-large") }],
     ["dimensions", { embeddingDimensions: 512 as const }],
   ])(
-    "locks the embedding %s once summaries are embedded",
+    "locks the embedding %s once summaries are embedded with it",
     async (_, change) => {
       mocks.current.mockResolvedValue({
         embeddingModel: "text-embedding-3-small",
@@ -227,7 +247,11 @@ describe("prepareTopicsModelSettings", () => {
       mocks.hasEmbeddings.mockResolvedValue(true);
       await expect(
         saveTopicsModelSettings("project", { ...settings, ...change }),
-      ).rejects.toThrow("cannot change after summaries were embedded");
+      ).rejects.toThrow("can't change once summaries are embedded");
+      expect(mocks.hasEmbeddings).toHaveBeenCalledWith("project", {
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 1024,
+      });
       // Other slots stay editable; the embedding connection may change too.
       await saveTopicsModelSettings("project", {
         ...settings,

@@ -50,15 +50,20 @@ export const NoGatewayKeys = meta.story({
     searchPlaceholder: "Search gateway keys",
     options: [],
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ args, canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: /Gateway key/ }),
     );
     const body = within(canvasElement.ownerDocument.body);
-    await waitFor(() =>
-      expect(body.getByPlaceholderText("Enter custom value")).toBeVisible(),
-    );
     await expect(body.queryByText("Select All")).toBeNull();
+    const search = await body.findByPlaceholderText("Search gateway keys");
+    await userEvent.type(search, "deleted-key-id");
+    await userEvent.click(
+      await body.findByRole("option", { name: /deleted-key-id/ }),
+    );
+    await waitFor(() =>
+      expect(args.onValueChange).toHaveBeenLastCalledWith(["deleted-key-id"]),
+    );
   },
 });
 
@@ -69,11 +74,11 @@ export const CustomValue = meta.story({
       within(canvasElement).getByRole("button", { name: /User/ }),
     );
     const body = within(canvasElement.ownerDocument.body);
-    const input = await body.findByPlaceholderText("Enter custom value");
-    await userEvent.type(input, "former-member-id");
-    const checkbox = input.previousElementSibling;
-    if (!checkbox) throw new Error("Custom value checkbox not found");
-    await userEvent.click(checkbox);
+    const search = await body.findByPlaceholderText("Search users");
+    await userEvent.type(search, "former-member-id");
+    await userEvent.click(
+      await body.findByRole("option", { name: /former-member-id/ }),
+    );
     await waitFor(() =>
       expect(args.onValueChange).toHaveBeenLastCalledWith(["former-member-id"]),
     );

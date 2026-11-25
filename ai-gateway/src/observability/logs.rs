@@ -79,11 +79,12 @@ struct CorrelationVisitor(LoggedFields);
 
 impl Visit for CorrelationVisitor {
     fn record_str(&mut self, field: &Field, value: &str) {
-        if let Some(index) = CORRELATION_FIELDS
+        if let Some((_, slot)) = CORRELATION_FIELDS
             .iter()
-            .position(|(name, _)| *name == field.name())
+            .zip(&mut self.0.0)
+            .find(|((name, _), _)| *name == field.name())
         {
-            self.0.0[index] = Some(value.to_owned());
+            *slot = Some(value.to_owned());
         }
     }
 

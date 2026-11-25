@@ -1236,7 +1236,7 @@ async function createMastraAdapter(params: {
           execute: async (_input, context) => {
             const snapshot = context?.requestContext?.get(RUN_CONTEXT_KEY);
             if (typeof snapshot !== "string") {
-              throw new Error("Current turn context is unavailable");
+              throw new TypeError("Current turn context is unavailable");
             }
             return JSON.parse(snapshot) as RequestSnapshot;
           },
@@ -1470,6 +1470,7 @@ type MastraApprovalStreamChunk = {
 // Preserve explicit failure markers for Halo persistence and instrumentation.
 // The adapter otherwise serializes tool errors as a string-valued error field,
 // which may also occur in successful tool output and is not a failure marker.
+/** @internal */
 export function patchMastraToolErrors(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;

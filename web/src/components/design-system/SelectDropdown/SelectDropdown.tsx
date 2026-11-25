@@ -4,23 +4,22 @@ import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { ChevronDown, ChevronUp, type IconComponent } from "@langfuse/icons";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
+import { type Badge } from "../Badge/Badge";
 
 type SelectOption<V> = {
   type?: "option";
   value: V;
   label: string;
+  secondaryLabel?: string;
   icon?: IconComponent;
   explanation?: {
     title: string;
     description?: string;
     badges?: { label: string; value: string }[];
   };
-  badges?: Array<
-    Pick<React.ComponentProps<typeof Badge>, "text" | "color" | "title">
-  >;
+  badges?: Array<Pick<React.ComponentProps<typeof Badge>, "text" | "title">>;
 } & (
   | { disabled?: false; disabledReason?: never }
   | { disabled: true; disabledReason: string }
@@ -156,9 +155,7 @@ export function SelectDropdown<V extends string>({
               </SelectPrimitive.ItemText>
             }
             title={node.disabled ? node.disabledReason : node.label}
-            badges={node.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
+            badges={node.badges}
           />
         </SelectPrimitive.Item>
       </InputDropdown.Option>

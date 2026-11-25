@@ -1,6 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { type GetServerSidePropsContext } from "next";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   getServerSession,
   type NextAuthOptions,
@@ -17,7 +16,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server/parseFlags";
+} from "@/src/features/feature-flags/utils";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -94,6 +93,7 @@ import {
   isLangfuseAITracingConfigured,
   shouldSkipScoresDedup,
   isForceV3ExperienceProject,
+  isTraceEvalsProjectEnabled,
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@langfuse/shared/src/server";
@@ -1087,7 +1087,7 @@ export async function getAuthOptions(
                                 name: project.name,
                                 retentionDays: project.retentionDays,
                                 hasTraces: project.hasTraces,
-                                topicsEnabled: isTopicsProjectEnabled(
+                                traceEvalsEnabled: isTraceEvalsProjectEnabled(
                                   project.id,
                                 ),
                                 scoreEditsDisabled: shouldSkipScoresDedup(

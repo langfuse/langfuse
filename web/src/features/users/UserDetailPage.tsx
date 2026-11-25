@@ -78,12 +78,22 @@ function UserDetailView({
   };
 
   const handleTabChange = async (tab: string) => {
-    if (router.query.filter || router.query.orderBy) {
-      const newQuery = { ...router.query };
-      delete newQuery.filter;
-      delete newQuery.orderBy;
-      await router.replace({ query: newQuery });
+    const newQuery = { ...router.query };
+    for (const key of [
+      "filter",
+      "orderBy",
+      "peek",
+      "peekView",
+      "sessionPeek",
+      "traceId",
+      "observation",
+      "timestamp",
+      "aggregation",
+      "traceView",
+    ]) {
+      delete newQuery[key];
     }
+    await router.replace({ query: newQuery });
     setCurrentTab(tab);
   };
 

@@ -60,7 +60,7 @@ import {
   executeClickhouseLocal,
   normalizeCapturedQueries,
   substituteNamedParams,
-} from "./goldenHarness";
+} from "./__tests__/goldenHarness";
 
 const PROJECT_ID = "seek-project";
 const ORDER_BY = { column: "timestamp", order: "DESC" as const };

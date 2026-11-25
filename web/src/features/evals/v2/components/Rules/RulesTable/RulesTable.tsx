@@ -1,13 +1,7 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import {
-  Copy,
-  ExternalLink,
-  MoreVertical,
-  Pencil,
-  Trash2,
-} from "@langfuse/icons";
+import { Copy, MoreVertical, Pencil, Trash2 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -24,7 +18,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -88,12 +82,14 @@ function RuleEvaluatorsCell({
   }
 
   return (
-    <SingleLineOverflowList
+    <OverflowList
       items={assignments}
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
-      renderItem={(assignment) => (
-        <Badge color="filled" text={assignment.evaluator.name} />
+      renderItem={(assignment, { getItemProps }) => (
+        <span {...getItemProps()}>
+          <Badge color="filled" text={assignment.evaluator.name} />
+        </span>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip
@@ -288,6 +284,7 @@ function RulesTableContent({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
+              targetObject={row.original.targetObject}
               onUpgrade={
                 upgradeRequired
                   ? () => {
@@ -421,7 +418,7 @@ function RulesTableContent({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink size="base" __rawClassName="ml-1" />
+                View traces
               </Button>
               <DropdownMenu
                 placement="bottom-end"

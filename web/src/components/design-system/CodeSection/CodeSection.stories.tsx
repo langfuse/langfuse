@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLink, RefreshCw } from "@langfuse/icons";
+import { SquareArrowOutUpRight, RefreshCw } from "@langfuse/icons";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -71,7 +71,7 @@ export const WithActions = meta.story({
     content: "whsec_0000000000000000000000000000",
     actions: [
       { icon: RefreshCw, label: "Regenerate", onClick: () => {} },
-      { icon: ExternalLink, label: "Open docs", onClick: () => {} },
+      { icon: SquareArrowOutUpRight, label: "Open docs", onClick: () => {} },
     ],
   },
 });

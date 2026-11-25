@@ -2,14 +2,18 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 import { extractOtelMedia, validateOtelJson } from "@langfuse/native";
-import { MediaContentType } from "@langfuse/shared";
+import {
+  MediaContentType,
+  observationEvalFilterRecordColumns,
+} from "@langfuse/shared";
 import {
   mediaPayloadCases,
   PNG_BASE64,
   TEXT_BASE64,
-} from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
+} from "../../../packages/shared/src/server/media/__tests__/MediaPayloadProcessor.fixtures";
 import { getMediaId } from "../../../packages/shared/src/server/media/mediaService";
 import { processOtelMedia } from "../../../packages/shared/src/server/otel/OtelMediaProcessor";
+import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";
 
 vi.mock("../../../packages/shared/src/server/instrumentation", () => ({
   recordDistribution: vi.fn(),
@@ -287,14 +291,14 @@ async function expectNativeMediaLifecycleParity(
     });
     const { finalized } = await processing.complete(
       mediaResults,
-      prepared.lookupRequests.map(() => ({})),
+      encodeOtelLookups(prepared.lookupRequests.map(() => ({}))),
       undefined,
-      true,
+      observationEvalFilterRecordColumns,
     );
     expect(finalized).toBeDefined();
-    expect((finalized!.evaluationRows[0] as { input: unknown }).input).toBe(
-      tsPayload.input,
-    );
+    expect(processing.takeEvaluationRow(0)).toMatchObject({
+      input: tsPayload.input,
+    });
   } finally {
     await processing?.dispose();
     await early.dispose();

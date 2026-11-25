@@ -33,18 +33,21 @@ function TracePanelDetailContent() {
   const { selectedNodeId } = useSelection();
   const {
     trace: anchorTrace,
-    sessionTraces,
+    projectId,
+    sessionId,
+    scope,
     observations,
     serverScores: scores,
     corrections,
     isPlaceholderData,
   } = useTraceData();
+  const sessionTraces = scope.type === "session" ? scope.traces : undefined;
   const sessionMessageTraces = useSessionMessageTraces({
-    projectId: anchorTrace.projectId,
-    sessionId: anchorTrace.sessionId ?? "",
+    projectId,
+    sessionId: sessionId ?? "",
     enabled:
       !!sessionTraces &&
-      !!anchorTrace.sessionId &&
+      !!sessionId &&
       !!selectedNodeId?.startsWith("trace-") &&
       !sessionTraces.some((entry) => traceNodeId(entry.id) === selectedNodeId),
   });
@@ -62,21 +65,21 @@ function TracePanelDetailContent() {
   // data is perfectly fetchable.
   const selected = useSelectedObservation({
     selectedNodeId,
-    traceId: trace.id,
-    projectId: trace.projectId,
+    traceId: trace?.id ?? "",
+    projectId,
     observations,
-    sessionId: sessionTraces ? (anchorTrace.sessionId ?? undefined) : undefined,
+    sessionId: sessionTraces ? (sessionId ?? undefined) : undefined,
     enabled: !isPlaceholderData,
   });
 
   if (
     selected.kind === "trace" &&
     selectedSessionTrace &&
-    selectedSessionTrace.id !== anchorTrace.id
+    selectedSessionTrace.id !== anchorTrace?.id
   ) {
     return (
       <ConnectedSessionTraceDetail
-        projectId={anchorTrace.projectId}
+        projectId={projectId}
         traceId={selectedSessionTrace.id}
         timestamp={selectedSessionTrace.timestamp}
       />
@@ -88,7 +91,7 @@ function TracePanelDetailContent() {
       return (
         <ConnectedObservationDetailView
           observation={selected.observation}
-          projectId={trace.projectId}
+          projectId={projectId}
           traceId={selected.observation.traceId}
         />
       );
@@ -114,7 +117,19 @@ function TracePanelDetailContent() {
         />
       );
     case "trace":
-      if (trace.id !== anchorTrace.id) {
+      if (!trace) {
+        return (
+          <PanelMessage
+            title={
+              sessionTraces !== undefined && sessionTraces.length > 0
+                ? "Select a trace or observation"
+                : "This session has no observations"
+            }
+            body="Select an item in the session to inspect its details."
+          />
+        );
+      }
+      if (trace.id !== anchorTrace?.id) {
         return (
           <ConnectedSessionTraceDetail
             projectId={trace.projectId}

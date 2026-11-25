@@ -1,8 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  getTraceCountsByProjectAndDay,
-  getObservationCountsByProjectAndDay,
-  getScoreCountsByProjectAndDay,
+  getBillableUnitCountsForAllProjectsInRange,
   getBillingCycleStart,
   startOfDayUTC,
   endOfDayUTC,
@@ -14,6 +12,8 @@ import {
 import { parseDbOrg, type ParsedOrganization } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
+
+import { env } from "../../env";
 
 import {
   processThresholds,
@@ -47,15 +47,10 @@ interface ProjectToOrgMap {
 }
 
 /**
- * Usage counts aggregated at org level
+ * Billable units aggregated at org level
  */
 interface UsageByOrg {
-  [orgId: string]: {
-    traces: number;
-    observations: number;
-    scores: number;
-    total: number;
-  };
+  [orgId: string]: number;
 }
 
 /**
@@ -95,18 +90,15 @@ async function fetchAllOrgsWithBillingInfo(): Promise<ParsedOrganization[]> {
 }
 
 /**
- * Aggregate project-level counts to org-level counts
+ * Aggregate project-level billable unit counts to org-level totals
  */
 function aggregateByOrg(
-  traceCounts: Array<{ count: number; projectId: string; date: string }>,
-  obsCounts: Array<{ count: number; projectId: string; date: string }>,
-  scoreCounts: Array<{ count: number; projectId: string; date: string }>,
+  unitCounts: Array<{ count: number; projectId: string }>,
   projectToOrgMap: ProjectToOrgMap,
 ): UsageByOrg {
   const orgCounts: UsageByOrg = {};
 
-  // Aggregate traces
-  for (const row of traceCounts) {
+  for (const row of unitCounts) {
     const orgId = projectToOrgMap[row.projectId];
     if (!orgId) {
       logger.warn(
@@ -115,48 +107,7 @@ function aggregateByOrg(
       continue;
     }
 
-    if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
-    }
-    orgCounts[orgId].traces += row.count;
-  }
-
-  // Aggregate observations
-  for (const row of obsCounts) {
-    const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) {
-      logger.warn(
-        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
-      );
-      continue;
-    }
-
-    if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
-    }
-    orgCounts[orgId].observations += row.count;
-  }
-
-  // Aggregate scores
-  for (const row of scoreCounts) {
-    const orgId = projectToOrgMap[row.projectId];
-    if (!orgId) {
-      logger.warn(
-        `[FREE TIER USAGE THRESHOLDS] aggregateByOrg: Project ${row.projectId} not found in projectToOrgMap`,
-      );
-      continue;
-    }
-
-    if (!orgCounts[orgId]) {
-      orgCounts[orgId] = { traces: 0, observations: 0, scores: 0, total: 0 };
-    }
-    orgCounts[orgId].scores += row.count;
-  }
-
-  // Calculate totals
-  for (const orgId of Object.keys(orgCounts)) {
-    const counts = orgCounts[orgId];
-    counts.total = counts.traces + counts.observations + counts.scores;
+    orgCounts[orgId] = (orgCounts[orgId] ?? 0) + row.count;
   }
 
   return orgCounts;
@@ -179,7 +130,8 @@ export type UsageAggregationStats = {
  * 1. Setup: Fetch project→org map, all orgs, calculate billing starts
  * 2. Process day-by-day backwards from referenceDate (0 to 31 days ago)
  * 3. For each day:
- *    - Fetch counts from Clickhouse (3 queries for ALL projects)
+ *    - Fetch billable units ingested that day from the billable_events
+ *      ledger (1 query for ALL projects)
  *    - Aggregate to org level
  *    - Accumulate into running totals
  *    - Process orgs whose billing cycle starts on THIS day
@@ -192,6 +144,14 @@ export async function processUsageAggregationForAllOrgs(
   referenceDate: Date = new Date(),
   onProgress?: (progress: number) => void | Promise<void>,
 ): Promise<UsageAggregationStats> {
+  // The billing ledger is filled from events_full, which legacy mode never
+  // writes. Counting an empty ledger would clear every org's usage and blocks.
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+    throw new Error(
+      "Free-tier usage thresholds do not support LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy",
+    );
+  }
+
   // Normalize referenceDate to UTC end of day
   const normalizedReferenceDate = endOfDayUTC(referenceDate);
 
@@ -221,7 +181,7 @@ export async function processUsageAggregationForAllOrgs(
   // Initialize usage state for all orgs
   const usageByOrgMap: UsageByOrg = {};
   for (const org of allOrgs) {
-    usageByOrgMap[org.id] = { traces: 0, observations: 0, scores: 0, total: 0 };
+    usageByOrgMap[org.id] = 0;
   }
 
   // Initialize statistics tracking
@@ -262,46 +222,25 @@ export async function processUsageAggregationForAllOrgs(
         span.setAttribute("langfuse.free_tier.dayDate", dayDateString);
         span.setAttribute("langfuse.free_tier.daysAgo", daysAgo);
 
-        // Fetch counts from Clickhouse (3 queries for ALL projects).
-        // Each query gets an extended timeout and automatic retries — a single
-        // re-run is cheap compared to failing the whole job.
-        const [traceCounts, obsCounts, scoreCounts] = await Promise.all([
-          withRetry("getTraceCountsByProjectAndDay", () =>
-            getTraceCountsByProjectAndDay({
-              startDate: dayStart,
-              endDate: dayEnd,
+        // Billable units ingested this day, for ALL projects. The query gets
+        // an extended timeout and automatic retries — a single re-run is cheap
+        // compared to failing the whole job.
+        const unitCounts = await withRetry(
+          "getBillableUnitCountsForAllProjectsInRange",
+          () =>
+            getBillableUnitCountsForAllProjectsInRange({
+              from: dayStart,
+              to: dayEnd,
             }),
-          ),
-          withRetry("getObservationCountsByProjectAndDay", () =>
-            getObservationCountsByProjectAndDay({
-              startDate: dayStart,
-              endDate: dayEnd,
-            }),
-          ),
-          withRetry("getScoreCountsByProjectAndDay", () =>
-            getScoreCountsByProjectAndDay({
-              startDate: dayStart,
-              endDate: dayEnd,
-            }),
-          ),
-        ]);
-
-        // Aggregate to org level
-        const orgDailyCounts = aggregateByOrg(
-          traceCounts,
-          obsCounts,
-          scoreCounts,
-          projectToOrgMap,
         );
 
+        // Aggregate to org level
+        const orgDailyCounts = aggregateByOrg(unitCounts, projectToOrgMap);
+
         // Accumulate for all orgs and previous days
-        for (const [orgId, counts] of Object.entries(orgDailyCounts)) {
-          const state = usageByOrgMap[orgId];
-          if (state) {
-            state.traces += counts.traces;
-            state.observations += counts.observations;
-            state.scores += counts.scores;
-            state.total += counts.total;
+        for (const [orgId, count] of Object.entries(orgDailyCounts)) {
+          if (orgId in usageByOrgMap) {
+            usageByOrgMap[orgId] += count;
           }
         }
 
@@ -312,11 +251,11 @@ export async function processUsageAggregationForAllOrgs(
         const updatesToProcess: OrgUpdateData[] = [];
 
         for (const org of orgsToProcess) {
-          const state = usageByOrgMap[org.id];
-          if (state) {
+          const usage = usageByOrgMap[org.id];
+          if (usage !== undefined) {
             const result: ThresholdProcessingResult = await processThresholds(
               org,
-              state.total,
+              usage,
             );
 
             // Collect the update data for bulk processing
@@ -389,5 +328,5 @@ export async function processUsageAggregationForAllOrgs(
   return stats;
 }
 
-// Export helper functions for testing
+/** @internal */
 export { buildProjectToOrgMap, aggregateByOrg };

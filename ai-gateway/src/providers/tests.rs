@@ -44,7 +44,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     );
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_model(original, model_range, "provider-model").unwrap(),
+        rewrite_body(original, model_range, "provider-model", None).unwrap(),
         expected
     );
 }
@@ -53,7 +53,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
 fn model_rewrite_fails_closed_for_an_invalid_model_range() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
     assert!(matches!(
-        rewrite_model(missing, 100..110, "provider-model"),
+        rewrite_body(missing, 100..110, "provider-model", None),
         Err(ProviderError::Configuration)
     ));
 }
@@ -73,6 +73,7 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(br#"{"model":"requested"}"#),
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::default(),
@@ -81,6 +82,19 @@ async fn invalid_model_rewrite_never_reaches_the_provider() {
 
     assert!(matches!(result, Err(ProviderError::Configuration)));
     assert_eq!(upstream.calls(), 0);
+}
+
+#[test]
+fn tcp_keepalive_retries_cover_timeout_within_kernel_bounds() {
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(600)), 38);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(605)), 39);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(60)), 2);
+    assert_eq!(tcp_keepalive_retries(Duration::from_secs(1)), 1);
+    assert_eq!(tcp_keepalive_retries(Duration::from_millis(30)), 1);
+    assert_eq!(
+        tcp_keepalive_retries(Duration::from_secs(u64::from(u32::MAX))),
+        MAX_TCP_KEEPALIVE_RETRIES
+    );
 }
 
 fn provider_with_policy(origin: String, policy: OutboundPolicy) -> ProviderTransport {
@@ -171,7 +185,7 @@ fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_model(original, model_range, "m").unwrap(),
+        rewrite_body(original, model_range, "m", None).unwrap(),
         r#"{"model":"m","input":"large"}"#
     );
 }
@@ -823,6 +837,7 @@ async fn compact_posts_compact_path_and_captures_ingestion() {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(COMPACT),
             },
             Route::OpenAiResponsesCompact,
             &mut RequestCorrelation::default(),
@@ -891,6 +906,7 @@ async fn decisions_records_questions_answers_and_usage() {
                 streaming: false,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(DECISION),
             },
             Route::OpenAiDecisions,
             &mut RequestCorrelation::default(),
@@ -982,6 +998,7 @@ async fn embeddings_records_input_vector_summary_and_usage() {
                 streaming: false,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(EMBEDDING),
             },
             Route::OpenAiEmbeddings,
             &mut RequestCorrelation::default(),
@@ -1213,6 +1230,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(REQUEST),
             },
             Route::AnthropicMessages,
             &mut RequestCorrelation::default(),
@@ -1273,6 +1291,9 @@ async fn count_tokens_relays_the_body() {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(
+                    br#"{"model":"claude-sonnet-4-5","messages":[]}"#,
+                ),
             },
             Route::AnthropicCountTokens,
             &mut RequestCorrelation::default(),
@@ -1378,6 +1399,7 @@ async fn chat_completions_streams_request_usage_and_relay_the_usage_chunk() {
                     streaming: true,
                     reservation: None,
                     parse_growth: None,
+                    stream_options: StreamOptions::from_body(request.as_bytes()),
                 },
                 Route::OpenAiChatCompletions,
                 &mut RequestCorrelation::default(),
@@ -1428,9 +1450,10 @@ async fn chat_completions_rewrite_non_streamed_models() {
             RequestBody {
                 bytes: Bytes::from_static(JSON_REQUEST.as_bytes()),
                 model_range: model_range(JSON_REQUEST.as_bytes()).unwrap(),
-                streaming: true,
+                streaming: false,
                 reservation: None,
                 parse_growth: None,
+                stream_options: StreamOptions::from_body(JSON_REQUEST.as_bytes()),
             },
             Route::OpenAiChatCompletions,
             &mut RequestCorrelation::default(),

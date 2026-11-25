@@ -401,6 +401,7 @@ function DropdownMenuNode({
         return;
       }
 
+      setSearchQuery("");
       onOpenChange(true);
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },

@@ -1,4 +1,8 @@
-import { CloudConfigSchema, type ParsedOrganization } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  type ParsedOrganization,
+  type Plan,
+} from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   logger,
@@ -9,6 +13,15 @@ import {
 import { env } from "@/src/env.mjs";
 import { deriveLeadSourceFromMemberships } from "./leadSource";
 import { getSfdcService, toSfdcPlan, type SfdcService } from "./sfdcService";
+
+/**
+ * The org's plan as SFDC records it. SFDC has no trial tier, so an org on the
+ * enterprise trial counts as Hobby, the plan it returns to when the trial ends.
+ */
+export function getSfdcResolvedPlan(cloudConfig?: CloudConfigSchema): Plan {
+  const plan = getOrganizationPlanServerSide(cloudConfig);
+  return plan === "cloud:enterprise-trial" ? "cloud:hobby" : plan;
+}
 
 /**
  * Since the live sync went live on Cloud (late June 2026), every org has had
@@ -54,7 +67,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
 }): Promise<void> {
   const { orgBeforeUpdate, updatedCloudConfig, billingCycleAnchor } = args;
 
-  const planBefore = getOrganizationPlanServerSide(
+  const planBefore = getSfdcResolvedPlan(
     orgBeforeUpdate.cloudConfig ?? undefined,
   );
   const parsedUpdated = CloudConfigSchema.safeParse(updatedCloudConfig);
@@ -67,7 +80,7 @@ export async function syncOrgPlanChangeToSfdc(args: {
     );
     return;
   }
-  const planAfter = getOrganizationPlanServerSide(parsedUpdated.data);
+  const planAfter = getSfdcResolvedPlan(parsedUpdated.data);
   if (planBefore === planAfter) return;
 
   const sfdcPlan = toSfdcPlan(planAfter);

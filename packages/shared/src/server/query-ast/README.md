@@ -22,12 +22,13 @@ changing how it emits SQL.
 - `compiler.ts` / `transformer.ts` / `dialect.ts` / `nodes.ts` — the dialect.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `withFill`, `useFinal`) and typed ClickHouse functions and aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`, `firstMetadataValue`, `arrayDistinct`, `countEqual`, `tupleArrayField`, `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `quantile`, `histogram`, `toStartOfInterval`, `interval`, `literal`, …) that take `eb.ref(...)` expressions. `interval(count, unit)` takes an `IntervalUnit`: `minute`, `hour`, `day`, `week` or `month`.
 - `views.ts` / `dedup.ts` — virtual views as CTEs and per-table dedup lowering.
-- `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
+- `catalog.ts` — test-only catalog of builder queries exercising the
   dialect's expressivity.
 - `passHarness.ts` — test-only: applies one compiler pass alone, for the pass suites ([Testing a pass](#testing-a-pass)).
 - `catalog.golden.test.ts` — catalog SQL baselines.
+- `DECISIONS.md` — the compiler's standing design rules, one record each, with the code and test that enforce it.
 
-The golden-SQL harness lives in `../repositories/goldenHarness.ts` (it captures
+The golden-SQL harness lives in `goldenHarness.ts` (it captures
 SQL at the `repositories/clickhouse.ts` exec seam in test mode, then normalizes
 it via `clickhouse format` + positional param names for snapshot comparison — no
 ClickHouse server needed). Each migrated call site keeps its SQL baseline next to
@@ -135,6 +136,11 @@ must carry the `.golden.test.ts` suffix to run there.
   `expressionBuilder()` loses the check entirely: helper results don't carry
   their table scope in their type, and Kysely's `select()` / `where()` accept
   any expression.
+- **Helpers take columns as expressions.** A helper parameter that names a
+  column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
+  column-name string, so the calling query's builder checks the column. Don't
+  cast or `@ts-expect-error` a query past the types; add the missing column or
+  helper instead.
 - **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
   methods, so they compose inside CTEs, subqueries, and views. See the recipes
   below.
@@ -345,9 +351,7 @@ widening behavior.
 
 - `aliasRef("alias")` (`extensions.ts`) — references a SELECT alias that is not a schema column (ClickHouse allows `GROUP BY`/expression reuse of aliases; Kysely's types do not model it), as a column reference node with `.as(…)`. Prefer it to `sql.ref("alias")`, which renders the same reference wrapped in raw SQL. Both are untyped — a typo reaches ClickHouse unchecked. Use sparingly. `db.dynamic.ref("alias")` is the same reference as an unaliased select item (`select costType` beside an `array join … as costType`, where the bare spelling only matches the legacy SQL, since ClickHouse also accepts `costType as costType`).
 - `eb.fn("ch_function", [...])` — a ClickHouse function by name. The name must be on `ALLOWED_FUNCTIONS` (`functions.ts`), since a function can read a table or server state. The return type defaults to `unknown`; no arity or return checking.
-- New columns — add them to the table registry in `schema.ts` (one `defineTable`
-  entry per relation) as queries need them. That single declaration drives the
-  row types, the runtime column-type map, and the tenanted-table set.
+- New columns — add them to the table registry in `schema.ts` (one `defineTable` entry per relation) as queries need them. That single declaration drives the row types, the runtime column-type map, and the tenanted-table set. Take each type from the latest ClickHouse migration, `Nullable(…)` kept and `LowCardinality(T)` registered as `T`: binds take their type from it. A physical column the registry does not model is listed in `UNMODELED_COLUMNS` in `schema.ts`. `query-ast-registry-ddl.servertest.ts` fails when a migration adds a column to a registered table that is in neither, and prints the `defineTable` line to paste; model it or list it. It also fails on a declared column whose type differs from ClickHouse, and on an `UNMODELED_COLUMNS` entry that is modeled or no longer exists.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
@@ -364,7 +368,7 @@ as an entry. `@ts-expect-error` lines there must stay live.
 
 Production compiles through `compileClickhouseQuery` and `compileClickhouseCondition`, which run every pass of `compilerPasses`. `renderClickhouseExpression` and `renderClickhouseSelections` run none: they render a fragment with no FROM of its own (a subquery or raw relation throws) for a raw-SQL query that owns the FROM, so there is nothing for tenancy, routing or dedup to act on.
 
-A pass's guarantee is tested with only that pass applied, so another pass cannot mask a gap in it. `passHarness.ts` (test-only) applies one pass (`applyPassOnly(query, pass)`) and renders the tree with no further pass (`renderPassOutput(node)`). A row check runs that SQL in `clickhouse local` with `substituteNamedParams` and `executeClickhouseLocal` from `../repositories/goldenHarness`. The suites, with the pass each applies:
+A pass's guarantee is tested with only that pass applied, so another pass cannot mask a gap in it. `passHarness.ts` (test-only) applies one pass (`applyPassOnly(query, pass)`) and renders the tree with no further pass (`renderPassOutput(node)`). A row check runs that SQL in `clickhouse local` with `substituteNamedParams` and `executeClickhouseLocal` from `goldenHarness.ts`. The suites, with the pass each applies:
 
 - tenancy, `new TenancyInjectionPlugin(projectId)` from `./tenancy`: `tenancy.golden.test.ts`, every join type × FROM table or subquery × ON scope, caller WHERE scope or a caller WHERE on `project_id` that does not scope, plus reads in an IN subquery, a scalar subquery and a CTE body, each rejected or executed with no other project's row surviving; the other tenancy rejections in "tenancy injection" in `nodes.test.ts`;
 - dedup, `new DedupLoweringPlugin()` from `./dedup`: `dedup.golden.test.ts`, one row per key, the latest version, per read shape;

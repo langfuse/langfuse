@@ -1,7 +1,7 @@
 import { Edit, Trash2 } from "@langfuse/icons";
 import { type RouterOutputs } from "@/src/utils/api";
 import { formatDistanceToNow } from "date-fns";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -61,7 +61,7 @@ export function SpendAlertsTable({
   ];
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="spend-alerts"
       columnVisibilityKey="spend-alertsColumnVisibility"
       columns={columns}

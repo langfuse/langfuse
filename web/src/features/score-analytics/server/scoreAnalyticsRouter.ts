@@ -13,6 +13,7 @@ import {
 import { buildEstimateQuery } from "./buildEstimateQuery";
 import { buildScoreComparisonQuery } from "./buildScoreComparisonQuery";
 
+/** @internal */
 export const createScoreAnalyticsRouter = ({
   adaptiveFinalThreshold = 100_000,
   samplingThreshold = 100_000,

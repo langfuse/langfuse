@@ -213,6 +213,7 @@ describe("Observation Eval E2E Pipeline", () => {
       // ACT: Schedule the observation eval
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -348,6 +349,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
         executionMode: "MANUAL",
@@ -585,6 +587,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -610,6 +613,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -669,6 +673,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation,
+        loadSnapshot: () => observation,
         configs: [config1, config2, config3],
         schedulerDeps: pipeline.schedulerDeps,
       });
@@ -909,12 +914,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: prodObservation,
+        loadSnapshot: () => prodObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: stagingObservation,
+        loadSnapshot: () => stagingObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });
@@ -957,12 +964,14 @@ describe("Observation Eval E2E Pipeline", () => {
 
       await scheduleObservationEvals({
         observation: taggedObservation,
+        loadSnapshot: () => taggedObservation,
         configs: [config],
         schedulerDeps: pipeline1.schedulerDeps,
       });
 
       await scheduleObservationEvals({
         observation: untaggedObservation,
+        loadSnapshot: () => untaggedObservation,
         configs: [config],
         schedulerDeps: pipeline2.schedulerDeps,
       });

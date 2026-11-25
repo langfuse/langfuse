@@ -125,9 +125,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
     ]);
   });
 
@@ -144,7 +144,7 @@ describe("useGatewayPages", () => {
     expect(models?.tabsProps).toBeDefined();
   });
 
-  it("disables Models, Budgets and Gateway keys for managers until ingestion is set up", () => {
+  it("disables Gateway keys, Models and Budgets for managers until ingestion is set up", () => {
     grantScopes("gateway:manage", "gateway:read", "gateway:invoke");
     getSetupStatusQuery.mockReturnValue({
       data: { isConfigured: false },
@@ -153,9 +153,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", true],
       ["models", true],
       ["budgets", true],
-      ["api-keys", true],
     ]);
   });
 
@@ -205,9 +205,9 @@ describe("useGatewayPages", () => {
 
     expect(visiblePages()).toEqual([
       ["index", false],
+      ["api-keys", false],
       ["models", false],
       ["budgets", false],
-      ["api-keys", false],
     ]);
   });
 
@@ -259,9 +259,9 @@ describe("useGatewayPages", () => {
     grantScopesOf(Role.MEMBER);
 
     expect(visiblePages().map(([slug]) => slug)).toEqual([
+      "api-keys",
       "models",
       "budgets",
-      "api-keys",
     ]);
   });
 });

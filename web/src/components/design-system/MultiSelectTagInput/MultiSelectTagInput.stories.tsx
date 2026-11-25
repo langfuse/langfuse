@@ -233,38 +233,34 @@ export const TestOverflowBadgePlacement = meta.story({
       );
       const visibleTags = [
         ...canvasElement.querySelectorAll<HTMLElement>("[data-value]"),
-      ].filter((tag) => getComputedStyle(tag).visibility !== "hidden");
+      ].filter((tag) => !tag.closest("[aria-hidden]"));
       const lastVisibleTag = visibleTags.at(-1);
       const layout = canvasElement.querySelector<HTMLElement>(
         "[data-tag-input-layout]",
       );
-      const clearButton = canvasElement.querySelector<HTMLElement>(
-        "[data-clear-selection]",
-      );
+      const clearButton = within(canvasElement).getByRole("button", {
+        name: "Clear selection",
+      });
 
       expect(overflowBadge).not.toBeNull();
       expect(lastVisibleTag).toBeDefined();
       expect(layout).not.toBeNull();
-      expect(clearButton).not.toBeNull();
 
-      if (!overflowBadge || !lastVisibleTag || !layout || !clearButton) return;
+      if (!overflowBadge || !lastVisibleTag || !layout) return;
 
+      expect(Number(overflowBadge.dataset.overflowCount)).toBe(
+        manyOptions.length - visibleTags.length,
+      );
       const gap =
         overflowBadge.getBoundingClientRect().left -
         lastVisibleTag.getBoundingClientRect().right;
-      const clearRightGap =
-        layout.getBoundingClientRect().right -
-        clearButton.getBoundingClientRect().right;
+      const clearGap =
+        clearButton.getBoundingClientRect().left -
+        layout.getBoundingClientRect().right;
       const layoutStyles = getComputedStyle(layout);
       const expectedTagGap = Number.parseFloat(layoutStyles.columnGap);
-      const expectedClearRightGap = Number.parseFloat(
-        layoutStyles.paddingRight,
-      );
-
       expect(Math.abs(gap - expectedTagGap)).toBeLessThanOrEqual(0.5);
-      expect(
-        Math.abs(clearRightGap - expectedClearRightGap),
-      ).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(clearGap)).toBeLessThanOrEqual(0.5);
     });
   },
 });

@@ -1,4 +1,8 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  TopicsTargetObject,
+} from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,7 +33,10 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  assertEvaluatorConfigurationValid,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
   EvaluatorConfigurationError,
   EvaluatorModelConfigurationError,
@@ -459,6 +466,70 @@ describe("evaluator configuration validation", () => {
     ).rejects.toThrow(
       "Mappings reference unknown evaluator variables: item_metadata",
     );
+  });
+
+  it("rejects mappings that reference unknown columns", async () => {
+    const definitionWithColumn = (selectedColumnId: string) => ({
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      promptMessages: [
+        { role: "user" as const, content: "Judge {{expected_output}}" },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["expected_output"],
+      variableMapping: [
+        { templateVariable: "expected_output", selectedColumnId },
+      ],
+      outputDefinition: {
+        dataType: "NUMERIC" as const,
+        score: { description: "Quality" },
+        reasoning: { description: "Reasoning" },
+      },
+    });
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: definitionWithColumn("expected_output"),
+      }),
+    ).rejects.toThrow(
+      'Variable "expected_output" maps to unknown column "expected_output"',
+    );
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: definitionWithColumn("threads"),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("only accepts the columns of the mapping target", () => {
+    const mapping = (selectedColumnId: string) => ({
+      promptVariables: ["conversation"],
+      variableMapping: [{ templateVariable: "conversation", selectedColumnId }],
+    });
+
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("threads"),
+        targetObject: EvalTargetObject.EVENT,
+      }),
+    ).toThrow('Variable "conversation" maps to unknown column "threads"');
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("input"),
+        targetObject: TopicsTargetObject,
+      }),
+    ).toThrow('Variable "conversation" maps to unknown column "input"');
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("threads"),
+        targetObject: TopicsTargetObject,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects incomplete evaluator default mappings", async () => {

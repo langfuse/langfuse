@@ -1,7 +1,12 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import type { EvalTargetObject, FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  TopicsTargetObject,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRef, useState } from "react";
+import { useStore } from "zustand";
 import {
   Dialog,
   DialogBody,
@@ -11,11 +16,13 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
+import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
 import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
 import type {
   RuleDraft,
   RuleEvaluatorOption,
+  RuleTargetObject,
 } from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -24,6 +31,8 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { traceTranscriptAssignments } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 export function CreateRuleDialogContent({
@@ -34,6 +43,7 @@ export function CreateRuleDialogContent({
   initialEvaluator,
   initialDraft,
   initialFilter,
+  initialTargetObject,
   targetObject,
   evaluatorSearch,
   successNotification,
@@ -47,6 +57,7 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
+  initialTargetObject?: RuleTargetObject;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
@@ -59,25 +70,44 @@ export function CreateRuleDialogContent({
   const { organization } = useProject(projectId);
   const nameAIAssistanceAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
-  const [ruleSetupStore] = useState(() =>
-    createRuleSetupStore({
-      name: initialDraft?.name ?? "",
-      filter: initialDraft?.filter ?? resolveInitialRuleFilters(initialFilter),
-      sampling: initialDraft?.sampling ?? 1,
-      assignments:
-        initialDraft?.assignments ??
-        (initialEvaluator
-          ? [
-              {
-                evaluatorId: initialEvaluator.id,
-                evaluatorName: initialEvaluator.name,
-                evaluatorType: initialEvaluator.type,
-                defaultVariableMapping: initialEvaluator.defaultVariableMapping,
-                variableMapping: initialEvaluator.initialVariableMapping,
-              },
-            ]
-          : []),
-    }),
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
+  const [ruleSetupStore] = useState(() => {
+    const ruleTargetObject =
+      traceEvalsAvailable && initialTargetObject === TopicsTargetObject
+        ? TopicsTargetObject
+        : (targetObject ?? EvalTargetObject.EVENT);
+    const observationFilter = resolveInitialRuleFilters(initialFilter);
+    const defaultFilterFor = (target: RuleTargetObject): FilterState =>
+      target === TopicsTargetObject ? [] : observationFilter;
+    return createRuleSetupStore(
+      {
+        name: initialDraft?.name ?? "",
+        filter: initialDraft?.filter ?? defaultFilterFor(ruleTargetObject),
+        sampling: initialDraft?.sampling ?? 1,
+        assignments:
+          initialDraft?.assignments ??
+          (initialEvaluator
+            ? [
+                {
+                  evaluatorId: initialEvaluator.id,
+                  evaluatorName: initialEvaluator.name,
+                  evaluatorType: initialEvaluator.type,
+                  defaultVariableMapping:
+                    initialEvaluator.defaultVariableMapping,
+                  variableMapping: initialEvaluator.initialVariableMapping,
+                },
+              ]
+            : []),
+      },
+      {
+        targetObject: ruleTargetObject,
+        defaultFilterFor: initialDraft ? undefined : defaultFilterFor,
+      },
+    );
+  });
+  const isTraceTranscript = useStore(
+    ruleSetupStore,
+    (state) => state.targetObject === TopicsTargetObject,
   );
   const hasRequestedName = useRef(false);
   const suggestName = api.evalsV2.rules.suggestName.useMutation({
@@ -100,21 +130,36 @@ export function CreateRuleDialogContent({
   const createRule = api.evalsV2.rules.create.useMutation({
     onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
+  const createTraceTranscriptRule =
+    api.evalsV2.rules.createTraceTranscriptRule.useMutation({
+      onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
+    });
 
   const create = async () => {
     const draft = ruleSetupStore.getState();
-    const rule = await createRule.mutateAsync({
-      projectId,
-      name: draft.name.trim(),
-      filter: draft.filter,
-      sampling: draft.sampling,
-      enabled: true,
-      ...(targetObject ? { targetObject } : {}),
-      evaluatorAssignments: draft.assignments.map((assignment) => ({
-        evaluatorId: assignment.evaluatorId,
-        variableMapping: assignment.variableMapping,
-      })),
-    });
+    const rule =
+      draft.targetObject === TopicsTargetObject
+        ? await createTraceTranscriptRule.mutateAsync({
+            projectId,
+            name: draft.name.trim(),
+            targetObject: TopicsTargetObject,
+            filter: draft.filter,
+            sampling: draft.sampling,
+            enabled: true,
+            evaluatorAssignments: traceTranscriptAssignments(draft.assignments),
+          })
+        : await createRule.mutateAsync({
+            projectId,
+            name: draft.name.trim(),
+            filter: draft.filter,
+            sampling: draft.sampling,
+            enabled: true,
+            ...(targetObject ? { targetObject } : {}),
+            evaluatorAssignments: draft.assignments.map((assignment) => ({
+              evaluatorId: assignment.evaluatorId,
+              variableMapping: assignment.variableMapping,
+            })),
+          });
     capture("evaluation_rules:create", {
       assignmentCount: draft.assignments.length,
       ...getFilterAnalyticsProperties(draft.filter),
@@ -160,11 +205,20 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            Select which incoming observations should trigger evaluators.
+            {isTraceTranscript
+              ? "Select which traces should trigger this evaluator."
+              : "Select which incoming observations should trigger evaluators."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <RuleSetup
+            filterStep={
+              <RuleFilterStep
+                projectId={projectId}
+                store={ruleSetupStore}
+                mode="create"
+              />
+            }
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}
@@ -196,7 +250,9 @@ export function CreateRuleDialogContent({
         </DialogBody>
         <RuleDialogFooter
           ruleSetupStore={ruleSetupStore}
-          mutationPending={createRule.isPending}
+          mutationPending={
+            createRule.isPending || createTraceTranscriptRule.isPending
+          }
           nameGenerationPending={suggestName.isPending}
           isEditing={false}
           canEdit

@@ -43,7 +43,12 @@ pub struct NormalizedObservation {
 /// Normalize tool metadata, augment the input when needed, then extract storage columns.
 ///
 /// Append definitions from metadata to input before extracting definitions from it.
-/// Extract tool calls from output in a separate pass.
+/// Extract tool calls from output in a separate pass. A JavaScript conversion that throws
+/// inside the TypeScript `try` clears the tool columns: a definition name that cannot be a
+/// property key, a call name that `ToString` rejects while building an id-less dedupe key,
+/// or `String(type)` inside `isToolCallLike`. When the input produced no definitions and the
+/// output is an OpenAI Responses object, definitions are read from `output.tools` before
+/// that. Input, output and metadata stay as they were after the metadata move.
 pub fn normalize_tools_for_observation(
     mut input: Option<Value>,
     output: Option<Value>,
@@ -55,17 +60,21 @@ pub fn normalize_tools_for_observation(
         cleanup.apply(&mut metadata, parse_cache);
     }
     let mut columns = ToolColumns::new(parse_cache);
-    if let Some(value) = &input {
-        columns.input(value);
-    }
-    if let Some(value) = &output {
-        columns.output(value);
-    }
+    let tools = match input.as_ref().map(|value| columns.input(value)) {
+        Some(Err(_)) => NormalizedTools::default(),
+        _ => match output.as_ref().map(|value| {
+            columns.responses_tool_definitions(value)?;
+            columns.output(value)
+        }) {
+            Some(Err(_)) => NormalizedTools::default(),
+            _ => columns.finish(),
+        },
+    };
     NormalizedObservation {
         input,
         output,
         metadata,
-        tools: columns.finish(),
+        tools,
     }
 }
 
@@ -81,13 +90,9 @@ fn definition_data(value: &Value) -> Option<&JsonObject> {
     }
 }
 
-fn is_definition_like(
-    value: &Value,
-    allow_provider_without_name: bool,
-    parse_cache: &mut JsonParseCache,
-) -> bool {
-    let parsed = parse_if_string(value, parse_cache);
-    definition_data(&parsed)
+/// Whether `parsed`, a definition already parsed from any JSON text, describes a tool.
+fn is_definition_like(parsed: &Value, allow_provider_without_name: bool) -> bool {
+    definition_data(parsed)
         .and_then(|data| data.get("name"))
         .is_some_and(is_js_truthy)
         || (allow_provider_without_name
@@ -107,8 +112,9 @@ fn parse_definition_array(
     let values = parsed.as_array()?;
     let mut valid = Vec::new();
     for value in values {
-        if is_definition_like(value, allow_provider_without_name, parse_cache) {
-            valid.push(parse_if_string(value, parse_cache).into_owned());
+        let definition = parse_if_string(value, parse_cache);
+        if is_definition_like(&definition, allow_provider_without_name) {
+            valid.push(definition.into_owned());
         }
     }
     if require_every_item && valid.len() != values.len() {
@@ -143,6 +149,8 @@ struct MetadataToolCleanup {
     attribute_keys: Vec<JsString>,
     rewrite_model_parameters: bool,
     remove_function_tools: bool,
+    /// The model request parameters as parsed from JSON text while collecting, for `apply`.
+    model_parameters: Option<Value>,
 }
 
 impl MetadataToolCleanup {
@@ -166,7 +174,12 @@ impl MetadataToolCleanup {
             let empty = attributes
                 .get_mut("model_request_parameters")
                 .is_some_and(|value| {
-                    clean_model_parameters(value, self.remove_function_tools, cache)
+                    clean_model_parameters(
+                        value,
+                        self.model_parameters,
+                        self.remove_function_tools,
+                        cache,
+                    )
                 });
             if empty {
                 attributes.shift_remove("model_request_parameters");
@@ -193,13 +206,18 @@ fn decoded_object_mut<'a>(
 }
 
 /// Remove the selected tool list, preserving whether parameters were stored as JSON text.
+/// `parsed` is that text as collection already parsed it, when the parameters are text.
 /// Return true when the remaining object is empty and its attribute can be removed.
 fn clean_model_parameters(
     value: &mut Value,
+    parsed: Option<Value>,
     remove_tools: bool,
     cache: &mut JsonParseCache,
 ) -> bool {
     let was_string = value.is_string();
+    if let (true, Some(parsed)) = (was_string, parsed) {
+        *value = parsed;
+    }
     let Some(parameters) = decoded_object_mut(value, cache) else {
         return false;
     };
@@ -280,6 +298,9 @@ fn collect_model_parameter_tools(
         tools.extend(values);
         cleanup.remove_function_tools = true;
     }
+    if let ParsedJson::Shared(_) = parsed {
+        cleanup.model_parameters = Some(parsed.into_owned());
+    }
 }
 
 fn collect_indexed_tools(
@@ -301,8 +322,9 @@ fn collect_indexed_tools(
     indexed.sort_by_key(|(index, _)| *index);
     for (_, key) in indexed {
         if let Some(value) = attributes.get(&key) {
-            if is_definition_like(value, false, cache) {
-                tools.push(parse_if_string(value, cache).into_owned());
+            let definition = parse_if_string(value, cache);
+            if is_definition_like(&definition, false) {
+                tools.push(definition.into_owned());
                 cleanup.attribute_keys.push(key);
             }
         }
@@ -367,13 +389,74 @@ fn string_value_js(value: &Value) -> Option<JsString> {
     }
 }
 
-fn definition_name_js(value: &Value) -> Option<JsString> {
+/// `Object.defineProperty` rejects this name. The TypeScript normalizer catches that
+/// `TypeError` and drops every tool column.
+#[derive(Debug)]
+struct PropertyKeyTypeError;
+
+fn definition_name_js(value: &Value) -> Result<Option<JsString>, PropertyKeyTypeError> {
     if !is_js_truthy(value) {
-        return None;
+        return Ok(None);
     }
+    if property_key_conversion_throws(value) {
+        return Err(PropertyKeyTypeError);
+    }
+    Ok(Some(match value {
+        Value::String(value) => value.clone(),
+        value => javascript_string(value).into(),
+    }))
+}
+
+/// Whether JavaScript `ToString` throws for a JSON value.
+///
+/// `String(value)` and a template substitution both use `ToString`. `ToPropertyKey` starts
+/// with the same `ToPrimitive` hint String (`toString`, then `valueOf`). A symbol is a valid
+/// property key, while `ToString` throws on a symbol. JSON cannot represent a symbol or a
+/// callable `toString` or `valueOf`, so a JSON value throws for one exactly when it throws
+/// for the other.
+pub(super) fn javascript_to_string_throws(value: &Value) -> bool {
+    property_key_conversion_throws(value)
+}
+
+/// Whether `ToPropertyKey` throws. Hint String tries `toString`, then `valueOf`.
+///
+/// JSON values are never callable, so an own `toString` hides `Object.prototype.toString`.
+/// `Object.prototype.valueOf` then returns the receiver, which is not a primitive, and
+/// `OrdinaryToPrimitive` throws. A missing own `toString` uses the prototype and yields
+/// `"[object Object]"` without consulting `valueOf`. Arrays have no own `toString` or `join`
+/// after JSON parsing, so `Array.prototype.toString` joins elements and applies the same
+/// conversion to each one. `null` elements become empty strings and do not throw.
+fn property_key_conversion_throws(value: &Value) -> bool {
     match value {
-        Value::String(value) => Some(value.clone()),
-        _ => Some(javascript_string(value).into()),
+        Value::Array(values) => values.iter().any(property_key_conversion_throws),
+        Value::Object(object) => ordinary_to_primitive_throws(object),
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => false,
+    }
+}
+
+fn ordinary_to_primitive_throws(object: &JsonObject) -> bool {
+    let Some(to_string) = object.get("toString") else {
+        return false;
+    };
+    if is_js_callable(to_string) {
+        return false;
+    }
+    // Own `toString` was not callable. A callable `valueOf` would be invoked next and
+    // could still produce a primitive. JSON cannot store one, and the prototype method
+    // returns this object, so the conversion throws.
+    !object.get("valueOf").is_some_and(is_js_callable)
+}
+
+/// `IsCallable` for a JSON value. None of these shapes are functions, so an own
+/// `toString` or `valueOf` property shadows the prototype method and is skipped.
+fn is_js_callable(value: &Value) -> bool {
+    match value {
+        Value::Null
+        | Value::Bool(_)
+        | Value::Number(_)
+        | Value::String(_)
+        | Value::Array(_)
+        | Value::Object(_) => false,
     }
 }
 
@@ -741,6 +824,152 @@ mod tests {
         assert!(normalized.tools.tool_call_names.is_empty());
         assert_eq!(normalized.input, Some(input));
         assert_eq!(normalized.output, Some(output));
+    }
+
+    #[test]
+    fn drops_tool_definitions_when_a_definition_name_cannot_be_a_property_key() {
+        let normalized = normalize(
+            None,
+            Some(json!({
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {"city": "Amsterdam"}}
+                }]
+            })),
+            json!({
+                "attributes": {
+                    "ai.prompt.tools": [
+                        {"name": "a"},
+                        {"name": {"toString": null}}
+                    ]
+                }
+            }),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+        assert_eq!(
+            normalized.input.unwrap()["tools"].as_array().unwrap().len(),
+            2
+        );
+    }
+
+    #[test]
+    fn drops_tool_columns_when_a_call_name_cannot_be_stringified() {
+        let normalized = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {"name": "weather", "arguments": {}}
+                    },
+                    {"name": {"toString": null}, "arguments": {}}
+                ]
+            })),
+            json!({}),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+    }
+
+    #[test]
+    fn drops_tool_columns_when_output_type_cannot_be_stringified() {
+        let normalized = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "type": {"toString": null},
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        assert!(normalized.tools.tool_definitions.is_empty());
+        assert!(normalized.tools.tool_calls.is_empty());
+        assert!(normalized.tools.tool_call_names.is_empty());
+    }
+
+    #[test]
+    fn reads_tool_calls_from_openai_responses_output_items() {
+        let function_call = json!({
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Berlin\"}"
+        });
+        let normalized = normalize(
+            None,
+            Some(json!({
+                "output": [
+                    {"type": "message", "role": "assistant", "content": []},
+                    function_call.clone()
+                ],
+                "tool_calls": [{
+                    "id": "call_2",
+                    "type": "function",
+                    "function": {"name": "later", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        // Output items come before the object's own `tool_calls`.
+        assert_eq!(normalized.tools.tool_call_names, ["get_weather", "later"]);
+        // Only a top-level object is read this way, not an item of an output array.
+        assert!(names(json!([{"output": [function_call]}])).is_empty());
+    }
+
+    #[test]
+    fn reads_response_tools_when_input_has_no_definitions() {
+        let normalized = normalize(
+            None,
+            Some(json!({
+                "output": [{
+                    "type": "function_call",
+                    "call_id": "c",
+                    "name": "get_weather",
+                    "arguments": "{}"
+                }],
+                "tools": [{"name": "get_weather", "description": "forecast"}]
+            })),
+            json!({}),
+        );
+        assert!(normalized
+            .tools
+            .tool_definitions
+            .contains_key("get_weather"));
+
+        let thrown = normalize(
+            None,
+            Some(json!({
+                "output": [],
+                "tools": [{"name": {"toString": null}}, {"name": "a"}],
+                "tool_calls": [{
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "weather", "arguments": {}}
+                }]
+            })),
+            json!({}),
+        );
+        assert!(thrown.tools.tool_definitions.is_empty());
+        assert!(thrown.tools.tool_calls.is_empty());
+        assert!(thrown.tools.tool_call_names.is_empty());
+
+        let kept = normalize(
+            Some(json!({"tools": [{"name": "a"}]})),
+            Some(json!({
+                "output": [],
+                "tools": [{"name": {"toString": null}}]
+            })),
+            json!({}),
+        );
+        assert!(kept.tools.tool_definitions.contains_key("a"));
     }
 
     #[test]

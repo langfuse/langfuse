@@ -130,6 +130,7 @@ const getFirstOrganizationWithProjectCreationAccess = (
     ),
   );
 
+/** @internal */
 export const resolveOnboardingRedirectTarget = async ({
   prisma,
   userId,

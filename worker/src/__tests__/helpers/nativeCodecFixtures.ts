@@ -1,9 +1,25 @@
 import {
   PreparedEvent,
   prepareOtelJson,
+  type FinalizedOtelBatch,
   type OtelLookupRequest,
   type RustOtelBatch,
 } from "@langfuse/native";
+import { observationEvalFilterRecordColumns } from "@langfuse/shared";
+import { encodeOtelLookups } from "../../features/otel-ingestion/encodeOtelLookups";
+
+/** Rebuild every evaluation row from its filter row and the columns Rust still holds; each row can be taken once. */
+export function takeEvaluationRows(
+  batch: RustOtelBatch,
+  finalized: FinalizedOtelBatch,
+): object[] {
+  return finalized
+    .evaluationFilterRows!.flatMap((text): object[] => JSON.parse(text))
+    .map((filterRow, index) => ({
+      ...filterRow,
+      ...batch.takeEvaluationRow(index),
+    }));
+}
 
 export function constructPreparedEventFromJs() {
   // @ts-expect-error Rust creates the handle when it finalizes an event.
@@ -55,12 +71,15 @@ export async function prepareCodecRows(
       throw new Error("Unexpected codec fixture media");
     const { finalized } = await batch.complete(
       [],
-      prepared.lookupRequests.map(lookup),
+      encodeOtelLookups(prepared.lookupRequests.map(lookup)),
       undefined,
-      true,
+      observationEvalFilterRecordColumns,
     );
     if (!finalized) throw new Error("Unexpected codec fixture overflow");
-    return finalized;
+    return {
+      events: finalized.events,
+      evaluationRows: takeEvaluationRows(batch, finalized),
+    };
   } finally {
     await batch?.dispose();
     await source.dispose();

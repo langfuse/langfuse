@@ -20,7 +20,7 @@ import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Link from "next/link";
 import { cn } from "@/src/utils/tailwind";
-import { useOptionalSidebar } from "@/src/components/ui/sidebar";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
@@ -38,7 +38,7 @@ const BreadcrumbComponent = ({
   const organizations = session.data?.user?.organizations;
   // The expanded desktop sidebar shows the org switcher, so the breadcrumb
   // drops it there.
-  const orgInSidebar = useOptionalSidebar()?.state === "expanded";
+  const orgInSidebar = useAppNavigation()?.isSidebarExpanded ?? false;
 
   const canCreateOrganizations = session.data?.user?.canCreateOrganizations;
   const canCreateProjects = useHasOrganizationAccess({
