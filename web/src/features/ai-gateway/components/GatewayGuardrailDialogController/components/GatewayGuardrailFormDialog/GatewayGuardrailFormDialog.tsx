@@ -53,6 +53,7 @@ import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect"
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import {
   GATEWAY_GUARDRAIL_ACTION_LABELS,
+  GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
@@ -68,6 +69,7 @@ import {
   GATEWAY_GUARDRAIL_UI_ACTIONS,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
+  GatewayGuardrailRedactionLabelSchema,
   parseContainsWordsText,
   validateContainsWordsText,
   validateSecretPrefix,
@@ -123,6 +125,7 @@ function createGuardrailFormSchema(
       bedrockRegion: z.string(),
       bedrockApiKey: z.string(),
       action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
+      redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
         .min(1, "Select who this guardrail applies to")
@@ -132,6 +135,20 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
+      if (values.action === "REDACT") {
+        const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
+          values.redactionLabel,
+        );
+        if (!labelResult.success) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["redactionLabel"],
+            message:
+              labelResult.error.issues[0]?.message ??
+              "Enter a replacement label",
+          });
+        }
+      }
       if (templateKind === "bedrock") {
         const configResult = GatewayBedrockGuardrailConfigSchema.safeParse({
           guardrailId: values.bedrockGuardrailId,
@@ -237,6 +254,7 @@ export type GatewayGuardrailFormValues = {
     apiKey?: string;
   };
   action: GatewayGuardrailUiAction;
+  redactionLabel?: string;
   targets: AsyncAutocompleteOption[];
 };
 
@@ -307,6 +325,9 @@ export function GatewayGuardrailFormDialog({
       bedrockRegion: initialValues.bedrock?.region ?? "",
       bedrockApiKey: "",
       action: initialValues.action,
+      redactionLabel:
+        initialValues.redactionLabel ??
+        GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
       targets: initialValues.targets,
     },
     mode: "onChange",
@@ -319,6 +340,7 @@ export function GatewayGuardrailFormDialog({
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
   const bedrockApiKey = form.watch("bedrockApiKey");
+  const selectedAction = form.watch("action");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
@@ -345,6 +367,8 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
+    const redactionLabel =
+      values.action === "REDACT" ? values.redactionLabel.trim() : undefined;
     if (templateKind === "bedrock") {
       const apiKey = values.bedrockApiKey.trim();
       return {
@@ -359,6 +383,7 @@ export function GatewayGuardrailFormDialog({
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
+        redactionLabel,
         targets: values.targets,
       };
     }
@@ -375,6 +400,7 @@ export function GatewayGuardrailFormDialog({
           ? parseContainsWordsText(values.containsText)
           : initialValues.containsWords,
       action: values.action,
+      redactionLabel,
       targets: values.targets,
     };
   };
@@ -538,7 +564,12 @@ export function GatewayGuardrailFormDialog({
                           error={Boolean(error)}
                           placeholder="Select action"
                           value={value}
-                          onValueChange={onChange}
+                          onValueChange={(nextValue) => {
+                            onChange(nextValue);
+                            form
+                              .trigger("redactionLabel")
+                              .catch(() => undefined);
+                          }}
                           onBlur={onBlur}
                           options={ACTION_OPTIONS}
                         />
@@ -559,6 +590,37 @@ export function GatewayGuardrailFormDialog({
                       )}
                     </FormField>
                   </div>
+
+                  {selectedAction === "REDACT" ? (
+                    <CustomTooltip
+                      content={
+                        <span>
+                          Matched spans in the request are replaced with this
+                          label before forwarding.
+                        </span>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="redactionLabel"
+                          label="Replacement label"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({ id, inputDescribedById, error, ...field }) => (
+                            <Input
+                              {...field}
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="e.g. [REDACTED] or [PHONE]"
+                            />
+                          )}
+                        </FormField>
+                      )}
+                    </CustomTooltip>
+                  ) : null}
 
                   <FormField
                     control={form.control}

@@ -316,7 +316,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 }
 
 /// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
-/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// an overall `.outcome` (`"block"` if blocked, `"redact"` if redacted, else `"log"`),
 /// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
 /// without reading `metadata_values` or parsing JSON.
 fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
@@ -324,7 +324,11 @@ fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
         return metadata;
     };
-    let mut blocked = false;
+    let mut blocked = facts
+        .rejection
+        .as_ref()
+        .is_some_and(|rejection| rejection.reason == "guardrail_blocked");
+    let mut redacted = false;
     let mut matched = false;
     for finding in guardrails {
         if let (Some(id), Some(action)) = (
@@ -334,12 +338,20 @@ fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             matched = true;
             if action == "block" {
                 blocked = true;
+            } else if action == "redact" {
+                redacted = true;
             }
             metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
         }
     }
     if matched {
-        let outcome = if blocked { "block" } else { "log" };
+        let outcome = if blocked {
+            "block"
+        } else if redacted {
+            "redact"
+        } else {
+            "log"
+        };
         metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata

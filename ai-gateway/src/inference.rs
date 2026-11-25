@@ -423,7 +423,10 @@ impl InferenceService {
                 return Err(error);
             }
             let mut permit = self.provider.admit(spend_limits);
-            permit.guardrails = guardrails.into_findings();
+            let (findings, redactions, redaction_reservations) = guardrails.into_parts();
+            permit.guardrails = findings;
+            permit.redactions = redactions;
+            permit.redaction_reservations = redaction_reservations;
             Ok((permit, context))
         }
         .instrument(span)

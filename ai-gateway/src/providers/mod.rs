@@ -86,8 +86,14 @@ pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
     spend_limits: Option<crate::spend::SpendRecording>,
-    /// `log` guardrails the request matched, recorded on its generation.
+    /// Matched guardrails recorded on the generation.
     pub(crate) guardrails: Vec<crate::guardrails::Finding>,
+    /// JSON string replacements from `redact` guardrails, spliced into the
+    /// upstream body in one pass alongside `model` and `stream_options`.
+    pub(crate) redactions: Vec<crate::guardrails::redact::BodyEdit>,
+    /// Memory budget reserved for expanded redaction replacements, held until
+    /// the forwarded request finishes.
+    pub(crate) redaction_reservations: Vec<crate::inference::MemoryReservation>,
 }
 
 impl RequestPermit {
@@ -169,6 +175,8 @@ impl ProviderTransport {
             deadline: Instant::now() + self.limits.execution.max_execution_time,
             spend_limits,
             guardrails: Vec::new(),
+            redactions: Vec::new(),
+            redaction_reservations: Vec::new(),
         }
     }
 
@@ -206,6 +214,27 @@ impl ProviderTransport {
         .await
     }
 
+    fn start_capture(
+        &self,
+        route: Route,
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        input: Option<crate::capture::RequestInput>,
+        correlation: &mut RequestCorrelation,
+    ) -> ExecutionCapture {
+        let Some(input) = input.filter(|_| route.captures_generation()) else {
+            return ExecutionCapture::unobserved();
+        };
+        let mut capture =
+            ExecutionCapture::for_request(route.api_format(), context, headers, input);
+        if let Some(telemetry) = &self.telemetry
+            && context.ingestion_mode() != IngestionMode::None
+        {
+            capture.deliver_to(telemetry.clone(), context, headers, correlation);
+        }
+        capture
+    }
+
     pub(crate) async fn forward_route(
         &self,
         mut permit: RequestPermit,
@@ -229,17 +258,14 @@ impl ProviderTransport {
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
-        let mut capture = if let Some(input) = input.filter(|_| route.captures_generation()) {
-            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, input);
-            if let Some(telemetry) = &self.telemetry
-                && context.ingestion_mode() != IngestionMode::None
-            {
-                capture.deliver_to(telemetry.clone(), &context, headers, correlation);
-            }
-            capture
-        } else {
-            ExecutionCapture::unobserved()
-        };
+        let redactions = std::mem::take(&mut permit.redactions);
+        let mut capture = self.start_capture(
+            route,
+            &context,
+            headers,
+            redact_captured_input(input, &body, &redactions),
+            correlation,
+        );
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = upstream_body(
             route,
@@ -248,6 +274,7 @@ impl ProviderTransport {
             streaming,
             &stream_options,
             provider_model,
+            redactions,
         )?;
         capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
         capture.record_guardrails(&permit.guardrails);
@@ -418,8 +445,8 @@ fn record_provider_status(observation: &RequestObservation, status: StatusCode) 
     }
 }
 
-/// The body sent upstream: the caller's body with the provider model and, for a
-/// streamed Chat Completions call, opted into usage. Only a streamed call can opt in.
+/// The body sent upstream: the caller's body with the provider model,
+/// guardrail redactions, and (for a streamed Chat Completions call) usage opt-in.
 fn upstream_body(
     route: Route,
     body: Bytes,
@@ -427,15 +454,38 @@ fn upstream_body(
     streaming: bool,
     stream_options: &StreamOptions,
     provider_model: &str,
+    redactions: Vec<crate::guardrails::redact::BodyEdit>,
 ) -> Result<Bytes, ProviderError> {
     let usage = (matches!(route, Route::OpenAiChatCompletions) && streaming)
         .then(|| chat_completions::stream_usage_edit(&body, stream_options))
         .flatten();
-    rewrite_body(body, model_range, provider_model, usage)
+    rewrite_body(body, model_range, provider_model, usage, redactions)
 }
 
-/// Replaces the model bytes and applies `extra`, a byte range and its replacement;
-/// every other byte is copied unchanged.
+/// Splices `redactions` into a copy of the caller body (without upstream-only
+/// model or `stream_options` rewrites) and re-parses it for trace capture.
+fn redact_captured_input(
+    input: Option<crate::capture::RequestInput>,
+    body: &[u8],
+    redactions: &[crate::guardrails::redact::BodyEdit],
+) -> Option<crate::capture::RequestInput> {
+    if redactions.is_empty() {
+        return input;
+    }
+    let original = input?;
+    let mut edits: Vec<(Range<usize>, &[u8])> = redactions
+        .iter()
+        .map(|edit| (edit.range.clone(), edit.replacement.as_slice()))
+        .collect();
+    let redacted = splice_body_edits(body, &mut edits).ok();
+    redacted
+        .as_deref()
+        .and_then(crate::capture::RequestInput::from_redacted_body)
+        .or(Some(original))
+}
+
+/// Replaces the model bytes, applies `extra` and any guardrail `redactions` in
+/// one preallocated pass; every other byte is copied unchanged.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "ownership releases the caller body when rewriting returns, before the upstream wait"
@@ -445,15 +495,34 @@ fn rewrite_body(
     model_range: Range<usize>,
     provider_model: &str,
     extra: Option<(Range<usize>, Vec<u8>)>,
+    redactions: Vec<crate::guardrails::redact::BodyEdit>,
 ) -> Result<Bytes, ProviderError> {
     let model = serde_json::to_vec(provider_model).map_err(|_| ProviderError::Configuration)?;
-    let mut edits = vec![(model_range, model)];
-    edits.extend(extra);
+    let mut edits: Vec<(Range<usize>, &[u8])> =
+        Vec::with_capacity(1 + usize::from(extra.is_some()) + redactions.len());
+    edits.push((model_range, model.as_slice()));
+    if let Some((range, replacement)) = &extra {
+        edits.push((range.clone(), replacement.as_slice()));
+    }
+    edits.extend(
+        redactions
+            .iter()
+            .map(|edit| (edit.range.clone(), edit.replacement.as_slice())),
+    );
+    splice_body_edits(&body, &mut edits).map(Bytes::from)
+}
+
+fn splice_body_edits(
+    body: &[u8],
+    edits: &mut [(Range<usize>, &[u8])],
+) -> Result<Vec<u8>, ProviderError> {
     edits.sort_by_key(|(range, _)| range.start);
+    let removed = edits.iter().map(|(range, _)| range.len()).sum::<usize>();
     let added = edits.iter().map(|(_, bytes)| bytes.len()).sum::<usize>();
-    let mut rewritten = Vec::with_capacity(body.len() + added);
+    let capacity = body.len().saturating_sub(removed).saturating_add(added);
+    let mut rewritten = Vec::with_capacity(capacity);
     let mut copied = 0;
-    for (range, replacement) in edits {
+    for (range, replacement) in &*edits {
         if range.start > range.end || range.end > body.len() {
             return Err(ProviderError::Configuration);
         }
@@ -461,12 +530,12 @@ fn rewrite_body(
             .get(copied..range.start)
             .ok_or(ProviderError::Configuration)?;
         rewritten.extend_from_slice(prefix);
-        rewritten.extend_from_slice(&replacement);
+        rewritten.extend_from_slice(replacement);
         copied = range.end;
     }
     let suffix = body.get(copied..).ok_or(ProviderError::Configuration)?;
     rewritten.extend_from_slice(suffix);
-    Ok(Bytes::from(rewritten))
+    Ok(rewritten)
 }
 
 #[cfg(test)]

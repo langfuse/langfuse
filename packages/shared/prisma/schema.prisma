@@ -526,6 +526,8 @@ model GatewayGuardrail {
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
   encryptedCredential String?                      @map("encrypted_credentials")
+  // Replacement text used when action is REDACT (e.g. "[REDACTED]", "[PHONE]"); null otherwise.
+  redactionLabel      String?                      @map("redaction_label")
   createdBy           String?                      @map("created_by")
   createdByUser       User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
   createdAt           DateTime                     @default(now()) @map("created_at")

@@ -19,9 +19,9 @@ export const AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY =
   "langfuse.gateway.api_key.owner.user_id";
 
 /**
- * Metadata key set to `"block"` or `"log"` on any gateway request that matched
- * at least one guardrail (omitted when none matched). Always set by the
- * gateway, never by callers.
+ * Metadata key set to `"block"`, `"redact"`, or `"log"` on any gateway request
+ * that matched at least one guardrail (omitted when none matched). Always set
+ * by the gateway, never by callers.
  */
 export const AI_GATEWAY_GUARDRAILS_OUTCOME_METADATA_KEY =
   "langfuse.gateway.guardrails.outcome";

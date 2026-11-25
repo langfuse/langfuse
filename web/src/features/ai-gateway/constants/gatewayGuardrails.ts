@@ -19,11 +19,14 @@ export const GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH = 100;
 export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES = 128 * 1024;
 export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES = 512 * 1024;
 
+export const GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL = "[REDACTED]";
+export const GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH = 64;
+
 export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   GatewayGuardrailAction,
   string
 > = {
   BLOCK: "Block",
   LOG: "Log",
-  REDACT: "Mask",
+  REDACT: "Redact",
 };

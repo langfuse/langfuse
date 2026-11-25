@@ -289,6 +289,9 @@ function decryptResolvedGuardrails(
         guardrail_version: guardrail.guardrail_version,
         region: guardrail.region,
         api_key: apiKey,
+        ...(guardrail.redaction_label
+          ? { redaction_label: guardrail.redaction_label }
+          : {}),
       };
     } catch (error) {
       logger.error(

@@ -535,6 +535,19 @@ impl RequestInput {
         }
     }
 
+    /// Re-parses the top-level members of a redacted request body so FULL
+    /// ingestion does not store secrets scrubbed by a `redact` guardrail.
+    pub(crate) fn from_redacted_body(body: &[u8]) -> Option<Self> {
+        if body.len() > MAX_INPUT_CAPTURE_BYTES {
+            return Some(Self {
+                members: None,
+                body_bytes: body.len(),
+            });
+        }
+        let members: BTreeMap<String, &RawValue> = serde_json::from_slice(body).ok()?;
+        Some(Self::from_members(members, body.len()))
+    }
+
     #[cfg(test)]
     pub(crate) fn from_body(body: &[u8]) -> Self {
         let members: BTreeMap<String, &RawValue> = if body.len() <= MAX_INPUT_CAPTURE_BYTES {

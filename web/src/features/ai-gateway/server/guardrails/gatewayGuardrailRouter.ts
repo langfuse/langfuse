@@ -18,6 +18,7 @@ import {
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
   GatewayGuardrailPresetSchema,
+  GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailSecretPrefixesSchema,
   GatewayGuardrailUiActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -47,6 +48,7 @@ const commonWriteFields = {
     .min(1, "Guardrails need a name")
     .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
   action: GatewayGuardrailUiActionSchema,
+  redactionLabel: z.string().optional(),
   assignments: assignmentsInput,
 };
 
@@ -69,6 +71,46 @@ const hasGuardrailRule = (value: {
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
   "Configure at least one pattern, prefix, or keyword to detect";
 
+function refineGuardrailWriteInput(
+  value: {
+    type: "REGEX" | "BEDROCK";
+    action: "BLOCK" | "LOG" | "REDACT";
+    redactionLabel?: string;
+    presets?: unknown[];
+    secretPrefixes?: unknown[];
+    containsWords?: unknown[];
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    value.type === "REGEX" &&
+    !hasGuardrailRule({
+      presets: value.presets ?? [],
+      secretPrefixes: value.secretPrefixes ?? [],
+      containsWords: value.containsWords ?? [],
+    })
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
+    });
+  }
+  if (value.action === "REDACT" && value.redactionLabel !== undefined) {
+    const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
+      value.redactionLabel,
+    );
+    if (!labelResult.success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["redactionLabel"],
+        message:
+          labelResult.error.issues[0]?.message ??
+          "Enter a valid replacement label",
+      });
+    }
+  }
+}
+
 const createGuardrailInput = z
   .discriminatedUnion("type", [
     organizationInput.extend(commonWriteFields).extend(regexWriteFields),
@@ -77,14 +119,7 @@ const createGuardrailInput = z
       bedrock: GatewayBedrockGuardrailCreateInputSchema,
     }),
   ])
-  .superRefine((value, ctx) => {
-    if (value.type === "REGEX" && !hasGuardrailRule(value)) {
-      ctx.addIssue({
-        code: "custom",
-        message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
-      });
-    }
-  });
+  .superRefine(refineGuardrailWriteInput);
 
 const updateGuardrailInput = z
   .discriminatedUnion("type", [
@@ -94,14 +129,7 @@ const updateGuardrailInput = z
       bedrock: GatewayBedrockGuardrailUpdateInputSchema,
     }),
   ])
-  .superRefine((value, ctx) => {
-    if (value.type === "REGEX" && !hasGuardrailRule(value)) {
-      ctx.addIssue({
-        code: "custom",
-        message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
-      });
-    }
-  });
+  .superRefine(refineGuardrailWriteInput);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -271,6 +299,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          redactionLabel: input.redactionLabel,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -281,6 +310,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        redactionLabel: input.redactionLabel,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
@@ -304,6 +334,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
+          redactionLabel: input.redactionLabel,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -315,6 +346,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         type: "REGEX",
         name: input.name,
         action: input.action,
+        redactionLabel: input.redactionLabel,
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,

@@ -22,11 +22,11 @@ import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
+import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   type GatewayGuardrailPreset,
-  type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import {
@@ -142,6 +142,7 @@ export function GatewayGuardrailDialogController({
                   type: "BEDROCK",
                   name: values.name,
                   action: values.action,
+                  redactionLabel: values.redactionLabel,
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -156,6 +157,7 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   action: values.action,
+                  redactionLabel: values.redactionLabel,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -170,6 +172,7 @@ export function GatewayGuardrailDialogController({
                   type: "BEDROCK",
                   name: values.name,
                   action: values.action,
+                  redactionLabel: values.redactionLabel,
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -180,6 +183,7 @@ export function GatewayGuardrailDialogController({
                   type: "REGEX",
                   name: values.name,
                   action: values.action,
+                  redactionLabel: values.redactionLabel,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
@@ -320,6 +324,7 @@ function GuardrailDialogContent({
           secretPrefixes: [],
           containsWords: [],
           action: "BLOCK",
+          redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
           targets: [EVERYONE_TARGET_OPTION],
         }}
         initialTestText={selectedTemplate.sampleTestText}
@@ -338,8 +343,6 @@ function GuardrailDialogContent({
     { mode: "edit" }
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
-  const initialAction: GatewayGuardrailUiAction =
-    guardrail.action === "LOG" ? "LOG" : "BLOCK";
   const isExternal = guardrail.type === "BEDROCK";
 
   return (
@@ -357,7 +360,9 @@ function GuardrailDialogContent({
         secretPrefixes: guardrail.secretPrefixes,
         containsWords: guardrail.containsWords,
         bedrock: guardrail.bedrock ?? undefined,
-        action: initialAction,
+        action: guardrail.action,
+        redactionLabel:
+          guardrail.redactionLabel ?? GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
         targets: assignmentsToTargetOptions(guardrail.assignments),
       }}
       targetPicker={targetPicker}

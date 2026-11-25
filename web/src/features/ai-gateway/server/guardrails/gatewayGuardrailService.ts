@@ -16,6 +16,7 @@ import {
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
   GATEWAY_GUARDRAIL_FLAGGED_WINDOW_DAYS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
@@ -43,6 +44,7 @@ import {
   deduplicateContainsWords,
   estimateCompiledPatternsBytes,
   GatewayBedrockGuardrailConfigSchema,
+  GatewayGuardrailRedactionLabelSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   type GatewayBedrockGuardrailConfig,
@@ -87,9 +89,15 @@ export class GatewayGuardrailService {
   }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
-      // The gateway does not redact yet; shipping these would turn them into another action.
-      if (guardrail.action === "REDACT") return [];
-      const action = guardrail.action === "BLOCK" ? "block" : "log";
+      const action = toResolveGuardrailAction(guardrail.action);
+      const redactionField =
+        action === "redact"
+          ? {
+              redaction_label:
+                guardrail.redactionLabel ||
+                GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+            }
+          : {};
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -113,6 +121,7 @@ export class GatewayGuardrailService {
               type: "regex" as const,
               action,
               patterns,
+              ...redactionField,
             },
           ];
         }
@@ -148,6 +157,7 @@ export class GatewayGuardrailService {
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
               encrypted_credential: guardrail.encryptedCredential,
+              ...redactionField,
             },
           ];
         }
@@ -283,6 +293,7 @@ export class GatewayGuardrailService {
       organizationId: string;
       name: string;
       action: GatewayGuardrailUiAction;
+      redactionLabel?: string;
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
@@ -298,6 +309,10 @@ export class GatewayGuardrailService {
         }
     ),
   ) {
+    const redactionLabel = normalizeRedactionLabel(
+      params.action,
+      params.redactionLabel,
+    );
     let config: Prisma.InputJsonValue;
     let encryptedCredential: string | null = null;
     let ruleBytes: number | null = null;
@@ -346,6 +361,7 @@ export class GatewayGuardrailService {
         name: params.name,
         type: params.type,
         action: params.action,
+        redactionLabel,
         config,
         encryptedCredential,
         assignments,
@@ -372,6 +388,7 @@ export class GatewayGuardrailService {
       id: string;
       name: string;
       action: GatewayGuardrailUiAction;
+      redactionLabel?: string;
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
@@ -387,6 +404,10 @@ export class GatewayGuardrailService {
         }
     ),
   ) {
+    const redactionLabel = normalizeRedactionLabel(
+      params.action,
+      params.redactionLabel,
+    );
     if (params.type === "BEDROCK") {
       const existingCredential = await this.repository.findCredentialById({
         organizationId: params.organizationId,
@@ -490,6 +511,7 @@ export class GatewayGuardrailService {
         id: existing.id,
         name: params.name,
         action: params.action,
+        redactionLabel,
         config,
         encryptedCredential,
         assignments,
@@ -903,6 +925,36 @@ async function assertOrgSizeLimit(
   }
 }
 
+function toResolveGuardrailAction(
+  action: GatewayGuardrailRecord["action"],
+): "block" | "log" | "redact" {
+  switch (action) {
+    case "BLOCK":
+      return "block";
+    case "LOG":
+      return "log";
+    case "REDACT":
+      return "redact";
+    default:
+      return assertUnreachable(action);
+  }
+}
+
+function normalizeRedactionLabel(
+  action: GatewayGuardrailUiAction,
+  rawLabel: string | undefined,
+): string | null {
+  if (action !== "REDACT") return null;
+  if (rawLabel === undefined) return GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL;
+  const parsed = GatewayGuardrailRedactionLabelSchema.safeParse(rawLabel);
+  if (!parsed.success) {
+    throw new InvalidRequestError(
+      parsed.error.issues[0]?.message ?? "Enter a valid replacement label",
+    );
+  }
+  return parsed.data;
+}
+
 function toGuardrailDto(
   record: GatewayGuardrailRecord,
   flaggedCounts: Map<string, number> | null,
@@ -931,6 +983,7 @@ function toGuardrailDto(
     name: record.name,
     type: record.type,
     action: record.action,
+    redactionLabel: record.redactionLabel,
     presets,
     secretPrefixes,
     containsWords,

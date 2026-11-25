@@ -12,11 +12,18 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::ExternalGuardrailClient;
+use crate::guardrails::external::{ExternalGuardrailClient, ExternalMatch, ExternalOutcome};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
+const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
 const BEDROCK_NONE_ACTION: &str = "NONE";
+const BEDROCK_ACTION_BLOCKED: &str = "BLOCKED";
+const BEDROCK_ACTION_ANONYMIZED: &str = "ANONYMIZED";
+
+/// Maximum individual text leaves sent as separate `content` blocks to
+/// `ApplyGuardrail` before falling back to a single joined block.
+pub(crate) const MAX_BEDROCK_CONTENT_BLOCKS: usize = 20;
 
 /// Configuration for an external AWS Bedrock Guardrail resolved from Web.
 #[derive(Clone)]
@@ -38,13 +45,17 @@ impl fmt::Debug for BedrockGuardrail {
     }
 }
 
-/// Serializes `text` into the AWS Bedrock `ApplyGuardrail` JSON request body.
-pub(crate) fn serialize_request(text: &str) -> Option<Bytes> {
+/// Serializes `blocks` into the AWS Bedrock `ApplyGuardrail` JSON request body.
+pub(crate) fn serialize_request_blocks(blocks: &[&str]) -> Option<Bytes> {
+    let content = blocks
+        .iter()
+        .map(|text| GuardrailContentBlock {
+            text: GuardrailTextBlock { text },
+        })
+        .collect();
     serde_json::to_vec(&ApplyGuardrailRequest {
         source: "INPUT",
-        content: [GuardrailContentBlock {
-            text: GuardrailTextBlock { text },
-        }],
+        content,
     })
     .ok()
     .map(Bytes::from)
@@ -56,7 +67,7 @@ pub(crate) async fn evaluate_one(
     config: &BedrockGuardrail,
     payload: Bytes,
     organization_id: &str,
-) -> bool {
+) -> ExternalOutcome {
     #[cfg(test)]
     let origin = client
         .origin_override
@@ -72,7 +83,7 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_url",
             "bedrock guardrail check failed; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed;
     };
     if client.policy.check_allowed_host(&url).is_err() {
         tracing::warn!(
@@ -82,7 +93,7 @@ pub(crate) async fn evaluate_one(
             reason = "blocked_destination",
             "bedrock guardrail destination blocked by outbound policy; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed;
     }
     let Ok(mut authorization) =
         HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
@@ -94,10 +105,16 @@ pub(crate) async fn evaluate_one(
             reason = "invalid_credential",
             "bedrock guardrail check failed; failing closed"
         );
-        return true;
+        return ExternalOutcome::Failed;
     };
     authorization.set_sensitive(true);
 
+    let response_limit = MAX_BEDROCK_RESPONSE_BYTES.max(
+        payload
+            .len()
+            .saturating_mul(2)
+            .min(MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES),
+    );
     let request = client
         .http
         .post(url)
@@ -108,8 +125,8 @@ pub(crate) async fn evaluate_one(
         .header(ACCEPT_ENCODING, "identity")
         .body(payload);
 
-    match tokio::time::timeout(client.timeout, send_and_parse(request)).await {
-        Ok(Ok(intervened)) => intervened,
+    match tokio::time::timeout(client.timeout, send_and_parse(request, response_limit)).await {
+        Ok(Ok(outcome)) => outcome,
         Ok(Err(failure)) => {
             tracing::warn!(
                 guardrail_id = langfuse_guardrail_id,
@@ -119,7 +136,7 @@ pub(crate) async fn evaluate_one(
                 status = failure.status(),
                 "bedrock guardrail check failed; failing closed"
             );
-            true
+            ExternalOutcome::Failed
         }
         Err(_) => {
             tracing::warn!(
@@ -129,7 +146,7 @@ pub(crate) async fn evaluate_one(
                 reason = "timeout",
                 "bedrock guardrail check timed out; failing closed"
             );
-            true
+            ExternalOutcome::Failed
         }
     }
 }
@@ -150,7 +167,7 @@ fn apply_url(origin: &str, config: &BedrockGuardrail) -> Result<Url, url::ParseE
 #[derive(Serialize)]
 struct ApplyGuardrailRequest<'a> {
     source: &'static str,
-    content: [GuardrailContentBlock<'a>; 1],
+    content: Vec<GuardrailContentBlock<'a>>,
 }
 
 #[derive(Serialize)]
@@ -166,6 +183,80 @@ struct GuardrailTextBlock<'a> {
 #[derive(Deserialize)]
 struct ApplyGuardrailResponse {
     action: String,
+    #[serde(default)]
+    outputs: Vec<BedrockOutput>,
+    #[serde(default)]
+    assessments: Vec<BedrockAssessment>,
+}
+
+#[derive(Deserialize)]
+struct BedrockOutput {
+    #[serde(default)]
+    text: String,
+}
+
+#[derive(Deserialize)]
+struct BedrockAssessment {
+    #[serde(rename = "sensitiveInformationPolicy", default)]
+    sensitive_information: Option<BedrockSensitiveInfoPolicy>,
+    #[serde(rename = "wordPolicy", default)]
+    word: Option<BedrockWordPolicy>,
+    #[serde(rename = "topicPolicy", default)]
+    topic: Option<BedrockTopicPolicy>,
+    #[serde(rename = "contentPolicy", default)]
+    content: Option<BedrockFilterPolicy>,
+    #[serde(rename = "contextualGroundingPolicy", default)]
+    contextual_grounding: Option<BedrockFilterPolicy>,
+}
+
+#[derive(Deserialize)]
+struct BedrockSensitiveInfoPolicy {
+    #[serde(rename = "piiEntities", default)]
+    pii_entities: Vec<BedrockMatchedItem>,
+    #[serde(default)]
+    regexes: Vec<BedrockMatchedItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockWordPolicy {
+    #[serde(rename = "customWords", default)]
+    custom_words: Vec<BedrockMatchedItem>,
+    #[serde(rename = "managedWordLists", default)]
+    managed_word_lists: Vec<BedrockMatchedItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockTopicPolicy {
+    #[serde(default)]
+    topics: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockFilterPolicy {
+    #[serde(default)]
+    filters: Vec<BedrockPolicyItem>,
+}
+
+#[derive(Deserialize)]
+struct BedrockPolicyItem {
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    detected: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct BedrockMatchedItem {
+    #[serde(rename = "match", default)]
+    matched_text: Option<String>,
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    detected: Option<bool>,
+    #[serde(default)]
+    start: Option<usize>,
+    #[serde(default)]
+    end: Option<usize>,
 }
 
 enum BedrockFailure {
@@ -200,7 +291,8 @@ impl BedrockFailure {
 
 async fn send_and_parse(
     request: reqwest_middleware::RequestBuilder,
-) -> Result<bool, BedrockFailure> {
+    response_limit: usize,
+) -> Result<ExternalOutcome, BedrockFailure> {
     let response = request
         .send()
         .await
@@ -209,14 +301,124 @@ async fn send_and_parse(
     if status != StatusCode::OK {
         return Err(BedrockFailure::HttpStatus(status));
     }
-    let body = read_bounded_body(response, MAX_BEDROCK_RESPONSE_BYTES).await?;
+    let body = read_bounded_body(response, response_limit).await?;
     let parsed: ApplyGuardrailResponse =
         serde_json::from_slice(&body).map_err(|_| BedrockFailure::InvalidResponse)?;
     match parsed.action.as_str() {
-        BEDROCK_INTERVENED_ACTION => Ok(true),
-        BEDROCK_NONE_ACTION => Ok(false),
+        BEDROCK_INTERVENED_ACTION => Ok(ExternalOutcome::Matched(extract_external_match(parsed))),
+        BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
         _ => Err(BedrockFailure::UnexpectedAction),
     }
+}
+
+fn is_detected(detected: Option<bool>) -> bool {
+    detected != Some(false)
+}
+
+fn collect_matched_items(
+    assessment_index: usize,
+    items: Vec<BedrockMatchedItem>,
+    result: &mut ExternalMatch,
+    has_blocked: &mut bool,
+    has_anonymized: &mut bool,
+) {
+    for item in items {
+        if !is_detected(item.detected) {
+            continue;
+        }
+        match item.action.as_deref() {
+            Some(BEDROCK_ACTION_BLOCKED) => *has_blocked = true,
+            Some(BEDROCK_ACTION_ANONYMIZED) => *has_anonymized = true,
+            _ => {}
+        }
+        if let (Some(start), Some(end)) = (item.start, item.end)
+            && start < end
+        {
+            result.offsets.push((assessment_index, start..end));
+        } else if let Some(matched) = item.matched_text
+            && !matched.is_empty()
+        {
+            result.matches.push(matched);
+        }
+    }
+}
+
+fn has_blocked_policy(items: &[BedrockPolicyItem]) -> bool {
+    items.iter().any(|item| {
+        is_detected(item.detected) && item.action.as_deref() == Some(BEDROCK_ACTION_BLOCKED)
+    })
+}
+
+fn extract_external_match(parsed: ApplyGuardrailResponse) -> ExternalMatch {
+    let assessment_count = parsed.assessments.len();
+    let mut result = ExternalMatch {
+        assessment_count,
+        ..ExternalMatch::default()
+    };
+    let mut has_blocked = false;
+    let mut has_anonymized = false;
+
+    for (index, assessment) in parsed.assessments.into_iter().enumerate() {
+        if let Some(sensitive) = assessment.sensitive_information {
+            collect_matched_items(
+                index,
+                sensitive.pii_entities,
+                &mut result,
+                &mut has_blocked,
+                &mut has_anonymized,
+            );
+            collect_matched_items(
+                index,
+                sensitive.regexes,
+                &mut result,
+                &mut has_blocked,
+                &mut has_anonymized,
+            );
+        }
+        if let Some(word) = assessment.word {
+            collect_matched_items(
+                index,
+                word.custom_words,
+                &mut result,
+                &mut has_blocked,
+                &mut has_anonymized,
+            );
+            collect_matched_items(
+                index,
+                word.managed_word_lists,
+                &mut result,
+                &mut has_blocked,
+                &mut has_anonymized,
+            );
+        }
+        if assessment
+            .topic
+            .as_ref()
+            .is_some_and(|policy| has_blocked_policy(&policy.topics))
+            || assessment
+                .content
+                .as_ref()
+                .is_some_and(|policy| has_blocked_policy(&policy.filters))
+            || assessment
+                .contextual_grounding
+                .as_ref()
+                .is_some_and(|policy| has_blocked_policy(&policy.filters))
+        {
+            has_blocked = true;
+            result.has_unmappable_intervention = true;
+        }
+    }
+
+    // Only keep `outputs` when Bedrock returned anonymized text rather than a
+    // canned whole-request refusal message.
+    if !result.has_unmappable_intervention && (has_anonymized || !has_blocked) {
+        result.outputs = parsed
+            .outputs
+            .into_iter()
+            .map(|output| output.text)
+            .collect();
+    }
+    result
 }
 
 async fn read_bounded_body(
@@ -282,6 +484,7 @@ mod tests {
             id: id.into(),
             name: id.into(),
             action: GuardrailAction::Block,
+            redaction_label: None,
             kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
         }
     }
@@ -313,6 +516,49 @@ mod tests {
     fn debug_redacts_api_key() {
         let debug = format!("{:?}", sample_config("abc123", "1"));
         assert!(!debug.contains("bedrock-api-key-secret"));
+    }
+
+    #[test]
+    fn parses_anonymized_outputs_and_assessment_matches() {
+        let raw = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Contact {EMAIL} or {PHONE}"}],
+            "assessments": [{
+                "sensitiveInformationPolicy": {
+                    "piiEntities": [
+                        {"match": "alice@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": true},
+                        {"match": "ignored@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": false}
+                    ],
+                    "regexes": [
+                        {"name": "order", "match": "ORD-42", "action": "ANONYMIZED", "detected": true}
+                    ]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
+        let extracted = extract_external_match(parsed);
+        assert_eq!(extracted.matches, vec!["alice@example.com", "ORD-42"]);
+        assert_eq!(extracted.outputs, vec!["Contact {EMAIL} or {PHONE}"]);
+        assert_eq!(extracted.assessment_count, 1);
+    }
+
+    #[test]
+    fn drops_canned_refusal_outputs_for_blocked_topic_assessments() {
+        let raw = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Sorry, I cannot help with that."}],
+            "assessments": [{
+                "topicPolicy": {
+                    "topics": [{"name": "financial", "action": "BLOCKED", "detected": true}]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
+        let extracted = extract_external_match(parsed);
+        assert!(extracted.matches.is_empty());
+        assert!(extracted.offsets.is_empty());
+        assert!(extracted.outputs.is_empty());
+        assert!(extracted.has_unmappable_intervention);
     }
 
     #[tokio::test]
@@ -364,8 +610,17 @@ mod tests {
             sample_guardrail("g5", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads = ExternalPayloads::for_guardrails(&refs, "hello world");
+        let payloads = ExternalPayloads::for_guardrails(&refs, &["hello world"]);
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
-        assert_eq!(results, vec![true, false, true, true, true]);
+        assert_eq!(
+            results,
+            vec![
+                ExternalOutcome::Matched(ExternalMatch::default()),
+                ExternalOutcome::None,
+                ExternalOutcome::Failed,
+                ExternalOutcome::Failed,
+                ExternalOutcome::Failed,
+            ]
+        );
     }
 }

@@ -92,6 +92,7 @@ const createGuardrail = async (params: {
   organizationId: string;
   name: string;
   action?: "BLOCK" | "LOG" | "REDACT";
+  redactionLabel?: string | null;
   config?: object;
   assignments: Array<
     | { scope: "ORGANIZATION" }
@@ -104,6 +105,7 @@ const createGuardrail = async (params: {
       organizationId: params.organizationId,
       name: params.name,
       action: params.action ?? "BLOCK",
+      redactionLabel: params.redactionLabel ?? null,
       config: params.config ?? { presets: ["email"] },
       assignments: {
         create: params.assignments.map((assignment) => ({
@@ -178,6 +180,7 @@ describe("GatewayGuardrailService", () => {
       organizationId,
       name: "Redact rule",
       action: "REDACT",
+      redactionLabel: "[EMAIL]",
       assignments: [{ scope: "API_KEY", apiKeyId: key }],
     });
     await createGuardrail({
@@ -196,6 +199,7 @@ describe("GatewayGuardrailService", () => {
       "Key rule",
       "Organization PII",
       "Partly unknown presets",
+      "Redact rule",
       "User rule",
     ]);
     expect(resolved[0]).toEqual({
@@ -204,6 +208,14 @@ describe("GatewayGuardrailService", () => {
       type: "regex",
       action: "block",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
+    });
+    expect(resolved[3]).toEqual({
+      id: expect.any(String),
+      name: "Redact rule",
+      type: "regex",
+      action: "redact",
+      patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
+      redaction_label: "[EMAIL]",
     });
 
     const forServiceKey = await service.resolveForKey({
@@ -1010,5 +1022,130 @@ describe("aiGateway guardrails tRPC", () => {
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("persists, validates, and resolves REDACT replacement labels for regex and Bedrock guardrails", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Owner User");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, {
+      gateway: true,
+      name: "redact-key",
+    });
+
+    // Default replacement label when omitted
+    const defaultLabelRule = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Default redact",
+      action: "REDACT",
+      presets: ["email"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(defaultLabelRule.action).toBe("REDACT");
+    expect(defaultLabelRule.redactionLabel).toBe("[REDACTED]");
+
+    // Custom replacement label (trimmed)
+    const customLabelRule = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Custom redact",
+      action: "REDACT",
+      redactionLabel: "  [SSN]  ",
+      presets: ["us_ssn"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(customLabelRule.redactionLabel).toBe("[SSN]");
+
+    // Rejects blank, control-char, and overly long replacement labels
+    for (const invalidLabel of ["   ", "bad\nlabel", "x".repeat(65)]) {
+      await expect(
+        ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Invalid ${invalidLabel.length}`,
+          action: "REDACT",
+          redactionLabel: invalidLabel,
+          presets: ["email"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+
+    // Bedrock REDACT guardrail persists and resolves redaction_label
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ action: "NONE" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    const bedrockRedact = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "BEDROCK",
+      name: "Bedrock redact",
+      action: "REDACT",
+      redactionLabel: "[PII]",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bedrock-secret-redact",
+      },
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(bedrockRedact.action).toBe("REDACT");
+    expect(bedrockRedact.redactionLabel).toBe("[PII]");
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: bedrockRedact.id,
+        type: "bedrock",
+        action: "redact",
+        redaction_label: "[PII]",
+      }),
+      expect.objectContaining({
+        id: customLabelRule.id,
+        type: "regex",
+        action: "redact",
+        redaction_label: "[SSN]",
+      }),
+      expect.objectContaining({
+        id: defaultLabelRule.id,
+        type: "regex",
+        action: "redact",
+        redaction_label: "[REDACTED]",
+      }),
+    ]);
+
+    // Switching REDACT -> BLOCK clears redactionLabel to null
+    const switchedToBlock = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: customLabelRule.id,
+      type: "REGEX",
+      name: "Custom redact",
+      action: "BLOCK",
+      presets: ["us_ssn"],
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(switchedToBlock.action).toBe("BLOCK");
+    expect(switchedToBlock.redactionLabel).toBeNull();
   });
 });

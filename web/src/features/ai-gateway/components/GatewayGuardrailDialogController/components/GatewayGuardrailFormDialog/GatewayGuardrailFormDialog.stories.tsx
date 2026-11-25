@@ -214,6 +214,27 @@ export const EditGuardrail = meta.story({
   },
 });
 
+export const EditRedactGuardrail = meta.story({
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Redact emails",
+      presets: ["email"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "REDACT",
+      redactionLabel: "[EMAIL]",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: piiTemplate.sampleTestText,
+    isSubmitting: false,
+    errorMessage: null,
+  },
+});
+
 export const LimitReachedError = meta.story({
   args: {
     title: piiTemplate.name,

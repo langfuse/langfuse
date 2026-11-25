@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
+  GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
@@ -94,7 +95,9 @@ export const GATEWAY_GUARDRAIL_PRESETS = {
   },
   private_key: {
     group: "secrets",
-    patterns: [String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----`],
+    patterns: [
+      String.raw`-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----(?:\s+[A-Za-z0-9+/=:, \t\r\n-]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----)?`,
+    ],
   },
   jwt: {
     group: "secrets",
@@ -241,7 +244,7 @@ export const GatewayGuardrailContainsListSchema = z
   );
 
 /** Actions the gateway enforces and the management UI offers. */
-export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG"] as const;
+export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG", "REDACT"] as const;
 
 export const GatewayGuardrailUiActionSchema = z.enum(
   GATEWAY_GUARDRAIL_UI_ACTIONS,
@@ -250,6 +253,27 @@ export const GatewayGuardrailUiActionSchema = z.enum(
 export type GatewayGuardrailUiAction = z.infer<
   typeof GatewayGuardrailUiActionSchema
 >;
+
+function hasNoControlChars(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return false;
+  }
+  return true;
+}
+
+export const GatewayGuardrailRedactionLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a replacement label")
+  .max(
+    GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH,
+    `Replacement label must be at most ${GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH} characters`,
+  )
+  .refine(
+    hasNoControlChars,
+    "Replacement label cannot contain control characters or line breaks",
+  );
 
 const GatewayGuardrailAssignmentInputSchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("ORGANIZATION") }),

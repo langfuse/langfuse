@@ -1,7 +1,7 @@
 //! Pooled HTTPS client and concurrent dispatcher for external guardrail
 //! providers. Timeouts and provider errors fail closed so unscreened prompts
 //! never bypass a configured guardrail.
-use std::{sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 
 use axum::body::Bytes;
 use futures_util::future::join_all;
@@ -18,19 +18,53 @@ const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
+/// Structured redaction hints returned by an external guardrail intervention.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ExternalMatch {
+    /// Matched literal substrings reported in provider assessments.
+    pub matches: Vec<String>,
+    /// Explicit UTF-8 byte offset ranges `(assessment_index, start..end)` when
+    /// an external provider supplies them.
+    pub offsets: Vec<(usize, Range<usize>)>,
+    /// Number of assessment entries returned by the provider.
+    pub assessment_count: usize,
+    /// Masked/anonymized output texts per content block, empty when the
+    /// provider returned a whole-request refusal rather than masked text.
+    pub outputs: Vec<String>,
+    /// True when a whole-request policy (such as topic, content, or contextual
+    /// grounding) intervened without redactable spans, requiring fail-closed
+    /// blocking even if another policy also returned redactable matches.
+    pub has_unmappable_intervention: bool,
+}
+
+/// Result of evaluating one external guardrail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ExternalOutcome {
+    None,
+    Matched(ExternalMatch),
+    /// Provider error, timeout, or invalid response; fails closed.
+    Failed,
+}
+
+impl ExternalOutcome {
+    pub(crate) fn is_match(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
 /// Pre-serialized request payloads for external guardrail providers, built once
-/// per request so `turn_text` can be dropped before awaiting network I/O.
+/// per request so temporary text copies can be dropped before awaiting network I/O.
 pub(crate) struct ExternalPayloads {
     bedrock: Option<Bytes>,
 }
 
 impl ExternalPayloads {
-    pub(crate) fn for_guardrails(guardrails: &[&Guardrail], text: &str) -> Self {
+    pub(crate) fn for_guardrails(guardrails: &[&Guardrail], blocks: &[&str]) -> Self {
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
         let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_request(text))
+            .then(|| bedrock::serialize_request_blocks(blocks))
             .flatten();
         Self { bedrock }
     }
@@ -72,13 +106,13 @@ impl ExternalGuardrailClient {
     }
 
     /// Evaluates every external guardrail concurrently using its pre-serialized
-    /// payload. Timeouts and errors fail closed (`true`).
+    /// payload. Timeouts and errors fail closed ([`ExternalOutcome::Failed`]).
     pub(crate) async fn evaluate_many(
         &self,
         guardrails: &[&Guardrail],
         payloads: &ExternalPayloads,
         organization_id: &str,
-    ) -> Vec<bool> {
+    ) -> Vec<ExternalOutcome> {
         if guardrails.is_empty() {
             return Vec::new();
         }
@@ -95,7 +129,7 @@ impl ExternalGuardrailClient {
         guardrail: &Guardrail,
         payloads: &ExternalPayloads,
         organization_id: &str,
-    ) -> bool {
+    ) -> ExternalOutcome {
         match &guardrail.kind {
             GuardrailKind::Bedrock(config) => {
                 let Some(payload) = payloads.bedrock.clone() else {
@@ -105,12 +139,12 @@ impl ExternalGuardrailClient {
                         reason = "serialization",
                         "external guardrail request failed to serialize; failing closed"
                     );
-                    return true;
+                    return ExternalOutcome::Failed;
                 };
                 bedrock::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
             }
             GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
-                false
+                ExternalOutcome::None
             }
         }
     }

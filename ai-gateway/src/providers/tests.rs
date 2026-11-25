@@ -44,7 +44,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
     );
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_body(original, model_range, "provider-model", None).unwrap(),
+        rewrite_body(original, model_range, "provider-model", None, Vec::new()).unwrap(),
         expected
     );
 }
@@ -53,7 +53,7 @@ fn model_rewrite_changes_only_the_top_level_model_bytes() {
 fn model_rewrite_fails_closed_for_an_invalid_model_range() {
     let missing = Bytes::from_static(br#"{"input":{"model":"nested-model"}}"#);
     assert!(matches!(
-        rewrite_body(missing, 100..110, "provider-model", None),
+        rewrite_body(missing, 100..110, "provider-model", None, Vec::new()),
         Err(ProviderError::Configuration)
     ));
 }
@@ -188,7 +188,7 @@ fn model_rewrite_accepts_a_shorter_provider_model() {
     let original = Bytes::from_static(br#"{"model":"connection:model","input":"large"}"#);
     let model_range = model_range(&original).unwrap();
     assert_eq!(
-        rewrite_body(original, model_range, "m", None).unwrap(),
+        rewrite_body(original, model_range, "m", None, Vec::new()).unwrap(),
         r#"{"model":"m","input":"large"}"#
     );
 }
