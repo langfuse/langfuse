@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
-import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { useResetGatewayBudget } from "@/src/features/ai-gateway/hooks/useResetGatewayBudget";
 import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -39,36 +41,72 @@ export function GatewayResetBudgetDialogController({
 }: GatewayResetBudgetDialogControllerProps) {
   const { resetBudget, mutation } = useResetGatewayBudget(organizationId);
   const capture = usePostHogClientCapture();
+  const [confirming, setConfirming] = useState(false);
+  const loading = mutation.isPending || confirming;
+  const error = mutation.error?.message;
+
+  const handleBeforeClose = () => !loading;
 
   const handleAfterDismiss = () => {
     mutation.reset();
   };
 
-  const handleConfirm = async (target: GatewayResetBudgetTarget) => {
-    await resetBudget({
-      scope: target.scope,
-      subjectId: target.subjectId,
-    });
-    capture("ai_gateway:budget_reset", {
-      orgId: organizationId,
-      scope: target.scope,
-      surface,
-    });
+  const handleConfirm = async (
+    target: GatewayResetBudgetTarget,
+    closeDialog: () => void,
+  ) => {
+    if (loading) return;
+    setConfirming(true);
+    try {
+      await resetBudget({
+        scope: target.scope,
+        subjectId: target.subjectId,
+      });
+      capture("ai_gateway:budget_reset", {
+        orgId: organizationId,
+        scope: target.scope,
+        surface,
+      });
+    } catch {
+      return;
+    } finally {
+      setConfirming(false);
+    }
+    closeDialog();
   };
 
   return (
-    <ConfirmationDialogController<GatewayResetBudgetTarget>
-      title={getResetTitle}
-      text={getResetDescription}
-      confirmLabel="Reset budget"
-      variant="default"
-      loading={mutation.isPending}
-      error={mutation.error?.message}
-      onAfterDismiss={handleAfterDismiss}
-      onConfirm={handleConfirm}
+    <DialogController<GatewayResetBudgetTarget>
+      onBeforeClose={handleBeforeClose}
+      onDismiss={handleAfterDismiss}
+      renderDialog={({ state, closeDialog }) => (
+        <Dialog
+          title={getResetTitle(state)}
+          noCapture
+          actions={[
+            {
+              label: "Reset budget",
+              variant: "default",
+              loading,
+              onClick: () => handleConfirm(state, closeDialog),
+            },
+          ]}
+        >
+          <Dialog.Body>
+            <p className="text-muted-foreground text-sm">
+              {getResetDescription(state)}
+            </p>
+            {error ? (
+              <Banner variant="error" title="Error">
+                <p className="whitespace-pre-wrap">{error}</p>
+              </Banner>
+            ) : null}
+          </Dialog.Body>
+        </Dialog>
+      )}
     >
-      {children}
-    </ConfirmationDialogController>
+      {({ openDialog }) => children({ openDialog })}
+    </DialogController>
   );
 }
 
