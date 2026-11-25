@@ -2,7 +2,7 @@ import { useId } from "react";
 
 import styles from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/gatewaySetupHero.module.css";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { providerShortLabels } from "@/src/features/ai-gateway/constants/providerShortLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
@@ -51,16 +51,6 @@ const TRAFFIC = [
 function connectorPath(y: number) {
   return `M${HUB.x + HUB_RADIUS} ${HUB.y}C262 ${HUB.y},262 ${y},${PILL.x} ${y}`;
 }
-
-/** Short enough to leave room for the switch in a pill. */
-const DIAGRAM_LABELS = {
-  ...providerLabels,
-  BEDROCK: "Bedrock",
-  VERCEL: "Vercel",
-  AZURE: "Azure",
-  GOOGLE_AI_STUDIO: "Google AI",
-  VERTEX: "Vertex AI",
-} satisfies Record<GatewayProvider, string>;
 
 const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;
 
@@ -225,7 +215,7 @@ export function GatewaySetupSwitchboard({
                 isConnected ? "fill-foreground" : "fill-muted-foreground",
               )}
             >
-              {DIAGRAM_LABELS[provider]}
+              {providerShortLabels[provider]}
             </text>
             {isPlaceholder ? null : (
               <>
