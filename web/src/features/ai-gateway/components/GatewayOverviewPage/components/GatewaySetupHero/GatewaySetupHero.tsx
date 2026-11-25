@@ -35,10 +35,10 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
             Langfuse. Each call becomes a full trace, along with who made it and
             what it cost.
           </p>
-          <div className="pt-3">
+          <div>
             <Button
-              variant="outline"
-              text="Setup guide"
+              variant="text"
+              text="How to set up the gateway"
               href={GATEWAY_SETUP.docsUrl}
             />
           </div>
