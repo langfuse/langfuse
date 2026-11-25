@@ -36,6 +36,7 @@ import {
   mapValue,
   mapValues,
   nullIf,
+  nullIfEmpty,
   sumMapValuesWhereKeyContains,
   templateAggregate,
   toBool,
@@ -60,6 +61,11 @@ import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
 } from "../../ai-gateway/constants";
+import {
+  scalarDimensions,
+  type Read as EntryRead,
+  type ScalarDimensionEntry,
+} from "./registryEntry";
 
 /** The relations a v2 observations query reads: events as `e`, and `scores`. */
 export type ObservationsDb = {
@@ -102,7 +108,7 @@ type AggregationSlot<A extends Record<string, TemplateAggregate>> = <
 ) => AliasableExpression<T | TemplateAggregateResult<A[K], T>>;
 
 /** A dimension's row value over `e`. */
-type Read<T> = (eb: ObservationsBuilder) => AliasableExpression<T>;
+type Read<T> = EntryRead<T, ObservationsBuilder>;
 
 /** An array dimension's value; a tuple field of an `Array(Tuple(…))` column can be NULL. */
 type StringArray = Array<string | null>;
@@ -119,11 +125,7 @@ type DimensionFilter = ScalarFieldLowering;
  * A dimension with a non-array value, e.g. `environment`:
  * `SELECT nullIf(e.environment, '') AS environment`.
  */
-type ScalarDimension = {
-  array?: undefined;
-  expression: Read<unknown>;
-  filter: DimensionFilter;
-};
+type ScalarDimension = ScalarDimensionEntry<ObservationsBuilder>;
 
 /**
  * A dimension with a `String` array value, which a query can explode into one
@@ -233,8 +235,6 @@ export function aggregationSlot<A extends Record<string, TemplateAggregate>>(
   };
 }
 
-const nullIfEmpty = (value: Expression<string>) => nullIf(value, literal(""));
-
 /** The span came through the AI Gateway. */
 const viaAiGateway = (eb: ObservationsBuilder) =>
   eb("e.service_name", "=", literal(AI_GATEWAY_SERVICE_NAME));
@@ -280,47 +280,18 @@ const sinceCompletionStart = (
     aggregatedDiff(eb, agg, "agg1", "millisecond", interval),
   );
 
-/**
- * A string dimension, filtered as it is. `ngramIndexed`: `events_full`
- * keeps an ngram index on `lower(<col>)`, so string filters add a `lower()`
- * conjunct it prunes with.
- */
-const stringDimension = (
-  value: Read<string>,
-  facts: { ngramIndexed?: true } = {},
-): ScalarDimension => ({
-  expression: value,
-  filter: { kind: "string", value, ...facts },
-});
-
-/** `nullIf(column, '')`, filtered on `column` with `''` and NULL as one value. */
-const nullIfEmptyDimension = (
-  column: Read<string>,
-  facts: { ngramIndexed?: true } = {},
-): ScalarDimension => ({
-  expression: (eb) => nullIfEmpty(column(eb)),
-  filter: { kind: "string", value: column, emptyEqualsNull: true, ...facts },
-});
-
-/** A string dimension that can be NULL, filtered as it is. */
-const nullableStringDimension = (
-  value: Read<string | null>,
-): ScalarDimension => ({
-  expression: value,
-  filter: { kind: "nullableString", value },
-});
+const {
+  stringDimension,
+  nullIfEmptyDimension,
+  nullableStringDimension,
+  scalarDimension,
+} = scalarDimensions<ObservationsBuilder>();
 
 /** An array dimension, filtered by `arrayOptions`. */
 const arrayDimension = (value: Read<StringArray>): ArrayDimension => ({
   array: true,
   expression: value,
   filter: { kind: "array", value },
-});
-
-/** A number or boolean dimension, filtered as it is. */
-const scalarDimension = (value: Read<unknown>): ScalarDimension => ({
-  expression: value,
-  filter: { kind: "scalar", value },
 });
 
 /** Dimensions of the v2 observations view, keyed by name, in view order. */

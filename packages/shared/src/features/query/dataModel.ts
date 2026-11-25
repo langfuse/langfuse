@@ -24,6 +24,12 @@ import {
 /** numericMeasureTypes are the measure types whose values carry their own unit. */
 const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 
+/** The relations the v2 score views join, as their entries' `relationTable` names them. */
+export const SCORE_V2_RELATIONS = {
+  traces: "events_traces",
+  observations: "events_observations",
+} as const;
+
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // New views build their SQL on the query AST, not from these `sql` strings: see ./AGENTS.md.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -810,14 +816,14 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "events_traces.name",
     alias: "traceName",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Name of the parent trace.",
   },
   userId: {
     sql: "nullIf(events_traces.user_id, '')",
     alias: "userId",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Identifier of the user.",
     highCardinality: true,
   },
@@ -825,21 +831,21 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "events_traces.tags",
     alias: "tags",
     type: "string[]",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "User-defined tags.",
   },
   traceRelease: {
     sql: "nullIf(events_traces.release, '')",
     alias: "traceRelease",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Release version.",
   },
   traceVersion: {
     sql: "nullIf(events_traces.version, '')",
     alias: "traceVersion",
     type: "string",
-    relationTable: "events_traces",
+    relationTable: SCORE_V2_RELATIONS.traces,
     description: "Version of the parent trace.",
   },
   // Observation fields from events table (accessed via events_observations JOIN)
@@ -847,28 +853,28 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "events_observations.name",
     alias: "observationName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the observation associated with the score.",
   },
   observationModelName: {
     sql: "nullIf(events_observations.provided_model_name, '')",
     alias: "observationModelName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the model used for the observation.",
   },
   observationPromptName: {
     sql: "nullIf(events_observations.prompt_name, '')",
     alias: "observationPromptName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the prompt used for the observation.",
   },
   observationPromptVersion: {
     sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
     type: "number",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Version of the prompt used for the observation.",
   },
   // Experiment fields for observation-attached scores. These stay hidden from
@@ -878,7 +884,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "nullIf(events_observations.experiment_name, '')",
     alias: "experimentName",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "Name of the experiment associated with the score.",
     highCardinality: true,
     uiHidden: true,
@@ -887,7 +893,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "nullIf(events_observations.experiment_id, '')",
     alias: "experimentId",
     type: "string",
-    relationTable: "events_observations",
+    relationTable: SCORE_V2_RELATIONS.observations,
     description: "ID of the experiment associated with the score.",
     highCardinality: true,
     uiHidden: true,
@@ -999,7 +1005,6 @@ const createScoreTableRelations = (
     joinConditionSql: string;
     timeDimension: string;
     useFinal?: boolean;
-    source?: "eventsTraceAttributes";
   }
 > => {
   if (version === "v1") {
@@ -1019,18 +1024,19 @@ const createScoreTableRelations = (
     };
   }
 
+  // `QueryBuilder.buildScores` builds these joins on the query AST; the
+  // strings below describe them.
   return {
     // Trace attributes are spread over spans in v4, so the join reads one
-    // aggregated row per trace (see compileEventsTraceAttributesSubquery).
-    events_traces: {
+    // aggregated row per trace (see eventsTraceAttributes).
+    [SCORE_V2_RELATIONS.traces]: {
       name: "events_core",
-      source: "eventsTraceAttributes",
       joinConditionSql:
         "ON scores.trace_id = events_traces.id AND scores.project_id = events_traces.project_id",
       timeDimension: "start_time",
       useFinal: false,
     },
-    events_observations: {
+    [SCORE_V2_RELATIONS.observations]: {
       name: "events_core",
       joinConditionSql:
         "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
