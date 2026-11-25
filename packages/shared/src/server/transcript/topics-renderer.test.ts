@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { convertObservation } from "../repositories/observations_converters";
 import { createObservation } from "../test-utils/tracing-factory";
-import { inheritedConversationHistoryFixture } from "./fixtures/trace/inherited-conversation-history";
-import { standaloneToolObservationFixture } from "./fixtures/trace/standalone-tool-observation";
+import { inheritedConversationHistoryFixture } from "./__tests__/fixtures/trace/inherited-conversation-history";
+import { standaloneToolObservationFixture } from "./__tests__/fixtures/trace/standalone-tool-observation";
 import { orderObservations } from "./ordering";
 import {
   renderTranscript,

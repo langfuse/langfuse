@@ -4005,7 +4005,7 @@ describe("MCP Read Tools", () => {
         });
         if (!authenticated.success) throw authenticated.error;
 
-        const server = createMcpServer({
+        const server = await createMcpServer({
           ...setup.context,
           apiKeyId: viewerKey.id,
           publicKey: viewerKey.publicKey,

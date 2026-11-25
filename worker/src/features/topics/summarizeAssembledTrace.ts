@@ -468,7 +468,7 @@ function baseTopicSummary(params: {
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: params.metadata,
   };
 }

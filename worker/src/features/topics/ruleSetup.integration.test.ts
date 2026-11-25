@@ -184,7 +184,7 @@ describe("Topics rule setup", () => {
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       })),
     );
