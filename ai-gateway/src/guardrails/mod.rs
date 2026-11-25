@@ -2062,6 +2062,115 @@ mod tests {
     }
 
     #[test]
+    fn bedrock_redact_scopes_offsets_to_per_leaf_assessments() {
+        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
+        let item = || external::ExternalMatchItem {
+            matched_text: Some("May".into()),
+            offset: Some((0, 0..3)),
+        };
+
+        // 1. Single leaf uses the offset directly even when assessment_count differs.
+        let body = r#"{"messages":[{"role":"user","content":"May called May"}]}"#;
+        let members = scanned(body, &["messages"]);
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        items: vec![item()],
+                        assessment_count: 2,
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        assert_eq!(rewritten["messages"][0]["content"], "[PII] called May");
+
+        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"May called"},{"type":"text","text":"due in May"}]}]}"#;
+        let members = scanned(body, &["messages"]);
+
+        // 2. Per-leaf assessments (assessment_count == leaves.len()) apply the offset
+        //    only to the flagged leaf without over-redacting other leaves.
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        items: vec![item()],
+                        assessment_count: 2,
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        assert_eq!(edits.len(), 1);
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        let content = &rewritten["messages"][0]["content"];
+        assert_eq!(content[0]["text"], "[PII] called");
+        assert_eq!(content[1]["text"], "due in May");
+
+        // 3. Multi-leaf without per-leaf assessments (assessment_count != leaves.len())
+        //    ignores the offset and falls back to literal matching across all leaves.
+        let local = scan_local(
+            &guardrails,
+            body.as_bytes(),
+            &members,
+            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            None,
+        )
+        .unwrap();
+        let outcome = local
+            .into_outcome(
+                &guardrails,
+                &[(
+                    0,
+                    ExternalOutcome::Matched(ExternalMatch {
+                        items: vec![item()],
+                        assessment_count: 1,
+                        ..ExternalMatch::default()
+                    }),
+                )],
+                None,
+            )
+            .unwrap();
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        assert_eq!(edits.len(), 2);
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        let content = &rewritten["messages"][0]["content"];
+        assert_eq!(content[0]["text"], "[PII] called");
+        assert_eq!(content[1]["text"], "due in [PII]");
+    }
+
+    #[test]
     fn bedrock_redact_fails_closed_on_partial_match_coverage() {
         let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
         let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
