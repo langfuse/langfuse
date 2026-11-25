@@ -17,7 +17,7 @@ import {
   useFinal,
   withFill,
 } from "./extensions";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { type ClickHouseDatabase } from "./schema";
 import { defineView, fromView } from "./views";
 

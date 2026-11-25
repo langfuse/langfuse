@@ -5,7 +5,7 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../../../server/repositories/goldenHarness";
+} from "../../../server/repositories/__tests__/goldenHarness";
 
 vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
   const actual =
@@ -13,7 +13,7 @@ vi.mock("../../../server/repositories/clickhouse", async (importOriginal) => {
       typeof import("../../../server/repositories/clickhouse")
     >();
   const { buildClickhouseMock } =
-    await import("../../../server/repositories/goldenHarness.js");
+    await import("../../../server/repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
