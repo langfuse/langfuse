@@ -32,7 +32,7 @@ export function SwitchInput({
   return (
     <label
       htmlFor={id}
-      className="border-input bg-background flex min-h-8 cursor-pointer items-center justify-between gap-4 rounded-md border px-3"
+      className="border-input bg-background flex min-h-8 cursor-pointer items-center justify-between gap-4 rounded-md border px-3 py-[5px]"
     >
       <span
         id={descriptionId}
