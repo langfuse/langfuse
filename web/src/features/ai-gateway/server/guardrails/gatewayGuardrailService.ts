@@ -48,9 +48,10 @@ import {
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
   type GatewayBedrockGuardrailConfig,
+  type GatewayExternalGuardrailAction,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
-  type GatewayGuardrailUiAction,
+  type GatewayRegexGuardrailAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
@@ -90,14 +91,6 @@ export class GatewayGuardrailService {
     const guardrails = await this.repository.findAssigned(params);
     return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
       const action = toResolveGuardrailAction(guardrail.action);
-      const redactionField =
-        action === "redact"
-          ? {
-              redaction_label:
-                guardrail.redactionLabel ||
-                GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
-            }
-          : {};
       switch (guardrail.type) {
         case "REGEX": {
           const config = GatewayRegexGuardrailConfigSchema.safeParse(
@@ -121,7 +114,13 @@ export class GatewayGuardrailService {
               type: "regex" as const,
               action,
               patterns,
-              ...redactionField,
+              ...(action === "redact"
+                ? {
+                    redaction_label:
+                      guardrail.redactionLabel ||
+                      GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
+                  }
+                : {}),
             },
           ];
         }
@@ -157,7 +156,6 @@ export class GatewayGuardrailService {
               guardrail_version: config.data.guardrailVersion,
               region: config.data.region,
               encrypted_credential: guardrail.encryptedCredential,
-              ...redactionField,
             },
           ];
         }
@@ -292,27 +290,28 @@ export class GatewayGuardrailService {
     params: {
       organizationId: string;
       name: string;
-      action: GatewayGuardrailUiAction;
-      redactionLabel?: string;
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
       | {
           type: "REGEX";
+          action: GatewayRegexGuardrailAction;
+          redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
           containsWords?: string[];
         }
       | {
           type: "BEDROCK";
+          action: GatewayExternalGuardrailAction;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
         }
     ),
   ) {
-    const redactionLabel = normalizeRedactionLabel(
-      params.action,
-      params.redactionLabel,
-    );
+    const redactionLabel =
+      params.type === "REGEX"
+        ? normalizeRedactionLabel(params.action, params.redactionLabel)
+        : null;
     let config: Prisma.InputJsonValue;
     let encryptedCredential: string | null = null;
     let ruleBytes: number | null = null;
@@ -387,27 +386,28 @@ export class GatewayGuardrailService {
       organizationId: string;
       id: string;
       name: string;
-      action: GatewayGuardrailUiAction;
-      redactionLabel?: string;
       assignments: GatewayGuardrailAssignmentInput[];
       session: OrgAuthedContext["session"];
     } & (
       | {
           type: "REGEX";
+          action: GatewayRegexGuardrailAction;
+          redactionLabel?: string;
           presets: GatewayGuardrailPreset[];
           secretPrefixes?: string[];
           containsWords?: string[];
         }
       | {
           type: "BEDROCK";
+          action: GatewayExternalGuardrailAction;
           bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
         }
     ),
   ) {
-    const redactionLabel = normalizeRedactionLabel(
-      params.action,
-      params.redactionLabel,
-    );
+    const redactionLabel =
+      params.type === "REGEX"
+        ? normalizeRedactionLabel(params.action, params.redactionLabel)
+        : null;
     if (params.type === "BEDROCK") {
       const existingCredential = await this.repository.findCredentialById({
         organizationId: params.organizationId,
@@ -927,7 +927,7 @@ async function assertOrgSizeLimit(
 
 function toResolveGuardrailAction(
   action: GatewayGuardrailRecord["action"],
-): "block" | "log" | "redact" {
+): "block" | "log" | "redact" | "enforce" {
   switch (action) {
     case "BLOCK":
       return "block";
@@ -935,13 +935,15 @@ function toResolveGuardrailAction(
       return "log";
     case "REDACT":
       return "redact";
+    case "ENFORCE":
+      return "enforce";
     default:
       return assertUnreachable(action);
   }
 }
 
 function normalizeRedactionLabel(
-  action: GatewayGuardrailUiAction,
+  action: GatewayRegexGuardrailAction,
   rawLabel: string | undefined,
 ): string | null {
   if (action !== "REDACT") return null;

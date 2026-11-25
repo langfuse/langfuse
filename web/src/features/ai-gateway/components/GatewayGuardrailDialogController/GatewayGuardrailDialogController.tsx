@@ -141,8 +141,7 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
-                  redactionLabel: values.redactionLabel,
+                  action: values.action === "LOG" ? "LOG" : "ENFORCE",
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -156,7 +155,7 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  action: values.action === "ENFORCE" ? "BLOCK" : values.action,
                   redactionLabel: values.redactionLabel,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
@@ -171,8 +170,7 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
-                  redactionLabel: values.redactionLabel,
+                  action: values.action === "LOG" ? "LOG" : "ENFORCE",
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -182,7 +180,7 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  action: values.action === "ENFORCE" ? "BLOCK" : values.action,
                   redactionLabel: values.redactionLabel,
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
@@ -323,7 +321,7 @@ function GuardrailDialogContent({
           presets: [...selectedTemplate.defaultPresets],
           secretPrefixes: [],
           containsWords: [],
-          action: "BLOCK",
+          action: isExternal ? "ENFORCE" : "BLOCK",
           redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
           targets: [EVERYONE_TARGET_OPTION],
         }}
@@ -344,6 +342,7 @@ function GuardrailDialogContent({
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
   const isExternal = guardrail.type === "BEDROCK";
+  const initialAction = resolveEditableAction(guardrail);
 
   return (
     <GatewayGuardrailFormDialog
@@ -360,7 +359,7 @@ function GuardrailDialogContent({
         secretPrefixes: guardrail.secretPrefixes,
         containsWords: guardrail.containsWords,
         bedrock: guardrail.bedrock ?? undefined,
-        action: guardrail.action,
+        action: initialAction,
         redactionLabel:
           guardrail.redactionLabel ?? GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
         targets: assignmentsToTargetOptions(guardrail.assignments),
@@ -371,6 +370,15 @@ function GuardrailDialogContent({
       onSubmit={onSubmitForm}
     />
   );
+}
+
+function resolveEditableAction(
+  guardrail: Pick<GatewayGuardrailRow, "type" | "action">,
+) {
+  if (guardrail.type === "BEDROCK") {
+    return guardrail.action === "LOG" ? "LOG" : "ENFORCE";
+  }
+  return guardrail.action === "ENFORCE" ? "BLOCK" : guardrail.action;
 }
 
 function getTestOutcome({

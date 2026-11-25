@@ -15,12 +15,13 @@ import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/serve
 import {
   GatewayBedrockGuardrailCreateInputSchema,
   GatewayBedrockGuardrailUpdateInputSchema,
+  GatewayExternalGuardrailActionSchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
   GatewayGuardrailPresetSchema,
   GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailSecretPrefixesSchema,
-  GatewayGuardrailUiActionSchema,
+  GatewayRegexGuardrailActionSchema,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
@@ -47,13 +48,13 @@ const commonWriteFields = {
     .trim()
     .min(1, "Guardrails need a name")
     .max(GATEWAY_GUARDRAIL_MAX_NAME_LENGTH),
-  action: GatewayGuardrailUiActionSchema,
-  redactionLabel: z.string().optional(),
   assignments: assignmentsInput,
 };
 
 const regexWriteFields = {
   type: z.literal("REGEX"),
+  action: GatewayRegexGuardrailActionSchema,
+  redactionLabel: z.string().optional(),
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
   secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
   containsWords: GatewayGuardrailContainsListSchema.default([]),
@@ -74,7 +75,7 @@ const GUARDRAIL_RULE_REQUIRED_MESSAGE =
 function refineGuardrailWriteInput(
   value: {
     type: "REGEX" | "BEDROCK";
-    action: "BLOCK" | "LOG" | "REDACT";
+    action: "BLOCK" | "LOG" | "REDACT" | "ENFORCE";
     redactionLabel?: string;
     presets?: unknown[];
     secretPrefixes?: unknown[];
@@ -95,7 +96,11 @@ function refineGuardrailWriteInput(
       message: GUARDRAIL_RULE_REQUIRED_MESSAGE,
     });
   }
-  if (value.action === "REDACT" && value.redactionLabel !== undefined) {
+  if (
+    value.type === "REGEX" &&
+    value.action === "REDACT" &&
+    value.redactionLabel !== undefined
+  ) {
     const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
       value.redactionLabel,
     );
@@ -116,6 +121,7 @@ const createGuardrailInput = z
     organizationInput.extend(commonWriteFields).extend(regexWriteFields),
     organizationInput.extend(commonWriteFields).extend({
       type: z.literal("BEDROCK"),
+      action: GatewayExternalGuardrailActionSchema,
       bedrock: GatewayBedrockGuardrailCreateInputSchema,
     }),
   ])
@@ -126,6 +132,7 @@ const updateGuardrailInput = z
     guardrailIdInput.extend(commonWriteFields).extend(regexWriteFields),
     guardrailIdInput.extend(commonWriteFields).extend({
       type: z.literal("BEDROCK"),
+      action: GatewayExternalGuardrailActionSchema,
       bedrock: GatewayBedrockGuardrailUpdateInputSchema,
     }),
   ])
@@ -299,7 +306,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
-          redactionLabel: input.redactionLabel,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,
@@ -334,7 +340,6 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           type: "BEDROCK",
           name: input.name,
           action: input.action,
-          redactionLabel: input.redactionLabel,
           bedrock: input.bedrock,
           assignments: input.assignments,
           session: ctx.session,

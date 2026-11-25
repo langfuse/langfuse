@@ -1,7 +1,7 @@
 //! Pooled HTTPS client and concurrent dispatcher for external guardrail
 //! providers. Timeouts and provider errors fail closed so unscreened prompts
 //! never bypass a configured guardrail.
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use axum::body::Bytes;
 use futures_util::future::join_all;
@@ -18,39 +18,14 @@ const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(50);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 
-/// One matched entity/word reported by an external guardrail assessment.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ExternalMatchItem {
-    /// Matched literal substring reported in the provider assessment.
-    pub matched_text: Option<String>,
-    /// Explicit UTF-8 byte offset range `(assessment_index, start..end)` when
-    /// the provider supplies one.
-    pub offset: Option<(usize, Range<usize>)>,
-}
-
-/// Structured redaction hints returned by an external guardrail intervention.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ExternalMatch {
-    /// Matched entities/words reported in provider assessments; every item
-    /// must map to a valid span before literal/offset redaction is considered
-    /// complete.
-    pub items: Vec<ExternalMatchItem>,
-    /// Number of assessment entries returned by the provider.
-    pub assessment_count: usize,
-    /// Masked/anonymized output texts per content block, empty when the
-    /// provider returned a whole-request refusal rather than masked text.
-    pub outputs: Vec<String>,
-    /// True when a whole-request policy (such as topic, content, or contextual
-    /// grounding) intervened without redactable spans, requiring fail-closed
-    /// blocking even if another policy also returned redactable matches.
-    pub has_unmappable_intervention: bool,
-}
-
 /// Result of evaluating one external guardrail.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ExternalOutcome {
     None,
-    Matched(ExternalMatch),
+    /// Provider blocked the request (or intervened without anonymized text).
+    Blocked,
+    /// Provider anonymized the content blocks and returned masked outputs.
+    Anonymized(Vec<String>),
     /// Provider error, timeout, or invalid response; fails closed.
     Failed,
 }

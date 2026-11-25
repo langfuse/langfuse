@@ -259,7 +259,6 @@ impl ProviderTransport {
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
         let redactions = std::mem::take(&mut permit.redactions);
-        let input = redact_captured_input(input, &body, &redactions)?;
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
         let body = upstream_body(
             route,
@@ -457,28 +456,6 @@ fn upstream_body(
     rewrite_body(body, model_range, provider_model, usage, redactions)
 }
 
-/// Splices `redactions` into a copy of the caller body (without upstream-only
-/// model or `stream_options` rewrites) and re-parses it for trace capture.
-/// Fails closed instead of falling back to the unredacted input so FULL
-/// ingestion cannot persist secrets that a `redact` guardrail scrubbed.
-fn redact_captured_input(
-    input: Option<crate::capture::RequestInput>,
-    body: &[u8],
-    redactions: &[crate::guardrails::redact::BodyEdit],
-) -> Result<Option<crate::capture::RequestInput>, ProviderError> {
-    if redactions.is_empty() || input.is_none() {
-        return Ok(input);
-    }
-    let mut edits: Vec<(Range<usize>, &[u8])> = redactions
-        .iter()
-        .map(|edit| (edit.range.clone(), edit.replacement.as_slice()))
-        .collect();
-    let redacted = splice_body_edits(body, &mut edits)?;
-    crate::capture::RequestInput::from_redacted_body(&redacted)
-        .map(Some)
-        .ok_or(ProviderError::Configuration)
-}
-
 /// Replaces the model bytes, applies `extra` and any guardrail `redactions` in
 /// one preallocated pass; every other byte is copied unchanged.
 #[expect(
@@ -504,33 +481,9 @@ fn rewrite_body(
             .iter()
             .map(|edit| (edit.range.clone(), edit.replacement.as_slice())),
     );
-    splice_body_edits(&body, &mut edits).map(Bytes::from)
-}
-
-fn splice_body_edits(
-    body: &[u8],
-    edits: &mut [(Range<usize>, &[u8])],
-) -> Result<Vec<u8>, ProviderError> {
-    edits.sort_by_key(|(range, _)| range.start);
-    let removed = edits.iter().map(|(range, _)| range.len()).sum::<usize>();
-    let added = edits.iter().map(|(_, bytes)| bytes.len()).sum::<usize>();
-    let capacity = body.len().saturating_sub(removed).saturating_add(added);
-    let mut rewritten = Vec::with_capacity(capacity);
-    let mut copied = 0;
-    for (range, replacement) in &*edits {
-        if range.start > range.end || range.end > body.len() {
-            return Err(ProviderError::Configuration);
-        }
-        let prefix = body
-            .get(copied..range.start)
-            .ok_or(ProviderError::Configuration)?;
-        rewritten.extend_from_slice(prefix);
-        rewritten.extend_from_slice(replacement);
-        copied = range.end;
-    }
-    let suffix = body.get(copied..).ok_or(ProviderError::Configuration)?;
-    rewritten.extend_from_slice(suffix);
-    Ok(rewritten)
+    crate::guardrails::redact::splice_bytes(&body, &mut edits)
+        .map(Bytes::from)
+        .ok_or(ProviderError::Configuration)
 }
 
 #[cfg(test)]

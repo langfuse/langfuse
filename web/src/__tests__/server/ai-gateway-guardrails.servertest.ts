@@ -778,7 +778,7 @@ describe("aiGateway guardrails tRPC", () => {
         orgId,
         type: "BEDROCK",
         name: "Bad ID",
-        action: "BLOCK",
+        action: "ENFORCE",
         bedrock: {
           guardrailId: "../evil",
           guardrailVersion: "1",
@@ -827,7 +827,7 @@ describe("aiGateway guardrails tRPC", () => {
         orgId,
         type: "BEDROCK",
         name: "Missing guardrail",
-        action: "BLOCK",
+        action: "ENFORCE",
         bedrock: {
           guardrailId: "abc123def456",
           guardrailVersion: "1",
@@ -864,7 +864,7 @@ describe("aiGateway guardrails tRPC", () => {
       orgId,
       type: "BEDROCK",
       name: "Bedrock content filter",
-      action: "BLOCK",
+      action: "ENFORCE",
       bedrock: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
@@ -874,6 +874,8 @@ describe("aiGateway guardrails tRPC", () => {
       assignments: [{ scope: "ORGANIZATION" }],
     });
     expect(created.type).toBe("BEDROCK");
+    expect(created.action).toBe("ENFORCE");
+    expect(created.redactionLabel).toBeNull();
     expect(created.bedrock).toEqual({
       guardrailId: "abc123def456",
       guardrailVersion: "1",
@@ -914,7 +916,7 @@ describe("aiGateway guardrails tRPC", () => {
         id: created.id,
         name: "Bedrock content filter",
         type: "bedrock",
-        action: "block",
+        action: "enforce",
         guardrail_id: "abc123def456",
         guardrail_version: "1",
         region: "us-east-1",
@@ -1024,7 +1026,7 @@ describe("aiGateway guardrails tRPC", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
-  it("persists, validates, and resolves REDACT replacement labels for regex and Bedrock guardrails", async () => {
+  it("persists, validates, and resolves REDACT replacement labels for regex and ENFORCE for Bedrock guardrails", async () => {
     Object.assign(env, {
       NODE_ENV: "production",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
@@ -1083,7 +1085,7 @@ describe("aiGateway guardrails tRPC", () => {
       ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     }
 
-    // Bedrock REDACT guardrail persists and resolves redaction_label
+    // Bedrock ENFORCE guardrail persists with null redactionLabel and resolves action "enforce"
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ action: "NONE" }), {
@@ -1092,22 +1094,21 @@ describe("aiGateway guardrails tRPC", () => {
         }),
       ),
     );
-    const bedrockRedact = await ownerCaller.aiGateway.guardrails.create({
+    const bedrockEnforce = await ownerCaller.aiGateway.guardrails.create({
       orgId,
       type: "BEDROCK",
-      name: "Bedrock redact",
-      action: "REDACT",
-      redactionLabel: "[PII]",
+      name: "Bedrock enforce",
+      action: "ENFORCE",
       bedrock: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "bedrock-secret-redact",
+        apiKey: "bedrock-secret-enforce",
       },
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
-    expect(bedrockRedact.action).toBe("REDACT");
-    expect(bedrockRedact.redactionLabel).toBe("[PII]");
+    expect(bedrockEnforce.action).toBe("ENFORCE");
+    expect(bedrockEnforce.redactionLabel).toBeNull();
 
     const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
       organizationId: orgId,
@@ -1116,10 +1117,9 @@ describe("aiGateway guardrails tRPC", () => {
     });
     expect(resolved).toEqual([
       expect.objectContaining({
-        id: bedrockRedact.id,
+        id: bedrockEnforce.id,
         type: "bedrock",
-        action: "redact",
-        redaction_label: "[PII]",
+        action: "enforce",
       }),
       expect.objectContaining({
         id: customLabelRule.id,

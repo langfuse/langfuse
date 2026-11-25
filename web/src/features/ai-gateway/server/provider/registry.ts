@@ -80,7 +80,12 @@ export const GatewayResolveSpendLimitsSchema = z.array(
     .strict(),
 );
 
-const GatewayResolveGuardrailActionSchema = z.enum(["block", "log", "redact"]);
+const GatewayResolveGuardrailActionSchema = z.enum([
+  "block",
+  "log",
+  "redact",
+  "enforce",
+]);
 
 const GatewayRegexResolveGuardrailSchema = z
   .object({
@@ -123,7 +128,6 @@ export const GatewayCachedGuardrailsSchema = z.array(
         guardrail_version: z.string(),
         region: z.string(),
         encrypted_credential: z.string(),
-        redaction_label: z.string().min(1).optional(),
       })
       .strict(),
   ]),
@@ -149,7 +153,6 @@ const GatewayResolveGuardrailsSchema = z.array(
         guardrail_version: z.string(),
         region: z.string(),
         api_key: z.string(),
-        redaction_label: z.string().min(1).optional(),
       })
       .strict(),
   ]),

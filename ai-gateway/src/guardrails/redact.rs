@@ -37,6 +37,32 @@ pub(crate) struct BodyEdit {
     pub replacement: Vec<u8>,
 }
 
+/// Splices disjoint byte edits into `source` in one preallocated pass.
+/// Returns `None` if any edit range is inverted, out of bounds, or overlapping.
+pub(crate) fn splice_bytes(
+    source: &[u8],
+    edits: &mut [(Range<usize>, &[u8])],
+) -> Option<Vec<u8>> {
+    edits.sort_by_key(|(range, _)| range.start);
+    let removed: usize = edits.iter().map(|(range, _)| range.len()).sum();
+    let added: usize = edits.iter().map(|(_, bytes)| bytes.len()).sum();
+    let capacity = source.len().saturating_sub(removed).saturating_add(added);
+    let mut rewritten = Vec::with_capacity(capacity);
+    let mut copied = 0;
+    for (range, replacement) in &*edits {
+        if range.start > range.end || range.end > source.len() {
+            return None;
+        }
+        let prefix = source.get(copied..range.start)?;
+        rewritten.extend_from_slice(prefix);
+        rewritten.extend_from_slice(replacement);
+        copied = range.end;
+    }
+    let suffix = source.get(copied..)?;
+    rewritten.extend_from_slice(suffix);
+    Some(rewritten)
+}
+
 #[derive(Clone)]
 struct RedactRegexWeight;
 
@@ -145,50 +171,6 @@ pub(crate) fn find_regex_spans<'a>(
         } else {
             break;
         }
-    }
-}
-
-/// Appends every non-overlapping occurrence of `needle` in `text` as a span,
-/// enforcing ASCII alphanumeric boundaries on any end of `needle` that starts
-/// or ends with an ASCII alphanumeric byte (matching local ASCII `\b` rules so
-/// short matches like `"Al"` or `"ass"` do not corrupt `"Algorithm"`/`"class"`,
-/// while PII adjacent to CJK or other non-ASCII scripts still redacts).
-pub(crate) fn find_literal_spans<'a>(
-    text: &str,
-    needle: &str,
-    priority: usize,
-    label: &'a str,
-    out: &mut Vec<RedactionSpan<'a>>,
-) {
-    if needle.is_empty() {
-        return;
-    }
-    let check_start = needle
-        .as_bytes()
-        .first()
-        .is_some_and(u8::is_ascii_alphanumeric);
-    let check_end = needle
-        .as_bytes()
-        .last()
-        .is_some_and(u8::is_ascii_alphanumeric);
-    let bytes = text.as_bytes();
-    for (start, _) in text.match_indices(needle) {
-        let end = start.saturating_add(needle.len());
-        if end > text.len() {
-            continue;
-        }
-        if check_start && start > 0 && bytes.get(start - 1).is_some_and(u8::is_ascii_alphanumeric) {
-            continue;
-        }
-        if check_end && bytes.get(end).is_some_and(u8::is_ascii_alphanumeric) {
-            continue;
-        }
-        out.push(RedactionSpan {
-            start,
-            end,
-            priority,
-            label,
-        });
     }
 }
 
@@ -397,19 +379,6 @@ mod tests {
         let mut spans = Vec::new();
         find_regex_spans(&regex, &repeated, 0, "[KEY]", &mut spans);
         assert_eq!(spans.len(), 200);
-    }
-
-    #[test]
-    fn literal_spans_respect_alphanumeric_word_boundaries() {
-        let text = "Ask Al about the Algorithm, class assistant ass! 日本語555-0199日本語";
-        let mut spans = Vec::new();
-        find_literal_spans(text, "Al", 0, "[NAME]", &mut spans);
-        find_literal_spans(text, "ass", 1, "[WORD]", &mut spans);
-        find_literal_spans(text, "555-0199", 2, "[PHONE]", &mut spans);
-        assert_eq!(
-            apply_redactions(text, &mut spans).as_deref(),
-            Some("Ask [NAME] about the Algorithm, class assistant [WORD]! 日本語[PHONE]日本語")
-        );
     }
 
     #[test]

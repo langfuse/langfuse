@@ -29,4 +29,5 @@ export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   BLOCK: "Block",
   LOG: "Log",
   REDACT: "Redact",
+  ENFORCE: "Enforce",
 };

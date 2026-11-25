@@ -65,8 +65,9 @@ import {
 import {
   compileGuardrailConfigPatterns,
   estimateCompiledPatternsBytes,
+  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
-  GATEWAY_GUARDRAIL_UI_ACTIONS,
+  GATEWAY_REGEX_GUARDRAIL_ACTIONS,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailRedactionLabelSchema,
@@ -78,10 +79,18 @@ import {
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { cn } from "@/src/utils/tailwind";
 
-const ACTION_OPTIONS: Array<{
+const REGEX_ACTION_OPTIONS: Array<{
   value: GatewayGuardrailUiAction;
   label: string;
-}> = GATEWAY_GUARDRAIL_UI_ACTIONS.map((value) => ({
+}> = GATEWAY_REGEX_GUARDRAIL_ACTIONS.map((value) => ({
+  value,
+  label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
+}));
+
+const EXTERNAL_ACTION_OPTIONS: Array<{
+  value: GatewayGuardrailUiAction;
+  label: string;
+}> = GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS.map((value) => ({
   value,
   label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
 }));
@@ -124,7 +133,10 @@ function createGuardrailFormSchema(
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
       bedrockApiKey: z.string(),
-      action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
+      action:
+        templateKind === "bedrock"
+          ? z.enum(GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS)
+          : z.enum(GATEWAY_REGEX_GUARDRAIL_ACTIONS),
       redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -135,7 +147,7 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
-      if (values.action === "REDACT") {
+      if (templateKind !== "bedrock" && values.action === "REDACT") {
         const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
           values.redactionLabel,
         );
@@ -367,8 +379,6 @@ export function GatewayGuardrailFormDialog({
   const toFormValues = (
     values: GuardrailFormSchemaValues,
   ): GatewayGuardrailFormValues => {
-    const redactionLabel =
-      values.action === "REDACT" ? values.redactionLabel.trim() : undefined;
     if (templateKind === "bedrock") {
       const apiKey = values.bedrockApiKey.trim();
       return {
@@ -383,10 +393,11 @@ export function GatewayGuardrailFormDialog({
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
-        redactionLabel,
         targets: values.targets,
       };
     }
+    const redactionLabel =
+      values.action === "REDACT" ? values.redactionLabel.trim() : undefined;
     return {
       name: values.name.trim(),
       presets:
@@ -566,12 +577,18 @@ export function GatewayGuardrailFormDialog({
                           value={value}
                           onValueChange={(nextValue) => {
                             onChange(nextValue);
-                            form
-                              .trigger("redactionLabel")
-                              .catch(() => undefined);
+                            if (!isExternal) {
+                              form
+                                .trigger("redactionLabel")
+                                .catch(() => undefined);
+                            }
                           }}
                           onBlur={onBlur}
-                          options={ACTION_OPTIONS}
+                          options={
+                            isExternal
+                              ? EXTERNAL_ACTION_OPTIONS
+                              : REGEX_ACTION_OPTIONS
+                          }
                         />
                       )}
                     </FormField>
@@ -591,7 +608,7 @@ export function GatewayGuardrailFormDialog({
                     </FormField>
                   </div>
 
-                  {selectedAction === "REDACT" ? (
+                  {!isExternal && selectedAction === "REDACT" ? (
                     <CustomTooltip
                       content={
                         <span>

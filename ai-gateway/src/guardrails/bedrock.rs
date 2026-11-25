@@ -12,16 +12,13 @@ use reqwest_tracing::DisableOtelPropagation;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{
-    ExternalGuardrailClient, ExternalMatch, ExternalMatchItem, ExternalOutcome,
-};
+use crate::guardrails::external::{ExternalGuardrailClient, ExternalOutcome};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const BEDROCK_INTERVENED_ACTION: &str = "GUARDRAIL_INTERVENED";
 const BEDROCK_NONE_ACTION: &str = "NONE";
 const BEDROCK_ACTION_BLOCKED: &str = "BLOCKED";
-const BEDROCK_ACTION_ANONYMIZED: &str = "ANONYMIZED";
 
 /// Maximum individual text leaves sent as separate `content` blocks to
 /// `ApplyGuardrail` before falling back to a single joined block.
@@ -214,17 +211,17 @@ struct BedrockAssessment {
 #[derive(Deserialize)]
 struct BedrockSensitiveInfoPolicy {
     #[serde(rename = "piiEntities", default)]
-    pii_entities: Vec<BedrockMatchedItem>,
+    pii_entities: Vec<BedrockPolicyItem>,
     #[serde(default)]
-    regexes: Vec<BedrockMatchedItem>,
+    regexes: Vec<BedrockPolicyItem>,
 }
 
 #[derive(Deserialize)]
 struct BedrockWordPolicy {
     #[serde(rename = "customWords", default)]
-    custom_words: Vec<BedrockMatchedItem>,
+    custom_words: Vec<BedrockPolicyItem>,
     #[serde(rename = "managedWordLists", default)]
-    managed_word_lists: Vec<BedrockMatchedItem>,
+    managed_word_lists: Vec<BedrockPolicyItem>,
 }
 
 #[derive(Deserialize)]
@@ -245,20 +242,6 @@ struct BedrockPolicyItem {
     action: Option<String>,
     #[serde(default)]
     detected: Option<bool>,
-}
-
-#[derive(Deserialize)]
-struct BedrockMatchedItem {
-    #[serde(rename = "match", default)]
-    matched_text: Option<String>,
-    #[serde(default)]
-    action: Option<String>,
-    #[serde(default)]
-    detected: Option<bool>,
-    #[serde(default)]
-    start: Option<usize>,
-    #[serde(default)]
-    end: Option<usize>,
 }
 
 enum BedrockFailure {
@@ -307,7 +290,7 @@ async fn send_and_parse(
     let parsed: ApplyGuardrailResponse =
         serde_json::from_slice(&body).map_err(|_| BedrockFailure::InvalidResponse)?;
     match parsed.action.as_str() {
-        BEDROCK_INTERVENED_ACTION => Ok(ExternalOutcome::Matched(extract_external_match(parsed))),
+        BEDROCK_INTERVENED_ACTION => Ok(extract_external_outcome(parsed)),
         BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
         _ => Err(BedrockFailure::UnexpectedAction),
     }
@@ -317,85 +300,15 @@ fn is_detected(detected: Option<bool>) -> bool {
     detected != Some(false)
 }
 
-fn collect_matched_items(
-    assessment_index: usize,
-    items: Vec<BedrockMatchedItem>,
-    result: &mut ExternalMatch,
-    has_blocked: &mut bool,
-    has_anonymized: &mut bool,
-) {
-    for item in items {
-        if !is_detected(item.detected) {
-            continue;
-        }
-        match item.action.as_deref() {
-            Some(BEDROCK_ACTION_BLOCKED) => *has_blocked = true,
-            Some(BEDROCK_ACTION_ANONYMIZED) => *has_anonymized = true,
-            _ => {}
-        }
-        let offset = match (item.start, item.end) {
-            (Some(start), Some(end)) if start < end => Some((assessment_index, start..end)),
-            _ => None,
-        };
-        let matched_text = item.matched_text.filter(|matched| !matched.is_empty());
-        if offset.is_some() || matched_text.is_some() {
-            result.items.push(ExternalMatchItem {
-                matched_text,
-                offset,
-            });
-        }
-    }
-}
-
 fn has_blocked_policy(items: &[BedrockPolicyItem]) -> bool {
     items.iter().any(|item| {
         is_detected(item.detected) && item.action.as_deref() == Some(BEDROCK_ACTION_BLOCKED)
     })
 }
 
-fn extract_external_match(parsed: ApplyGuardrailResponse) -> ExternalMatch {
-    let assessment_count = parsed.assessments.len();
-    let mut result = ExternalMatch {
-        assessment_count,
-        ..ExternalMatch::default()
-    };
-    let mut has_blocked = false;
-    let mut has_anonymized = false;
-
-    for (index, assessment) in parsed.assessments.into_iter().enumerate() {
-        if let Some(sensitive) = assessment.sensitive_information {
-            collect_matched_items(
-                index,
-                sensitive.pii_entities,
-                &mut result,
-                &mut has_blocked,
-                &mut has_anonymized,
-            );
-            collect_matched_items(
-                index,
-                sensitive.regexes,
-                &mut result,
-                &mut has_blocked,
-                &mut has_anonymized,
-            );
-        }
-        if let Some(word) = assessment.word {
-            collect_matched_items(
-                index,
-                word.custom_words,
-                &mut result,
-                &mut has_blocked,
-                &mut has_anonymized,
-            );
-            collect_matched_items(
-                index,
-                word.managed_word_lists,
-                &mut result,
-                &mut has_blocked,
-                &mut has_anonymized,
-            );
-        }
-        if assessment
+fn has_blocked_assessment(assessments: &[BedrockAssessment]) -> bool {
+    assessments.iter().any(|assessment| {
+        assessment
             .topic
             .as_ref()
             .is_some_and(|policy| has_blocked_policy(&policy.topics))
@@ -407,22 +320,37 @@ fn extract_external_match(parsed: ApplyGuardrailResponse) -> ExternalMatch {
                 .contextual_grounding
                 .as_ref()
                 .is_some_and(|policy| has_blocked_policy(&policy.filters))
-        {
-            has_blocked = true;
-            result.has_unmappable_intervention = true;
-        }
-    }
+            || assessment.word.as_ref().is_some_and(|policy| {
+                has_blocked_policy(&policy.custom_words)
+                    || has_blocked_policy(&policy.managed_word_lists)
+            })
+            || assessment
+                .sensitive_information
+                .as_ref()
+                .is_some_and(|policy| {
+                    has_blocked_policy(&policy.pii_entities) || has_blocked_policy(&policy.regexes)
+                })
+    })
+}
 
-    // Only keep `outputs` when Bedrock returned anonymized text rather than a
-    // canned whole-request refusal message.
-    if !result.has_unmappable_intervention && (has_anonymized || !has_blocked) {
-        result.outputs = parsed
-            .outputs
-            .into_iter()
-            .map(|output| output.text)
-            .collect();
+/// Maps a Bedrock `GUARDRAIL_INTERVENED` response to [`ExternalOutcome`].
+/// Stops immediately and blocks when any assessment policy returned `BLOCKED`
+/// (in which case Bedrock replaces `outputs` with a canned refusal message);
+/// otherwise returns Bedrock's anonymized `outputs`.
+fn extract_external_outcome(parsed: ApplyGuardrailResponse) -> ExternalOutcome {
+    if has_blocked_assessment(&parsed.assessments) {
+        return ExternalOutcome::Blocked;
     }
-    result
+    let outputs: Vec<String> = parsed
+        .outputs
+        .into_iter()
+        .map(|output| output.text)
+        .collect();
+    if outputs.is_empty() {
+        ExternalOutcome::Blocked
+    } else {
+        ExternalOutcome::Anonymized(outputs)
+    }
 }
 
 async fn read_bounded_body(
@@ -523,15 +451,15 @@ mod tests {
     }
 
     #[test]
-    fn parses_anonymized_outputs_and_assessment_matches() {
-        let raw = r#"{
+    fn parses_anonymized_outputs_and_blocks_on_any_blocked_policy() {
+        let anonymized = r#"{
             "action": "GUARDRAIL_INTERVENED",
             "outputs": [{"text": "Contact {EMAIL} or {PHONE}"}],
             "assessments": [{
                 "sensitiveInformationPolicy": {
                     "piiEntities": [
                         {"match": "alice@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": true},
-                        {"match": "ignored@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": false}
+                        {"match": "ignored@example.com", "type": "EMAIL", "action": "BLOCKED", "detected": false}
                     ],
                     "regexes": [
                         {"name": "order", "match": "ORD-42", "action": "ANONYMIZED", "detected": true}
@@ -539,21 +467,29 @@ mod tests {
                 }
             }]
         }"#;
-        let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
-        let extracted = extract_external_match(parsed);
-        let matched: Vec<&str> = extracted
-            .items
-            .iter()
-            .filter_map(|item| item.matched_text.as_deref())
-            .collect();
-        assert_eq!(matched, vec!["alice@example.com", "ORD-42"]);
-        assert_eq!(extracted.outputs, vec!["Contact {EMAIL} or {PHONE}"]);
-        assert_eq!(extracted.assessment_count, 1);
-    }
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(anonymized).unwrap();
+        assert_eq!(
+            extract_external_outcome(parsed),
+            ExternalOutcome::Anonymized(vec!["Contact {EMAIL} or {PHONE}".into()])
+        );
 
-    #[test]
-    fn drops_canned_refusal_outputs_for_blocked_topic_assessments() {
-        let raw = r#"{
+        // Mixed ANONYMIZED + BLOCKED must return Blocked rather than trusting canned outputs.
+        let mixed = r#"{
+            "action": "GUARDRAIL_INTERVENED",
+            "outputs": [{"text": "Sorry, I cannot help with that."}],
+            "assessments": [{
+                "sensitiveInformationPolicy": {
+                    "piiEntities": [
+                        {"match": "alice@example.com", "type": "EMAIL", "action": "ANONYMIZED", "detected": true},
+                        {"match": "123-45-6789", "type": "US_SOCIAL_SECURITY_NUMBER", "action": "BLOCKED", "detected": true}
+                    ]
+                }
+            }]
+        }"#;
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(mixed).unwrap();
+        assert_eq!(extract_external_outcome(parsed), ExternalOutcome::Blocked);
+
+        let blocked_topic = r#"{
             "action": "GUARDRAIL_INTERVENED",
             "outputs": [{"text": "Sorry, I cannot help with that."}],
             "assessments": [{
@@ -562,11 +498,8 @@ mod tests {
                 }
             }]
         }"#;
-        let parsed: ApplyGuardrailResponse = serde_json::from_str(raw).unwrap();
-        let extracted = extract_external_match(parsed);
-        assert!(extracted.items.is_empty());
-        assert!(extracted.outputs.is_empty());
-        assert!(extracted.has_unmappable_intervention);
+        let parsed: ApplyGuardrailResponse = serde_json::from_str(blocked_topic).unwrap();
+        assert_eq!(extract_external_outcome(parsed), ExternalOutcome::Blocked);
     }
 
     #[tokio::test]
@@ -623,7 +556,7 @@ mod tests {
         assert_eq!(
             results,
             vec![
-                ExternalOutcome::Matched(ExternalMatch::default()),
+                ExternalOutcome::Blocked,
                 ExternalOutcome::None,
                 ExternalOutcome::Failed,
                 ExternalOutcome::Failed,

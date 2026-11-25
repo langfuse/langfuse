@@ -246,16 +246,37 @@ export const GatewayGuardrailContainsListSchema = z
     `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`,
   );
 
-/** Actions the gateway enforces and the management UI offers. */
-export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG", "REDACT"] as const;
+/** Actions available for regex guardrails. */
+export const GATEWAY_REGEX_GUARDRAIL_ACTIONS = [
+  "BLOCK",
+  "REDACT",
+  "LOG",
+] as const;
 
-export const GatewayGuardrailUiActionSchema = z.enum(
-  GATEWAY_GUARDRAIL_UI_ACTIONS,
+export const GatewayRegexGuardrailActionSchema = z.enum(
+  GATEWAY_REGEX_GUARDRAIL_ACTIONS,
 );
 
-export type GatewayGuardrailUiAction = z.infer<
-  typeof GatewayGuardrailUiActionSchema
+export type GatewayRegexGuardrailAction = z.infer<
+  typeof GatewayRegexGuardrailActionSchema
 >;
+
+/** Actions available for external guardrails (e.g. AWS Bedrock), where the
+ * provider decides block vs anonymize and Langfuse either enforces or logs. */
+export const GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS = ["ENFORCE", "LOG"] as const;
+
+export const GatewayExternalGuardrailActionSchema = z.enum(
+  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS,
+);
+
+export type GatewayExternalGuardrailAction = z.infer<
+  typeof GatewayExternalGuardrailActionSchema
+>;
+
+/** All actions the management UI offers across regex and external guardrails. */
+export type GatewayGuardrailUiAction =
+  | GatewayRegexGuardrailAction
+  | GatewayExternalGuardrailAction;
 
 function hasNoControlChars(value: string): boolean {
   for (let i = 0; i < value.length; i++) {

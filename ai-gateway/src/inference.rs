@@ -424,8 +424,28 @@ impl InferenceService {
             }
             let mut permit = self.provider.admit(spend_limits);
             let (findings, redactions, redaction_reservations) = guardrails.into_parts();
+            if !redactions.is_empty()
+                && context.ingestion_mode() == IngestionMode::Full
+                && let Some(mut input) = request.input.take()
+            {
+                let body = request.body().clone();
+                let scanned = request.scanned.clone();
+                let scanned_bytes = scanned.len();
+                let (input, redactions, applied) = self
+                    .run_cpu(CpuJob::ParseRequest, scanned_bytes, move || {
+                        let applied = input.apply_redactions(&body, &scanned, &redactions);
+                        (input, redactions, applied)
+                    })
+                    .await?;
+                if !applied {
+                    return Err(ResolutionError::Configuration);
+                }
+                request.input = Some(input);
+                permit.redactions = redactions;
+            } else {
+                permit.redactions = redactions;
+            }
             permit.guardrails = findings;
-            permit.redactions = redactions;
             permit.redaction_reservations = redaction_reservations;
             Ok((permit, context))
         }

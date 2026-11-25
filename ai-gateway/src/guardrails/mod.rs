@@ -34,7 +34,7 @@ use crate::{
     resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
 };
 use bedrock::BedrockGuardrail;
-use external::{ExternalGuardrailClient, ExternalMatch, ExternalOutcome, ExternalPayloads};
+use external::{ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
 use redact::{BodyEdit, RedactionSpan};
 use text::{LastTurn, Unreadable};
 
@@ -138,7 +138,7 @@ impl Guardrails {
                 drop(turn_text_reservation);
                 Vec::new()
             };
-            let (outcome, finalizing) = if local.has_external_leaves() {
+            let (outcome, finalizing) = if local.has_pending_redactions() {
                 self.cpu
                     .run(CpuJob::ScanGuardrails, bytes, {
                         let guardrails = Arc::clone(&guardrails);
@@ -184,17 +184,17 @@ impl Guardrails {
             return Ok((Vec::new(), Duration::ZERO));
         }
         let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
-        let has_external_redact = !local.external_leaves.is_empty();
+        let has_pending_redactions = local.has_pending_redactions();
         // Reserve for the serialized provider payload while the prompt text is
-        // still live. When no external `redact` rule needs the original leaves
-        // after I/O, drop `turn_text` and its reservation before awaiting I/O.
+        // still live. When no external `enforce` rule needs the original text
+        // fields after I/O, drop `turn_text` and its reservation before awaiting I/O.
         let payload_reservation = MemoryReservation::from_budget(
             &self.memory_budget,
             turn_bytes.saturating_add(64),
             "guardrails",
         )?;
-        let payloads = if has_external_redact {
-            serialize_external_leaves(&guardrails, &local.external_leaves)
+        let payloads = if has_pending_redactions {
+            serialize_pending_redaction_texts(&guardrails, &local.pending_redaction_texts)
         } else {
             let turn_text = local.take_turn_text();
             let payloads = ExternalPayloads::for_guardrails(&guardrails, &[turn_text.as_str()]);
@@ -229,21 +229,21 @@ impl Guardrails {
     }
 }
 
-fn serialize_external_leaves(
+fn serialize_pending_redaction_texts(
     guardrails: &[&Guardrail],
-    leaves: &[ExternalLeaf],
+    texts: &[PendingRedactionText],
 ) -> ExternalPayloads {
-    if leaves.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
-        let blocks: Vec<&str> = leaves.iter().map(|leaf| leaf.text.as_str()).collect();
+    if texts.len() <= bedrock::MAX_BEDROCK_CONTENT_BLOCKS {
+        let blocks: Vec<&str> = texts.iter().map(|item| item.text.as_str()).collect();
         return ExternalPayloads::for_guardrails(guardrails, &blocks);
     }
-    let total = leaves.iter().map(|leaf| leaf.text.len() + 1).sum();
+    let total = texts.iter().map(|item| item.text.len() + 1).sum();
     let mut joined = String::with_capacity(total);
-    for leaf in leaves {
+    for item in texts {
         if !joined.is_empty() {
             joined.push('\n');
         }
-        joined.push_str(&leaf.text);
+        joined.push_str(&item.text);
     }
     ExternalPayloads::for_guardrails(guardrails, &[joined.as_str()])
 }
@@ -311,8 +311,8 @@ impl Guardrail {
         self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
     }
 
-    fn is_external_redact(&self) -> bool {
-        self.is_external() && self.action == GuardrailAction::Redact
+    fn is_external_enforce(&self) -> bool {
+        self.is_external() && self.action == GuardrailAction::Enforce
     }
 
     fn is_local_redact(&self) -> bool {
@@ -393,6 +393,7 @@ pub(crate) enum GuardrailAction {
     Block,
     Log,
     Redact,
+    Enforce,
     #[serde(other)]
     #[serde(skip_serializing)]
     Unknown,
@@ -413,6 +414,10 @@ impl ScannedMembers {
 
     pub(crate) fn mark_duplicated(&mut self) {
         self.duplicated = true;
+    }
+
+    pub(crate) fn members(&self) -> &[(&'static str, Range<usize>)] {
+        &self.members
     }
 
     /// Bytes of the members, which decides whether the check leaves the async worker.
@@ -525,23 +530,23 @@ fn raw_range(body: &[u8], raw: &str) -> Option<Range<usize>> {
     (end <= body.len()).then_some(start..end)
 }
 
-/// One non-empty JSON string leaf retained when an external `redact` guardrail
-/// needs its response mapped back onto the request body.
-struct ExternalLeaf {
+/// One non-empty JSON string field retained when an external `enforce`
+/// guardrail may return anonymized text that must be spliced back into the body.
+struct PendingRedactionText {
     raw_range: Range<usize>,
     text: String,
     local_redact_slots: Vec<usize>,
 }
 
 /// Result of the CPU-bound local pass: regex matches, local redaction edits,
-/// and the last turn's text/leaves when external guardrails also run.
+/// and the last turn's text/fields when external guardrails also run.
 struct LocalScan {
     active_indices: Vec<usize>,
     matched: Vec<bool>,
     local_fail_closed: Vec<bool>,
     unreadable: bool,
     turn_text: String,
-    external_leaves: Vec<ExternalLeaf>,
+    pending_redaction_texts: Vec<PendingRedactionText>,
     local_redactions: Vec<BodyEdit>,
     redaction_reservations: Vec<MemoryReservation>,
 }
@@ -552,11 +557,11 @@ impl LocalScan {
     }
 
     fn has_external_input(&self) -> bool {
-        !self.turn_text.is_empty() || !self.external_leaves.is_empty()
+        !self.turn_text.is_empty() || !self.pending_redaction_texts.is_empty()
     }
 
-    fn has_external_leaves(&self) -> bool {
-        !self.external_leaves.is_empty()
+    fn has_pending_redactions(&self) -> bool {
+        !self.pending_redaction_texts.is_empty()
     }
 
     fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
@@ -570,7 +575,7 @@ impl LocalScan {
                 }
                 match guardrails.get(index).map(|guardrail| guardrail.action) {
                     Some(GuardrailAction::Block) => true,
-                    Some(GuardrailAction::Redact) => {
+                    Some(GuardrailAction::Redact | GuardrailAction::Enforce) => {
                         self.local_fail_closed.get(slot).copied().unwrap_or(false)
                     }
                     _ => false,
@@ -613,7 +618,7 @@ impl LocalScan {
             {
                 *entry = true;
             }
-            if matches!(outcome, ExternalOutcome::Failed)
+            if matches!(outcome, ExternalOutcome::Blocked | ExternalOutcome::Failed)
                 && let Some(entry) = fail_closed_redact.get_mut(*slot)
             {
                 *entry = true;
@@ -622,18 +627,18 @@ impl LocalScan {
 
         let redactions = if self.unreadable || self.any_blocking(guardrails, &fail_closed_redact) {
             Vec::new()
-        } else if !self.external_leaves.is_empty() {
+        } else if !self.pending_redaction_texts.is_empty() {
             let mut combined = build_combined_redactions(
                 guardrails,
                 &self.active_indices,
-                &self.external_leaves,
+                &self.pending_redaction_texts,
                 external_outcomes,
                 &mut fail_closed_redact,
                 budget,
                 &mut self.redaction_reservations,
             )?;
             // Earlier-turn local regex redactions are strictly disjoint from
-            // last-turn `external_leaves` ranges and splice in the same pass.
+            // last-turn `pending_redaction_texts` ranges and splice in the same pass.
             combined.extend(self.local_redactions);
             combined
         } else {
@@ -651,15 +656,26 @@ impl LocalScan {
                 continue;
             };
             let blocks = guardrail.action == GuardrailAction::Block
-                || (guardrail.action == GuardrailAction::Redact
-                    && fail_closed_redact.get(slot).copied().unwrap_or(false));
+                || (matches!(
+                    guardrail.action,
+                    GuardrailAction::Redact | GuardrailAction::Enforce
+                ) && fail_closed_redact.get(slot).copied().unwrap_or(false));
             if blocks && blocked_index.is_none() {
                 blocked_index = Some(findings.len());
             }
+            let finding_action = if guardrail.action == GuardrailAction::Enforce {
+                if blocks {
+                    GuardrailAction::Block
+                } else {
+                    GuardrailAction::Redact
+                }
+            } else {
+                guardrail.action
+            };
             findings.push(Finding {
                 id: guardrail.id.clone(),
                 name: guardrail.name.clone(),
-                action: guardrail.action,
+                action: finding_action,
                 location: GuardrailLocation::Request,
             });
         }
@@ -688,7 +704,7 @@ impl LocalScan {
                 }
                 match guardrails.get(index).map(|guardrail| guardrail.action) {
                     Some(GuardrailAction::Block) => true,
-                    Some(GuardrailAction::Redact) => {
+                    Some(GuardrailAction::Redact | GuardrailAction::Enforce) => {
                         fail_closed_redact.get(slot).copied().unwrap_or(false)
                     }
                     _ => false,
@@ -698,11 +714,11 @@ impl LocalScan {
 }
 
 /// Runs the local regex guardrails against `turn` and, when any active external
-/// guardrail is present, collects the last turn's text/leaves in the same pass.
+/// guardrail is present, collects the last turn's text/fields in the same pass.
 /// Regex guardrails fail open on invalid regexes: a regex whose patterns do not
-/// compile matches nothing. Fail-closed guardrails always match (blocking both
-/// `block` and `redact` rules). An unreadable turn matches every active
-/// guardrail (blocking `block` and `redact` rules).
+/// compile matches nothing. Fail-closed guardrails always match (blocking
+/// `block`, `redact`, and `enforce` rules). An unreadable turn matches every
+/// active guardrail (blocking `block`, `redact`, and `enforce` rules).
 fn scan_local(
     guardrails: &[Guardrail],
     body: &[u8],
@@ -722,7 +738,7 @@ fn scan_local(
             local_fail_closed: Vec::new(),
             unreadable: false,
             turn_text: String::new(),
-            external_leaves: Vec::new(),
+            pending_redaction_texts: Vec::new(),
             local_redactions: Vec::new(),
             redaction_reservations: Vec::new(),
         });
@@ -738,10 +754,10 @@ fn scan_local(
     let has_external = active_indices
         .iter()
         .any(|&index| guardrails.get(index).is_some_and(Guardrail::is_external));
-    let has_external_redact = active_indices.iter().any(|&index| {
+    let has_external_enforce = active_indices.iter().any(|&index| {
         guardrails
             .get(index)
-            .is_some_and(Guardrail::is_external_redact)
+            .is_some_and(Guardrail::is_external_enforce)
     });
     let has_local_redact = active_indices.iter().any(|&index| {
         guardrails
@@ -757,7 +773,7 @@ fn scan_local(
         compiled,
         body,
         has_external,
-        has_external_redact,
+        has_external_enforce,
         budget,
     );
 
@@ -784,7 +800,7 @@ struct ScanState<'g, 'b> {
     compiled: Option<Arc<Compiled>>,
     body: &'b [u8],
     has_external: bool,
-    has_external_redact: bool,
+    has_external_enforce: bool,
     budget: Option<&'b Arc<Semaphore>>,
     budget_exhausted: bool,
     regex_matched: Vec<bool>,
@@ -792,7 +808,7 @@ struct ScanState<'g, 'b> {
     found: Vec<PatternSet>,
     span_scratch: Vec<RedactionSpan<'g>>,
     turn_text: String,
-    external_leaves: Vec<ExternalLeaf>,
+    pending_redaction_texts: Vec<PendingRedactionText>,
     local_redactions: Vec<BodyEdit>,
     redaction_reservations: Vec<MemoryReservation>,
     local_fail_closed: Vec<bool>,
@@ -810,7 +826,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
         compiled: Option<Arc<Compiled>>,
         body: &'b [u8],
         has_external: bool,
-        has_external_redact: bool,
+        has_external_enforce: bool,
         budget: Option<&'b Arc<Semaphore>>,
     ) -> Self {
         let found = compiled.as_ref().map_or_else(Vec::new, |compiled| {
@@ -829,7 +845,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
             compiled,
             body,
             has_external,
-            has_external_redact,
+            has_external_enforce,
             budget,
             budget_exhausted: false,
             regex_matched: vec![false; regex_len],
@@ -837,7 +853,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
             found,
             span_scratch: Vec::new(),
             turn_text: String::new(),
-            external_leaves: Vec::new(),
+            pending_redaction_texts: Vec::new(),
             local_redactions: Vec::new(),
             redaction_reservations: Vec::new(),
             local_fail_closed: vec![false; active_len],
@@ -851,7 +867,7 @@ impl<'g, 'b> ScanState<'g, 'b> {
         let compiled = self.compiled.as_deref();
         let body = self.body;
         let has_external = self.has_external;
-        let has_external_redact = self.has_external_redact;
+        let has_external_enforce = self.has_external_enforce;
         let budget = self.budget;
         turn.read_leaves(member(body, scanned), &mut |leaf| {
             if self.budget_exhausted {
@@ -875,8 +891,13 @@ impl<'g, 'b> ScanState<'g, 'b> {
                 regex_slots,
                 &self.leaf_matched,
             );
-            if has_external_redact {
-                push_external_leaf(body, leaf, matched_redact_slots, &mut self.external_leaves);
+            if has_external_enforce {
+                push_pending_redaction_text(
+                    body,
+                    leaf,
+                    matched_redact_slots,
+                    &mut self.pending_redaction_texts,
+                );
                 return;
             }
             if apply_local_leaf_redaction(
@@ -1006,23 +1027,23 @@ impl<'g, 'b> ScanState<'g, 'b> {
             local_fail_closed: self.local_fail_closed,
             unreadable,
             turn_text: self.turn_text,
-            external_leaves: self.external_leaves,
+            pending_redaction_texts: self.pending_redaction_texts,
             local_redactions: self.local_redactions,
             redaction_reservations: self.redaction_reservations,
         })
     }
 }
 
-fn push_external_leaf(
+fn push_pending_redaction_text(
     body: &[u8],
     leaf: text::TextLeaf<'_>,
     local_redact_slots: Vec<usize>,
-    external_leaves: &mut Vec<ExternalLeaf>,
+    pending: &mut Vec<PendingRedactionText>,
 ) {
     if !leaf.text.is_empty()
         && let Some(range) = raw_range(body, leaf.raw)
     {
-        external_leaves.push(ExternalLeaf {
+        pending.push(PendingRedactionText {
             raw_range: range,
             text: leaf.text.to_owned(),
             local_redact_slots,
@@ -1175,22 +1196,19 @@ enum LeafRedactionError {
     Busy,
 }
 
-/// Combines local regex `redact` spans with external provider redaction results
-/// (assessment match substrings/offsets or masked/anonymized outputs) into
-/// per-leaf [`BodyEdit`] entries. Marks `fail_closed_redact[slot] = true` when
-/// an external `redact` intervention cannot be mapped to safe edits.
+/// Combines local regex `redact` spans with external provider anonymized outputs
+/// into per-field [`BodyEdit`] entries. Marks `fail_closed_redact[slot] = true`
+/// when an external `enforce` anonymization cannot be mapped to safe edits.
 fn build_combined_redactions(
     guardrails: &[Guardrail],
     active_indices: &[usize],
-    leaves: &[ExternalLeaf],
+    texts: &[PendingRedactionText],
     external_outcomes: &[(usize, ExternalOutcome)],
     fail_closed_redact: &mut [bool],
     budget: Option<&Arc<Semaphore>>,
     reservations: &mut Vec<MemoryReservation>,
 ) -> Result<Vec<BodyEdit>, ResolutionError> {
-    let mut per_leaf_spans: Vec<Vec<RedactionSpan<'_>>> = vec![Vec::new(); leaves.len()];
-    let mut per_leaf_masked: Vec<Option<String>> = vec![None; leaves.len()];
-    let mut span_applied_external: Vec<(usize, &ExternalMatch)> = Vec::new();
+    let mut per_text_masked: Vec<Option<String>> = vec![None; texts.len()];
 
     for (slot, outcome) in external_outcomes {
         let Some(guardrail) = active_indices
@@ -1199,26 +1217,13 @@ fn build_combined_redactions(
         else {
             continue;
         };
-        if guardrail.action != GuardrailAction::Redact {
+        if guardrail.action != GuardrailAction::Enforce {
             continue;
         }
-        let ExternalOutcome::Matched(ext_match) = outcome else {
+        let ExternalOutcome::Anonymized(outputs) = outcome else {
             continue;
         };
-        if ext_match.has_unmappable_intervention {
-            if let Some(flag) = fail_closed_redact.get_mut(*slot) {
-                *flag = true;
-            }
-            return Ok(Vec::new());
-        }
-        let label = guardrail.redaction_label();
-        let added_spans =
-            collect_external_match_spans(leaves, ext_match, *slot, label, &mut per_leaf_spans);
-        if added_spans {
-            span_applied_external.push((*slot, ext_match));
-            continue;
-        }
-        if !apply_external_outputs(leaves, ext_match, &mut per_leaf_masked) {
+        if !apply_external_outputs(texts, outputs, &mut per_text_masked) {
             if let Some(flag) = fail_closed_redact.get_mut(*slot) {
                 *flag = true;
             }
@@ -1237,20 +1242,14 @@ fn build_combined_redactions(
         .collect();
 
     let mut edits = Vec::new();
-    for (leaf_index, leaf) in leaves.iter().enumerate() {
-        let masked_base = per_leaf_masked.get(leaf_index).and_then(Option::as_deref);
-        let external_spans = per_leaf_spans
-            .get_mut(leaf_index)
-            .map(std::mem::take)
-            .unwrap_or_default();
-        match redact_external_leaf(
+    for (index, item) in texts.iter().enumerate() {
+        let masked_base = per_text_masked.get(index).and_then(Option::as_deref);
+        match redact_pending_text(
             guardrails,
             active_indices,
             &all_local_redact_slots,
-            &span_applied_external,
-            leaf,
+            item,
             masked_base,
-            external_spans,
             fail_closed_redact,
             budget,
             reservations,
@@ -1266,62 +1265,43 @@ fn build_combined_redactions(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "internal helper factoring per-leaf external+local redaction out of build_combined_redactions"
+    reason = "internal helper factoring per-field external+local redaction out of build_combined_redactions"
 )]
-fn redact_external_leaf<'a>(
-    guardrails: &'a [Guardrail],
+fn redact_pending_text(
+    guardrails: &[Guardrail],
     active_indices: &[usize],
     all_local_redact_slots: &[usize],
-    span_applied_external: &[(usize, &ExternalMatch)],
-    leaf: &ExternalLeaf,
+    item: &PendingRedactionText,
     masked_base: Option<&str>,
-    mut external_spans: Vec<RedactionSpan<'a>>,
     fail_closed_redact: &mut [bool],
     budget: Option<&Arc<Semaphore>>,
     reservations: &mut Vec<MemoryReservation>,
 ) -> Result<Option<BodyEdit>, LeafRedactionError> {
-    let base_text = masked_base.unwrap_or(&leaf.text);
-    let mut spans = if masked_base.is_some() {
-        // Re-run span finders against the masked base so both provider
-        // anonymization and local/span redactions apply together.
-        let mut combined = Vec::new();
+    let base_text = masked_base.unwrap_or(&item.text);
+    let mut spans = Vec::new();
+    if masked_base.is_some() {
+        // Re-run local regex redactions against the anonymized base so both
+        // provider anonymization and local regex redaction apply together.
         collect_local_redact_spans(
             guardrails,
             active_indices,
             all_local_redact_slots,
             base_text,
-            &mut combined,
+            &mut spans,
             None,
         );
-        for &(slot, ext_match) in span_applied_external {
-            if let Some(guardrail) = active_indices
-                .get(slot)
-                .and_then(|&index| guardrails.get(index))
-            {
-                let label = guardrail.redaction_label();
-                for item in &ext_match.items {
-                    if let Some(needle) = item.matched_text.as_deref() {
-                        redact::find_literal_spans(base_text, needle, slot, label, &mut combined);
-                    }
-                }
-            }
-        }
-        combined
-    } else {
-        if !leaf.local_redact_slots.is_empty()
-            && !collect_local_redact_spans(
-                guardrails,
-                active_indices,
-                &leaf.local_redact_slots,
-                base_text,
-                &mut external_spans,
-                Some(fail_closed_redact),
-            )
-        {
-            return Err(LeafRedactionError::FailClosed);
-        }
-        external_spans
-    };
+    } else if !item.local_redact_slots.is_empty()
+        && !collect_local_redact_spans(
+            guardrails,
+            active_indices,
+            &item.local_redact_slots,
+            base_text,
+            &mut spans,
+            Some(fail_closed_redact),
+        )
+    {
+        return Err(LeafRedactionError::FailClosed);
+    }
 
     if let Some(capacity) = redact::prepare_redactions(base_text, &mut spans) {
         reserve_redaction_bytes(budget, capacity, reservations)
@@ -1330,7 +1310,7 @@ fn redact_external_leaf<'a>(
         let replacement =
             serde_json::to_vec(&redacted).map_err(|_| LeafRedactionError::FailClosed)?;
         return Ok(Some(BodyEdit {
-            range: leaf.raw_range.clone(),
+            range: item.raw_range.clone(),
             replacement,
         }));
     }
@@ -1340,105 +1320,44 @@ fn redact_external_leaf<'a>(
         let replacement =
             serde_json::to_vec(base_text).map_err(|_| LeafRedactionError::FailClosed)?;
         return Ok(Some(BodyEdit {
-            range: leaf.raw_range.clone(),
+            range: item.raw_range.clone(),
             replacement,
         }));
     }
     Ok(None)
 }
 
-/// Maps every reported item in `ext_match.items` onto `per_leaf_spans`.
-/// Returns `true` only when `ext_match.items` is non-empty and every reported
-/// item mapped to at least one valid span; otherwise leaves `per_leaf_spans`
-/// untouched so the caller falls back to provider `outputs` or fails closed.
-fn collect_external_match_spans<'a>(
-    leaves: &[ExternalLeaf],
-    ext_match: &ExternalMatch,
-    priority: usize,
-    label: &'a str,
-    per_leaf_spans: &mut [Vec<RedactionSpan<'a>>],
-) -> bool {
-    if ext_match.items.is_empty() {
-        return false;
-    }
-    let mut staged: Vec<Vec<RedactionSpan<'a>>> = vec![Vec::new(); leaves.len()];
-    for item in &ext_match.items {
-        let mut item_covered = false;
-        if let Some((assessment_index, range)) = &item.offset {
-            let target_leaf = if leaves.len() == 1 {
-                Some(0)
-            } else if ext_match.assessment_count == leaves.len() {
-                Some(*assessment_index)
-            } else {
-                None
-            };
-            if let Some(leaf_index) = target_leaf
-                && let (Some(leaf), Some(spans)) =
-                    (leaves.get(leaf_index), staged.get_mut(leaf_index))
-                && range.start < range.end
-                && range.end <= leaf.text.len()
-                && leaf.text.is_char_boundary(range.start)
-                && leaf.text.is_char_boundary(range.end)
-            {
-                spans.push(RedactionSpan {
-                    start: range.start,
-                    end: range.end,
-                    priority,
-                    label,
-                });
-                item_covered = true;
-            }
-        }
-        if !item_covered && let Some(needle) = item.matched_text.as_deref() {
-            for (leaf, spans) in leaves.iter().zip(staged.iter_mut()) {
-                let before = spans.len();
-                redact::find_literal_spans(&leaf.text, needle, priority, label, spans);
-                if spans.len() > before {
-                    item_covered = true;
-                }
-            }
-        }
-        if !item_covered {
-            return false;
-        }
-    }
-    for (dest, mut added) in per_leaf_spans.iter_mut().zip(staged) {
-        dest.append(&mut added);
-    }
-    true
-}
-
 fn apply_external_outputs(
-    leaves: &[ExternalLeaf],
-    ext_match: &ExternalMatch,
-    per_leaf_masked: &mut [Option<String>],
+    texts: &[PendingRedactionText],
+    outputs: &[String],
+    per_text_masked: &mut [Option<String>],
 ) -> bool {
-    if ext_match.outputs.is_empty() {
+    if outputs.is_empty() {
         return false;
     }
-    if ext_match.outputs.len() == leaves.len() {
+    if outputs.len() == texts.len() {
         return merge_masked_outputs(
-            leaves,
-            ext_match.outputs.iter().map(String::as_str),
-            per_leaf_masked,
+            texts,
+            outputs.iter().map(String::as_str),
+            per_text_masked,
         );
     }
-    // Joined single-block fallback when leaf count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
-    // Partition the joined output by each original leaf's line count so multiline
-    // leaves still map back 1:1 when anonymization preserves line structure.
-    if ext_match.outputs.len() == 1
-        && let Some(single) = ext_match.outputs.first()
+    // Joined single-block fallback when text field count exceeded MAX_BEDROCK_CONTENT_BLOCKS.
+    // Partition the joined output by each original text's line count so multiline
+    // fields still map back 1:1 when anonymization preserves line structure.
+    if outputs.len() == 1
+        && let Some(single) = outputs.first()
     {
         let lines: Vec<&str> = single.split('\n').collect();
-        let expected_lines: usize = leaves
+        let expected_lines: usize = texts
             .iter()
-            .map(|leaf| leaf.text.bytes().filter(|&b| b == b'\n').count() + 1)
+            .map(|item| item.text.bytes().filter(|&b| b == b'\n').count() + 1)
             .sum();
         if lines.len() == expected_lines {
             let mut cursor = 0usize;
-            let mut reconstructed = Vec::with_capacity(leaves.len());
-            for leaf in leaves {
-                let count = leaf.text.bytes().filter(|&b| b == b'\n').count() + 1;
+            let mut reconstructed = Vec::with_capacity(texts.len());
+            for item in texts {
+                let count = item.text.bytes().filter(|&b| b == b'\n').count() + 1;
                 let Some(slice) = lines.get(cursor..cursor + count) else {
                     return false;
                 };
@@ -1446,26 +1365,26 @@ fn apply_external_outputs(
                 cursor += count;
             }
             return merge_masked_outputs(
-                leaves,
+                texts,
                 reconstructed.iter().map(String::as_str),
-                per_leaf_masked,
+                per_text_masked,
             );
         }
     }
     false
 }
 
-/// Applies per-leaf masked outputs without overwriting a conflicting masked
+/// Applies per-field masked outputs without overwriting a conflicting masked
 /// output from an earlier external guardrail (fails closed if two independent
-/// provider outputs disagree on the same leaf).
+/// provider outputs disagree on the same field).
 fn merge_masked_outputs<'a>(
-    leaves: &[ExternalLeaf],
+    texts: &[PendingRedactionText],
     outputs: impl Iterator<Item = &'a str>,
-    per_leaf_masked: &mut [Option<String>],
+    per_text_masked: &mut [Option<String>],
 ) -> bool {
     let mut changed = false;
-    for ((leaf, output), slot) in leaves.iter().zip(outputs).zip(per_leaf_masked.iter_mut()) {
-        if output == leaf.text {
+    for ((item, output), slot) in texts.iter().zip(outputs).zip(per_text_masked.iter_mut()) {
+        if output == item.text {
             continue;
         }
         if let Some(existing) = slot.as_deref()
@@ -1636,32 +1555,18 @@ mod tests {
         rule
     }
 
-    fn bedrock_redact_guardrail(id: &str, label: &str) -> Guardrail {
+    fn bedrock_enforce_guardrail(id: &str) -> Guardrail {
         Guardrail {
             id: id.into(),
             name: format!("{id} name"),
-            action: GuardrailAction::Redact,
-            redaction_label: Some(label.to_owned()),
+            action: GuardrailAction::Enforce,
+            redaction_label: None,
             kind: GuardrailKind::Bedrock(BedrockGuardrail {
                 guardrail_id: "abc123def".into(),
                 guardrail_version: "1".into(),
                 region: "us-east-1".into(),
                 api_key: SecretString::from("token"),
             }),
-        }
-    }
-
-    fn match_item(text: &str) -> external::ExternalMatchItem {
-        external::ExternalMatchItem {
-            matched_text: Some(text.to_owned()),
-            offset: None,
-        }
-    }
-
-    fn offset_item(index: usize, range: Range<usize>) -> external::ExternalMatchItem {
-        external::ExternalMatchItem {
-            matched_text: None,
-            offset: Some((index, range)),
         }
     }
 
@@ -1843,12 +1748,15 @@ mod tests {
     }
 
     #[test]
-    fn bedrock_redact_applies_assessment_matches_and_offsets() {
+    fn bedrock_enforce_applies_anonymized_outputs_and_blocks_on_block_or_failure() {
         let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"Hi Alice, call 555-0199"},{"type":"text","text":"mail bob@example.com"}]}]}"#;
         let members = scanned(body, &["messages"]);
-        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
+        let guardrails = [
+            bedrock_enforce_guardrail("br"),
+            redact_guardrail("email", "[EMAIL]", &[EMAIL]),
+        ];
 
-        // 1. Assessment literal matches redact across nested leaves using the configured label.
+        // 1. Anonymized outputs apply per block and compose with local regex redaction.
         let local = scan_local(
             &guardrails,
             body.as_bytes(),
@@ -1862,319 +1770,52 @@ mod tests {
                 &guardrails,
                 &[(
                     0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![match_item("555-0199"), match_item("bob@example.com")],
-                        assessment_count: 2,
-                        outputs: vec!["Hi Alice, call {PHONE}".into(), "mail {EMAIL}".into()],
-                        has_unmappable_intervention: false,
-                    }),
+                    ExternalOutcome::Anonymized(vec![
+                        "Hi {NAME}, call {PHONE}".into(),
+                        "mail bob@example.com".into(),
+                    ]),
                 )],
                 None,
             )
             .unwrap();
         assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        let (findings, edits, _) = outcome.into_parts();
+        assert_eq!(findings.len(), 2);
         assert_eq!(
-            rewritten["messages"][0]["content"][0]["text"],
-            "Hi Alice, call [PII]"
+            findings.first().map(|finding| finding.action),
+            Some(GuardrailAction::Redact)
         );
-        assert_eq!(rewritten["messages"][0]["content"][1]["text"], "mail [PII]");
-
-        // 2. Explicit offsets redact exact byte ranges per leaf.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![offset_item(0, 3..8), offset_item(1, 5..20)],
-                        assessment_count: 2,
-                        outputs: Vec::new(),
-                        has_unmappable_intervention: false,
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(
-            rewritten["messages"][0]["content"][0]["text"],
-            "Hi [PII], call 555-0199"
-        );
-        assert_eq!(rewritten["messages"][0]["content"][1]["text"], "mail [PII]");
-    }
-
-    #[test]
-    fn bedrock_redact_applies_anonymized_outputs_and_fails_closed() {
-        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"Hi Alice, call 555-0199"},{"type":"text","text":"mail bob@example.com"}]}]}"#;
-        let members = scanned(body, &["messages"]);
-        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
-
-        // 1. Anonymized outputs apply when assessments carry no matches/offsets.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: Vec::new(),
-                        assessment_count: 0,
-                        outputs: vec![
-                            "Hi {NAME}, call {PHONE}".into(),
-                            "mail bob@example.com".into(),
-                        ],
-                        has_unmappable_intervention: false,
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        // Only the changed leaf emits a body edit.
-        assert_eq!(edits.len(), 1);
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(
-            rewritten["messages"][0]["content"][0]["text"],
-            "Hi {NAME}, call {PHONE}"
-        );
-        assert_eq!(
-            rewritten["messages"][0]["content"][1]["text"],
-            "mail bob@example.com"
-        );
-
-        // 2. External failure fails closed for redact guardrails.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(&guardrails, &[(0, ExternalOutcome::Failed)], None)
-            .unwrap();
-        assert_eq!(
-            outcome.blocking().map(|finding| finding.id.as_str()),
-            Some("br")
-        );
-    }
-
-    #[test]
-    fn bedrock_redact_handles_joined_multiline_outputs_and_offset_fallback() {
-        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
-        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
-        let members = scanned(body, &["messages"]);
-
-        // 1. Joined single-block output maps back across multiline leaves by line count.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        outputs: vec!["line 1\ncall {PHONE}\nline 3\nline 4".into()],
-                        ..ExternalMatch::default()
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        assert_eq!(edits.len(), 1);
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(
-            rewritten["messages"][0]["content"][0]["text"],
-            "line 1\ncall {PHONE}"
-        );
-        assert_eq!(
-            rewritten["messages"][0]["content"][1]["text"],
-            "line 3\nline 4"
-        );
-
-        // 2. Unmappable offsets fall back to retained literal match strings.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![external::ExternalMatchItem {
-                            matched_text: Some("555-0199".into()),
-                            offset: Some((0, 99..120)),
-                        }],
-                        assessment_count: 1,
-                        ..ExternalMatch::default()
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(
-            rewritten["messages"][0]["content"][0]["text"],
-            "line 1\ncall [PII]"
-        );
-    }
-
-    #[test]
-    fn bedrock_redact_scopes_offsets_to_per_leaf_assessments() {
-        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
-        let item = || external::ExternalMatchItem {
-            matched_text: Some("May".into()),
-            offset: Some((0, 0..3)),
-        };
-
-        // 1. Single leaf uses the offset directly even when assessment_count differs.
-        let body = r#"{"messages":[{"role":"user","content":"May called May"}]}"#;
-        let members = scanned(body, &["messages"]);
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![item()],
-                        assessment_count: 2,
-                        ..ExternalMatch::default()
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        assert_eq!(rewritten["messages"][0]["content"], "[PII] called May");
-
-        let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"May called"},{"type":"text","text":"due in May"}]}]}"#;
-        let members = scanned(body, &["messages"]);
-
-        // 2. Per-leaf assessments (assessment_count == leaves.len()) apply the offset
-        //    only to the flagged leaf without over-redacting other leaves.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![item()],
-                        assessment_count: 2,
-                        ..ExternalMatch::default()
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
-        assert_eq!(edits.len(), 1);
-        let rewritten: serde_json::Value =
-            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
-        let content = &rewritten["messages"][0]["content"];
-        assert_eq!(content[0]["text"], "[PII] called");
-        assert_eq!(content[1]["text"], "due in May");
-
-        // 3. Multi-leaf without per-leaf assessments (assessment_count != leaves.len())
-        //    ignores the offset and falls back to literal matching across all leaves.
-        let local = scan_local(
-            &guardrails,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &guardrails,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![item()],
-                        assessment_count: 1,
-                        ..ExternalMatch::default()
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert!(outcome.blocking().is_none());
-        let (_, edits, _) = outcome.into_parts();
         assert_eq!(edits.len(), 2);
         let rewritten: serde_json::Value =
             serde_json::from_str(&apply_edits(body, &edits)).unwrap();
         let content = &rewritten["messages"][0]["content"];
-        assert_eq!(content[0]["text"], "[PII] called");
-        assert_eq!(content[1]["text"], "due in [PII]");
+        assert_eq!(content[0]["text"], "Hi {NAME}, call {PHONE}");
+        assert_eq!(content[1]["text"], "mail [EMAIL]");
+
+        // 2. Blocked and Failed outcomes block the request and record action Block.
+        for external in [ExternalOutcome::Blocked, ExternalOutcome::Failed] {
+            let local = scan_local(
+                &guardrails,
+                body.as_bytes(),
+                &members,
+                &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+                None,
+            )
+            .unwrap();
+            let outcome = local.into_outcome(&guardrails, &[(0, external)], None).unwrap();
+            let blocking = outcome.blocking().expect("expected blocking finding");
+            assert_eq!(blocking.id, "br");
+            assert_eq!(blocking.action, GuardrailAction::Block);
+        }
     }
 
     #[test]
-    fn bedrock_redact_fails_closed_on_partial_match_coverage() {
-        let guardrails = [bedrock_redact_guardrail("br", "[PII]")];
+    fn bedrock_enforce_handles_joined_multiline_outputs_and_conflicting_outputs() {
+        let guardrails = [bedrock_enforce_guardrail("br")];
         let body = r#"{"messages":[{"role":"user","content":[{"type":"text","text":"line 1\ncall 555-0199"},{"type":"text","text":"line 3\nline 4"}]}]}"#;
         let members = scanned(body, &["messages"]);
+
+        // 1. Joined single-block output maps back across multiline fields by line count.
         let local = scan_local(
             &guardrails,
             body.as_bytes(),
@@ -2188,67 +1829,39 @@ mod tests {
                 &guardrails,
                 &[(
                     0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![match_item("555-0199"), match_item("555-0199\nline 3")],
-                        assessment_count: 1,
-                        ..ExternalMatch::default()
-                    }),
+                    ExternalOutcome::Anonymized(vec![
+                        "line 1\ncall {PHONE}\nline 3\nline 4".into(),
+                    ]),
                 )],
                 None,
             )
             .unwrap();
-        assert_eq!(
-            outcome.blocking().map(|finding| finding.id.as_str()),
-            Some("br")
-        );
-    }
+        assert!(outcome.blocking().is_none());
+        let (_, edits, _) = outcome.into_parts();
+        assert_eq!(edits.len(), 1);
+        let rewritten: serde_json::Value =
+            serde_json::from_str(&apply_edits(body, &edits)).unwrap();
+        let content = &rewritten["messages"][0]["content"];
+        assert_eq!(content[0]["text"], "line 1\ncall {PHONE}");
+        assert_eq!(content[1]["text"], "line 3\nline 4");
 
-    #[test]
-    fn bedrock_redact_fails_closed_on_unmappable_policy_or_conflicting_outputs() {
-        let body =
+        // 2. Two enforcing Bedrock guardrails returning conflicting outputs fail closed.
+        let single =
             r#"{"messages":[{"role":"user","content":"mail alice@example.com or call 555-0199"}]}"#;
-        let members = scanned(body, &["messages"]);
-
-        // Mixed blocked topic + redactable PII match must fail closed.
-        let single = [bedrock_redact_guardrail("br", "[PII]")];
-        let local = scan_local(
-            &single,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
-            None,
-        )
-        .unwrap();
-        let outcome = local
-            .into_outcome(
-                &single,
-                &[(
-                    0,
-                    ExternalOutcome::Matched(ExternalMatch {
-                        items: vec![match_item("alice@example.com")],
-                        assessment_count: 1,
-                        outputs: Vec::new(),
-                        has_unmappable_intervention: true,
-                    }),
-                )],
-                None,
-            )
-            .unwrap();
-        assert_eq!(
-            outcome.blocking().map(|finding| finding.id.as_str()),
-            Some("br")
-        );
-
-        // Two Bedrock REDACT guardrails returning conflicting anonymized outputs on the same leaf fail closed.
+        let single_members = scanned(single, &["messages"]);
         let pair = [
-            bedrock_redact_guardrail("br-email", "[EMAIL]"),
-            bedrock_redact_guardrail("br-phone", "[PHONE]"),
+            bedrock_enforce_guardrail("br-email"),
+            bedrock_enforce_guardrail("br-phone"),
         ];
         let local = scan_local(
             &pair,
-            body.as_bytes(),
-            &members,
-            &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+            single.as_bytes(),
+            &single_members,
+            &last_turn(
+                ApiFormat::OpenAiChatCompletions,
+                single.as_bytes(),
+                &single_members,
+            ),
             None,
         )
         .unwrap();
@@ -2258,26 +1871,21 @@ mod tests {
                 &[
                     (
                         0,
-                        ExternalOutcome::Matched(ExternalMatch {
-                            outputs: vec!["mail {EMAIL} or call 555-0199".into()],
-                            ..ExternalMatch::default()
-                        }),
+                        ExternalOutcome::Anonymized(vec!["mail {EMAIL} or call 555-0199".into()]),
                     ),
                     (
                         1,
-                        ExternalOutcome::Matched(ExternalMatch {
-                            outputs: vec!["mail alice@example.com or call {PHONE}".into()],
-                            ..ExternalMatch::default()
-                        }),
+                        ExternalOutcome::Anonymized(vec![
+                            "mail alice@example.com or call {PHONE}".into(),
+                        ]),
                     ),
                 ],
                 None,
             )
             .unwrap();
-        assert_eq!(
-            outcome.blocking().map(|finding| finding.id.as_str()),
-            Some("br-phone")
-        );
+        let blocking = outcome.blocking().expect("expected conflicting outputs to block");
+        assert_eq!(blocking.id, "br-phone");
+        assert_eq!(blocking.action, GuardrailAction::Block);
     }
 
     #[test]

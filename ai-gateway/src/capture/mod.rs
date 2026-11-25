@@ -535,17 +535,64 @@ impl RequestInput {
         }
     }
 
-    /// Re-parses the top-level members of a redacted request body so FULL
-    /// ingestion does not store secrets scrubbed by a `redact` guardrail.
-    pub(crate) fn from_redacted_body(body: &[u8]) -> Option<Self> {
-        if body.len() > MAX_INPUT_CAPTURE_BYTES {
-            return Some(Self {
-                members: None,
-                body_bytes: body.len(),
-            });
+    /// Patches only the redacted `scanned` members in place so FULL ingestion
+    /// records the scrubbed prompt without re-parsing untouched members (such as
+    /// `tools` or `metadata`). Returns `false` if any edit fails to map cleanly,
+    /// allowing the caller to fail closed rather than persist unredacted input.
+    pub(crate) fn apply_redactions(
+        &mut self,
+        body: &[u8],
+        scanned: &crate::guardrails::ScannedMembers,
+        redactions: &[crate::guardrails::redact::BodyEdit],
+    ) -> bool {
+        if redactions.is_empty() {
+            return true;
         }
-        let members: BTreeMap<String, &RawValue> = serde_json::from_slice(body).ok()?;
-        Some(Self::from_members(members, body.len()))
+        let removed: usize = redactions.iter().map(|edit| edit.range.len()).sum();
+        let added: usize = redactions.iter().map(|edit| edit.replacement.len()).sum();
+        let new_body_bytes = self.body_bytes.saturating_sub(removed).saturating_add(added);
+        self.body_bytes = new_body_bytes;
+        if new_body_bytes > MAX_INPUT_CAPTURE_BYTES {
+            self.members = None;
+            return true;
+        }
+        let Some(members) = self.members.as_mut() else {
+            return true;
+        };
+        let mut applied = 0usize;
+        for (name, member_range) in scanned.members() {
+            let base = member_range.start;
+            let mut relative_edits: Vec<(std::ops::Range<usize>, &[u8])> = redactions
+                .iter()
+                .filter(|edit| edit.range.start >= base && edit.range.end <= member_range.end)
+                .map(|edit| {
+                    (
+                        (edit.range.start - base)..(edit.range.end - base),
+                        edit.replacement.as_slice(),
+                    )
+                })
+                .collect();
+            if relative_edits.is_empty() {
+                continue;
+            }
+            applied = applied.saturating_add(relative_edits.len());
+            let Some(member_bytes) = body.get(member_range.clone()) else {
+                return false;
+            };
+            let Some(spliced) =
+                crate::guardrails::redact::splice_bytes(member_bytes, &mut relative_edits)
+            else {
+                return false;
+            };
+            let Ok(json) = String::from_utf8(spliced) else {
+                return false;
+            };
+            let Ok(raw) = RawValue::from_string(json) else {
+                return false;
+            };
+            members.insert((*name).to_owned(), raw);
+        }
+        applied == redactions.len()
     }
 
     #[cfg(test)]

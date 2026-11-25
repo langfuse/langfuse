@@ -2389,13 +2389,12 @@ async fn redact_guardrails_rewrite_upstream_body_and_record_redact_metadata() {
 }
 
 #[tokio::test]
-async fn bedrock_redact_guardrails_apply_results_and_fail_closed_on_errors() {
+async fn bedrock_enforce_guardrails_anonymize_or_block_and_fail_closed() {
     let guardrails = serde_json::json!([{
         "id": "g-bedrock",
-        "name": "Bedrock redact",
+        "name": "Bedrock enforce",
         "type": "bedrock",
-        "action": "redact",
-        "redaction_label": "[PHONE]",
+        "action": "enforce",
         "patterns": [],
         "guardrail_id": "abc123def",
         "guardrail_version": "1",
@@ -2407,13 +2406,13 @@ async fn bedrock_redact_guardrails_apply_results_and_fail_closed_on_errors() {
             StatusCode::OK,
             r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"call {PHONE}"}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true}]}}]}"#,
             StatusCode::OK,
-            Some("call [PHONE]"),
+            Some("call {PHONE}"),
         ),
         (
             StatusCode::OK,
-            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"call {PHONE}"}]}"#,
-            StatusCode::OK,
-            Some("call {PHONE}"),
+            r#"{"action":"GUARDRAIL_INTERVENED","outputs":[{"text":"Sorry, I cannot help with that."}],"assessments":[{"sensitiveInformationPolicy":{"piiEntities":[{"match":"555-0199","type":"PHONE","action":"ANONYMIZED","detected":true},{"match":"123-45-6789","type":"US_SOCIAL_SECURITY_NUMBER","action":"BLOCKED","detected":true}]}}]}"#,
+            StatusCode::BAD_REQUEST,
+            None,
         ),
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2462,15 +2461,15 @@ async fn bedrock_redact_guardrails_apply_results_and_fail_closed_on_errors() {
             .telemetry
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
             .await;
-        let expected_outcome = if expected_text.is_some() {
+        let expected_action = if expected_text.is_some() {
             "redact"
         } else {
             "block"
         };
         assert_recorded_guardrails_with_outcome(
             &harness.uploads.try_recv().unwrap(),
-            &[("g-bedrock", "redact")],
-            expected_outcome,
+            &[("g-bedrock", expected_action)],
+            expected_action,
         );
     }
 }
