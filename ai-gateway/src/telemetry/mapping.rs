@@ -254,10 +254,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
-    // The matched guardrails as `{id, action}` objects, to filter generations by either.
-    if let Some(guardrails) = facts.metadata.get("guardrails") {
-        metadata.insert("langfuse.gateway.guardrails".into(), guardrails.clone());
-    }
+    metadata.extend(guardrail_metadata(facts));
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -314,6 +311,36 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
                 json!(MAX_INPUT_CAPTURE_BYTES),
             );
         }
+    }
+    metadata
+}
+
+/// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
+/// without reading `metadata_values` or parsing JSON.
+fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
+        return metadata;
+    };
+    let mut blocked = false;
+    let mut matched = false;
+    for finding in guardrails {
+        if let (Some(id), Some(action)) = (
+            finding.get("id").and_then(Value::as_str),
+            finding.get("action").and_then(Value::as_str),
+        ) {
+            matched = true;
+            if action == "block" {
+                blocked = true;
+            }
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+        }
+    }
+    if matched {
+        let outcome = if blocked { "block" } else { "log" };
+        metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
 }

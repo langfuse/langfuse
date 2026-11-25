@@ -45,6 +45,7 @@ import {
   requireGatewayAdmin,
   requireGatewayInvoke,
 } from "./gatewayAccess";
+import { gatewayGuardrailRouter } from "./guardrails/gatewayGuardrailRouter";
 import {
   GATEWAY_SPEND_BUDGET_ALERT_THRESHOLDS,
   type GatewaySpendBudgetAlertThreshold,
@@ -189,6 +190,7 @@ function requireGatewayRead(params: { session: Session; orgId: string }) {
 }
 
 export const aiGatewayRouter = createTRPCRouter({
+  guardrails: gatewayGuardrailRouter,
   getConfig: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {

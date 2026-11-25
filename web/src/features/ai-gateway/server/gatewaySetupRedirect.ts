@@ -10,6 +10,7 @@ import { buildGatewayPagePath } from "@/src/features/ai-gateway/fns/gatewayUrls/
 const SETUP_GATED_PAGE_SLUGS = new Set<string>([
   GATEWAY_PAGE_SLUGS.models,
   GATEWAY_PAGE_SLUGS.budgets,
+  GATEWAY_PAGE_SLUGS.guardrails,
   GATEWAY_PAGE_SLUGS.apiKeys,
 ]);
 
