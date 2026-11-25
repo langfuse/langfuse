@@ -16025,8 +16025,9 @@ components:
         label:
           type: string
           description: >-
-            Set to an empty string to display the formula expression using the
-            tab's series letters.
+            Set to an empty string to display the formula expression with the
+            current series names. References in the stored expression use query
+            and metric IDs.
         expression:
           type: string
           description: >-

@@ -16,40 +16,10 @@ import {
   type normalizeMultiQueryResults,
 } from "./multiQueryModel";
 
+import { formatMultiQueryFormula } from "./formulaOperands";
+
 type TabQuery = MultiQueryTab["queries"][number];
 type Result = ReturnType<typeof normalizeMultiQueryResults>;
-const tokens =
-  /(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?/g;
-export function formulaOperands(tab: MultiQueryTab) {
-  return tab.queries.flatMap((query, index) =>
-    query.metrics.map((metric, metricIndex) => {
-      const letter = String.fromCharCode(65 + index);
-      return {
-        label:
-          query.metrics.length === 1 ? letter : `${letter}${metricIndex + 1}`,
-        reference: `${query.id}.${metric.id}`,
-        query,
-        metric,
-      };
-    }),
-  );
-}
-
-export function formatMultiQueryFormula(
-  tab: MultiQueryTab,
-  expression: string,
-) {
-  const labels = new Map(
-    formulaOperands(tab).map((op) => [op.reference, op.label]),
-  );
-  return expression.replace(tokens, (token) => labels.get(token) ?? token);
-}
-export function parseMultiQueryFormulaInput(tab: MultiQueryTab, text: string) {
-  const refs = new Map(
-    formulaOperands(tab).map((op) => [op.label, op.reference]),
-  );
-  return text.replace(tokens, (token) => refs.get(token) ?? token);
-}
 
 export function multiQueryMetricUnit(
   source: TabQuery,

@@ -1,20 +1,17 @@
 import { type ComponentProps } from "react";
 import { type QueryTokens } from "@/src/components/design-system/QueryTokens/QueryTokens";
 import { type QueryCompletionPlan } from "@/src/components/design-system/QueryInput/QueryInput";
+import { tokenizeFormulaInput } from "./formulaOperands";
 
 type InputToken = ComponentProps<typeof QueryTokens>["tokens"][number];
 
 export type FormulaOperand = {
-  alias: string;
-  name: string;
+  label: string;
+  inputText: string;
   metric: string;
   scalar: boolean;
 };
 
-// Includes unfinished exponents and unrecognized characters so every draft can
-// be rendered and corrected, even when it cannot be evaluated yet.
-const tokenPattern =
-  /(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d*)?|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?|[^\s]/gu;
 const operators = [
   { symbol: "+", name: "Add" },
   { symbol: "-", name: "Subtract" },
@@ -23,10 +20,8 @@ const operators = [
 ];
 
 export function formulaInputTokens(value: string, operands: FormulaOperand[]) {
-  return Array.from(
-    value.matchAll(tokenPattern),
-    ({ 0: raw, index: from }): InputToken => {
-      const item = operands.find((op) => op.alias === raw);
+  return tokenizeFormulaInput(value, operands).map(
+    ({ raw, from, operand }): InputToken => {
       const token = {
         id: String(from),
         from,
@@ -37,13 +32,16 @@ export function formulaInputTokens(value: string, operands: FormulaOperand[]) {
         explanation: null,
         inactiveReason: null,
       };
-      if (item)
+      if (operand)
         return {
           ...token,
           kind: "filter",
-          groups: [{ noWrap: true, parts: [{ text: raw, tone: "field" }] }],
-          explanation: { subject: item.name, predicate: item.metric },
-          error: item.scalar
+          groups: [{ noWrap: false, parts: [{ text: raw, tone: "field" }] }],
+          explanation: {
+            subject: operand.inputText,
+            predicate: operand.metric,
+          },
+          error: operand.scalar
             ? null
             : "Choose a scalar metric. A histogram contains multiple values.",
         };
@@ -57,7 +55,7 @@ export function formulaInputTokens(value: string, operands: FormulaOperand[]) {
       if (raw === "(" || raw === ")") return { ...token, kind: "paren" };
       if (operators.some((op) => op.symbol === raw))
         return { ...token, kind: "operator" };
-      const error = /^[A-Za-z]/.test(raw)
+      const error = /^["\p{L}_]/u.test(raw)
         ? "Choose a series or metric from this tab."
         : "Use +, -, * or / as the operator.";
       return { ...token, kind: "freeText", error };
@@ -66,9 +64,9 @@ export function formulaInputTokens(value: string, operands: FormulaOperand[]) {
 }
 
 type Suggestion = {
+  id?: string;
   symbol: string;
-  name: string;
-  label?: string;
+  name?: string;
   section: "Metrics" | "Operators" | "Grouping";
 };
 
@@ -105,6 +103,31 @@ export function formulaSuggestions(
     from = at.from;
     to = at.to;
   }
+  // A shorter series can already be a complete operand while the author
+  // types a longer name, e.g. "Search er" alongside "Search errors".
+  const namePart = (token: InputToken | undefined) =>
+    token &&
+    token.kind !== "operator" &&
+    token.raw !== "(" &&
+    token.raw !== ")";
+  const end = at && namePart(at) ? index : index - 1;
+  let start = end;
+  while (start > 0 && namePart(tokens[start - 1])) start--;
+  if (start >= 0 && start < end) {
+    const candidate = text
+      .slice(tokens[start]!.from, caret)
+      .trimStart()
+      .toLowerCase();
+    if (
+      candidate &&
+      operands.some((op) => op.inputText.toLowerCase().startsWith(candidate))
+    ) {
+      first = start;
+      from = tokens[start]!.from;
+      to = Math.max(to, tokens[end]!.to);
+      prefix = candidate;
+    }
+  }
   const before = tokens[first - 1];
   const needsOperand =
     !before || before.raw === "(" || before.kind === "operator";
@@ -115,16 +138,20 @@ export function formulaSuggestions(
   if (needsOperand) {
     for (const op of operands) {
       if (!op.scalar) continue;
-      const label = `${op.alias} · ${op.name}`;
-      if (prefix && !`${label} ${op.metric}`.toLowerCase().includes(prefix))
+      if (
+        prefix &&
+        !`${op.label} ${op.inputText} ${op.metric}`
+          .toLowerCase()
+          .includes(prefix)
+      )
         continue;
       const option = {
-        symbol: op.alias,
-        label,
-        name: op.metric,
+        id: op.label,
+        symbol: op.inputText,
+        name: op.inputText.includes(op.metric) ? undefined : op.metric,
         section: "Metrics" as const,
       };
-      if (prefix && op.alias.toLowerCase() === prefix) choices.unshift(option);
+      if (prefix && op.label.toLowerCase() === prefix) choices.unshift(option);
       else choices.push(option);
     }
     if (!prefix) {
@@ -142,7 +169,7 @@ export function formulaSuggestions(
   return {
     autoHighlight: Boolean(prefix),
     loading: false,
-    options: choices.map(({ symbol, label, name, section }) => {
+    options: choices.map(({ id, symbol, name, section }) => {
       const binary = section === "Operators" && !needsOperand;
       // Picking a new operator replaces the adjacent operator; choosing to
       // close a group ahead of it preserves that operator. Typing into an
@@ -174,8 +201,8 @@ export function formulaSuggestions(
       const trailing = binary && !/^\s/.test(rightText) ? " " : "";
       const inserted = leading + symbol + trailing;
       return {
-        id: section + ":" + symbol,
-        label: label ?? symbol,
+        id: section + ":" + (id ?? symbol),
+        label: symbol,
         detail: name,
         section,
         icon: section === "Metrics" ? "search" : "syntax",

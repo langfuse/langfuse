@@ -11,7 +11,7 @@ import {
   formatMultiQueryFormula,
   parseMultiQueryFormulaInput,
   formulaOperands,
-} from "./multiQueryFormulas";
+} from "./formulaOperands";
 import { formulaInputTokens, formulaSuggestions } from "./formulaInputModel";
 import { multiQueryMetricLabel } from "./multiQueryModel";
 
@@ -47,11 +47,16 @@ export function MultiQueryFormulaInput({
   const controller = useQueryInputController();
   const [focused, setFocused] = useState(false);
   const [revealError, setRevealError] = useState(false);
+  // Keep the text under the caret intact when a typed shortcut such as "A"
+  // already resolves to a series but could also be the start of a longer name.
+  const [draft, setDraft] = useState<{ text: string; formatted: string }>();
   const beforeEdit = useRef(formula.expression);
-  const value = formatMultiQueryFormula(tab, formula.expression);
-  const operands = formulaOperands(tab).map(({ label, query, metric }) => ({
-    alias: label,
-    name: query.label,
+  const formatted = formatMultiQueryFormula(tab, formula.expression);
+  const value =
+    focused && draft?.formatted === formatted ? draft.text : formatted;
+  const operands = formulaOperands(tab).map(({ label, inputText, metric }) => ({
+    label,
+    inputText,
     metric: multiQueryMetricLabel(metric),
     scalar: metric.aggregation !== "histogram",
   }));
@@ -65,10 +70,10 @@ export function MultiQueryFormulaInput({
   const diagnostic = revealError || !focused ? message : undefined;
   const update = (next: string) => {
     setRevealError(false);
-    onChange({
-      ...formula,
-      expression: parseMultiQueryFormulaInput(tab, next.slice(0, 1024)),
-    });
+    const expression = parseMultiQueryFormulaInput(tab, next);
+    const named = formatMultiQueryFormula(tab, expression);
+    setDraft(named === next ? undefined : { text: next, formatted: named });
+    onChange({ ...formula, expression });
   };
   const id = tab.id + "-" + formula.id;
   return (
@@ -81,8 +86,10 @@ export function MultiQueryFormulaInput({
         }
       }}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget))
+        if (!event.currentTarget.contains(event.relatedTarget)) {
           setFocused(false);
+          setDraft(undefined);
+        }
       }}
     >
       <label className="text-xs font-medium" htmlFor={id}>
@@ -127,7 +134,7 @@ export function MultiQueryFormulaInput({
             track("multi_query_formula_edited");
             beforeEdit.current = stored;
           }
-          return message ? null : next;
+          return message ? null : formatMultiQueryFormula(tab, stored);
         }}
         areEquivalent={(left, right) => left.trim() === right.trim()}
         onRemoveToken={(token) =>

@@ -6,6 +6,10 @@ import {
 } from "@langfuse/shared/dashboards";
 import { applyMultiQueryFormulas } from "./multiQueryFormulas";
 import {
+  formatMultiQueryFormula,
+  parseMultiQueryFormulaInput,
+} from "./formulaOperands";
+import {
   buildMultiQueryPlan,
   normalizeMultiQueryResults,
   resolveMultiQueryView,
@@ -263,8 +267,8 @@ describe("multi-query ordinary query composition", () => {
       })),
     );
     for (const [label, expression, expected] of [
-      ["", "a.count / b.count", "A / B"],
-      ["", "(a.count + b.count) / 2", "(A + B) / 2"],
+      ["", "a.count / b.count", "Has abc / Has bbc"],
+      ["", "(a.count + b.count) / 2", "(Has abc + Has bbc) / 2"],
       ["Average", "(a.count + b.count) / 2", "Average"],
     ] as const) {
       const saved = multiQueryTabSchema.parse({
@@ -280,6 +284,21 @@ describe("multi-query ordinary query composition", () => {
         metricLabel: expected,
       });
     }
+  });
+
+  it("round-trips duplicate series names alongside a literal name that looks like their qualifier", () => {
+    const tab = normalizeMultiQueryConfig(config).tabs[0]!;
+    const source = tab.queries[0]!;
+    tab.queries = [
+      { ...source, id: "a", label: "Count" },
+      { ...source, id: "b", label: "Count" },
+      { ...source, id: "c", label: "Count [A]" },
+    ];
+    const stored = "a.count + b.count / c.count";
+    const named = 'Count [A] + Count [B] / "Count [A]"';
+    expect(formatMultiQueryFormula(tab, stored)).toBe(named);
+    expect(parseMultiQueryFormulaInput(tab, named)).toBe(stored);
+    expect(parseMultiQueryFormulaInput(tab, "A + B / C")).toBe(stored);
   });
 
   it("switches named execution subsets without invalidating the other saved views and falls back after deletion", () => {

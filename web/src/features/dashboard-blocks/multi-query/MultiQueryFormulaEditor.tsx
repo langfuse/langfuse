@@ -9,7 +9,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { MultiQueryFormulaInput } from "./MultiQueryFormulaInput";
-import { formatMultiQueryFormula } from "./multiQueryFormulas";
+import { formatMultiQueryFormula } from "./formulaOperands";
 
 export function MultiQueryFormulaEditor({
   tab,
