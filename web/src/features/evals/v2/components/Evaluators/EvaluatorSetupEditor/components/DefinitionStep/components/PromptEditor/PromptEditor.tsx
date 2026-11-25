@@ -47,6 +47,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
@@ -91,16 +92,21 @@ export function PromptEditorContent({
       promptMessages: state.promptMessages,
       promptMessageIds: state.promptMessageIds,
       variableFields: state.variableFields,
+      targetObject: state.targetObject,
       promptPreviewEnabled: state.promptPreviewEnabled,
       actions: state.actions,
     })),
+  );
+  const variableFields = variableFieldsForTarget(
+    state.targetObject,
+    state.variableFields,
   );
   const combinedPrompt = state.promptMessages
     .map(({ content }) => content)
     .join("\n\n");
   const combinedPrepared = preparePromptEditorState({
     prompt: combinedPrompt,
-    variableFields: state.variableFields,
+    variableFields,
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
@@ -157,7 +163,7 @@ export function PromptEditorContent({
               combinedPrepared={combinedPrepared}
               prepared={preparePromptEditorState({
                 prompt: message.content,
-                variableFields: state.variableFields,
+                variableFields,
                 promptPreviewEnabled: state.promptPreviewEnabled,
                 sampleObject,
               })}

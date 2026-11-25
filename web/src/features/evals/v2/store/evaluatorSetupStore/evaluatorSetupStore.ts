@@ -3,7 +3,6 @@ import {
   EvalTemplateTypeEnum,
   experimentTargetEvalVariableColumns,
   isTraceTranscriptEvalType,
-  TRACE_TRANSCRIPT_EVAL_COLUMN,
   TopicsTargetObject,
   type FilterState,
   type ModelConfig,
@@ -78,22 +77,6 @@ function buildInitialVariableFields(
         },
       ];
     }),
-  );
-}
-
-/** A stored threads mapping keeps its path; every other variable reads the default thread field. */
-function buildInitialTraceVariableFields(
-  definition: NormalizedEvaluatorDefinition | null | undefined,
-): Record<string, VariableFieldState> {
-  return Object.fromEntries(
-    Object.entries(buildInitialVariableFields(definition)).map(
-      ([variable, field]) => [
-        variable,
-        field.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
-          ? field
-          : TRACE_TRANSCRIPT_DEFAULT_FIELD,
-      ],
-    ),
   );
 }
 
@@ -285,10 +268,7 @@ export function createEvaluatorSetupStore({
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
     openSteps: { 1: true, 2: true, 3: true },
-    variableFields:
-      targetObject === TopicsTargetObject
-        ? buildInitialTraceVariableFields(initialDefinition)
-        : buildInitialVariableFields(initialDefinition),
+    variableFields: buildInitialVariableFields(initialDefinition),
     activeMapping: null,
     modelPickerOpen: false,
     modelMode:
@@ -589,10 +569,6 @@ export function createEvaluatorSetupStore({
                   model: definition.model,
                 }
               : null;
-          const variableFields =
-            state.targetObject === TopicsTargetObject
-              ? buildInitialTraceVariableFields(definition)
-              : buildInitialVariableFields(definition);
 
           if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
             const questions = questionsToDrafts(definition.questions);
@@ -601,7 +577,7 @@ export function createEvaluatorSetupStore({
               questions,
               expandedQuestionId: questions[0]?.id ?? null,
               stateKeys: buildInitialStateKeys(definition),
-              variableFields,
+              variableFields: buildInitialVariableFields(definition),
               activeMapping: null,
               modelMode: "custom",
               selectedModel,
@@ -617,7 +593,7 @@ export function createEvaluatorSetupStore({
               safeRandomUUID(),
             ),
             scoreOutput: toScoreOutputFormState(definition.outputDefinition),
-            variableFields,
+            variableFields: buildInitialVariableFields(definition),
             activeMapping: null,
             modelMode: selectedModel ? "custom" : "default",
             selectedModel,

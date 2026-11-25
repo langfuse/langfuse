@@ -1,8 +1,10 @@
 import {
+  TopicsTargetObject,
   TRACE_TRANSCRIPT_EVAL_COLUMN,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 
+import type { EvaluatorTargetObject } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 
 /** A trace variable's default binding: the first thread's messages. */
@@ -24,6 +26,22 @@ export function traceTranscriptMapping(mapping: ObservationVariableMapping[]) {
         ? (entry.jsonSelector ?? null)
         : TRACE_TRANSCRIPT_DEFAULT_FIELD.jsonSelector,
   }));
+}
+
+/** The mapping the test panel runs on; the stored fields stay what a save persists. */
+export function variableFieldsForTarget(
+  targetObject: EvaluatorTargetObject,
+  variableFields: Record<string, VariableFieldState>,
+) {
+  if (targetObject !== TopicsTargetObject) return variableFields;
+  return Object.fromEntries(
+    Object.entries(variableFields).map(([variable, field]) => [
+      variable,
+      field.selectedColumnId === TRACE_TRANSCRIPT_EVAL_COLUMN
+        ? field
+        : TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    ]),
+  );
 }
 
 export function traceTranscriptAssignments(
