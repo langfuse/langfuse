@@ -50,7 +50,7 @@ const OBSERVATION_MAX_RANGE_MS = 15 * 24 * 60 * 60 * 1000;
 const EXPENSIVE_OBSERVATION_MAX_IO_LIMIT = 50;
 
 const OBSERVATION_FILTER_DESCRIPTION =
-  "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. Type is inferred from getObservationFilterSchema columns when omitted. Use key for metadata filters.";
+  "Advanced filters. Each item must be an object with column, operator, value, optional type, and optional key. When type is omitted, the first type listed for the column by getObservationFilterSchema applies. Use key for metadata filters; numeric metadata comparisons need type numberObject.";
 
 const ListObservationsBaseSchema = z.object({
   fields: ObservationFieldsSchema,
@@ -137,7 +137,7 @@ export const [listObservationsTool, handleListObservations] = defineTool({
     "Find and review observations in the current Langfuse project, such as generations, spans, events, agent steps, and tool calls.",
     "Traces consist of observations. Use this tool when the user asks to inspect traces: pass traceId to page through the observations for a specific trace; those observation records are the trace data returned by the API.",
     "Prefer structured filters such as trace, name, type, level, and environment, combined with narrow time ranges. Use input/output/metadata content search only when matching that content is necessary to answer the user's question. Results are paginated with an opaque cursor.",
-    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days (336 elapsed hours) and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter.',
+    'For metadata filters, first inspect metadata by passing both fromStartTime and toStartTime with a maximum range of 14 days (336 elapsed hours) and fields: ["id", "metadata"]. Then use a discovered key in a stringObject filter, or in a numberObject filter to compare its value as a number (for example {"type":"numberObject","column":"metadata","key":"retries","operator":">","value":3}).',
     "",
     'Start with the default compact summary fields, then use getObservation to fetch full input/output only for selected observations that need closer inspection. Pass specific field names to limit the response size; fields: ["*"] returns the full observation.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',

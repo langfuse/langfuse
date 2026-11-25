@@ -1351,32 +1351,48 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return public-compatible observation filter schema", async () => {
+      type FilterType = { type: string; operators: string[] };
       const result = (await handleGetObservationFilterSchema(
         {},
         mockServerContext(),
       )) as {
         resource: string;
-        columns: Record<string, { type: string; operators: string[] }>;
+        columns: Record<
+          string,
+          { types: FilterType[]; nullable: boolean; requiresKey: boolean }
+        >;
       };
+      const operatorsOf = (column: string) =>
+        result.columns[column].types[0].operators;
 
       expect(result.resource).toBe("observation");
-      expect(result.columns.providedModelName.type).toBe("stringOptions");
-      expect(result.columns.tags.type).toBe("arrayOptions");
-      expect(result.columns.metadata).toEqual(
-        expect.objectContaining({
-          type: "stringObject",
-          operators: expect.arrayContaining(["matches"]),
-          requiresKey: true,
-        }),
-      );
-      expect(result.columns.input.operators).toEqual(["=", "matches"]);
-      expect(result.columns.output.operators).toEqual(["=", "matches"]);
-      expect(result.columns.version.operators).not.toContain("matches");
+      expect(result.columns.providedModelName.types).toEqual([
+        { type: "stringOptions", operators: expect.any(Array) },
+      ]);
+      expect(result.columns.tags.types[0].type).toBe("arrayOptions");
+      expect(result.columns.metadata).toEqual({
+        types: [
+          {
+            type: "stringObject",
+            operators: expect.arrayContaining(["matches"]),
+          },
+          { type: "numberObject", operators: ["=", ">", "<", ">=", "<="] },
+        ],
+        nullable: expect.any(Boolean),
+        requiresKey: true,
+      });
+      expect(result.columns.input).toEqual({
+        types: [{ type: "string", operators: ["=", "matches"] }],
+        nullable: expect.any(Boolean),
+        requiresKey: false,
+      });
+      expect(operatorsOf("output")).toEqual(["=", "matches"]);
+      expect(operatorsOf("version")).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.startTime).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
-      expect(result.columns.name.operators).toContain("any of");
+      expect(operatorsOf("name")).toContain("any of");
     });
 
     it.each([
@@ -1405,18 +1421,22 @@ describe("MCP Read Tools", () => {
         )) as {
           columns: Record<
             string,
-            { type: string; operators: string[]; nullable: boolean }
+            {
+              types: { type: string; operators: string[] }[];
+              nullable: boolean;
+              requiresKey: boolean;
+            }
           >;
         };
 
-        expect(result.columns[column]).toEqual(
-          expect.objectContaining({
-            type,
-            nullable,
-            operators: expect.any(Array),
-          }),
-        );
-        expect(result.columns[column]?.operators.length).toBeGreaterThan(0);
+        expect(result.columns[column]).toEqual({
+          types: [{ type, operators: expect.any(Array) }],
+          nullable,
+          requiresKey: false,
+        });
+        expect(
+          result.columns[column]?.types[0].operators.length,
+        ).toBeGreaterThan(0);
       },
     );
   });
@@ -1691,6 +1711,56 @@ describe("MCP Read Tools", () => {
             observationId: matchingObservation.id,
           }),
         },
+      ]);
+    });
+
+    it("should filter by numeric metadata advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const startTime = new Date();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        startTime,
+        metadata: { retries: "10" },
+      });
+      // "10" > "9" fails as a string comparison, so only a numeric one matches.
+      const nonMatchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        startTime,
+        metadata: { retries: "9" },
+      });
+
+      await createEventsCh([matchingObservation, nonMatchingObservation]);
+
+      const result = (await handleListObservations(
+        {
+          fromStartTime: new Date(startTime.getTime() - 1000).toISOString(),
+          toStartTime: new Date(startTime.getTime() + 1000).toISOString(),
+          filter: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [matchingObservation.id, nonMatchingObservation.id],
+            },
+            {
+              type: "numberObject",
+              column: "metadata",
+              key: "retries",
+              operator: ">",
+              value: 9,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((observation) => observation.id)).toEqual([
+        matchingObservation.id,
       ]);
     });
 
