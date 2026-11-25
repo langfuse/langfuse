@@ -14,14 +14,19 @@ import type { ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { nextContainerWidthCommit } from "./containerWidthCommit";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
 /**
- * Container width, measured once immediately and then with a trailing
- * debounce. WidthProvider re-renders the whole grid (and every chart in it)
- * on each resize frame; measuring ourselves keeps continuous window resizes
- * from burning CPU — the layout snaps once, when the resize settles.
+ * Container width for react-grid-layout.
+ *
+ * WidthProvider re-renders every chart on each resize frame. A trailing
+ * debounce avoids that during a window drag, but it also holds the previous
+ * width while this container's own box is still changing, then snaps. Samples
+ * are coalesced to one animation frame. `nextContainerWidthCommit` decides
+ * which of those samples become a React update. The last measured width is
+ * always committed `delayMs` after the container stops changing.
  */
 function useDebouncedContainerWidth(delayMs: number) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,19 +36,56 @@ function useDebouncedContainerWidth(delayMs: number) {
     const element = containerRef.current;
     if (!element) return;
 
-    setWidth(element.getBoundingClientRect().width);
+    let frame = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let gestureStartedAt: number | null = null;
+    let lastCommittedAt = 0;
+    let committedWidth: number | null = null;
 
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const observer = new ResizeObserver(() => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        setWidth(element.getBoundingClientRect().width);
+    const commit = (next: number, now: number) => {
+      committedWidth = next;
+      lastCommittedAt = now;
+      setWidth((current) => (current === next ? current : next));
+    };
+
+    const measure = () => Math.round(element.clientWidth);
+
+    const sample = (now: number) => {
+      frame = 0;
+      const next = measure();
+      if (gestureStartedAt === null) gestureStartedAt = now;
+
+      const decision = nextContainerWidthCommit({
+        now,
+        gestureStartedAt,
+        lastCommittedAt,
+        pendingWidth: next,
+        committedWidth,
+        settleMs: delayMs,
+      });
+      if (decision.kind === "commit") commit(decision.width, now);
+    };
+
+    const schedule = () => {
+      if (frame === 0) frame = requestAnimationFrame(sample);
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        if (frame !== 0) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+        }
+        gestureStartedAt = null;
+        commit(measure(), performance.now());
       }, delayMs);
-    });
+    };
+
+    commit(measure(), performance.now());
+    const observer = new ResizeObserver(schedule);
     observer.observe(element);
 
     return () => {
-      clearTimeout(timeout);
+      if (frame !== 0) cancelAnimationFrame(frame);
+      clearTimeout(settleTimer);
       observer.disconnect();
     };
   }, [delayMs]);
@@ -267,7 +309,7 @@ export function DashboardGrid({
 
   // Render grid layout for larger screens
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="w-full min-w-0">
       {width !== null && (
         <Responsive
           className="layout"
