@@ -20,7 +20,7 @@ type TabQuery = MultiQueryTab["queries"][number];
 type Result = ReturnType<typeof normalizeMultiQueryResults>;
 const tokens =
   /(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?/g;
-function formulaOperands(tab: MultiQueryTab) {
+export function formulaOperands(tab: MultiQueryTab) {
   return tab.queries.flatMap((query, index) =>
     query.metrics.map((metric, metricIndex) => {
       const letter = String.fromCharCode(65 + index);
@@ -28,6 +28,8 @@ function formulaOperands(tab: MultiQueryTab) {
         label:
           query.metrics.length === 1 ? letter : `${letter}${metricIndex + 1}`,
         reference: `${query.id}.${metric.id}`,
+        query,
+        metric,
       };
     }),
   );

@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { type MultiQueryTab } from "@langfuse/shared/dashboards";
+import {
+  type MultiQueryFormula,
+  type MultiQueryTab,
+} from "@langfuse/shared/dashboards";
 import { BracesIcon, PlusIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -19,6 +22,7 @@ export function MultiQueryTabSources({
   context,
   onChange,
   invalidSources,
+  formulaErrors,
   onInvalidChange,
   track,
 }: {
@@ -26,6 +30,7 @@ export function MultiQueryTabSources({
   context: MultiQueryWidgetContext;
   onChange: (tab: MultiQueryTab) => void;
   invalidSources: ReadonlySet<string>;
+  formulaErrors: ReadonlyMap<MultiQueryFormula, string>;
   onInvalidChange: (id: string, invalid: boolean) => void;
   track: (action: string, count?: number) => void;
 }) {
@@ -56,9 +61,6 @@ export function MultiQueryTabSources({
   };
   const addFormula = () => {
     const id = nextEditorId("formula_", ids);
-    const operands = tab.queries.flatMap((q) =>
-      q.metrics.map((m) => q.id + "." + m.id),
-    );
     onChange({
       ...tab,
       formulas: [
@@ -68,12 +70,15 @@ export function MultiQueryTabSources({
           label: formulas.length
             ? "Formula " + (formulas.length + 1)
             : "Formula",
-          expression: operands.slice(0, 2).join(" / "),
+          expression: "",
           format: "number",
         },
       ],
     });
     setExpanded("");
+    requestAnimationFrame(() =>
+      document.getElementById(tab.id + "-" + id)?.focus(),
+    );
     track("multi_query_formula_added", formulas.length + 1);
   };
   const display = (next: Partial<MultiQueryTab["display"]>) =>
@@ -143,6 +148,7 @@ export function MultiQueryTabSources({
           key={formula.id}
           tab={tab}
           formula={formula}
+          validationMessage={formulaErrors.get(formula)}
           track={track}
           onChange={(next) =>
             onChange({

@@ -6,6 +6,7 @@ import {
   normalizeMultiQueryConfig,
   multiQueryTabAsChart,
   type MultiQueryConfigV2,
+  type MultiQueryFormula,
   type MultiQueryTab,
   type SavedMultiQueryConfig,
 } from "@langfuse/shared/dashboards";
@@ -101,13 +102,45 @@ export function MultiQueryEditor({
   const active = config.tabs.find((t) => t.id === tabId) ?? config.tabs[0]!;
   const context = { projectId, dateRange, filterState, readPath };
   const activeFiltersComplete = !invalidFilters.get(active.id)?.size;
+  const schema = multiQueryConfigV2Schema.safeParse(config);
+  const formulaErrors = new Map<MultiQueryFormula, string>();
+  for (const issue of schema.error?.issues ?? []) {
+    const [tabs, tabIndex, formulas, formulaIndex, field] = issue.path;
+    if (
+      tabs !== "tabs" ||
+      typeof tabIndex !== "number" ||
+      formulas !== "formulas" ||
+      typeof formulaIndex !== "number" ||
+      field !== "expression"
+    )
+      continue;
+    const formula = config.tabs[tabIndex]?.formulas?.[formulaIndex];
+    if (formula && !formulaErrors.has(formula)) {
+      formulaErrors.set(
+        formula,
+        formula.expression.trim()
+          ? issue.message
+          : "Choose a series or enter an expression.",
+      );
+    }
+  }
+  const incompleteFormulas = active.formulas?.some(
+    (formula) => !formula.hidden && formulaErrors.has(formula),
+  );
+  const previewTab = incompleteFormulas
+    ? {
+        ...active,
+        formulas: active.formulas?.filter(
+          (formula) => !formulaErrors.has(formula),
+        ),
+      }
+    : active;
   const runtime = useMultiQueryWidget(
-    active,
+    previewTab,
     context,
     enabled && activeFiltersComplete,
   );
-  const plotUnits = incompatibleTabUnits(active, readPath);
-  const schema = multiQueryConfigV2Schema.safeParse(config);
+  const plotUnits = incompatibleTabUnits(previewTab, readPath);
   const firstInvalidTab = config.tabs.find(
     (t) => invalidFilters.get(t.id)?.size,
   );
@@ -146,14 +179,16 @@ export function MultiQueryEditor({
       }
     }
   })();
+  const schemaMessage =
+    schemaIssue?.path[2] === "formulas" && schemaIssue.path[4] === "expression"
+      ? undefined
+      : schemaIssue?.message;
   const error =
     saveError ||
     submitError ||
     (firstInvalidTab
       ? "Finish or remove the incomplete filter."
-      : (schemaIssue?.message ??
-        definitionError?.message ??
-        runtime.validationError));
+      : (schemaMessage ?? definitionError?.message ?? runtime.validationError));
   const errorTab = firstInvalidTab ?? schemaTab ?? definitionError?.tab;
   const reviewTab = [errorTab, mixedTab, inactivePending].find(
     (tab) => tab && tab.id !== active.id,
@@ -400,6 +435,7 @@ export function MultiQueryEditor({
                     tab={t}
                     context={context}
                     onChange={changeTab}
+                    formulaErrors={formulaErrors}
                     invalidSources={
                       invalidFilters.get(t.id) ?? noInvalidSources
                     }
@@ -513,13 +549,30 @@ export function MultiQueryEditor({
               ))}
             </div>
           )}
-          {activeFiltersComplete && enabled && !plotUnits.length && (
-            <MultiQueryResultView
-              key={active.id}
-              config={runtime.config}
-              runtime={runtime}
-            />
-          )}
+          {activeFiltersComplete &&
+            enabled &&
+            !plotUnits.length &&
+            (incompleteFormulas && !runtime.hasVisibleMetrics ? (
+              <VisualizationFrame
+                content={{
+                  type: "empty",
+                  message: "Complete the formula to preview its result.",
+                }}
+              />
+            ) : (
+              <>
+                {incompleteFormulas && (
+                  <p className="text-muted-foreground text-xs">
+                    The preview includes only complete series and formulas.
+                  </p>
+                )}
+                <MultiQueryResultView
+                  key={active.id}
+                  config={runtime.config}
+                  runtime={runtime}
+                />
+              </>
+            ))}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t pt-3">
