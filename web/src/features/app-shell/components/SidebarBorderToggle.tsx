@@ -14,14 +14,15 @@ export function SidebarBorderToggle() {
   const isExpanded = useAppShellSidebar((state) => state.isExpanded);
   const { setExpanded } = useAppShellSidebarActions();
   const capture = usePostHogClientCapture();
+  const label = isExpanded ? "Collapse sidebar" : "Expand sidebar";
 
   return (
     <button
       type="button"
       data-sidebar="rail"
-      aria-label="Toggle Sidebar"
+      aria-label={label}
       tabIndex={-1}
-      title="Toggle Sidebar"
+      title={label}
       onClick={() => {
         capture("app_shell:sidebar_expansion_toggled", {
           isExpanded: !isExpanded,

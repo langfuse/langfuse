@@ -208,7 +208,7 @@
   position: absolute;
   inset-block: 0;
   inset-inline-end: -0.5rem;
-  inline-size: 1rem;
+  inline-size: 0.5rem;
   margin: 0;
   padding: 0;
   border: 0;
@@ -221,7 +221,7 @@
   content: "";
   position: absolute;
   inset-block: 0;
-  inset-inline-start: 50%;
+  inset-inline-start: 0;
   inline-size: 2px;
 }
 
