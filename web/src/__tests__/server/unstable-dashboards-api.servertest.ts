@@ -244,6 +244,13 @@ describe("unstable dashboard API", () => {
           tabbedChart,
           converted,
         ],
+        [
+          moved,
+          { ...note, beforePlacementId: chart.id },
+          chart,
+          tabbedChart,
+          converted,
+        ],
         [moved, chart, note, tabbedChart, converted],
       ]) {
         const rejected = await makeAPICall(
@@ -432,6 +439,20 @@ describe("unstable dashboard API", () => {
         auth,
       );
       expect(retried.body.definition).toEqual(cleared.body.definition);
+      await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { definition: { widgets: [moved] } },
+        auth,
+      );
+      const staleAfterRestore = await makeAPICall(
+        "PATCH",
+        path,
+        { definition: cleared.body.definition },
+        auth,
+      );
+      expect(staleAfterRestore.status).toBe(409);
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
     }

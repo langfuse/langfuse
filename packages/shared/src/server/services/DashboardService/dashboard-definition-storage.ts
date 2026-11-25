@@ -148,10 +148,11 @@ function storedPresetSource(entry: unknown) {
 
 function knownInlineBlocks(
   layout: ReturnType<typeof interpretDashboardDefinition>,
-  previousAnchorIds?: ReadonlySet<string>,
+  echoedPlacementIds?: ReadonlySet<string>,
 ): StoredInlineDashboardWidget[] {
   if (!layout || layout.needsUpgrade) return [];
   const placements = indexPlacements(layout.definition.widgets);
+  const anchorIds = echoedPlacementIds ?? placements;
   return layout.definition.blocks.flatMap<StoredInlineDashboardWidget>(
     (entry) => {
       if (isClassicPlacement(entry)) return [];
@@ -168,10 +169,7 @@ function knownInlineBlocks(
         {
           ...saved,
           beforePlacementId:
-            anchor !== null &&
-            (placements.has(anchor) || previousAnchorIds?.has(anchor))
-              ? anchor
-              : null,
+            anchor !== null && anchorIds.has(anchor) ? anchor : null,
         },
       ];
     },
@@ -341,8 +339,8 @@ export async function patchPublicDashboard(
             ? before.definition.blocks.filter((block) => "kind" in block)
             : [];
         const echoedGrid = blocks.filter((block) => "type" in block);
-        // A concurrent classic removal can hide a stored anchor without revising the inline widget.
-        const withPreviousAnchors = knownInlineBlocks(
+        // Changing the classic grid can hide or reveal an anchor without revising its inline widget.
+        const projectedOnEchoedGrid = knownInlineBlocks(
           layout,
           new Set(echoedGrid.map(({ id }) => id)),
         );
@@ -355,7 +353,7 @@ export async function patchPublicDashboard(
               block.kind !== stored.kind ||
               (block.revision >= stored.revision &&
                 !isDeepStrictEqual(block, stored) &&
-                !isDeepStrictEqual(block, withPreviousAnchors[index]))
+                !isDeepStrictEqual(block, projectedOnEchoedGrid[index]))
             );
           })
         )
