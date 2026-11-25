@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+// Derives bounded route and request-path tags for ClickHouse queries issued
+// by public API requests.
+
 import { type NextApiRequest } from "next";
 
 /**

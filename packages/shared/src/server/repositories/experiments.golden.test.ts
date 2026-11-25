@@ -1,3 +1,5 @@
+// Golden SQL for the experiments repository aggregate reads.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

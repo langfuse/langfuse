@@ -1,3 +1,6 @@
+// Blob storage export job for one project: computes the export window, streams
+// each table to the customer bucket, writes the manifest, and handles failures.
+
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";

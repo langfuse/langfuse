@@ -1,3 +1,5 @@
+// Pins the SQL the dedup pass emits per table, alone and with every pass.
+
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 

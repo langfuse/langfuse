@@ -1,3 +1,6 @@
+// Prisma extension that retries read queries on transient Postgres connection
+// loss; writes and raw queries are never retried.
+
 import { Prisma } from "@prisma/client";
 import { backOff } from "exponential-backoff";
 import { logger } from "./server/logger";
