@@ -10,6 +10,24 @@ import { clientMayRenderApps } from "../core/mcp-app";
 import { listAppResources, readAppResource } from "./apps/resources";
 
 /**
+ * Tags of `langfuse.mcp.resource_read`. Only known URIs become tag values: the
+ * set is bounded by the bundled skills and MCP Apps, whereas a caller can send
+ * any string.
+ */
+const resourceReadTags = ({
+  uri,
+  found,
+  isApp,
+}: {
+  uri: string;
+  found: boolean;
+  isApp: boolean;
+}) => {
+  if (!found) return { kind: "unknown", uri: "unknown", outcome: "not_found" };
+  return { kind: isApp ? "app" : "skill", uri, outcome: "success" };
+};
+
+/**
  * Registers the MCP resource handlers: bundled skill files and the `ui://`
  * documents of MCP App tools.
  */
@@ -37,14 +55,14 @@ export function registerResources(server: ReturnType<typeof createMcpServer>) {
     const uri = request.params.uri;
     const appResource = await readAppResource(uri);
     const resource = appResource ?? readSkillResource(uri);
-    // Only known URIs become tag values: the set is bounded by the bundled
-    // skills and MCP Apps, whereas a caller can send any string.
     recordIncrement(
       "langfuse.mcp.resource_read",
       1,
-      resource
-        ? { kind: appResource ? "app" : "skill", uri, outcome: "success" }
-        : { kind: "unknown", uri: "unknown", outcome: "not_found" },
+      resourceReadTags({
+        uri,
+        found: resource !== undefined,
+        isApp: appResource !== undefined,
+      }),
     );
     if (!resource) throw resourceNotFound();
     return { ...resourceResultCache, contents: [resource] };
