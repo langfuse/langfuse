@@ -233,14 +233,14 @@ describe("summarizeAssembledTrace", () => {
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
     const submittedText = state.summarize.mock.calls[0][2] as string;
-    for (const [format, characters] of [
-      ["text", submittedText.length],
-      ["json", expect.any(Number)],
+    for (const [characters, tags] of [
+      [submittedText.length, { format: "text", over_limit: "false" }],
+      [expect.any(Number), { format: "json" }],
     ] as const)
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.topics.summary_input_characters",
         characters,
-        { format },
+        tags,
       );
   });
 
