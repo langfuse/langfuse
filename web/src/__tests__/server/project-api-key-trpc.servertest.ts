@@ -110,6 +110,24 @@ describe("project API keys trpc", () => {
 
       expect(apiKeys.map((key) => key.publicKey)).toContain(publicKey);
     });
+
+    it("returns each key's stored role", async () => {
+      const { caller, projectId, orgId } = await createProjectCaller();
+
+      const viewerKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId("user-1"),
+        name: "Viewer key",
+      });
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+
+      expect(apiKeys.find((key) => key.id === viewerKey.id)?.role).toBe(
+        "VIEWER",
+      );
+    });
   });
 
   describe("projectApiKeys.create", () => {

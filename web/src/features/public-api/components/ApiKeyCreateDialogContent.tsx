@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { ArrowUpRight, CodeXml } from "@langfuse/icons";
+import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
-import { apiKeyRolesForScope } from "@langfuse/shared/rbac";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -22,36 +21,23 @@ import {
   SelectContent,
   SelectTrigger,
 } from "@/src/components/ui/select";
-import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
 import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
 import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
 import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
+import {
+  apiKeyPermissionPopupDisplay,
+  apiKeyRoleDisplay,
+  apiKeyRoleGrowthNote,
+  apiKeyRolesOfferedForScope,
+} from "@/src/features/public-api/fns/apiKeyRoleDisplay";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
-import {
-  roleDisplay,
-  type RoleDisplay,
-} from "@/src/features/rbac/components/roleDisplay";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 
 type ApiKeyScope = "project" | "organization";
 
 const DEFAULT_ROLE: SystemRole = "MEMBER";
-
-/** apiKeyRoleOrder lists the roles shown first in the picker; the rest follow in catalog order. */
-const apiKeyRoleOrder: SystemRole[] = ["ADMIN", "VIEWER", "MEMBER"];
-
-/** apiKeyRoleOverrides presents user roles in api-key friendly terms. */
-const apiKeyRoleOverrides: Partial<Record<SystemRole, Partial<RoleDisplay>>> = {
-  ADMIN: { name: "Full access" },
-  MEMBER: {
-    name: "Developer",
-    description:
-      "Debug traces, build datasets and run experiments from the SDK.",
-    Icon: CodeXml,
-  },
-};
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -113,7 +99,7 @@ function ApiKeyCreateForm({
   onSubmit,
   isPending,
 }: Extract<ApiKeyCreateDialogContentProps, { type: "form" }>) {
-  const roles = sortApiKeyRoles(withoutGatewayRole(apiKeyRolesForScope(scope)));
+  const roles = apiKeyRolesOfferedForScope(scope);
   const { data: session } = useSession();
   const roleSelectionEnabled =
     (scope === "project"
@@ -211,20 +197,23 @@ function ApiKeyCreateForm({
                   ))}
                 </SelectContent>
               </Select>
-              <button
-                type="button"
-                onClick={() => {
-                  setPermissionsRole(role);
-                  setPermissionsOpen(true);
-                }}
-                className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
-              >
-                View{" "}
-                <span className="inline-flex items-center gap-0.5 underline">
-                  {rolePermissionCountLabel(role)}
-                  <ArrowUpRight size="sm" />
-                </span>
-              </button>
+              <p className="text-muted-foreground ml-1 text-xs">
+                {apiKeyRoleGrowthNote}{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPermissionsRole(role);
+                    setPermissionsOpen(true);
+                  }}
+                  className="hover:text-foreground"
+                >
+                  View{" "}
+                  <span className="inline-flex items-center gap-0.5 underline">
+                    {rolePermissionCountLabel(role)}
+                    <ArrowUpRight size="sm" />
+                  </span>
+                </button>
+              </p>
             </div>
           )}
         </div>
@@ -234,7 +223,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
-            display={apiKeyRoleDisplay}
+            display={(target) => apiKeyPermissionPopupDisplay(target, scope)}
           />
         )}
       </DialogBody>
@@ -245,19 +234,4 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
-}
-
-/** apiKeyRoleDisplay presents a role with its api-key overrides applied. */
-function apiKeyRoleDisplay(role: SystemRole): RoleDisplay {
-  return { ...roleDisplay(role), ...apiKeyRoleOverrides[role] };
-}
-
-/** sortApiKeyRoles puts apiKeyRoleOrder roles first, keeping catalog order for the rest. */
-function sortApiKeyRoles(roles: SystemRole[]): SystemRole[] {
-  const rank = (role: SystemRole) => {
-    const index = apiKeyRoleOrder.indexOf(role);
-    if (index === -1) return apiKeyRoleOrder.length;
-    return index;
-  };
-  return [...roles].sort((a, b) => rank(a) - rank(b));
 }

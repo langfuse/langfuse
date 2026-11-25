@@ -69,3 +69,26 @@ export const WithGatewayKeyFilter = meta.story({
     },
   },
 });
+
+export const WithPermissions = meta.story({
+  args: {
+    ...Default.input.args,
+    permissionsAction: { scope: "project", onClick: fn() },
+    data: {
+      status: "success",
+      data: [
+        {
+          ...apiKey,
+          id: "key-1",
+          note: "Terraform",
+          role: "LEGACY_PROJECT_API_KEY",
+        },
+        { ...apiKey, id: "key-2", note: "CI pipeline", role: "INGEST" },
+        { ...apiKey, id: "key-3", note: "Dashboard sync", role: "VIEWER" },
+        { ...apiKey, id: "key-4", note: "Eval runner", role: "ADMIN" },
+        { ...apiKey, id: "key-5", note: "Notebook", role: "MEMBER" },
+        { ...apiKey, id: "key-6", note: "Web app", role: "APPLICATION" },
+      ],
+    },
+  },
+});
