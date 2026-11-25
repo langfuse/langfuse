@@ -1,1 +1,0 @@
-ALTER TYPE "GatewayGuardrailAction" ADD VALUE IF NOT EXISTS 'ENFORCE';
