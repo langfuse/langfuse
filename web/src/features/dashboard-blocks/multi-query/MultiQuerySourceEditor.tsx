@@ -299,29 +299,37 @@ export function MultiQuerySourceEditor({
                     />
                   ) : null}
                 </div>
-                <SelectInput
-                  aria-label="Aggregation"
-                  placeholder="Choose aggregation"
-                  value={metric.aggregation}
-                  options={(metric.measure === "count"
-                    ? ["count" as const]
-                    : getValidAggregationsForMeasureType(
-                        declaration.measures[metric.measure]?.type,
-                      )
-                  ).map((aggregation) => ({
-                    value: aggregation,
-                    label: aggregation.startsWith("p")
-                      ? `${aggregation.slice(1)}th percentile`
-                      : readableMultiQueryField(aggregation),
-                  }))}
-                  onValueChange={(aggregation) =>
-                    updateMetrics(
-                      source.metrics.map((item) =>
-                        item.id === metric.id ? { ...item, aggregation } : item,
-                      ),
-                    )
-                  }
-                />
+                {(metric.measure !== "count" ||
+                  metric.aggregation !== "count") && (
+                  <label className="flex min-w-0 flex-col gap-1 text-xs">
+                    Aggregation
+                    <SelectInput
+                      aria-label="Aggregation"
+                      placeholder="Choose aggregation"
+                      value={metric.aggregation}
+                      options={(metric.measure === "count"
+                        ? ["count" as const]
+                        : getValidAggregationsForMeasureType(
+                            declaration.measures[metric.measure]?.type,
+                          )
+                      ).map((aggregation) => ({
+                        value: aggregation,
+                        label: aggregation.startsWith("p")
+                          ? `${aggregation.slice(1)}th percentile`
+                          : readableMultiQueryField(aggregation),
+                      }))}
+                      onValueChange={(aggregation) =>
+                        updateMetrics(
+                          source.metrics.map((item) =>
+                            item.id === metric.id
+                              ? { ...item, aggregation }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                )}
                 <details className="text-xs">
                   <summary className="text-muted-foreground cursor-pointer">
                     Metric name

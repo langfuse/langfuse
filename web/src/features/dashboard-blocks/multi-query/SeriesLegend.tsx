@@ -34,7 +34,7 @@ export function SeriesLegend({
       title={item.label}
       className={cn(
         "hover:bg-muted focus-visible:ring-ring flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs focus-visible:ring-2",
-        expanded ? "w-full" : "max-w-44",
+        expanded ? "w-full" : "max-w-[calc(100cqi_-_3rem)]",
         hidden.has(item.id)
           ? "text-muted-foreground line-through opacity-60"
           : "text-foreground",
@@ -97,7 +97,7 @@ export function SeriesLegend({
           {...getTriggerProps()}
           role="group"
           aria-label="Chart legend"
-          className="ph-no-capture min-w-0 shrink-0"
+          className="ph-no-capture @container min-w-0 shrink-0"
         >
           <OverflowList
             items={
