@@ -104,7 +104,7 @@ function AvatarGroup({ avatars, max, label }: AvatarGroupProps) {
             <span
               className={cn(
                 stackedItemClass,
-                "bg-muted text-muted-foreground h-6 min-w-6 items-center justify-center pr-1.25 pl-0.75 text-xs tabular-nums",
+                "bg-foreground/5 text-muted-foreground h-6 min-w-6 items-center justify-center pr-1.25 pl-0.75 text-xs tabular-nums dark:bg-foreground/10",
               )}
             >
               +{overflow}
