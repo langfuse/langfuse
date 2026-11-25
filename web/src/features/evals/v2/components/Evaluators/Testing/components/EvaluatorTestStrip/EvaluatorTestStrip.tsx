@@ -124,10 +124,12 @@ export function EvaluatorTestStrip({
       </div>
       {showResult ? (
         <div className="ph-no-capture flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-3">
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="min-w-0">
               <p className="text-muted-foreground text-xs">Score</p>
-              <p className="mt-2 text-2xl font-bold">{score || "—"}</p>
+              <p className="mt-2 text-2xl font-bold break-words">
+                {score || "—"}
+              </p>
             </div>
             <div className="min-w-0">
               <p className="text-muted-foreground text-xs">Model reasoning</p>
