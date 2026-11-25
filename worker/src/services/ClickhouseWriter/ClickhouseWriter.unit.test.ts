@@ -1409,6 +1409,8 @@ describe("ClickhouseWriter", () => {
     });
 
     it("should handle string length errors with batch splitting", async () => {
+      // Drive the two flushes separately so only the retry uses a timer.
+      vi.clearAllTimers();
       const mockInsert = vi
         .spyOn(clickhouseClientMock, "insert")
         .mockRejectedValueOnce(new Error("invalid string length"))
@@ -1429,10 +1431,10 @@ describe("ClickhouseWriter", () => {
         });
       });
 
-      await vi.advanceTimersByTimeAsync(writer.writeInterval);
-
-      // After first interval: should have done initial call + retry with first half
-      expect(mockInsert).toHaveBeenCalled();
+      const firstFlush = writer.flushAll();
+      await vi.runAllTimersAsync();
+      await firstFlush;
+      expect(mockInsert).toHaveBeenCalledTimes(2);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Splitting batch and retrying"),
         expect.objectContaining({
@@ -1446,14 +1448,12 @@ describe("ClickhouseWriter", () => {
       expect(writer["queue"][TableName.Traces][0].data.id).toBe("2");
       expect(writer["queue"][TableName.Traces][1].data.id).toBe("3");
 
-      await vi.advanceTimersByTimeAsync(100);
       expect(settled).toEqual([
         ["0", "inserted"],
         ["1", "inserted"],
       ]);
 
-      // Advance timer again to process the requeued items
-      await vi.advanceTimersByTimeAsync(writer.writeInterval);
+      await writer.flushAll();
 
       expect(writer["queue"][TableName.Traces]).toHaveLength(0);
       expect(settled).toEqual(records.map(({ id }) => [id, "inserted"]));

@@ -60,6 +60,7 @@ export class ClickhouseWriter<
   private readonly logger: typeof logger;
   private readonly logPrefix: string;
   private readonly activeFlushes = new Set<Promise<void>>();
+  private pendingRowCallbacks = 0;
   batchSize: number;
   writeInterval: number;
   maxAttempts: number;
@@ -175,12 +176,11 @@ export class ClickhouseWriter<
 
     await this.flushAll(true);
 
-    while (this.activeFlushes.size > 0) {
-      await Promise.all([...this.activeFlushes]);
+    if (this.pendingRowCallbacks > 0) {
+      this.settlePendingCallbacks(
+        new Error("ClickhouseWriter shutdown before queued rows were inserted"),
+      );
     }
-    this.settlePendingCallbacks(
-      new Error("ClickhouseWriter shutdown before queued rows were inserted"),
-    );
 
     this.logger.info(`${this.logPrefix}ClickhouseWriter shutdown complete.`);
   }
@@ -298,8 +298,9 @@ export class ClickhouseWriter<
     error?: unknown,
   ): void {
     const onTerminal = item.onTerminal;
-    item.onTerminal = undefined;
     if (!onTerminal) return;
+    item.onTerminal = undefined;
+    this.pendingRowCallbacks--;
 
     const outcome: ClickhouseWriterRowTerminalOutcome<Row> =
       status === "inserted" ? { status, row } : { status, row, error };
@@ -517,7 +518,9 @@ export class ClickhouseWriter<
         },
       );
 
-      this.settleRows(queueItems, "inserted", recordsToWrite);
+      if (this.pendingRowCallbacks > 0) {
+        this.settleRows(queueItems, "inserted", recordsToWrite);
+      }
 
       // Log processing time
       const processingTime = Date.now() - processingStartTime;
@@ -640,12 +643,14 @@ export class ClickhouseWriter<
     }
 
     const entityQueue = this.queue[tableName];
+    const onTerminal = callbacks?.onTerminal;
+    if (onTerminal) this.pendingRowCallbacks++;
     entityQueue.push({
       enqueuedAt: Date.now(),
       requeued: false,
       attempts: 1,
       data,
-      onTerminal: callbacks?.onTerminal,
+      onTerminal,
     });
 
     if (entityQueue.length >= this.batchSize) {
