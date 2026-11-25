@@ -177,10 +177,7 @@ pub(crate) fn find_literal_spans<'a>(
         if end > text.len() {
             continue;
         }
-        if check_start
-            && start > 0
-            && bytes.get(start - 1).is_some_and(u8::is_ascii_alphanumeric)
-        {
+        if check_start && start > 0 && bytes.get(start - 1).is_some_and(u8::is_ascii_alphanumeric) {
             continue;
         }
         if check_end && bytes.get(end).is_some_and(u8::is_ascii_alphanumeric) {
