@@ -208,16 +208,18 @@ describe("project dashboard blocks", () => {
         ],
       },
     };
-    await expect(patchBlock(reader, target, patch)).rejects.toThrow();
+    await expect(patchBlock(reader, target, patch)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     await expect(
       patchBlock(caller(projectId, "ADMIN", { optedIn: false }), target, patch),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       patchBlock(owner, target, {
         ...patch,
         sourcePreset: { ...patch.sourcePreset, presetId: "home-model-costs" },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await patchBlock(owner, target, patch);
     const editable = { ...target, includeConvertedPresets: true };
     const [chart] = await reader.dashboard.getDashboardBlocks(editable);
@@ -230,13 +232,13 @@ describe("project dashboard blocks", () => {
     expect(await reader.dashboard.getDashboardBlocks(target)).toEqual([]);
     await expect(
       patchBlock(owner, target, { ...patch, id: randomUUID() }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await expect(
       owner.dashboard.updateDashboardDefinition({
         ...target,
         definition: { widgets: [] },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await expect(
       owner.dashboard.updateDashboardDefinition({
         ...target,
@@ -273,7 +275,7 @@ describe("project dashboard blocks", () => {
         id: patch.id,
         expectedRevision: 1,
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     await patchBlock(owner, target, {
       op: "restorePreset",
       id: patch.id,

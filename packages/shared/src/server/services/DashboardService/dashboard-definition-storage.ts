@@ -148,6 +148,7 @@ function storedPresetSource(entry: unknown) {
 
 function knownInlineBlocks(
   layout: ReturnType<typeof interpretDashboardDefinition>,
+  previousAnchorIds?: ReadonlySet<string>,
 ): StoredInlineDashboardWidget[] {
   if (!layout || layout.needsUpgrade) return [];
   const placements = indexPlacements(layout.definition.widgets);
@@ -167,7 +168,10 @@ function knownInlineBlocks(
         {
           ...saved,
           beforePlacementId:
-            anchor !== null && placements.has(anchor) ? anchor : null,
+            anchor !== null &&
+            (placements.has(anchor) || previousAnchorIds?.has(anchor))
+              ? anchor
+              : null,
         },
       ];
     },
@@ -332,7 +336,16 @@ export async function patchPublicDashboard(
       const { widgets, blocks } = patch.definition;
       if (blocks) {
         const expected = blocks.filter((block) => "kind" in block);
-        const saved = knownInlineBlocks(layout);
+        const saved =
+          "blocks" in before.definition
+            ? before.definition.blocks.filter((block) => "kind" in block)
+            : [];
+        const echoedGrid = blocks.filter((block) => "type" in block);
+        // A concurrent classic removal can hide a stored anchor without revising the inline widget.
+        const withPreviousAnchors = knownInlineBlocks(
+          layout,
+          new Set(echoedGrid.map(({ id }) => id)),
+        );
         if (
           expected.length !== saved.length ||
           expected.some((block, index) => {
@@ -341,28 +354,22 @@ export async function patchPublicDashboard(
               block.id !== stored.id ||
               block.kind !== stored.kind ||
               (block.revision >= stored.revision &&
-                !isDeepStrictEqual(block, stored))
+                !isDeepStrictEqual(block, stored) &&
+                !isDeepStrictEqual(block, withPreviousAnchors[index]))
             );
           })
         )
           throw new ForbiddenError(
             "Saved Markdown and multi-query widgets are read-only through the public API.",
           );
-        if (
-          expected.some(
-            (block, index) => block.revision < saved[index].revision,
-          )
-        )
+        if (!isDeepStrictEqual(expected, saved))
           throw new LangfuseConflictError(
             "Saved dashboard widgets changed. Reload the dashboard and try again.",
           );
         // An older client may edit widgets on the response object and echo blocks.
         // The echoed blocks must still describe the layout locked by this transaction.
         if (
-          !isDeepStrictEqual(
-            widgets,
-            blocks.filter((block) => "type" in block),
-          ) &&
+          !isDeepStrictEqual(widgets, echoedGrid) &&
           !(
             "blocks" in before.definition &&
             isDeepStrictEqual(blocks, before.definition.blocks)

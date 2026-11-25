@@ -389,6 +389,49 @@ describe("unstable dashboard API", () => {
         blocks,
         widgets: [moved],
       });
+      await DashboardService.patchDashboardBlock(
+        projectId,
+        dashboard.id,
+        { op: "restorePreset", id: converted.id, expectedRevision: 1 },
+        { canAuthorWidgets: true },
+      );
+      const snapshot = await makeZodVerifiedAPICall(
+        GetUnstableDashboardResponse,
+        "GET",
+        path,
+        undefined,
+        auth,
+      );
+      const cleared = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { definition: { widgets: [] } },
+        auth,
+      );
+      expect(cleared.body.definition).toMatchObject({
+        widgets: [],
+        blocks: expect.arrayContaining([
+          expect.objectContaining({ id: note.id, beforePlacementId: null }),
+        ]),
+      });
+      for (const widgets of [[moved], [placement]]) {
+        const staleAnchor = await makeAPICall(
+          "PATCH",
+          path,
+          { definition: { ...snapshot.body.definition, widgets } },
+          auth,
+        );
+        expect(staleAnchor.status).toBe(409);
+      }
+      const retried = await makeZodVerifiedAPICall(
+        PatchUnstableDashboardResponse,
+        "PATCH",
+        path,
+        { definition: cleared.body.definition },
+        auth,
+      );
+      expect(retried.body.definition).toEqual(cleared.body.definition);
     } finally {
       await prisma.organization.delete({ where: { id: orgId } });
     }
