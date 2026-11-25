@@ -6,7 +6,11 @@ import {
 } from "@/src/server/api/trpc";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { ActionId, InvalidRequestError } from "@langfuse/shared";
+import {
+  ActionId,
+  ForbiddenError,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { BatchEvaluationService } from "./batchEvaluationService";
 
@@ -53,7 +57,7 @@ export const runEvaluationRouter = createTRPCRouter({
         });
       } catch (e) {
         logger.error(e);
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         if (e instanceof InvalidRequestError) {

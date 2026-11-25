@@ -1,3 +1,4 @@
+import { type Session } from "next-auth";
 import { type z } from "zod";
 
 import {
@@ -10,6 +11,7 @@ import {
   type CloudConfigRateLimit,
   type Plan,
 } from "@langfuse/shared";
+import { OrganizationId } from "@langfuse/shared/rbac";
 
 import { type Policy } from "@/src/features/rbac/types";
 
@@ -26,20 +28,26 @@ export type PrincipalOrganization = {
 };
 
 /** Principal is an authorized admin, user, or api key, discriminated on kind. */
-export type Principal =
-  | { kind: "admin"; userId: string | null }
-  | { kind: "user"; userId: string; organizations: PrincipalOrganization[] }
-  | {
-      kind: "apiKey";
-      apiKeyId: string;
-      userId: string | null;
-      isInAppAgentKey: boolean;
-      publicKey: string;
-      scope: ApiKeyScope;
-      presentation: "publicKey" | "privateKey";
-      organizations: PrincipalOrganization[];
-      boundResource: BoundResource;
-    };
+export type Principal = AdminPrincipal | UserPrincipal | ApiKeyPrincipal;
+
+/** AdminPrincipal is the self-host admin key. */
+type AdminPrincipal = { kind: "admin"; userId: string | null };
+
+/** UserPrincipal is a signed-in user. */
+type UserPrincipal = { kind: "user"; userId: string };
+
+/** ApiKeyPrincipal is a project or organization api key. */
+type ApiKeyPrincipal = {
+  kind: "apiKey";
+  apiKeyId: string;
+  userId: string | null;
+  isInAppAgentKey: boolean;
+  publicKey: string;
+  scope: ApiKeyScope;
+  presentation: "publicKey" | "privateKey";
+  organizations: PrincipalOrganization[];
+  boundResource: BoundResource;
+};
 
 /** ProjectResource identifies a project by its globally-unique id. */
 type ProjectResource = { projectId: string };
@@ -54,10 +62,83 @@ export type Resource = ProjectResource | OrgResource;
 export type BoundResource = OrgResource & { projectId?: string };
 
 /** AuthorizationContext is the PIP output and PDP input for one principal, carrying one policy set per principal it acts as. */
-export type AuthorizationContext = {
-  principal: Principal;
+export type AuthorizationContext =
+  | AdminAuthorizationContext
+  | ApiKeyAuthorizationContext
+  | UserAuthorizationContext;
+
+/** AdminAuthorizationContext is the context of the self-host admin key. */
+type AdminAuthorizationContext = {
+  principal: AdminPrincipal;
   policies: Policy[][];
 };
+
+/** ApiKeyAuthorizationContext is the context of an api key. */
+type ApiKeyAuthorizationContext = {
+  principal: ApiKeyPrincipal;
+  policies: Policy[][];
+};
+
+/** UserAuthorizationContext is the context of a signed-in session's user. */
+type UserAuthorizationContext = {
+  principal: UserPrincipal;
+  user: NonNullable<Session["user"]>;
+  policies: Policy[][];
+};
+
+/** isAdminContext narrows a context to the admin variant. */
+export const isAdminContext = (
+  ctx: AuthorizationContext,
+): ctx is AdminAuthorizationContext => ctx.principal.kind === "admin";
+
+/** isApiKeyContext narrows a context to the api-key variant. */
+export const isApiKeyContext = (
+  ctx: AuthorizationContext,
+): ctx is ApiKeyAuthorizationContext => ctx.principal.kind === "apiKey";
+
+/** toAuthorizationContext builds a session's user context, or null when the session has no user. */
+export function toAuthorizationContext(
+  session: Session | null,
+): UserAuthorizationContext | null {
+  if (!session?.user) return null;
+  return {
+    principal: { kind: "user", userId: session.user.id },
+    user: session.user,
+    policies: session.policies,
+  };
+}
+
+/** getTenantForProject is the tenant owning projectId as the context sees it; admin policies sit in the wildcard tenant. */
+export function getTenantForProject(
+  ctx: AuthorizationContext,
+  projectId: string,
+): OrganizationId | undefined {
+  if (isAdminContext(ctx)) return OrganizationId("*");
+  if (isApiKeyContext(ctx)) return findApiKeyTenant(ctx.principal, projectId);
+  return findUserTenant(ctx, projectId);
+}
+
+/** findApiKeyTenant is the key's organization listing projectId. */
+function findApiKeyTenant(
+  principal: ApiKeyPrincipal,
+  projectId: string,
+): OrganizationId | undefined {
+  const org = principal.organizations.find((o) =>
+    o.projectIds.includes(projectId),
+  );
+  return org && OrganizationId(org.orgId);
+}
+
+/** findUserTenant is the user's organization listing projectId. */
+function findUserTenant(
+  ctx: UserAuthorizationContext,
+  projectId: string,
+): OrganizationId | undefined {
+  const org = ctx.user.organizations.find((o) =>
+    o.projects.some((project) => project.id === projectId),
+  );
+  return org && OrganizationId(org.id);
+}
 
 /** Success is a successful outcome, disjoint from ErrorResult on `success`. */
 export type Success = { success: true; error?: never };

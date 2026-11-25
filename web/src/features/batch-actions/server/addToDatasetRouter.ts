@@ -14,6 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
+  ForbiddenError,
   BatchTableNames,
   BatchActionType,
   BatchActionStatus,
@@ -142,7 +143,7 @@ export const addToDatasetRouter = createTRPCRouter({
         return { id: batchAction.id };
       } catch (e) {
         logger.error(e);
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         if (e instanceof InvalidRequestError) {

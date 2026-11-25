@@ -3560,21 +3560,20 @@ describe("AI gateway control plane", () => {
       },
     );
     // The scope check's own message, since the service also refuses changes to budgets a manager set.
-    const missingScope = {
+    const missingScope = (scope: string) => ({
       code: "FORBIDDEN",
-      message:
-        "Forbidden, user does not have access to this resource or action",
-    };
+      message: `Access denied. The "${scope}" permission is required to access this resource.`,
+    });
     await expectAllRejected(
       keyBudgetRequests(viewer, owner.org.id),
-      missingScope,
+      missingScope("gateway:invoke"),
     );
     await expectAllRejected(
       [
         ...managerBudgetRequests(viewer, owner.org.id),
         ...managerBudgetRequests(member, owner.org.id),
       ],
-      missingScope,
+      missingScope("gateway:manage"),
     );
 
     // In their own organization, a foreign manager can neither see nor change the owner's keys and users.

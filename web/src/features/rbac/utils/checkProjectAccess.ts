@@ -1,13 +1,21 @@
-import { type ProjectScope } from "@langfuse/shared";
-import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
-import { TRPCError } from "@trpc/server";
+import { ForbiddenError, type ProjectScope } from "@langfuse/shared";
+import { ProjectId } from "@langfuse/shared/rbac";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { authorize } from "@/src/features/rbac/authorize";
+import {
+  forbiddenError,
+  getTenantForProject,
+  toAuthorizationContext,
+  type AuthorizationContext,
+  type Decision,
+} from "@/src/features/auth/policy/types";
 
-/** HasProjectAccessParams is a session and the projectId whose policies decide scope. */
-type HasProjectAccessParams = {
-  session: null | Session;
+/** HasProjectAccessParams is a `ctx` (server code) or a next-auth `session` (client code), and the projectId whose policies decide scope. */
+type HasProjectAccessParams = (
+  | { ctx: AuthorizationContext; session?: never }
+  | { session: Session | null; ctx?: never }
+) & {
   projectId: string;
   scope: ProjectScope;
   forbiddenErrorMessage?: string;
@@ -15,16 +23,14 @@ type HasProjectAccessParams = {
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
- * @throws TRPCError("FORBIDDEN") if user does not have access
+ * @throws ForbiddenError if user does not have access
  */
 export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
-  if (!hasProjectAccess(p))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        p.forbiddenErrorMessage ??
-        "User does not have access to this resource or action",
-    });
+  const decision = authorizeProject(p);
+  if (decision.success) return;
+  if (p.forbiddenErrorMessage)
+    throw new ForbiddenError(p.forbiddenErrorMessage);
+  throw decision.error;
 };
 
 /**
@@ -45,16 +51,13 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const { session, projectId, scope } = p;
-  const org = getOrganization(session, projectId);
-  if (!session || !org) return false;
-  return authorize(session, OrganizationId(org.id), scope, ProjectId(projectId))
-    .success;
+  return authorizeProject(p).success;
 }
 
-/** getOrganization finds the session's organization that lists projectId. */
-function getOrganization(session: Session | null, projectId: string) {
-  return session?.user?.organizations.find((org) =>
-    org.projects.some((project) => project.id === projectId),
-  );
+/** authorizeProject decides scope on projectId within the tenant that owns it. */
+function authorizeProject(p: HasProjectAccessParams): Decision {
+  const ctx = p.ctx ?? toAuthorizationContext(p.session);
+  const tenant = ctx && getTenantForProject(ctx, p.projectId);
+  if (!ctx || !tenant) return forbiddenError();
+  return authorize(ctx, tenant, p.scope, ProjectId(p.projectId));
 }

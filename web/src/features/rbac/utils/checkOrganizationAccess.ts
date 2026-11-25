@@ -1,27 +1,35 @@
+import { ForbiddenError } from "@langfuse/shared";
 import { OrganizationId, type OrganizationScope } from "@langfuse/shared/rbac";
-import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import { authorize } from "@/src/features/rbac/authorize";
+import {
+  forbiddenError,
+  toAuthorizationContext,
+  type AuthorizationContext,
+  type Decision,
+} from "@/src/features/auth/policy/types";
 
-/** HasOrganizationAccessParams is a session and the organizationId whose policies decide scope. */
-type HasOrganizationAccessParams = {
-  session: null | Session;
+/** HasOrganizationAccessParams is a `ctx` (server code) or a next-auth `session` (client code), and the organizationId whose policies decide scope. */
+type HasOrganizationAccessParams = (
+  | { ctx: AuthorizationContext; session?: never }
+  | { session: Session | null; ctx?: never }
+) & {
   organizationId: string;
   scope: OrganizationScope;
+  forbiddenErrorMessage?: string;
 };
 
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
- * @throws TRPCError("FORBIDDEN") if user does not have access
+ * @throws ForbiddenError if user does not have access
  */
 export const throwIfNoOrganizationAccess = (p: HasOrganizationAccessParams) => {
-  if (!hasOrganizationAccess(p))
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "Forbidden, user does not have access to this resource or action",
-    });
+  const decision = authorizeOrganization(p);
+  if (decision.success) return;
+  if (p.forbiddenErrorMessage)
+    throw new ForbiddenError(p.forbiddenErrorMessage);
+  throw decision.error;
 };
 
 /**
@@ -46,7 +54,13 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  if (!p.session) return false;
+  return authorizeOrganization(p).success;
+}
+
+/** authorizeOrganization decides scope on the organization, its own tenant. */
+function authorizeOrganization(p: HasOrganizationAccessParams): Decision {
+  const ctx = p.ctx ?? toAuthorizationContext(p.session);
+  if (!ctx) return forbiddenError();
   const organization = OrganizationId(p.organizationId);
-  return authorize(p.session, organization, p.scope, organization).success;
+  return authorize(ctx, organization, p.scope, organization);
 }

@@ -116,7 +116,7 @@ describe("organizations.projectsPendingDeletion access", () => {
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
       message:
-        "Forbidden, user does not have access to this resource or action",
+        'Access denied. The "organization:delete" permission is required to access this resource.',
     });
   });
 });

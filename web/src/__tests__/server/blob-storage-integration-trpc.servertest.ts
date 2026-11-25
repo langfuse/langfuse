@@ -890,7 +890,8 @@ describe("Blob Storage Integration tRPC Router", () => {
           }),
         ).rejects.toMatchObject({
           code: "FORBIDDEN",
-          message: "User does not have access to this resource or action",
+          message:
+            'Access denied. The "integrations:CRUD" permission is required to access this resource.',
         });
       });
     });

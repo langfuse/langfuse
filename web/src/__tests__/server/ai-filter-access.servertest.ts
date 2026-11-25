@@ -28,7 +28,8 @@ vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
 
 // Both Ask AI endpoints only generate a filter over data the caller can
 // already read, so they are gated on `project:read` — a VIEWER must get in.
-const NO_ACCESS = "User does not have access to this resource or action";
+const NO_ACCESS =
+  'Access denied. The "project:read" permission is required to access this resource.';
 
 const __orgIds: string[] = [];
 

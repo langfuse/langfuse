@@ -3,6 +3,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
+import { ForbiddenError } from "@langfuse/shared";
 import {
   type ChatMessage,
   ChatMessageType,
@@ -161,7 +162,7 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           error,
         );
 
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
 

@@ -36,6 +36,7 @@ import { authorize } from "@/src/features/rbac/authorize";
 import {
   forbiddenError,
   internalServerError,
+  isApiKeyContext,
   serviceUnavailableError,
   unauthorizedError,
   type AuthorizationContext,
@@ -295,8 +296,9 @@ function toResourceId(resource: Resource): ResourceId {
 /** tenantFor is the resource's tenant: an org resource is its own tenant; a per-item project is scoped to the key's already-resolved bound org. Admin carries no tenant and the PDP grants it directly. */
 function tenantFor(ctx: AuthorizationContext, resource: Resource): TenantId {
   if ("orgId" in resource) return OrganizationId(resource.orgId);
-  const boundOrg =
-    ctx.principal.kind === "apiKey" ? ctx.principal.boundResource.orgId : "";
+  const boundOrg = isApiKeyContext(ctx)
+    ? ctx.principal.boundResource.orgId
+    : "";
   return OrganizationId(boundOrg);
 }
 

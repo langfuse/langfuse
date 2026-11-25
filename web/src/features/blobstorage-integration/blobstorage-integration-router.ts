@@ -49,6 +49,9 @@ const getAuditLogErrorType = (error: unknown) => {
   if (error instanceof TRPCError) {
     return error.code;
   }
+  if (error instanceof ForbiddenError) {
+    return "FORBIDDEN";
+  }
   if (error instanceof Error) {
     return error.name;
   }
@@ -283,7 +286,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         logger.error(`Failed to delete blob storage integration`, e);
@@ -391,7 +394,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             auditLogError,
           );
         });
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         throw new TRPCError({
@@ -583,7 +586,7 @@ This file can be safely deleted.`;
           );
         });
 
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         if (e instanceof CrossAccountRoleError) {

@@ -18,6 +18,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
+import { ForbiddenError } from "@langfuse/shared";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -409,7 +410,7 @@ export const searchBarRouter = createTRPCRouter({
         // expected control flow, not backend faults — rethrow them without
         // ERROR-level noise. Reserve `logger.error` for the unexpected, so it
         // stays a signal for genuine failures.
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         logger.error("Failed to generate search-bar AI filter", error);

@@ -1113,7 +1113,9 @@ describe("automations trpc", () => {
             apiVersion: { prompt: "v1" },
           },
         }),
-      ).rejects.toThrow("User does not have access to this resource or action");
+      ).rejects.toThrow(
+        'Access denied. The "automations:CUD" permission is required to access this resource.',
+      );
     });
 
     it("should validate required fields", async () => {
@@ -2974,7 +2976,9 @@ describe("automations trpc", () => {
           projectId: project.id,
           actionId: action.id,
         }),
-      ).rejects.toThrow("User does not have access to this resource or action");
+      ).rejects.toThrow(
+        'Access denied. The "automations:CUD" permission is required to access this resource.',
+      );
     });
   });
 

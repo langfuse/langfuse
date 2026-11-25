@@ -111,7 +111,9 @@ describe("annotation queues trpc", () => {
           queueId: queue.id,
           itemId: item.id,
         }),
-      ).rejects.toThrow("User does not have access to this resource or action");
+      ).rejects.toThrow(
+        'Access denied. The "annotationQueues:read" permission is required to access this resource.',
+      );
     });
   });
 

@@ -141,7 +141,7 @@ describe("spend alerts trpc", () => {
     const missingScope = {
       code: "FORBIDDEN",
       message:
-        "Forbidden, user does not have access to this resource or action",
+        'Access denied. The "langfuseCloudBilling:CRUD" permission is required to access this resource.',
     };
 
     await expect(

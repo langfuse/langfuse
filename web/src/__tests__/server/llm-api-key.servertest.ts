@@ -949,7 +949,9 @@ describe("llmApiKey.all RPC", () => {
         secretKey: "sk-test",
         baseURL: "https://attacker.example.com/v1",
       }),
-    ).rejects.toThrow("User does not have access to this resource or action");
+    ).rejects.toThrow(
+      'Access denied. The "llmApiKeys:create" permission is required to access this resource.',
+    );
   });
 
   it("should require llmApiKeys:update access for testing an existing llm api key", async () => {
@@ -978,7 +980,9 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.OpenAI,
         baseURL: "https://attacker.example.com/v1",
       }),
-    ).rejects.toThrow("User does not have access to this resource or action");
+    ).rejects.toThrow(
+      'Access denied. The "llmApiKeys:update" permission is required to access this resource.',
+    );
   });
 
   it("should block testUpdate when the base URL changes without a new secret key", async () => {
@@ -1357,7 +1361,8 @@ describe("llmApiKey.all RPC", () => {
           }),
         ).rejects.toMatchObject({
           code: "FORBIDDEN",
-          message: "User does not have access to this resource or action",
+          message:
+            'Access denied. The "llmApiKeys:create" permission is required to access this resource.',
         });
       });
 
@@ -1405,7 +1410,7 @@ describe("llmApiKey.all RPC", () => {
         ).rejects.toMatchObject({
           code: "FORBIDDEN",
           message:
-            "Forbidden, user does not have access to this resource or action",
+            'Access denied. The "organizationLlmApiKeys:CUD" permission is required to access this resource.',
         });
       });
     });

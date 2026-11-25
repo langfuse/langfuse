@@ -1,4 +1,4 @@
-import { type Prisma } from "@langfuse/shared";
+import { ForbiddenError, type Prisma } from "@langfuse/shared";
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -62,7 +62,7 @@ export const llmSchemaRouter = createTRPCRouter({
         return llmSchema;
       } catch (error) {
         logger.error("Failed to create LLM Schema", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -98,7 +98,7 @@ export const llmSchemaRouter = createTRPCRouter({
         return llmSchemas;
       } catch (error) {
         logger.error("Failed to get LLM Schemas", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -174,7 +174,7 @@ export const llmSchemaRouter = createTRPCRouter({
         return updatedSchema;
       } catch (error) {
         logger.error("Failed to update LLM Schema", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -226,7 +226,7 @@ export const llmSchemaRouter = createTRPCRouter({
         return { success: true };
       } catch (error) {
         logger.error("Failed to delete LLM Schema", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({

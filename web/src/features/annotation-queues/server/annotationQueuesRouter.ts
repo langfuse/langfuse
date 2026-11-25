@@ -6,6 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  ForbiddenError,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
   type AnnotationQueue,
@@ -193,7 +194,7 @@ export const queueRouter = createTRPCRouter({
         };
       } catch (error) {
         logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -293,7 +294,7 @@ export const queueRouter = createTRPCRouter({
         };
       } catch (error) {
         logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -359,7 +360,7 @@ export const queueRouter = createTRPCRouter({
         };
       } catch (error) {
         logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({

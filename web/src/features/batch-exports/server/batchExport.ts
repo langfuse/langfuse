@@ -18,6 +18,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  ForbiddenError,
   BATCH_EXPORT_ABANDONED_AFTER_MS,
   BatchExportStatus,
   BatchExportTableName,
@@ -171,7 +172,7 @@ export const batchExportRouter = createTRPCRouter({
         });
       } catch (e) {
         logger.error("[BATCH EXPORT] Failed to create export job", e);
-        if (e instanceof TRPCError) {
+        if (e instanceof TRPCError || e instanceof ForbiddenError) {
           throw e;
         }
         throw new TRPCError({

@@ -30,6 +30,8 @@ import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessSc
 import {
   forbiddenError,
   internalServerError,
+  isAdminContext,
+  isApiKeyContext,
   notFoundError,
   type AuthorizationContext,
   type Decision,
@@ -64,14 +66,13 @@ export async function enforceAuth({
     if (!auth.success) return auth;
 
     const { context } = auth;
-    switch (context.principal.kind) {
-      case "admin":
-        return enforceAdminAuthz(context, req, action, span);
-      case "apiKey":
-        return enforceApiKeyAuthz(context, req, action, span);
-      default:
-        return internalServerError(`Unexpected principal on the public api`);
+    if (isAdminContext(context)) {
+      return enforceAdminAuthz(context, req, action, span);
     }
+    if (isApiKeyContext(context)) {
+      return enforceApiKeyAuthz(context, req, action, span);
+    }
+    return internalServerError(`Unexpected principal on the public api`);
   });
 }
 
@@ -108,7 +109,7 @@ function enforceApiKeyAuthz(
   action: ApiAction,
   span: Span,
 ): EnforceAuthResult {
-  if (context.principal.kind !== "apiKey") {
+  if (!isApiKeyContext(context)) {
     return internalServerError(`Unexpected principal on the public api`);
   }
   const { apiKeyId, publicKey } = context.principal;
@@ -236,13 +237,13 @@ const ownsProject = (principal: Principal, projectId: string) =>
 
 /** getBoundOrgId returns the org an api key is bound to. */
 function getBoundOrgId(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
+  if (!isApiKeyContext(context)) return undefined;
   return context.principal.boundResource.orgId;
 }
 
 /** getBoundProjectId returns the project an api key is bound to, when it is project-scoped. */
 function getBoundProjectId(context: AuthorizationContext): string | undefined {
-  if (context.principal.kind !== "apiKey") return undefined;
+  if (!isApiKeyContext(context)) return undefined;
   return context.principal.boundResource.projectId;
 }
 

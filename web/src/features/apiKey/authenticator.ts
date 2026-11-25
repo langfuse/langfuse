@@ -17,10 +17,11 @@ import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
   forbiddenError,
+  isAdminContext,
+  isApiKeyContext,
   unauthorizedError,
   type AuthorizationContext,
   type ErrorResult,
-  type Principal,
   type Success,
 } from "@/src/features/auth/policy/types";
 
@@ -46,7 +47,7 @@ export class Authenticator {
     }
 
     if (authResult.success) {
-      const denied = enforceRouteSettings(authResult.context.principal, params);
+      const denied = enforceRouteSettings(authResult.context, params);
       if (denied) {
         return denied;
       }
@@ -80,12 +81,12 @@ export class Authenticator {
 /** authenticator is the Authenticator on its default prisma/redis collaborators. */
 export const authenticator = new Authenticator();
 
-/** enforceRouteSettings rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
+/** enforceRouteSettings rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved context so it reruns on every cache path. */
 function enforceRouteSettings(
-  principal: Principal,
+  context: AuthorizationContext,
   params: ApiKeyAuthParams,
 ): ErrorResult<UnauthorizedError | ForbiddenError> | null {
-  if (principal.kind === "admin") {
+  if (isAdminContext(context)) {
     if (!params.isAdminApiKeyAuthAllowed) {
       return unauthorizedError("Admin API key auth is not allowed here");
     }
@@ -96,8 +97,8 @@ function enforceRouteSettings(
     }
   }
   if (
-    principal.kind === "apiKey" &&
-    principal.isInAppAgentKey &&
+    isApiKeyContext(context) &&
+    context.principal.isInAppAgentKey &&
     !params.allowInAppAgentKey
   ) {
     return unauthorizedError(

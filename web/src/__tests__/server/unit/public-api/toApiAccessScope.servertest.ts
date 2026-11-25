@@ -110,7 +110,7 @@ describe("toApiAccessScope", () => {
   it("500s an unmappable principal kind", () => {
     expect(() =>
       toApiAccessScope(
-        { kind: "user", userId: "u_1", organizations: [] },
+        { kind: "user", userId: "u_1" },
         { orgId: "org_1", projectId: null },
       ),
     ).toThrow(InternalServerError);

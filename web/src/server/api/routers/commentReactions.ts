@@ -8,6 +8,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
+import { ForbiddenError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
 export const commentReactionsRouter = createTRPCRouter({
@@ -65,7 +66,7 @@ export const commentReactionsRouter = createTRPCRouter({
         return reaction;
       } catch (error) {
         logger.error("Failed to call commentReactions.add", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -127,7 +128,7 @@ export const commentReactionsRouter = createTRPCRouter({
         return;
       } catch (error) {
         logger.error("Failed to call commentReactions.remove", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({
@@ -258,7 +259,7 @@ export const commentReactionsRouter = createTRPCRouter({
         return Object.values(aggregated);
       } catch (error) {
         logger.error("Failed to call commentReactions.listForComment", error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || error instanceof ForbiddenError) {
           throw error;
         }
         throw new TRPCError({

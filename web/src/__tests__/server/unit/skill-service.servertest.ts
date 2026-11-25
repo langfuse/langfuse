@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import { ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -350,9 +351,7 @@ describe("SkillService versions", () => {
         deleteSkill: () => test.service.deleteSkill(params),
       };
 
-      await expect(mutations[operation]()).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
+      await expect(mutations[operation]()).rejects.toThrow(ForbiddenError);
       expect(test.tx.skill.update).not.toHaveBeenCalled();
       expect(test.tx.skill.delete).not.toHaveBeenCalled();
       expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
@@ -380,7 +379,7 @@ describe("SkillService versions", () => {
         labels: ["production", "stable"],
         actor: sessionActor("MEMBER"),
       }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toThrow(ForbiddenError);
     expect(test.tx.skill.update).not.toHaveBeenCalled();
     expect(auditLog).not.toHaveBeenCalled();
   });
@@ -409,7 +408,7 @@ describe("SkillService versions", () => {
               ...params,
               labels: operation === "add" ? ["production"] : [],
             }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      ).rejects.toThrow(ForbiddenError);
       expect(test.transaction).toHaveBeenCalledOnce();
       expect(test.tx.skill.update).not.toHaveBeenCalled();
       expect(test.tx.skill.delete).not.toHaveBeenCalled();
@@ -590,7 +589,7 @@ describe("SkillService versions", () => {
         name: "test-skill",
         actor: sessionActor("MEMBER"),
       }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toThrow(ForbiddenError);
     expect(test.transaction).toHaveBeenCalledOnce();
     expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
   });

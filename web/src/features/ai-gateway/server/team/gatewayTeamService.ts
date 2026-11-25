@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 
-import { Role } from "@langfuse/shared";
+import { ForbiddenError, Role } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   logger,
@@ -31,6 +31,7 @@ type GatewayInvitationEmail = Extract<
 
 /** Client errors carry messages written for the user; others may leak internals. */
 function getClientErrorMessage(error: unknown) {
+  if (error instanceof ForbiddenError) return error.message;
   if (!(error instanceof TRPCError)) return null;
   const status = getHTTPStatusCodeFromError(error);
   return status >= 400 && status < 500 ? error.message : null;
