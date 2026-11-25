@@ -6,6 +6,7 @@ import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
 import {
   AzureMark,
+  FireworksMark,
   LangfuseMark,
   OpenRouterMark,
   XaiMark,
@@ -20,6 +21,7 @@ test("semantic sizes apply across icon libraries", () => {
     OpenRouterMark,
     XaiMark,
     AzureMark,
+    FireworksMark,
   ]) {
     for (const [size, pixels] of [
       ["sm", 12],
@@ -52,6 +54,7 @@ test("icons do not shrink in flex layouts by default", () => {
     OpenRouterMark,
     XaiMark,
     AzureMark,
+    FireworksMark,
   ]) {
     assert.match(renderToStaticMarkup(<Icon />), /flex-shrink:0/);
   }

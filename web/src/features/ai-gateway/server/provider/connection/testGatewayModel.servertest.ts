@@ -239,4 +239,66 @@ describe("testGatewayModel", () => {
       authorization: "Bearer sk-test",
     });
   });
+
+  it("tests Fireworks listed chat, listed embedding and custom embedding models on their routes", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith("/chat/completions")
+        ? new Response(JSON.stringify({ message: "Not a chat model" }), {
+            status: 400,
+          })
+        : new Response("{}", { status: 200 }),
+    );
+    vi.mocked(getGatewayFetch).mockReturnValue(fetcher);
+
+    await expect(
+      testGatewayModel({
+        provider: "FIREWORKS",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "fw-key",
+        model: "accounts/fireworks/models/deepseek-v3p1",
+        reportedFormats: [
+          "openai.responses",
+          "openai.chat-completions",
+          "anthropic.messages",
+        ],
+      }),
+    ).resolves.toMatchObject({ success: false, error: "Not a chat model" });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.fireworks.ai/inference/v1/chat/completions",
+    ]);
+
+    fetcher.mockClear();
+    await expect(
+      testGatewayModel({
+        provider: "FIREWORKS",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "fw-key",
+        model: "accounts/fireworks/models/qwen3-embedding-8b",
+        reportedFormats: ["openai.embeddings"],
+      }),
+    ).resolves.toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.fireworks.ai/inference/v1/embeddings",
+    ]);
+
+    fetcher.mockClear();
+    await expect(
+      testGatewayModel({
+        provider: "FIREWORKS",
+        config: null,
+        baseURL: null,
+        extraHeaders: {},
+        credential: "fw-key",
+        model: "nomic-ai/nomic-embed-text-v1.5",
+      }),
+    ).resolves.toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.fireworks.ai/inference/v1/chat/completions",
+      "https://api.fireworks.ai/inference/v1/embeddings",
+    ]);
+  });
 });

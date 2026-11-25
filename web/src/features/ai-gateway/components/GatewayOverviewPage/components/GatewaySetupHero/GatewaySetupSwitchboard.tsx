@@ -60,6 +60,7 @@ const DIAGRAM_LABELS = {
   AZURE: "Azure",
   GOOGLE_AI_STUDIO: "Google AI",
   VERTEX: "Vertex AI",
+  FIREWORKS: "Fireworks",
 } satisfies Record<GatewayProvider, string>;
 
 const iconSrc = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`;

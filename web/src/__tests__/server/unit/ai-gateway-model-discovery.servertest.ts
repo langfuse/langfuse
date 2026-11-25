@@ -13,6 +13,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
+import { fireworksModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/fireworks";
 import { googleAiStudioModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/googleAiStudio";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 import { openRouterModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openRouter";
@@ -849,6 +850,135 @@ describe("AI Gateway model discovery", () => {
     expect(result.success && result.expiresAt).toBe(
       Date.parse("2026-11-18T00:00:00Z"),
     );
+  });
+
+  it("lists Fireworks serverless chat and embedding models across pages and respects deprecations", async () => {
+    const requests: string[] = [];
+    const pages: Record<string, unknown> = {
+      "": {
+        models: [
+          {
+            name: "accounts/fireworks/models/deepseek-v3p1",
+            displayName: "DeepSeek V3.1",
+            createTime: "2026-08-21T12:00:00.123456Z",
+            state: "READY",
+            kind: "HF_BASE_MODEL",
+            conversationConfig: { style: "auto" },
+          },
+          {
+            name: "accounts/fireworks/models/retiring-soon",
+            displayName: "Retiring Soon",
+            kind: "HF_BASE_MODEL",
+            conversationConfig: { style: "auto" },
+            deprecationDate: { year: 2026, month: 11, day: 18 },
+          },
+          {
+            name: "accounts/fireworks/models/deprecated-model",
+            kind: "HF_BASE_MODEL",
+            conversationConfig: { style: "auto" },
+            deprecationDate: { year: 2026, month: 11, day: 3 },
+          },
+          {
+            name: "accounts/fireworks/models/uploading-model",
+            state: "UPLOADING",
+            kind: "HF_BASE_MODEL",
+            conversationConfig: { style: "auto" },
+          },
+          {
+            name: "accounts/fireworks/models/flux-1-schnell",
+            kind: "FLUMINA_BASE_MODEL",
+          },
+          {
+            name: "accounts/fireworks/models/base-only",
+            kind: "HF_BASE_MODEL",
+          },
+          { invalid: true },
+        ],
+        nextPageToken: "page-2",
+      },
+      "page-2": {
+        models: [
+          {
+            name: "accounts/fireworks/models/qwen3-embedding-8b",
+            displayName: "Qwen3 Embedding 8B",
+            createTime: "2026-09-01T00:00:00Z",
+            state: "READY",
+            kind: "EMBEDDING_MODEL",
+            deprecationDate: { year: 0, month: 0, day: 0 },
+          },
+        ],
+      },
+    };
+    const result = await fireworksModelDiscoveryAdapter.fetchCatalog({
+      credential: "fw-test",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async (input) => {
+        const url = new URL(String(input));
+        requests.push(url.toString());
+        return Response.json(pages[url.searchParams.get("pageToken") ?? ""]);
+      },
+    });
+
+    expect(requests).toEqual([
+      "https://api.fireworks.ai/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200",
+      "https://api.fireworks.ai/v1/accounts/fireworks/models?filter=supports_serverless%3Dtrue&pageSize=200&pageToken=page-2",
+    ]);
+    expect(result).toEqual({
+      success: true,
+      models: [
+        {
+          id: "accounts/fireworks/models/deepseek-v3p1",
+          provider: "FIREWORKS",
+          canonicalSlug: "accounts/fireworks/models/deepseek-v3p1",
+          displayName: "DeepSeek V3.1",
+          createdAt: "2026-08-21T12:00:00.123Z",
+          apiFormats: [
+            "openai.responses",
+            "openai.chat-completions",
+            "anthropic.messages",
+          ],
+        },
+        {
+          id: "accounts/fireworks/models/retiring-soon",
+          provider: "FIREWORKS",
+          canonicalSlug: "accounts/fireworks/models/retiring-soon",
+          displayName: "Retiring Soon",
+          createdAt: new Date(0).toISOString(),
+          apiFormats: [
+            "openai.responses",
+            "openai.chat-completions",
+            "anthropic.messages",
+          ],
+        },
+        {
+          id: "accounts/fireworks/models/qwen3-embedding-8b",
+          provider: "FIREWORKS",
+          canonicalSlug: "accounts/fireworks/models/qwen3-embedding-8b",
+          displayName: "Qwen3 Embedding 8B",
+          createdAt: "2026-09-01T00:00:00.000Z",
+          apiFormats: ["openai.embeddings"],
+        },
+      ],
+      expiresAt: Date.parse("2026-11-18T00:00:00Z"),
+    });
+  });
+
+  it("treats Fireworks 401 as unauthorized", async () => {
+    const result = await fireworksModelDiscoveryAdapter.fetchCatalog({
+      credential: "fw-revoked",
+      config: null,
+      baseURL: null,
+      extraHeaders: {},
+      fetcher: async () =>
+        Response.json(
+          { error: { message: "The API key you provided is invalid." } },
+          { status: 401 },
+        ),
+    });
+
+    expect(result).toEqual({ success: false, error: "unauthorized" });
   });
 });
 

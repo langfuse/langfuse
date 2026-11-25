@@ -32,6 +32,7 @@ export const gatewayProviders = [
   "AZURE",
   "GOOGLE_AI_STUDIO",
   "VERTEX",
+  "FIREWORKS",
 ] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
@@ -59,6 +60,7 @@ const gatewayProviderIds = [
   "azure",
   "google_ai_studio",
   "vertex",
+  "fireworks",
 ] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
@@ -220,7 +222,8 @@ type ProviderDefinition = {
   // `usable` rejects keys the GET reports as unusable despite a 2xx.
   credentialCheck:
     | { model: string }
-    | { path: string; usable?: (body: unknown) => boolean };
+    | { path: string; usable?: (body: unknown) => boolean }
+    | { url: string; usable?: (body: unknown) => boolean };
   apiFormats: readonly GatewayApiFormat[];
 };
 
@@ -300,6 +303,26 @@ const PROVIDER_REGISTRY: Record<HostedGatewayProviderName, ProviderDefinition> =
       // or quota for the test model.
       credentialCheck: { path: "/models" },
       apiFormats: ["openai.chat-completions", "openai.embeddings"],
+    },
+    // Fireworks serves inference under `/inference/v1` and lists its serverless
+    // catalog under the control-plane `/v1/accounts/fireworks/models` route.
+    // Every supported format takes a Bearer key, including Anthropic Messages.
+    FIREWORKS: {
+      baseUrl: "https://api.fireworks.ai/inference/v1",
+      // Relative to the API origin rather than `baseUrl`.
+      modelsPath: "/v1/accounts/fireworks/models",
+      authType: "bearer",
+      // A test completion fails for valid keys without credits or restricted to
+      // dedicated deployments; `/inference/v1/models` fails on some accounts.
+      credentialCheck: {
+        url: "https://api.fireworks.ai/v1/accounts/fireworks/models?pageSize=1",
+      },
+      apiFormats: [
+        "openai.responses",
+        "openai.chat-completions",
+        "openai.embeddings",
+        "anthropic.messages",
+      ],
     },
   };
 

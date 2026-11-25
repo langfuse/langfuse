@@ -139,6 +139,13 @@ function getTestApiFormats(
   if (provider === "OPENAI" || provider === "XAI") {
     return ["openai.responses", "openai.chat-completions"];
   }
+  if (provider === "FIREWORKS") {
+    if (reportedFormats?.includes("openai.embeddings")) {
+      return ["openai.embeddings"];
+    }
+    if (reportedFormats) return ["openai.chat-completions"];
+    return ["openai.chat-completions", "openai.embeddings"];
+  }
   // Listed OpenRouter and Vercel models serve every format through one API,
   // except decision and embedding models, which serve only their own.
   if (provider === "OPENROUTER" || provider === "VERCEL") {

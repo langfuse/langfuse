@@ -68,6 +68,15 @@ export const Vertex = meta.story({
   },
 });
 
+export const Fireworks = meta.story({
+  args: {
+    provider: "FIREWORKS",
+    credential: "",
+    hasSavedKey: false,
+    onCredentialChange: fn(),
+  },
+});
+
 export const KeepSavedKey = meta.story({
   args: {
     provider: "ANTHROPIC",

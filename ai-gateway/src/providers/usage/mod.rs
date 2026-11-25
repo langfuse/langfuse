@@ -1,6 +1,7 @@
 //! A generation's usage as the provider that served it reports it. Every
 //! provider starts from the usage its API format reports; providers whose usage
 //! or billing departs from it adjust that in their own file.
+mod fireworks;
 mod formats;
 mod gemini;
 mod ingestion;
@@ -56,6 +57,7 @@ pub(crate) fn provider_usage(
         Some("google_ai_studio" | "vertex") => gemini::usage(api_format, usage),
         Some("openrouter") => openrouter::usage(api_format, usage),
         Some("vercel") => vercel::usage(api_format, usage, provider_metadata),
+        Some("fireworks") => fireworks::usage(api_format, usage),
         _ => ProviderUsage::standard(api_format, usage),
     }
 }
