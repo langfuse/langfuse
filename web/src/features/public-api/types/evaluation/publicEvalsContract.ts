@@ -193,8 +193,12 @@ export const DecisionModelStateMappingInput = z.union([
 const PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE = "boolean";
 
 export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
-  DecisionModelChoiceQuestionSchema,
-  DecisionModelScoreQuestionSchema,
+  DecisionModelChoiceQuestionSchema.omit({ options: true }).extend({
+    criteria: DecisionModelChoiceQuestionSchema.shape.options,
+  }),
+  DecisionModelScoreQuestionSchema.omit({ levels: true }).extend({
+    criteria: DecisionModelScoreQuestionSchema.shape.levels,
+  }),
   DecisionModelNoulQuestionSchema.extend({
     type: z.literal(PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE),
   }),
@@ -206,17 +210,35 @@ type PublicDecisionModelQuestionType = z.infer<
 export function toInternalDecisionModelQuestion(
   question: PublicDecisionModelQuestionType,
 ): DecisionModelQuestion {
-  return question.type === PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE
-    ? { ...question, type: DecisionModelQuestionType.NOUL }
-    : question;
+  switch (question.type) {
+    case DecisionModelQuestionType.CHOICE: {
+      const { criteria, ...rest } = question;
+      return { ...rest, options: criteria };
+    }
+    case DecisionModelQuestionType.SCORE: {
+      const { criteria, ...rest } = question;
+      return { ...rest, levels: criteria };
+    }
+    case PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE:
+      return { ...question, type: DecisionModelQuestionType.NOUL };
+  }
 }
 
 export function toPublicDecisionModelQuestion(
   question: DecisionModelQuestion,
 ): PublicDecisionModelQuestionType {
-  return question.type === DecisionModelQuestionType.NOUL
-    ? { ...question, type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE }
-    : question;
+  switch (question.type) {
+    case DecisionModelQuestionType.CHOICE: {
+      const { options, ...rest } = question;
+      return { ...rest, criteria: options };
+    }
+    case DecisionModelQuestionType.SCORE: {
+      const { levels, ...rest } = question;
+      return { ...rest, criteria: levels };
+    }
+    case DecisionModelQuestionType.NOUL:
+      return { ...question, type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE };
+  }
 }
 
 export const PublicDecisionModelQuestionsInput = z
@@ -230,7 +252,9 @@ export const PublicDecisionModelQuestionsInput = z
       ctx.addIssue({
         code: "custom",
         message: issue.message,
-        path: issue.path,
+        path: issue.path.map((segment) =>
+          segment === "options" || segment === "levels" ? "criteria" : segment,
+        ),
       });
     }
   });

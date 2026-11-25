@@ -12051,8 +12051,8 @@ components:
       description: >-
         Instruction text (1 to 20,000 characters), or a non-null JSON value that
         the decision model receives as structured instructions.
-    DecisionModelChoiceOption:
-      title: DecisionModelChoiceOption
+    DecisionModelChoiceCriterion:
+      title: DecisionModelChoiceCriterion
       type: object
       description: One allowed answer of a `choice` question.
       properties:
@@ -12067,8 +12067,8 @@ components:
           description: Optional description of when this answer applies.
       required:
         - value
-    DecisionModelScoreLevel:
-      title: DecisionModelScoreLevel
+    DecisionModelScoreCriterion:
+      title: DecisionModelScoreCriterion
       type: object
       description: One level of a `score` question, ordered from lowest to highest.
       properties:
@@ -12111,16 +12111,16 @@ components:
           description: >-
             Question instructions. Refer to state keys from `variableMapping` by
             name.
-        options:
+        criteria:
           type: array
           items:
-            $ref: '#/components/schemas/DecisionModelChoiceOption'
-          description: Between 2 and 255 unique options.
+            $ref: '#/components/schemas/DecisionModelChoiceCriterion'
+          description: The allowed answers. Between 2 and 255, with unique values.
       required:
         - id
         - scoreName
         - instructions
-        - options
+        - criteria
     DecisionModelScoreQuestion:
       title: DecisionModelScoreQuestion
       type: object
@@ -12139,16 +12139,18 @@ components:
           description: >-
             Question instructions. Refer to state keys from `variableMapping` by
             name.
-        levels:
+        criteria:
           type: array
           items:
-            $ref: '#/components/schemas/DecisionModelScoreLevel'
-          description: Between 2 and 10 levels, ordered from lowest to highest.
+            $ref: '#/components/schemas/DecisionModelScoreCriterion'
+          description: >-
+            The levels of the scale. Between 2 and 10, ordered from lowest to
+            highest.
       required:
         - id
         - scoreName
         - instructions
-        - levels
+        - criteria
     DecisionModelBooleanQuestion:
       title: DecisionModelBooleanQuestion
       type: object

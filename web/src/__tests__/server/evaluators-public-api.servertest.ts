@@ -251,7 +251,7 @@ describe("stable evaluators public API", () => {
         type: "choice",
         scoreName: "tone",
         instructions: "Classify the tone of the answer",
-        options: [
+        criteria: [
           { value: "friendly", description: "Warm and polite" },
           { value: "rude" },
         ],
@@ -305,7 +305,7 @@ describe("stable evaluators public API", () => {
             type: "score",
             scoreName: "quality",
             instructions: "Rate the answer quality",
-            levels: [{ description: "Poor" }, { description: "Great" }],
+            criteria: [{ description: "Poor" }, { description: "Great" }],
           },
         ],
         modelConfig: { provider: "typesafe", model: "jev-2" },
@@ -315,7 +315,13 @@ describe("stable evaluators public API", () => {
     );
     expect(replaced.body).toMatchObject({
       version: 2,
-      questions: [{ id: "quality", type: "score" }],
+      questions: [
+        {
+          id: "quality",
+          type: "score",
+          criteria: [{ description: "Poor" }, { description: "Great" }],
+        },
+      ],
       variables: ["answer"],
       modelConfig: { provider: "typesafe", model: "jev-2" },
     });

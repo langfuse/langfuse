@@ -281,7 +281,7 @@ types:
       - double
       - boolean
 
-  DecisionModelChoiceOption:
+  DecisionModelChoiceCriterion:
     docs: One allowed answer of a `choice` question.
     properties:
       value:
@@ -291,7 +291,7 @@ types:
         type: optional<nullable<DecisionModelEntry>>
         docs: Optional description of when this answer applies.
 
-  DecisionModelScoreLevel:
+  DecisionModelScoreCriterion:
     docs: One level of a `score` question, ordered from lowest to highest.
     properties:
       description:
@@ -321,9 +321,9 @@ types:
       instructions:
         type: DecisionModelEntry
         docs: Question instructions. Refer to state keys from `variableMapping` by name.
-      options:
-        type: list<DecisionModelChoiceOption>
-        docs: Between 2 and 255 unique options.
+      criteria:
+        type: list<DecisionModelChoiceCriterion>
+        docs: The allowed answers. Between 2 and 255, with unique values.
 
   DecisionModelScoreQuestion:
     docs: Rate on an ordered scale. Produces a numeric score.
@@ -337,9 +337,9 @@ types:
       instructions:
         type: DecisionModelEntry
         docs: Question instructions. Refer to state keys from `variableMapping` by name.
-      levels:
-        type: list<DecisionModelScoreLevel>
-        docs: Between 2 and 10 levels, ordered from lowest to highest.
+      criteria:
+        type: list<DecisionModelScoreCriterion>
+        docs: The levels of the scale. Between 2 and 10, ordered from lowest to highest.
 
   DecisionModelBooleanQuestion:
     docs: |
