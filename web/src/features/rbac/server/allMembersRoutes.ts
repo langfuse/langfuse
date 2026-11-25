@@ -28,9 +28,6 @@ import {
   getUserFeaturePreviewManagementCapabilities,
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
-/** Members returned with each group, enough to name a small group in full. */
-const GROUP_MEMBER_PREVIEW_SIZE = 5;
-
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
   searchQuery: z.string().optional(),
@@ -174,24 +171,6 @@ async function getMembers(
               displayName: true,
               source: true,
               _count: { select: { members: true } },
-              members: {
-                take: GROUP_MEMBER_PREVIEW_SIZE,
-                orderBy: { createdAt: "asc" },
-                select: {
-                  organizationMembership: {
-                    select: {
-                      user: {
-                        select: {
-                          id: true,
-                          name: true,
-                          email: true,
-                          image: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
               roleAssignments: {
                 where: {
                   OR: [
@@ -245,14 +224,6 @@ async function getMembers(
         groupName: group.displayName,
         groupSource: group.source,
         memberCount: group._count.members,
-        memberPreview: group.members.map(
-          ({ organizationMembership: { user } }) => ({
-            userId: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-          }),
-        ),
         role,
         level:
           projectId === null ? ("organization" as const) : ("project" as const),
