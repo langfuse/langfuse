@@ -9,7 +9,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::Instrument;
 
 use crate::{
-    capture::{ExecutionCapture, GatewayRejection, RequestInput},
+    capture::{ExecutionCapture, RequestInput},
     config::{GatewayConfig, RequestLimits},
     correlation::RequestCorrelation,
     cpu::{CpuJob, CpuWork},
@@ -204,7 +204,8 @@ impl InferenceService {
                 config.outbound_policy.clone(),
             )
             .map_err(|_| ResolutionError::Configuration)?
-            .with_telemetry(telemetry.clone()),
+            .with_telemetry(telemetry.clone())
+            .with_cpu(cpu.clone()),
             guardrails,
             request_limits: config.request_limits,
             memory_budget,
@@ -342,14 +343,13 @@ impl InferenceService {
 
     /// Authenticate, then start the execution. The API format comes from the public route,
     /// so Web selects a compatible connection, and the body size counts toward the
-    /// organization's byte rate limit. Memory is already reserved by the caller. A
-    /// refused request records the request's input, taking it.
+    /// organization's byte rate limit. Memory is already reserved by the caller.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         route: Route,
         headers: &HeaderMap,
-        request: &mut ParsedRequest,
+        request: &ParsedRequest,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let api_format = route.api_format();
@@ -406,7 +406,8 @@ impl InferenceService {
                 {
                     Ok(spend_limits) => spend_limits,
                     Err(error) => {
-                        self.refuse(&context, headers, request, correlation, &error, &[]);
+                        self.refuse(&context, route, headers, request, correlation, &error, &[])
+                            .await;
                         return Err(error);
                     }
                 }
@@ -419,7 +420,16 @@ impl InferenceService {
                     format!("Request blocked by guardrail \"{}\"", blocking.name).into(),
                 );
                 let findings = guardrails.into_findings();
-                self.refuse(&context, headers, request, correlation, &error, &findings);
+                self.refuse(
+                    &context,
+                    route,
+                    headers,
+                    request,
+                    correlation,
+                    &error,
+                    &findings,
+                )
+                .await;
                 return Err(error);
             }
             let mut permit = self.provider.admit(spend_limits);
@@ -432,11 +442,16 @@ impl InferenceService {
 
     /// Records a refusal on the resolution span and, for a generation, as a
     /// rejected generation carrying the guardrails it matched.
-    fn refuse(
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "forwards refusal context from resolve_and_admit to telemetry capture"
+    )]
+    async fn refuse(
         &self,
         context: &ResolvedRequestContext,
+        route: Route,
         headers: &HeaderMap,
-        request: &mut ParsedRequest,
+        request: &ParsedRequest,
         correlation: &mut RequestCorrelation,
         error: &ResolutionError,
         guardrails: &[Finding],
@@ -448,40 +463,31 @@ impl InferenceService {
             span.record("otel.status_code", "ERROR");
             span.record("error.type", reason);
         }
-        if let Some(input) = request.input.take() {
-            self.record_rejection(
-                context,
-                headers,
-                input,
-                correlation,
-                crate::http::resolution_rejection(error),
-                guardrails,
-            );
+        if !route.captures_generation() || context.ingestion_mode() == IngestionMode::None {
+            return;
         }
-    }
-
-    /// Records the refused request as a generation, like one the provider answered.
-    fn record_rejection(
-        &self,
-        context: &ResolvedRequestContext,
-        headers: &HeaderMap,
-        input: RequestInput,
-        correlation: &mut RequestCorrelation,
-        rejection: GatewayRejection,
-        guardrails: &[Finding],
-    ) {
         let Some(telemetry) = &self.telemetry else {
             return;
         };
-        if context.ingestion_mode() == IngestionMode::None {
-            return;
-        }
+        let body = request.body().clone();
+        let parse_bytes = if body.len() <= crate::capture::MAX_INPUT_CAPTURE_BYTES {
+            body.len()
+        } else {
+            0
+        };
+        let input = self
+            .cpu
+            .run(CpuJob::ParseRequest, parse_bytes, move || {
+                RequestInput::from_body(&body)
+            })
+            .await
+            .unwrap_or_else(|| RequestInput::from_body(request.body()));
         let api_format = context.connection().api_format();
         let mut capture = ExecutionCapture::for_request(api_format, context, headers, input);
         capture.deliver_to(telemetry.clone(), context, headers, correlation);
         capture.set_provider_model(context.connection().provider_model());
         capture.record_guardrails(guardrails);
-        capture.reject(rejection);
+        capture.reject(crate::http::resolution_rejection(error));
     }
 
     pub(crate) async fn forward(

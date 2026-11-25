@@ -17,9 +17,10 @@ use tokio::time::Instant;
 
 pub use crate::transport::ProviderError;
 use crate::{
-    capture::{ExecutionCapture, RelayOutcome},
+    capture::{ExecutionCapture, MAX_INPUT_CAPTURE_BYTES, RelayOutcome, RequestInput},
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
+    cpu::{CpuJob, CpuWork},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{
         ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
@@ -109,8 +110,6 @@ pub(crate) struct RequestBody {
     pub reservation: Option<BodyReservation>,
     /// Grows the capacity when a response charged to spend limits needs a larger parse.
     pub parse_growth: Option<crate::capture::ResponseParseGrowth>,
-    /// The parsed members a generation records; `None` when the route records none.
-    pub input: Option<crate::capture::RequestInput>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
@@ -120,6 +119,7 @@ pub struct ProviderTransport {
     custom_base_url_client: ClientWithMiddleware,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
+    cpu: CpuWork,
     origin_override: Option<String>,
     policy: Arc<OutboundPolicy>,
 }
@@ -148,6 +148,7 @@ impl ProviderTransport {
             ),
             limits,
             telemetry: None,
+            cpu: CpuWork::new(),
             origin_override: None,
             policy,
         })
@@ -155,6 +156,11 @@ impl ProviderTransport {
 
     pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
         self.telemetry = Some(telemetry);
+        self
+    }
+
+    pub(crate) fn with_cpu(mut self, cpu: CpuWork) -> Self {
+        self.cpu = cpu;
         self
     }
 
@@ -185,7 +191,6 @@ impl ProviderTransport {
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
         let model_range = model_range(&body)?;
-        let input = Some(crate::capture::RequestInput::from_body(&body));
         let stream_options = StreamOptions::from_body(&body);
         self.forward_route(
             permit,
@@ -198,7 +203,6 @@ impl ProviderTransport {
                 streaming: true,
                 reservation: None,
                 parse_growth: None,
-                input,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -222,14 +226,26 @@ impl ProviderTransport {
             streaming,
             reservation,
             parse_growth,
-            input,
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
-        let mut capture = if let Some(input) = input.filter(|_| route.captures_generation()) {
+        let mut capture = if route.captures_generation() {
+            let body_for_capture = body.clone();
+            let parse_bytes = if body_for_capture.len() <= MAX_INPUT_CAPTURE_BYTES {
+                body_for_capture.len()
+            } else {
+                0
+            };
+            let input = self
+                .cpu
+                .run(CpuJob::ParseRequest, parse_bytes, move || {
+                    RequestInput::from_body(&body_for_capture)
+                })
+                .await
+                .unwrap_or_else(|| RequestInput::from_body(&body));
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, input);
             if let Some(telemetry) = &self.telemetry
                 && context.ingestion_mode() != IngestionMode::None

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ops::Range, sync::Arc, time::Instant};
+use std::{ops::Range, sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
@@ -15,10 +15,7 @@ use tower_http::timeout::{RequestBodyDeadlineLayer, TimeoutError};
 use tracing::Instrument;
 
 use crate::{
-    capture::{
-        GatewayRejection, MAX_INPUT_CAPTURE_BYTES, MAX_OUTPUT_CAPTURE_BYTES,
-        MAX_RESPONSE_PARSE_BYTES, RequestInput,
-    },
+    capture::{GatewayRejection, MAX_OUTPUT_CAPTURE_BYTES, MAX_RESPONSE_PARSE_BYTES},
     correlation::{RequestCorrelation, assign_request_id},
     guardrails::ScannedMembers,
     inference::{
@@ -242,15 +239,11 @@ async fn relay(
     correlation
         .observation()
         .record_request_bytes(request_bytes);
-    let capture = route.captures_generation();
     // The reservation travels with the body, so a caller that disconnects mid-parse
     // cannot free budget while the parse still holds the body.
     let (parsed, reservation) = inference
         .run_cpu(crate::cpu::CpuJob::ParseRequest, request_bytes, move || {
-            (
-                parse_request_body(bytes, route.api_format(), capture),
-                reservation,
-            )
+            (parse_request_body(bytes, route.api_format()), reservation)
         })
         .instrument(tracing::info_span!(
             "request.parse",
@@ -259,13 +252,13 @@ async fn relay(
         ))
         .await
         .map_err(InferenceHttpError::Resolution)?;
-    let mut request_body = parsed?;
+    let request_body = parsed?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route,
             &parts.headers,
-            &mut request_body,
+            &request_body,
             correlation,
         )
         .await
@@ -285,7 +278,6 @@ async fn relay(
                 streaming: request_body.streaming,
                 reservation: Some(Box::new(reservation)),
                 parse_growth,
-                input: request_body.input,
             },
             route,
             correlation,
@@ -303,8 +295,6 @@ pub(crate) struct ParsedRequest {
     streaming: bool,
     /// Where the conversation members guardrails scan sit.
     pub(crate) scanned: ScannedMembers,
-    /// The top-level members for capture; `None` on routes that record no generation.
-    pub(crate) input: Option<RequestInput>,
 }
 
 impl ParsedRequest {
@@ -321,9 +311,6 @@ struct Members<'a> {
     stream_options: Seen<'a>,
     /// The members guardrails scan, in the order of `MembersSeed::scanned`.
     scanned: Vec<Seen<'a>>,
-    /// Every member, for capture; later members replace earlier ones of the same
-    /// name, as in the recorded input. `None` when capture does not apply.
-    all: Option<BTreeMap<String, &'a RawValue>>,
 }
 
 /// How often a member the gateway reads appeared. Parsers disagree on which
@@ -353,11 +340,10 @@ impl<'a> Seen<'a> {
     }
 }
 
-/// Collects `Members::all` only when set, so a body with millions of members
-/// allocates nothing per member unless capture keeps them.
+/// Extracts only the routing/guardrail members without copying every member
+/// up front; capture parses the body only when a generation is recorded.
 #[derive(Clone, Copy)]
 struct MembersSeed {
-    collect: bool,
     /// The members of the request's format that hold the conversation.
     scanned: &'static [&'static str],
 }
@@ -386,7 +372,6 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
             stream: Seen::Absent,
             stream_options: Seen::Absent,
             scanned: vec![Seen::Absent; self.scanned.len()],
-            all: self.collect.then(BTreeMap::new),
         };
         while let Some(key) = map.next_key::<std::borrow::Cow<'de, str>>()? {
             let value: &'de RawValue = map.next_value()?;
@@ -404,23 +389,18 @@ impl<'de> serde::de::Visitor<'de> for MembersSeed {
             {
                 seen.record(value);
             }
-            if let Some(all) = &mut members.all {
-                all.insert(key.into_owned(), value);
-            }
         }
         Ok(members)
     }
 }
 
-/// Parses the body in one pass: the model and its byte range for the upstream
-/// rewrite, the stream flag, and, when `capture` is set, the members capture records.
+/// Validates the JSON body and locates the model, stream flag, stream_options,
+/// and conversation members scanned by guardrails.
 fn parse_request_body(
     bytes: Bytes,
     api_format: ApiFormat,
-    capture: bool,
 ) -> Result<ParsedRequest, InferenceHttpError> {
     let seed = MembersSeed {
-        collect: capture && bytes.len() <= MAX_INPUT_CAPTURE_BYTES,
         scanned: crate::capture::guardrail_members(api_format),
     };
     let mut deserializer = serde_json::Deserializer::from_slice(&bytes);
@@ -462,8 +442,6 @@ fn parse_request_body(
             Seen::Duplicated => scanned.mark_duplicated(),
         }
     }
-    let input =
-        capture.then(|| RequestInput::from_members(members.all.into_iter().flatten(), bytes.len()));
     Ok(ParsedRequest {
         bytes,
         model,
@@ -471,7 +449,6 @@ fn parse_request_body(
         stream_options,
         streaming,
         scanned,
-        input,
     })
 }
 
