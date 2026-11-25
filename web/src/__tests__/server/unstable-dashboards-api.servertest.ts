@@ -353,6 +353,7 @@ describe("unstable dashboard API", () => {
       };
       for (const definition of [
         { widgets: [placement] },
+        { widgets: [placement], clientRevision: 7 },
         { version: "1", blocks: [placement] },
       ]) {
         const created = await makeZodVerifiedAPICall(

@@ -90,7 +90,19 @@ function validateVersionedLayout(
 }
 const dashboardDefinitionInput = z.union([
   writableVersionedDefinition.superRefine(validateVersionedLayout),
-  legacyDefinition,
+  // Classic clients may include their own metadata. A version or blocks field
+  // identifies a versioned document and must never fall back to a classic write.
+  z.preprocess((input) => {
+    if (
+      input !== null &&
+      typeof input === "object" &&
+      "widgets" in input &&
+      !("version" in input) &&
+      !("blocks" in input)
+    )
+      return { widgets: input.widgets };
+    return input;
+  }, legacyDefinition),
 ]);
 
 export const DashboardSchema = z
