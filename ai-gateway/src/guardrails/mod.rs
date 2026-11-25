@@ -8,15 +8,16 @@ pub(crate) mod text;
 
 use std::{
     ops::Range,
-    sync::{Arc, LazyLock},
+    sync::{Arc, LazyLock, OnceLock},
     time::Duration,
 };
 
+use ai_gateway_guardrail_rules::{CompiledRuleSet, ScanOutcome};
 use quick_cache::{
     Weighter,
     sync::{Cache, GuardResult},
 };
-use regex_automata::{Input, PatternSet, meta};
+use regex_automata::{Input, PatternSet};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use tokio::sync::Semaphore;
@@ -377,13 +378,17 @@ impl Outcome {
 
 /// A compiled regex set and, per pattern, the index of the guardrail it belongs to.
 struct Matcher {
-    regex: meta::Regex,
+    regex: CompiledRuleSet,
     owners: Vec<usize>,
 }
 
 /// The matchers for one set of guardrails, and the memory their regexes hold.
 struct Compiled {
     matchers: Vec<Matcher>,
+    /// Populated only if a combined multi-guardrail matcher hits its scan budget,
+    /// so one DFA-explosive rule does not mask other guardrails in the same org.
+    per_guardrail: OnceLock<Vec<Matcher>>,
+    patterns: GuardrailPatterns,
     bytes: u64,
 }
 
@@ -552,7 +557,7 @@ fn scan_local(
     let unreadable = turn.as_ref().map_or(true, |turn| {
         turn.read(member(body, scanned), &mut |text| {
             if let Some(compiled) = &compiled {
-                record_matches(&compiled.matchers, &mut found, &mut regex_matched, text);
+                record_matches(compiled, &mut found, &mut regex_matched, text);
             }
             if collect_text && !text.is_empty() {
                 if !turn_text.is_empty() {
@@ -588,25 +593,53 @@ fn scan_local(
 /// One set over all guardrails' patterns, so each text is scanned once however
 /// many guardrails apply. If it does not compile, one set per guardrail, so a bad
 /// pattern only disables its own guardrail.
+fn record_matcher_hits(matcher: &Matcher, found: &mut PatternSet, hits: &mut [bool]) {
+    for pattern in found.iter() {
+        if let Some(owner) = matcher
+            .owners
+            .get(pattern.as_usize())
+            .and_then(|owner| hits.get_mut(*owner))
+        {
+            *owner = true;
+        }
+    }
+}
+
 /// Marks the guardrails whose patterns match `text`.
-fn record_matches(
-    matchers: &[Matcher],
-    found: &mut [PatternSet],
-    matched: &mut [bool],
-    text: &str,
-) {
-    for (matcher, found) in matchers.iter().zip(found) {
+fn record_matches(compiled: &Compiled, found: &mut [PatternSet], matched: &mut [bool], text: &str) {
+    let input = Input::new(text.as_bytes());
+    let mut combined_budget_exceeded = false;
+    for (matcher, found) in compiled.matchers.iter().zip(found) {
         found.clear();
-        matcher
-            .regex
-            .which_overlapping_matches(&Input::new(text.as_bytes()), found);
-        for pattern in found.iter() {
-            if let Some(owner) = matcher
-                .owners
-                .get(pattern.as_usize())
-                .and_then(|owner| matched.get_mut(*owner))
-            {
-                *owner = true;
+        let outcome = matcher.regex.which_overlapping_matches(&input, found);
+        record_matcher_hits(matcher, found, matched);
+        if outcome == ScanOutcome::BudgetExceeded {
+            if compiled.matchers.len() == 1 && compiled.patterns.len() > 1 {
+                combined_budget_exceeded = true;
+            } else {
+                tracing::warn!(
+                    haystack_bytes = text.len(),
+                    "guardrail regex scan exceeded step budget"
+                );
+            }
+        }
+    }
+
+    if combined_budget_exceeded {
+        let per_guardrail = compiled
+            .per_guardrail
+            .get_or_init(|| compile_per_guardrail(&compiled.patterns));
+        for matcher in per_guardrail {
+            let mut single_found = PatternSet::new(matcher.regex.pattern_len());
+            let outcome = matcher
+                .regex
+                .which_overlapping_matches(&input, &mut single_found);
+            record_matcher_hits(matcher, &mut single_found, matched);
+            if outcome == ScanOutcome::BudgetExceeded {
+                tracing::warn!(
+                    haystack_bytes = text.len(),
+                    "guardrail regex scan exceeded step budget"
+                );
             }
         }
     }
@@ -630,21 +663,25 @@ fn compiled(active: &[(usize, &[String])]) -> Arc<Compiled> {
     }
 }
 
+fn owned_patterns<'a>(key: &'a GuardrailPatterns, owners: &[usize]) -> Vec<(usize, &'a String)> {
+    owners
+        .iter()
+        .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
+        .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
+        .collect()
+}
+
+fn compile_per_guardrail(key: &GuardrailPatterns) -> Vec<Matcher> {
+    (0..key.len())
+        .filter_map(|owner| matcher(&owned_patterns(key, &[owner])))
+        .collect()
+}
+
 fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
-    let owned_patterns = |owners: &[usize]| -> Vec<(usize, &String)> {
-        owners
-            .iter()
-            .filter_map(|owner| key.get(*owner).map(|patterns| (*owner, patterns)))
-            .flat_map(|(owner, patterns)| patterns.iter().map(move |pattern| (owner, pattern)))
-            .collect()
-    };
     let all: Vec<usize> = (0..key.len()).collect();
-    let matchers: Vec<Matcher> = match matcher(&owned_patterns(&all)) {
+    let matchers: Vec<Matcher> = match matcher(&owned_patterns(key, &all)) {
         Some(combined) => vec![combined],
-        None => all
-            .iter()
-            .filter_map(|owner| matcher(&owned_patterns(std::slice::from_ref(owner))))
-            .collect(),
+        None => compile_per_guardrail(key),
     };
     let pattern_bytes: usize = key.iter().flatten().map(String::len).sum();
     let regex_bytes: usize = matchers
@@ -655,7 +692,12 @@ fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
     let bytes = u64::try_from(pattern_bytes + regex_bytes)
         .unwrap_or(u64::MAX)
         .max(1);
-    Arc::new(Compiled { matchers, bytes })
+    Arc::new(Compiled {
+        matchers,
+        per_guardrail: OnceLock::new(),
+        patterns: key.clone(),
+        bytes,
+    })
 }
 
 /// The patterns compiled via `ai-gateway-guardrail-rules` (ASCII semantics for
@@ -808,6 +850,31 @@ mod tests {
             ApiFormat::OpenAiChatCompletions,
             body.as_bytes(),
             &members,
+        );
+        assert_eq!(
+            outcome.blocking().map(|finding| finding.id.as_str()),
+            Some("ssn")
+        );
+    }
+
+    #[test]
+    fn explosive_custom_guardrail_does_not_mask_other_guardrails() {
+        let mut content = String::with_capacity(64 * 1024 + 32);
+        let mut x = 1u32;
+        for _ in 0..(64 * 1024) {
+            x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            content.push(if (x >> 31) == 0 { 'a' } else { 'b' });
+        }
+        content.push_str(" 123-45-6789");
+        let body = format!(r#"{{"messages":[{{"role":"user","content":"{content}"}}]}}"#);
+        let outcome = check_request(
+            &[
+                guardrail("explosive", GuardrailAction::Block, &[r"[ab]*a[ab]{300}c"]),
+                guardrail("ssn", GuardrailAction::Block, &[SSN]),
+            ],
+            ApiFormat::OpenAiChatCompletions,
+            body.as_bytes(),
+            &scanned(&body, &["messages"]),
         );
         assert_eq!(
             outcome.blocking().map(|finding| finding.id.as_str()),

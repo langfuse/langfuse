@@ -15,6 +15,8 @@ export type GatewayGuardrailTestInputProps = {
   containsWords?: readonly string[];
   /** Server-computed match spans from the Rust WASM engine (used by Custom regex). */
   customMatches?: readonly { start: number; end: number }[];
+  /** True when the server preview stopped early to stay within the scan budget. */
+  customMatchesTruncated?: boolean;
   usesGatewayPreview?: boolean;
 };
 
@@ -32,6 +34,7 @@ export function GatewayGuardrailTestInput({
   secretPrefixes,
   containsWords,
   customMatches,
+  customMatchesTruncated = false,
   usesGatewayPreview = false,
 }: GatewayGuardrailTestInputProps) {
   const inputId = useId();
@@ -61,7 +64,11 @@ export function GatewayGuardrailTestInput({
     [segments],
   );
 
-  const matchCountLabel = formatMatchCount(value, matchCount);
+  const matchCountLabel = formatMatchCount(
+    value,
+    matchCount,
+    usesGatewayPreview && customMatchesTruncated,
+  );
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(event.target.value);
@@ -130,8 +137,16 @@ export function GatewayGuardrailTestInput({
   );
 }
 
-function formatMatchCount(value: string, matchCount: number): string | null {
+function formatMatchCount(
+  value: string,
+  matchCount: number,
+  truncated: boolean,
+): string | null {
   if (value.trim().length === 0) return null;
+  if (truncated) {
+    if (matchCount === 0) return "Preview stopped early (partial results)";
+    return `${matchCount}+ matches (partial preview)`;
+  }
   if (matchCount === 0) return "No matches";
   if (matchCount === 1) return "1 match";
   return `${matchCount} matches`;

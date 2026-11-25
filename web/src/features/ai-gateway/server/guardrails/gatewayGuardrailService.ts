@@ -298,6 +298,7 @@ export class GatewayGuardrailService {
           parsed.error.issues[0]?.message ?? "Enter a valid regular expression",
         errorCode: undefined,
         matches: [],
+        truncated: false,
       };
     }
     const result = previewRegexRule(
@@ -313,12 +314,14 @@ export class GatewayGuardrailService {
           : "Enter a valid regular expression.",
         errorCode: result.error?.code,
         matches: [],
+        truncated: false,
       };
     }
     return {
       valid: true,
       errorCode: undefined,
       matches: result.matches,
+      truncated: result.truncated,
     };
   }
 

@@ -69,6 +69,22 @@ test("wasm32 preview returns UTF-16 match spans and typed validation errors", ()
   assert.ok(invalid.error?.message);
   assert.deepEqual(invalid.matches, []);
 
+  const alt = preview("key|api_key", "prefix api_key suffix", RULE_LIMIT_BYTES);
+  assert.equal(alt.valid, true);
+  assert.equal(alt.truncated, false);
+  assert.deepEqual(
+    alt.matches.map(({ start, end }) => "prefix api_key suffix".slice(start, end)),
+    ["api_key"],
+  );
+
+  const lazy = preview("x+?y", "xxxy", RULE_LIMIT_BYTES);
+  assert.equal(lazy.valid, true);
+  assert.equal(lazy.truncated, false);
+  assert.deepEqual(
+    lazy.matches.map(({ start, end }) => "xxxy".slice(start, end)),
+    ["xxxy"],
+  );
+
   const adversarial =
     Array.from({ length: 80 }, (_, i) => `.+X${i}`).join("|") + "|.";
   const bounded = preview(adversarial, "é".repeat(4000), RULE_LIMIT_BYTES);

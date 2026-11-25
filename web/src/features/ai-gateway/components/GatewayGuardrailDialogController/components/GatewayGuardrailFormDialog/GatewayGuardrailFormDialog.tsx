@@ -269,6 +269,7 @@ type CustomRegexPreviewResult = {
   error?: string;
   errorCode?: string;
   matches: Array<{ start: number; end: number }>;
+  truncated?: boolean;
 };
 
 export type CustomRegexPreviewControl = {
@@ -389,12 +390,16 @@ export function GatewayGuardrailFormDialog({
     activeCustomRegexPreview && !activeCustomRegexPreview.valid
       ? activeCustomRegexPreview.errorCode
       : undefined;
-  const customRegexMatches =
-    activeCustomRegexPreview?.valid &&
+  const isCurrentCustomRegexPreview =
+    Boolean(activeCustomRegexPreview?.valid) &&
     customRegexPreview?.text ===
-      testText.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH)
-      ? activeCustomRegexPreview.matches
-      : [];
+      testText.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH);
+  const customRegexMatches = isCurrentCustomRegexPreview
+    ? (activeCustomRegexPreview?.matches ?? [])
+    : [];
+  const customRegexTruncated = isCurrentCustomRegexPreview
+    ? Boolean(activeCustomRegexPreview?.truncated)
+    : false;
 
   const toFormValues = (
     values: GuardrailFormSchemaValues,
@@ -714,6 +719,9 @@ export function GatewayGuardrailFormDialog({
                     }
                     customMatches={
                       isCustomRegex ? customRegexMatches : undefined
+                    }
+                    customMatchesTruncated={
+                      isCustomRegex ? customRegexTruncated : undefined
                     }
                     usesGatewayPreview={isCustomRegex}
                   />
@@ -1389,30 +1397,51 @@ function CustomRegexField({
         )}
       />
       {errorMessage ? (
-        <div className="flex flex-col gap-1">
-          <p className="text-destructive text-sm">{errorMessage}</p>
-          {showDocsLink || showSupportLink ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {showDocsLink ? (
-                <Button
-                  variant="text"
-                  size="sm"
-                  text="Read docs"
-                  href={GATEWAY_GUARDRAILS_DOCS_URL}
-                />
-              ) : null}
-              {showSupportLink ? (
-                <Button
-                  variant="text"
-                  size="sm"
-                  text="Contact support"
-                  onClick={onContactSupport}
-                />
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        <CustomRegexFieldError
+          errorMessage={errorMessage}
+          showDocsLink={showDocsLink}
+          showSupportLink={showSupportLink}
+          onContactSupport={onContactSupport}
+        />
       ) : null}
+    </div>
+  );
+}
+
+function CustomRegexFieldError({
+  errorMessage,
+  showDocsLink,
+  showSupportLink,
+  onContactSupport,
+}: {
+  errorMessage: string;
+  showDocsLink: boolean;
+  showSupportLink: boolean;
+  onContactSupport?: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-destructive text-sm">{errorMessage}</p>
+      {(showDocsLink || showSupportLink) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {showDocsLink && (
+            <Button
+              variant="text"
+              size="sm"
+              text="Read docs"
+              href={GATEWAY_GUARDRAILS_DOCS_URL}
+            />
+          )}
+          {showSupportLink && (
+            <Button
+              variant="text"
+              size="sm"
+              text="Contact support"
+              onClick={onContactSupport}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

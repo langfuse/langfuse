@@ -10,12 +10,12 @@
 //! (control plane); no limits are hardcoded in the WebAssembly module or
 //! enforced in [`compile_set`] / [`compile_captures`] (gateway).
 use regex_automata::{
-    Input,
+    Input, MatchKind,
     hybrid::{dfa as hybrid_dfa, regex as hybrid_regex},
     nfa::thompson::{self, pikevm::PikeVM},
 };
 #[cfg(feature = "gateway")]
-use regex_automata::{MatchKind, meta, nfa::thompson::WhichCaptures};
+use regex_automata::{PatternSet, meta, nfa::thompson::WhichCaptures, util::pool::Pool};
 use regex_syntax::{
     ast::{
         self, Ast, ClassAscii, ClassAsciiKind, ClassPerlKind, ClassSet, ClassSetItem, Flag,
@@ -597,15 +597,21 @@ fn build_preview_hybrid(hir: &Hir, max_bytes: u32) -> Option<hybrid_regex::Regex
         )
         .build_from_hir(hir)
         .ok()?;
-    let dfa_config = hybrid_dfa::Config::new()
+    let fwd_dfa_config = hybrid_dfa::Config::new()
         .cache_capacity(PREVIEW_DFA_CACHE_CAPACITY)
-        .minimum_cache_clear_count(Some(2));
+        .minimum_cache_clear_count(Some(2))
+        .minimum_bytes_per_state(Some(10));
+    let rev_dfa_config = fwd_dfa_config
+        .clone()
+        .match_kind(MatchKind::All)
+        .prefilter(None)
+        .specialize_start_states(false);
     let fwd_dfa = hybrid_dfa::Builder::new()
-        .configure(dfa_config.clone())
+        .configure(fwd_dfa_config)
         .build_from_nfa(fwd_nfa)
         .ok()?;
     let rev_dfa = hybrid_dfa::Builder::new()
-        .configure(dfa_config)
+        .configure(rev_dfa_config)
         .build_from_nfa(rev_nfa)
         .ok()?;
     Some(hybrid_regex::Builder::new().build_from_dfas(fwd_dfa, rev_dfa))
@@ -715,26 +721,126 @@ fn byte_spans_to_utf16(text: &str, byte_spans: &[(usize, usize)]) -> Vec<MatchSp
     out
 }
 
-/// Compiles rules into one multi-pattern regex configured for overlapping
+#[cfg(feature = "gateway")]
+const GATEWAY_DFA_CACHE_CAPACITY: usize = 256 * 1024;
+#[cfg(feature = "gateway")]
+const MAX_GATEWAY_PIKEVM_STEPS: usize = 2_000_000;
+
+/// Whether a gateway guardrail scan completed or stopped early on a DFA-explosive rule.
+#[cfg(feature = "gateway")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanOutcome {
+    Complete,
+    BudgetExceeded,
+}
+
+/// Multi-pattern guardrail matcher configured for overlapping detection
+/// (`MatchKind::All`, no captures) with a bounded lazy DFA and a step-bounded
+/// PikeVM fallback so one tenant's DFA-explosive pattern cannot stall shared
+/// gateway workers.
+#[cfg(feature = "gateway")]
+pub struct CompiledRuleSet {
+    dfa: hybrid_dfa::DFA,
+    dfa_caches: Pool<hybrid_dfa::Cache, Box<dyn Fn() -> hybrid_dfa::Cache + Send + Sync>>,
+    pikevm: PikeVM,
+    pikevm_caches:
+        Pool<thompson::pikevm::Cache, Box<dyn Fn() -> thompson::pikevm::Cache + Send + Sync>>,
+    nfa_states: usize,
+    memory_bytes: usize,
+}
+
+#[cfg(feature = "gateway")]
+impl CompiledRuleSet {
+    pub fn pattern_len(&self) -> usize {
+        self.dfa.pattern_len()
+    }
+
+    pub fn memory_usage(&self) -> usize {
+        self.memory_bytes
+    }
+
+    pub fn is_match(&self, haystack: &str) -> bool {
+        let mut found = PatternSet::new(self.pattern_len());
+        self.which_overlapping_matches(&Input::new(haystack.as_bytes()), &mut found);
+        !found.is_empty()
+    }
+
+    pub fn which_overlapping_matches(
+        &self,
+        input: &Input<'_>,
+        found: &mut PatternSet,
+    ) -> ScanOutcome {
+        let mut cache = self.dfa_caches.get();
+        if self
+            .dfa
+            .try_which_overlapping_matches(&mut cache, input, found)
+            .is_ok()
+        {
+            return ScanOutcome::Complete;
+        }
+        // Reset the thrashing cache before returning it to the pool.
+        self.dfa.reset_cache(&mut cache);
+        drop(cache);
+
+        let haystack_len = input.end().saturating_sub(input.start());
+        if self.nfa_states.saturating_mul(haystack_len) > MAX_GATEWAY_PIKEVM_STEPS {
+            return ScanOutcome::BudgetExceeded;
+        }
+        let mut pikevm_cache = self.pikevm_caches.get();
+        self.pikevm
+            .which_overlapping_matches(&mut pikevm_cache, input, found);
+        ScanOutcome::Complete
+    }
+}
+
+/// Compiles rules into one multi-pattern matcher configured for overlapping
 /// detection (`MatchKind::All`, no captures) using the same ASCII-only
 /// translation as [`validate`]. Size limits are enforced in the control plane
 /// via [`validate`], not here.
 #[cfg(feature = "gateway")]
-pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String> {
+pub fn compile_set<S: AsRef<str>>(patterns: &[S]) -> Result<CompiledRuleSet, String> {
     let hirs: Vec<Hir> = patterns
         .iter()
         .map(|pattern| parse_to_hir(pattern.as_ref()).map_err(|error| error.message))
         .collect::<Result<_, _>>()?;
-    meta::Builder::new()
+    let refs: Vec<&Hir> = hirs.iter().collect();
+    let nfa = thompson::Compiler::new()
         .configure(
-            meta::Config::new()
-                .match_kind(MatchKind::All)
-                .utf8_empty(false)
+            thompson::Config::new()
                 .which_captures(WhichCaptures::None)
                 .nfa_size_limit(None),
         )
-        .build_many_from_hir(&hirs)
-        .map_err(|error| describe(&error))
+        .build_many_from_hir(&refs)
+        .map_err(|error| describe(&error))?;
+    let nfa_states = nfa.states().len().max(1);
+    let dfa = hybrid_dfa::Builder::new()
+        .configure(
+            hybrid_dfa::Config::new()
+                .match_kind(MatchKind::All)
+                .cache_capacity(GATEWAY_DFA_CACHE_CAPACITY)
+                .minimum_cache_clear_count(Some(2))
+                .minimum_bytes_per_state(Some(10)),
+        )
+        .build_from_nfa(nfa.clone())
+        .map_err(|error| describe(&error))?;
+    let pikevm = PikeVM::new_from_nfa(nfa).map_err(|error| describe(&error))?;
+    let memory_bytes = dfa.memory_usage() + pikevm.get_nfa().memory_usage();
+
+    let dfa_for_pool = dfa.clone();
+    let dfa_caches = Pool::new(Box::new(move || dfa_for_pool.create_cache())
+        as Box<dyn Fn() -> hybrid_dfa::Cache + Send + Sync>);
+    let pikevm_for_pool = pikevm.clone();
+    let pikevm_caches = Pool::new(Box::new(move || pikevm_for_pool.create_cache())
+        as Box<dyn Fn() -> thompson::pikevm::Cache + Send + Sync>);
+
+    Ok(CompiledRuleSet {
+        dfa,
+        dfa_caches,
+        pikevm,
+        pikevm_caches,
+        nfa_states,
+        memory_bytes,
+    })
 }
 
 /// Compiles one rule with leftmost-first capture support for span extraction,
@@ -964,6 +1070,16 @@ mod tests {
         );
         assert!(invalid.matches.is_empty());
 
+        // Prefix-sharing alternations and lazy quantifiers require MatchKind::All
+        // on the reverse lazy DFA so match starts are not truncated.
+        let alt = preview(r"key|api_key", "prefix api_key suffix", RULE_LIMIT_BYTES);
+        assert!(alt.valid && !alt.truncated);
+        assert_eq!(alt.matches, vec![MatchSpan { start: 7, end: 14 }]);
+
+        let lazy = preview(r"x+?y", "xxxy", RULE_LIMIT_BYTES);
+        assert!(lazy.valid && !lazy.truncated);
+        assert_eq!(lazy.matches, vec![MatchSpan { start: 0, end: 4 }]);
+
         // Pathological leftmost-first alternation stops once the scan budget is exhausted.
         let mut alts = Vec::new();
         for i in 0..80 {
@@ -980,11 +1096,28 @@ mod tests {
     }
 
     #[test]
-    fn compiled_set_reports_overlapping_matches() {
+    fn compiled_set_reports_overlapping_matches_and_bounds_dfa_blowup() {
         let regex = compile_set(&[r"\b\d{3}-\d{2}-\d{4}\b", r"[a-z]+@[a-z]+\.com"]).unwrap();
         let mut found = PatternSet::new(regex.pattern_len());
-        regex.which_overlapping_matches(&Input::new(b"mail a@b.com ssn 078-05-1120"), &mut found);
+        let outcome = regex
+            .which_overlapping_matches(&Input::new(b"mail a@b.com ssn 078-05-1120"), &mut found);
+        assert_eq!(outcome, ScanOutcome::Complete);
         let hits: Vec<usize> = found.iter().map(|id| id.as_usize()).collect();
         assert_eq!(hits, vec![0, 1]);
+
+        // DFA-explosive pattern on a 64 KiB alternating haystack hits the scan budget
+        // instead of stalling on an unbounded PikeVM fallback.
+        let explosive = compile_set(&[r"[ab]*a[ab]{300}c"]).unwrap();
+        let mut hay = Vec::with_capacity(64 * 1024);
+        let mut x = 1u32;
+        for _ in 0..(64 * 1024) {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            hay.push(if (x >> 31) == 0 { b'a' } else { b'b' });
+        }
+        let mut explosive_found = PatternSet::new(explosive.pattern_len());
+        assert_eq!(
+            explosive.which_overlapping_matches(&Input::new(&hay), &mut explosive_found),
+            ScanOutcome::BudgetExceeded
+        );
     }
 }
