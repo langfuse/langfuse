@@ -224,6 +224,7 @@ function TopicSetupSession({
 
   // Step 1 only checks the models; nothing is stored until the Traces step.
   async function checkModels() {
+    setSlotErrors({});
     const errors = await testModels.mutateAsync({
       projectId,
       ...resolveModels(),
