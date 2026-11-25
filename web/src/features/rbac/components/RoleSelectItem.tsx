@@ -3,6 +3,7 @@ import { type SystemRole } from "@langfuse/shared/src/db";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SelectItem } from "@/src/components/ui/select";
+import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import {
   roleDisplay,
   type RoleDisplay,
@@ -14,6 +15,7 @@ export const RoleSelectItem = ({
   display = roleDisplay,
   isProjectRole,
   disabledReason,
+  showPermissionCount,
   onViewPermissions,
 }: {
   role: SystemRole;
@@ -22,6 +24,7 @@ export const RoleSelectItem = ({
   isProjectRole?: boolean;
   /** disabledReason makes the option unselectable and explains why. */
   disabledReason?: string;
+  showPermissionCount?: boolean;
   onViewPermissions: (role: SystemRole) => void;
 }) => {
   const { name: label, description, Icon } = display(role);
@@ -39,6 +42,12 @@ export const RoleSelectItem = ({
           <span className="font-bold">
             {label}
             {keepDefaultNote ? " (keep default role)" : ""}
+            {showPermissionCount && role !== "NONE" && (
+              <span className="text-muted-foreground text-xs font-normal">
+                {" "}
+                · {rolePermissionCountLabel(role)}
+              </span>
+            )}
           </span>
           <span className="text-muted-foreground text-xs">{description}</span>
           {disabledReason !== undefined && (
