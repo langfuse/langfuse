@@ -132,10 +132,14 @@ export function useRuleCostEstimate({
       estimatingEvaluatorIds,
     });
     const timeout = window.setTimeout(() => {
-      const unprobedEvaluatorIds = estimatingEvaluatorIds.filter(
-        (evaluatorId) => !probedEvaluatorIds.current.has(evaluatorId),
-      );
-      estimatingEvaluatorIds.forEach((evaluatorId) =>
+      // Trace estimates never run the missing-cost test.
+      const unprobedEvaluatorIds =
+        targetObject === TopicsTargetObject
+          ? []
+          : estimatingEvaluatorIds.filter(
+              (evaluatorId) => !probedEvaluatorIds.current.has(evaluatorId),
+            );
+      unprobedEvaluatorIds.forEach((evaluatorId) =>
         probedEvaluatorIds.current.add(evaluatorId),
       );
       estimateCost({
