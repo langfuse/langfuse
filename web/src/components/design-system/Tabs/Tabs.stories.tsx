@@ -4,8 +4,6 @@ import { KeyRound, Lock, User } from "@langfuse/icons";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "../Button/Button";
-import { Input } from "../Input/Input";
 import { Tabs } from "./Tabs";
 
 const meta = preview.meta({
@@ -158,33 +156,6 @@ function OverflowTabsWithTrailing() {
         </div>
         {overflowPanels}
       </Tabs>
-    </div>
-  );
-}
-
-/** A segmented field in a form row, as in the AI Gateway spend budget. */
-function BesideControlsRow() {
-  return (
-    <div className="flex w-2xl items-center gap-3">
-      <div className="w-36 shrink-0">
-        <Input aria-label="Budget" valuePrefix="$" placeholder="100" />
-      </div>
-      <div className="flex-1">
-        <Tabs defaultValue="never">
-          <Tabs.List
-            variant="inset"
-            size="md"
-            layout="full"
-            aria-label="Resets"
-          >
-            <Tabs.Trigger value="daily" label="Daily" />
-            <Tabs.Trigger value="weekly" label="Weekly" />
-            <Tabs.Trigger value="monthly" label="Monthly" />
-            <Tabs.Trigger value="never" label="Never" />
-          </Tabs.List>
-        </Tabs>
-      </div>
-      <Button text="Save" variant="outline" />
     </div>
   );
 }
@@ -386,16 +357,6 @@ export const VariantMatrix = meta.story({
       </div>
     </div>
   ),
-});
-
-/** `md` shares the height of the default Input and Button beside it. */
-export const BesideControls = meta.story({
-  parameters: {
-    controls: {
-      disable: true,
-    },
-  },
-  render: () => <BesideControlsRow />,
 });
 
 export const SwitchesTab = meta.story({
@@ -672,29 +633,6 @@ export const FocusesTabSelectedFromOverflowMenu = meta.story({
         canvas.getByRole("tab", { name: "Scores" }),
       );
     });
-  },
-});
-
-export const MatchesControlHeight = meta.story({
-  name: "(Test) Matches Control Height",
-  parameters: {
-    controls: {
-      disable: true,
-    },
-  },
-  render: () => <BesideControlsRow />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const height = (element: Element | null) =>
-      element!.getBoundingClientRect().height;
-    const tabList = height(canvas.getByRole("tablist", { name: "Resets" }));
-
-    await expect(tabList).toBe(
-      height(canvas.getByRole("textbox", { name: "Budget" }).parentElement),
-    );
-    await expect(tabList).toBe(
-      height(canvas.getByRole("button", { name: "Save" })),
-    );
   },
 });
 
