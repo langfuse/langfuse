@@ -168,7 +168,7 @@ export function StudioWidgetResultPresentation({
           .join(". ")
       : result.data?.warnings.join(". ");
   return (
-    <div className="ph-no-capture flex h-full min-h-0 flex-col">
+    <div className="group/widget ph-no-capture flex h-full min-h-0 flex-col">
       <Frame
         title={title ?? config.title}
         description={config.description}

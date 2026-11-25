@@ -15,7 +15,7 @@ import { type DashboardDefinition, type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import Router from "next/router";
-import { v4 as uuidv4 } from "uuid";
+import { duplicateStudioWidget } from "@/src/features/dashboard-studio/duplicateStudioWidget";
 import { StudioPlacementCard } from "@/src/features/dashboard-studio/StudioPlacementCard";
 import { useDashboardStudioCapture } from "@/src/features/dashboard-studio/analytics";
 import { useDashboardStudioEnabled } from "@/src/features/dashboard-studio/useDashboardStudioEnabled";
@@ -247,6 +247,10 @@ export function DashboardGrid({
           onEdit={
             canChange
               ? (tabId) => {
+                  if (dashboardOwner === "LANGFUSE" && onLockedEditAttempt) {
+                    onLockedEditAttempt();
+                    return;
+                  }
                   if (onEditStudioPlacement)
                     onEditStudioPlacement(widget, tabId);
                   else
@@ -274,8 +278,7 @@ export function DashboardGrid({
                     return;
                   }
                   const copy = {
-                    ...structuredClone(widget),
-                    id: uuidv4(),
+                    ...duplicateStudioWidget(widget),
                     ...findFreeGridPosition(widgets, widget),
                   };
                   track("widget_duplicated", { widgetKind: widget.type });

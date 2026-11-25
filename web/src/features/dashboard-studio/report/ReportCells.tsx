@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { PencilIcon } from "@langfuse/icons";
+import { CopyPlusIcon, PencilIcon } from "@langfuse/icons";
 import {
   normalizeStudioWidget,
   type DashboardDomain,
   type FilterState,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { ReportMarkdown } from "./ReportMarkdown";
 import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
@@ -64,10 +63,12 @@ function QueryOutput({
   cell,
   context,
   onEdit,
+  onDuplicate,
 }: {
   cell: ReportQuery;
   context: OutputContext;
   onEdit?: (cell: ReportQuery, tabId?: string) => void;
+  onDuplicate?: (cell: ReportQuery | ReportNote) => void;
 }) {
   const { tabs } = normalizeStudioWidget(cell.config);
   const [activeId, setActiveId] = useState<string>();
@@ -75,7 +76,11 @@ function QueryOutput({
   const current = activeTab.chart.executionMode === "current";
   const inputs = activeTab.chart.queries.length;
   return (
-    <figure className="min-w-0">
+    <figure
+      id={"report-widget-" + cell.id}
+      tabIndex={-1}
+      className="min-w-0 outline-none"
+    >
       <div className="h-[32rem] min-w-0 sm:h-[24rem]">
         <StudioQueryWidget
           projectId={context.projectId}
@@ -84,6 +89,26 @@ function QueryOutput({
           filterState={context.filterState}
           config={cell.config}
           onTabChange={setActiveId}
+          actions={
+            onEdit && onDuplicate
+              ? {
+                  buttons: [
+                    {
+                      id: "edit",
+                      label: "Edit widget",
+                      icon: PencilIcon,
+                      onClick: () => onEdit(cell, activeTab.id),
+                    },
+                    {
+                      id: "duplicate",
+                      label: "Duplicate widget",
+                      icon: CopyPlusIcon,
+                      onClick: () => onDuplicate(cell),
+                    },
+                  ],
+                }
+              : undefined
+          }
         />
       </div>
       <figcaption className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 px-1 pt-2 text-xs">
@@ -91,15 +116,6 @@ function QueryOutput({
           {current ? "Existing query API" : "Prototype query API"} · {inputs}{" "}
           {inputs === 1 ? "source query" : "source queries"}
         </span>
-        {onEdit && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={PencilIcon}
-            text="Edit chart"
-            onClick={() => onEdit(cell, activeTab.id)}
-          />
-        )}
       </figcaption>
     </figure>
   );
@@ -120,12 +136,14 @@ function ReportComparisons({
   pairs,
   context,
   onEdit,
+  onDuplicate,
   selected,
   onSelect,
 }: {
   pairs: Comparison[];
   context: OutputContext;
   onEdit?: (cell: ReportQuery, tabId?: string) => void;
+  onDuplicate?: (cell: ReportQuery | ReportNote) => void;
   selected?: string;
   onSelect: (id: string) => void;
 }) {
@@ -199,6 +217,7 @@ function ReportComparisons({
             cell={replacement}
             context={context}
             onEdit={onEdit}
+            onDuplicate={onDuplicate}
           />
         </div>
       </div>
@@ -221,6 +240,7 @@ export function ReportCells({
   context,
   onEditChart,
   onEditNote,
+  onDuplicate,
   editingNoteId,
   noteEditor,
   selectedPreset,
@@ -230,6 +250,7 @@ export function ReportCells({
   context: OutputContext;
   onEditChart?: (cell: ReportQuery, tabId?: string) => void;
   onEditNote?: (cell: ReportNote) => void;
+  onDuplicate?: (cell: ReportQuery | ReportNote) => void;
   editingNoteId?: string;
   noteEditor?: React.ReactNode;
   selectedPreset?: string;
@@ -258,6 +279,7 @@ export function ReportCells({
               pairs={pairs}
               context={context}
               onEdit={onEditChart}
+              onDuplicate={onDuplicate}
               selected={selectedPreset}
               onSelect={onSelectPreset}
             />
@@ -270,15 +292,18 @@ export function ReportCells({
               cell={cell}
               context={context}
               onEdit={onEditChart}
+              onDuplicate={onDuplicate}
             />
           );
         if (cell.type === "text")
           return (
             <ReportMarkdown
               key={cell.id}
+              widgetId={cell.id}
               title={cell.title}
               content={cell.content}
               onEdit={onEditNote && (() => onEditNote(cell))}
+              onDuplicate={onDuplicate && (() => onDuplicate(cell))}
             />
           );
         return (

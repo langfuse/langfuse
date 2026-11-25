@@ -42,7 +42,7 @@ export function CurrentWidgetExperience({
         <p className="text-muted-foreground text-xs">
           Classic editor.{" "}
           {applyContext === "report"
-            ? "Save updates this report cell."
+            ? "Save updates this widget."
             : "Save applies this widget to the dashboard draft."}
         </p>
         <Button text="Cancel" variant="ghost" onClick={onCancel} />

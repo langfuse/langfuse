@@ -130,24 +130,26 @@ export function StudioPlacementCard({
     );
   return (
     <section className="group bg-background relative flex h-full min-h-0 flex-col rounded-lg border shadow-xs">
-      {buttons.length ? (
-        <div className="bg-background absolute top-2 right-2 flex items-center gap-1 rounded border p-1 opacity-0 shadow-xs group-focus-within:opacity-100 group-hover:opacity-100">
-          <GripVerticalIcon
-            size="base"
-            __rawClassName="drag-handle cursor-grab"
-          />
-          {buttons.map((button) => (
-            <IconButton
-              key={button.id}
-              label={button.label}
-              icon={button.icon}
-              onClick={button.onClick}
-              size="sm"
-            />
-          ))}
-        </div>
-      ) : null}
       <div ref={textContentRef} className="min-w-0 shrink-0">
+        {buttons.length ? (
+          <div className="bg-background pointer-events-none absolute top-2 right-2 z-10 flex items-center gap-1 rounded border p-1 opacity-0 shadow-xs group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:ml-auto [@media(hover:none)]:w-fit [@media(hover:none)]:opacity-100">
+            {onEdit && (
+              <GripVerticalIcon
+                size="base"
+                __rawClassName="drag-handle hidden cursor-grab lg:block"
+              />
+            )}
+            {buttons.map((button) => (
+              <IconButton
+                key={button.id}
+                label={button.label}
+                icon={button.icon}
+                onClick={button.onClick}
+                size="sm"
+              />
+            ))}
+          </div>
+        ) : null}
         <StudioTextWidget title={placement.title} content={placement.content} />
       </div>
     </section>

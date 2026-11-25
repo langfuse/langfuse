@@ -295,7 +295,7 @@ export function DataCard({
             </div>
           ))}
           {actions && (
-            <div className="bg-card text-muted-foreground absolute top-2 right-2 z-1 flex items-center gap-2 rounded-md border px-2 py-1 opacity-0 shadow-sm group-focus-within:opacity-100 group-hover:opacity-100 has-aria-expanded:opacity-100">
+            <div className="bg-card text-muted-foreground pointer-events-none absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border p-1 opacity-0 shadow-sm group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-hover/widget:pointer-events-auto group-hover/widget:opacity-100 has-aria-expanded:pointer-events-auto has-aria-expanded:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:opacity-100">
               {actions.draggable && (
                 <GripVerticalIcon
                   size="base"
@@ -311,7 +311,7 @@ export function DataCard({
                     title={label}
                     onClick={onClick}
                     disabled={disabled}
-                    className="hover:text-foreground disabled:opacity-50"
+                    className="hover:bg-accent hover:text-foreground focus-visible:ring-ring grid size-7 cursor-pointer place-items-center rounded-sm focus-visible:ring-2 disabled:opacity-50 [@media(pointer:coarse)]:size-9"
                   >
                     <Icon size="base" />
                   </button>

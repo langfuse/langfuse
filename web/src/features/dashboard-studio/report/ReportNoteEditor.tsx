@@ -20,7 +20,7 @@ export function ReportNoteEditor({
   const [preview, setPreview] = useState(false);
   return (
     <form
-      aria-label="Markdown cell"
+      aria-label="Markdown widget"
       className="ph-no-capture bg-background space-y-3 rounded-lg border p-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -28,7 +28,7 @@ export function ReportNoteEditor({
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-bold">Markdown cell</span>
+        <span className="text-sm font-bold">Markdown widget</span>
         <Button
           size="sm"
           variant="ghost"
@@ -72,7 +72,7 @@ export function ReportNoteEditor({
         />
         <Button
           size="sm"
-          text="Save cell"
+          text="Save widget"
           type="submit"
           loading={saving}
           disabled={!content.trim() && !title.trim()}

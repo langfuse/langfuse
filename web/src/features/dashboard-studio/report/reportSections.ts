@@ -53,7 +53,7 @@ export function insertReportCell(
   const index = sections.findIndex((section) => section.id === sectionId);
   if (index === -1)
     throw new Error(
-      "This section has changed. Reopen the report to add a cell.",
+      "This section has changed. Reopen the report to add a widget.",
     );
   const next = sections[index + 1]?.heading;
   const y =

@@ -1,3 +1,5 @@
+import { duplicateStudioWidget } from "./duplicateStudioWidget";
+import type { StudioPlacement } from "./StudioPlacementCard";
 import { createStore } from "zustand/vanilla";
 import { type DashboardDefinition } from "@langfuse/shared";
 import { findFreeGridPosition } from "@/src/features/widgets/utils/grid-placement";
@@ -11,7 +13,7 @@ type StudioState = {
     replace: (definition: DashboardDefinition) => void;
     put: (placement: Placement) => void;
     remove: (id: string) => void;
-    duplicate: (placement: Placement) => void;
+    duplicate: (placement: StudioPlacement) => void;
     undo: () => void;
     discard: () => void;
     markSaved: (definition: DashboardDefinition) => void;
@@ -57,10 +59,7 @@ export function createStudioStore(initialDefinition: DashboardDefinition) {
             widgets: get().definition.widgets.filter((item) => item.id !== id),
           }),
         duplicate: (placement) => {
-          get().actions.put({
-            ...placement,
-            id: crypto.randomUUID(),
-          });
+          get().actions.put(duplicateStudioWidget(placement));
         },
         undo: () => {
           const { history } = get();

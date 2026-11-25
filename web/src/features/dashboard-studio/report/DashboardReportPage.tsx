@@ -40,6 +40,7 @@ import {
   WidgetVisionEditor,
   readWidgetEditorMode,
 } from "../WidgetVisionEditor";
+import { duplicateStudioWidget } from "../duplicateStudioWidget";
 import { ReportCells } from "./ReportCells";
 import { ReportMarkdown } from "./ReportMarkdown";
 import { ReportNoteEditor } from "./ReportNoteEditor";
@@ -258,6 +259,7 @@ function ReportNotebook({
   const save = async (
     draft: ReportQuery | ReportNote,
     original: ReportQuery | ReportNote | undefined,
+    duplicateOf?: ReportQuery | ReportNote,
   ) => {
     if (saving.current || !canEdit) return;
     saving.current = true;
@@ -266,10 +268,12 @@ function ReportNotebook({
     try {
       const latest = await utils.client.dashboard.getDashboard.query(identity);
       const definition = DashboardDefinitionSchema.parse(latest.definition);
-      const target = definition.widgets.find((w) => w.id === draft.id);
-      if (original && (!target || hashKey([target]) !== hashKey([original])))
+      const source = original ?? duplicateOf;
+      const target =
+        source && definition.widgets.find((w) => w.id === source.id);
+      if (source && (!target || hashKey([target]) !== hashKey([source])))
         throw new Error(
-          "This cell changed in another editor. Reopen it to review the latest version.",
+          "This widget changed in another editor. Reopen it to review the latest version.",
         );
       const next = original
         ? {
@@ -286,7 +290,9 @@ function ReportNotebook({
         supportedPlacementTypes: ["widget", "preset", "query", "text"],
       });
       utils.dashboard.getDashboard.setData(identity, updated);
-      track("widget_saved", { widgetKind: draft.type });
+      track(duplicateOf ? "widget_duplicated" : "widget_saved", {
+        widgetKind: draft.type,
+      });
       setNote(undefined);
       setNewChart(undefined);
       const savedSection = reportSections(next).find(
@@ -302,11 +308,18 @@ function ReportNotebook({
         },
         true,
       );
+      if (duplicateOf) {
+        requestAnimationFrame(() => {
+          const copy = document.getElementById("report-widget-" + draft.id);
+          copy?.focus({ preventScroll: true });
+          copy?.scrollIntoView({ block: "nearest" });
+        });
+      }
     } catch (error) {
       setFailure(
         error instanceof Error
           ? error.message
-          : "The cell could not be saved. Try again.",
+          : "The widget could not be saved. Try again.",
       );
     } finally {
       saving.current = false;
@@ -495,8 +508,16 @@ function ReportNotebook({
                     track("view_changed", { widgetKind: "preset" });
                     routeState({ card: id }, true);
                   }}
-                  onEditChart={canEdit && !note ? openChart : undefined}
-                  onEditNote={canEdit && !note ? editNote : undefined}
+                  onEditChart={
+                    canEdit && !note && !busy ? openChart : undefined
+                  }
+                  onDuplicate={
+                    canEdit && !note && !busy
+                      ? (widget) =>
+                          save(duplicateStudioWidget(widget), undefined, widget)
+                      : undefined
+                  }
+                  onEditNote={canEdit && !note && !busy ? editNote : undefined}
                   editingNoteId={note?.id}
                   noteEditor={noteEditor}
                 />
