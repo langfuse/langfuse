@@ -165,6 +165,7 @@ export { normalizeIO } from "./normalized-io/parser";
 export { type NormalizedEvalRecord } from "./normalized-io/projections/eval-record";
 export { toEvalRecord } from "./normalized-io/projections/eval-record";
 export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
+export { toEvalVariables } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
 export {
@@ -414,7 +415,6 @@ export { getScoresForBlobStorageExportParquet } from "./repositories/scores";
 export { getScoresForAnalyticsIntegrations } from "./repositories/scores";
 export { hasAnyScore } from "./repositories/scores";
 export { getScoreMetadataById } from "./repositories/scores";
-export { getScoreCountsByProjectAndDay } from "./repositories/scores";
 export { ScoresCursorV3 } from "./repositories/scores";
 export { type ScoresCursorV3Type } from "./repositories/scores";
 export { EncodedScoresCursorV3 } from "./repositories/scores";
@@ -456,7 +456,6 @@ export { getTracesForBlobStorageExportParquet } from "./repositories/traces";
 export { getTracesForAnalyticsIntegrations } from "./repositories/traces";
 export { getTracesByIdsForAnyProject } from "./repositories/traces";
 export { getAgentGraphData } from "./repositories/traces";
-export { getTraceCountsByProjectAndDay } from "./repositories/traces";
 export { TRACE_FIELD_GROUPS } from "./repositories/traces";
 export { type TraceFieldGroup } from "./repositories/traces";
 export { type TraceQueryType } from "./repositories/traces";
@@ -498,7 +497,6 @@ export { getObservationsForBlobStorageExport } from "./repositories/observations
 export { getObservationsForBlobStorageExportRaw } from "./repositories/observations";
 export { getObservationsForBlobStorageExportParquet } from "./repositories/observations";
 export { getGenerationsForAnalyticsIntegrations } from "./repositories/observations";
-export { getObservationCountsByProjectAndDay } from "./repositories/observations";
 export { getCostByEvaluatorIds } from "./repositories/observations";
 export { getAvgCostByEvaluatorIdsFromObservations } from "./repositories/observations";
 export { generateObservationsForPublicApi } from "./repositories/observations";
@@ -569,7 +567,12 @@ export { getAvgCostByEvaluatorIds } from "./repositories/events";
 export { getTotalCostByRule } from "./repositories/events";
 export { getTotalCostByEvaluatorIds } from "./repositories/events";
 export { getLatestEvaluatorRunCost } from "./repositories/events";
-export { getGatewaySpendSinceFromEvents } from "./repositories/events";
+export {
+  getGatewaySpendSinceFromEvents,
+  getGatewayGuardrailFlaggedCountsFromEvents,
+  getGatewayGuardrailFlaggedTimeSeriesFromEvents,
+  type GatewayGuardrailTimeBucket,
+} from "./repositories/events";
 export { getEvaluatorExecutionSummaries } from "./repositories/events";
 export { getSessionMetricsFromEvents } from "./repositories/events";
 export { type SdkMetadata } from "./repositories/events";
@@ -759,6 +762,7 @@ export {
   getBillableEventsLedgerStart,
   getBillableUnitCountsByProjectAndBucket,
   getBillableUnitCountsByProjectInWindow,
+  getBillableUnitCountsForAllProjectsInRange,
 } from "./repositories/billable-events";
 export { getTopicSetupTraceCount } from "./repositories/topic-setup-events";
 export {

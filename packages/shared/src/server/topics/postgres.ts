@@ -20,6 +20,7 @@ import {
   writeTopicDefinitions,
 } from "./clickhouse";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { topicRuleWhere } from "./processing-gate";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
@@ -211,7 +212,7 @@ export async function setTopicRuleEnabled(
     data: { status: enabled ? "ACTIVE" : "INACTIVE" },
   });
   if (!updated.count)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   await invalidateProjectEvalConfigCaches(projectId);
   return (await getTopicRule(projectId, id))!;
 }
@@ -303,7 +304,7 @@ export async function writeTopicRule(
     ? rules.find((rule) => rule.id === input.id)
     : (input.firstRule && rules[0]) || undefined;
   if (input.id && !existing)
-    throw new InvalidRequestError("Topic rule not found in this project.");
+    throw new LangfuseNotFoundError("Topic rule not found in this project.");
   if (!existing && rules.length >= TOPICS_MAX_RULES)
     throw new InvalidRequestError(
       `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,

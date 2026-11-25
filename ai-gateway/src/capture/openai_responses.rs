@@ -307,5 +307,135 @@ impl OpenAiResponsesCapture {
     }
 }
 
+/// Responses takes `input` as a string or a list of items, and the system prompt as
+/// `instructions`. The last turn is every item after the last one the model
+/// produced (an assistant message, a tool call or reasoning): the user's message or
+/// the outputs of the model's tool calls. Instructions count only on the first turn.
+/// The top-level members guardrails scan.
+/// `previous_response_id` and `conversation` are only read to tell whether earlier
+/// turns are stored upstream; `prompt` for the variables it fills a stored prompt with.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &[
+    "input",
+    "instructions",
+    "previous_response_id",
+    "conversation",
+    "prompt",
+];
+
+#[derive(serde::Deserialize)]
+struct GuardrailItem<'a> {
+    #[serde(borrow, default, rename = "type")]
+    kind: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    role: Option<&'a serde_json::value::RawValue>,
+    #[serde(borrow, default)]
+    content: Option<&'a serde_json::value::RawValue>,
+    /// The result of a tool call, in `*_call_output` items.
+    #[serde(borrow, default)]
+    output: Option<&'a serde_json::value::RawValue>,
+}
+
+impl GuardrailItem<'_> {
+    /// The model's messages, reasoning and tool calls (`function_call`,
+    /// `web_search_call`, `mcp_call`, ...) come from the model; user, system and
+    /// developer messages are messages; tool outputs and anything else answer it.
+    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
+        let role = self.role.and_then(crate::guardrails::text::string);
+        let kind = self.kind.and_then(crate::guardrails::text::string);
+        let kind = kind.as_deref().unwrap_or_default();
+        match role.as_deref() {
+            Some("assistant") => crate::guardrails::text::TurnItem::Model,
+            Some("user" | "system" | "developer") => crate::guardrails::text::TurnItem::Message,
+            _ if kind == "reasoning"
+                || kind.ends_with("_call")
+                || (kind.starts_with("mcp_") && kind != "mcp_approval_response") =>
+            {
+                crate::guardrails::text::TurnItem::Model
+            }
+            _ => crate::guardrails::text::TurnItem::Output,
+        }
+    }
+}
+
+fn classify_guardrail_item(
+    item: &serde_json::value::RawValue,
+) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
+    let item: GuardrailItem<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    Ok(item.turn_item())
+}
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_item = match member("input") {
+        Some(items) if items.starts_with('[') => {
+            turn.push_items("input", items, classify_guardrail_item, read_guardrail_item)?
+        }
+        Some(input) => {
+            turn.push_member("input", input);
+            false
+        }
+        None => false,
+    };
+    // Instructions are resent on every turn, also when the provider stores the earlier
+    // turns, so they are scanned only on the first one.
+    let continues = ["previous_response_id", "conversation"]
+        .into_iter()
+        .any(|name| member(name).is_some_and(|value| value != "null"));
+    if !had_model_item
+        && !continues
+        && let Some(instructions) = member("instructions")
+    {
+        turn.push_member("instructions", instructions);
+    }
+    // Variables fill a stored prompt with new caller text on every request.
+    if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
+        turn.push_member_with("prompt", prompt, read_guardrail_prompt);
+    }
+    Ok(turn)
+}
+
+#[derive(serde::Deserialize)]
+struct GuardrailPrompt<'a> {
+    #[serde(borrow, default)]
+    variables: Option<&'a serde_json::value::RawValue>,
+}
+
+/// Variable values are strings or input parts.
+fn read_guardrail_prompt(
+    prompt: &serde_json::value::RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let prompt: GuardrailPrompt<'_> =
+        serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    let Some(variables) = prompt
+        .variables
+        .filter(|variables| variables.get().starts_with('{'))
+    else {
+        return Ok(());
+    };
+    crate::guardrails::text::for_each_value(variables.get(), |value| {
+        if value.get().starts_with('{') {
+            crate::guardrails::text::collect_part(value, sink)
+        } else {
+            crate::guardrails::text::collect(value, sink)
+        }
+    })
+}
+
+fn read_guardrail_item(
+    item: &serde_json::value::RawValue,
+    sink: &mut dyn FnMut(&str),
+) -> Result<(), crate::guardrails::text::Unreadable> {
+    let item: GuardrailItem<'_> =
+        serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
+    for value in [item.content, item.output].into_iter().flatten() {
+        crate::guardrails::text::collect(value, sink)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;

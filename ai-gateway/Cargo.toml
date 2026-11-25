@@ -35,6 +35,8 @@ secrecy = { version = "0.10", features = ["serde"] }
 thiserror = "2"
 redis = { version = "1.8", default-features = false, features = ["tokio-comp", "cluster-async", "tokio-rustls-comp", "tls-rustls", "connection-manager"] }
 regex = "1"
+quick_cache = { version = "0.7.0", default-features = false, features = ["parking_lot"] }
+regex-automata = "0.4"
 
 [dev-dependencies]
 http-body = "1"

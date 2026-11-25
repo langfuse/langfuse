@@ -18,7 +18,7 @@ import {
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import { AIFeatureSettingRow } from "@/src/features/organizations/components/AIFeatureSettingRow";
 
@@ -134,7 +134,7 @@ export default function AIFeatureSwitch() {
                   className="text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   More details in the docs here.
-                  <ExternalLink size="sm" />
+                  <SquareArrowOutUpRight size="sm" />
                 </a>
               </>
             ) : (
@@ -197,7 +197,7 @@ export default function AIFeatureSwitch() {
                     className="text-primary inline-flex items-center gap-1 hover:underline"
                   >
                     Learn more in the docs.
-                    <ExternalLink size="sm" />
+                    <SquareArrowOutUpRight size="sm" />
                   </a>
                 </>
               )}

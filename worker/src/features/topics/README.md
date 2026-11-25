@@ -7,15 +7,15 @@ Topics turns v4 traces into facet summaries, embeddings and topic assignments. T
 - [processTopicsExecution.ts](processTopicsExecution.ts): snapshot fits (`update` executions) and rule refits, both on the `topics-update` queue.
 - [summarizeAssembledTrace.ts](summarizeAssembledTrace.ts): shared facet extraction and automatic processing of an already assembled transcript.
 - [nightlyRefit.ts](nightlyRefit.ts): daily scheduling of each rule's continuous map.
-- [models.ts](models.ts): model requests, token budgets, naming and cost estimates.
+- [llm/models.ts](llm/models.ts): model requests, token budgets, naming and cost estimates. The live provider tests sit next to it; see [Verification](#verification).
 - [numeric.ts](numeric.ts), [classifier.ts](classifier.ts), [continuity.ts](continuity.ts): fitting, membership and topic identity.
 - [shared Topics](../../../../packages/shared/src/server/topics/): configuration, persistence, and queue contracts.
 
 ## Enablement and models
 
-Topics requires `LANGFUSE_TOPICS_ENABLED=true`, on Langfuse Cloud and self-hosted alike. Read access, configuration and processing also require the project in `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Keep web and worker configuration aligned. An empty allowlist disables Topics access for all projects. Trace and project deletion clean Topics data independently of these gates.
+Topics is available on every deployment. Automatic processing runs only for projects that enable it and configure all three models. Trace and project deletion clean Topics data regardless of project settings.
 
-Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Summarizing, for automatic intake and for setup backfills and snapshots alike, runs through the [trace dispatcher and the events-dispatch consumer](../traceDispatch/README.md), so `LANGFUSE_EVENTS_DISPATCH_ENABLED` and one worker with `QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED` are required.
+Use the normal migrated Postgres, ClickHouse and Redis stack and build shared and `@langfuse/native` before starting the worker. Summarizing, for automatic intake and for setup backfills and snapshots alike, runs through the [trace dispatcher and the events-dispatch consumer](../traceDispatch/README.md), so it requires events dispatch and its queue consumer (both on by default).
 
 Project settings resolve three LLM connections: summary, embedding and clustering (naming). Pass the resolved `TopicsModels` explicitly; credentials must not enter persisted execution or batch state. Model validation and connection lifecycle belong to [model-config.ts](../../../../packages/shared/src/server/topics/model-config.ts). The embedding model and dimensions are locked once embedded summaries exist. Discovery and later assignment must use the same embedding purpose and normalization; equal dimensions alone do not make vector spaces compatible. An execution whose frozen summary or embedding model differs from current settings must be restarted. Changing the naming model affects subsequent naming; it does not rename unchanged definitions.
 
@@ -67,7 +67,7 @@ The seeded trace IDs and the settle clock live in the BatchAction's `summarizing
 
 Topics summaries use the shared transcript producer and [topics-model-input.ts](../../../../packages/shared/src/server/transcript/topics-model-input.ts) projection. The model receives conversation history and current-turn messages without observation provenance, reasoning content, tool definitions or inline media payloads. Empty projected content produces `insufficient_input` without inference. The [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns observation eligibility and assembly semantics; diagnostic text renderers are not the Topics model input.
 
-[trace-input.ts](../../../../packages/shared/src/server/topics/trace-input.ts) bounds loading a single trace's transcript separately from the summary request's token budget. The request budget includes transcript, instructions and schema; oversized input fails before inference, without shortening evidence per facet. Keep tokenizer code and its WASM dependency in worker `models.ts`.
+[trace-input.ts](../../../../packages/shared/src/server/topics/trace-input.ts) bounds loading a single trace's transcript separately from the summary request's token budget. The request budget includes transcript, instructions and schema; oversized input fails before inference, without shortening evidence per facet. Keep tokenizer code and its WASM dependency in worker `llm/models.ts`.
 
 Facet prompts define extraction semantics in the shared Topics contracts. One request handles the missing facets of a trace. Applicability is distinct from success: non-applicable and insufficient-input results have empty summaries and are not embedded. A model call can serve multiple facets; account for its usage once across those result rows.
 
@@ -85,7 +85,7 @@ Later online assignments extend membership without changing initial coordinates.
 
 ## Costs, telemetry and cleanup
 
-[models.ts](models.ts) resolves the source project's custom/default model catalog through `findModel` and prices canonical usage with the shared [`calculateModelUsageCosts`](../../../../packages/shared/src/server/pricing-tiers/calculateModelUsageCosts.ts), including ingestion's pricing-tier selection. Explicit provider USD costs take precedence; missing usage is not inferred from token limits. Keep pricing lookup bounded; failures must not discard successful results or retry inference. Optional internal traces use the destination project's catalog independently.
+[llm/models.ts](llm/models.ts) resolves the source project's custom/default model catalog through `findModel` and prices canonical usage with the shared [`calculateModelUsageCosts`](../../../../packages/shared/src/server/pricing-tiers/calculateModelUsageCosts.ts), including ingestion's pricing-tier selection. Explicit provider USD costs take precedence; missing usage is not inferred from token limits. Keep pricing lookup bounded; failures must not discard successful results or retry inference. Optional internal traces use the destination project's catalog independently.
 
 Before a snapshot starts, the forecast prices summaries and embeddings for the selected new traces using a recent sample. Reusing existing summaries costs zero for those stages. Naming depends on which topics the fit discovers.
 
@@ -104,7 +104,7 @@ Trace deletion removes summaries and assignments, including map coordinates; pro
 ## Verification
 
 ```sh
-pnpm --filter worker run test features/topics
+pnpm --filter worker run test:exclude-llm-connections features/topics
 ```
 
-Provider calls are mocked. Native and storage integration suites need the built addon and migrated databases; consult the native README for Rust checks. Synthetic vectors and mocked models verify contracts, not semantic topic quality. Use `pnpm run seed -- list` for reproducible local traces before inspecting real model output. For embedding comparisons, see the [dated benchmark evidence and evaluation method](../../../../specs/bedrock-embedding-quality-research.md).
+Provider calls are mocked there. [llm/topicsLlmProviders.test.ts](llm/topicsLlmProviders.test.ts) makes real summary, embedding and naming calls for each model combination registered in [llm/__tests__/topicsLlmCombinations.ts](llm/__tests__/topicsLlmCombinations.ts) and asserts only that they succeed and parse. It needs the `LANGFUSE_LLM_CONNECTION_*` keys and runs in CI's `test-worker-llm-connections` job when a path in the `topics_llm` filter of `.github/ci-paths.yml` changes; locally use `pnpm --filter worker run test:topics-llm-providers` with those keys set. Native and storage integration suites need the built addon and migrated databases; consult the native README for Rust checks. Synthetic vectors and mocked models verify contracts, not semantic topic quality. Use `pnpm run seed -- list` for reproducible local traces before inspecting real model output. For embedding comparisons, see the [dated benchmark evidence and evaluation method](../../../../specs/bedrock-embedding-quality-research.md).

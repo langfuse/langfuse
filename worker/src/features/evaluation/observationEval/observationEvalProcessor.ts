@@ -53,6 +53,7 @@ import { type ObservationForEval } from "./types";
 /**
  * Dependencies for processing observation evals.
  * Allows S3 operations to be injected for testability.
+ * @internal
  */
 export interface ObservationEvalProcessorDeps {
   downloadObservationFromS3: (path: string) => Promise<string>;

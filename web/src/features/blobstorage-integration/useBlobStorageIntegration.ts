@@ -7,6 +7,7 @@ import {
   syncStatusToBadge,
 } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 
+/** @internal */
 export function getBlobStorageStatus(
   config: Parameters<typeof deriveSyncStatus>[0] | null,
 ): Status | undefined {

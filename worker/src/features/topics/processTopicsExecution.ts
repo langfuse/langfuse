@@ -7,7 +7,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  isTopicsEnabled,
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
@@ -38,6 +37,7 @@ import {
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicTimeRange,
+  reportedTopicSummaryState,
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
@@ -46,7 +46,7 @@ import {
   nameTopicGroup,
   prepareTopicNamingGroup,
   type NamingConflict,
-} from "./models";
+} from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -125,7 +125,7 @@ function countSummaries(
     (row) => row.state === "not_applicable",
   ).length;
   progress.counts.insufficientInput = summaries.filter(
-    (row) => row.state === "insufficient_input",
+    (row) => reportedTopicSummaryState(row.state) === "insufficient_input",
   ).length;
 }
 
@@ -845,7 +845,6 @@ export async function processTopicUpdateExecution({
   projectId: string;
   executionId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
   if (metadata.input.operation !== "update")
@@ -1007,7 +1006,6 @@ export async function processTopicRuleRefit({
   projectId: string;
   runId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const run = await getTopicRun(projectId, runId);
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
   if (run.status === "running") {
@@ -1023,6 +1021,8 @@ export async function processTopicRuleRefit({
   if (run.status !== "pending") return;
   const ruleId = run.ruleId;
   const metrics = new TopicMetrics();
+  const startedAt = performance.now();
+  let failure: unknown;
   const progress: TopicFacetProgress = {
     facetId: run.facetId,
     facetVersion: run.facetVersion,
@@ -1100,6 +1100,7 @@ export async function processTopicRuleRefit({
         );
       } catch (error) {
         progress.outcome = "failed";
+        failure = error;
         metrics.error("execution", error);
         if (isRejectedConnection(error))
           await pauseForRejectedConnection(projectId, error);
@@ -1127,5 +1128,11 @@ export async function processTopicRuleRefit({
       }
       span.setAttribute("langfuse.topics.facet_outcome", progress.outcome);
     },
+  );
+  metrics.ruleFit(
+    progress.outcome,
+    run.config.refresh === true ? "manual" : "automatic",
+    performance.now() - startedAt,
+    failure,
   );
 }

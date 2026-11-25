@@ -30,6 +30,7 @@ const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
   ]),
 );
 
+/** @internal */
 export const resolveEventFacetColumnId = (column: string): string =>
   FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
 

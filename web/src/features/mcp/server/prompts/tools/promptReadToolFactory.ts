@@ -113,6 +113,6 @@ export const createPromptReadTool = <const TName extends string>(
         },
       });
     },
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });
 };

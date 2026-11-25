@@ -29,6 +29,7 @@ import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flag
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
+import { OrganizationModelsSettings } from "@/src/features/models/components/OrganizationModelsSettings";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -60,6 +61,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
   });
+  const canReadOrganizationModels = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationModels:read",
+  });
   const canReadUsage = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationUsage:read",
@@ -88,6 +93,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showMembers: canReadSettings,
     showProjects: canReadSettings || organization.projects.length > 0,
     showOrganizationLlmConnections: canReadOrganizationLlmConnections,
+    showOrganizationModels: canReadOrganizationModels,
     showFeaturePreviews:
       canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
@@ -105,6 +111,7 @@ const getOrganizationSettingsPages = ({
   showMembers,
   showProjects,
   showOrganizationLlmConnections,
+  showOrganizationModels,
   showFeaturePreviews,
 }: {
   organization: {
@@ -128,6 +135,7 @@ const getOrganizationSettingsPages = ({
   showMembers: boolean;
   showProjects: boolean;
   showOrganizationLlmConnections: boolean;
+  showOrganizationModels: boolean;
   showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -245,6 +253,14 @@ const getOrganizationSettingsPages = ({
       </div>
     ),
     show: showOrganizationLlmConnections,
+  },
+  {
+    title: "Models",
+    slug: "models",
+    section: "Organization",
+    cmdKKeywords: ["models", "pricing", "prices", "tokenizer"],
+    content: <OrganizationModelsSettings organizationId={organization.id} />,
+    show: showOrganizationModels,
   },
   {
     title: "Members",

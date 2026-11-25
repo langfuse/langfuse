@@ -689,6 +689,11 @@ function TopicsWorkspaceContent({
           <Page
             headerProps={{
               title: "Topics",
+              help: {
+                description:
+                  "Topics clusters your traces into named topics, so you can spot recurring patterns without reading every trace.",
+                href: "https://langfuse.com/topics",
+              },
               className: "@container/topics-header",
               mobileActionButtons: mapStatus ? (
                 <span

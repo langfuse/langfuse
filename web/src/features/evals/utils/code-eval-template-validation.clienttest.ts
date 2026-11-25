@@ -9,10 +9,12 @@ import {
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   formatAndStripCodeEvalSourceForSubmit,
-  formatPythonCodeEvalSourceWithRuff,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
+} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import {
+  formatPythonCodeEvalSourceWithRuff,
   validateCodeEvalSourceWithLanguage,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 

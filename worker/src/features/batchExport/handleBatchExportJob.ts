@@ -422,6 +422,7 @@ const startExportHeartbeat = (params: {
 };
 
 /** Bumps updatedAt of the export if it is still PROCESSING. */
+/** @internal */
 export const touchRunningExport = ({
   projectId,
   batchExportId,
@@ -439,6 +440,7 @@ export const touchRunningExport = ({
   });
 
 /** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
+/** @internal */
 export const claimExportSlot = async ({
   projectId,
   userId,

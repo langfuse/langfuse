@@ -49,15 +49,10 @@ describe("extractTranscriptEvalVariables", () => {
           value: [
             {
               messages: [
-                {
-                  role: "user",
-                  parts: [{ type: "text", text: "hi" }],
-                  source: "input",
-                },
+                { role: "user", parts: [{ type: "text", text: "hi" }] },
                 {
                   role: "assistant",
                   parts: [{ type: "text", text: "hello" }],
-                  source: "output",
                 },
               ],
             },

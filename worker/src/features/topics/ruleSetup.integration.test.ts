@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createEvent,
   createEventsCh,
+  recordIncrement,
   redis,
 } from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
@@ -26,11 +27,14 @@ import { seedTraceDispatch } from "../traceDispatch/traceRuleRecording";
 import { tickTopicRuleSetup } from "./ruleSetup";
 
 // Queue handoffs and model settings are not under test; seeding has its own dispatch test.
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  recordIncrement: vi.fn(),
+}));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   enqueueTopicRuleRefit: vi.fn(),
   getEnabledTopicsModels: vi.fn(),
-  isTopicsProjectEnabled: () => true,
 }));
 vi.mock("../traceDispatch/traceRuleRecording", () => ({
   seedTraceDispatch: vi.fn(),
@@ -240,7 +244,7 @@ describe("Topics rule setup", () => {
     await redis?.del(...setupKeys(rule.id));
   });
 
-  it("ends done when fits were only skipped, and failed when one failed and none completed", async () => {
+  it("ends done when fits were only skipped, and failed when one failed and none completed, recording that neither built a map", async () => {
     const outcome = async (statuses: ("skipped" | "failed")[]) => {
       const rule = await newRule();
       const facets = [];
@@ -277,5 +281,15 @@ describe("Topics rule setup", () => {
       phase: "failed",
       error: "Embedding failed.",
     });
+    // A done setup is not a built map; the tags tell them apart.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.rule_setups")
+        .map(([, , tags]) => tags),
+    ).toEqual([
+      { outcome: "done", maps: "none" },
+      { outcome: "failed", maps: "none", reason: "fit_failed" },
+    ]);
   });
 });

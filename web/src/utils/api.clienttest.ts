@@ -5,7 +5,6 @@ import { observable } from "@trpc/server/observable";
 import { vi } from "vitest";
 import type { AppRouter } from "@/src/server/api/root";
 import {
-  EXPECTED_TRPC_BAD_REQUEST_PATHS,
   EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
   buildIdLink,
@@ -18,7 +17,6 @@ import {
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
-  isTrpcZodValidationError,
   MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
@@ -26,6 +24,8 @@ import {
   shouldRetryResourceQuery,
   shouldSendQueryAsPost,
 } from "@/src/utils/api";
+import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
+import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 import { TrpcNonJsonResponseError } from "@/src/utils/trpcResponseParseError";
 import {
   getTrpcToastOperation,

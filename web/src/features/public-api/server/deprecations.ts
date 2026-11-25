@@ -7,13 +7,16 @@ import { type ApiDeprecationInfo } from "@langfuse/shared";
 // Sunset date for the legacy v3 public API — single source of truth. If the
 // date moves, update both constants and every Fern availability message;
 // openapi-deprecations.servertest.ts fails on any drift between the three.
+/** @internal */
 export const V3_SUNSET_DATE = "2026-11-16";
+/** @internal */
 export const V3_SUNSET_HUMAN = "November 16, 2026";
 /** V3_DEPRECATED_AT is the `Deprecation` header date: when the v3 signal first shipped. */
 const V3_DEPRECATED_AT = "2026-07-23";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
+/** @internal */
 export const V3_DELAY_NOTICE =
   "The only path to live data is OpenTelemetry ingestion combined with GET /api/public/v2/observations and GET /api/public/v2/metrics. All other public APIs may have data delays of several minutes.";
 

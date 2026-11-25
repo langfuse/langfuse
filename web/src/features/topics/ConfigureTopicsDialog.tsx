@@ -1,10 +1,8 @@
 import { useId, useState, type ReactNode } from "react";
-import { AlertTriangle, ExternalLinkIcon } from "@langfuse/icons";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { Button as LegacyButton } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import {
   JudgeModelPicker,
@@ -195,10 +193,10 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
         }}
       >
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
-          <p className="bg-light-blue text-dark-blue rounded-md px-4 py-2.5 text-sm">
+          <Banner variant="info">
             Applies to every map in this project. Questions and filters live in
             Edit map.
-          </p>
+          </Banner>
           {automaticProcessingOff ? (
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-1">
@@ -291,6 +289,7 @@ export function ConfigureTopicsDialog(props: ConfigureTopicsDialogProps) {
                   type="number"
                   inputMode="numeric"
                   min={60}
+                  max={3600}
                   value={idleSeconds}
                   onChange={(event) => setIdleSeconds(event.target.value)}
                 />
@@ -440,42 +439,27 @@ function PausedNotice({
   shortLabel: string;
 }) {
   return (
-    <section
-      role="alert"
-      className="border-light-yellow bg-light-yellow rounded-lg border"
+    <Banner
+      variant="warning"
+      title="Topics paused"
+      actions={[
+        {
+          text: "Open LLM connections",
+          onClick: onConfigureProviders,
+        },
+      ]}
     >
-      <div className="flex gap-3 p-4">
-        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-base font-bold">Topics paused</h2>
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-bold">{shortLabel}</span>
-            <span className="bg-border h-1 w-1 rounded-full" />
-            <span>Paused {pausedAgo}</span>
-          </div>
-          <p className="text-muted-foreground mt-2 text-sm">{message}</p>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Saving here keeps automatic processing paused. Turn it back on from
-            the Topics page once the models work.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <LegacyButton
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onConfigureProviders}
-            >
-              <ExternalLinkIcon
-                size="base"
-                color="default"
-                __rawClassName="mr-1.5"
-              />
-              Open LLM connections
-            </LegacyButton>
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold">{shortLabel}</span>
+        <span className="bg-border h-1 w-1 rounded-full" />
+        <span>Paused {pausedAgo}</span>
       </div>
-    </section>
+      <p className="mt-2">{message}</p>
+      <p className="mt-1">
+        Saving here keeps automatic processing paused. Turn it back on from the
+        Topics page once the models work.
+      </p>
+    </Banner>
   );
 }
 

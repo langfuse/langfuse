@@ -3,7 +3,10 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
 import preview from "../../../.storybook/preview";
 import { TopicTreemapView } from "./TopicTreemapView";
-import { staticTopicTraces, storyFacet } from "./topic-story-traces";
+import {
+  staticTopicTraces,
+  storyFacet,
+} from "@/.storybook/fixtures/topic-story-traces";
 
 const counts = [55, 45, 27, 23, 21, 20, 20, 18, 17, 16, 15, 15, 14, 14, 13];
 const names = [

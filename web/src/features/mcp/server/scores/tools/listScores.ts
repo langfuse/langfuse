@@ -227,5 +227,5 @@ export const [listScoresTool, handleListScores] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

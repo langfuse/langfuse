@@ -139,6 +139,8 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # BullMQ 5.76.6 pins msgpackr 2.0.1, which lacks the streaming decoder fix.
+  "bullmq@5.76.6>msgpackr": 2.1.4
   # BullMQ instrumentation 0.9.0 requires ^0.221.0.
   # Keep it on the same instrumentation runtime as the Node SDK.
   "@appsignal/opentelemetry-instrumentation-bullmq@0.9.0>@opentelemetry/instrumentation": 0.222.0

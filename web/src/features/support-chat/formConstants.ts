@@ -79,6 +79,7 @@ export const isPlanWithoutCaseSeverity = (plan?: string): boolean =>
  * Whether a given severity level can be selected on the given plan. Used both
  * to grey out options in the UI and as a server-side safeguard in
  * `mapToPylonCaseSeverity`.
+ * @internal
  */
 export const isSeverityAllowedForPlan = (
   severity: string,

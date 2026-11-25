@@ -11,13 +11,17 @@ import {
 } from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
+import { CopyInput } from "@/src/components/design-system/CopyInput/CopyInput";
+import { FormError } from "@/src/components/design-system/FormError/FormError";
 import {
   FormField,
   type FormFieldProps,
 } from "@/src/components/design-system/FormField/FormField";
+import { FormCompositeField } from "@/src/components/design-system/FormCompositeField/FormCompositeField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 /** Wraps Form.Field with SelectInput and its form bindings. */
 function FormSelectInputField<
@@ -137,6 +141,36 @@ function FormInputField<
           }
           aria-invalid={Boolean(field.error)}
           error={Boolean(field.error)}
+        />
+      )}
+    </FormField>
+  );
+}
+
+function FormCopyInputField({
+  label,
+  description,
+  ...inputProps
+}: Pick<ComponentProps<typeof FormField>, "label" | "description"> &
+  Pick<ComponentProps<typeof CopyInput>, "value" | "copyLabel" | "noCapture">) {
+  const clipboard = useCopyToClipboard();
+
+  return (
+    <FormField
+      label={label}
+      description={description}
+      error={
+        clipboard.copyStatus.kind === "failed"
+          ? "Copy failed. Select the value and copy it manually."
+          : undefined
+      }
+    >
+      {({ id, inputDescribedById }) => (
+        <CopyInput
+          {...inputProps}
+          id={id}
+          aria-describedby={inputDescribedById}
+          clipboard={clipboard}
         />
       )}
     </FormField>
@@ -277,7 +311,10 @@ function FormRoot({
 }
 
 export const Form = Object.assign(FormRoot, {
+  Error: FormError,
   Field: FormField,
+  CompositeField: FormCompositeField,
+  CopyInputField: FormCopyInputField,
   InputField: FormInputField,
   PasswordInputField: FormPasswordInputField,
   SelectInputField: FormSelectInputField,

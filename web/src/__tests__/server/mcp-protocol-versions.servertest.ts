@@ -6,7 +6,6 @@ import {
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import "@/src/features/mcp/server/bootstrap";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import type { ServerContext } from "@/src/features/mcp/types";
 import { createMcpTestSetup } from "./mcp-helpers";
@@ -38,15 +37,22 @@ describe("MCP protocol versions", () => {
   });
 
   it.each([
-    { era: "legacy", version: "2025-11-25", negotiation: undefined },
+    {
+      era: "legacy",
+      version: "2025-11-25",
+      negotiation: undefined,
+      // The SDK's stateless legacy fallback streams every response.
+      contentType: "text/event-stream",
+    },
     {
       era: "modern",
       version: "2026-07-28",
       negotiation: { mode: { pin: "2026-07-28" } },
+      contentType: "application/json",
     },
   ] as const)(
-    "serves $version clients the same tools with JSON responses",
-    async ({ era, version, negotiation }) => {
+    "serves $version clients the same tools as $contentType",
+    async ({ era, version, negotiation, contentType: expectedType }) => {
       const contentTypes: string[] = [];
       const client = new Client(
         { name: "protocol-versions-test", version: "1.0.0" },
@@ -69,6 +75,7 @@ describe("MCP protocol versions", () => {
         expect(client.getNegotiatedProtocolVersion()).toBe(version);
         expect(client.getServerCapabilities()?.extensions).toEqual({
           "io.modelcontextprotocol/skills": {},
+          "io.modelcontextprotocol/ui": {},
         });
 
         const { tools } = await client.listTools();
@@ -88,8 +95,58 @@ describe("MCP protocol versions", () => {
 
         expect(contentTypes.length).toBeGreaterThan(0);
         for (const contentType of contentTypes) {
-          expect(contentType).toContain("application/json");
+          expect(contentType).toContain(expectedType);
         }
+      } finally {
+        await client.close();
+      }
+    },
+  );
+
+  it.each([
+    {
+      case: "a 2026-07-28 client that renders MCP Apps",
+      negotiation: { mode: { pin: "2026-07-28" } },
+      rendersApps: true,
+      listed: true,
+    },
+    {
+      case: "a 2026-07-28 client without MCP Apps support",
+      negotiation: { mode: { pin: "2026-07-28" } },
+      rendersApps: false,
+      listed: false,
+    },
+    {
+      // Its capabilities stay with `initialize`, so tools/list cannot tell.
+      case: "a 2025-era client",
+      negotiation: undefined,
+      rendersApps: false,
+      listed: true,
+    },
+  ] as const)(
+    "lists app tools to $case: $listed",
+    async ({ negotiation, rendersApps, listed }) => {
+      const client = new Client(
+        { name: "protocol-versions-test", version: "1.0.0" },
+        {
+          ...(negotiation && { versionNegotiation: negotiation }),
+          ...(rendersApps && {
+            capabilities: {
+              extensions: {
+                "io.modelcontextprotocol/ui": {
+                  mimeTypes: ["text/html;profile=mcp-app"],
+                },
+              },
+            },
+          }),
+        },
+      );
+      await client.connect(new StreamableHTTPClientTransport(url));
+      try {
+        const { tools } = await client.listTools();
+        const names = tools.map((tool) => tool.name);
+        expect(names).toContain("listPrompts");
+        expect(names.includes("renderWidget")).toBe(listed);
       } finally {
         await client.close();
       }
