@@ -254,31 +254,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
-    // Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
-    // a scalar `.flagged` marker so ClickHouse filters on `events_core.metadata_names`
-    // via `idx_metadata_names` without reading `metadata_values` or parsing JSON.
-    if let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array)
-        && !guardrails.is_empty()
-    {
-        metadata.insert("langfuse.gateway.guardrails.flagged".into(), json!(true));
-        for finding in guardrails {
-            if let (Some(id), Some(action)) = (
-                finding.get("id").and_then(Value::as_str),
-                finding.get("action").and_then(Value::as_str),
-            ) {
-                metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
-                let mut details = Map::new();
-                details.insert("action".into(), json!(action));
-                if let Some(location) = finding.get("location").and_then(Value::as_str) {
-                    details.insert("location".into(), json!(location));
-                }
-                metadata.insert(
-                    format!("langfuse.gateway.guardrails.{id}.finding"),
-                    Value::Object(details),
-                );
-            }
-        }
-    }
+    metadata.extend(guardrail_metadata(facts));
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -333,6 +309,38 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(
                 "langfuse.gateway.request.input_limit_bytes".into(),
                 json!(MAX_INPUT_CAPTURE_BYTES),
+            );
+        }
+    }
+    metadata
+}
+
+/// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+/// a scalar `.flagged` marker so ClickHouse filters on `events_core.metadata_names`
+/// via `idx_metadata_names` without reading `metadata_values` or parsing JSON.
+fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
+        return metadata;
+    };
+    if guardrails.is_empty() {
+        return metadata;
+    }
+    metadata.insert("langfuse.gateway.guardrails.flagged".into(), json!(true));
+    for finding in guardrails {
+        if let (Some(id), Some(action)) = (
+            finding.get("id").and_then(Value::as_str),
+            finding.get("action").and_then(Value::as_str),
+        ) {
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+            let mut details = Map::new();
+            details.insert("action".into(), json!(action));
+            if let Some(location) = finding.get("location").and_then(Value::as_str) {
+                details.insert("location".into(), json!(location));
+            }
+            metadata.insert(
+                format!("langfuse.gateway.guardrails.{id}.finding"),
+                Value::Object(details),
             );
         }
     }

@@ -1813,33 +1813,37 @@ async fn guardrails_block_or_mark_requests_whose_last_turn_matches() {
         let payload = uploads
             .try_recv()
             .unwrap_or_else(|_| panic!("no generation for {action}"));
-        let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
-        let attribute = |key: &str| {
-            span["attributes"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|attribute| attribute["key"] == key)
-                .and_then(|attribute| attribute["value"]["stringValue"].as_str())
-                .unwrap()
-                .to_owned()
-        };
-        assert_eq!(attribute("langfuse.observation.level"), level, "{action}");
-        let metadata: serde_json::Value =
-            serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
-        assert_eq!(
-            metadata["langfuse.gateway.guardrails.flagged"],
-            serde_json::json!(true),
-        );
-        assert_eq!(
-            metadata[format!("langfuse.gateway.guardrails.g-{action}")],
-            serde_json::json!(action),
-        );
-        assert_eq!(
-            metadata[format!("langfuse.gateway.guardrails.g-{action}.finding")],
-            serde_json::json!({"action": action, "location": "request"}),
-        );
+        assert_guardrail_generation(&payload, action, level);
     }
+}
+
+fn assert_guardrail_generation(payload: &serde_json::Value, action: &str, level: &str) {
+    let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    let attribute = |key: &str| {
+        span["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .and_then(|attribute| attribute["value"]["stringValue"].as_str())
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(attribute("langfuse.observation.level"), level, "{action}");
+    let metadata: serde_json::Value =
+        serde_json::from_str(&attribute("langfuse.observation.metadata")).unwrap();
+    assert_eq!(
+        metadata["langfuse.gateway.guardrails.flagged"],
+        serde_json::json!(true),
+    );
+    assert_eq!(
+        metadata[format!("langfuse.gateway.guardrails.g-{action}")],
+        serde_json::json!(action),
+    );
+    assert_eq!(
+        metadata[format!("langfuse.gateway.guardrails.g-{action}.finding")],
+        serde_json::json!({"action": action, "location": "request"}),
+    );
 }
 
 #[tokio::test]
