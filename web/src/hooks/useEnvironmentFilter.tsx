@@ -1,5 +1,6 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEffect } from "react";
+import { isEnvironmentVisibleByDefault } from "@/src/utils/environmentFilter";
 
 interface EnvironmentVisibility {
   [key: string]: boolean; // environment name -> isVisible
@@ -7,23 +8,6 @@ interface EnvironmentVisibility {
 
 // TODO: Add the environment selection to the query params to persist the environment filter when sharing links.
 // See useDashboardDateRange for an example of this.
-
-export function convertSelectedEnvironmentsToFilter(
-  environmentColumns: string[],
-  selectedEnvironments: string[],
-) {
-  if (selectedEnvironments.length === 0) {
-    // No environments selected = no filter (show all)
-    return [];
-  }
-
-  return environmentColumns.map((column) => ({
-    type: "stringOptions" as const,
-    column,
-    operator: "any of" as const,
-    value: selectedEnvironments,
-  }));
-}
 
 export function useEnvironmentFilter(
   availableEnvironments: string[] | undefined,
@@ -35,10 +19,8 @@ export function useEnvironmentFilter(
       {},
     );
 
-  const getDefaultVisibility = (env: string) => !env.startsWith("langfuse-");
-
   const visibleEnvironments = (availableEnvironments || []).filter((env) => {
-    return visibilityMap[env] ?? getDefaultVisibility(env);
+    return visibilityMap[env] ?? isEnvironmentVisibleByDefault(env);
   });
 
   const handleSetVisibilityMap = (environments: string[]) => {
@@ -63,7 +45,7 @@ export function useEnvironmentFilter(
       // If environment doesn't exist in map, set default visibility
       // Environments prefixed with "langfuse-" are deselected by default
       if (updatedMap[env] === undefined) {
-        updatedMap[env] = getDefaultVisibility(env);
+        updatedMap[env] = isEnvironmentVisibleByDefault(env);
         hasChanges = true;
       }
     });

@@ -1,0 +1,33 @@
+.mobileClose {
+  display: none;
+  order: 3;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  order: 1;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.selector {
+  display: flex;
+  order: 2;
+  min-inline-size: 0;
+  flex: 0 0 calc(var(--sidebar-expanded-width, 12.75rem) - 3.125rem);
+  padding-inline-start: 0.125rem;
+}
+
+.mobileClose[data-surface="mobile"] {
+  display: flex;
+}
+
+.selector[data-surface="mobile"] {
+  flex: 1 1 auto;
+}

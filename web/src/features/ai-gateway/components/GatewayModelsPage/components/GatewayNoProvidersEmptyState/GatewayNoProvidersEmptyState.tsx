@@ -1,19 +1,12 @@
-import { ArrowRight, BookOpen, Plus } from "@langfuse/icons";
+import { Plus } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { GatewayProviderMark } from "@/src/features/ai-gateway/components/GatewayProviderMark";
-import { getGatewaySetupHeroProviders } from "@/src/features/ai-gateway/components/GatewayOverviewPage/fns/getGatewaySetupHeroProviders";
-import { GatewayPlaceholder } from "@/src/features/ai-gateway/components/GatewayPlaceholder/GatewayPlaceholder";
 import { GATEWAY_SETUP_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { NoProvidersDiagram } from "./components/NoProvidersDiagram";
+import { GATEWAY_PROVIDER_OPTIONS } from "@/src/features/ai-gateway/constants/gatewayProviderOptions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-
-const CREDENTIAL_SOURCES = {
-  ANTHROPIC: "API key from console.anthropic.com",
-  OPENAI: "API key from platform.openai.com",
-  BEDROCK: "AWS credentials and region",
-} satisfies Record<GatewayProvider, string>;
+import { NoProvidersFrame } from "./components/NoProvidersFrame";
+import { NoProvidersProviderList } from "./components/NoProvidersProviderList";
+import { ProviderCard } from "./components/ProviderCard";
 
 export type GatewayNoProvidersEmptyStateProps = {
   onAddProvider: () => void;
@@ -26,45 +19,30 @@ export function GatewayNoProvidersEmptyState({
   onConnectProvider,
 }: GatewayNoProvidersEmptyStateProps) {
   return (
-    <GatewayPlaceholder.Frame
-      title="No providers yet"
-      description="Add an OpenAI or Anthropic credential so the gateway can route requests and discover models."
+    <NoProvidersFrame
+      description="Your agents and apps send requests through the gateway to the providers you connect. It routes them and discovers each provider's models."
+      actions={
+        <>
+          <Button
+            variant="outline"
+            text="Setup guide"
+            href={GATEWAY_SETUP_DOCS_URL}
+          />
+          <Button text="Add connection" icon={Plus} onClick={onAddProvider} />
+        </>
+      }
     >
-      <GatewayPlaceholder.Actions>
-        <Button text="Add provider" icon={Plus} onClick={onAddProvider} />
-        <Button
-          variant="outline"
-          text="How to set up the gateway"
-          icon={BookOpen}
-          href={GATEWAY_SETUP_DOCS_URL}
-        />
-      </GatewayPlaceholder.Actions>
-      <NoProvidersDiagram addLabel="+ Add" />
-      <ul className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
-        {getGatewaySetupHeroProviders(new Set()).map(({ provider }) => (
+      <NoProvidersProviderList>
+        {GATEWAY_PROVIDER_OPTIONS.map(({ provider, hint }) => (
           <li key={provider}>
-            <button
-              type="button"
-              onClick={() => onConnectProvider(provider)}
-              className="hover:bg-accent/50 focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
-            >
-              <GatewayProviderMark provider={provider} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-bold">
-                  {providerLabels[provider]}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  {CREDENTIAL_SOURCES[provider]}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1 text-sm">
-                Connect
-                <ArrowRight size="sm" color="inherit" aria-hidden />
-              </span>
-            </button>
+            <ProviderCard
+              provider={provider}
+              hint={hint}
+              onConnect={() => onConnectProvider(provider)}
+            />
           </li>
         ))}
-      </ul>
-    </GatewayPlaceholder.Frame>
+      </NoProvidersProviderList>
+    </NoProvidersFrame>
   );
 }

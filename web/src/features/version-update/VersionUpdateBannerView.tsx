@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { RotateCw, Sparkles, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -8,7 +7,6 @@ export type VersionUpdateBannerViewProps = {
   onReload: () => void;
   /** Hide the notification for this session. */
   onDismiss: () => void;
-  className?: string;
 };
 
 /**
@@ -29,7 +27,6 @@ export type VersionUpdateBannerViewProps = {
 export function VersionUpdateBannerView({
   onReload,
   onDismiss,
-  className,
 }: VersionUpdateBannerViewProps) {
   return (
     <div
@@ -51,7 +48,6 @@ export function VersionUpdateBannerView({
         // can paint one frame at its final position/opacity and then snap back
         // to animate (a flash that reads as a "jump"; Firefox is most prone).
         "animate-in fade-in-0 slide-in-from-top-4 zoom-in-95 fill-mode-both duration-500 ease-out",
-        className,
       )}
     >
       <Sparkles size="base" __rawClassName="text-primary" />

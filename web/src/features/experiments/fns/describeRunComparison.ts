@@ -1,9 +1,8 @@
 /**
- * What a comparison chip says on hover. A chip is attached to one run, so the
- * sentence reads from that run's side: the baseline is named, this run is "this
- * run". `a → b` and `+0.07` are ambiguous on their own — the reader cannot tell
- * "was, now is" from "this run vs the comparison" — and this is the sentence
- * that settles it.
+ * Hover text for a comparison chip. Names the baseline and this run, then the
+ * two values, so `+0.07` still says which side is which. A score drops the
+ * verb; cost and latency keep theirs, because a bare number does not say
+ * which metric it is.
  */
 export function describeRunComparison({
   baselineName,
@@ -19,5 +18,9 @@ export function describeRunComparison({
   /** "scored" for a score, "cost" for cost, "took" for latency. */
   verb?: "scored" | "cost" | "took";
 }): string {
-  return `${baselineName ?? "The baseline"} ${verb} ${baselineText} · this run ${verb} ${currentText}`;
+  const baseline = baselineName ?? "The baseline";
+  if (verb === "scored") {
+    return `${baseline} ${baselineText} · this run ${currentText}`;
+  }
+  return `${baseline} ${verb} ${baselineText} · this run ${verb} ${currentText}`;
 }

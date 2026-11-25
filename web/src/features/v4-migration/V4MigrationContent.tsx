@@ -75,10 +75,10 @@ import {
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
-// Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Consumed by the status page and the legacy UI strip. Cloud removal date.
+export const V4_MIGRATION_DEADLINE = "November 19, 2026";
 // Headline form of the deadline; the year is noise in a title.
-const V4_MIGRATION_DEADLINE_SHORT = "November 16";
+const V4_MIGRATION_DEADLINE_SHORT = "November 19";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =

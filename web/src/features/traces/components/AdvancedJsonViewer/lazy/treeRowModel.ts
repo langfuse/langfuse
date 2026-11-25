@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * TreeRowModel — the ONE flatten/expand/paginate implementation (LFE-11080).
  *
@@ -186,6 +185,15 @@ export class TreeRowModel implements RowModel {
     }
     const state = this.states.get(entry.nodeId)!;
     const d = state.descriptor;
+    const childCount = ((): number | undefined => {
+      if (!state.expandable) {
+        return undefined;
+      }
+      if (state.expanded) {
+        return state.total;
+      }
+      return d.childCount;
+    })();
     return {
       nodeId: entry.nodeId,
       depth: state.depth,
@@ -195,11 +203,7 @@ export class TreeRowModel implements RowModel {
       // exact count after a container has been expanded — including 0 for an
       // empty one — and the badge survives a collapse. Before any scan it's the
       // parent-provided count (or undefined).
-      childCount: state.expandable
-        ? state.expanded
-          ? state.total
-          : d.childCount
-        : undefined,
+      childCount,
       preview: d.preview,
       truncatedPreview: d.truncatedPreview,
       expandable: state.expandable,

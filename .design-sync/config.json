@@ -36,7 +36,7 @@
         "playground-button--with-icon"
       ]
     },
-    "Alert": {
+    "Banner": {
       "cardMode": "column"
     },
     "AreaChart": {
@@ -89,7 +89,8 @@
         "design-components-selectinput--empty",
         "design-components-selectinput--test-forwards-trigger-props",
         "design-components-selectinput--test-keeps-badged-label-readable",
-        "design-components-selectinput--test-keeps-badged-label-readable-without-search"
+        "design-components-selectinput--test-keeps-badged-label-readable-without-search",
+        "design-components-selectinput--test-disabled-option-shows-reason"
       ]
     },
     "StackedBarChart": {
@@ -128,7 +129,8 @@
         "design-components-dialog--autofocus",
         "design-components-dialog--destructive-autofocus",
         "design-components-dialog--destructive-only-autofocus",
-        "design-components-dialog--scrollable-body-keeps-controls-above-footer"
+        "design-components-dialog--scrollable-body-keeps-controls-above-footer",
+        "design-components-dialog--disabled-action-with-reason"
       ]
     },
     "Avatar": {
@@ -161,7 +163,9 @@
         "design-components-dropdownmenu--test-nested-menus-stay-within-viewport",
         "design-components-dropdownmenu--test-search-behavior",
         "design-components-dropdownmenu--test-secondary-action-layout",
-        "design-components-dropdownmenu--test-trigger-and-items"
+        "design-components-dropdownmenu--test-trigger-and-items",
+        "design-components-dropdownmenu--test-clears-the-search",
+        "design-components-dropdownmenu--test-header-action-keyboard"
       ]
     },
     "HoverCard": {
@@ -202,7 +206,8 @@
     "SearchInput": {
       "skip": [
         "design-components-searchinput--test-submits-on-enter",
-        "design-components-searchinput--test-opens-dropdown"
+        "design-components-searchinput--test-opens-dropdown",
+        "design-components-searchinput--test-clears-the-value"
       ]
     },
     "SwitchInput": {
@@ -255,7 +260,8 @@
     "KeyValueFilterBuilder": {
       "cardMode": "column",
       "skip": [
-        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value"
+        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value",
+        "playground-keyvaluefilterbuilder--test-session-replay-block"
       ]
     },
     "MediaTag": {
@@ -280,7 +286,8 @@
     "GroupedScoreBadges": {
       "skip": [
         "playground-groupedscorebadges--with-overflow"
-      ]
+      ],
+      "cardMode": "column"
     },
     "MarkdownView": {
       "skip": [
@@ -318,6 +325,38 @@
       "skip": [
         "design-components-expandtoggle--toggles-state"
       ]
+    },
+    "ProjectDropdownMenu": {
+      "skip": [
+        "playground-projectdropdownmenu--test-search",
+        "playground-projectdropdownmenu--test-actions-stay-in-view"
+      ]
+    },
+    "OrganizationDropdownMenu": {
+      "skip": [
+        "playground-organizationdropdownmenu--test-search"
+      ]
+    },
+    "AsyncSelectInput": {
+      "skip": [
+        "design-components-asyncselectinput--external-results"
+      ]
+    },
+    "TabBar": {
+      "skip": [
+        "design-components-tabbar--selected-tab-revealed",
+        "design-components-tabbar--compact"
+      ],
+      "cardMode": "column"
+    },
+    "VisualizationFrame": {
+      "cardMode": "column"
+    },
+    "DataCard": {
+      "cardMode": "column"
+    },
+    "LangfuseWordmark": {
+      "cardMode": "column"
     }
   },
   "extraFonts": [

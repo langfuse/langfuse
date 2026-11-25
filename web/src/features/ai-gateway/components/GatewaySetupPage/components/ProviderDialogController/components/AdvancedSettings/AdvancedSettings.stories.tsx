@@ -6,6 +6,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 const meta = preview.meta({
   component: AdvancedSettings,
   args: {
+    baseURLError: null,
     onBaseURLChange: fn(),
     onHeadersChange: fn(),
   },
@@ -38,6 +39,26 @@ export const AddingAHeader = meta.story({
     await expect(args.onHeadersChange).toHaveBeenCalledWith([
       expect.objectContaining({ key: "", value: "" }),
     ]);
+  },
+});
+
+/** OpenRouter connections can use another OpenRouter endpoint, such as its EU one. */
+export const OpenRouterEndpoint = meta.story({
+  name: "(Test) OpenRouter Endpoint",
+  args: {
+    provider: "OPENROUTER",
+    baseURL: "https://eu.openrouter.ai/api/v1",
+    headers: [],
+    storedHeaderKeys: [],
+    isEditing: false,
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show advanced settings" }),
+    );
+    await expect(
+      canvas.getByText(/OpenRouter default: https:\/\/openrouter\.ai\/api\/v1/),
+    ).toBeVisible();
   },
 });
 

@@ -13,13 +13,18 @@
  *  - `DEDUP_SPECS` — the per-table read idiom the lowering pass applies
  *    (`dedup.ts`). Each table names an existing production mechanism; the
  *    pass does not invent a new one.
- *  - `SOFT_DELETE_COLUMNS` — the flag column the soft-delete pass filters to
- *    `0` (`softDelete.ts`).
  *
  * Deriving every view from one declaration keeps them from drifting apart.
  *
  * Column sets cover the relations the compiler targets, not a full schema
  * dump. Partition / sort keys stay unmodeled until a pass needs them.
+ *
+ * Every physical column of a registered table is either declared here or
+ * listed in {@link UNMODELED_COLUMNS}. `query-ast-registry-ddl.servertest.ts`
+ * checks both directions against the migrated ClickHouse schema: a declared
+ * column must exist with its declared type, and a column a migration adds
+ * fails until it is modeled or listed. The failure prints the `defineTable`
+ * line to paste for each new column.
  */
 
 /**
@@ -150,18 +155,11 @@ function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
    * migrated; `none` is an explicit "do not collapse" (immutable rows).
    */
   dedup?: DedupSpec;
-  /**
-   * Column that marks a soft-deleted row. The soft-delete pass injects
-   * `<column> = 0` on every read of this table unless the select opts out
-   * with `includeDeleted()`, or after its LIMIT with `softDeleteAfterLimit()`.
-   */
-  softDelete?: keyof Cols & string;
 }) {
   return {
     columns: spec.columns,
     tenant: spec.tenant ?? true,
     dedup: spec.dedup,
-    softDelete: spec.softDelete,
   };
 }
 
@@ -251,21 +249,41 @@ const EVENTS_COLUMNS = {
 } as const satisfies Record<string, ChColumnType>;
 
 /**
- * Columns whose `events_core` copy differs from `events_full`:
- * `events_core_mv` keeps the first 200 code points of `input`, `output`, and
- * each `metadata_values` element, and `input_length` / `output_length` are
- * materialized from the truncated copy. Any other read of them needs
- * `events_full`. Must match the truncations in the latest `events_core_mv`
- * definition (`clickhouse/migrations/canonical/0053_add_skill_observation_references.up.sql`);
- * nothing checks this automatically.
+ * How `events_core` cuts a column, read on `events_full`:
+ * - `text`: `leftUTF8(x, 200)`;
+ * - `elements`: `arrayMap(v -> leftUTF8(v, 200), x)`;
+ * - `length`: `lengthUTF8(leftUTF8(of, 200))`, materialized from the cut
+ *   `of` column.
+ *
+ * Either shape, told apart by `cut`: only a `length` entry has `of`, and it
+ * must name an events column (`{ cut: "length" }` alone or `{ cut: "text",
+ * of: … }` in {@link EVENTS_CORE_TRUNCATIONS} fails to compile).
  */
-export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set([
-  "input",
-  "output",
-  "metadata_values",
-  "input_length",
-  "output_length",
-] satisfies ReadonlyArray<keyof typeof EVENTS_COLUMNS>);
+export type EventsCoreTruncation =
+  | { cut: "text" | "elements" }
+  | { cut: "length"; of: keyof typeof EVENTS_COLUMNS };
+
+/**
+ * Columns whose `events_core` copy differs from `events_full`, and how
+ * `events_core_mv` cuts each one to its first 200 code points
+ * (`EVENTS_CORE_TRUNCATION_LIMIT`). `schema.test.ts` holds it to the cuts
+ * of the latest `events_core_mv` query and the `events_core` materialized
+ * lengths in `clickhouse/migrations/canonical`.
+ */
+export const EVENTS_CORE_TRUNCATIONS = {
+  input: { cut: "text" },
+  output: { cut: "text" },
+  metadata_values: { cut: "elements" },
+  input_length: { cut: "length", of: "input" },
+  output_length: { cut: "length", of: "output" },
+} as const satisfies Partial<
+  Record<keyof typeof EVENTS_COLUMNS, EventsCoreTruncation>
+>;
+
+/** The columns of {@link EVENTS_CORE_TRUNCATIONS}. */
+export const EVENTS_CORE_TRUNCATED_COLUMNS: ReadonlySet<string> = new Set(
+  Object.keys(EVENTS_CORE_TRUNCATIONS),
+);
 
 const TABLE_REGISTRY = {
   traces: defineTable({
@@ -290,7 +308,6 @@ const TABLE_REGISTRY = {
     columns: EVENTS_COLUMNS,
     // Immutable at read time. Do not inject LIMIT BY or FINAL.
     dedup: { strategy: "none" },
-    softDelete: "is_deleted",
   }),
   // Same projection as events_core with full I/O. Tenanted and immutable
   // for the same reasons; selected when a point-read needs untruncated
@@ -298,7 +315,6 @@ const TABLE_REGISTRY = {
   events_full: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
-    softDelete: "is_deleted",
   }),
   // Logical relation over events_core / events_full. The routing pass
   // (`eventsRouting.ts`) replaces it with one of them before any other pass
@@ -306,15 +322,14 @@ const TABLE_REGISTRY = {
   events: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
-    softDelete: "is_deleted",
   }),
-  // Logical relation for reading the truncated copy on purpose: routing
-  // always replaces it with events_core, also when it reads a truncated
-  // column (input/output/metadata previews).
+  // Logical relation for reading the truncated copy on purpose
+  // (input/output/metadata previews): routing compiles it to events_core
+  // unless its WHERE needs events_full, and then cuts what it reads outside
+  // that WHERE (README, `eventsRouting.ts`).
   events_truncated: defineTable({
     columns: EVENTS_COLUMNS,
     dedup: { strategy: "none" },
-    softDelete: "is_deleted",
   }),
   scores: defineTable({
     columns: {
@@ -366,10 +381,9 @@ export const LOGICAL_EVENTS_TABLES: ReadonlySet<string> = new Set([
 
 /** Derived Kysely row types, without the physical events tables. */
 export type ClickHouseDatabase = {
-  [T in Exclude<
-    keyof typeof TABLE_REGISTRY,
-    "events_core" | "events_full"
-  >]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
+  [
+    T in Exclude<keyof typeof TABLE_REGISTRY, "events_core" | "events_full">
+  ]: RowOf<(typeof TABLE_REGISTRY)[T]["columns"]>;
 };
 
 /**
@@ -386,6 +400,79 @@ export const TABLE_COLUMN_TYPES: Record<
     .filter(([table]) => !LOGICAL_EVENTS_TABLES.has(table))
     .map(([table, spec]) => [table, spec.columns]),
 );
+
+/**
+ * Physical columns of each registry table that are deliberately not
+ * queryable through the AST. A column moves out of this list into the
+ * table's `defineTable` columns when a query needs it. Keyed by every
+ * physical registry table, so registering a table forces a decision for its
+ * columns; the servertest fails on an entry that is also modeled or missing
+ * from ClickHouse.
+ */
+export const UNMODELED_COLUMNS: Record<
+  Exclude<keyof typeof TABLE_REGISTRY, "events" | "events_truncated">,
+  readonly string[]
+> = {
+  traces: [
+    "name",
+    "user_id",
+    "metadata",
+    "release",
+    "version",
+    "public",
+    "bookmarked",
+    "tags",
+    "input",
+    "output",
+    "session_id",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+  ],
+  observations: [
+    "id",
+    "type",
+    "parent_observation_id",
+    "end_time",
+    "name",
+    "metadata",
+    "level",
+    "status_message",
+    "version",
+    "input",
+    "output",
+    "provided_model_name",
+    "internal_model_id",
+    "model_parameters",
+    "provided_usage_details",
+    "provided_cost_details",
+    "total_cost",
+    "completion_start_time",
+    "prompt_id",
+    "prompt_name",
+    "prompt_version",
+    "created_at",
+    "updated_at",
+    "event_ts",
+    "is_deleted",
+    "usage_pricing_tier_id",
+    "usage_pricing_tier_name",
+    "tool_definitions",
+    "tool_calls",
+    "tool_call_names",
+  ],
+  events_core: [],
+  events_full: [],
+  scores: [
+    "evaluator_id",
+    "evaluation_rule_id",
+    "long_string_value",
+    "ingestion_api_key",
+    "ingestion_sdk_name",
+    "ingestion_sdk_version",
+  ],
+};
 
 /**
  * Derived coarse runtime column-type map (column name -> category), consumed by
@@ -417,13 +504,6 @@ export const TENANTED_TABLES = new Set<string>(
 export const DEDUP_SPECS: Record<string, DedupSpec> = lookupTable(
   Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
     spec.dedup ? [[name, spec.dedup]] : [],
-  ),
-);
-
-/** Derived soft-delete flag column, keyed by table name. */
-export const SOFT_DELETE_COLUMNS: Record<string, string> = lookupTable(
-  Object.entries(TABLE_REGISTRY).flatMap(([name, spec]) =>
-    spec.softDelete ? [[name, spec.softDelete]] : [],
   ),
 );
 

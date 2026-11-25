@@ -349,7 +349,6 @@ export async function executeInAppAgentRun(params: {
 
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
-      isAdmin: access.isAdmin,
       topicsAvailable: request.topicsAvailable === true,
     };
 
@@ -644,7 +643,6 @@ export async function executeInAppAgentRun(params: {
             id: run.triggeredByUserId,
             email: access.email,
             projectRole: userAccess.projectRole,
-            isAdmin: userAccess.isAdmin,
           },
         }),
         sandbox: sandboxState
@@ -706,24 +704,15 @@ async function resolveUserProjectAccess(params: {
   orgId: string;
 }): Promise<{
   projectRole?: Role;
-  isAdmin: boolean;
   email: string | null;
   v4BetaEnabled: boolean;
 } | null> {
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, email: true, admin: true, v4BetaEnabled: true },
+    select: { id: true, email: true, v4BetaEnabled: true },
   });
 
   if (!user) return null;
-
-  if (user.admin) {
-    return {
-      isAdmin: true,
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    };
-  }
 
   const orgMembership = await prisma.organizationMembership.findFirst({
     where: { userId: params.userId, orgId: params.orgId },
@@ -746,7 +735,6 @@ async function resolveUserProjectAccess(params: {
 
   return {
     projectRole,
-    isAdmin: false,
     email: user.email,
     v4BetaEnabled: user.v4BetaEnabled,
   };
@@ -818,7 +806,6 @@ function buildTracingConfig(params: {
     id: string;
     email: string | null;
     projectRole?: Role;
-    isAdmin: boolean;
   };
 }) {
   if (!params.aiTelemetryEnabled) {
@@ -852,7 +839,6 @@ function buildTracingConfig(params: {
           id: params.user.id,
           email: params.user.email,
           projectRole: params.user.projectRole,
-          isAdmin: params.user.isAdmin,
         },
         metadata: traceSinkParams.metadata ?? {},
       }

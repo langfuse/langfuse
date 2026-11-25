@@ -158,7 +158,7 @@ export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
     action: "dashboards:read",
     baseSchema: GetUnstableDashboardWidgetsQuery,
     inputSchema: GetUnstableDashboardWidgetsQuery,
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
     handler: (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.list",
@@ -187,7 +187,7 @@ export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
   action: "dashboards:read",
   baseSchema: DashboardWidgetIdQuery,
   inputSchema: DashboardWidgetIdQuery,
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboard_widgets.get",
@@ -213,7 +213,7 @@ export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
     inputSchema: DashboardWidgetIdQuery.extend(
       PatchUnstableDashboardWidgetBody.shape,
     ).superRefine(requirePatchField(["widgetId"])),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: ({ widgetId, ...patch }, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.update",
@@ -235,7 +235,7 @@ export const [deleteDashboardWidgetTool, handleDeleteDashboardWidget] =
     action: "dashboards:CUD",
     baseSchema: DashboardWidgetIdQuery,
     inputSchema: DashboardWidgetIdQuery,
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.delete",
@@ -257,7 +257,7 @@ export const [listDashboardsTool, handleListDashboards] = defineTool({
   action: "dashboards:read",
   baseSchema: GetUnstableDashboardsQuery,
   inputSchema: GetUnstableDashboardsQuery,
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.list",
@@ -289,7 +289,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
     "coordinates (x/y top-left cell, width/height in cells).",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.get",
@@ -312,7 +312,7 @@ export const [createDashboardTool, handleCreateDashboard] = defineTool({
   action: "dashboards:CUD",
   baseSchema: dashboardCreateBaseSchema,
   inputSchema: PostUnstableDashboardBody,
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.create",
@@ -334,7 +334,7 @@ export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   inputSchema: DashboardIdQuery.extend(
     PatchUnstableDashboardBody.shape,
   ).superRefine(requirePatchField(["dashboardId"])),
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: ({ dashboardId, ...patch }, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.update",
@@ -354,7 +354,7 @@ export const [deleteDashboardTool, handleDeleteDashboard] = defineTool({
   action: "dashboards:CUD",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: (input, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.delete",
@@ -386,7 +386,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
     ).superRefine(requirePlacementIds),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboards.placements.add",
@@ -414,7 +414,7 @@ export const [updateDashboardPlacementTool, handleUpdateDashboardPlacement] =
     inputSchema: placementQuery
       .extend(placementPatchBaseSchema.shape)
       .superRefine(requirePatchField(["dashboardId", "placementId"])),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: ({ dashboardId, placementId, ...patch }, context) =>
       runMcpTool({
         spanName: "mcp.dashboards.placements.update",
@@ -437,7 +437,7 @@ export const [deleteDashboardPlacementTool, handleDeleteDashboardPlacement] =
     action: "dashboards:CUD",
     baseSchema: placementQuery,
     inputSchema: placementQuery,
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboards.placements.delete",

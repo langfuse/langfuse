@@ -132,7 +132,7 @@ export async function mintUserBoundSandboxKey(
   };
 }
 
-/** Project role of a member, or OWNER for an instance admin; null without access. */
+/** Project role of a member; null without membership or access. */
 async function resolveUserProjectRole(
   prisma: PrismaClient,
   params: { userId: string; projectId: string; orgId: string },
@@ -140,7 +140,6 @@ async function resolveUserProjectRole(
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
     select: {
-      admin: true,
       organizationMemberships: {
         where: { orgId: params.orgId },
         select: {
@@ -154,7 +153,6 @@ async function resolveUserProjectRole(
     },
   });
   if (!user) return null;
-  if (user.admin) return Role.OWNER;
   const orgMembership = user.organizationMemberships[0];
   if (!orgMembership) return null;
   const role = orgMembership.ProjectMemberships[0]?.role ?? orgMembership.role;

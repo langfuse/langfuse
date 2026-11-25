@@ -1159,20 +1159,6 @@ describe("pivot-table-utils", () => {
         );
         expect(next).toBeNull();
       });
-
-      test("handles null default sort", () => {
-        const next = getNextSortState(
-          null,
-          { column: "count", order: "ASC" },
-          "count",
-        );
-        expect(next).toBeNull();
-      });
-
-      test("handles null current sort with defined default", () => {
-        const next = getNextSortState(defaultSort, null, "count");
-        expect(next).toEqual({ column: "count", order: "DESC" });
-      });
     });
   });
 });

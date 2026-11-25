@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---- Hoisted mocks ----
@@ -35,13 +34,11 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
           async (): Promise<{ sfdcOrgId: string | null } | null> => null,
         ),
         update: vi.fn(async () => ({})),
-        create: vi.fn(
-          async (): Promise<unknown> => ({
-            id: "org-new",
-            name: "New Org",
-            createdAt: new Date("2026-06-01T08:30:00.900Z"),
-          }),
-        ),
+        create: vi.fn(async (): Promise<unknown> => ({
+          id: "org-new",
+          name: "New Org",
+          createdAt: new Date("2026-06-01T08:30:00.900Z"),
+        })),
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
@@ -51,6 +48,10 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
         create: vi.fn(async (args: { data: unknown }) => args.data),
         update: vi.fn(async (): Promise<unknown> => ({})),
         upsert: vi.fn(async (): Promise<unknown> => ({})),
+      },
+      sessionView: {
+        findMany: vi.fn(async (): Promise<unknown[]> => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       projectMembership: {
         create: vi.fn(async (args: { data: unknown }) => args.data),
@@ -144,8 +145,10 @@ import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { CloudConfigSchema, Role } from "@langfuse/shared";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
 import { type PrismaClient } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type { Session } from "next-auth";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 // ---- Helpers ----
 
@@ -555,18 +558,16 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
   const PRO_PRODUCT = "prod_QhK7UMhrkVeF6R";
   const TEAM_PRODUCT = "prod_QhK9qKGH25BTcS";
 
-  // getOrganizationPlanServerSide reads process.env directly (not env.mjs),
-  // so the region must be stubbed on the real process env.
-  const originalRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  // getOrganizationPlanServerSide reads the region from shared's env, not
+  // env.mjs.
+  const originalRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    Object.assign(sharedEnv, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" });
   });
   afterEach(() => {
-    if (originalRegion === undefined) {
-      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    } else {
-      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
-    }
+    Object.assign(sharedEnv, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion,
+    });
   });
 
   const orgBefore = (cloudConfig: unknown) => ({
@@ -626,6 +627,27 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
       orgBeforeUpdate: orgBefore(stripeConfig(PRO_PRODUCT)),
       // subscription.deleted keeps only the customer id
       updatedCloudConfig: { stripe: { customerId: "cus_1" } },
+      billingCycleAnchor: null,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.plan).toBe("Hobby");
+    expect(body).not.toHaveProperty("convertedToPaidAt");
+  });
+
+  it("pushes Hobby when a paid org cancels during its enterprise trial — SFDC has no trial tier", async () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const enterpriseTrial = {
+      startedAt: new Date(Date.now() - DAY_MS).toISOString(),
+      endsAt: new Date(Date.now() + DAY_MS).toISOString(),
+    };
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+    await syncOrgPlanChangeToSfdc({
+      orgBeforeUpdate: orgBefore({
+        ...stripeConfig(PRO_PRODUCT),
+        enterpriseTrial,
+      }),
+      updatedCloudConfig: { stripe: { customerId: "cus_1" }, enterpriseTrial },
       billingCycleAnchor: null,
     });
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -829,34 +851,19 @@ describe("syncOrgPlanChangeToSfdc — plan-change gate for billing updates", () 
 // Exercised end-to-end: call site → real SfdcService → mocked fetch.
 
 function buildOwnerSession(orgId: string): Session {
-  return {
-    expires: "1",
-    user: {
-      id: "owner-user",
-      email: "owner@test.com",
-      name: "Owner",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: orgId,
-          name: "Test Org",
-          role: Role.OWNER,
-          plan: "cloud:team",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin: false,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:team",
-    },
-  };
+  return createSession({
+    user: { id: "owner-user", email: "owner@test.com", name: "Owner" },
+    organizations: [
+      {
+        id: orgId,
+        role: Role.OWNER,
+        name: "Test Org",
+        plan: "cloud:team",
+        aiTelemetryEnabled: true,
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:team" },
+  });
 }
 
 function createOwnerCaller(orgId: string) {
@@ -1183,6 +1190,7 @@ describe("call site: createProjectMembershipsOnSignup", () => {
     prismaMock.project.findFirst.mockResolvedValueOnce({ id: "proj-9" });
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ id: "proj-9" }])
+      .mockResolvedValueOnce([{ id: "org-membership-9" }])
       .mockResolvedValueOnce([{ id: "proj-9" }]);
 
     await createProjectMembershipsOnSignup(

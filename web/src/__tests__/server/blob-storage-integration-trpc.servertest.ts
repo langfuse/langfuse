@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Mock } from "vitest";
 import type { Session } from "next-auth";
 
@@ -23,6 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(
@@ -65,54 +65,26 @@ vi.mock(
 const __orgIds: string[] = [];
 
 const prepare = async ({
-  admin = true,
-  plan = "cloud:hobby",
+  plan = "cloud:team",
   projectRole = "ADMIN",
 }: {
-  admin?: boolean;
   plan?: Plan;
   projectRole?: Role;
 } = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: org.id,
-          name: org.name,
-          role: "OWNER",
-          plan,
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: project.id,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: project.name,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: plan,
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: org.id,
+        role: "OWNER",
+        name: org.name,
+        plan,
+        projects: [{ id: project.id, role: projectRole, name: project.name }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: plan },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -231,9 +203,8 @@ describe("Blob Storage Integration tRPC Router", () => {
   });
 
   describe("scheduled-blob-exports entitlement", () => {
-    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+    it("blocks an OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:hobby",
       });
       await createIntegration({ projectId: project.id });
@@ -274,9 +245,8 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(stillThere).not.toBeNull();
     });
 
-    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+    it("allows an OWNER on cloud:team to read the integration", async () => {
       const { caller, project } = await prepare({
-        admin: false,
         plan: "cloud:team",
       });
       await createIntegration({ projectId: project.id });
@@ -837,11 +807,8 @@ describe("Blob Storage Integration tRPC Router", () => {
       }
     });
 
-    it("requires the Enterprise plan, even for Langfuse admins", async () => {
-      const { caller, project } = await prepare({
-        admin: true,
-        plan: "cloud:team",
-      });
+    it("requires the Enterprise plan for IAM role auth", async () => {
+      const { caller, project } = await prepare({ plan: "cloud:team" });
       (getCrossAccountRoleArn as Mock).mockReturnValue(
         "arn:aws:iam::210987654321:role/langfuse-customer-storage-access",
       );
@@ -894,8 +861,8 @@ describe("Blob Storage Integration tRPC Router", () => {
 
     describe("getExternalId access", () => {
       it("does not return another project's external ID", async () => {
-        const tenantA = await prepare({ admin: false, plan: "cloud:team" });
-        const tenantB = await prepare({ admin: false, plan: "cloud:team" });
+        const tenantA = await prepare({ plan: "cloud:team" });
+        const tenantB = await prepare({ plan: "cloud:team" });
         await createRoleIntegration(tenantA.project.id);
 
         await expect(
@@ -912,7 +879,6 @@ describe("Blob Storage Integration tRPC Router", () => {
 
       it("requires integrations:CRUD within the project", async () => {
         const { caller, project } = await prepare({
-          admin: false,
           plan: "cloud:team",
           projectRole: "MEMBER",
         });

@@ -11,7 +11,6 @@ type Project = Extract<
 const createProject = (id: string, name: string): Project => ({
   id,
   name,
-  role: "ADMIN",
   deletedAt: null,
   retentionDays: null,
   hasTraces: false,
@@ -100,15 +99,16 @@ export const TestSearch = meta.story({
       menu.getByRole("link", { name: "Production" }),
     ).toHaveAttribute("href", "/project/project-production");
     await expect(
-      menu.getByRole("link", { name: "Go to settings for Production" }),
-    ).toHaveAttribute("href", "/project/project-production/settings");
-    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
 
     await userEvent.clear(search);
     await userEvent.type(search, "project-production");
     await expect(menu.getByText("No project found.")).toBeVisible();
     await expect(menu.getAllByRole("menuitem")).toHaveLength(1);
-    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "New project" }),
+    ).toBeVisible();
 
     await userEvent.keyboard("{Escape}");
     await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
@@ -118,6 +118,47 @@ export const TestSearch = meta.story({
     ).toHaveValue("");
     await waitFor(() =>
       expect(body.getByRole("link", { name: "Analytics" })).toBeVisible(),
+    );
+  },
+});
+
+export const TestActionsStayInView = meta.story({
+  name: "(Test) Actions stay in view with many projects",
+  args: {
+    state: "loaded",
+    projects: Array.from({ length: 40 }, (_, index) =>
+      createProject(`project-${index + 1}`, `Project ${index + 1}`),
+    ),
+    currentProjectId: "project-1",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Trigger" }));
+
+    const menuElement = body.getByRole("menu", { name: "Projects" });
+    const menu = within(menuElement);
+    const menuBottom = menuElement.getBoundingClientRect().bottom;
+    for (const name of ["Project settings", "New project"]) {
+      const action = menu.getByRole("menuitem", { name });
+      await expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        menuBottom,
+      );
+    }
+    await expect(
+      menu.getByRole("link", { name: "Project 40" }).getBoundingClientRect()
+        .top,
+    ).toBeGreaterThan(menuBottom);
+
+    for (let step = 0; step < 15; step++) {
+      await userEvent.keyboard("{ArrowDown}");
+    }
+    const focused = canvasElement.ownerDocument.activeElement;
+    await expect(focused).toHaveAccessibleName("Project 15");
+    await expect(focused?.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      menu
+        .getByRole("menuitem", { name: "Project settings" })
+        .getBoundingClientRect().top,
     );
   },
 });

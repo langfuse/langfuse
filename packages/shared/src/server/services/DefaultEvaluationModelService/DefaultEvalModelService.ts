@@ -35,12 +35,12 @@ export class DefaultEvalModelService {
   }
 
   /**
-   * Creates or updates a default evaluation model for a project
+   * Creates or updates a default evaluation model for a project. The adapter
+   * is taken from the provider's LLM connection.
    */
   public static async upsertDefaultModel(params: {
     projectId: string;
     provider: string;
-    adapter: string;
     model: string;
     modelParams?: z.infer<typeof ZodModelConfig>;
   }) {
@@ -67,8 +67,11 @@ export class DefaultEvalModelService {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
+      // The cause keeps the provider error, e.g. its status code, for callers
+      // that tell a rejected key apart from an unknown model.
       throw new ForbiddenError(
         `Model configuration not valid for evaluation. ${message}`,
+        { cause: err },
       );
     }
 

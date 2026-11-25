@@ -1,10 +1,11 @@
-import { type Organization } from "@langfuse/shared/src/db";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type Organization, type PrismaClient } from "@langfuse/shared/src/db";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
   allowlist: [] as string[],
+  crossAccountRoleArn: "arn:aws:iam::210987654321:role/cross-account",
 }));
 
 // Override only the values the gate reads, so the real
@@ -28,30 +29,45 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
+// The plan resolver in @langfuse/shared reads shared's own env.
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const original = (await importOriginal()) as { env: Record<string, unknown> };
+  return {
+    ...original,
+    env: new Proxy(original.env, {
+      get: (target, prop) => {
+        if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
+          return mocks.cloudRegion;
+        if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
+        return Reflect.get(target, prop);
+      },
+    }),
+  };
+});
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    getCrossAccountRoleArn: () => mocks.crossAccountRoleArn,
+  }),
+);
+
 import { hasExternalMediaStorageAccess } from "@/src/ee/features/external-media-storage/server/hasExternalMediaStorageAccess";
+import { createExternalMediaStorageService } from "@/src/ee/features/external-media-storage/server/service";
 
 const organization = (cloudConfig: unknown = null) =>
   ({ id: "org-allowlisted", cloudConfig }) as Organization;
 
-function setCloudRegion(region: string | undefined) {
-  mocks.cloudRegion = region;
-  // The plan resolver reads the region from process.env directly.
-  vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", region ?? "");
-}
-
 describe("hasExternalMediaStorageAccess", () => {
   beforeEach(() => {
-    setCloudRegion(undefined);
+    mocks.cloudRegion = undefined;
     mocks.licenseKey = undefined;
     mocks.allowlist = ["org-allowlisted"];
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   it("grants Cloud access to enterprise plans and allowlisted organizations only", () => {
-    setCloudRegion("EU");
+    mocks.cloudRegion = "EU";
     expect(hasExternalMediaStorageAccess(organization({ plan: "Pro" }))).toBe(
       true,
     );
@@ -70,5 +86,39 @@ describe("hasExternalMediaStorageAccess", () => {
 
     mocks.licenseKey = "langfuse_ee_test";
     expect(hasExternalMediaStorageAccess(organization())).toBe(true);
+  });
+});
+
+describe("external media storage IAM role auth", () => {
+  beforeEach(() => {
+    mocks.cloudRegion = "EU";
+    mocks.allowlist = ["org-allowlisted"];
+  });
+
+  const roleAuthAvailability = (plan: "cloud:pro" | "cloud:enterprise") =>
+    createExternalMediaStorageService({
+      project: {
+        findUnique: async () => ({ organization: organization() }),
+      },
+    } as unknown as PrismaClient).getRoleAuthAvailability({
+      projectId: "project-1",
+      plan,
+    });
+
+  it("is granted by the allowlist or the plan, and otherwise offered as an upgrade", async () => {
+    const available = {
+      crossAccountRoleArn: mocks.crossAccountRoleArn,
+      roleAuthRequiresUpgrade: false,
+    };
+    await expect(roleAuthAvailability("cloud:pro")).resolves.toEqual(available);
+
+    mocks.allowlist = [];
+    await expect(roleAuthAvailability("cloud:enterprise")).resolves.toEqual(
+      available,
+    );
+    await expect(roleAuthAvailability("cloud:pro")).resolves.toEqual({
+      crossAccountRoleArn: null,
+      roleAuthRequiresUpgrade: true,
+    });
   });
 });

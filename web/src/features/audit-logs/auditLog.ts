@@ -6,9 +6,14 @@ import {
 } from "@langfuse/shared/src/db";
 import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
 import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
+import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { type Session } from "next-auth";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
+  getSystemAuditLogActorForApiKeyId,
+  getSystemAuditLogActorForUserId,
+  getAuditLogResourceRefs,
   logger,
   recordIncrement,
   stageAuditLogEvents,
@@ -16,6 +21,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
+import { rolesFor } from "@/src/features/rbac/authorize";
 
 type AuditableResource =
   | "annotationQueue"
@@ -36,6 +42,7 @@ type AuditableResource =
   | "score"
   | "scoreConfig"
   | "model"
+  | "defaultLlmModel"
   | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
@@ -65,6 +72,8 @@ type AuditableResource =
   | "ssoConfig"
   | "gatewayConfig"
   | "gatewayAiConnection"
+  | "gatewaySpendLimit"
+  | "gatewayGuardrail"
   | "topicConfig"
   | "supportAccess"
   // legacy resources
@@ -79,20 +88,7 @@ export type AuditLogActor =
       projectRole?: Role;
     }
   | {
-      session: {
-        user: {
-          id: string;
-          name?: string | null;
-          email?: string | null;
-          // The session's organizations. The entry for `orgId` tells whether
-          // the user acts through a support access grant.
-          organizations?: { id: string; supportAccess?: boolean }[];
-        };
-        orgId: string;
-        orgRole?: Role;
-        projectId?: string;
-        projectRole?: Role;
-      };
+      session: UserSession & { orgId: string; projectId?: string };
     }
   | {
       apiKeyId: string;
@@ -107,20 +103,6 @@ export type AuditLog = {
   before?: unknown;
   after?: unknown;
 } & AuditLogActor;
-
-// Writes made by Langfuse itself rather than by a user or an API key pass these
-// sentinel actor ids. The Postgres row keeps them, because its actor type
-// cannot be SYSTEM. The staged event records a SYSTEM actor instead.
-const SYSTEM_ACTOR_USER_IDS = new Set([
-  "stripe-webhook",
-  "clickhouse-webhook",
-  "conductorone-webhook",
-]);
-const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
-const ADMIN_API_ACTOR: StagedAuditLogActor = {
-  type: "SYSTEM",
-  name: "admin-api",
-};
 
 const STAGED_RECORD_SELECT = {
   id: true,
@@ -176,11 +158,9 @@ export async function auditLog(
   // that have no parallel logger call of their own, and the actor logging added
   // alongside it elsewhere — batch actions, trace deletion — is ungated too.
   const persistRecord = isAuditLogEnabled();
-  // Persisted records are also staged for ClickHouse, on Cloud only: the
-  // worker relay that drains the staging table runs only there.
-  const stageRecord =
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
+  // Persisted records are also staged for ClickHouse. The worker relay that
+  // drains the staging table runs under the same license condition.
+  const stageRecord = env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED === "true";
 
   const db = prisma ?? _prisma;
   // Defer JSON.stringify(before/after) until we know the record will be
@@ -260,6 +240,11 @@ export async function auditLog(
   }
 
   if ("session" in log) {
+    const access = sessionAccess(
+      log.session,
+      log.session.orgId,
+      log.session.projectId,
+    );
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -274,9 +259,9 @@ export async function auditLog(
       data: {
         userId: log.session.user.id,
         orgId: log.session.orgId,
-        userOrgRole: log.session.orgRole,
+        userOrgRole: access.orgRole,
         projectId: log.session.projectId,
-        userProjectRole: log.session.projectRole,
+        userProjectRole: access.projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -288,13 +273,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.session.orgId, projectId: log.session.projectId },
-        toUserActor(log.session.user, {
-          orgRole: log.session.orgRole,
-          projectRole: log.session.projectRole,
-          supportAccess: log.session.user.organizations?.some(
-            (org) => org.id === log.session.orgId && org.supportAccess === true,
-          ),
-        }),
+        userActor(log.session.user, access),
         db,
       );
     }
@@ -303,6 +282,8 @@ export async function auditLog(
   }
 
   if ("userId" in log) {
+    const orgRole = log.orgRole && SystemRoleId(log.orgRole);
+    const projectRole = log.projectRole && SystemRoleId(log.projectRole);
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {
       type: AuditLogRecordType.USER,
@@ -317,9 +298,9 @@ export async function auditLog(
       data: {
         userId: log.userId,
         orgId: log.orgId,
-        userOrgRole: log.orgRole,
+        userOrgRole: orgRole,
         projectId: log.projectId,
-        userProjectRole: log.projectRole,
+        userProjectRole: projectRole,
         type: AuditLogRecordType.USER,
         ...makeShared(),
       },
@@ -331,7 +312,7 @@ export async function auditLog(
         log,
         record,
         { orgId: log.orgId, projectId: log.projectId },
-        toUserActor({ id: log.userId }, log),
+        userActor({ id: log.userId }, { orgRole, projectRole }),
         db,
       );
     }
@@ -340,14 +321,45 @@ export async function auditLog(
   }
 }
 
-/** `supportAccess` is set when the user reaches the org through a ConductorOne support access grant. */
+/** toUserActor names the session's user as actor, with the roles they hold on orgId and projectId. */
 export function toUserActor(
-  user: { id: string; name?: string | null; email?: string | null },
-  access: { orgRole?: Role; projectRole?: Role; supportAccess?: boolean },
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
 ): StagedAuditLogActor {
-  if (SYSTEM_ACTOR_USER_IDS.has(user.id)) {
-    return { type: "SYSTEM", name: user.id };
-  }
+  return userActor(session.user, sessionAccess(session, orgId, projectId));
+}
+
+/** sessionAccess lists the session's roles on orgId and projectId, and whether the user reaches orgId through a ConductorOne support access grant. */
+function sessionAccess(
+  session: UserSession,
+  orgId: string,
+  projectId?: string,
+): UserAccess {
+  const tenant = OrganizationId(orgId);
+  return {
+    orgRole: joinRoles(rolesFor(session, tenant, tenant)),
+    projectRole: projectId
+      ? joinRoles(rolesFor(session, tenant, ProjectId(projectId)))
+      : undefined,
+    supportAccess: session.user.organizations.some(
+      (org) => org.id === orgId && org.supportAccess === true,
+    ),
+  };
+}
+
+/** joinRoles records role ids as one sorted, comma-separated value, or none. */
+function joinRoles(roleIds: string[]): string | undefined {
+  return [...roleIds].sort().join(",") || undefined;
+}
+
+/** userActor names user as actor with the given access. */
+function userActor(
+  user: { id: string; name?: string | null; email?: string | null },
+  access: UserAccess,
+): StagedAuditLogActor {
+  const systemActor = getSystemAuditLogActorForUserId(user.id);
+  if (systemActor) return systemActor;
   return {
     type: "USER",
     userId: user.id,
@@ -365,7 +377,8 @@ export function toApiKeyActor(
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,
 ): StagedAuditLogActor {
-  if (ADMIN_API_KEY_IDS.has(apiKeyId)) return ADMIN_API_ACTOR;
+  const systemActor = getSystemAuditLogActorForApiKeyId(apiKeyId);
+  if (systemActor) return systemActor;
   return {
     type: "API_KEY",
     apiKeyId,
@@ -399,6 +412,7 @@ async function stageChangeEvent(
       actor,
       resourceType: log.resourceType,
       resourceId: log.resourceId,
+      resourceRefs: getAuditLogResourceRefs(log),
       action: log.action,
       // Staging serializes these itself. Falsy values are dropped, as in the
       // Postgres row.
@@ -443,3 +457,18 @@ async function stageInSavepoint(
   }
   await tx.$executeRaw`RELEASE SAVEPOINT audit_log_staging`;
 }
+
+/** UserSession is the part of a signed-in session an audit log names its actor from. */
+type UserSession = Pick<Session, "policies"> & {
+  user: Pick<
+    NonNullable<Session["user"]>,
+    "id" | "name" | "email" | "organizations"
+  >;
+};
+
+/** UserAccess is the roles a user holds on an org and project, and whether they act through a support access grant. */
+type UserAccess = {
+  orgRole?: string;
+  projectRole?: string;
+  supportAccess?: boolean;
+};

@@ -183,5 +183,5 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
 import {
@@ -8,11 +9,8 @@ import {
   queryClickhouseWithProgress,
   logger,
 } from "@langfuse/shared/src/server";
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
 
 import { getServerAuthSession } from "@/src/server/auth";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
@@ -38,6 +36,30 @@ function formatSSEEvent(event: SSEEvent): string {
       return `event: done\ndata: {}\n\n`;
     case "error":
       return `event: error\ndata: ${JSON.stringify({ message: event.message })}\n\n`;
+  }
+}
+
+async function writeSSEEvent(
+  res: NextApiResponse,
+  event: SSEEvent,
+  clientClosed: AbortSignal,
+): Promise<boolean> {
+  if (clientClosed.aborted) {
+    return false;
+  }
+
+  if (res.write(formatSSEEvent(event))) {
+    return true;
+  }
+
+  try {
+    await once(res, "drain", { signal: clientClosed });
+    return !clientClosed.aborted;
+  } catch (error) {
+    if (clientClosed.aborted) {
+      return false;
+    }
+    throw error;
   }
 }
 
@@ -81,30 +103,8 @@ export default async function handler(
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
-    if (session.user.admin === true) {
-      const dbProject = await prisma.project.findFirst({
-        select: { orgId: true },
-        where: { id: projectId, deletedAt: null },
-      });
-      if (!dbProject) {
-        res.status(404).json({ message: "Project not found" });
-        return;
-      }
-      await sendAdminAccessWebhook({
-        email: session.user.email,
-        projectId,
-        orgId: dbProject.orgId,
-      });
-    } else {
-      res.status(403).json({ message: "Not a member of this project" });
-      return;
-    }
-  } else if (session.user.admin === true) {
-    await sendAdminAccessWebhook({
-      email: session.user.email,
-      projectId,
-      orgId: sessionProject.organization.id,
-    });
+    res.status(403).json({ message: "Not a member of this project" });
+    return;
   }
 
   if (session.user.v4BetaEnabled !== true) {
@@ -140,7 +140,8 @@ export default async function handler(
   // consumed, while the response lives for the whole stream — its close
   // fires on a client disconnect mid-stream (and only after res.end() on
   // the happy path, where the loop has already finished).
-  res.on("close", () => clientClosed.abort());
+  const onClientClosed = () => clientClosed.abort();
+  res.on("close", onClientClosed);
 
   try {
     const prepared = await prepareExecuteQuery({
@@ -167,30 +168,48 @@ export default async function handler(
       },
     })) {
       if (isProgressRow(event)) {
-        res.write(
-          formatSSEEvent({ type: "progress", progress: event.progress }),
-        );
+        if (
+          !(await writeSSEEvent(
+            res,
+            { type: "progress", progress: event.progress },
+            clientClosed.signal,
+          ))
+        ) {
+          break;
+        }
       } else if (isRow<Record<string, unknown>>(event)) {
-        res.write(formatSSEEvent({ type: "row", row: event.row }));
+        if (
+          !(await writeSSEEvent(
+            res,
+            { type: "row", row: event.row },
+            clientClosed.signal,
+          ))
+        ) {
+          break;
+        }
       } else if (isException(event)) {
-        const isResource =
-          ClickHouseResourceError.wrapIfResourceError(
-            new Error(event.exception),
-          ) instanceof ClickHouseResourceError;
+        const exception = ClickHouseResourceError.wrapIfResourceError(
+          new Error(event.exception),
+        );
         logger.error(
           `[execute-query-stream] ClickHouse exception: ${event.exception}`,
           { projectId },
         );
-        const userMessage = isResource
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : event.exception;
-        res.write(formatSSEEvent({ type: "error", message: userMessage }));
+        const userMessage =
+          exception instanceof ClickHouseResourceError
+            ? exception.adviceMessage
+            : event.exception;
+        await writeSSEEvent(
+          res,
+          { type: "error", message: userMessage },
+          clientClosed.signal,
+        );
         return;
       }
     }
 
     if (!clientClosed.signal.aborted) {
-      res.write(formatSSEEvent({ type: "done" }));
+      await writeSSEEvent(res, { type: "done" }, clientClosed.signal);
     }
   } catch (error) {
     if (!clientClosed.signal.aborted) {
@@ -200,16 +219,20 @@ export default async function handler(
       });
       const message = (() => {
         if (error instanceof ClickHouseResourceError) {
-          return RESOURCE_LIMIT_ERROR_MESSAGE;
+          return error.adviceMessage;
         }
         if (error instanceof Error) {
           return error.message;
         }
         return "Internal server error";
       })();
-      res.write(formatSSEEvent({ type: "error", message }));
+      await writeSSEEvent(res, { type: "error", message }, clientClosed.signal);
     }
   } finally {
-    res.end();
+    try {
+      res.end();
+    } finally {
+      res.removeListener("close", onClientClosed);
+    }
   }
 }

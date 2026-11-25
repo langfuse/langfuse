@@ -1,14 +1,17 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { env } from "@/src/env.mjs";
 import type { Session } from "next-auth";
+import type { Role } from "@langfuse/shared";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
 it.each([
-  { flag: "langfuseTopics", enableExperimentalFeatures: true },
+  { flag: "traceTranscriptEvals", enableExperimentalFeatures: true },
   { flag: "sessionViewV2", enableExperimentalFeatures: false },
 ] as const)(
-  "keeps $flag hidden for admins without opt-in",
+  "keeps $flag hidden without opt-in",
   ({ flag, enableExperimentalFeatures }) => {
     const route: Route = {
       title: "Preview",
@@ -23,7 +26,6 @@ it.each([
       } as Session,
       enableExperimentalFeatures,
       internalFeaturesEnabled: false,
-      cloudAdmin: true,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -50,18 +52,16 @@ it.each([
     const context: NavigationFilterContext = {
       routerProjectId: "project-1",
       routerOrganizationId: undefined,
-      session: {
+      session: createSession({
         user: {
           canToggleV4: false,
           v4BetaEnabled: false,
           v4UpgradeUiAvailable: true,
-          featureFlags: testFeatureFlags({}),
         },
         environment: { v4WriteMode: "dual" },
-      } as Session,
+      }),
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -79,31 +79,29 @@ it.each([
 );
 
 it.each([
-  { topicsEnabled: true, visible: true },
-  { topicsEnabled: false, visible: false },
+  { projectId: "project-1", visible: true },
+  { projectId: "other-project", visible: false },
 ])(
-  "shows the Topics entry only when the gate passes for the current project (allowlisted: $topicsEnabled)",
-  ({ topicsEnabled, visible }) => {
+  "shows the Topics entry only to project members ($projectId)",
+  ({ projectId, visible }) => {
     const route = ROUTES.find((route) => route.title === "Topics")!;
-    const project = { id: "project-1", role: "VIEWER", topicsEnabled };
-    const organization = {
-      id: "org-1",
-      role: "VIEWER",
-      projects: [project],
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
-    const context: NavigationFilterContext = {
-      routerProjectId: "project-1",
-      routerOrganizationId: undefined,
-      session: {
-        user: {
-          admin: false,
-          featureFlags: testFeatureFlags({ langfuseTopics: true }),
-          organizations: [organization],
+    const session = createSession({
+      user: { featureFlags: testFeatureFlags() },
+      organizations: [
+        {
+          id: "org-1",
+          role: "VIEWER",
+          projects: [{ id: "project-1" }],
         },
-      } as Session,
+      ],
+    });
+    const organization = session.user.organizations[0]!;
+    const context: NavigationFilterContext = {
+      routerProjectId: projectId,
+      routerOrganizationId: undefined,
+      session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -117,33 +115,40 @@ it.each([
   },
 );
 
-it.each([
-  { role: "AI_GATEWAY", projects: [], visible: false },
-  { role: "AI_GATEWAY", projects: [{ id: "project-1" }], visible: true },
-  { role: "NONE", projects: [], visible: true },
+it.each<{
+  title: string;
+  role: Role;
+  projects: { id: string }[];
+  visible: boolean;
+}>([
+  { title: "Projects", role: "AI_GATEWAY", projects: [], visible: true },
+  { title: "Settings", role: "AI_GATEWAY", projects: [], visible: false },
+  {
+    title: "Settings",
+    role: "AI_GATEWAY",
+    projects: [{ id: "project-1" }],
+    visible: false,
+  },
+  { title: "Settings", role: "NONE", projects: [], visible: true },
 ])(
-  "shows Projects to $role members with $projects.length projects: $visible",
-  ({ role, projects, visible }) => {
-    const route = ROUTES.find((route) => route.title === "Projects")!;
-    const organization = {
-      id: "org-1",
-      role,
-      projects,
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+  "shows $title to $role members with $projects.length projects: $visible",
+  ({ title, role, projects, visible }) => {
+    const route = ROUTES.find(
+      (route) =>
+        route.title === title && route.href.startsWith("/organization/"),
+    )!;
+    const session = createSession({
+      user: { featureFlags: testFeatureFlags({}) },
+      organizations: [{ id: "org-1", role, projects }],
+      environment: { aiGatewayDeployed: true },
+    });
+    const organization = session.user.organizations[0]!;
     const context: NavigationFilterContext = {
       routerProjectId: undefined,
       routerOrganizationId: "org-1",
-      session: {
-        user: {
-          admin: false,
-          featureFlags: testFeatureFlags({}),
-          organizations: [organization],
-        },
-        environment: { aiGatewayDeployed: true },
-      } as Session,
+      session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: false,
@@ -158,26 +163,29 @@ it.each([
 );
 
 it("shows the AI Gateway pages among the organization routes", () => {
-  const organization = {
-    id: "org-1",
-    role: "OWNER",
-    projects: [],
-    featureFlags: testFeatureFlags({ aiGateway: true }),
-  } as unknown as NonNullable<Session["user"]>["organizations"][number];
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV" });
+  onTestFinished(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
+  });
+  const session = createSession({
+    user: { featureFlags: testFeatureFlags({}) },
+    organizations: [
+      {
+        id: "org-1",
+        role: "OWNER",
+        featureFlags: testFeatureFlags({ aiGateway: true }),
+      },
+    ],
+    environment: { aiGatewayDeployed: true },
+  });
+  const organization = session.user.organizations[0]!;
   const context: NavigationFilterContext = {
     routerProjectId: undefined,
     routerOrganizationId: "org-1",
-    session: {
-      user: {
-        admin: false,
-        featureFlags: testFeatureFlags({}),
-        organizations: [organization],
-      },
-      environment: { aiGatewayDeployed: true },
-    } as Session,
+    session,
     enableExperimentalFeatures: false,
     internalFeaturesEnabled: false,
-    cloudAdmin: false,
     entitlements: [],
     uiCustomization: null,
     isLangfuseCloud: false,
@@ -196,8 +204,9 @@ it("shows the AI Gateway pages among the organization routes", () => {
   ).toEqual([
     "Projects",
     "Overview",
-    "Providers & Models",
     "Gateway keys",
+    "Connections & Models",
+    "Budgets",
     "Tracing",
     "Settings",
   ]);

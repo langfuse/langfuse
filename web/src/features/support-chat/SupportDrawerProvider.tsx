@@ -5,7 +5,10 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { type Topic } from "@/src/features/support-chat/formConstants";
+import {
+  type MessageType,
+  type Topic,
+} from "@/src/features/support-chat/formConstants";
 
 export type SupportDrawerMode = "intro" | "form";
 
@@ -19,6 +22,8 @@ type SupportDrawerContextType = {
   initialTopic: Topic | null;
   /** Message prefilled in the support form; a closed→open resets it. */
   initialMessage: string;
+  /** Message type preselected in the support form; a closed→open resets it. */
+  initialMessageType: MessageType;
   /**
    * Bumped on closed→open transitions and on every openWithMode so the
    * drawer can remount via key and re-seed mode/topic. A redundant
@@ -27,7 +32,7 @@ type SupportDrawerContextType = {
   openEpoch: number;
   openWithMode: (
     mode: SupportDrawerMode,
-    options?: { topic?: Topic; message?: string },
+    options?: { topic?: Topic; message?: string; messageType?: MessageType },
   ) => void;
 };
 
@@ -48,6 +53,8 @@ export function SupportDrawerProvider({
   const [initialMode, setInitialMode] = useState<SupportDrawerMode>("intro");
   const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
   const [initialMessage, setInitialMessage] = useState("");
+  const [initialMessageType, setInitialMessageType] =
+    useState<MessageType>("Question");
   const [openEpoch, setOpenEpoch] = useState(0);
 
   const setOpen = useCallback(
@@ -59,6 +66,7 @@ export function SupportDrawerProvider({
         setInitialMode("intro");
         setInitialTopic(null);
         setInitialMessage(options?.message ?? "");
+        setInitialMessageType("Question");
         setOpenEpoch((e) => e + 1);
       }
       setOpenState(v);
@@ -69,11 +77,12 @@ export function SupportDrawerProvider({
   const openWithMode = useCallback(
     (
       mode: SupportDrawerMode,
-      options?: { topic?: Topic; message?: string },
+      options?: { topic?: Topic; message?: string; messageType?: MessageType },
     ) => {
       setInitialMode(mode);
       setInitialTopic(options?.topic ?? null);
       setInitialMessage(options?.message ?? "");
+      setInitialMessageType(options?.messageType ?? "Question");
       setOpenEpoch((e) => e + 1);
       setOpenState(true);
     },
@@ -88,6 +97,7 @@ export function SupportDrawerProvider({
         initialMode,
         initialTopic,
         initialMessage,
+        initialMessageType,
         openEpoch,
         openWithMode,
       }}

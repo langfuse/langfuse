@@ -1,3 +1,5 @@
+import { expect } from "storybook/test";
+
 import preview from "@/.storybook/preview";
 import { GatewaySetupHero } from "./GatewaySetupHero";
 
@@ -12,26 +14,22 @@ export const NotStarted = meta.story({
     providers: [
       { provider: "ANTHROPIC", isConnected: false },
       { provider: "OPENAI", isConnected: false },
-    ],
-  },
-});
-
-export const ProviderConnected = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: false },
-    ],
-  },
-});
-
-/** Pre-release environments also offer Bedrock. */
-export const WithBedrock = meta.story({
-  args: {
-    providers: [
-      { provider: "ANTHROPIC", isConnected: true },
-      { provider: "OPENAI", isConnected: true },
       { provider: "BEDROCK", isConnected: false },
     ],
+  },
+});
+
+export const DiagramLabelsInside = meta.story({
+  name: "(Test) Diagram labels stay inside the diagram",
+  args: { providers: [] },
+  play: async ({ canvasElement }) => {
+    const labels = [...canvasElement.querySelectorAll<SVGTextElement>("text")];
+    await expect(labels).not.toHaveLength(0);
+    for (const label of labels) {
+      const diagram = label.ownerSVGElement?.getBoundingClientRect();
+      await expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(
+        diagram?.right ?? 0,
+      );
+    }
   },
 });

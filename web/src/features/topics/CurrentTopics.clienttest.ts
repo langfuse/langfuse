@@ -1,17 +1,31 @@
-import { createElement, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { type ComponentProps, createElement, type ReactNode } from "react";
+import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { __test } from "./CurrentTopics";
+import { decodeFiltersGeneric } from "@langfuse/shared";
+import { TOPICS_MAX_TIME_RANGE_MS } from "@langfuse/shared/topics";
+import { __test, CurrentTopics } from "./CurrentTopics";
 import {
+  type Facet,
   type TopicTraceQuery,
+  topicTracesHref,
   type TopicTracesResult,
   useTracesWithSelection,
 } from "./facet-topics";
 
-const { fetchResults, resetTraces } = vi.hoisted(() => ({
+const { fetchResults, resetTraces, capture } = vi.hoisted(() => ({
   fetchResults: vi.fn(),
   resetTraces: vi.fn(),
+  capture: vi.fn(),
+}));
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProject: () => ({
+    project: { id: "project" },
+    organization: { id: "org" },
+  }),
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => capture,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -39,7 +53,31 @@ beforeEach(() => {
 });
 afterEach(() => {
   client.clear();
+  sessionStorage.clear();
   vi.useRealTimers();
+});
+
+it("persists mobile selection on remount and clears it on facet changes", () => {
+  sessionStorage.setItem("topics-selected-trace:project", '"desktop-trace"');
+  const initialProps = { projectId: "project", facetId: "intent" };
+  const hook = (props: typeof initialProps) =>
+    __test.useMobileTraceSelection(props.projectId, props.facetId);
+  const first = renderHook(hook, { initialProps });
+  expect(first.result.current[0]).toBeNull();
+  act(() => first.result.current[1]("trace-a"));
+  first.rerender({ ...initialProps });
+  expect(first.result.current[0]).toBe("trace-a");
+  first.unmount();
+
+  const reopened = renderHook(hook, { initialProps });
+  expect(reopened.result.current[0]).toBe("trace-a");
+  reopened.rerender({ ...initialProps, facetId: "issues" });
+  expect(reopened.result.current[0]).toBeNull();
+  reopened.rerender(initialProps);
+  expect(reopened.result.current[0]).toBeNull();
+  expect(sessionStorage.getItem("topics-selected-trace:project")).toBe(
+    '"desktop-trace"',
+  );
 });
 
 describe("current Topics query", () => {
@@ -196,4 +234,63 @@ describe("trace selection", () => {
     expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
     expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
   });
+});
+
+describe("Open in Tracing", () => {
+  it("filters by the topic over a window the tracing topic filter accepts", () => {
+    const to = new Date("2026-09-23T00:00:00Z");
+    const facet = {
+      name: "Intent",
+      window: { from: new Date(to.getTime() - TOPICS_MAX_TIME_RANGE_MS), to },
+    } as Facet;
+    const url = new URL(
+      topicTracesHref("p1", [], true, { facet, name: "Billing" })!,
+      "http://localhost",
+    );
+    expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
+      {
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+    ]);
+    // The server adds 1 ms to the inclusive upper bound before checking the maximum.
+    const [from, until] = url.searchParams
+      .get("dateRange")!
+      .split("-")
+      .map(Number);
+    expect(until).toBe(to.getTime());
+    expect(until + 1 - from).toBe(TOPICS_MAX_TIME_RANGE_MS);
+  });
+});
+
+it("counts a map view only once the selected map's own results arrived", () => {
+  const facets = [{ facetId: "intent", topics: [{ id: "billing" }] }];
+  // No selected facet, so only the map-level capture runs.
+  const props = (isPlaceholderData: boolean) =>
+    ({
+      projectId: "project",
+      scope: { ruleId: "rule" },
+      result: {
+        data: { facets },
+        isLoading: false,
+        error: null,
+        isPlaceholderData,
+      },
+      selectedFacetId: undefined,
+      view: "treemap",
+    }) as unknown as ComponentProps<typeof CurrentTopics>;
+
+  // A map switch still shows the previous map's results.
+  const view = render(createElement(CurrentTopics, props(true)));
+  expect(capture).not.toHaveBeenCalled();
+
+  view.rerender(createElement(CurrentTopics, props(false)));
+  expect(capture).toHaveBeenCalledTimes(1);
+  expect(capture).toHaveBeenCalledWith(
+    "topics:map_viewed",
+    expect.objectContaining({ mapKind: "rule", topicCount: 1, facetCount: 1 }),
+  );
 });

@@ -3,19 +3,27 @@ import { vi } from "vitest";
 
 import { useSessionHeaderMenuItems } from "@/src/features/sessions/useSessionHeaderMenuItems";
 
-const { mockUseSession, copy } = vi.hoisted(() => ({
-  mockUseSession: vi.fn(),
-  copy: vi.fn(),
-}));
+const { mockUseInternalFeaturesEnabled, copy, getShareUrl } = vi.hoisted(
+  () => ({
+    mockUseInternalFeaturesEnabled: vi.fn(),
+    copy: vi.fn(),
+    getShareUrl: vi.fn(() => "https://example.com"),
+  }),
+);
 
-vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
+vi.mock(
+  "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled",
+  () => ({
+    useInternalFeaturesEnabled: mockUseInternalFeaturesEnabled,
+  }),
+);
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/", push: vi.fn() }),
 }));
 
 vi.mock("@/src/components/usePublishObject", () => ({
-  getShareUrl: () => "https://example.com",
+  getShareUrl,
   usePublishObject: () => ({
     hasAccess: true,
     isPending: false,
@@ -31,16 +39,36 @@ vi.mock("@/src/hooks/useCopyToClipboard", () => ({
   useCopyToClipboard: () => ({ copy }),
 }));
 
+vi.mock("@/src/utils/clipboard", () => ({
+  copyTextToClipboard: vi.fn(),
+}));
+
 describe("useSessionHeaderMenuItems", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockReturnValue({ data: { user: { admin: false } } });
+    mockUseInternalFeaturesEnabled.mockReturnValue(false);
+  });
+
+  it("copies the session URL override rather than the surrounding trace URL", () => {
+    const shareUrl = "/project/project-id/sessions/session-id";
+    const { result } = renderHook(() =>
+      useSessionHeaderMenuItems({
+        projectId: "project-id",
+        sessionId: "session-id",
+        isPublic: true,
+        shareUrl,
+      }),
+    );
+    const item = result.current.find((item) => item.id === "copy-share-link");
+    if (item?.type !== "item") throw new Error("Expected share link action");
+    item.onClick?.();
+    expect(getShareUrl).toHaveBeenCalledWith(shareUrl);
   });
 
   it.each(["events_full", "events_core"])(
     "copies all session rows from %s with escaped identifiers",
     async (table) => {
-      mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
+      mockUseInternalFeaturesEnabled.mockReturnValue(true);
       const { result } = renderHook(() =>
         useSessionHeaderMenuItems({
           projectId: "project'\\id",
@@ -79,30 +107,26 @@ describe("useSessionHeaderMenuItems", () => {
     },
   );
 
-  it.each([{ user: { admin: false } }, { user: {} }, null])(
-    "hides query copying without an instance admin (%j)",
-    (data) => {
-      mockUseSession.mockReturnValue({ data });
-      const { result } = renderHook(() =>
-        useSessionHeaderMenuItems({
-          projectId: "project-id",
-          sessionId: "session-id",
-          isPublic: false,
-        }),
-      );
-      expect(result.current.map((item) => item.id)).not.toContain(
-        "copy-events_full-query",
-      );
-      expect(result.current.map((item) => item.id)).not.toContain(
-        "copy-events_core-query",
-      );
-      const item = result.current.find((item) => item.id === "copy-session-id");
-      expect(item?.type).toBe("item");
-      if (item?.type !== "item") throw new Error("Expected session ID action");
-      item.onClick?.();
-      expect(copy).toHaveBeenCalledExactlyOnceWith("session-id");
-    },
-  );
+  it("hides query copying without internal features", () => {
+    const { result } = renderHook(() =>
+      useSessionHeaderMenuItems({
+        projectId: "project-id",
+        sessionId: "session-id",
+        isPublic: false,
+      }),
+    );
+    expect(result.current.map((item) => item.id)).not.toContain(
+      "copy-events_full-query",
+    );
+    expect(result.current.map((item) => item.id)).not.toContain(
+      "copy-events_core-query",
+    );
+    const item = result.current.find((item) => item.id === "copy-session-id");
+    expect(item?.type).toBe("item");
+    if (item?.type !== "item") throw new Error("Expected session ID action");
+    item.onClick?.();
+    expect(copy).toHaveBeenCalledExactlyOnceWith("session-id");
+  });
 
   it("keeps the timeline display setting reachable from the actions menu", () => {
     const onShowSystemPromptChange = vi.fn();

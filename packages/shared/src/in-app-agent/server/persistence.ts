@@ -739,6 +739,10 @@ export async function flushPendingRunEvents(params: {
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
+  if (!isKnownEventType(event.type)) {
+    return null;
+  }
+
   if (event.type === EventType.RUN_STARTED) {
     const input = isRecord(event.input)
       ? {
@@ -853,6 +857,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_START) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -885,6 +890,7 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
   if (event.type === EventType.REASONING_END) {
     return compactObject({
       type: event.type,
+      messageId: getString(event, "messageId"),
     });
   }
 
@@ -916,16 +922,9 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
     event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_END ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    event.type === EventType.THINKING_TEXT_MESSAGE_END
+    event.type === EventType.SUBAGENT_STARTED ||
+    event.type === EventType.SUBAGENT_FINISHED ||
+    event.type === EventType.SUBAGENT_ERROR
   ) {
     return null;
   }
@@ -1239,16 +1238,9 @@ export function createConversationMessageAccumulator(
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_END ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_START ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_CONTENT ||
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      event.type === EventType.THINKING_TEXT_MESSAGE_END
+      event.type === EventType.SUBAGENT_STARTED ||
+      event.type === EventType.SUBAGENT_FINISHED ||
+      event.type === EventType.SUBAGENT_ERROR
     ) {
       return false;
     }

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type {
   FilePart,
   NormalizedIO,
@@ -187,13 +186,17 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   }
 
   const hasImages = contentParts.some((part) => typeof part !== "string");
-  const content = hasImages
-    ? contentParts.map((part) =>
+  const content = (() => {
+    if (hasImages) {
+      return contentParts.map((part) =>
         typeof part === "string" ? { type: "text", text: part } : part,
-      )
-    : contentParts.length > 0
-      ? contentParts.join("")
-      : undefined;
+      );
+    }
+    if (contentParts.length > 0) {
+      return contentParts.join("");
+    }
+    return undefined;
+  })();
 
   const json = (() => {
     if (jsonParts.length === 0) {

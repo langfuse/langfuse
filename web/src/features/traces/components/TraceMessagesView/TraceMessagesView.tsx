@@ -1,8 +1,12 @@
 import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import {
+  useTraceData,
+  useSingleTraceData,
+} from "@/src/features/traces/contexts/TraceDataProvider";
 import { useTraceMessagesNavigation } from "./hooks/useTraceMessagesNavigation";
 import { useTraceMessagesTranscript } from "./hooks/useTraceMessagesTranscript";
 // TODO: Before TraceMessagesView leaves internal preview, rename the components
@@ -13,25 +17,31 @@ import { useSessionConversationTimelineController } from "@/src/features/session
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
 
-export function TraceMessagesView() {
-  const { trace, sessionTraces, isPlaceholderData } = useTraceData();
-  if (sessionTraces && trace.sessionId) {
+export function TraceMessagesView({
+  onOpenObservation,
+}: {
+  onOpenObservation: (traceId: string, observationId: string) => void;
+}) {
+  const { projectId, scope, isPlaceholderData } = useTraceData();
+  if (scope.type === "session") {
     return (
       <ConnectedSessionMessagesView
-        key={`${trace.projectId}:${trace.sessionId}`}
-        projectId={trace.projectId}
-        sessionId={trace.sessionId}
+        key={`${projectId}:${scope.sessionId}`}
+        projectId={projectId}
+        sessionId={scope.sessionId}
         enabled={!isPlaceholderData}
       />
     );
   }
-  return <SingleTraceMessagesView />;
+  return <SingleTraceMessagesView onOpenObservation={onOpenObservation} />;
 }
 
-function SingleTraceMessagesView() {
-  const { trace, isPlaceholderData } = useTraceData();
+function SingleTraceMessagesView({
+  onOpenObservation,
+}: Pick<ComponentProps<typeof TraceMessagesView>, "onOpenObservation">) {
+  const { trace, isPlaceholderData } = useSingleTraceData();
   const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
-  const { selectNode, setSelectedTab } = useSelection();
+  const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const { messageTrace, navigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
@@ -65,9 +75,7 @@ function SingleTraceMessagesView() {
         selectNode(null);
       },
       onOpenObservation: (observationId) => {
-        setTraceView(undefined, "pushIn");
-        setSelectedTab("preview");
-        selectNode(observationId);
+        onOpenObservation(messageTrace.id, observationId);
       },
       scrollTarget: null,
     }));
@@ -84,21 +92,18 @@ function SingleTraceMessagesView() {
     >
       <div className="flex h-full min-h-0 w-full flex-col">
         {state.type === "transcript" && hiddenThreadCount > 0 && (
-          <div
-            role="status"
-            className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
-          >
-            <span>
+          <div className="shrink-0">
+            <Banner
+              actions={[
+                {
+                  text: "Show nested threads",
+                  onClick: () => setExpandedTraceId(messageTrace.id),
+                },
+              ]}
+            >
               {hiddenThreadCount} nested{" "}
               {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
-            </span>
-            <button
-              type="button"
-              className="text-foreground shrink-0 underline underline-offset-4"
-              onClick={() => setExpandedTraceId(messageTrace.id)}
-            >
-              Show nested threads
-            </button>
+            </Banner>
           </div>
         )}
         {data?.cutoff && (!data.transcript || entries.length <= 1) && (

@@ -257,20 +257,42 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
-/** OpenAI models the Decisions API accepts. */
-export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+/**
+ * Decision models that text adapters serve, in default-preference order. These
+ * APIs receive the keyed state as one JSON text input with plain-text questions.
+ */
+export const TEXT_ADAPTER_DECISION_MODEL_IDS: Partial<
+  Record<LLMAdapter, readonly string[]>
+> = {
+  [LLMAdapter.OpenAI]: ["gpt-6-luna"],
+  [LLMAdapter.GoogleAIStudio]: ["gemini-decision-1"],
+};
 
-export function isOpenAIDecisionModel(model: string): boolean {
-  return OPENAI_DECISION_MODEL_IDS.includes(model);
+export const DECISION_MODEL_CONNECTIONS_HINT = `an OpenAI connection with ${TEXT_ADAPTER_DECISION_MODEL_IDS[LLMAdapter.OpenAI]?.join(", ")}, a Google AI Studio connection with ${TEXT_ADAPTER_DECISION_MODEL_IDS[LLMAdapter.GoogleAIStudio]?.join(", ")}, or a TypeSafe connection`;
+
+export function textAdapterForDecisionModel(
+  model: string,
+): LLMAdapter | undefined {
+  return Object.values(LLMAdapter).find((adapter) =>
+    TEXT_ADAPTER_DECISION_MODEL_IDS[adapter]?.includes(model),
+  );
+}
+
+export function isTextAdapterDecisionModel(model: string): boolean {
+  return textAdapterForDecisionModel(model) !== undefined;
+}
+
+export function isTextDecisionAdapter(adapter: string): boolean {
+  return TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter] !== undefined;
 }
 
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
 }
 
-/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+/** Adapters that can answer a decision-model evaluator. Text adapters keep generating text too. */
 export function supportsDecisionModels(adapter: string): boolean {
-  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+  return adapter === LLMAdapter.TypeSafe || isTextDecisionAdapter(adapter);
 }
 
 export function isAllowedDecisionModel(
@@ -278,8 +300,20 @@ export function isAllowedDecisionModel(
   model: string,
 ): boolean {
   if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
-  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
-  return false;
+  return (
+    TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter]?.includes(model) ??
+    false
+  );
+}
+
+/** Null when the adapter has no decision-model allowlist to point at. */
+export function unsupportedDecisionModelMessage(
+  adapter: string,
+  model: string,
+): string | null {
+  const models = TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter];
+  if (models === undefined) return null;
+  return `Model "${model}" is not supported for decision models. Use ${models.join(", ")}.`;
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -347,6 +381,8 @@ export const openAIModels = [
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
+  "gpt-6.2-astra",
+  "gpt-6.2-sol",
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",
@@ -396,8 +432,10 @@ export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-fable-5",
   "claude-fable-5-1",
+  "claude-fable-5-2",
   "claude-mythos-5",
   "claude-mythos-5-1",
+  "claude-mythos-5-2",
   "claude-opus-5-5",
   "claude-opus-5",
   "claude-haiku-5-5",
@@ -431,6 +469,9 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-4-carbon",
+  "gemini-4-neon",
+  "gemini-4-hydrogen",
   "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
@@ -523,6 +564,7 @@ export const LLMApiKeySchema = z
     provider: z.string(),
     displaySecretKey: z.string(),
     secretKey: z.string(),
+    externalId: z.string().nullish(),
     extraHeaders: z.string().nullish(),
     extraHeaderKeys: z.array(z.string()),
     baseURL: z.string().nullable(),

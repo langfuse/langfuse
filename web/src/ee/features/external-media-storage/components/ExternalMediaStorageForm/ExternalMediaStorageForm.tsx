@@ -19,17 +19,22 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { RoleAuthSetupSection } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupSection";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { buildStorageRolePermissionPolicyPreview } from "@/src/ee/features/storage-role-auth/fns/buildStorageRolePermissionPolicyPreview";
 import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,
 } from "@/src/ee/features/external-media-storage/types";
 
+const ROLE_AUTH_UPGRADE_MESSAGE =
+  "IAM role auth is not part of your plan. Upgrade to Enterprise to use it.";
+
 export function ExternalMediaStorageForm({
   formId,
   initialValues,
   secretAccessKeyDisplay,
   crossAccountRoleArn,
+  roleAuthRequiresUpgrade = false,
   externalId,
   onSubmit,
   renderActions,
@@ -37,8 +42,10 @@ export function ExternalMediaStorageForm({
   formId: string;
   initialValues: ExternalMediaStorageFormValues;
   secretAccessKeyDisplay: string | null | undefined;
-  /** Null when this deployment does not support IAM role auth. */
+  /** Null when this deployment or the organization does not offer IAM role auth. */
   crossAccountRoleArn: string | null;
+  /** The deployment offers IAM role auth, but the organization is not entitled to it. */
+  roleAuthRequiresUpgrade?: boolean;
   externalId: RevealableExternalId;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   renderActions?: (state: { isDirty: boolean }) => ReactNode;
@@ -54,8 +61,14 @@ export function ExternalMediaStorageForm({
     control: form.control,
     name: ["roleArn", "bucketName", "prefix"],
   });
+  const usesRole = authType === "ROLE_ARN";
+  // An integration that already uses a role keeps the option visible so it can
+  // be switched to access keys. Organizations without IAM role auth see the
+  // option disabled.
   const canChooseAuthType =
-    type === "S3" && (crossAccountRoleArn !== null || authType === "ROLE_ARN");
+    type === "S3" &&
+    (crossAccountRoleArn !== null || roleAuthRequiresUpgrade || usesRole);
+  const isRoleOptionLocked = roleAuthRequiresUpgrade && !usesRole;
 
   return (
     <Form {...form}>
@@ -116,13 +129,22 @@ export function ExternalMediaStorageForm({
                         placeholder="Select an authentication method"
                         options={[
                           { value: "ACCESS_KEYS", label: "Access keys" },
-                          { value: "ROLE_ARN", label: "IAM role" },
+                          isRoleOptionLocked
+                            ? {
+                                value: "ROLE_ARN",
+                                label: "IAM role",
+                                disabled: true,
+                                disabledReason: ROLE_AUTH_UPGRADE_MESSAGE,
+                                badges: [{ text: "Enterprise" }],
+                              }
+                            : { value: "ROLE_ARN", label: "IAM role" },
                         ]}
                       />
                     </FormControl>
                     <FormDescription>
-                      With an IAM role, Langfuse assumes a role in your AWS
-                      account instead of storing access keys.
+                      {isRoleOptionLocked
+                        ? ROLE_AUTH_UPGRADE_MESSAGE
+                        : "With an IAM role, Langfuse assumes a role in your AWS account instead of storing access keys."}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -205,7 +227,7 @@ export function ExternalMediaStorageForm({
               )}
             />
 
-            {authType === "ROLE_ARN" ? (
+            {usesRole ? (
               <FormField
                 control={form.control}
                 name="roleArn"
@@ -227,22 +249,24 @@ export function ExternalMediaStorageForm({
                 )}
               />
             ) : null}
-            {authType === "ROLE_ARN" && crossAccountRoleArn ? (
+            {usesRole && crossAccountRoleArn ? (
               <div className="-mt-2">
                 <RoleAuthSetupSection>
                   <RoleAuthSetupInstructions
                     crossAccountRoleArn={crossAccountRoleArn}
                     externalId={externalId}
-                    roleArn={roleArn ?? ""}
-                    bucketName={bucketName.trim()}
-                    prefix={prefix?.trim()}
-                    actions={STORAGE_ROLE_READ_ACTIONS}
+                    permissionPolicy={buildStorageRolePermissionPolicyPreview({
+                      roleArn: roleArn ?? "",
+                      bucketName: bucketName.trim(),
+                      prefix: prefix?.trim(),
+                      actions: STORAGE_ROLE_READ_ACTIONS,
+                    })}
                     description="Let the Langfuse cross-account role assume your role with this external ID, then grant the role read access to the bucket. If the bucket uses SSE-KMS, also allow the role to use kms:Decrypt on the key."
                   />
                 </RoleAuthSetupSection>
               </div>
             ) : null}
-            {authType === "ROLE_ARN" ? null : (
+            {usesRole ? null : (
               <>
                 <FormField
                   control={form.control}

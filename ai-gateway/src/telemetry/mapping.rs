@@ -6,28 +6,19 @@ use super::context::GenerationContext;
 use crate::{
     capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome},
     observability::{ErrorOrigin, provider_status_reason},
+    resolution::ApiFormat,
 };
 
 const USER_ID_ATTRIBUTE: &str = "user.id";
+const GATEWAY_COST_SOURCE_METADATA_KEY: &str = "langfuse.gateway.cost.source";
+const GATEWAY_COST_SOURCE_CALCULATED: &str = "calculated";
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
     let (level, message) = observation_status(&facts);
-    let mut metadata: Map<String, Value> = context
-        .metadata
-        .iter()
-        .filter(|(key, _)| !reserved_metadata(key))
-        .map(|(key, value)| (key.clone(), value.clone()))
-        .collect();
-    // Trusted key attribution and gateway facts take precedence over caller metadata.
-    metadata.extend(generation_metadata(&facts));
-    if let Some(user_agent) = &context.user_agent {
-        metadata.insert(
-            "langfuse.gateway.client.user_agent".into(),
-            json!(user_agent),
-        );
-    }
-    let mut attributes = vec![attribute("langfuse.observation.type", "generation")];
+    let mut metadata = observation_metadata(&facts, context);
+    let observation_type = observation_type(facts.api_format);
+    let mut attributes = vec![attribute("langfuse.observation.type", observation_type)];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
         attribute(
             key,
@@ -36,12 +27,9 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
                 .map_or_else(|| value.to_string(), str::to_owned),
         )
     }));
-    if let Some((source, user_id)) = user_id_source(&facts, context) {
-        if let Some(user_id) = user_id {
-            attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
-            attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
-        }
-        metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
+    if let Some((_, Some(user_id))) = user_id_source(&facts, context) {
+        attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
+        attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
     }
     let inference = facts.inference;
     if let Some(model) = inference
@@ -57,13 +45,16 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
             Value::Object(inference.model_parameters).to_string(),
         ));
     }
-    if let Some(usage) = inference.usage_details
-        && let Some(projected) = usage_projection(facts.api_format, &usage)
-    {
-        attributes.push(attribute(
-            "langfuse.observation.usage_details",
-            projected.to_string(),
-        ));
+    if let Some(usage) = inference.usage_details {
+        append_usage_attributes(
+            facts.api_format,
+            &facts.metadata,
+            &usage,
+            inference.provider_metadata.as_ref(),
+            facts.charged_cost_details.as_ref(),
+            &mut attributes,
+            &mut metadata,
+        );
     }
     if full {
         if let Some(input) = inference.input {
@@ -97,18 +88,20 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         "spanId": context.observation_id,
         // Generation capture is independent of the caller's sampling decision.
         "flags": 1,
-        "name": facts.api_format,
+        "name": facts.api_format.as_str(),
         "kind": 3,
         "startTimeUnixNano": facts.start_time_unix_ms.saturating_mul(1_000_000).to_string(),
         "endTimeUnixNano": facts.start_time_unix_ms.saturating_add(facts.duration_ms).saturating_mul(1_000_000).to_string(),
         "attributes": attributes,
         "status": { "code": if level == "ERROR" { 2 } else { 0 } },
     });
-    if let Some(parent) = &context.parent_span_id {
-        span["parentSpanId"] = json!(parent);
-    }
-    if !context.trace_state.is_empty() {
-        span["traceState"] = json!(context.trace_state);
+    if let Some(span) = span.as_object_mut() {
+        if let Some(parent) = &context.parent_span_id {
+            span.insert("parentSpanId".into(), json!(parent));
+        }
+        if !context.trace_state.is_empty() {
+            span.insert("traceState".into(), json!(context.trace_state));
+        }
     }
     span
 }
@@ -118,6 +111,32 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
 /// Keys without a bound user, such as service account keys, take the caller's
 /// user ID. Only when the gateway starts the trace do they fall back to the
 /// key's name, so a caller's trace keeps the user set on its own spans.
+/// The generation's metadata as ingestion stores it, which is also what metadata
+/// pricing-tier conditions are matched against.
+pub(super) fn observation_metadata(
+    facts: &InferenceFacts,
+    context: &GenerationContext,
+) -> Map<String, Value> {
+    let mut metadata: Map<String, Value> = context
+        .metadata
+        .iter()
+        .filter(|(key, _)| !reserved_metadata(key))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    // Trusted key attribution and gateway facts take precedence over caller metadata.
+    metadata.extend(generation_metadata(facts));
+    if let Some(user_agent) = &context.user_agent {
+        metadata.insert(
+            "langfuse.gateway.client.user_agent".into(),
+            json!(user_agent),
+        );
+    }
+    if let Some((source, _)) = user_id_source(facts, context) {
+        metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
+    }
+    metadata
+}
+
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,
@@ -147,12 +166,36 @@ fn user_id_source<'a>(
 }
 
 pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    omit_content(
+        span,
+        "langfuse.observation.input",
+        "langfuse.gateway.request.input_omitted",
+        reason,
+    )
+}
+
+/// Leaves a generation that carries only usage, cost and metadata.
+pub(super) fn omit_output(span: &mut Value, reason: InputOmissionReason) -> bool {
+    omit_content(
+        span,
+        "langfuse.observation.output",
+        "langfuse.gateway.response.output_omitted",
+        reason,
+    )
+}
+
+fn omit_content(
+    span: &mut Value,
+    attribute_key: &str,
+    metadata_key: &str,
+    reason: InputOmissionReason,
+) -> bool {
     let Some(attributes) = span["attributes"].as_array_mut() else {
         return false;
     };
     let Some(index) = attributes
         .iter()
-        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+        .position(|attribute| attribute["key"] == attribute_key)
     else {
         return false;
     };
@@ -160,15 +203,12 @@ pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool 
     if let Some(value) = attributes
         .iter_mut()
         .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
-        .map(|attribute| &mut attribute["value"]["stringValue"])
+        .and_then(|attribute| attribute.pointer_mut("/value/stringValue"))
         && let Some(Value::Object(mut metadata)) = value
             .as_str()
             .and_then(|value| serde_json::from_str(value).ok())
     {
-        metadata.insert(
-            "langfuse.gateway.request.input_omitted".into(),
-            json!(reason),
-        );
+        metadata.insert(metadata_key.into(), json!(reason));
         *value = Value::String(Value::Object(metadata).to_string());
     }
     true
@@ -214,6 +254,7 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
+    metadata.extend(guardrail_metadata(facts));
     for (key, value) in [
         ("model.requested", &facts.inference.requested_model),
         ("model.upstream", &facts.upstream_model),
@@ -225,15 +266,20 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     }
     metadata.insert(
         "langfuse.gateway.request.api_format".into(),
-        json!(facts.api_format),
+        json!(facts.api_format.as_str()),
     );
     // Before upstream headers, transport failures become gateway HTTP errors.
     // Once headers arrive, later stream failures cannot change the HTTP status.
-    let response_status = facts.http_status.or(match facts.outcome {
-        RelayOutcome::Timeout => Some(504),
-        RelayOutcome::TransportError => Some(502),
-        RelayOutcome::Eof | RelayOutcome::Cancelled => None,
-    });
+    let response_status = facts
+        .rejection
+        .as_ref()
+        .map(|rejection| rejection.status)
+        .or(facts.http_status)
+        .or(match facts.outcome {
+            RelayOutcome::Timeout => Some(504),
+            RelayOutcome::TransportError => Some(502),
+            RelayOutcome::Eof | RelayOutcome::Cancelled => None,
+        });
     metadata.insert(
         "langfuse.gateway.response.status_code".into(),
         json!(response_status),
@@ -265,6 +311,36 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
                 json!(MAX_INPUT_CAPTURE_BYTES),
             );
         }
+    }
+    metadata
+}
+
+/// Per-guardrail metadata keys (`langfuse.gateway.guardrails.<id> = action`) plus
+/// an overall `.outcome` (`"block"` if any matched guardrail blocked, else `"log"`),
+/// so `ClickHouse` filters on `events_core.metadata_names` via `idx_metadata_names`
+/// without reading `metadata_values` or parsing JSON.
+fn guardrail_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    let Some(guardrails) = facts.metadata.get("guardrails").and_then(Value::as_array) else {
+        return metadata;
+    };
+    let mut blocked = false;
+    let mut matched = false;
+    for finding in guardrails {
+        if let (Some(id), Some(action)) = (
+            finding.get("id").and_then(Value::as_str),
+            finding.get("action").and_then(Value::as_str),
+        ) {
+            matched = true;
+            if action == "block" {
+                blocked = true;
+            }
+            metadata.insert(format!("langfuse.gateway.guardrails.{id}"), json!(action));
+        }
+    }
+    if matched {
+        let outcome = if blocked { "block" } else { "log" };
+        metadata.insert("langfuse.gateway.guardrails.outcome".into(), json!(outcome));
     }
     metadata
 }
@@ -318,7 +394,9 @@ fn upstream_metadata(facts: &InferenceFacts) -> Map<String, Value> {
 /// Mirrors the failure order of [`observation_status`] and the bounded
 /// `error.origin`/`error.reason` values on the gateway's own request telemetry.
 fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static str)> {
-    if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
+    if let Some(rejection) = &facts.rejection {
+        Some((rejection.origin, rejection.reason))
+    } else if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
         Some((ErrorOrigin::Provider, provider_status_reason(status)))
     } else if facts.inference.provider_status.as_deref() == Some("failed") {
         Some((ErrorOrigin::Provider, "provider_response_failed"))
@@ -332,6 +410,9 @@ fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static
 }
 
 fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) {
+    if let Some(rejection) = &facts.rejection {
+        return ("ERROR", Some(rejection.message.clone()));
+    }
     let failure = if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
         Some(format!("Provider HTTP error ({status})"))
     } else if facts.inference.provider_status.as_deref() == Some("failed") {
@@ -358,6 +439,13 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
+    } else if facts
+        .metadata
+        .get("guardrails")
+        .and_then(Value::as_array)
+        .is_some_and(|guardrails| !guardrails.is_empty())
+    {
+        ("WARNING", Some("Request matched a guardrail".into()))
     } else {
         ("DEFAULT", None)
     }
@@ -367,53 +455,47 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
 }
 
-fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
-    match api_format {
-        "openai.responses" => openai_usage(
-            usage,
-            ["input_tokens", "output_tokens", "total_tokens"],
-            ["input_tokens_details", "output_tokens_details"],
-        ),
-        "openai.chat-completions" => openai_usage(
-            usage,
-            ["prompt_tokens", "completion_tokens", "total_tokens"],
-            ["prompt_tokens_details", "completion_tokens_details"],
-        ),
-        "anthropic.messages" => usage.is_object().then(|| usage.clone()),
-        _ => None,
+fn observation_type(api_format: ApiFormat) -> &'static str {
+    if api_format == ApiFormat::OpenAiEmbeddings {
+        "embedding"
+    } else {
+        "generation"
     }
 }
 
-/// The receiver's native `OpenAI` usage schemas are strict at the top level, but
-/// accept new numeric detail counters.
-fn openai_usage(usage: &Value, counters: [&str; 3], details: [&str; 2]) -> Option<Value> {
-    let usage = usage.as_object()?;
-    let mut projected = Map::new();
-    for key in counters {
-        let value = usage.get(key).filter(|value| value.as_u64().is_some())?;
-        projected.insert(key.into(), value.clone());
+fn append_usage_attributes(
+    api_format: ApiFormat,
+    facts_metadata: &Value,
+    usage: &Value,
+    provider_metadata: Option<&Value>,
+    charged_cost_details: Option<&crate::spend::UsageCostType>,
+    attributes: &mut Vec<Value>,
+    metadata: &mut Map<String, Value>,
+) {
+    let provider = facts_metadata.get("provider").and_then(Value::as_str);
+    let usage =
+        crate::providers::usage::provider_usage(api_format, provider, usage, provider_metadata);
+    if let Some(details) = usage.usage_details {
+        attributes.push(attribute(
+            "langfuse.observation.usage_details",
+            details.to_json().to_string(),
+        ));
     }
-    for key in details {
-        match usage.get(key) {
-            Some(Value::Null) => {
-                projected.insert(key.into(), Value::Null);
-            }
-            Some(Value::Object(details)) => {
-                projected.insert(
-                    key.into(),
-                    Value::Object(
-                        details
-                            .iter()
-                            .filter(|(_, value)| value.is_null() || value.as_u64().is_some())
-                            .map(|(key, value)| (key.clone(), value.clone()))
-                            .collect(),
-                    ),
-                );
-            }
-            _ => {}
-        }
+    if let Some(cost) = usage.provided_cost_details.as_ref() {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+    } else if let Some(cost) = charged_cost_details.filter(|cost| !cost.is_empty()) {
+        attributes.push(attribute(
+            "langfuse.observation.cost_details",
+            json!(cost).to_string(),
+        ));
+        metadata.insert(
+            GATEWAY_COST_SOURCE_METADATA_KEY.into(),
+            json!(GATEWAY_COST_SOURCE_CALCULATED),
+        );
     }
-    Some(Value::Object(projected))
 }
 
 #[cfg(test)]
@@ -430,7 +512,7 @@ mod tests {
 
     fn facts() -> InferenceFacts {
         let mut facts = InferenceFacts {
-            api_format: "openai.responses",
+            api_format: ApiFormat::OpenAiResponses,
             start_time_unix_ms: 1_735_689_600_000,
             duration_ms: 900,
             first_byte_ms: Some(50),
@@ -442,6 +524,8 @@ mod tests {
             response_body_bytes: 256,
             metadata: json!({"ingestion_mode": "full", "key_id": "key", "key_metadata": {"team": "search"}}),
             outcome: RelayOutcome::Eof,
+            charged_cost_details: None,
+            rejection: None,
             inference: crate::capture::ProviderFacts::default(),
         };
         facts.inference.model = Some("actual-model".into());
@@ -943,7 +1027,7 @@ mod tests {
     }
 
     #[test]
-    fn usage_projection_preserves_new_numeric_details_without_unknown_top_level_fields() {
+    fn uploaded_usage_keeps_new_numeric_details_without_unknown_top_level_fields() {
         let mut facts = facts();
         let usage = json!({
             "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
@@ -954,14 +1038,14 @@ mod tests {
         facts.inference.usage_details = Some(usage);
         let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
-        let projected: Value = serde_json::from_str(
+        let uploaded: Value = serde_json::from_str(
             attrs["langfuse.observation.usage_details"]
                 .as_str()
                 .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            projected,
+            uploaded,
             json!({
                 "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
                 "input_tokens_details": {"cached_tokens": 4, "future_counter": 3, "optional": null},
@@ -979,7 +1063,18 @@ mod tests {
         assert!(metadata(&attrs).get("native_usage").is_none());
     }
 
-    fn projected_usage(api_format: &'static str, usage: Value) -> Option<Value> {
+    #[test]
+    fn usage_without_a_total_counts_input_and_output() {
+        assert_eq!(
+            uploaded_usage(
+                ApiFormat::OpenAiChatCompletions,
+                json!({"prompt_tokens": 9, "completion_tokens": 3}),
+            ),
+            Some(json!({"prompt_tokens": 9, "completion_tokens": 3, "total_tokens": 12}))
+        );
+    }
+
+    fn uploaded_usage(api_format: ApiFormat, usage: Value) -> Option<Value> {
         let mut facts = facts();
         facts.api_format = api_format;
         facts.inference.usage_details = Some(usage);
@@ -987,6 +1082,224 @@ mod tests {
         attrs
             .get("langfuse.observation.usage_details")
             .map(|value| serde_json::from_str(value.as_str().unwrap()).unwrap())
+    }
+
+    #[test]
+    fn a_spend_limited_key_s_charge_becomes_the_generation_cost() {
+        let cost_and_source = |provider: &str, usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(usage);
+            facts.charged_cost_details =
+                Some([("input".into(), 0.1), ("total".into(), 0.1)].into());
+            let attrs = attributes(&span(facts, &context()));
+            let cost = attrs
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap());
+            let source = metadata(&attrs)
+                .get("langfuse.gateway.cost.source")
+                .cloned();
+            (cost, source)
+        };
+        assert_eq!(
+            cost_and_source("openai", json!({"input_tokens": 20})),
+            (
+                Some(json!({"input": 0.1, "total": 0.1})),
+                Some(json!("calculated")),
+            )
+        );
+        // The provider's own cost wins, as it does when the charge is priced.
+        assert_eq!(
+            cost_and_source("openrouter", json!({"input_tokens": 20, "cost": 0.25})),
+            (Some(json!({"total": 0.25})), None)
+        );
+    }
+
+    #[test]
+    fn inline_provider_cost_becomes_the_total_cost() {
+        let cost_details = |provider: &str, usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(usage);
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        let usage = json!({
+            "input_tokens": 20, "output_tokens": 10, "total_tokens": 30,
+            "cost": 0.25, "is_byok": false,
+            "cost_details": {
+                "upstream_inference_cost": 0.25,
+                "upstream_inference_input_cost": 0.05,
+                "upstream_inference_output_cost": 0.2,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", usage.clone()),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
+        );
+        assert_eq!(
+            cost_details("openrouter", json!({"cost": 0.25})),
+            Some(json!({"total": 0.25}))
+        );
+        let chat = json!({
+            "cost": 0.25,
+            "cost_details": {
+                "upstream_inference_prompt_cost": 0.05,
+                "upstream_inference_completions_cost": 0.2,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", chat),
+            Some(json!({"input": 0.05, "output": 0.2, "total": 0.25}))
+        );
+        // Other providers' usage never sets a cost, even with the same fields.
+        assert_eq!(cost_details("openai", usage), None);
+
+        // A bring-your-own key pays OpenRouter's fee plus the provider's charge.
+        let byok = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "cost": 0.5, "is_byok": true,
+            "cost_details": {
+                "upstream_inference_cost": 10.0,
+                "upstream_inference_input_cost": 4.0,
+                "upstream_inference_output_cost": 6.0,
+            },
+        });
+        assert_eq!(
+            cost_details("openrouter", byok),
+            Some(json!({"input": 4.0, "output": 6.0, "openrouter_fee": 0.5, "total": 10.5}))
+        );
+        assert_eq!(
+            cost_details("openrouter", json!({"cost": 0.5, "is_byok": true})),
+            None
+        );
+
+        let xai = json!({
+            "input_tokens": 189,
+            "input_tokens_details": {"cached_tokens": 128},
+            "output_tokens": 219,
+            "output_tokens_details": {"reasoning_tokens": 196},
+            "total_tokens": 408,
+            "num_sources_used": 0,
+            "num_server_side_tools_used": 0,
+            "cost_in_usd_ticks": 6_493_500,
+            "context_details": {"input_tokens": 189, "output_tokens": 226},
+        });
+        assert_eq!(
+            cost_details("xai", xai),
+            Some(json!({"total": 0.000_649_35}))
+        );
+        assert_eq!(cost_details("xai", json!({"cost_in_usd_ticks": -1})), None);
+    }
+
+    #[test]
+    fn vercel_cost_becomes_the_total_cost() {
+        let cost_details = |usage: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!("vercel");
+            facts.inference.usage_details = Some(usage);
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        // A real Vercel Chat Completions usage; its prompt and completion costs
+        // are only set for bring-your-own keys.
+        let vercel = json!({
+            "prompt_tokens": 47, "completion_tokens": 10, "total_tokens": 57,
+            "cost": 0.000_043_01, "is_byok": false,
+            "prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 0, "video_tokens": 0},
+            "cost_details": {
+                "upstream_inference_cost": null,
+                "upstream_inference_prompt_cost": 0,
+                "upstream_inference_completions_cost": 0,
+            },
+            "completion_tokens_details": {"reasoning_tokens": 0, "image_tokens": 0},
+            "cache_creation_input_tokens": 0,
+            "market_cost": 0.000_043_01,
+            "gateway_cost": 0.000_043_01,
+        });
+        assert_eq!(cost_details(vercel), Some(json!({"total": 0.000_043_01})));
+        // A real Vercel usage for a call on a provider key.
+        let vercel_byok = json!({
+            "prompt_tokens": 7, "completion_tokens": 13, "total_tokens": 20,
+            "cost": 0, "is_byok": true,
+            "cost_details": {
+                "upstream_inference_cost": 0.000_017,
+                "upstream_inference_prompt_cost": 0,
+                "upstream_inference_completions_cost": 0,
+            },
+            "market_cost": 0.000_017,
+        });
+        assert_eq!(cost_details(vercel_byok), Some(json!({"total": 0.000_017})));
+        let vercel_byok_without_upstream = json!({
+            "cost": 0.0, "is_byok": true, "market_cost": 0.000_017,
+            "cost_details": {"upstream_inference_cost": null},
+        });
+        assert_eq!(
+            cost_details(vercel_byok_without_upstream),
+            Some(json!({"total": 0.000_017}))
+        );
+        assert_eq!(cost_details(json!({"cost": 0.0, "is_byok": true})), None);
+        // Messages usage carries no cost; Vercel reports it in provider metadata.
+        assert_eq!(
+            cost_details(json!({"input_tokens": 630, "output_tokens": 124})),
+            None
+        );
+    }
+
+    #[test]
+    fn vercel_gateway_metadata_cost_is_used_when_usage_has_none() {
+        let cost_details = |api_format: ApiFormat, usage: Value, gateway: Value| {
+            let mut facts = facts();
+            facts.metadata["provider"] = json!("vercel");
+            facts.api_format = api_format;
+            facts.inference.usage_details = Some(usage);
+            facts.inference.provider_metadata = Some(json!({"gateway": gateway}));
+            attributes(&span(facts, &context()))
+                .get("langfuse.observation.cost_details")
+                .map(|value| serde_json::from_str::<Value>(value.as_str().unwrap()).unwrap())
+        };
+        let routing = |credential_type: &str| {
+            json!({"modelAttempts": [{"success": true, "providerAttempts": [
+                {"credentialType": credential_type, "success": true, "statusCode": 200},
+            ]}]})
+        };
+        // Real Vercel replies, trimmed to their usage and billing: a Responses
+        // call on Vercel's credentials and a Messages call on a provider key.
+        let responses_usage = json!({
+            "input_tokens": 49, "output_tokens": 47, "total_tokens": 96,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        });
+        let system = json!({
+            "routing": routing("system"),
+            "cost": "0.00014542", "marketCost": "0.00014542", "surchargeCost": "0",
+            "gatewayCost": "0.00014542", "inferenceCost": "0.00014542",
+        });
+        assert_eq!(
+            cost_details(ApiFormat::OpenAiResponses, responses_usage, system),
+            Some(json!({"total": 0.000_145_42}))
+        );
+        let messages_usage = json!({"input_tokens": 7, "output_tokens": 13});
+        let byok = |credential_type: &str| {
+            json!({
+                "routing": routing(credential_type),
+                "cost": "0", "marketCost": "0.000017", "surchargeCost": "0", "gatewayCost": "0",
+            })
+        };
+        assert_eq!(
+            cost_details(
+                ApiFormat::AnthropicMessages,
+                messages_usage.clone(),
+                byok("byok")
+            ),
+            Some(json!({"total": 0.000_017}))
+        );
+        assert_eq!(
+            cost_details(ApiFormat::AnthropicMessages, messages_usage, byok("other")),
+            None
+        );
     }
 
     #[test]
@@ -1000,17 +1313,17 @@ mod tests {
             "service_tier": "standard", "inference_geo": null
         });
         assert_eq!(
-            projected_usage("anthropic.messages", native.clone()),
+            uploaded_usage(ApiFormat::AnthropicMessages, native.clone()),
             Some(native)
         );
         assert_eq!(
-            projected_usage("anthropic.messages", json!({"input_tokens": 7})),
+            uploaded_usage(ApiFormat::AnthropicMessages, json!({"input_tokens": 7})),
             Some(json!({"input_tokens": 7}))
         );
-        // The Anthropic shape never projects through the OpenAI rules.
+        // The Anthropic shape is never read with the OpenAI rules.
         assert_eq!(
-            projected_usage(
-                "openai.responses",
+            uploaded_usage(
+                ApiFormat::OpenAiResponses,
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
             ),
             None
@@ -1018,7 +1331,7 @@ mod tests {
     }
 
     #[test]
-    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+    fn chat_completions_usage_is_uploaded_in_the_receivers_completion_schema() {
         let native = json!({
             "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
             "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
@@ -1026,28 +1339,81 @@ mod tests {
             "future_usage": {"cost": 123},
         });
         assert_eq!(
-            projected_usage("openai.chat-completions", native),
+            uploaded_usage(ApiFormat::OpenAiChatCompletions, native),
             Some(json!({
                 "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
                 "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
                 "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
             }))
         );
-        // Each OpenAI contract projects only its own counter names.
+        // Each OpenAI contract keeps only its own counter names.
         assert_eq!(
-            projected_usage(
-                "openai.chat-completions",
+            uploaded_usage(
+                ApiFormat::OpenAiChatCompletions,
                 json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
             ),
             None
         );
         assert_eq!(
-            projected_usage(
-                "openai.responses",
+            uploaded_usage(
+                ApiFormat::OpenAiResponses,
                 json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
             ),
             None
         );
+    }
+
+    #[test]
+    fn xai_chat_completions_usage_counts_reasoning_as_output() {
+        let mut facts = facts();
+        facts.api_format = ApiFormat::OpenAiChatCompletions;
+        facts.metadata["provider"] = json!("xai");
+        facts.inference.usage_details = Some(json!({
+            "prompt_tokens": 187, "completion_tokens": 13, "total_tokens": 342,
+            "prompt_tokens_details": {"text_tokens": 187, "audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+            "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            "num_sources_used": 0,
+            "cost_in_usd_ticks": 4_868_500,
+        }));
+        let attrs = attributes(&span(facts, &context()));
+        let usage: Value = serde_json::from_str(
+            attrs["langfuse.observation.usage_details"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            usage,
+            json!({
+                "prompt_tokens": 187, "completion_tokens": 155, "total_tokens": 342,
+                "prompt_tokens_details": {"audio_tokens": 0, "image_tokens": 0, "cached_tokens": 128},
+                "completion_tokens_details": {"reasoning_tokens": 142, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0},
+            })
+        );
+    }
+
+    #[test]
+    fn gemini_chat_completions_usage_counts_thinking_as_output() {
+        for provider in ["google_ai_studio", "vertex"] {
+            let mut facts = facts();
+            facts.api_format = ApiFormat::OpenAiChatCompletions;
+            facts.metadata["provider"] = json!(provider);
+            facts.inference.usage_details = Some(json!({
+                "prompt_tokens": 15, "completion_tokens": 18, "total_tokens": 175,
+            }));
+            let attrs = attributes(&span(facts, &context()));
+            let usage: Value = serde_json::from_str(
+                attrs["langfuse.observation.usage_details"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                usage,
+                json!({"prompt_tokens": 15, "completion_tokens": 160, "total_tokens": 175}),
+                "{provider}"
+            );
+        }
     }
 
     #[test]

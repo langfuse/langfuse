@@ -1,5 +1,4 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 const loadErrorCopy = {
   setup: {
@@ -7,16 +6,16 @@ const loadErrorCopy = {
     description: "Retry the request to continue setting up the gateway.",
   },
   providers: {
-    title: "Providers could not be loaded",
-    description: "Retry to see the gateway providers.",
+    title: "Connections could not be loaded",
+    description: "Retry to see the gateway connections.",
   },
   connection: {
-    title: "Provider credential could not be loaded",
-    description: "Retry to manage model access for this credential.",
+    title: "Connection could not be loaded",
+    description: "Retry to manage model access for this connection.",
   },
   models: {
-    title: "Provider models could not be loaded",
-    description: "Retry to load the models of this provider.",
+    title: "Connection models could not be loaded",
+    description: "Retry to load the models of this connection.",
   },
 } as const;
 
@@ -29,12 +28,12 @@ export function GatewayLoadError({ kind, onRetry }: GatewayLoadErrorProps) {
   const copy = loadErrorCopy[kind];
 
   return (
-    <div className="flex flex-col items-start gap-4">
-      <Alert variant="destructive">
-        <Alert.Title>{copy.title}</Alert.Title>
-        <Alert.Description>{copy.description}</Alert.Description>
-      </Alert>
-      <Button text="Retry" variant="secondary" onClick={onRetry} />
-    </div>
+    <Banner
+      variant="error"
+      title={copy.title}
+      actions={[{ text: "Retry", onClick: onRetry }]}
+    >
+      {copy.description}
+    </Banner>
   );
 }

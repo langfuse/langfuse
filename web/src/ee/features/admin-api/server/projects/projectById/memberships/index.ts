@@ -2,12 +2,14 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteSessionViewsWithoutProjectAccess } from "@/src/features/sessions/server/fns/deleteSessionViewsWithoutProjectAccess";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
   deleteProjectMembership,
   saveProjectMembership,
 } from "@langfuse/shared/memberships";
 import { authorize } from "@/src/features/rbac/authorize";
+import { assertValidProjectOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { ForbiddenError, Role } from "@langfuse/shared";
 import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
 import {
@@ -172,7 +174,8 @@ async function updateMembership(
   const before = await tx.projectMembership.findUnique({
     where: { projectId_userId: { projectId, userId } },
   });
-  assertAuthorizeMembershipChange({
+  await assertAuthorizeMembershipChange({
+    tx,
     context,
     orgId,
     projectId,
@@ -187,6 +190,11 @@ async function updateMembership(
     orgMembershipId,
   });
   await auditMembershipUpsert(tx, params, before ?? undefined, after);
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
+  });
   return after;
 }
 
@@ -198,7 +206,8 @@ async function deleteMembership(
   const { projectId, orgId, userId, context } = params;
   await lockProject(tx, projectId, orgId);
   const before = await findMembershipWithOrganization(tx, projectId, userId);
-  assertAuthorizeMembershipChange({
+  await assertAuthorizeMembershipChange({
+    tx,
     context,
     orgId,
     projectId,
@@ -212,6 +221,11 @@ async function deleteMembership(
     userId: before.userId,
   });
   await auditMembershipDeletion(tx, params, membership);
+  await deleteSessionViewsWithoutProjectAccess(tx, {
+    userId,
+    orgId,
+    projectId,
+  });
   return true;
 }
 
@@ -283,13 +297,15 @@ async function lockProject(
   await tx.$queryRaw`SELECT id FROM projects WHERE id = ${projectId} AND org_id = ${orgId} FOR UPDATE`;
 }
 
-function assertAuthorizeMembershipChange({
+async function assertAuthorizeMembershipChange({
+  tx,
   context,
   orgId,
   projectId,
   from,
   to,
 }: {
+  tx: Prisma.TransactionClient;
   context: AuthorizationContext;
   orgId: string;
   projectId: string;
@@ -305,14 +321,7 @@ function assertAuthorizeMembershipChange({
     project,
   );
   if (!membershipAccess.success) throw membershipAccess.error;
-  if (from !== Role.OWNER && to !== Role.OWNER) return;
-  const ownershipAccess = authorize(
-    context,
-    organization,
-    "projectMembers:manageOwnership",
-    project,
-  );
-  if (!ownershipAccess.success) throw ownershipAccess.error;
+  await assertValidProjectOwnershipChange({ tx, context, orgId, from, to });
 }
 
 /** MembershipMutation carries the caller and target for a project membership write. */

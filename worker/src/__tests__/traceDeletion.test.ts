@@ -23,7 +23,6 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
 import { env } from "../env";
@@ -189,19 +188,7 @@ describe("trace deletion", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("deletes Topics results when patch deletes are forced by default and processing is disabled without affecting other traces or projects", async ({
-    onTestFinished,
-  }) => {
-    // The built Topics entrypoint reads the CommonJS env singleton.
-    const { env: sharedEnv } = createRequire(import.meta.url)(
-      "@langfuse/shared/src/env",
-    ) as typeof import("@langfuse/shared/src/env");
-    const originalTopicsEnabled = sharedEnv.LANGFUSE_TOPICS_ENABLED;
-    onTestFinished(() => {
-      sharedEnv.LANGFUSE_TOPICS_ENABLED = originalTopicsEnabled;
-    });
-    sharedEnv.LANGFUSE_TOPICS_ENABLED = "false";
-
+  it("deletes only the selected trace's Topics results when patch deletes are forced by default", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const otherProjectId = randomUUID();
     const traceId = randomUUID();
@@ -261,8 +248,8 @@ describe("trace deletion", () => {
         format: "JSONEachRow",
         values: rows.map((row) => ({
           ...row,
-          topic_id: "topic",
-          topic_version_id: "topic-version",
+          topic_stable_id: "topic",
+          topic_id: "topic-version",
           coordinates: [0.1, 0.2],
         })),
       }),
@@ -270,7 +257,11 @@ describe("trace deletion", () => {
 
     await processClickhouseTraceDelete(projectId, [traceId]);
 
-    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+    for (const table of [
+      "topic_facet_summaries",
+      "topic_assignments",
+      "topic_assignments_by_trace",
+    ]) {
       const remaining = await queryClickhouse<{
         project_id: string;
         trace_id: string;

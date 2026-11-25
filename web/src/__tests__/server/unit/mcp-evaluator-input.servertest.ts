@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID } from "@langfuse/shared";
 import {
   McpEvaluatorInput,
+  McpUpdateEvaluatorInput,
   toEvaluatorServiceInput,
 } from "@/src/features/mcp/server/evals/tools/evaluatorInput";
 import {
@@ -99,6 +101,32 @@ describe("MCP evaluator input", () => {
           }),
         ]),
       );
+    }
+  });
+
+  it("rejects transcript-only column mappings on create and update", () => {
+    const input = {
+      ...decisionModelInput,
+      variableMapping: [
+        {
+          templateVariable: "input",
+          selectedColumnId: TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID,
+        },
+      ],
+    };
+
+    for (const result of [
+      McpEvaluatorInput.safeParse(input),
+      McpUpdateEvaluatorInput.safeParse({ ...input, evaluatorId: "eval-1" }),
+    ]) {
+      expect(result.error?.issues).toEqual([
+        expect.objectContaining({
+          path: ["variableMapping", 0, "selectedColumnId"],
+          message: expect.stringContaining(
+            `Variable "input" maps to unknown column "${TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID}"`,
+          ),
+        }),
+      ]);
     }
   });
 

@@ -22,7 +22,7 @@ import { XIcon } from "@langfuse/icons";
 export function TraceSearchList() {
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
-  const { selectedNodeId, selectNode } = useSelection();
+  const { selectedNodeId, selectNode, selectionLocked } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -78,7 +78,7 @@ export function TraceSearchList() {
         <TraceSearchListItem
           item={item}
           isSelected={isSelected}
-          onSelect={onSelect}
+          onSelect={selectionLocked ? undefined : onSelect}
           onHover={() => handleHover(item.node)}
         />
       )}

@@ -7,11 +7,10 @@ import {
 } from "@/src/ee/features/admin-api/server/projects/projectById/memberships";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan, BaseError } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeOrgError } from "@/src/features/public-api/server/writeError";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { BaseError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 

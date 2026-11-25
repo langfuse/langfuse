@@ -337,7 +337,7 @@ export const FlatObservations = meta.story({
     ...loadedArgs,
     observationLayout: "flat",
     filterControls: undefined,
-    onCustomizeView: fn(),
+    peekTraceId: "turn-1",
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -345,9 +345,11 @@ export const FlatObservations = meta.story({
       await canvas.findByRole("region", { name: "Session observations" }),
     ).toBeInTheDocument();
     const observation = await canvas.findByText("Compose response");
-    await expect(
-      canvas.getByRole("group", { name: "Answer product question" }),
-    ).toContainElement(observation);
+    const trace = canvas.getByRole("group", {
+      name: "Answer product question",
+    });
+    await expect(trace).toContainElement(observation);
+    await expect(trace).toHaveAttribute("data-peeked", "true");
     await expect(
       canvas.getByText("Answer product question"),
     ).toBeInTheDocument();
@@ -355,14 +357,8 @@ export const FlatObservations = meta.story({
       canvas.getByRole("textbox", { name: "Search session" }),
     ).toBeInTheDocument();
     await expect(
-      canvas
-        .getByRole("button", { name: "Customize view" })
-        .getBoundingClientRect().height,
-    ).toBe(
-      canvas
-        .getByRole("textbox", { name: "Search session" })
-        .getBoundingClientRect().height,
-    );
+      canvas.queryByRole("button", { name: "Customize view" }),
+    ).not.toBeInTheDocument();
     await userEvent.click(observation);
     if (args.state === "loaded") {
       await expect(args.onSelect).toHaveBeenCalledWith(0, "generation-1");
@@ -370,10 +366,6 @@ export const FlatObservations = meta.story({
         canvas.getByRole("button", { name: "1 Answer product question" }),
       );
       await expect(args.onSelect).toHaveBeenLastCalledWith(0);
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Customize view" }),
-      );
-      await expect(args.onCustomizeView).toHaveBeenCalledOnce();
     }
   },
 });

@@ -91,27 +91,15 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
 export async function getUserFeaturePreviewManagementCapabilities({
   prisma,
   actorUserId,
-  actorIsPlatformAdmin,
   targetUserIds,
   demoOrgId,
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   actorUserId: string;
-  actorIsPlatformAdmin: boolean;
   targetUserIds: string[];
   demoOrgId?: string;
 }): Promise<Map<string, FeaturePreviewManagementCapability>> {
   const uniqueTargetUserIds = [...new Set(targetUserIds)];
-  if (actorIsPlatformAdmin) {
-    return new Map(
-      uniqueTargetUserIds.map((userId) => [
-        userId,
-        {
-          allowed: true,
-        } satisfies FeaturePreviewManagementCapability,
-      ]),
-    );
-  }
 
   const targetMemberships = await prisma.organizationMembership.findMany({
     where: {
@@ -246,7 +234,6 @@ export async function setUserFeaturePreview({
 export async function setUserFeaturePreviewWithAuthorization({
   prisma,
   actorUserId,
-  actorIsPlatformAdmin,
   currentOrgId,
   targetUserId,
   flag,
@@ -255,7 +242,6 @@ export async function setUserFeaturePreviewWithAuthorization({
 }: {
   prisma: PrismaClient;
   actorUserId: string;
-  actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
   flag: UserFeaturePreviewFlag;
@@ -279,7 +265,6 @@ export async function setUserFeaturePreviewWithAuthorization({
     const management = await getUserFeaturePreviewManagementCapabilities({
       prisma: tx,
       actorUserId,
-      actorIsPlatformAdmin,
       targetUserIds: [targetUserId],
       demoOrgId,
     });

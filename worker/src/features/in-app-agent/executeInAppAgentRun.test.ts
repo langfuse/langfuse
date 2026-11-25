@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgMembership } from "@langfuse/shared/memberships";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME } from "@langfuse/shared/in-app-agent";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -260,8 +261,10 @@ async function seedBackgroundRun(opts?: {
   const user = await prisma.user.create({
     data: { email: `bg-${randomUUID()}@langfuse.com`, name: "bg-user" },
   });
-  await prisma.organizationMembership.create({
-    data: { orgId: project.orgId, userId: user.id, role: "MEMBER" },
+  await createOrgMembership(prisma, {
+    orgId: project.orgId,
+    userId: user.id,
+    role: "MEMBER",
   });
   const conversation = await prisma.inAppAgentConversation.create({
     data: {
@@ -365,17 +368,17 @@ describe("executeInAppAgentRun", () => {
   it("passes repository skills when no managed tag is configured", async () => {
     const { projectId, run } = await seedBackgroundRun();
     let selectedSkills: unknown;
+    let selectedEntries: unknown;
     scenarioRef.current = async (params) => {
       selectedSkills = params.options.skillSource;
+      selectedEntries = await params.options.skillSource.readdir("/skills");
       await completingScenario(params);
     };
 
     await executeInAppAgentRun({ projectId, runId: run.id });
 
     expect(selectedSkills).toBeInstanceOf(InAppAgentSkillSource);
-    if (!(selectedSkills instanceof InAppAgentSkillSource))
-      throw new Error("Missing skill source");
-    expect(await selectedSkills.readdir("/skills")).toEqual(
+    expect(selectedEntries).toEqual(
       LANGFUSE_HALO_SKILLS.map(({ frontmatter }) => ({
         name: frontmatter.name,
         type: "directory",

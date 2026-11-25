@@ -105,7 +105,7 @@ export function StickySearchableTableFilterLayout({
 
   return (
     <SearchBarDraftCacheContext.Provider value={searchDraftCache}>
-      <div className="bg-surface sticky top-0 z-30 pb-1.5">
+      <div className="bg-surface sticky top-0 z-30 pb-3">
         {isMobile ? null : search}
         {toolbar}
       </div>

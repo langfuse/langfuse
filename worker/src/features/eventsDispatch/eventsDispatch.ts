@@ -3,87 +3,96 @@ import pLimit from "p-limit";
 import type { z } from "zod";
 import {
   assembleTranscriptContext,
-  createTraceBatchInputStorage,
+  createTraceTranscriptStorage,
   getCurrentSpan,
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   instrumentAsync,
   isInternalEvalEnvironment,
   logger,
   orderObservations,
   recordIncrement,
-  TRACE_BATCH_INPUT_MAX_CHARACTERS,
+  TRACE_TRANSCRIPT_MAX_CHARACTERS,
   traceException,
   type EventsDispatchEventSchema,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import { EXPERIMENT_RULE_ID } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { isTraceDispatchEnabled } from "../traceBatching/traceBatchSampling";
-import { getTraceBatchShard } from "../traceBatching/traceBatchReadiness";
+import { getTraceDispatchShard } from "../traceDispatch/traceReadiness";
 import {
   evalRecording,
   getRecordingBoundsKey,
   getRecordingKeys,
   RESTORE_RECORDING_SCRIPT,
-} from "../traceBatching/traceRuleRecording";
-import { routeRules } from "./consumers";
+} from "../traceDispatch/traceRuleRecording";
+import { routeRules, SNAPSHOT_JOBS } from "./consumers";
 import {
   newestEvent,
   newestSessionId,
+  newestTraceName,
   toTraceEventObservation,
   traceEventPayloadBytes,
   traceKey,
   type TraceEventObservation,
 } from "./traceEvents";
+import { traceDispatchConfig } from "./config";
 
 type DispatchTrace = z.infer<
   typeof EventsDispatchEventSchema
 >["payload"]["traces"][number];
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
-  | { outcome: "enqueued" | "stored" | "too_large" | "missing" }
-  | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
+  | { outcome: "enqueued" | "too_large" | "missing" }
+  | {
+      outcome: "skipped";
+      reason: "no_rules" | "internal_environment" | "no_transcript";
+    }
   | {
       outcome: "failed";
       reason: string;
       trace: DispatchTrace;
       retryRuleIds: string[];
     };
-type ReadableTrace = { trace: DispatchTrace; jobs: ConsumerJobs };
+type ReadableTrace = {
+  trace: DispatchTrace;
+  jobs: ConsumerJobs;
+  /** The snapshot that seeded the trace; its consumers need no rules. */
+  batchActionId?: string;
+};
 
 // Backoff before the first, second and third retry; a fourth failure drops the trace.
 const RETRY_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const REDIS_BATCH_SIZE = 50;
+// ClickHouse read per job; the client socket timeout sits above the server limit so ClickHouse reports the cause.
+const READ_TIMEOUT_MS = 60_000;
+const READ_MAX_THREADS = 2;
+const READ_MAX_BLOCK_SIZE = 512;
+// Buffered rows before reading pauses, and parallel per-trace uploads and enqueues.
+const MAX_PENDING_BYTES = 100 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 20;
 
-const inputStorage = createTraceBatchInputStorage();
-
-export function isEventsDispatchEnabled(): boolean {
-  return (
-    isTraceDispatchEnabled() && env.LANGFUSE_EVENTS_DISPATCH_ENABLED === "true"
-  );
-}
+const inputStorage = createTraceTranscriptStorage();
 
 /**
  * Routes each trace's recorded rules to consumers. Traces without any end here,
- * before ClickHouse, unless the store-all experiment keeps them for storage only.
+ * before ClickHouse.
  */
-async function selectTraces(traces: DispatchTrace[]) {
+async function selectTraces(traces: DispatchTrace[], batchActionId?: string) {
   const readable = new Map<string, ReadableTrace>();
   const outcomes: TraceOutcome[] = [];
-  let unresolved = 0;
-  const withoutConsumers = (trace: DispatchTrace) => {
-    if (env.LANGFUSE_EVENTS_DISPATCH_STORE_ALL_TRACES === "true")
+  // A snapshot's traces skip rule routing; a failure is not restored to the dispatch maps.
+  if (batchActionId) {
+    for (const trace of traces)
       readable.set(traceKey(trace.projectId, trace.traceId), {
         trace,
-        jobs: [],
+        jobs: SNAPSHOT_JOBS,
+        batchActionId,
       });
-    else outcomes.push({ outcome: "skipped", reason: "no_rules" });
-  };
+    return { readable, outcomes };
+  }
+  let unresolved = 0;
+  const skipped: TraceOutcome = { outcome: "skipped", reason: "no_rules" };
   for (const trace of traces) {
-    const ruleIds = (trace.ruleIds ?? []).filter(
-      (id) => id !== EXPERIMENT_RULE_ID,
-    );
+    const ruleIds = trace.ruleIds ?? [];
     if (ruleIds.length === 0) {
-      withoutConsumers(trace);
+      outcomes.push(skipped);
       continue;
     }
     let routed;
@@ -106,7 +115,7 @@ async function selectTraces(traces: DispatchTrace[]) {
     }
     // Deleted, inactive or blocked rules; their consumers would find nothing to run.
     unresolved += routed.unresolved.length;
-    if (routed.jobs.length === 0) withoutConsumers(trace);
+    if (routed.jobs.length === 0) outcomes.push(skipped);
     else
       readable.set(traceKey(trace.projectId, trace.traceId), {
         trace,
@@ -118,9 +127,12 @@ async function selectTraces(traces: DispatchTrace[]) {
   return { readable, outcomes };
 }
 
-/** Stores one trace's transcript, then enqueues each consumer's job; never throws. */
+/**
+ * Stores one trace's transcript, then enqueues each consumer's job.
+ * Enqueue failures stay on the outcome; this never throws.
+ */
 function dispatchTrace(
-  { trace, jobs }: ReadableTrace,
+  { trace, jobs, batchActionId }: ReadableTrace,
   observations: TraceEventObservation[],
 ): Promise<TraceOutcome> {
   const { projectId, traceId, revision } = trace;
@@ -149,20 +161,27 @@ function dispatchTrace(
       await new Promise((resolve) => setImmediate(resolve));
       const reference = { projectId, traceId, revision };
       let stored;
+      let dispatched;
       try {
+        const traceTimestamp = new Date(
+          Math.min(...observations.map((row) => row.startTime.getTime())),
+        );
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );
+        dispatched = context
+          ? jobs
+          : jobs.filter(({ consumer }) => consumer.enqueueWhenTranscriptNull);
+        if (dispatched.length === 0)
+          return finish({ outcome: "skipped", reason: "no_transcript" });
         stored = await inputStorage.put(reference, {
           transcript: context?.transcript ?? null,
           executionIssues: context?.executionIssues ?? [],
           traceContext: {
             sessionId: newestSessionId(observations),
-            traceTimestamp: new Date(
-              Math.min(...observations.map((row) => row.startTime.getTime())),
-            ).toISOString(),
+            traceTimestamp: traceTimestamp.toISOString(),
             environment: latest.environment,
-            traceName: observations[0].name,
+            traceName: newestTraceName(observations),
           },
         });
       } catch (error) {
@@ -181,7 +200,7 @@ function dispatchTrace(
       if (stored.outcome === "too_large") {
         traceException(
           new Error(
-            `Transcript exceeds ${TRACE_BATCH_INPUT_MAX_CHARACTERS} characters`,
+            `Transcript exceeds ${TRACE_TRANSCRIPT_MAX_CHARACTERS} characters`,
           ),
           span,
         );
@@ -190,11 +209,16 @@ function dispatchTrace(
 
       const failedRuleIds: string[] = [];
       await Promise.all(
-        jobs.map(({ consumer, ruleIds }) =>
-          consumer.enqueue(reference, ruleIds).catch((error) => {
-            traceException(error, span);
-            failedRuleIds.push(...ruleIds);
-          }),
+        dispatched.map(({ consumer, ruleIds }) =>
+          consumer
+            .enqueue(reference, ruleIds, {
+              transcriptS3Path: stored.key,
+              batchActionId,
+            })
+            .catch((error) => {
+              traceException(error, span);
+              failedRuleIds.push(...ruleIds);
+            }),
         ),
       );
       // Only failed consumers retry; the others already hold this revision's job.
@@ -205,7 +229,7 @@ function dispatchTrace(
           trace,
           retryRuleIds: failedRuleIds,
         });
-      return finish({ outcome: jobs.length > 0 ? "enqueued" : "stored" });
+      return finish({ outcome: "enqueued" });
     },
   );
 }
@@ -257,7 +281,7 @@ async function streamTraces(
 ): Promise<TraceOutcome[]> {
   const outcomes: TraceOutcome[] = [];
   const pending = new Set<Promise<void>>();
-  const limit = pLimit(env.LANGFUSE_TOPICS_TRACE_CONCURRENCY);
+  const limit = pLimit(UPLOAD_CONCURRENCY);
   const seen = new Set<string>();
   let pendingBytes = 0;
   const start = (
@@ -294,12 +318,13 @@ async function streamTraces(
     let current: TraceEventObservation[] = [];
     let currentKey: string | undefined;
     let currentBytes = 0;
-    for await (const row of getTraceBatchEventStream(
+    for await (const row of getEventsDispatchEventStream(
       { traces },
       {
-        maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
-        maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
-        requestTimeoutMs: env.LANGFUSE_TRACE_BATCH_REQUEST_TIMEOUT_MS,
+        maxThreads: READ_MAX_THREADS,
+        maxBlockSize: READ_MAX_BLOCK_SIZE,
+        maxExecutionTimeS: READ_TIMEOUT_MS / 1000,
+        requestTimeoutMs: READ_TIMEOUT_MS + 10_000,
         queryId,
       },
     )) {
@@ -310,10 +335,7 @@ async function streamTraces(
         start(currentKey, current, currentBytes);
         current = [];
         currentBytes = 0;
-        while (
-          pendingBytes > env.LANGFUSE_TRACE_BATCH_MAX_PENDING_SUMMARY_BYTES
-        )
-          await Promise.race(pending);
+        while (pendingBytes > MAX_PENDING_BYTES) await Promise.race(pending);
       }
       currentKey = key;
       const bytes = traceEventPayloadBytes(row);
@@ -336,14 +358,16 @@ async function streamTraces(
     // Started traces finish even when the read fails; a job retry deduplicates them.
     await Promise.all(pending);
   }
-  for (const key of readable.keys())
-    if (!seen.has(key)) outcomes.push({ outcome: "missing" });
+  for (const key of readable.keys()) {
+    if (seen.has(key)) continue;
+    outcomes.push({ outcome: "missing" });
+  }
   return outcomes;
 }
 
 /** Returns failed traces to the pending map with backoff; drops them after the last retry. */
 async function restoreFailedTraces(
-  failed: { trace: DispatchTrace; ruleIds: string[] }[],
+  failed: { trace: DispatchTrace; ruleIds: string[]; reason: string }[],
 ): Promise<void> {
   const results = { restored: 0, merged: 0, expired: 0, dropped: 0 };
   const shards = new Map<number, typeof failed>();
@@ -359,7 +383,7 @@ async function restoreFailedTraces(
       });
       continue;
     }
-    const shard = getTraceBatchShard(traceKey(projectId, traceId));
+    const shard = getTraceDispatchShard(traceKey(projectId, traceId));
     shards.set(shard, [...(shards.get(shard) ?? []), entry]);
   }
   for (const [shard, entries] of shards) {
@@ -377,7 +401,7 @@ async function restoreFailedTraces(
           ...members.map((member) => getRecordingBoundsKey(shard, member)),
         ],
         [
-          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+          traceDispatchConfig.pendingTtlMs,
           ...chunk.flatMap(({ trace, ruleIds }, index) => {
             const failedCount = trace.failedCount ?? 0;
             return [
@@ -432,12 +456,21 @@ function recordOutcomes(outcomes: TraceOutcome[]): Record<string, number> {
 export async function processEventsDispatchJob(
   event: z.infer<typeof EventsDispatchEventSchema>,
 ): Promise<Record<string, number>> {
-  const { readable, outcomes } = await selectTraces(event.payload.traces);
+  const { readable, outcomes } = await selectTraces(
+    event.payload.traces,
+    event.payload.batchActionId,
+  );
   if (readable.size > 0) outcomes.push(...(await streamTraces(readable)));
-  // Storage-only traces have no consumer to retry for.
+  // Snapshot traces have no rules to retry for.
   const failed = outcomes.flatMap((result) =>
     result.outcome === "failed" && result.retryRuleIds.length > 0
-      ? [{ trace: result.trace, ruleIds: result.retryRuleIds }]
+      ? [
+          {
+            trace: result.trace,
+            ruleIds: result.retryRuleIds,
+            reason: result.reason,
+          },
+        ]
       : [],
   );
   if (failed.length > 0) await restoreFailedTraces(failed);

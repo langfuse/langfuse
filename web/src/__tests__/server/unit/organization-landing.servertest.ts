@@ -1,38 +1,27 @@
-import { type Session } from "next-auth";
-
 import { OrganizationLandingService } from "@/src/features/organizations/server/organizationLandingService";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import {
+  createSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/session-factory";
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
   const actual = await importOriginal<{ env: Record<string, unknown> }>();
   return { env: { ...actual.env, NEXT_PUBLIC_DEMO_ORG_ID: "org-demo" } };
 });
 
-type Organization = NonNullable<Session["user"]>["organizations"][number];
-
 const organization = (
   id: string,
-  overrides: Partial<Organization> = {},
-): Organization =>
-  ({
-    id,
-    name: id,
-    role: "MEMBER",
-    plan: "oss",
-    projects: [{ id: `${id}-project`, role: "MEMBER" }],
-    featureFlags: testFeatureFlags(),
-    ...overrides,
-  }) as unknown as Organization;
-
-const session = (organizations: Organization[]) =>
-  ({
-    user: {
-      admin: false,
-      featureFlags: testFeatureFlags(),
-      organizations,
-    },
-    environment: { aiGatewayDeployed: true },
-  }) as unknown as Session;
+  overrides: Partial<TestOrganization> = {},
+): TestOrganization => ({
+  id,
+  name: id,
+  role: "MEMBER",
+  plan: "oss",
+  projects: [{ id: `${id}-project` }],
+  featureFlags: testFeatureFlags(),
+  ...overrides,
+});
 
 const demoOrganization = organization("org-demo");
 const gatewayOnlyOrganization = organization("org-gateway", {
@@ -55,10 +44,10 @@ it.each([
     expected: "/organization/org-a",
   },
   {
-    name: "the gateway for gateway-only members",
+    name: "the projects page for gateway-only members",
     organizations: [gatewayOnlyOrganization],
     lastProjectId: null,
-    expected: "/organization/org-gateway/ai-gateway",
+    expected: "/organization/org-gateway",
   },
   {
     name: "a usable org before a gateway-only org without the gateway",
@@ -77,8 +66,11 @@ it.each([
   },
 ])("lands on $name", ({ organizations, lastProjectId, expected }) => {
   expect(
-    new OrganizationLandingService(session(organizations)).landingPath(
-      lastProjectId,
-    ),
+    new OrganizationLandingService(
+      createSession({
+        organizations,
+        environment: { aiGatewayDeployed: true },
+      }),
+    ).landingPath(lastProjectId),
   ).toBe(expected);
 });

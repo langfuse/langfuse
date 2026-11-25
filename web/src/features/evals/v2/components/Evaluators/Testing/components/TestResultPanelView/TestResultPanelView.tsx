@@ -2,6 +2,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ReactNode } from "react";
 import { Clock, Coins } from "@langfuse/icons";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 
 import {
@@ -193,10 +194,9 @@ function CodeResultView({
 
 function RunErrorView({ message }: { message: string }) {
   return (
-    <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-      <p className="text-destructive text-sm font-bold">Test run failed</p>
-      <p className="text-sm">{message}</p>
-    </div>
+    <Banner variant="error" title="Test run failed">
+      {message}
+    </Banner>
   );
 }
 

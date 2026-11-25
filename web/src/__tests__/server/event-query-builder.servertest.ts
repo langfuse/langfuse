@@ -7,6 +7,7 @@ import {
   createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
   experimentPreAggCols,
   ExperimentsAggregationQueryBuilder,
@@ -20,7 +21,7 @@ import {
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it.each([
     ["cachedInputTokens", eventsTableCachedInputTokensSql, "Float64"],
-    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
+    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal128(12)"],
   ] as const)(
     "maps %s filters to the cached-read metric expression",
     (column, expression, clickhouseType) => {
@@ -40,7 +41,8 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
       const applied = filter.apply();
-      expect(applied.query).toContain(expression);
+      // The filter renders the expression with lowercase keywords (`or`, `null`).
+      expect(applied.query.toLowerCase()).toContain(expression.toLowerCase());
       expect(applied.query).toContain(clickhouseType);
       expect(Object.values(applied.params)).toContain("0");
     },
@@ -72,7 +74,9 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
 
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
-      expect(filter.apply().query).toContain(`${expression} is null`);
+      expect(filter.apply().query.toLowerCase()).toContain(
+        `${expression.toLowerCase()} is null`,
+      );
     },
   );
 
@@ -605,15 +609,15 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       expect(filter).toBeDefined();
       if (!filter) throw new Error("expected filter");
       const applied = filter.apply();
-      expect(applied.query).toContain('e."ingestion_api_key" IN');
+      expect(applied.query).toContain("e.ingestion_api_key IN");
       expect(Object.values(applied.params)).toContainEqual([apiKey]);
     },
   );
 
   it.each([
-    ["ingestionSdkName", 'e."ingestion_sdk_name" IN', "python"],
-    ["ingestionSdkVersion", 'e."ingestion_sdk_version" IN', "4.7.1"],
-    ["ingestionSource", 'e."source" IN', "otel"],
+    ["ingestionSdkName", "e.ingestion_sdk_name IN", "python"],
+    ["ingestionSdkVersion", "e.ingestion_sdk_version IN", "4.7.1"],
+    ["ingestionSource", "e.source IN", "otel"],
   ] as const)(
     "maps %s filters to the ingestion attribution column",
     (column, expectedClause, value) => {
@@ -697,8 +701,35 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(filter).toBeDefined();
     if (!filter) throw new Error("expected filter");
     expect(filter.apply().query).toContain(
-      `(e."experiment_id" = '' OR e."experiment_id" IS NULL)`,
+      `(e.experiment_id = '' OR e.experiment_id IS NULL)`,
     );
+  });
+
+  it.each([
+    ["userId", "is not null", `(e.user_id != '' AND e.user_id IS NOT NULL)`],
+    ["name", "is null", `(e.name = '' OR e.name IS NULL)`],
+  ] as const)(
+    "treats an empty %s as null (%s)",
+    (column, operator, expected) => {
+      const [filter] = createFilterFromFilterState(
+        [{ column, type: "null", operator, value: "" }],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter?.apply().query).toBe(expected);
+    },
+  );
+
+  it("treats an empty name as null when the caller passes no column definitions", () => {
+    // The positionInTrace ranking query filters this way; it must select the
+    // same rows as the outer query.
+    const [filter] = createFilterFromFilterState(
+      [{ column: "name", type: "null", operator: "is not null", value: "" }],
+      eventsTableNativeUiColumnDefinitions,
+    );
+
+    expect(filter?.apply().query).toBe(`(e.name != '' AND e.name IS NOT NULL)`);
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {

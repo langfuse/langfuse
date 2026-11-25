@@ -10,9 +10,7 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import {
-  DEFAULT_TOPIC_FACETS,
   topicsModelSettingsSchema,
-  type TopicFacet,
   type TopicsModelSlotName,
 } from "@langfuse/shared/topics";
 import {
@@ -20,7 +18,7 @@ import {
   type ConfigureTopicsSaveDraft,
   type TopicSlotCheck,
 } from "./ConfigureTopicsDialog";
-import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
+import { type ConfigureTopicsSettingsInput } from "./useTopicSettings";
 import { topicsSetupPayload } from "./topics-setup";
 import { resolveTopicModelSlot } from "./topic-setup-flow";
 
@@ -33,7 +31,7 @@ type ConfigureTopicsDialogControllerProps = {
 };
 
 /**
- * Owns the Configure Topics dialog. Wrap the shared parent and pass
+ * Owns the Topics Settings dialog. Wrap the shared parent and pass
  * `openDialog` to every opener, e.g. the header button and the setup screen.
  * Openers stay disabled until `settings` has loaded. The save request outlives
  * a close, so a reopened dialog cannot start an overlapping save.
@@ -72,8 +70,7 @@ function ConfigureTopicsSettings({
   stored,
   traceIdleMs,
   connections,
-  facets,
-  rule,
+  ruleCount,
   save,
   closeDialog,
 }: ConfigureTopicsSettingsInput & {
@@ -90,6 +87,14 @@ function ConfigureTopicsSettings({
   }));
   const [saveError, setSaveError] = useState<string | null>(null);
   const test = api.topics.testModelSettings.useMutation();
+  // Fetched on every open: the first summary can be embedded while the page
+  // stays open. The server still rejects a change, so a failed read only hides
+  // the warning.
+  const hasEmbeddings = api.topics.hasCurrentEmbeddings.useQuery({ projectId });
+  const utils = api.useUtils();
+  const turnOn = api.topics.setAutomaticProcessing.useMutation({
+    onSuccess: () => utils.topics.modelSettings.invalidate({ projectId }),
+  });
   const providerGroups = connections.map<[string, string[]]>((connection) => [
     connection.provider,
     modelsFor(connection, "chat"),
@@ -109,9 +114,8 @@ function ConfigureTopicsSettings({
     embedding: stored.embedding,
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: stored.clustering,
-    facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
-    embeddingLocked: false,
+    hasEmbeddings: hasEmbeddings.data ?? false,
     automaticProcessing: stored.enabled ?? false,
   };
   const paused = stored.blockMessage
@@ -228,7 +232,6 @@ function ConfigureTopicsSettings({
           embeddingDimensions: parsedDimensions.data,
           clustering,
         }),
-        ruleId: rule?.id,
       });
     } catch (error) {
       const message =
@@ -257,6 +260,14 @@ function ConfigureTopicsSettings({
         );
       }}
       onSave={onSave}
+      automaticProcessingOff={
+        ruleCount > 0 && stored.enabled === false && canWrite
+          ? {
+              onTurnOn: () => turnOn.mutate({ projectId, enabled: true }),
+              pending: turnOn.isPending,
+            }
+          : undefined
+      }
       {...(paused
         ? { notice: "paused" as const, ...paused }
         : { notice: "none" as const })}
@@ -270,7 +281,6 @@ function useSaveTopicsSetup(projectId: string) {
     onSuccess: () => {
       utils.topics.modelSettings.invalidate({ projectId });
       utils.topics.facets.invalidate({ projectId });
-      utils.topics.rules.invalidate({ projectId });
       utils.topics.tracingReadinessSettings.invalidate({ projectId });
     },
   });
@@ -316,45 +326,3 @@ function modelsFor(
     ),
   );
 }
-
-function facetDrafts(
-  facets: TopicFacet[],
-  enabledIds: ReadonlySet<string> | null,
-) {
-  const builtInsByName = new Map(
-    facets
-      .filter((facet) => facet.isBuiltIn)
-      .map((facet) => [facet.name, facet]),
-  );
-  const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
-    const existing = builtInsByName.get(preset.name);
-    return {
-      id: existing?.id ?? preset.name,
-      name: preset.name,
-      description: existing?.description || preset.description,
-      question: existing?.versions[0]?.prompt ?? preset.prompt,
-      builtIn: true,
-      enabled: enabledIds
-        ? Boolean(existing && enabledIds.has(existing.id))
-        : true,
-    };
-  });
-  const custom = facets.flatMap((facet) => {
-    if (facet.isBuiltIn) return [];
-    const question = facet.versions[0]?.prompt;
-    if (!question) return [];
-    return [
-      {
-        id: facet.id,
-        name: facet.name,
-        description: facet.description,
-        question,
-        builtIn: false,
-        enabled: enabledIds?.has(facet.id) ?? false,
-      },
-    ];
-  });
-  return [...builtIn, ...custom];
-}
-
-export const __test = { facetDrafts };

@@ -1,6 +1,8 @@
 mod chat_completions;
+pub(crate) use chat_completions::StreamOptions;
 pub(crate) mod model_list;
 mod outbound;
+pub(crate) mod usage;
 
 use std::{ops::Range, sync::Arc, time::Duration};
 
@@ -31,6 +33,8 @@ pub(crate) enum Route {
     OpenAiResponses,
     OpenAiResponsesCompact,
     OpenAiChatCompletions,
+    OpenAiDecisions,
+    OpenAiEmbeddings,
     AnthropicMessages,
     AnthropicCountTokens,
 }
@@ -40,6 +44,8 @@ impl Route {
         match self {
             Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
+            Self::OpenAiDecisions => ApiFormat::OpenAiDecisions,
+            Self::OpenAiEmbeddings => ApiFormat::OpenAiEmbeddings,
             Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
@@ -49,6 +55,8 @@ impl Route {
             Self::OpenAiResponses => "/responses",
             Self::OpenAiResponsesCompact => "/responses/compact",
             Self::OpenAiChatCompletions => "/chat/completions",
+            Self::OpenAiDecisions => "/decisions",
+            Self::OpenAiEmbeddings => "/embeddings",
             Self::AnthropicMessages => "/messages",
             Self::AnthropicCountTokens => "/messages/count_tokens",
         }
@@ -60,6 +68,8 @@ impl Route {
             Self::OpenAiResponses
                 | Self::OpenAiResponsesCompact
                 | Self::OpenAiChatCompletions
+                | Self::OpenAiDecisions
+                | Self::OpenAiEmbeddings
                 | Self::AnthropicMessages
         )
     }
@@ -75,16 +85,32 @@ pub(crate) struct ProviderLimits {
 pub struct RequestPermit {
     _active: crate::observability::Active,
     deadline: Instant,
+    spend_limits: Option<crate::spend::SpendRecording>,
+    /// `log` guardrails the request matched, recorded on its generation.
+    pub(crate) guardrails: Vec<crate::guardrails::Finding>,
+}
+
+impl RequestPermit {
+    /// The execution's cost counts toward spend limits.
+    pub(crate) fn charges_spend(&self) -> bool {
+        self.spend_limits.is_some()
+    }
 }
 
 /// The validated caller body and the facts the relay needs about it.
 pub(crate) struct RequestBody {
     pub bytes: Bytes,
     pub model_range: Range<usize>,
+    /// Where `stream_options` sits, for opting a streamed Chat Completions call into usage.
+    pub stream_options: StreamOptions,
     /// The caller asked for a streamed response (`"stream": true`).
     pub streaming: bool,
     /// Capacity held for the body, released with the execution once the response ends.
     pub reservation: Option<BodyReservation>,
+    /// Grows the capacity when a response charged to spend limits needs a larger parse.
+    pub parse_growth: Option<crate::capture::ResponseParseGrowth>,
+    /// The parsed members a generation records; `None` when the route records none.
+    pub input: Option<crate::capture::RequestInput>,
 }
 
 pub(crate) type BodyReservation = Box<dyn Send + Sync>;
@@ -107,10 +133,10 @@ impl ProviderTransport {
 
     fn with_limits(limits: ProviderLimits, policy: OutboundPolicy) -> Result<Self, ProviderError> {
         let policy = Arc::new(policy);
-        let client = provider_client_builder()
+        let client = provider_client_builder(limits.execution.max_execution_time)
             .build()
             .map_err(|_| ProviderError::Configuration)?;
-        let custom_base_url_client = provider_client_builder()
+        let custom_base_url_client = provider_client_builder(limits.execution.max_execution_time)
             .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
@@ -132,11 +158,17 @@ impl ProviderTransport {
         self
     }
 
-    /// Start the execution deadline.
-    pub fn admit(&self) -> RequestPermit {
+    /// Start the execution deadline. The execution's cost counts toward `spend_limits`
+    /// once it finishes.
+    pub(crate) fn admit(
+        &self,
+        spend_limits: Option<crate::spend::SpendRecording>,
+    ) -> RequestPermit {
         RequestPermit {
             _active: crate::observability::Active::new("execution"),
             deadline: Instant::now() + self.limits.execution.max_execution_time,
+            spend_limits,
+            guardrails: Vec::new(),
         }
     }
 
@@ -153,15 +185,20 @@ impl ProviderTransport {
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
         let model_range = model_range(&body)?;
+        let input = Some(crate::capture::RequestInput::from_body(&body));
+        let stream_options = StreamOptions::from_body(&body);
         self.forward_route(
             permit,
             context,
             headers,
             RequestBody {
                 bytes: body,
+                stream_options,
                 model_range,
                 streaming: true,
                 reservation: None,
+                parse_growth: None,
+                input,
             },
             Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
@@ -171,7 +208,7 @@ impl ProviderTransport {
 
     pub(crate) async fn forward_route(
         &self,
-        permit: RequestPermit,
+        mut permit: RequestPermit,
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         request: RequestBody,
@@ -181,16 +218,19 @@ impl ProviderTransport {
         let RequestBody {
             bytes: body,
             model_range,
+            stream_options,
             streaming,
             reservation,
+            parse_growth,
+            input,
         } = request;
         let api_format = route.api_format();
         let provider_model = context.connection().provider_model();
         // A rejected destination returns before any generation is recorded.
         let upstream = self.post(route, context.connection())?;
         let provider_headers = connection_headers(&context)?;
-        let mut capture = if route.captures_generation() {
-            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
+        let mut capture = if let Some(input) = input.filter(|_| route.captures_generation()) {
+            let mut capture = ExecutionCapture::for_request(api_format, &context, headers, input);
             if let Some(telemetry) = &self.telemetry
                 && context.ingestion_mode() != IngestionMode::None
             {
@@ -201,18 +241,16 @@ impl ProviderTransport {
             ExecutionCapture::unobserved()
         };
         // Capture the caller's body shape, but keep upstream-only changes out of the input.
-        let body = match route {
-            Route::OpenAiChatCompletions => {
-                match chat_completions::request_stream_usage(&body, provider_model) {
-                    Some(rewritten) => {
-                        drop(body);
-                        rewritten
-                    }
-                    None => rewrite_model(body, model_range, provider_model)?,
-                }
-            }
-            _ => rewrite_model(body, model_range, provider_model)?,
-        };
+        let body = upstream_body(
+            route,
+            body,
+            model_range,
+            streaming,
+            &stream_options,
+            provider_model,
+        )?;
+        capture.charge_on_finish(permit.spend_limits.take(), parse_growth);
+        capture.record_guardrails(&permit.guardrails);
         capture.set_provider_model(provider_model);
         correlation.record_upstream(UpstreamTarget::for_connection(
             context.connection(),
@@ -380,24 +418,54 @@ fn record_provider_status(observation: &RequestObservation, status: StatusCode) 
     }
 }
 
+/// The body sent upstream: the caller's body with the provider model and, for a
+/// streamed Chat Completions call, opted into usage. Only a streamed call can opt in.
+fn upstream_body(
+    route: Route,
+    body: Bytes,
+    model_range: Range<usize>,
+    streaming: bool,
+    stream_options: &StreamOptions,
+    provider_model: &str,
+) -> Result<Bytes, ProviderError> {
+    let usage = (matches!(route, Route::OpenAiChatCompletions) && streaming)
+        .then(|| chat_completions::stream_usage_edit(&body, stream_options))
+        .flatten();
+    rewrite_body(body, model_range, provider_model, usage)
+}
+
+/// Replaces the model bytes and applies `extra`, a byte range and its replacement;
+/// every other byte is copied unchanged.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "ownership releases the caller body when rewriting returns, before the upstream wait"
 )]
-fn rewrite_model(
+fn rewrite_body(
     body: Bytes,
     model_range: Range<usize>,
     provider_model: &str,
+    extra: Option<(Range<usize>, Vec<u8>)>,
 ) -> Result<Bytes, ProviderError> {
-    if model_range.start > model_range.end || model_range.end > body.len() {
-        return Err(ProviderError::Configuration);
-    }
     let model = serde_json::to_vec(provider_model).map_err(|_| ProviderError::Configuration)?;
-    let capacity = body.len() - model_range.len() + model.len();
-    let mut rewritten = Vec::with_capacity(capacity);
-    rewritten.extend_from_slice(&body[..model_range.start]);
-    rewritten.extend_from_slice(&model);
-    rewritten.extend_from_slice(&body[model_range.end..]);
+    let mut edits = vec![(model_range, model)];
+    edits.extend(extra);
+    edits.sort_by_key(|(range, _)| range.start);
+    let added = edits.iter().map(|(_, bytes)| bytes.len()).sum::<usize>();
+    let mut rewritten = Vec::with_capacity(body.len() + added);
+    let mut copied = 0;
+    for (range, replacement) in edits {
+        if range.start > range.end || range.end > body.len() {
+            return Err(ProviderError::Configuration);
+        }
+        let prefix = body
+            .get(copied..range.start)
+            .ok_or(ProviderError::Configuration)?;
+        rewritten.extend_from_slice(prefix);
+        rewritten.extend_from_slice(&replacement);
+        copied = range.end;
+    }
+    let suffix = body.get(copied..).ok_or(ProviderError::Configuration)?;
+    rewritten.extend_from_slice(suffix);
     Ok(Bytes::from(rewritten))
 }
 
@@ -424,8 +492,13 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
     Ok(start..end)
 }
 
-fn provider_client_builder() -> reqwest::ClientBuilder {
-    Client::builder()
+const PROVIDER_TCP_KEEPALIVE_IDLE: Duration = Duration::from_secs(30);
+const PROVIDER_TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
+// Linux rejects `TCP_KEEPCNT` outside `1..=MAX_TCP_KEEPCNT` (127).
+const MAX_TCP_KEEPALIVE_RETRIES: u32 = 127;
+
+fn provider_client_builder(max_execution_time: Duration) -> reqwest::ClientBuilder {
+    let builder = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
         .no_proxy()
@@ -435,10 +508,29 @@ fn provider_client_builder() -> reqwest::ClientBuilder {
         .no_zstd()
         // No client read timeout: it would also cut a non-streaming call while the
         // provider generates before sending headers. The relay bounds stalls instead.
+        // Match TCP keepalive and `TCP_USER_TIMEOUT` to `max_execution_time` (the
+        // longest wait the relay allows for non-streaming headers) so reqwest's 30 s
+        // default does not abort a silent upstream connection early.
         .connect_timeout(Duration::from_secs(5))
+        .tcp_keepalive(PROVIDER_TCP_KEEPALIVE_IDLE)
+        .tcp_keepalive_interval(PROVIDER_TCP_KEEPALIVE_INTERVAL)
+        .tcp_keepalive_retries(tcp_keepalive_retries(max_execution_time))
         .pool_max_idle_per_host(16)
         // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
-        .http1_only()
+        .http1_only();
+    #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+    let builder = builder.tcp_user_timeout(max_execution_time);
+    builder
+}
+
+fn tcp_keepalive_retries(timeout: Duration) -> u32 {
+    let probe_window = timeout
+        .saturating_sub(PROVIDER_TCP_KEEPALIVE_IDLE)
+        .as_secs();
+    let retries = probe_window.div_ceil(PROVIDER_TCP_KEEPALIVE_INTERVAL.as_secs());
+    u32::try_from(retries)
+        .unwrap_or(MAX_TCP_KEEPALIVE_RETRIES)
+        .clamp(1, MAX_TCP_KEEPALIVE_RETRIES)
 }
 
 /// The connection's extra headers plus its credential. Resolution already rejected

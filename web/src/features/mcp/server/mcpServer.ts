@@ -12,20 +12,26 @@
  * - Server discarded after request completes
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-  McpError,
-  ErrorCode,
-} from "@modelcontextprotocol/sdk/types.js";
+  Server,
+  ProtocolError,
+  ProtocolErrorCode,
+  isInputRequiredResult,
+} from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
-import { toolRegistry } from "./registry";
+import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
 import { registerSkillResources } from "./skills/resources";
+import { registerResources } from "./resources";
+import {
+  clientMayRenderApps,
+  isAppTool,
+  isAppToolResult,
+  MCP_APPS_EXTENSION,
+} from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
 
@@ -55,8 +61,7 @@ export const getMcpServerInstructions = (): string =>
  * Creates a fresh MCP server for each request with context captured in closures.
  * This follows the stateless pattern where no server state persists between requests.
  *
- * Tools are dynamically loaded from the global registry, eliminating hardcoded tool lists.
- * Features register themselves at application startup via the bootstrap module.
+ * Tools come from the feature modules listed in `tools.ts`.
  *
  * @param context - Server context from authenticated request (captured in closures)
  * @returns Configured MCP Server instance
@@ -78,17 +83,29 @@ export function createMcpServer(context: ServerContext): Server {
       capabilities: {
         tools: {},
         resources: {},
-        extensions: { "io.modelcontextprotocol/skills": {} },
+        extensions: {
+          "io.modelcontextprotocol/skills": {},
+          ...MCP_APPS_EXTENSION,
+        },
       },
       instructions: getMcpServerInstructions(),
+      // 2025-era requests get JSON responses, which cannot carry the SDK's
+      // server-to-client prompts, so tools never ask for input there.
+      inputRequired: { legacyShim: false },
     },
   );
 
   registerSkillResources(server);
+  registerResources(server);
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools = await toolRegistry.getToolDefinitions(context);
+  server.setRequestHandler("tools/list", async (_request, ctx) => {
+    const definitions = (await getEnabledTools(context)).map(
+      (tool) => tool.definition,
+    );
+    const tools = clientMayRenderApps(ctx)
+      ? definitions
+      : definitions.filter((definition) => !isAppTool(definition));
 
     logger.debug("MCP ListTools", {
       projectId: context.projectId,
@@ -100,7 +117,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {
@@ -108,12 +125,15 @@ export function createMcpServer(context: ServerContext): Server {
       toolName: name,
     });
 
-    // Look up tool in registry and apply feature gates. Direct calls should
-    // fail the same way as absent tools when a gated feature is disabled.
-    const registeredTool = await toolRegistry.getEnabledTool(name, context);
+    // Tools of disabled features and tools the context may not call fail the
+    // same way as absent tools.
+    const registeredTool = await getEnabledTool(name, context);
 
-    if (!registeredTool) {
-      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
+    if (!registeredTool || !canCallTool(registeredTool, context)) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Unknown tool: ${name}`,
+      );
     }
 
     assertToolAuthorized(registeredTool.definition, context);
@@ -130,8 +150,17 @@ export function createMcpServer(context: ServerContext): Server {
     });
     try {
       const result = await otelContext.with(clickHouseCtx, () =>
-        registeredTool.handler(args, context),
+        registeredTool.handler(args, context, ctx),
       );
+
+      if (isInputRequiredResult(result)) return result;
+
+      if (isAppToolResult(result)) {
+        return {
+          content: [{ type: "text", text: result.text }],
+          _meta: result.meta,
+        };
+      }
 
       return {
         content: [
@@ -172,7 +201,7 @@ function assertToolAuthorized(
   });
   if (!decision.success) {
     const { code, message } = formatErrorForUser(decision.error);
-    throw new McpError(code, message);
+    throw new ProtocolError(code, message);
   }
 }
 

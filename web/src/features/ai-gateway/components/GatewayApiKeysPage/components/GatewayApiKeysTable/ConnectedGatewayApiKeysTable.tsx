@@ -1,26 +1,32 @@
 import { type ReactNode, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { api } from "@/src/utils/api";
+import { EditGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/EditGatewayApiKeyDialogController/EditGatewayApiKeyDialogController";
+import { GatewayResetBudgetDialogController } from "@/src/features/ai-gateway/components/GatewayResetBudgetDialogController/GatewayResetBudgetDialogController";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
 export function ConnectedGatewayApiKeysTable({
   organizationId,
   description,
   emptyState,
+  onCreateKey,
 }: {
   organizationId: string;
   /** Shown above the table; the no-keys placeholder explains keys itself. */
   description: ReactNode;
   /** Replaces the whole table, search included, while there are no keys. */
   emptyState?: ReactNode;
+  /** The dialog must live above this table: the empty state unmounts once the key exists. */
+  onCreateKey: () => void;
 }) {
   const [paginationState, setPaginationState] = usePaginationState(0, 10, {
     page: "pageIndex",
@@ -28,7 +34,7 @@ export function ConnectedGatewayApiKeysTable({
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [orderBy, setOrderBy] = useOrderByState();
-  const { apiKeysQuery, rows, lastUsed } = useGatewayApiKeysTableData({
+  const { apiKeysQuery, rows, lastUsed, spend } = useGatewayApiKeysTableData({
     organizationId,
     searchQuery,
     orderBy,
@@ -38,6 +44,8 @@ export function ConnectedGatewayApiKeysTable({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
 
   const hasNoKeys =
     searchQuery.trim().length === 0 && apiKeysQuery.data?.totalCount === 0;
@@ -54,21 +62,13 @@ export function ConnectedGatewayApiKeysTable({
 
   if (apiKeysQuery.isError) {
     return (
-      <div className="flex flex-col gap-4">
-        <Alert variant="destructive">
-          <Alert.Title>Gateway keys could not be loaded</Alert.Title>
-          <Alert.Description>
-            Retry to manage keys for this organization.
-          </Alert.Description>
-        </Alert>
-        <Button
-          className="w-fit"
-          variant="secondary"
-          onClick={() => apiKeysQuery.refetch()}
-        >
-          Retry
-        </Button>
-      </div>
+      <Banner
+        variant="error"
+        title="Gateway keys could not be loaded"
+        actions={[{ text: "Retry", onClick: () => apiKeysQuery.refetch() }]}
+      >
+        Retry to manage keys for this organization.
+      </Banner>
     );
   }
 
@@ -103,32 +103,57 @@ export function ConnectedGatewayApiKeysTable({
       }}
     >
       {({ openDialog: openRevokeDialog }) => (
-        <div className="flex h-full min-h-0 flex-col gap-4">
-          {hasNoKeys ? null : description}
-          <div className="flex min-h-0 flex-1 flex-col">
-            <GatewayApiKeysTable
-              data={
-                rows === undefined
-                  ? { status: "loading" }
-                  : { status: "success", data: rows }
-              }
-              lastUsed={lastUsed}
-              orderBy={orderBy}
-              setOrderBy={handleOrderByChange}
-              pagination={{
-                mode: "offset",
-                totalCount: apiKeysQuery.data?.totalCount ?? null,
-                state: paginationState,
-                onChange: setPaginationState,
-              }}
-              search={{
-                value: searchQuery,
-                onChange: handleSearchChange,
-              }}
-              onRevoke={openRevokeDialog}
-            />
-          </div>
-        </div>
+        <GatewayResetBudgetDialogController
+          organizationId={organizationId}
+          surface="api_keys_page"
+        >
+          {({ openDialog: openResetDialog }) => (
+            <EditGatewayApiKeyDialogController organizationId={organizationId}>
+              {({ openDialog: openEditDialog }) => (
+                <div className="flex h-full min-h-0 flex-col gap-4">
+                  {hasNoKeys ? null : description}
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <GatewayApiKeysTable
+                      data={
+                        rows === undefined
+                          ? { status: "loading" }
+                          : { status: "success", data: rows }
+                      }
+                      ingestionProjectId={ingestionProjectId}
+                      lastUsed={lastUsed}
+                      spend={spend}
+                      orderBy={orderBy}
+                      setOrderBy={handleOrderByChange}
+                      pagination={{
+                        mode: "offset",
+                        totalCount: apiKeysQuery.data?.totalCount ?? null,
+                        state: paginationState,
+                        onChange: setPaginationState,
+                      }}
+                      search={{
+                        value: searchQuery,
+                        onChange: handleSearchChange,
+                      }}
+                      onEdit={openEditDialog}
+                      onResetBudget={(row) =>
+                        openResetDialog({
+                          scope: "API_KEY",
+                          subjectId: row.apiKey.id,
+                          name: row.apiKey.note ?? row.apiKey.displaySecretKey,
+                          isDefault:
+                            row.spendLimit === null &&
+                            row.defaultSpendLimit !== null,
+                        })
+                      }
+                      onRevoke={openRevokeDialog}
+                      onCreateKey={onCreateKey}
+                    />
+                  </div>
+                </div>
+              )}
+            </EditGatewayApiKeyDialogController>
+          )}
+        </GatewayResetBudgetDialogController>
       )}
     </ConfirmationDialogController>
   );

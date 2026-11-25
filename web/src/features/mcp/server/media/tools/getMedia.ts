@@ -22,5 +22,5 @@ export const [getMediaTool, handleGetMedia] = defineTool({
       },
     });
   },
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

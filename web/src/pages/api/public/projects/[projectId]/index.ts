@@ -5,7 +5,7 @@ import {
   handleUpdateProject,
   handleDeleteProject,
 } from "@/src/ee/features/admin-api/server/projects/projectById";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";

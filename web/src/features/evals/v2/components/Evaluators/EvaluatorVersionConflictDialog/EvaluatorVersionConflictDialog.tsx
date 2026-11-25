@@ -1,31 +1,34 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 
 export function EvaluatorVersionConflictDialog({
-  open,
   isOverriding,
-  onOpenChange,
   onDiscard,
   onOverride,
 }: {
-  open: boolean;
   isOverriding: boolean;
-  onOpenChange: (open: boolean) => void;
   onDiscard: () => void | Promise<void>;
   onOverride: () => void | Promise<void>;
 }) {
   return (
-    <ConfirmDialog
-      open={open}
-      onOpenChange={onOpenChange}
+    <Dialog
+      closeOnInteractionOutside
+      size="sm"
       title="This evaluator was updated"
-      description="Another user saved a newer version while you were editing. Discard your changes to load the latest version, or override it by saving your changes as the newest version. The other version remains in the version history."
-      cancelLabel="Discard changes"
-      onCancel={onDiscard}
-      confirmLabel="Override changes"
-      confirmVariant="default"
-      loading={isOverriding}
-      onConfirm={onOverride}
+      text="Another user saved a newer version while you were editing. Discard your changes to load the latest version, or override it by saving your changes as the newest version. The other version remains in the version history."
+      hideCloseButton
+      actions={[
+        {
+          label: "Discard changes",
+          variant: "secondary",
+          disabled: isOverriding,
+          onClick: onDiscard,
+        },
+        {
+          label: "Override changes",
+          loading: isOverriding,
+          onClick: onOverride,
+        },
+      ]}
     />
   );
 }

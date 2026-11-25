@@ -17,7 +17,14 @@ import {
   type OrganizationScope,
 } from "@langfuse/shared/rbac";
 
-import { projectRoleAccessRights } from "@langfuse/shared";
+import {
+  DEFAULT_STARTER_PROJECT_NAME,
+  getStarterOrganizationName,
+  isStarterOrganizationMetadata,
+  projectRoleAccessRights,
+  STARTER_ORGANIZATION_METADATA,
+} from "@langfuse/shared";
+import { createDefaultScoreConfigs } from "@/src/features/projects/server/defaultScoreConfigs";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { type BuildIntentId } from "@/src/features/onboarding/lib/buildIntent";
 import { getFallbackRedirectPath } from "@/src/features/onboarding/lib/fallbackRedirect";
@@ -26,38 +33,8 @@ import {
   type NewsletterOutcome,
 } from "@/src/features/onboarding/lib/newsletterSignup";
 
-const DEFAULT_STARTER_PROJECT_NAME = "My Project";
 const INSTALLER_NEWSLETTER_LISTS: NewsletterList[] = ["product", "oss"];
 const INVITED_NEWSLETTER_LISTS: NewsletterList[] = ["product"];
-const STARTER_ORGANIZATION_METADATA = {
-  langfuseOnboarding: {
-    starterOrganization: true,
-  },
-} as const;
-
-const isStarterOrganizationMetadata = (metadata: Prisma.JsonValue) => {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return false;
-  }
-
-  const onboardingMetadata = (metadata as Record<string, unknown>)[
-    "langfuseOnboarding"
-  ];
-
-  return (
-    typeof onboardingMetadata === "object" &&
-    onboardingMetadata !== null &&
-    !Array.isArray(onboardingMetadata) &&
-    (onboardingMetadata as Record<string, unknown>)["starterOrganization"] ===
-      true
-  );
-};
-
-const getStarterOrganizationName = (userName?: string | null) => {
-  const firstName = userName?.trim().split(/\s+/)[0];
-
-  return firstName ? `${firstName}'s Organization` : "My Organization";
-};
 
 const getRealOrganizationMembershipWhereClause = (
   userId: string,
@@ -506,6 +483,8 @@ export const provisionStarterOrganizationForNewUser = async ({
   if (!createdResources) {
     return null;
   }
+
+  await createDefaultScoreConfigs(createdResources.project.id);
 
   await auditLog(
     {

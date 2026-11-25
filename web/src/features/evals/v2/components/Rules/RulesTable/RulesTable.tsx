@@ -1,13 +1,7 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import {
-  Copy,
-  ExternalLink,
-  MoreVertical,
-  Pencil,
-  Trash2,
-} from "@langfuse/icons";
+import { Copy, MoreVertical, Pencil, Trash2 } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DataTable } from "@/src/components/table/data-table";
@@ -24,10 +18,10 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { OverflowList } from "@/src/components/design-system/OverflowList/OverflowList";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
@@ -42,11 +36,7 @@ import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFi
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { api, type RouterInputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -92,21 +82,26 @@ function RuleEvaluatorsCell({
   }
 
   return (
-    <SingleLineOverflowList
+    <OverflowList
       items={assignments}
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
-      renderItem={(assignment) => (
-        <Badge color="filled" text={assignment.evaluator.name} />
+      renderItem={(assignment, { getItemProps }) => (
+        <span {...getItemProps()}>
+          <Badge color="filled" text={assignment.evaluator.name} />
+        </span>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge color="filled" text={`+${overflowItemCount}`} />
-          </TooltipTrigger>
-          <TooltipContent>
-            {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
-          </TooltipContent>
+        <Tooltip
+          label={hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              color="filled"
+              text={`+${overflowItemCount}`}
+              {...getTriggerProps()}
+            />
+          )}
         </Tooltip>
       )}
     />
@@ -119,6 +114,34 @@ export function RulesTable({
 }: {
   projectId: string;
   hasWriteAccess: boolean;
+}) {
+  return (
+    <ConfirmationDialogController<() => Promise<void>>
+      title="Delete evaluation rules?"
+      text="This permanently deletes 1 rule and its evaluator assignments."
+      confirmLabel="Delete"
+      variant="destructive"
+      onConfirm={(confirm) => confirm()}
+    >
+      {({ openDialog }) => (
+        <RulesTableContent
+          projectId={projectId}
+          hasWriteAccess={hasWriteAccess}
+          openDeleteDialog={openDialog}
+        />
+      )}
+    </ConfirmationDialogController>
+  );
+}
+
+function RulesTableContent({
+  projectId,
+  hasWriteAccess,
+  openDeleteDialog,
+}: {
+  projectId: string;
+  hasWriteAccess: boolean;
+  openDeleteDialog: (confirm: () => Promise<void>) => void;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -184,7 +207,6 @@ export function RulesTable({
     },
   });
   const filterState = queryFilter.filterState;
-  const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [cloneRule, setCloneRule] = useState<RuleTableRow | null>(null);
   // Query param so other surfaces can deep-link straight to a rule.
   const [editRuleId, setEditRuleId] = useQueryParam(
@@ -226,7 +248,6 @@ export function RulesTable({
       capture("evaluation_rules:delete", {
         ruleCount: result.ruleIds.length,
       });
-      setDeleteIds([]);
       selectionStore.getState().actions.clearSelection();
       await Promise.all([
         utils.evalsV2.rules.list.invalidate({ projectId }),
@@ -263,6 +284,7 @@ export function RulesTable({
             <RuleNameCell
               name={row.original.name}
               legacy={legacy}
+              targetObject={row.original.targetObject}
               onUpgrade={
                 upgradeRequired
                   ? () => {
@@ -396,7 +418,7 @@ export function RulesTable({
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink size="base" __rawClassName="ml-1" />
+                View traces
               </Button>
               <DropdownMenu
                 placement="bottom-end"
@@ -431,7 +453,13 @@ export function RulesTable({
                     disabled: hasWriteAccess
                       ? undefined
                       : { reason: "Missing permission to delete rules" },
-                    onClick: () => setDeleteIds([row.original.id]),
+                    onClick: () =>
+                      openDeleteDialog(async () => {
+                        await deleteMany.mutateAsync({
+                          projectId,
+                          ruleIds: [row.original.id],
+                        });
+                      }),
                   },
                 ]}
               >
@@ -461,6 +489,8 @@ export function RulesTable({
       capture,
       selectActionColumn,
       setEditRuleId,
+      deleteMany,
+      openDeleteDialog,
     ],
   );
   const [columnVisibility, setColumnVisibility] =
@@ -674,17 +704,6 @@ export function RulesTable({
           totalCount={rules.data?.totalItems ?? null}
           selectionStore={selectionStore}
           filterState={filterState}
-        />
-        <ConfirmDialog
-          open={deleteIds.length > 0}
-          onOpenChange={(open) => {
-            if (!open) setDeleteIds([]);
-          }}
-          title="Delete evaluation rules?"
-          description={`This permanently deletes ${deleteIds.length} rule${deleteIds.length === 1 ? "" : "s"} and its evaluator assignments.`}
-          confirmLabel="Delete"
-          loading={deleteMany.isPending}
-          onConfirm={() => deleteMany.mutate({ projectId, ruleIds: deleteIds })}
         />
         {editRuleId ? (
           <EditRuleDialog

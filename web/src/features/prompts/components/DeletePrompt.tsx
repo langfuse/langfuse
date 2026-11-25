@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -47,9 +48,10 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
           will error.
         </p>
         {error && (
-          <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <p className="font-bold">Error:</p>
-            <p className="whitespace-pre-wrap">{error}</p>
+          <div className="mb-3">
+            <Banner variant="error" title="Error">
+              <p className="whitespace-pre-wrap">{error}</p>
+            </Banner>
           </div>
         )}
         <div className="flex justify-end space-x-4">

@@ -18,7 +18,7 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
-const longAnthropicName = "Anthropic production credential for the EU team";
+const longAnthropicName = "Anthropic production connection for the EU team";
 
 export const LongNames = meta.story({
   name: "(Test) Long names truncate and show in full on hover",
@@ -31,7 +31,7 @@ export const LongNames = meta.story({
       },
       {
         id: "openai",
-        name: "OpenAI production credential for the EU team",
+        name: "OpenAI production connection for the EU team",
         provider: "OPENAI" as const,
       },
     ],
@@ -50,6 +50,18 @@ export const LongNames = meta.story({
     await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
     await expect(
       label.closest(`[title="${longAnthropicName}"]`),
+    ).not.toBeNull();
+  },
+});
+
+export const OptionsHiddenFromSessionReplay = meta.story({
+  name: "(Test) Open options are hidden from session replay",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("combobox"));
+    await expect(
+      body.getByRole("listbox").closest(".ph-no-capture"),
     ).not.toBeNull();
   },
 });

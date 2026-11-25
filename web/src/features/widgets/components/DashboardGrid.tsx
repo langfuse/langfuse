@@ -57,13 +57,10 @@ function useMediaQuery(query: string) {
 
   useEffect(() => {
     const media = window.matchMedia(query);
-    if (media.matches !== matches) {
-      setMatches(media.matches);
-    }
-    const listener = () => setMatches(media.matches);
-    media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const syncMatches = () => setMatches(media.matches);
+    syncMatches();
+    media.addEventListener("change", syncMatches);
+    return () => media.removeEventListener("change", syncMatches);
   }, [query]);
 
   return matches;
@@ -138,6 +135,8 @@ export function DashboardGrid({
   // floors, table rows) no longer fits and tiles scroll internally; the grid
   // grows vertically instead. (LFE-10813)
   const MIN_ROW_HEIGHT = 58;
+  // Matches the page padding (p-3) around the grid.
+  const GRID_GAP = 12;
   const rowHeight =
     width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
@@ -151,7 +150,7 @@ export function DashboardGrid({
   const layout = widgets.map((w) => {
     const contentHeight = contentHeights[w.id];
     const contentRows = contentHeight
-      ? Math.ceil((contentHeight + 16) / (rowHeight + 16))
+      ? Math.ceil((contentHeight + GRID_GAP) / (rowHeight + GRID_GAP))
       : 0;
 
     return {
@@ -243,7 +242,7 @@ export function DashboardGrid({
   // Render flex layout for small screens
   if (isSmallScreen) {
     return (
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-col gap-3">
         {widgets
           .slice()
           .sort((a, b) => a.y - b.y || a.x - b.x) // Sort by position for consistent order
@@ -275,7 +274,7 @@ export function DashboardGrid({
           width={width}
           layouts={{ lg: layout }}
           cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
-          margin={[16, 16]}
+          margin={[GRID_GAP, GRID_GAP]}
           containerPadding={[0, 0]}
           rowHeight={rowHeight}
           isDraggable={canEdit}

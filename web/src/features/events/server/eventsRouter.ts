@@ -13,6 +13,7 @@ import {
   getContextualFeatureFlags,
   hasInternalAccess,
 } from "@/src/features/feature-flags/utils";
+import { canUseTraceTranscriptEvals } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,6 +21,7 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  InvalidRequestError,
   isoDateTime,
   type OrderByState,
   type SkillsAvailable,
@@ -46,7 +48,14 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { isTopicFilter } from "@langfuse/shared/topics";
 import {
+  loadTopicTranscript,
+  TopicTraceTooLarge,
+} from "@langfuse/shared/topics/server";
+import {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
   instrumentAsync,
   getCurrentSpan,
   getScoresAndCorrectionsForTraces,
@@ -61,6 +70,7 @@ import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/typ
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 
 import type * as opentelemetry from "@opentelemetry/api";
+import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
@@ -199,13 +209,15 @@ export const eventsRouter = createTRPCRouter({
     protectedGetSessionProcedure.input(GetSessionEventsInput),
     { resourceType: "observation", action: "list" },
     async ({ input, ctx, audit }) => {
-      const filter = ctx.session.projectRole
+      const filter = isProjectMember(ctx.session?.user, input.projectId)
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
             ({ column }) =>
               column !== "commentContent" && column !== "commentCount",
           );
 
+      if (filter.some(isTopicFilter))
+        throw new InvalidRequestError("Topic filters are not available here.");
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: filter,
         prisma: ctx.prisma,
@@ -496,8 +508,9 @@ export const eventsRouter = createTRPCRouter({
   ),
   /**
    * Assemble the message transcript of a trace from its generations and tools,
-   * see `loadTraceTranscript`. Available to internal users and Session Timeline
-   * preview users, only where the events tables are written.
+   * see `loadTraceTranscript`. Available to internal users, Session Timeline
+   * preview users and users with trace transcript evals, only where the events
+   * tables are written.
    */
   transcriptByTraceId: auditedQuery(
     protectedGetEventsTraceProcedure.input(
@@ -531,15 +544,27 @@ export const eventsRouter = createTRPCRouter({
         !isSessionTimelineEnabled &&
         !hasInternalAccess({
           email: ctx.session?.user?.email,
-          isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        })
+        }) &&
+        !(
+          ctx.session?.user &&
+          ctx.session.environment &&
+          canUseTraceTranscriptEvals(
+            {
+              ...ctx.session,
+              user: ctx.session.user,
+              environment: ctx.session.environment,
+              expires: ctx.session.expires ?? "",
+            },
+            input.projectId,
+          )
+        )
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
-            "Transcripts require internal access or the Session Timeline preview.",
+            "Transcripts require internal access, the Session Timeline preview, or trace evaluations.",
         });
       }
       if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
@@ -576,6 +601,75 @@ export const eventsRouter = createTRPCRouter({
             ),
           );
           return transcript;
+        },
+      );
+    },
+  ),
+  /**
+   * Render a trace as the text the Topics summarizer receives, rebuilt from the
+   * events tables and bounded by the trace timestamp. Internal
+   * users only, and only where the events tables are written.
+   */
+  topicsTranscriptByTraceId: auditedQuery(
+    protectedGetEventsTraceProcedure.input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, ctx, audit }) => {
+      if (
+        !hasInternalAccess({
+          email: ctx.session?.user?.email,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Topics transcripts require internal access.",
+        });
+      }
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Topics transcripts need the events-backed trace view.",
+        });
+      }
+
+      return instrumentAsync(
+        { name: "get-topics-transcript-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+          audit.refs([ref("trace", input.traceId)]);
+
+          let loaded: Awaited<ReturnType<typeof loadTopicTranscript>>;
+          try {
+            loaded = await loadTopicTranscript({
+              projectId: input.projectId,
+              traceId: input.traceId,
+              timestamp: ctx.trace?.timestamp ?? input.timestamp,
+            });
+          } catch (error) {
+            if (error instanceof TopicTraceTooLarge)
+              return { text: null, hasContent: false, tooLarge: true };
+            throw error;
+          }
+          if (!loaded.transcript)
+            return { text: null, hasContent: false, tooLarge: false };
+          return {
+            text: renderStoredTopicText(
+              loaded.transcript,
+              loaded.executionIssues,
+            ),
+            // Topics skips traces without projected content as insufficient input.
+            hasContent: prepareAssembledTopicTranscript(loaded.transcript)
+              .hasContent,
+            tooLarge: false,
+          };
         },
       );
     },

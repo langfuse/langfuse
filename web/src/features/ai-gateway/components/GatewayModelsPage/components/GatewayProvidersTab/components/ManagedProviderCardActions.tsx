@@ -37,7 +37,7 @@ export function ManagedProviderCardActions({
           />
         )}
       </Tooltip>
-      <Tooltip label="Edit credential">
+      <Tooltip label="Edit connection">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}
@@ -48,7 +48,7 @@ export function ManagedProviderCardActions({
           />
         )}
       </Tooltip>
-      <Tooltip label="Delete credential">
+      <Tooltip label="Delete connection">
         {({ getTriggerProps }) => (
           <IconButton
             {...getTriggerProps()}

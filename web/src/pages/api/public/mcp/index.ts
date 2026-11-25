@@ -6,7 +6,7 @@
  *
  * Architecture:
  * - Stateless per-request pattern (fresh server instance per request)
- * - Streamable HTTP transport (2025-03-26 spec)
+ * - Streamable HTTP transport, serving 2025-era clients and 2026-07-28 clients
  * - BasicAuth using Langfuse API keys
  * - Context captured in closures (no session storage)
  *
@@ -25,11 +25,11 @@
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
@@ -39,9 +39,6 @@ import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-
-// Bootstrap MCP features - registers all tools at module load time
-import "@/src/features/mcp/server/bootstrap";
 
 /**
  * MCP API Route Handler
@@ -135,6 +132,10 @@ export default async function handler(
       rateLimitOverrides: scope.rateLimitOverrides,
       accessAuditLogEnabled: scope.accessAuditLogEnabled,
       userAgent: req.headers["user-agent"],
+      auditRequest: getAuditRequestContext(
+        req.headers,
+        req.socket.remoteAddress,
+      ),
       inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
       auth: ctx,
     };
@@ -148,13 +149,9 @@ export default async function handler(
       accept: req.headers.accept,
     });
 
-    // Build fresh server per request (stateless pattern)
-    // Context is captured in closures and available to all handlers
-    const server = createMcpServer(context);
-
-    // Handle the MCP request using Streamable HTTP transport
-    // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
-    await handleMcpRequest(server, req, res);
+    // Builds a fresh server per request with the context captured in closures,
+    // and routes the request by protocol era.
+    await handleMcpRequest(context, req, res);
   } catch (error) {
     // Client-caused errors (bad Host/Origin header -> "Invalid Host header",
     // invalid input, auth failures) are expected, high-volume noise fired per

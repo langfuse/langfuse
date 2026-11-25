@@ -4,6 +4,8 @@ import {
 } from "@langfuse/shared";
 import { type ViewVersion, type views } from "@langfuse/shared/query";
 
+import { viewLowersNumericMetadata } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+
 import { type z } from "zod";
 
 /** GetMetricsFilterColumnsParams is the option dictionary the metric filter column specs are built from. */
@@ -92,6 +94,7 @@ const getMetricsFilterColumnSpecs = ({
   const aliasesTraceSpelling =
     viewVersion === "v2" && selectedView === "observations";
   const metadataSuggest = viewVersion === "v2";
+  const numericMetadata = viewLowersNumericMetadata(selectedView, viewVersion);
   const filterColumns: MetricsFilterColumnSpec[] = [
     {
       column: {
@@ -137,6 +140,7 @@ const getMetricsFilterColumnSpecs = ({
         type: "stringObject",
         internal: "internalValue",
         ...(metadataSuggest ? { keyOptions: metadataKeyOptions } : {}),
+        ...(numericMetadata ? { numericValues: true } : {}),
       },
       customSelect: metadataSuggest,
     },

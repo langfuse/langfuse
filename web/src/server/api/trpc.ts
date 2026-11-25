@@ -19,16 +19,16 @@ import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { type Session } from "next-auth";
 import { tracing } from "@baselime/trpc-opentelemetry-middleware";
 import { getServerAuthSession } from "@/src/server/auth";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import * as z from "zod";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import {
   createScrubbedError,
   getTRPCErrorCodeFromHTTPStatusCode,
+  isSignInRequiredError,
+  signInRequiredError,
 } from "@/src/server/utils/trpc-utils";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
@@ -119,6 +119,23 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+// Off by default: the error type (memory, result size, timeout) is only sent
+// to the browser when the operator opts in, e.g. on a self-hosted instance
+// where the users also run ClickHouse.
+const exposeClickHouseErrorType = () =>
+  env.LANGFUSE_SHOW_DETAILED_CLICKHOUSE_ERRORS === "true";
+
+const CLICKHOUSE_MEMORY_ERROR_MESSAGE = [
+  "ClickHouse ran out of memory while running this query.",
+  "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
+].join(" ");
+
+const getClickHouseResourceErrorMessage = (error: ClickHouseResourceError) =>
+  exposeClickHouseErrorType() &&
+  (error.errorType === "MEMORY_LIMIT" || error.errorType === "OVERCOMMIT")
+    ? CLICKHOUSE_MEMORY_ERROR_MESSAGE
+    : error.adviceMessage;
+
 const trpcBuilder = initTRPC
   .context<typeof createTRPCContext>()
   .meta<TrpcMeta>();
@@ -132,7 +149,9 @@ const t = trpcBuilder.create({
         ...shape.data,
         // OTEL trace id of the failing request, for frontend/support correlation
         // with Datadog. Absent when OTEL is not running or the trace was not
-        // sampled (an unsampled id never reaches the tracing backend).
+        // sampled (an unsampled id never reaches the tracing backend). The
+        // HTTP handler also sends this id as `x-dd-trace-id` so a response
+        // whose body is not JSON can still be correlated.
         traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
@@ -140,6 +159,10 @@ const t = trpcBuilder.create({
           error.cause instanceof ClickHouseResourceError
             ? "ClickHouseResourceError"
             : null,
+        ...(error.cause instanceof ClickHouseResourceError &&
+        exposeClickHouseErrorType()
+          ? { clickhouseErrorType: error.cause.errorType }
+          : {}),
         // do not expose stack traces for CH errors as they may contain sensitive info
         stack:
           error.cause instanceof ClickHouseResourceError
@@ -183,7 +206,11 @@ const logErrorByStatus = ({
   httpStatus: number;
   error: TRPCError;
 }) => {
-  if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
+  if (isSignInRequiredError(error)) {
+    logger.debug(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
+  } else if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -213,7 +240,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
-        message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        message: getClickHouseResourceErrorMessage(res.error.cause),
         // Keep the original error, it will be removed by `errorFormatter`
         cause: res.error.cause,
       });
@@ -308,7 +335,7 @@ export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
   return next({
     ctx: {
@@ -353,7 +380,7 @@ const trackPosthogActivity = (
 const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
 
   const actualInput = await opts.getRawInput();
@@ -373,62 +400,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
-    if (ctx.session.user.admin === true) {
-      // fetch org as it is not available in the session for admins
-      const dbProject = await ctx.prisma.project.findFirst({
-        select: {
-          orgId: true,
-        },
-        where: {
-          id: projectId,
-          deletedAt: null,
-        },
-      });
-      if (!dbProject) {
-        logger.error(`Project with ${projectId} id not found`);
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Project not found",
-        });
-      }
-      await sendAdminAccessWebhook({
-        email: ctx.session.user.email,
-        projectId,
-        orgId: dbProject.orgId,
-      });
-      trackPosthogActivity({
-        userId: ctx.session.user.id,
-        organizationId: dbProject.orgId,
-        projectId,
-      });
-      addUserToSpan({ projectId, orgId: dbProject.orgId }, ctx.requestSpan);
-      return next({
-        ctx: {
-          // infers the `session` as non-nullable
-          session: {
-            ...ctx.session,
-            user: ctx.session.user,
-            orgId: dbProject.orgId,
-            orgRole: Role.OWNER,
-            projectId: projectId,
-            projectRole: Role.OWNER,
-          },
-        },
-      });
-    }
     // not a member
     logger.warn(`User is not a member of this project with id ${projectId}`);
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this project",
-    });
-  }
-
-  if (ctx.session.user.admin === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      projectId,
-      orgId: sessionProject.organization.id,
     });
   }
 
@@ -449,9 +425,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: sessionProject.organization.id,
-        orgRole: sessionProject.organization.role,
         projectId: projectId,
-        projectRole: sessionProject.role,
       },
     },
   });
@@ -482,7 +456,7 @@ const inputOrganizationSchema = z.object({
 const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw signInRequiredError();
   }
 
   const actualInput = await opts.getRawInput();
@@ -499,18 +473,11 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     (org) => org.id === orgId,
   );
 
-  if (!sessionOrg && ctx.session.user.admin !== true) {
+  if (!sessionOrg) {
     logger.error(`User ${ctx.session.user.id} is not a member of org ${orgId}`);
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
-    });
-  }
-
-  if (ctx.session.user.admin === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      orgId,
     });
   }
 
@@ -525,8 +492,6 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
         ...ctx.session,
         user: ctx.session.user,
         orgId: orgId,
-        orgRole:
-          ctx.session.user.admin === true ? Role.OWNER : sessionOrg!.role,
       },
     },
   });
@@ -650,7 +615,9 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       : null;
 
     const sessionProject = ctx.session?.user?.organizations
-      .flatMap((org) => org.projects)
+      .flatMap((org) =>
+        org.projects.map((project) => ({ ...project, organization: org })),
+      )
       .find(({ id }) => id === projectId);
 
     const traceSession =
@@ -668,12 +635,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
     const isSessionPublic = traceSession?.public === true;
 
-    if (
-      !trace?.public &&
-      !sessionProject &&
-      !isSessionPublic &&
-      ctx.session?.user?.admin !== true
-    ) {
+    if (!trace?.public && !sessionProject && !isSessionPublic) {
       logger.error(
         `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
       );
@@ -684,23 +646,10 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
       });
     }
 
-    if (ctx.session?.user?.admin === true) {
-      await sendAdminAccessWebhook({
-        email: ctx.session.user.email,
-        projectId,
-      });
-    }
     addUserToSpan({ projectId }, ctx.requestSpan);
 
     return next({
       ctx: {
-        session: {
-          ...ctx.session,
-          projectRole:
-            ctx.session?.user?.admin === true
-              ? Role.OWNER
-              : sessionProject?.role,
-        },
         trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
     });
@@ -757,14 +706,12 @@ const enforceSessionAccess = t.middleware(async (opts) => {
   const isPublicSession = session?.public ?? false;
 
   const userSessionProject = ctx.session?.user?.organizations
-    .flatMap((org) => org.projects)
+    .flatMap((org) =>
+      org.projects.map((project) => ({ ...project, organization: org })),
+    )
     .find(({ id }) => id === projectId);
 
-  if (
-    !isPublicSession &&
-    !userSessionProject &&
-    ctx.session?.user?.admin !== true
-  ) {
+  if (!isPublicSession && !userSessionProject) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );
@@ -775,25 +722,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     });
   }
 
-  if (ctx.session?.user?.admin === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      projectId,
-    });
-  }
   addUserToSpan({ projectId }, ctx.requestSpan);
 
-  return next({
-    ctx: {
-      session: {
-        ...ctx.session,
-        projectRole:
-          ctx.session?.user?.admin === true
-            ? Role.OWNER
-            : userSessionProject?.role,
-      },
-    },
-  });
+  return next({ ctx });
 });
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
@@ -855,15 +786,12 @@ export type AuthedSession = NonNullable<TRPCContext["session"]> & {
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
     projectId: string;
-    projectRole: Role;
   };
 };
 // After `enforceIsAuthedAndOrgMember`
 export type OrgAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {
     orgId: string;
-    orgRole: Role;
   };
 };

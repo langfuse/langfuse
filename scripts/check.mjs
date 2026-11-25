@@ -7,11 +7,13 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
+import { createInterface } from "node:readline";
 import { dirname, relative, resolve } from "node:path";
-import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
@@ -90,12 +92,14 @@ export function parseOptions(args) {
     base: "origin/main",
     all: false,
     dryRun: false,
+    continueOnError: false,
   };
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === "--branch") options.branch = true;
     else if (arg === "--all") options.all = true;
     else if (arg === "--dry-run") options.dryRun = true;
+    else if (arg === "--continue") options.continueOnError = true;
     else if (["--only", "-o", "--skip", "-s"].includes(arg)) {
       const value = args[++index];
       if (!value || value.startsWith("-"))
@@ -190,6 +194,7 @@ export function createPlan(
     taskGraph,
     exists,
     changes,
+    options.continueOnError,
   );
   return [
     ...planRepositoryChecks(
@@ -201,7 +206,11 @@ export function createPlan(
       changes.analysisFiles,
     ),
     ...packageChecks,
-  ];
+  ].sort(
+    (a, b) =>
+      Number(Boolean(a.isTest || a.testSuites)) -
+      Number(Boolean(b.isTest || b.testSuites)),
+  );
 }
 
 function classifyChanges(codeFiles, packages, options, taskGraph) {
@@ -231,7 +240,7 @@ function classifyChanges(codeFiles, packages, options, taskGraph) {
     )
       continue;
     if (
-      /^(prettier\.config\.[cm]?js|\.prettierrc(?:\.[^/]+)?|\.prettierignore|\.editorconfig)$/.test(
+      /^(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
         file,
       )
     ) {
@@ -294,13 +303,13 @@ function planPackageChecks(
   taskGraph,
   exists,
   changes,
+  continueOnError,
 ) {
   const selected = selectPackageChecks(
     codeFiles,
     packages,
     checks,
     taskGraph,
-    exists,
     changes,
   );
   const packageChecks = [];
@@ -360,6 +369,8 @@ function planPackageChecks(
       const checks = group.filter((task) => tasks.includes(task));
       const related =
         canNarrow &&
+        (group.every((task) => !task.suite) ||
+          ownFiles.every((file) => exists(resolve(root, file)))) &&
         checks.every(
           (task) =>
             !externalTasks.has(task.name) &&
@@ -370,10 +381,14 @@ function planPackageChecks(
           task.runner === "oxlint" &&
           pkg.scripts[task.name].includes("oxlint")
         ) {
+          const lintFiles = ownFiles.filter((file) =>
+            exists(resolve(root, file)),
+          );
+          if (related && lintFiles.length === 0) continue;
           // Keep dependency preparation in Turbo before file-specific linting.
           const prerequisites = prepare(`${pkg.name}#${task.name}`);
           const details = related
-            ? planNarrowedCheck(task, pkg, ownFiles, base, exists)
+            ? planNarrowedCheck(task, pkg, lintFiles, base, exists)
             : { label: `${task.label} · ${pkg.name}`, args: [] };
           packageChecks.push({
             ...details,
@@ -390,68 +405,112 @@ function planPackageChecks(
         // Narrowed checks bypass full-suite caches; only package scripts receive
         // file/changed flags. Prerequisite builds still run through Turbo.
         // Import-based selection cannot discover runtime reads; use --all for those.
-        prepare(`${pkg.name}#${task.name}`);
+        const prerequisites = prepare(`${pkg.name}#${task.name}`);
         const details = planNarrowedCheck(task, pkg, ownFiles, base, exists);
         packageChecks.push({
           ...details,
           args: ["--filter", pkg.name, "run", task.name, ...details.args],
           requiresTurbo: true,
+          prerequisites,
         });
       }
     }
     for (const [task, names] of full) schedule(task, names);
   }
-  if (targets.size > 0) {
-    // One graph lets Turbo deduplicate prerequisite work while running tasks
-    // sequentially. File-specific commands wait for successful preparation.
-    const checks = [
-      ...new Set(
-        checkTasks
-          .filter((task) =>
-            [...targets].some((target) => target.endsWith(`#${task.name}`)),
-          )
-          .map((task) => task.label),
+  const testTargets = new Set(
+    [...targets].filter((target) =>
+      checkTasks.some((task) => task.suite && target.endsWith(`#${task.name}`)),
+    ),
+  );
+  const preparationTargets = new Set(
+    [...targets].filter((target) => !testTargets.has(target)),
+  );
+  const testDependencies = new Map();
+  const collectTestDependencies = (taskId) => {
+    if (testDependencies.has(taskId)) return;
+    const task = taskGraph.tasks.get(taskId);
+    if (!task) throw new Error(`Missing Turbo task graph for ${taskId}`);
+    testDependencies.set(taskId, task);
+    for (const dependency of task.dependencies) {
+      collectTestDependencies(dependency);
+    }
+  };
+  for (const target of testTargets) collectTestDependencies(target);
+  for (const [taskId] of testDependencies) {
+    if (
+      checkTasks.some((task) => task.suite && taskId.endsWith(`#${task.name}`))
+    )
+      testTargets.add(taskId);
+    else preparationTargets.add(taskId);
+  }
+  for (const batchTargets of [preparationTargets, testTargets]) {
+    if (batchTargets.size === 0) continue;
+    // Uncached generation/build tasks must run only in preparation.
+    const visited = new Set();
+    const taskIds = [];
+    const visit = (taskId) => {
+      if (visited.has(taskId)) return;
+      visited.add(taskId);
+      const task = taskGraph.tasks.get(taskId);
+      for (const dependency of task?.dependencies ?? []) visit(dependency);
+      if (
+        task?.command !== "<NONEXISTENT>" &&
+        (batchTargets !== testTargets || testTargets.has(taskId))
+      )
+        taskIds.push(taskId);
+    };
+    for (const target of batchTargets) visit(target);
+    const batch = {
+      label: "Turbo",
+      isTest: batchTargets === testTargets,
+      taskIds,
+      ...(batchTargets === testTargets
+        ? {
+            preparationTaskIds: [...testDependencies]
+              .filter(
+                ([taskId, task]) =>
+                  !testTargets.has(taskId) && task.command !== "<NONEXISTENT>",
+              )
+              .map(([taskId]) => taskId),
+          }
+        : {}),
+      taskDependencies: Object.fromEntries(
+        [...visited].map((taskId) => [
+          taskId,
+          taskGraph.tasks.get(taskId)?.dependencies ?? [],
+        ]),
       ),
-    ];
-    const checkPackages = new Set(
-      [...targets]
-        .filter((target) =>
-          checkTasks.some((task) => target.endsWith(`#${task.name}`)),
-        )
-        .map((target) => target.slice(0, target.lastIndexOf("#"))),
-    );
-    packageChecks.unshift({
-      label:
-        checks.length > 0
-          ? `${checks.join(", ")} & dependencies · ${[...checkPackages].join(", ")}`
-          : "Dependencies",
+      cachedTaskIds: taskIds.filter((taskId) => {
+        const task = taskGraph.tasks.get(taskId);
+        return (
+          task?.cache?.status === "HIT" &&
+          task.resolvedTaskDefinition?.cache !== false
+        );
+      }),
       args: [
         "exec",
         "turbo",
         "run",
         "--summarize",
+        "--json",
         "--output-logs=errors-only",
         "--ui=stream",
         "--log-prefix=none",
         "--concurrency=1",
-        ...targets,
-        "--continue=dependencies-successful",
+        ...(batchTargets === testTargets ? ["--only"] : []),
+        ...batchTargets,
+        `--continue=${continueOnError ? "dependencies-successful" : "never"}`,
       ],
       isTurboBatch: true,
-    });
+    };
+    if (batch.isTest) packageChecks.push(batch);
+    else packageChecks.unshift(batch);
   }
 
   return packageChecks;
 }
 
-function selectPackageChecks(
-  codeFiles,
-  packages,
-  checks,
-  taskGraph,
-  exists,
-  changes,
-) {
+function selectPackageChecks(codeFiles, packages, checks, taskGraph, changes) {
   const { broad, direct, fullPackages, affected } = changes;
   const owner = (file) =>
     packages.find((pkg) => file.startsWith(`${pkg.path}/`));
@@ -465,9 +524,7 @@ function selectPackageChecks(
       ownFiles.length > 0 &&
       ownFiles.every(
         (file) =>
-          file.startsWith(`${pkg.path}/src/`) &&
-          /\.[cm]?[jt]sx?$/.test(file) &&
-          exists(resolve(root, file)),
+          file.startsWith(`${pkg.path}/src/`) && /\.[cm]?[jt]sx?$/.test(file),
       );
     const dependencyChanged = pkg.dependencies.some((dependency) =>
       affected.has(dependency),
@@ -558,11 +615,16 @@ function planRepositoryChecks(
 ) {
   const formatted = files.filter(
     (file) =>
-      /\.(js|jsx|ts|tsx|css)$/.test(file) && exists(resolve(root, file)),
+      /\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|css)$/.test(file) &&
+      exists(resolve(root, file)),
   );
   const repositoryFormatting =
     options.all ||
-    codeFiles.some((file) => /prettier|(^|\/)\.editorconfig$/.test(file));
+    codeFiles.some((file) =>
+      /(^|\/)(\.oxfmtrc\.jsonc?|oxfmt\.config\.[cm]?[jt]s|\.editorconfig)$/.test(
+        file,
+      ),
+    );
   const repositoryChecks = [
     {
       component: "format",
@@ -576,7 +638,7 @@ function planRepositoryChecks(
       label: `Formatting · ${formatted.length} file${formatted.length === 1 ? "" : "s"}`,
       args: [
         "exec",
-        "prettier",
+        "oxfmt",
         "--check",
         "--",
         ...formatted.map((file) => `./${file}`),
@@ -590,6 +652,7 @@ function planRepositoryChecks(
           /^scripts\/vitest\/ci-reporter\.(ts|test\.mjs)$/.test(file),
         ),
       label: "Vitest reporter tests",
+      isTest: true,
       args: ["exec", "node", "--test", "scripts/vitest/ci-reporter.test.mjs"],
     },
     {
@@ -747,7 +810,7 @@ function prepareKnipCache() {
   writeFileSync(keyFile, key, { mode: 0o600 });
 }
 
-async function runCheck(check, outputDirectory, checkIndex) {
+async function runCheck(check, outputDirectory, checkIndex, onProgress) {
   if (check.isKnip) prepareKnipCache();
   const reports = [];
   for (const [stepIndex, command] of (check.steps ?? [check.args]).entries()) {
@@ -762,8 +825,8 @@ async function runCheck(check, outputDirectory, checkIndex) {
           `--outputFile.json=${reportFile}`,
         ]
       : command;
-    // Disk-backed capture avoids truncating verbose failures or exhausting a
-    // pipe buffer while successful commands remain completely quiet.
+    // Disk-backed capture keeps full failure diagnostics without retaining
+    // verbose task logs in memory.
     const outputFile = resolve(
       outputDirectory,
       `${checkIndex}-${stepIndex}.log`,
@@ -775,8 +838,47 @@ async function runCheck(check, outputDirectory, checkIndex) {
         const child = spawn("pnpm", args, {
           cwd: root,
           env: createCheckEnv(),
-          stdio: ["ignore", output, output],
+          stdio: ["ignore", check.isTurboBatch ? "pipe" : output, output],
         });
+        if (check.isTurboBatch) {
+          const lines = createInterface({ input: child.stdout });
+          lines.on("line", (line) => {
+            let event;
+            try {
+              event = JSON.parse(line);
+            } catch {
+              writeSync(output, `${line}\n`);
+              return;
+            }
+            if (
+              typeof event?.source !== "string" ||
+              typeof event?.text !== "string"
+            ) {
+              writeSync(output, `${line}\n`);
+              return;
+            }
+            const text = stripVTControlCharacters(event.text);
+            writeSync(
+              output,
+              event.source === "turbo"
+                ? `${text}\n`
+                : `${event.source}: ${text}\n`,
+            );
+            if (
+              event.source !== "turbo" &&
+              /^cache (hit|miss|bypass)[,:]/.test(text)
+            ) {
+              let cache = "miss";
+              if (text.startsWith("cache hit")) cache = "hit";
+              if (text.startsWith("cache bypass")) cache = "bypass";
+              onProgress?.({
+                taskId: event.source,
+                state: text.startsWith("cache hit") ? "cached" : "running",
+                cache,
+              });
+            }
+          });
+        }
         let error;
         child.on("error", (cause) => {
           error = cause;
@@ -787,6 +889,12 @@ async function runCheck(check, outputDirectory, checkIndex) {
       });
     } finally {
       closeSync(output);
+    }
+    if (check.isTurboBatch) {
+      const diagnostics = collectDiagnostics(outputFile, true);
+      for (const task of diagnostics.taskResults) {
+        onProgress?.(task);
+      }
     }
     if (reportFile) {
       let files = null;
@@ -836,78 +944,88 @@ export function createCheckEnv(env = process.env) {
   }).childEnv;
 }
 
-export async function* runPlan(plan, outputDirectory, cpus, run = runCheck) {
-  const pending = new Map();
-  const weights = new Map();
-  const hasTurbo = plan.some((check) => check.isTurboBatch);
-  let nextIndex = 0;
-  let foreground = null;
+export async function* runPlan(
+  plan,
+  outputDirectory,
+  run = runCheck,
+  continueOnError = false,
+) {
   let turboFailed = false;
   let successfulTurboTasks = new Set();
-  try {
-    while (nextIndex < plan.length || pending.size > 0) {
-      const weight = plan[nextIndex]?.isTurboBatch ? Math.max(1, cpus - 1) : 1;
-      const used = [...weights.values()].reduce((sum, value) => sum + value, 0);
-      if (
-        foreground === null &&
-        nextIndex < plan.length &&
-        used + weight <= cpus
-      ) {
-        const checkIndex = nextIndex++;
-        const check = plan[checkIndex];
+  for (const [checkIndex, plannedCheck] of plan.entries()) {
+    let check = plannedCheck;
+    if (check.preparationTaskIds && turboFailed) {
+      const blockedTaskIds = new Set();
+      for (const taskId of check.taskIds) {
+        const visited = new Set();
+        const visit = (dependency) => {
+          if (visited.has(dependency)) return;
+          visited.add(dependency);
+          for (const prerequisite of check.taskDependencies[dependency] ?? [])
+            visit(prerequisite);
+        };
+        visit(taskId);
         if (
-          check.requiresTurbo &&
-          turboFailed &&
-          !check.prerequisites?.every((taskId) =>
-            successfulTurboTasks.has(taskId),
+          check.preparationTaskIds.some(
+            (prerequisite) =>
+              visited.has(prerequisite) &&
+              !successfulTurboTasks.has(prerequisite),
           )
-        ) {
-          yield { type: "skipped", check, checkIndex };
-          continue;
-        }
-        const promise = (async () => {
-          const startedAt = performance.now();
-          try {
-            const { failure, reports, successfulTurboTasks } = await run(
-              check,
-              outputDirectory,
-              checkIndex,
-            );
-            return {
-              type: "completed",
-              check,
-              checkIndex,
-              result: failure,
-              reports,
-              successfulTurboTasks,
-              durationMs: performance.now() - startedAt,
-            };
-          } catch (error) {
-            return { type: "completed", check, checkIndex, error };
-          }
-        })();
-        pending.set(checkIndex, promise);
-        weights.set(checkIndex, weight);
-        if (!check.requiresTurbo && !(check.isKnip && hasTurbo)) {
-          foreground = checkIndex;
-        }
-        yield { type: "started", check, checkIndex };
-        continue;
+        )
+          blockedTaskIds.add(taskId);
       }
-      const outcome = await Promise.race(pending.values());
-      pending.delete(outcome.checkIndex);
-      weights.delete(outcome.checkIndex);
-      if (outcome.checkIndex === foreground) foreground = null;
-      if (outcome.check.isTurboBatch && outcome.result) {
-        turboFailed = true;
-        successfulTurboTasks = new Set(outcome.successfulTurboTasks);
+      if (blockedTaskIds.size > 0) {
+        yield {
+          type: "skipped",
+          check: {
+            ...check,
+            label: `Tests · ${[...blockedTaskIds].join(", ")}`,
+            taskIds: [...blockedTaskIds],
+          },
+          checkIndex,
+        };
+        const taskIds = check.taskIds.filter(
+          (taskId) => !blockedTaskIds.has(taskId),
+        );
+        if (taskIds.length === 0) continue;
+        check = {
+          ...check,
+          taskIds,
+          args: check.args.filter((arg) => !blockedTaskIds.has(arg)),
+        };
       }
-      yield outcome;
     }
-  } finally {
-    // An interrupted consumer or unexpected error must not delete logs while
-    // background checks are still writing to them. Promises capture rejections.
-    await Promise.all(pending.values());
+    if (
+      check.requiresTurbo &&
+      turboFailed &&
+      !check.prerequisites?.every((taskId) => successfulTurboTasks.has(taskId))
+    ) {
+      yield { type: "skipped", check, checkIndex };
+      continue;
+    }
+    yield { type: "started", check, checkIndex };
+    const startedAt = performance.now();
+    let outcome;
+    try {
+      const result = await run(check, outputDirectory, checkIndex);
+      outcome = {
+        type: "completed",
+        check,
+        checkIndex,
+        result: result.failure,
+        reports: result.reports,
+        successfulTurboTasks: result.successfulTurboTasks,
+        durationMs: performance.now() - startedAt,
+      };
+    } catch (error) {
+      outcome = { type: "completed", check, checkIndex, error };
+    }
+    if (check.isTurboBatch && outcome.result) {
+      turboFailed = true;
+      successfulTurboTasks = new Set(outcome.successfulTurboTasks);
+    }
+    yield outcome;
+    if ((outcome.result || outcome.error) && !continueOnError) return;
   }
 }
 
@@ -922,6 +1040,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
     ?.trim();
   let failedTasks = [];
   let successfulTaskIds = [];
+  let taskResults = [];
   if (summaryPath) {
     try {
       const summary = JSON.parse(
@@ -933,6 +1052,19 @@ function collectDiagnostics(outputFile, isTurboBatch) {
             task.execution?.exitCode === 0 || task.cache?.status === "HIT",
         )
         .map((task) => task.taskId);
+      taskResults = summary.tasks.flatMap((task) => {
+        if (task.cache?.status === "HIT") {
+          return [{ taskId: task.taskId, state: "cached", cache: "hit" }];
+        }
+        if (!Number.isInteger(task.execution?.exitCode)) return [];
+        return [
+          {
+            taskId: task.taskId,
+            state: task.execution.exitCode === 0 ? "passed" : "failed",
+            durationMs: task.execution.endTime - task.execution.startTime,
+          },
+        ];
+      });
       failedTasks = summary.tasks.filter(
         (task) =>
           Number.isInteger(task.execution?.exitCode) &&
@@ -959,6 +1091,7 @@ function collectDiagnostics(outputFile, isTurboBatch) {
     captured,
     tasks,
     successfulTaskIds,
+    taskResults,
     complete: tasks.length > 0 && tasks.every((task) => task.diagnostics),
   };
 }
@@ -967,10 +1100,10 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
     console.log(
-      "Turbo tasks run sequentially. Nested worker pools are limited to one worker during check.\n",
+      "All checks and Turbo tasks run sequentially. Nested worker pools are limited to one worker during check.\n",
     );
     console.log(
-      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.",
+      "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run] [--continue]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes; stop at the first failure.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.\n--continue: continue independent checks after failures.",
     );
     return;
   }
@@ -984,8 +1117,6 @@ async function main() {
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
   const output = createOutput();
-  const cpus = Math.max(1, Math.floor(availableParallelism() / 2));
-  console.log(`Task concurrency budget: ${cpus}`);
   printHeader(files, options, output);
   const { packages, taskGraph } = loadWorkspace(base);
   const plan = createPlan(files, packages, options, base, taskGraph);
@@ -997,7 +1128,10 @@ async function main() {
     printPlan(plan);
     return;
   }
-  const results = await executePlan(plan, output, cpus);
+  const results = await executePlan(plan, {
+    ...output,
+    continueOnError: options.continueOnError,
+  });
   if (results.interrupted) {
     process.exitCode = 1;
     return;
@@ -1044,7 +1178,11 @@ function printPlan(plan) {
   }
 }
 
-async function executePlan(plan, { terminal, paint, indent }, cpus) {
+export async function executePlan(
+  plan,
+  { terminal, paint, indent, continueOnError = false },
+  run = runCheck,
+) {
   mkdirSync(resolve(root, ".turbo"), { recursive: true });
   const outputDirectory = mkdtempSync(resolve(root, ".turbo/check-"));
   let retainLogs = false;
@@ -1060,76 +1198,338 @@ async function executePlan(plan, { terminal, paint, indent }, cpus) {
     const padding = " ".repeat(Math.max(2, rowWidth - label.length));
     return `${paint(code, marker)} ${label}${padding}${paint("2", duration)}`;
   };
-  const active = new Map();
-  let progressLines = 0;
-  const clearProgress = () => {
-    if (progressLines === 0) return;
-    process.stdout.write(`\x1b[${progressLines}A\r\x1b[0J`);
-    progressLines = 0;
+  let runningCheck = null;
+  let checkStartedAt = 0;
+  let runningTask = null;
+  let taskStartedAt = 0;
+  const taskStates = new Map();
+  const rows = new Map();
+  const checkKeys = new Map();
+  const diagnostics = [];
+  for (const check of plan) {
+    const key = Symbol(check.label);
+    checkKeys.set(check, key);
+    for (const id of check.isTurboBatch ? (check.taskIds ?? []) : [key]) {
+      if (!rows.has(id))
+        rows.set(id, {
+          state: check.cachedTaskIds?.includes(id) ? "cached" : "queued",
+          label:
+            typeof id === "string" ? id : (check.progressLabel ?? check.label),
+        });
+    }
+  }
+  const initialHeight = Math.max(1, process.stdout.rows ?? 24);
+  let reservedLines;
+  let anchorRowBound;
+  let screenActive = false;
+  const startProgress = () => {
+    const height = Math.max(1, process.stdout.rows ?? initialHeight);
+    reservedLines = Math.max(
+      1,
+      Math.min(
+        [...rows.values()].filter(
+          (row) => row.state !== "cached" && !row.printed,
+        ).length,
+        Math.floor(height / 2),
+      ),
+    );
+    anchorRowBound = Math.max(1, height - reservedLines + 1);
+    screenActive = true;
+    const reserve = "\n".repeat(reservedLines - 1);
+    const rewind = reservedLines > 1 ? `\x1b[${reservedLines - 1}A` : "";
+    process.stdout.write(`${reserve}${rewind}\r\x1b7\x1b[?25l\x1b[?7l`);
   };
-  try {
-    for await (const outcome of runPlan(plan, outputDirectory, cpus)) {
-      clearProgress();
-      if (outcome.type === "started") {
-        active.set(outcome.checkIndex, outcome.check);
-        if (!terminal) {
+  const restoreScreen = () => {
+    if (!screenActive) return;
+    screenActive = false;
+    process.stdout.write("\x1b8\r\x1b[J\x1b[?7h\x1b[?25h");
+  };
+  const onSignal = (signal) => {
+    restoreScreen();
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+    process.kill(process.pid, signal);
+  };
+  const printProgress = () => {
+    if (!screenActive) return;
+    const spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[Math.floor(performance.now() / 100) % 10];
+    let visible = [...rows.values()].filter(
+      (row) => row.state !== "cached" && !row.printed,
+    );
+    const height = Math.max(
+      1,
+      Math.min(reservedLines, (process.stdout.rows ?? 24) - anchorRowBound + 1),
+    );
+    if (visible.length > height) {
+      const activeIndex = visible.findIndex((row) => row.state === "running");
+      const start = Math.max(0, Math.min(activeIndex, visible.length - height));
+      visible = visible.slice(start, start + height);
+    }
+    const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
+    const display = visible.map((row) => {
+      let code = "2";
+      let text = `○ ${row.label}`;
+      if (row.state === "running") {
+        code = "1;36";
+        text = `${spinner} ${row.label} · ${elapsed(row.startedAt)}`;
+      } else if (row.text) {
+        if (row.state === "failed") code = "31";
+        else if (row.state !== "finished") code = "32";
+        text = row.text;
+      }
+      text = stripVTControlCharacters(text);
+      return paint(
+        code,
+        text.length > width ? `${text.slice(0, width - 1)}…` : text,
+      );
+    });
+    // Restore the inline anchor instead of counting lines in the previous frame.
+    // Cursor-down clamps at the pane edge rather than scrolling on a resize.
+    process.stdout.write(`\x1b8\r\x1b[J\x1b[?7l${display.join("\x1b[1B\r")}`);
+  };
+  if (!terminal && plan.length > 0) {
+    console.log(
+      [
+        ...plan.flatMap((check) =>
+          (check.isTurboBatch
+            ? (check.taskIds ?? []).filter(
+                (id) => !check.cachedTaskIds?.includes(id),
+              )
+            : [check.progressLabel ?? check.label]
+          ).map((label) => `○ ${label}`),
+        ),
+      ].join("\n"),
+    );
+  }
+  const onProgress = (task) => {
+    if (taskStates.get(task.taskId) === task.state) return;
+    taskStates.set(task.taskId, task.state);
+    const previousRow = rows.get(task.taskId);
+    if (!(task.state === "cached" && previousRow?.state === "passed")) {
+      rows.set(task.taskId, {
+        state: task.state,
+        label: task.taskId,
+        startedAt: performance.now(),
+        text: previousRow?.text,
+      });
+    }
+    if (task.state === "cached") {
+      if (runningTask === task.taskId) runningTask = null;
+      printProgress();
+      return;
+    }
+    if (task.state === "running") {
+      const confirmed = new Set();
+      const visit = (id) => {
+        if (confirmed.has(id)) return;
+        confirmed.add(id);
+        for (const dependency of runningCheck?.taskDependencies?.[id] ?? []) {
+          visit(dependency);
+        }
+      };
+      visit(task.taskId);
+      // Fail-fast scheduling cannot start another process after a failure.
+      // Under --continue, only a dependent starting proves prerequisite success.
+      if (!continueOnError && runningTask && runningTask !== task.taskId) {
+        confirmed.add(runningTask);
+      }
+      for (const id of confirmed) {
+        if (id === task.taskId) continue;
+        const row = rows.get(id);
+        if (row?.state !== "running" && row?.state !== "finished") continue;
+        row.state = "passed";
+        row.text = `✓ ${id} · ${((row.durationMs ?? performance.now() - row.startedAt) / 1000).toFixed(1)}s`;
+        if (!terminal) console.log(paint("32", row.text));
+      }
+      if (runningTask && runningTask !== task.taskId) {
+        // With --concurrency=1, a new executing task means the previous
+        // process finished; only the run summary confirms its exit status.
+        const previousTask = rows.get(runningTask);
+        if (previousTask.state === "running") {
+          previousTask.state = "finished";
+          previousTask.durationMs = performance.now() - previousTask.startedAt;
+          previousTask.text = `· ${runningTask} · finished · ${elapsed(taskStartedAt)}`;
+        }
+        if (!terminal && previousTask.state === "finished")
           console.log(
-            `Running: ${outcome.check.progressLabel ?? outcome.check.label}`,
+            paint(
+              "2",
+              `· ${runningTask} · finished · ${elapsed(taskStartedAt)}`,
+            ),
+          );
+      }
+      runningTask = task.taskId;
+      taskStartedAt = performance.now();
+      if (!terminal) console.log(`↻ ${task.taskId} · cache ${task.cache}`);
+    } else {
+      if (runningTask === task.taskId) runningTask = null;
+      let marker = "✓";
+      let code = "32";
+      let detail = "cached";
+      if (task.state === "failed") {
+        marker = "✗";
+        code = "31";
+      }
+      if (task.state !== "cached")
+        detail = `${(task.durationMs / 1000).toFixed(1)}s`;
+      const text = `${marker} ${task.taskId} · ${detail}`;
+      rows.get(task.taskId).text = text;
+      if (!terminal) console.log(paint(code, text));
+    }
+    printProgress();
+  };
+  const refresh = setInterval(() => {
+    if (!terminal || !runningCheck) return;
+    printProgress();
+  }, 100);
+  refresh.unref();
+  const onResize = () => {
+    printProgress();
+  };
+  if (terminal) process.stdout.on("resize", onResize);
+  if (terminal) {
+    startProgress();
+    process.once("exit", restoreScreen);
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+  }
+  try {
+    printProgress();
+    for await (const outcome of runPlan(
+      plan,
+      outputDirectory,
+      (check, directory, index) => run(check, directory, index, onProgress),
+      continueOnError,
+    )) {
+      if (outcome.type === "started") {
+        runningCheck = outcome.check;
+        checkStartedAt = performance.now();
+        taskStates.clear();
+        if (!outcome.check.isTurboBatch) {
+          const row = rows.get(checkKeys.get(outcome.check));
+          row.state = "running";
+          row.startedAt = checkStartedAt;
+        }
+        if (!terminal && !outcome.check.isTurboBatch) {
+          console.log(
+            `↻ ${outcome.check.progressLabel ?? outcome.check.label}`,
           );
         }
       } else if (outcome.type === "skipped") {
         const { check } = outcome;
-        console.error(statusLine("○", `${check.label} · skipped`, "—", "33"));
-        console.error(
-          indent("Package checks or dependency preparation failed."),
-        );
+        for (const key of check.isTurboBatch
+          ? check.taskIds
+          : [checkKeys.get(check)]) {
+          const row = rows.get(key);
+          if (row) {
+            row.state = "skipped";
+            row.text = `○ ${row.label} · skipped`;
+          }
+        }
+        if (!terminal) {
+          console.error(statusLine("○", `${check.label} · skipped`, "—", "33"));
+          console.error(
+            indent("Package checks or dependency preparation failed."),
+          );
+        }
         skipped.push(check.label);
       } else {
-        active.delete(outcome.checkIndex);
+        runningCheck = null;
+        runningTask = null;
         if (outcome.error) throw outcome.error;
         const { check, result, reports, durationMs } = outcome;
+        if (check.isTurboBatch) {
+          for (const id of check.taskIds ?? []) {
+            const row = rows.get(id);
+            if (row?.state === "running" || row?.state === "finished") {
+              if (result) {
+                row.state = "finished";
+                row.text = `· ${id} · finished · ${elapsed(row.startedAt)}`;
+              } else {
+                row.state = "passed";
+                row.text = `✓ ${id} · ${((row.durationMs ?? performance.now() - row.startedAt) / 1000).toFixed(1)}s`;
+              }
+            }
+          }
+        }
         const duration = `${(durationMs / 1000).toFixed(1)}s`;
         const { label, isTurboBatch } = check;
         const noTests =
           reports.length > 0 &&
           reports.every((report) => report.files?.length === 0);
         const resultLabel = describeResult(label, reports, noTests);
-        if (result) {
-          console.error(statusLine("✗", resultLabel, duration, "31"));
+        if (!isTurboBatch) {
+          const row = rows.get(checkKeys.get(check));
+          row.state = result ? "failed" : "passed";
+          let marker = "✓";
+          if (result) marker = "✗";
+          else if (noTests) marker = "○";
+          row.text = `${marker} ${resultLabel} · ${duration}`;
+        }
+        if (isTurboBatch) {
+          if (!result) passedChecks++;
+        } else if (result) {
+          if (!terminal)
+            console.error(statusLine("✗", resultLabel, duration, "31"));
         } else if (noTests) {
-          console.log(statusLine("○", resultLabel, duration, "33"));
+          if (!terminal)
+            console.log(statusLine("○", resultLabel, duration, "33"));
           emptyChecks++;
         } else {
-          console.log(statusLine("✓", resultLabel, duration, "32"));
+          if (!terminal)
+            console.log(statusLine("✓", resultLabel, duration, "32"));
           passedChecks++;
         }
-        if (printReports(reports, indent)) retainLogs = true;
+        const reportDiagnostics = () => {
+          if (printReports(reports, indent)) retainLogs = true;
+          if (result && printFailure(result, isTurboBatch, indent))
+            retainLogs = true;
+        };
+        if (terminal) diagnostics.push(reportDiagnostics);
+        else reportDiagnostics();
+        if (terminal && result) {
+          restoreScreen();
+          for (const row of rows.values()) {
+            if (row.state !== "cached" && row.text && !row.printed) {
+              console.log(row.text);
+              row.printed = true;
+            }
+          }
+          for (const printDiagnostics of diagnostics.splice(0))
+            printDiagnostics();
+          startProgress();
+        }
         if (result) {
-          if (printFailure(result, isTurboBatch, indent)) retainLogs = true;
-          failed.push(label);
-          console.error("");
+          if (isTurboBatch) {
+            const failedTasks = [...taskStates]
+              .filter(([, state]) => state === "failed")
+              .map(([taskId]) => taskId);
+            failed.push(...(failedTasks.length > 0 ? failedTasks : [label]));
+          } else {
+            failed.push(label);
+          }
+          if (!terminal) console.error("");
           if (result.signal) {
             return { interrupted: true };
           }
         }
       }
-      if (terminal && active.size > 0) {
-        const lines = [
-          `Running${active.size > 1 ? " in parallel" : ""}:`,
-          ...[...active.values()].map(
-            (check) => `  ${check.progressLabel ?? check.label}`,
-          ),
-        ];
-        const width = Math.max(1, (process.stdout.columns ?? 80) - 1);
-        const display = lines.map((line) =>
-          line.length > width ? `${line.slice(0, width - 1)}…` : line,
-        );
-        process.stdout.write(`${paint("2", display.join("\n"))}\n`);
-        progressLines = display.length;
-      }
+      printProgress();
     }
   } finally {
-    clearProgress();
+    clearInterval(refresh);
+    if (terminal) process.stdout.off("resize", onResize);
+    restoreScreen();
+    process.off("exit", restoreScreen);
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+    if (terminal) {
+      for (const row of rows.values()) {
+        if (row.state !== "cached" && row.text && !row.printed)
+          console.log(row.text);
+      }
+      for (const printDiagnostics of diagnostics) printDiagnostics();
+    }
     if (!retainLogs) rmSync(outputDirectory, { recursive: true, force: true });
   }
   return { failed, passedChecks, emptyChecks, skipped, interrupted: false };
@@ -1226,10 +1626,23 @@ function printFailure(result, isTurboBatch, indent) {
   return false;
 }
 
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  // A recognized entrypoint must run even if its path disappears after loading.
+  if (resolve(process.argv[1]) === modulePath) return true;
+  let entryPath;
+  try {
+    entryPath = realpathSync(process.argv[1]);
+  } catch (error) {
+    // Eval/import launchers can put non-file arguments in argv[1].
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  }
+  return entryPath === realpathSync(modulePath);
+}
+
+if (isMainModule()) {
   try {
     await main();
   } catch (error) {
