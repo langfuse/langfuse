@@ -282,28 +282,49 @@ type MapTextLabel = {
   detailOpacity: number;
 };
 
+/** Pixels of clear space over which a crowded label fades back in. */
+const labelFadeGap = 12;
+
+/** Largest axis gap between two rectangles; negative only when they intersect. */
+function rectangleGap(a: MapRectangle, b: MapRectangle) {
+  return Math.max(
+    a.x - (b.x + b.width),
+    b.x - (a.x + a.width),
+    a.y - (b.y + b.height),
+    b.y - (a.y + a.height),
+  );
+}
+
+/** Lower ranks claim label space first: the topic being read, topics by size, then Unassigned. */
+function labelRank(zoneId: string, readingTopic: string | null) {
+  if (zoneId === readingTopic) return 0;
+  return zoneId === "outliers" || zoneId === "awaiting_map" ? 2 : 1;
+}
+
 export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
-  const visibility = smoothStep(1.5, 3, camera.zoom);
-  if (!visibility) return [];
   const detailOpacity = smoothStep(3.5, 7, camera.zoom);
   const labels: MapTextLabel[] = [];
-  const fontSize = 15 + smoothStep(3, 8, camera.zoom) * 3;
+  const fontSize =
+    13 +
+    smoothStep(1, 2.5, camera.zoom) * 2 +
+    smoothStep(3, 8, camera.zoom) * 3;
   const visible = (rect: MapRectangle) =>
     rect.x + rect.width > 0 &&
     rect.y + rect.height > 0 &&
     rect.x < size.width &&
     rect.y < size.height;
   for (const zone of frame.zones) {
+    // Bold title glyphs average at most ~0.62em, so a single word is not clipped.
+    const titleWidth = zone.name.length * fontSize * 0.62;
     const width = Math.min(
-      Math.max(120, zone.name.length * fontSize * 0.55),
+      // Short names hug their text until the description needs room.
+      Math.max(64 + 136 * detailOpacity, titleWidth),
       260,
       Math.max(80, size.width - 32),
     );
     const titleHeight =
-      Math.min(2, Math.ceil((zone.name.length * fontSize * 0.55) / width)) *
-      fontSize *
-      1.2;
+      Math.min(2, Math.ceil(titleWidth / width)) * fontSize * 1.2;
     const height = titleHeight + 40 * detailOpacity;
     const topLeft = screenPoint(
       { x: zone.bounds.minX, y: zone.bounds.maxY },
@@ -356,37 +377,33 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       rect,
       fontSize,
       opacity:
-        visibility *
         (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
         (matchesFilters ? 1 : 0.15),
       detailOpacity,
     });
   }
 
-  const shown: MapTextLabel[] = [];
-  for (const label of labels) {
-    let separation = 1;
-    for (const other of shown) {
-      const x =
-        Math.abs(
-          label.rect.x +
-            label.rect.width / 2 -
-            other.rect.x -
-            other.rect.width / 2,
-        ) /
-        ((label.rect.width + other.rect.width) / 2 + 16);
-      const y =
-        Math.abs(
-          label.rect.y +
-            label.rect.height / 2 -
-            other.rect.y -
-            other.rect.height / 2,
-        ) /
-        ((label.rect.height + other.rect.height) / 2 + 12);
-      separation = Math.min(separation, smoothStep(0.8, 1.15, Math.max(x, y)));
-    }
-    label.opacity *= separation;
-    if (label.opacity > 0.01) shown.push(label);
+  // Greedy placement: a label fades out as its clear space to any placed label
+  // shrinks and is fully hidden before the rectangles touch, so visible labels
+  // never overlap. Filter dimming does not affect placement, so filtering never
+  // reshuffles which names are shown.
+  const placed: MapTextLabel[] = [];
+  const byRank = labels
+    .map((label, order) => ({
+      label,
+      order,
+      rank: labelRank(label.id, readingTopic),
+    }))
+    .sort((a, b) => a.rank - b.rank || a.order - b.order);
+  for (const { label } of byRank) {
+    let placement = 1;
+    for (const other of placed)
+      placement = Math.min(
+        placement,
+        smoothStep(0, labelFadeGap, rectangleGap(label.rect, other.rect)),
+      );
+    label.opacity *= placement;
+    if (placement > 0) placed.push(label);
   }
   return labels;
 }

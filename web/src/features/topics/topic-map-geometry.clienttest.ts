@@ -455,9 +455,9 @@ describe("background group labels", () => {
       ]),
       topics,
     );
-    expect(prepareMapTextLabels(frameFor(model, 1))).toEqual([]);
-    const titles = prepareMapTextLabels(frameFor(model, 2));
+    const titles = prepareMapTextLabels(frameFor(model, 1));
     const details = prepareMapTextLabels(frameFor(model, 6));
+    expect(titles.some((label) => label.opacity > 0)).toBe(true);
     expect(new Set(details.map((label) => label.id)).size).toBe(details.length);
     expect(details.map((label) => label.id).sort()).toEqual(
       model.zones.map((zone) => zone.id).sort(),
@@ -472,6 +472,61 @@ describe("background group labels", () => {
       topics[0].description,
     );
     expect(details.every((label) => label.kind === "zone")).toBe(true);
+  });
+
+  it("names topics at fit zoom and never overlaps visible labels while zooming or panning", () => {
+    const manyTopics = Array.from({ length: 24 }, (_, i) => ({
+      id: `topic-${i}`,
+      name: `Recurring issue cluster ${i}`,
+    }));
+    const model = prepareTopicMap(
+      data([
+        ...manyTopics.flatMap((topic, i) =>
+          Array.from({ length: 4 + i }, (_, j) =>
+            point(
+              `${topic.id}-${j}`,
+              i === 23 ? (j % 5) - 2 : ((i * 37) % 50) - 25 + (j % 3),
+              i === 23 ? Math.floor(j / 5) - 2 : ((i * 53) % 30) - 15 + j / 8,
+              { topicId: topic.id },
+            ),
+          ),
+        ),
+        // A larger Unassigned cohort centred on the largest topic.
+        ...Array.from({ length: 60 }, (_, i) =>
+          point(
+            `outlier-${i}`,
+            Math.cos(i) * 80,
+            Math.sin(i) * 40,
+            { topicId: null, outcome: "outlier" },
+          ),
+        ),
+      ]),
+      manyTopics,
+    );
+    const fit = fitCamera(model.bounds, model.bounds, size);
+    const visibleAt = (view: Camera) =>
+      prepareMapTextLabels(prepareMapNodes(model, view, size, pointer)).filter(
+        (label) => label.opacity > 0,
+      );
+
+    const atFit = visibleAt(fit);
+    expect(atFit.map((label) => label.id)).toContain("topic-23");
+    expect(atFit.length).toBeGreaterThan(1);
+    for (const zoom of [0.4, 0.8, 1, 1.3, 1.7, 2.2, 3, 4.5, 6, 9, 16]) {
+      for (const [dx, dy] of [
+        [0, 0],
+        [-37, 11],
+        [52, -23],
+      ]) {
+        const labels = visibleAt({ x: fit.x + dx, y: fit.y + dy, zoom });
+        for (const [i, label] of labels.entries())
+          for (const other of labels.slice(i + 1))
+            expect(overlaps(label.rect, other.rect)).toBe(false);
+      }
+    }
+    expect(visibleAt({ ...fit, zoom: 4 }).length).toBeGreaterThan(
+      atFit.length,
+    );
   });
 
   it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
