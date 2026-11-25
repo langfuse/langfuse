@@ -53,6 +53,23 @@ function readsOnlyThreads(mapping: ObservationVariableMapping[]) {
   );
 }
 
+/** Trace rules that inherit an evaluator mapping they cannot run, so each needs an override. */
+export function traceRulesNeedingOverride(
+  evaluatorMapping: ObservationVariableMapping[],
+  assignments: {
+    variableMapping: ObservationVariableMapping[] | null;
+    evaluationRule: { id: string; name: string; targetObject: string };
+  }[],
+) {
+  if (readsOnlyThreads(evaluatorMapping)) return [];
+  return assignments.flatMap(({ variableMapping, evaluationRule }) =>
+    evaluationRule.targetObject === TopicsTargetObject &&
+    variableMapping === null
+      ? [{ id: evaluationRule.id, name: evaluationRule.name }]
+      : [],
+  );
+}
+
 /**
  * An assignment without an override inherits the evaluator's mapping (null)
  * when that mapping already reads threads; otherwise it stores the converted one.

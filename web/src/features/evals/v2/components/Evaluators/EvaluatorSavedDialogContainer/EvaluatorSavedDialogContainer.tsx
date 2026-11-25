@@ -7,7 +7,10 @@ import {
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -50,12 +53,14 @@ type EvaluatorSavedDialogEvaluator = {
 export function EvaluatorSavedDialogContainer({
   projectId,
   evaluator,
+  traceRulesNeedingOverride = [],
   onboardingAnalytics,
   onDismiss,
   onFinish,
 }: {
   projectId: string;
   evaluator: EvaluatorSavedDialogEvaluator;
+  traceRulesNeedingOverride?: { id: string; name: string }[];
   onboardingAnalytics: ReturnType<typeof createEvalOnboardingAnalytics> | null;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
@@ -79,6 +84,8 @@ export function EvaluatorSavedDialogContainer({
   const [isEstimating, setIsEstimating] = useState(false);
   const [testFilterSampling, setTestFilterSampling] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [overrideWarningDismissed, setOverrideWarningDismissed] =
+    useState(false);
   const estimateRequestId = useRef(0);
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -621,6 +628,39 @@ export function EvaluatorSavedDialogContainer({
     </div>
   ) : null;
 
+  const overrideWarning =
+    traceRulesNeedingOverride.length > 0 && !overrideWarningDismissed ? (
+      <Callout
+        variant="warning"
+        align="top"
+        actions={[]}
+        onDismiss={() => setOverrideWarningDismissed(true)}
+      >
+        <div>
+          <p>
+            These trace rules inherit this evaluator&apos;s mapping, which
+            can&apos;t read trace messages. Set an override mapping on each:
+          </p>
+          <ul className="mt-1 list-disc pl-4">
+            {traceRulesNeedingOverride.map((rule) => (
+              <li key={rule.id}>
+                <TextLink
+                  path={getRuleNavigationUrl({
+                    projectId,
+                    ruleId: rule.id,
+                    targetObject: TopicsTargetObject,
+                    enabled: true,
+                  })}
+                  value={rule.name}
+                  external
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Callout>
+    ) : null;
+
   if (dialogPhase === "saved" || dialogPhase === "closing-saved") {
     return (
       <EvaluatorSavedDialog
@@ -628,6 +668,7 @@ export function EvaluatorSavedDialogContainer({
         mode={mode}
         modeContentByMode={modeContentByMode}
         backfillContent={backfillContent}
+        warning={overrideWarning}
         costSummary={costSummary}
         unit={isTraceTranscript ? "traces" : "observations"}
         canSubmit={

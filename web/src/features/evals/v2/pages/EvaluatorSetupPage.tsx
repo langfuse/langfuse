@@ -38,7 +38,11 @@ import { SampleScopeSwitcher } from "@/src/features/evals/v2/components/Evaluato
 import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import {
+  traceRulesNeedingOverride,
+  variableFieldsForTarget,
+} from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcriptEvalsAccess";
 import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
@@ -215,6 +219,11 @@ export function EvaluatorSetupPage(
     projectId,
     scope: "evaluator:CUD",
   });
+  const canReadRules = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:read",
+  });
+  const traceEvalsAvailable = useCanViewTraceTranscriptsEvals(projectId);
   const evaluatorAlerts = useEvaluatorAlerts({
     scope: "evaluator",
     projectId,
@@ -340,6 +349,7 @@ export function EvaluatorSetupPage(
     hasCompletedTestCall: boolean;
     testRunCostUsd: number | null;
     targetObject: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
+    traceRulesNeedingOverride: { id: string; name: string }[];
   } | null>(null);
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
   // Keep relative ranges stable across unrelated renders so the observations
@@ -642,15 +652,19 @@ export function EvaluatorSetupPage(
       if (!definition) return;
       const { name, description } = metadata;
       const isTraceTranscript = state.targetObject === TopicsTargetObject;
-      const offerRuleAttachment = (evaluator: { id: string }) => {
+      const defaultVariableMapping = prepareModernRuleVariableMapping(
+        definition.type === "CODE" ? undefined : definition.variableMapping,
+        state.type,
+      ).defaultVariableMapping;
+      const offerRuleAttachment = (
+        evaluator: { id: string },
+        rulesNeedingOverride: { id: string; name: string }[] = [],
+      ) => {
         setSavedEvaluator({
           id: evaluator.id,
           name,
           type: state.type,
-          defaultVariableMapping: prepareModernRuleVariableMapping(
-            definition.type === "CODE" ? undefined : definition.variableMapping,
-            state.type,
-          ).defaultVariableMapping,
+          defaultVariableMapping,
           sampleFilter: isTraceTranscript
             ? state.traceSampleFilter
             : state.sampleFilter,
@@ -659,6 +673,7 @@ export function EvaluatorSetupPage(
           targetObject: isTraceTranscript
             ? TopicsTargetObject
             : EvalTargetObject.EVENT,
+          traceRulesNeedingOverride: rulesNeedingOverride,
         });
       };
 
@@ -697,13 +712,27 @@ export function EvaluatorSetupPage(
               : current,
         );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
+        // The save already succeeded, so a failed lookup only skips the warning.
+        const rulesNeedingOverride =
+          traceEvalsAvailable && canReadRules && definition.type !== "CODE"
+            ? await utils.evalsV2.rules.listRulesForEvaluator
+                .fetch({ projectId, evaluatorId: evaluator.id })
+                .then((assignments) =>
+                  traceRulesNeedingOverride(
+                    defaultVariableMapping,
+                    assignments,
+                  ),
+                )
+                .catch(() => [])
+            : [];
         // Evaluators opened on Trace messages already have trace rules.
         if (
           shouldOfferRuleAttachment(evaluator) &&
-          isTraceTranscript &&
-          props.initialTargetObject !== TopicsTargetObject
+          (rulesNeedingOverride.length > 0 ||
+            (isTraceTranscript &&
+              props.initialTargetObject !== TopicsTargetObject))
         ) {
-          offerRuleAttachment(evaluator);
+          offerRuleAttachment(evaluator, rulesNeedingOverride);
           return;
         }
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
@@ -1151,6 +1180,9 @@ export function EvaluatorSetupPage(
             <EvaluatorSavedDialogContainer
               projectId={projectId}
               evaluator={savedEvaluator}
+              traceRulesNeedingOverride={
+                savedEvaluator.traceRulesNeedingOverride
+              }
               onboardingAnalytics={onboardingAnalytics}
               onDismiss={async () => {
                 await router.push(
