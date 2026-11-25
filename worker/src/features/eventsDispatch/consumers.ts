@@ -28,6 +28,11 @@ type EventsDispatchEnqueueContext = {
 type EventsDispatchConsumer = {
   name: string;
   evaluatorTypes: readonly EvalTemplateType[];
+  /**
+   * Whether the consumer has nothing to run on a trace with no transcript.
+   * Topics still needs the envelope to mark its facets insufficient_input.
+   */
+  requiresTranscript: boolean;
   enqueue: (
     reference: TraceTranscriptReference,
     ruleIds: string[],
@@ -38,6 +43,7 @@ type EventsDispatchConsumer = {
 const TOPICS_CONSUMER: EventsDispatchConsumer = {
   name: "topics",
   evaluatorTypes: [EvalTemplateType.FACET],
+  requiresTranscript: false,
   enqueue: async (reference, ruleIds, { transcriptS3Path, batchActionId }) => {
     const queue = TopicsTraceQueue.getInstance({
       shardingKey: `${reference.projectId}-${reference.traceId}`,
@@ -71,6 +77,7 @@ const CONSUMERS: EventsDispatchConsumer[] = [
   {
     name: TRACE_TRANSCRIPT_EVAL_CONSUMER,
     evaluatorTypes: TRACE_TRANSCRIPT_EVAL_TYPES,
+    requiresTranscript: true,
     enqueue: enqueueTraceTranscriptEvals,
   },
 ];

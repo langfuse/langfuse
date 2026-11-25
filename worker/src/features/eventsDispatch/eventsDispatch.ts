@@ -40,7 +40,10 @@ type DispatchTrace = z.infer<
 type ConsumerJobs = Awaited<ReturnType<typeof routeRules>>["jobs"];
 type TraceOutcome =
   | { outcome: "enqueued" | "too_large" | "missing" }
-  | { outcome: "skipped"; reason: "no_rules" | "internal_environment" }
+  | {
+      outcome: "skipped";
+      reason: "no_rules" | "internal_environment" | "no_transcript";
+    }
   | {
       outcome: "failed";
       reason: string;
@@ -158,6 +161,7 @@ function dispatchTrace(
       await new Promise((resolve) => setImmediate(resolve));
       const reference = { projectId, traceId, revision };
       let stored;
+      let dispatched = jobs;
       try {
         const traceTimestamp = new Date(
           Math.min(...observations.map((row) => row.startTime.getTime())),
@@ -165,6 +169,14 @@ function dispatchTrace(
         const context = assembleTranscriptContext(
           orderObservations(observations),
         );
+        // Consumers that need a conversation have nothing to run on an empty trace.
+        if (!context) {
+          dispatched = jobs.filter(
+            ({ consumer }) => !consumer.requiresTranscript,
+          );
+          if (dispatched.length === 0)
+            return finish({ outcome: "skipped", reason: "no_transcript" });
+        }
         stored = await inputStorage.put(reference, {
           transcript: context?.transcript ?? null,
           executionIssues: context?.executionIssues ?? [],
@@ -189,18 +201,20 @@ function dispatchTrace(
         stored.jsonLength,
       );
       if (stored.outcome === "too_large") {
-        traceException(
-          new Error(
-            `Transcript exceeds ${TRACE_TRANSCRIPT_MAX_CHARACTERS} characters`,
-          ),
-          span,
-        );
+        // Deliberate skip, not a failure: no consumer enqueues and nothing is retried.
+        logger.warn("Events dispatch skipped trace with oversized transcript", {
+          projectId,
+          traceId,
+          revision,
+          jsonLength: stored.jsonLength,
+          maxCharacters: TRACE_TRANSCRIPT_MAX_CHARACTERS,
+        });
         return finish({ outcome: "too_large" });
       }
 
       const failedRuleIds: string[] = [];
       await Promise.all(
-        jobs.map(({ consumer, ruleIds }) =>
+        dispatched.map(({ consumer, ruleIds }) =>
           consumer
             .enqueue(reference, ruleIds, {
               transcriptS3Path: stored.key,
