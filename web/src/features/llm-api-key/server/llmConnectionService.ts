@@ -203,25 +203,25 @@ function resolveBedrockExternalId(params: {
 }
 
 /**
- * Drops Bedrock `anthropicModels` entries whose model is no longer a custom
+ * Drops Bedrock `customModelConfig` entries whose model is no longer a custom
  * model. Returns `config` itself when nothing is dropped.
  */
-function pruneBedrockAnthropicModels(
+function pruneBedrockCustomModelConfig(
   config: LLMConnectionConfig | undefined,
   customModels: string[],
 ): LLMConnectionConfig | undefined {
-  if (!config || !Array.isArray(config.anthropicModels)) {
+  const customModelConfig = config?.customModelConfig;
+  if (!config || typeof customModelConfig !== "object") {
     return config;
   }
-  const { anthropicModels, ...rest } = config;
-  const keptModels = anthropicModels.filter((model) =>
-    customModels.includes(model),
-  );
-  if (keptModels.length === anthropicModels.length) {
+  const entries = Object.entries(customModelConfig);
+  const keptEntries = entries.filter(([model]) => customModels.includes(model));
+  if (keptEntries.length === entries.length) {
     return config;
   }
-  return keptModels.length > 0
-    ? { ...rest, anthropicModels: keptModels }
+  const { customModelConfig: _removed, ...rest } = config;
+  return keptEntries.length > 0
+    ? { ...rest, customModelConfig: Object.fromEntries(keptEntries) }
     : rest;
 }
 
@@ -638,7 +638,7 @@ export class LlmConnectionService {
     )
       ? resolveBedrockExternalId({ bedrockIamRole: params.bedrockIamRole })
       : undefined;
-    const config = pruneBedrockAnthropicModels(
+    const config = pruneBedrockCustomModelConfig(
       params.input.config,
       params.input.customModels ?? [],
     );
@@ -721,7 +721,7 @@ export class LlmConnectionService {
     const extraHeaderKeys = params.input.extraHeaders
       ? Object.keys(params.input.extraHeaders)
       : undefined;
-    const config = pruneBedrockAnthropicModels(
+    const config = pruneBedrockCustomModelConfig(
       params.input.config,
       params.input.customModels ?? [],
     );
@@ -852,14 +852,17 @@ export class LlmConnectionService {
     }
 
     const customModels = params.input.customModels ?? existingKey.customModels;
-    let config = pruneBedrockAnthropicModels(params.input.config, customModels);
+    let config = pruneBedrockCustomModelConfig(
+      params.input.config,
+      customModels,
+    );
     if (!params.input.config && params.input.customModels) {
       // Write the stored config back only when pruning changed it, so an
       // update without config does not overwrite a concurrent config change.
       const storedConfig =
         LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
         undefined;
-      const prunedConfig = pruneBedrockAnthropicModels(
+      const prunedConfig = pruneBedrockCustomModelConfig(
         storedConfig,
         customModels,
       );

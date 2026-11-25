@@ -315,13 +315,14 @@ export function buildBedrockModel(params: {
   credentialSource: LLMCredentialSource;
 }): LanguageModel {
   const provider = createBedrockProvider(params);
-  const isAnthropicModel =
-    params.credentialSource !== "langfuse" &&
-    BedrockConfigSchema.parse(params.config).anthropicModels?.includes(
-      params.modelId,
-    );
-  return isAnthropicModel
-    ? provider(params.modelId, { modelFamily: "anthropic" })
+  const modelFamily =
+    params.credentialSource !== "langfuse"
+      ? BedrockConfigSchema.parse(params.config).customModelConfig?.[
+          params.modelId
+        ]?.modelFamily
+      : undefined;
+  return modelFamily
+    ? provider(params.modelId, { modelFamily })
     : provider(params.modelId);
 }
 

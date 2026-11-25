@@ -19,17 +19,20 @@ export const GCS_USE_DEFAULT_CREDENTIALS = "__GCS_DEFAULT_CREDENTIALS__";
 
 export const BedrockConfigSchema = z.object({
   region: z.string(),
-  // Custom models whose id does not reveal an Anthropic model, such as
-  // application inference profile ARNs. Calls to them declare the Anthropic
-  // model family so the AI SDK uses Anthropic request features.
-  anthropicModels: z.array(z.string()).optional(),
+  // Settings per custom model, keyed by the custom model name. `modelFamily`
+  // marks models whose id does not reveal an Anthropic model, such as
+  // application inference profile ARNs, so the AI SDK uses Anthropic request
+  // features for them.
+  customModelConfig: z
+    .record(z.string(), z.object({ modelFamily: z.literal("anthropic") }))
+    .optional(),
 });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
 export const LLMConnectionConfigValueSchema = z.union([
   z.string(),
   z.boolean(),
-  z.array(z.string()),
+  z.record(z.string(), z.record(z.string(), z.string())),
 ]);
 export const LLMConnectionConfigSchema = z.record(
   z.string(),

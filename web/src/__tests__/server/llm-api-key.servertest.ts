@@ -353,7 +353,10 @@ describe("llmApiKey.all RPC", () => {
       withDefaultModels: false,
       config: {
         region: "us-east-1",
-        anthropicModels: [profileArn, otherModel],
+        customModelConfig: {
+          [profileArn]: { modelFamily: "anthropic" },
+          [otherModel]: { modelFamily: "anthropic" },
+        },
       },
     });
     const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
@@ -369,14 +372,17 @@ describe("llmApiKey.all RPC", () => {
       withDefaultModels: false,
       config: {
         region: "us-east-1",
-        anthropicModels: [profileArn, otherModel],
+        customModelConfig: {
+          [profileArn]: { modelFamily: "anthropic" },
+          [otherModel]: { modelFamily: "anthropic" },
+        },
       },
     });
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({ projectId });
     expect(llmApiKeys[0].config).toEqual({
       region: "us-east-1",
-      anthropicModels: [profileArn],
+      customModelConfig: { [profileArn]: { modelFamily: "anthropic" } },
     });
   });
 

@@ -794,7 +794,7 @@ describe("AI SDK request shapes", () => {
     secretKey?: string;
     output?: ReturnType<typeof createLLMOutput>;
     response?: unknown | ((request: CapturedRequest) => unknown);
-    anthropicModels?: string[];
+    customModelConfig?: Record<string, { modelFamily: "anthropic" }>;
   }) {
     const modelParams: ModelParams = {
       provider: "bedrock",
@@ -805,8 +805,8 @@ describe("AI SDK request shapes", () => {
     };
     const llmConnectionConfig = {
       region: "us-east-1",
-      ...(params?.anthropicModels
-        ? { anthropicModels: params.anthropicModels }
+      ...(params?.customModelConfig
+        ? { customModelConfig: params.customModelConfig }
         : {}),
     };
 
@@ -903,7 +903,7 @@ describe("AI SDK request shapes", () => {
     } as const;
     const { result, request } = await runBedrockCompletion({
       model,
-      anthropicModels: [model],
+      customModelConfig: { [model]: { modelFamily: "anthropic" } },
       output: createLLMOutput(schema),
       response: {
         ...BEDROCK_RESPONSE,

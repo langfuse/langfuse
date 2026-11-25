@@ -466,6 +466,11 @@ export function CreateLLMApiKeyForm({
     existingBaseURL: existingKey?.baseURL,
   });
 
+  const existingCustomModelConfig =
+    existingKey?.adapter === LLMAdapter.Bedrock
+      ? (existingKey.config as BedrockConfig | null)?.customModelConfig
+      : undefined;
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -486,12 +491,7 @@ export function CreateLLMApiKeyForm({
             customModels: existingKey.customModels.map((value) => ({
               value,
               anthropicModelFamily:
-                existingKey.adapter === LLMAdapter.Bedrock &&
-                Boolean(
-                  (
-                    existingKey.config as BedrockConfig | null
-                  )?.anthropicModels?.includes(value),
-                ),
+                existingCustomModelConfig?.[value]?.modelFamily === "anthropic",
             })),
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
@@ -802,13 +802,20 @@ export function CreateLLMApiKeyForm({
         }
       }
 
-      const anthropicModels = values.customModels
-        .filter((model) => model.anthropicModelFamily)
-        .map((model) => model.value.trim())
-        .filter(Boolean);
+      const customModelConfig: NonNullable<BedrockConfig["customModelConfig"]> =
+        Object.fromEntries(
+          values.customModels
+            .filter((model) => model.anthropicModelFamily && model.value.trim())
+            .map((model) => [
+              model.value.trim(),
+              { modelFamily: "anthropic" as const },
+            ]),
+        );
       config = {
         region: values.awsRegion ?? "",
-        ...(anthropicModels.length > 0 ? { anthropicModels } : {}),
+        ...(Object.keys(customModelConfig).length > 0
+          ? { customModelConfig }
+          : {}),
       };
     } else if (currentAdapter === LLMAdapter.VertexAI) {
       // Handle Vertex AI credentials
