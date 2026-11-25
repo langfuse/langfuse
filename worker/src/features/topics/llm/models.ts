@@ -125,8 +125,10 @@ async function topicModelCall<T>(
   projectId: string,
   requestBytes: number,
   metadata: TopicCallMetadata | undefined,
-  call: () => Promise<T>,
+  call: (maxRetries: number) => Promise<T>,
 ): Promise<T> {
+  // A summary 429 waits for the trace queue's backoff; other stages keep the SDK's retries.
+  const ownRetries = stage === "summary";
   return instrumentAsync(
     { name: `topics.llm.${stage}`, traceScope: "topics" },
     async (span) => {
@@ -147,34 +149,48 @@ async function topicModelCall<T>(
         if (value != null) fields[`langfuse.topics.${key}`] = value;
       span.setAttributes(fields);
       recordTopicRequestBytes(stage, model.adapter, requestBytes);
-      try {
-        const result = await call();
-        recordTopicModelCall(stage, model.adapter, {});
-        // Shared egress metric; like llmaj, counted after a successful send.
-        recordExportVolume({
-          integration: "topics",
-          bytes: requestBytes,
-          projectId,
-        });
-        return result;
-      } catch (error) {
-        const failure = topicProviderError(error, model);
-        const { httpStatus } = failure.details;
-        recordTopicModelCall(stage, model.adapter, {
-          httpStatus,
-          reason: failure.reason,
-        });
-        const failed = {
-          ...fields,
-          "langfuse.topics.error.reason": failure.reason,
-          "langfuse.topics.error.type":
-            error instanceof Error ? error.name : "unknown",
-          ...(httpStatus && { "http.status_code": httpStatus }),
-          ...getTopicTextResponseMetadata(error),
-        };
-        span.setAttributes(failed);
-        logger.warn("Topics model request failed", failed);
-        throw failure;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const result = await call(ownRetries ? 0 : 2);
+          recordTopicModelCall(stage, model.adapter, {});
+          // Shared egress metric; like llmaj, counted after a successful send.
+          recordExportVolume({
+            integration: "topics",
+            bytes: requestBytes,
+            projectId,
+          });
+          return result;
+        } catch (error) {
+          const failure = topicProviderError(error, model);
+          const { httpStatus } = failure.details;
+          recordTopicModelCall(stage, model.adapter, {
+            httpStatus,
+            reason: failure.reason,
+          });
+          const failed = {
+            ...fields,
+            "langfuse.topics.error.reason": failure.reason,
+            "langfuse.topics.error.type":
+              error instanceof Error ? error.name : "unknown",
+            ...(httpStatus && { "http.status_code": httpStatus }),
+            ...getTopicTextResponseMetadata(error),
+          };
+          span.setAttributes(failed);
+          logger.warn("Topics model request failed", failed);
+          // Same 2s/4s backoff the SDK uses for 5xx; timeouts and 429s go to the queue.
+          if (
+            ownRetries &&
+            failure.reason === "provider_error" &&
+            (httpStatus ?? 0) >= 500 &&
+            attempt < 2
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, 2_000 * 2 ** attempt),
+            );
+            continue;
+          }
+          throw failure;
+        }
       }
     },
   );
@@ -217,9 +233,10 @@ async function structuredCall<T>(
     projectId,
     llmRequestEgressBytes(topicMessages({ system, input }), schema),
     metadata,
-    () =>
+    (maxRetries) =>
       generateTopicText({
         model,
+        maxRetries,
         system,
         input,
         schema,
