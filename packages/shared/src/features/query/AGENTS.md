@@ -10,6 +10,7 @@ The view registry, query DSL and builder behind dashboards, the Metrics API, the
 - `dataModel.ts`: client-safe view declarations: names, descriptions, types, units, and the `sql` strings the SQL-text builder reads. The web client imports it, so it holds no server code.
 - `validateQuery.ts`: pre-flight checks shared by every caller.
 - `server/queryBuilder.ts`: `QueryBuilder.build()` sends the v2 observations view to `buildEventsObservations` (AST) and every other view to `buildSqlText`.
+- `server/scoresQuery.ts`: `buildScores`, the v2 score views' query on the AST. It calls back into `QueryBuilder` for the steps the views share (mapping, bucketing, outer clauses); the server barrel exports only `QueryBuilder` from the builder.
 - `server/eventsObservationsRegistry.ts`: the AST view to copy. Each dimension and measure of `eventsObservationsView` as a typed expression over `e`, keyed by the declaration's names, plus how a filter compares each dimension and the `scores` join.
 - `server/queryExecutor.ts`: runs a built query. It picks the `EventsReadOnly` pool when the compiled SQL names `events_core` or `events_full`, and sets tags and ClickHouse settings.
 

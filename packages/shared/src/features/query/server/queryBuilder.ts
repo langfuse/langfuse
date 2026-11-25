@@ -949,8 +949,8 @@ export class QueryBuilder {
     view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    filters: FilterList,
     appliedBucketingDimension: AppliedBucketingDimension,
+    filters: FilterList = new FilterList([]),
   ) {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
@@ -1777,12 +1777,11 @@ export class QueryBuilder {
     }));
 
     // No filter joins a relation: `eventsObservationsFilterLowering` compares
-    // `e` columns only. The empty list stands in for the filters.
+    // `e` columns only.
     const relationTables = this.collectRelationTables(
       view,
       appliedDimensions,
       appliedMetrics,
-      new FilterList([]),
       bucket,
     );
     assertKnownRelationTables(view, relationTables);
@@ -2340,8 +2339,8 @@ export class QueryBuilder {
       view,
       appliedDimensions,
       appliedMetrics,
-      filterList,
       appliedBucketingDimension,
+      filterList,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(

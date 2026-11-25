@@ -30,7 +30,6 @@ import {
   eventsTraceAttributes,
   TRACE_ATTRIBUTE_COLUMNS,
 } from "./eventsTraceAttributes";
-import { FilterList } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { useFinal } from "../../../server/query-ast/extensions";
 import type { QueryLevel } from "./eventsObservationsRegistry";
 import {
@@ -298,7 +297,6 @@ export function buildScores(
     view,
     appliedDimensions,
     appliedMetrics,
-    new FilterList([]),
     bucket,
   );
   const relations = new Set([
