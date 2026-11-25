@@ -48,6 +48,7 @@ import {
 import { QueryTokens } from "../QueryTokens/QueryTokens";
 import {
   textFromRoot,
+  getEditorSelectionRange,
   selectionOffsets,
   logicalOffsetForDomPosition,
   domPositionForLogicalOffset,
@@ -419,10 +420,8 @@ function isPastTextEnd(root: HTMLElement, x: number, y: number): boolean {
 }
 
 function scrollCaretIntoView(root: HTMLElement) {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) return;
-  const range = selection.getRangeAt(0);
-  if (!root.contains(range.endContainer)) return;
+  const range = getEditorSelectionRange(root);
+  if (range === null) return;
   const rects = range.getClientRects();
   const caretRect = rects[rects.length - 1];
   if (caretRect === undefined) return;
@@ -948,9 +947,10 @@ function QueryInputEditor({
       let caretAtEnd = false;
       if (root !== null) {
         const text = textFromRoot(root);
-        const sel = selectionOffsets(root);
-        caretAtEnd =
-          sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (advanceToTrailingSpace && text.length > 0) {
+          const sel = selectionOffsets(root);
+          caretAtEnd = sel.start === sel.end && sel.end === text.length;
+        }
         if (stripUnmanagedRootChildren(root)) {
           setTokensGeneration((generation) => generation + 1);
         }

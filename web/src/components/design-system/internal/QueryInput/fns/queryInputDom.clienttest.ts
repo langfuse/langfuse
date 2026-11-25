@@ -47,6 +47,22 @@ afterEach(() => {
 });
 
 describe("query input source mapping", () => {
+  it("falls back to the logical end when the browser exposes an inaccessible selection boundary", () => {
+    const { root, text } = createEditor();
+    setSelectionRange(root, 1, 3);
+    const selection = window.getSelection()!;
+    const range = selection.getRangeAt(0);
+    // Browser-owned endpoints can be opaque to page code during a focus change.
+    Object.defineProperty(range, "startContainer", { value: {} });
+    expect(selectionOffsets(root)).toEqual({
+      start: text.length,
+      end: text.length,
+    });
+    expect(selection.getRangeAt(0)).toBe(range);
+    setSelectionRange(root, 1, 3);
+    expect(selectionOffsets(root)).toEqual({ start: 1, end: 3 });
+  });
+
   it("preserves literal word joiners in atom source and subsequent editable offsets", () => {
     const { root, atom, prefix, suffix } = createEditor();
     const values = '("a\u2060b" OR c OR d)';

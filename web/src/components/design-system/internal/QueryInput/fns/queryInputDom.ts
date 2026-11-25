@@ -138,17 +138,24 @@ export function logicalOffsetForDomPosition(
   return locate(root, 0);
 }
 
-export function selectionOffsets(root: HTMLElement): LogicalRange {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) {
-    const end = textFromRoot(root).length;
-    return { start: end, end };
+export function getEditorSelectionRange(root: HTMLElement): Range | null {
+  const selection = root.ownerDocument.getSelection();
+  if (!selection?.rangeCount) return null;
+  try {
+    const range = selection.getRangeAt(0);
+    return root.contains(range.startContainer) &&
+      root.contains(range.endContainer)
+      ? range
+      : null;
+  } catch {
+    // A native control's selection can expose endpoints inaccessible to page code.
+    return null;
   }
-  const range = selection.getRangeAt(0);
-  if (
-    !root.contains(range.startContainer) ||
-    !root.contains(range.endContainer)
-  ) {
+}
+
+export function selectionOffsets(root: HTMLElement): LogicalRange {
+  const range = getEditorSelectionRange(root);
+  if (range === null) {
     const end = textFromRoot(root).length;
     return { start: end, end };
   }
