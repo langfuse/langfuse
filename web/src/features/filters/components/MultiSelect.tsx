@@ -90,12 +90,18 @@ export function MultiSelect({
     );
   }, [selectableOptions, query]);
 
-  // Offer the typed text as a custom value unless it already matches an option value.
+  // Offer the typed text as a custom value unless it matches an option value
+  // (case-sensitively) or an existing display label.
   const showCustomValue =
     isCustomSelectEnabled &&
     !isLoading &&
     trimmedSearch.length > 0 &&
-    !selectableOptions.some((option) => option.value === trimmedSearch);
+    !selectableOptions.some(
+      (option) =>
+        option.value === trimmedSearch ||
+        (option.displayValue !== undefined &&
+          option.displayValue.toLowerCase() === query),
+    );
 
   const showSelectAll =
     !query &&
