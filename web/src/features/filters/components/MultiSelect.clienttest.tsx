@@ -23,6 +23,7 @@ function ControlledMultiSelect({
   const [values, setValues] = useState<string[]>([]);
   return (
     <MultiSelect
+      title="Search"
       values={values}
       options={options}
       onValueChange={(next) => {
@@ -47,26 +48,6 @@ describe("MultiSelect", () => {
     expect(screen.getByText("GENERATION")).toBeInTheDocument();
   });
 
-  it("shows edits to a selected custom value immediately", () => {
-    render(
-      <MultiSelect
-        values={["draft-value"]}
-        options={[]}
-        onValueChange={vi.fn()}
-        isCustomSelectEnabled
-      />,
-    );
-
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
-    fireEvent.change(screen.getByPlaceholderText("Enter custom value"), {
-      target: { value: "edited-value" },
-    });
-
-    expect(within(trigger).getByText("edited-value")).toBeInTheDocument();
-    expect(within(trigger).queryByText("draft-value")).not.toBeInTheDocument();
-  });
-
   it("summarizes several selected values that are missing from the options", () => {
     render(
       <MultiSelect
@@ -79,7 +60,7 @@ describe("MultiSelect", () => {
     expect(screen.getByText("6 selected")).toBeInTheDocument();
   });
 
-  it("lists a selected custom value once and toggles the same set with Select All", () => {
+  it("adds a custom value once and keeps Select All aligned with visible options", () => {
     const onValuesChange = vi.fn();
     render(
       <ControlledMultiSelect
@@ -90,32 +71,37 @@ describe("MultiSelect", () => {
 
     fireEvent.click(screen.getByRole("button"));
     const dialog = screen.getByRole("dialog");
-    const customInput = screen.getByPlaceholderText("Enter custom value");
+    const search = screen.getByPlaceholderText("Search");
 
-    fireEvent.change(customInput, { target: { value: "ghost-user" } });
-    fireEvent.click(customInput.closest("[role='option']")!);
+    fireEvent.change(search, { target: { value: "ghost-user" } });
+    fireEvent.click(within(dialog).getByRole("option", { name: /ghost-user/ }));
 
-    expect(within(dialog).queryByText("ghost-user")).not.toBeInTheDocument();
-    expect(customInput).toHaveValue("ghost-user");
+    expect(within(dialog).getAllByText("ghost-user")).toHaveLength(1);
+    expect(onValuesChange).toHaveBeenLastCalledWith(["ghost-user"]);
 
+    fireEvent.change(search, { target: { value: "ghost-user" } });
+    expect(within(dialog).queryByText(/Use/)).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "" } });
     fireEvent.click(within(dialog).getByText("Select All"));
-    const firstSelectAll = new Set(
-      onValuesChange.mock.lastCall?.[0] as string[],
+    expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+      new Set(["ghost-user", "user-1", "user-2"]),
     );
-    expect(firstSelectAll).toEqual(new Set(["ghost-user", "user-1", "user-2"]));
 
     fireEvent.click(within(dialog).getByText("Deselect All"));
     expect(onValuesChange).toHaveBeenLastCalledWith([]);
+    expect(within(dialog).queryByText("ghost-user")).not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByText("Select All"));
     expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
-      firstSelectAll,
+      new Set(["user-1", "user-2"]),
     );
   });
 
-  it("clears the custom row once loaded options include a preselected value", () => {
+  it("shows a preselected value once after options load", () => {
     const { rerender } = render(
       <MultiSelect
+        title="Search"
         values={["key-1"]}
         options={[]}
         onValueChange={vi.fn()}
@@ -125,6 +111,7 @@ describe("MultiSelect", () => {
 
     rerender(
       <MultiSelect
+        title="Search"
         values={["key-1"]}
         options={[{ value: "key-1", displayValue: "Primary key" }]}
         onValueChange={vi.fn()}
@@ -133,6 +120,8 @@ describe("MultiSelect", () => {
     );
 
     fireEvent.click(screen.getByRole("button"));
-    expect(screen.getByPlaceholderText("Enter custom value")).toHaveValue("");
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getAllByText("Primary key")).toHaveLength(1);
+    expect(within(dialog).queryByText("key-1")).not.toBeInTheDocument();
   });
 });

@@ -56,7 +56,7 @@ export const NoGatewayKeys = meta.story({
     );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
-      expect(body.getByPlaceholderText("Enter custom value")).toBeVisible(),
+      expect(body.getByText("Enter custom value")).toBeVisible(),
     );
     await expect(body.queryByText("Select All")).toBeNull();
   },
@@ -69,11 +69,11 @@ export const CustomValue = meta.story({
       within(canvasElement).getByRole("button", { name: /User/ }),
     );
     const body = within(canvasElement.ownerDocument.body);
-    const input = await body.findByPlaceholderText("Enter custom value");
-    await userEvent.type(input, "former-member-id");
-    const checkbox = input.previousElementSibling;
-    if (!checkbox) throw new Error("Custom value checkbox not found");
-    await userEvent.click(checkbox);
+    const search = await body.findByPlaceholderText("Search users");
+    await userEvent.type(search, "former-member-id");
+    await userEvent.click(
+      await body.findByRole("option", { name: /former-member-id/ }),
+    );
     await waitFor(() =>
       expect(args.onValueChange).toHaveBeenLastCalledWith(["former-member-id"]),
     );

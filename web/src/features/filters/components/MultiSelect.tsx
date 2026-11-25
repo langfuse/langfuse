@@ -1,6 +1,6 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, array-callback-return */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, Loader2 } from "@langfuse/icons";
+import { Check, Loader2, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
@@ -8,7 +8,6 @@ import { Tag } from "@/src/components/design-system/Tag/Tag";
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
-  InputCommandEmpty,
   InputCommandGroup,
   InputCommandInput,
   InputCommandItem,
@@ -22,8 +21,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
-import { Input } from "@/src/components/ui/input";
-import { useRef, useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 /** Rows span the menu edge to edge, so their hover meets the separators. */
@@ -32,27 +30,6 @@ const itemClassName = "rounded-none px-3";
 
 /** compactSelectAllLimit is the most options a compact select shows Select All for. */
 const compactSelectAllLimit = 100;
-
-const getFreeTextInput = (
-  isCustomSelectEnabled: boolean,
-  values: string[],
-  optionValues: Set<string>,
-): string | undefined =>
-  isCustomSelectEnabled
-    ? values.find((value) => value.length > 0 && !optionValues.has(value))
-    : undefined;
-
-const getCustomOptionValue = (
-  isCustomSelectEnabled: boolean,
-  freeTextInput: string | undefined,
-  freeText: string,
-  optionValues: Set<string>,
-) => {
-  if (!isCustomSelectEnabled) return undefined;
-  if (freeTextInput) return freeTextInput;
-  if (freeText.length > 0 && !optionValues.has(freeText)) return freeText;
-  return undefined;
-};
 
 export function MultiSelect({
   title,
@@ -75,6 +52,7 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
+  /** isCustomSelectEnabled offers the typed search text as a custom value. */
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
   /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
@@ -82,61 +60,49 @@ export function MultiSelect({
   onOpenChange?: (open: boolean) => void;
   isLoading?: boolean;
 }) {
+  const [search, setSearch] = useState("");
   const selectedValues = useMemo(() => new Set(values), [values]);
-  const optionValues = useMemo(
-    () => new Set(options.map((option) => option.value)),
-    [options],
-  );
-  const freeTextInput = getFreeTextInput(
-    isCustomSelectEnabled,
-    values,
-    optionValues,
-  );
-  // Scope local edits to the custom value they started from so loading options
-  // or external value updates clear stale input text without an effect.
-  const [freeTextDraft, setFreeTextDraft] = useState<{
-    forValue: string | undefined;
-    text: string;
-    committed?: boolean;
-  } | null>(null);
-  const hasActiveDraft =
-    freeTextDraft !== null &&
-    freeTextDraft.forValue === freeTextInput &&
-    !(freeTextDraft.committed && optionValues.has(freeTextDraft.text));
-  const freeText = hasActiveDraft ? freeTextDraft.text : (freeTextInput ?? "");
 
-  // Merge options with selected values that might not be in options.
-  // Exclude the custom value represented by the custom input row so it is not listed twice.
+  // Merge options with selected values that might not be in options
+  // This ensures selected values are always visible and removable
   const mergedOptions = useMemo(() => {
+    const optionSet = new Set(options.map((o) => o.value));
     const missingSelectedOptions: FilterOption[] = Array.from(selectedValues)
-      .filter(
-        (v) => !optionValues.has(v) && v.length > 0 && v !== freeTextInput,
-      )
+      .filter((v) => !optionSet.has(v) && v.length > 0)
       .map((v) => ({ value: v }));
     return [...options, ...missingSelectedOptions];
-  }, [options, optionValues, selectedValues, freeTextInput]);
+  }, [options, selectedValues]);
 
-  const customOptionValue = getCustomOptionValue(
-    isCustomSelectEnabled,
-    freeTextInput,
-    freeText,
-    optionValues,
+  const selectableOptions = useMemo(
+    () => mergedOptions.filter((option) => option.value.length > 0),
+    [mergedOptions],
   );
 
-  const selectableOptions = useMemo(() => {
-    const baseOptions = mergedOptions.filter(
-      (option) => option.value.length > 0,
+  const trimmedSearch = search.trim();
+  const query = trimmedSearch.toLowerCase();
+
+  const filteredOptions = useMemo(() => {
+    if (!query) return selectableOptions;
+    return selectableOptions.filter(
+      (option) =>
+        option.value.toLowerCase().includes(query) ||
+        (option.displayValue ?? "").toLowerCase().includes(query),
     );
-    if (
-      customOptionValue &&
-      !baseOptions.some((option) => option.value === customOptionValue)
-    ) {
-      return [...baseOptions, { value: customOptionValue }];
-    }
-    return baseOptions;
-  }, [mergedOptions, customOptionValue]);
+  }, [selectableOptions, query]);
+
+  // Offer the typed text as a custom value unless it already names an option.
+  const showCustomValue =
+    isCustomSelectEnabled &&
+    !isLoading &&
+    query.length > 0 &&
+    !selectableOptions.some(
+      (option) =>
+        option.value.toLowerCase() === query ||
+        (option.displayValue ?? "").toLowerCase() === query,
+    );
 
   const showSelectAll =
+    !query &&
     selectableOptions.length > 0 &&
     !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
@@ -147,232 +113,59 @@ export function MultiSelect({
     );
   }, [selectableOptions, selectedValues]);
 
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const pendingFreeTextRef = useRef<{
-    forValue: string;
-    value: string;
-  } | null>(null);
-  const latestCommitContextRef = useRef({
-    selectedValues,
-    freeTextInput,
-    optionValues,
-    onValueChange,
-  });
-  useEffect(() => {
-    latestCommitContextRef.current = {
-      selectedValues,
-      freeTextInput,
-      optionValues,
-      onValueChange,
-    };
-  }, [selectedValues, freeTextInput, optionValues, onValueChange]);
-
-  const clearDebounce = useCallback(() => {
-    pendingFreeTextRef.current = null;
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-      debounceTimeout.current = null;
-    }
-  }, []);
-
-  const commitDebouncedValue = useCallback(
-    (pending: { forValue: string; value: string }, updateDraft: boolean) => {
-      const {
-        selectedValues: latestSelectedValues,
-        freeTextInput: latestFreeTextInput,
-        optionValues: latestOptionValues,
-        onValueChange: latestOnValueChange,
-      } = latestCommitContextRef.current;
-      if (!latestFreeTextInput || latestFreeTextInput !== pending.forValue) {
-        return;
-      }
-
-      const nextSelectedValues = new Set(latestSelectedValues);
-      nextSelectedValues.delete(latestFreeTextInput);
-      if (pending.value.length > 0) {
-        nextSelectedValues.add(pending.value);
-      }
-      if (updateDraft) {
-        if (
-          pending.value.length === 0 ||
-          latestOptionValues.has(pending.value)
-        ) {
-          setFreeTextDraft(null);
-        } else {
-          setFreeTextDraft({
-            forValue: latestFreeTextInput,
-            text: pending.value,
-            committed: true,
-          });
-        }
-      }
-      const filterValues = Array.from(nextSelectedValues);
-      latestOnValueChange(filterValues.length > 0 ? filterValues : []);
-    },
-    [],
-  );
-
-  // Flush any pending debounced custom edit if the component unmounts before
-  // the timer fires (e.g. closing an outer filter popover).
-  useEffect(
-    () => () => {
-      const pending = pendingFreeTextRef.current;
-      clearDebounce();
-      if (pending !== null) {
-        commitDebouncedValue(pending, false);
-      }
-    },
-    [clearDebounce, commitDebouncedValue],
-  );
+  const handleOpenChange = (open: boolean) => {
+    if (!open) setSearch("");
+    onOpenChange?.(open);
+  };
 
   const handleSelectAll = useCallback(() => {
-    clearDebounce();
     const newSelectedValues = new Set(selectedValues);
     if (allSelectedState) {
       // Deselect all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.delete(option.value),
       );
-      if (
-        isCustomSelectEnabled &&
-        freeText.length > 0 &&
-        !optionValues.has(freeText)
-      ) {
-        setFreeTextDraft({ forValue: undefined, text: freeText });
-      }
     } else {
       // Select all selectable options
       selectableOptions.forEach((option) =>
         newSelectedValues.add(option.value),
       );
-      if (freeTextInput && freeText !== freeTextInput) {
-        newSelectedValues.delete(freeTextInput);
-        if (freeText.length > 0) {
-          newSelectedValues.add(freeText);
-        }
-      }
-      if (
-        isCustomSelectEnabled &&
-        freeText.length > 0 &&
-        !optionValues.has(freeText)
-      ) {
-        setFreeTextDraft({
-          forValue: freeTextInput,
-          text: freeText,
-          committed: true,
-        });
-      } else {
-        setFreeTextDraft(null);
-      }
     }
     const filterValues = Array.from(newSelectedValues);
     onValueChange(filterValues.length > 0 ? filterValues : []);
-  }, [
-    allSelectedState,
-    clearDebounce,
-    freeText,
-    freeTextInput,
-    isCustomSelectEnabled,
-    onValueChange,
-    optionValues,
-    selectableOptions,
-    selectedValues,
-  ]);
+  }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
 
-  const handleToggleCustomValue = useCallback(() => {
-    clearDebounce();
+  const handleAddCustomValue = useCallback(() => {
+    if (trimmedSearch.length === 0) return;
     const nextSelectedValues = new Set(selectedValues);
-
-    if (freeTextInput) {
-      nextSelectedValues.delete(freeTextInput);
-      if (freeText.length > 0 && !optionValues.has(freeText)) {
-        setFreeTextDraft({ forValue: undefined, text: freeText });
-      } else {
-        setFreeTextDraft(null);
-      }
-    } else {
-      if (freeText.length === 0) return;
-      nextSelectedValues.add(freeText);
-      if (optionValues.has(freeText)) {
-        setFreeTextDraft(null);
-      } else {
-        setFreeTextDraft({
-          forValue: freeTextInput,
-          text: freeText,
-          committed: true,
-        });
-      }
-    }
-
-    nextSelectedValues.delete("");
-    const filterValues = Array.from(nextSelectedValues);
-    onValueChange(filterValues.length > 0 ? filterValues : []);
-  }, [
-    clearDebounce,
-    freeText,
-    freeTextInput,
-    onValueChange,
-    optionValues,
-    selectedValues,
-  ]);
-
-  const handleFreeTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nextValue = e.target.value;
-    setFreeTextDraft({
-      forValue: freeTextInput,
-      text: nextValue,
-    });
-    clearDebounce();
-    if (!freeTextInput) return;
-
-    const pending = { forValue: freeTextInput, value: nextValue };
-    pendingFreeTextRef.current = pending;
-    debounceTimeout.current = setTimeout(() => {
-      pendingFreeTextRef.current = null;
-      debounceTimeout.current = null;
-      commitDebouncedValue(pending, true);
-    }, 500);
-  };
-
-  const handleClearFilters = useCallback(() => {
-    clearDebounce();
-    setFreeTextDraft(null);
-    onValueChange([]);
-  }, [clearDebounce, onValueChange]);
-
-  function getSelectedOptions() {
-    const selectedOptions = mergedOptions.filter(
-      ({ value }) =>
-        selectedValues.has(value) &&
-        (!freeTextInput || value !== freeTextInput),
-    );
-    const liveCustomOption: FilterOption[] =
-      freeTextInput && freeText ? [{ value: freeText }] : [];
-
-    return [...selectedOptions, ...liveCustomOption];
-  }
+    nextSelectedValues.add(trimmedSearch);
+    onValueChange(Array.from(nextSelectedValues));
+    setSearch("");
+  }, [trimmedSearch, selectedValues, onValueChange]);
 
   const selectedBadges =
     selectedValues.size > labelTruncateCutOff ? (
       <Tag text={`${selectedValues.size} selected`} />
     ) : (
-      getSelectedOptions().map((option) => {
-        const displayValue =
-          option.displayValue ??
-          (option.value === "" ? "(empty)" : option.value);
-        return (
-          <span
-            key={option.value}
-            className={cn("flex min-w-0", option.value === "" && "italic")}
-          >
-            <Tag text={displayValue} />
-          </span>
-        );
-      })
+      mergedOptions
+        .filter(({ value }) => selectedValues.has(value))
+        .map((option) => {
+          const displayValue =
+            option.displayValue ??
+            (option.value === "" ? "(empty)" : option.value);
+          return (
+            <span
+              key={option.value}
+              className={cn("flex min-w-0", option.value === "" && "italic")}
+            >
+              <Tag text={displayValue} />
+            </span>
+          );
+        })
     );
 
   return (
-    <Popover onOpenChange={onOpenChange}>
+    <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -411,10 +204,12 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="ph-no-capture w-[200px] p-0" align="center">
-        <InputCommand>
+        <InputCommand shouldFilter={false}>
           <InputCommandInput
             placeholder={title}
             variant="bottom"
+            value={search}
+            onValueChange={setSearch}
             disabled={isLoading}
           />
           <InputCommandList>
@@ -431,15 +226,19 @@ export function MultiSelect({
                 Loading…
               </div>
             )}
-            {/* if isCustomSelectEnabled we always show custom select hence never empty */}
-            {!isCustomSelectEnabled && !isLoading && (
-              <InputCommandEmpty>No results found.</InputCommandEmpty>
+            {!isLoading && filteredOptions.length === 0 && !showCustomValue && (
+              <div className="text-muted-foreground py-6 text-center text-sm">
+                {isCustomSelectEnabled
+                  ? "Enter custom value"
+                  : "No results found."}
+              </div>
             )}
             <InputCommandGroup className={groupClassName}>
               {showSelectAll && (
                 <>
                   <InputCommandItem
                     key="select-all"
+                    value="__select-all__"
                     className={itemClassName}
                     onSelect={handleSelectAll}
                     disabled={isLoading}
@@ -461,42 +260,18 @@ export function MultiSelect({
                   <InputCommandSeparator className="mx-0" />
                 </>
               )}
-              {mergedOptions.map((option) => {
-                if (option.value.length === 0) return;
+              {filteredOptions.map((option) => {
                 const isSelected = selectedValues.has(option.value);
-                const displayValue =
-                  option.displayValue ??
-                  (option.value === "" ? "(empty)" : option.value);
-                const displayTitle =
-                  option.displayValue ??
-                  (option.value === "" ? "(empty)" : option.value);
+                const displayValue = option.displayValue ?? option.value;
 
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    value={option.value}
                     className={itemClassName}
                     disabled={isLoading}
                     onSelect={() => {
-                      clearDebounce();
                       const nextSelectedValues = new Set(selectedValues);
-                      if (freeTextInput && freeText !== freeTextInput) {
-                        nextSelectedValues.delete(freeTextInput);
-                        if (freeText.length > 0) {
-                          nextSelectedValues.add(freeText);
-                        }
-                        if (
-                          freeText.length === 0 ||
-                          optionValues.has(freeText)
-                        ) {
-                          setFreeTextDraft(null);
-                        } else {
-                          setFreeTextDraft({
-                            forValue: freeTextInput,
-                            text: freeText,
-                            committed: true,
-                          });
-                        }
-                      }
                       if (isSelected) {
                         nextSelectedValues.delete(option.value);
                       } else {
@@ -519,11 +294,8 @@ export function MultiSelect({
                       <Check size="base" />
                     </div>
                     <div
-                      className={cn(
-                        "overflow-x-hidden text-ellipsis whitespace-nowrap",
-                        option.value === "" && "text-muted-foreground italic",
-                      )}
-                      title={displayTitle}
+                      className="overflow-x-hidden text-ellipsis whitespace-nowrap"
+                      title={displayValue}
                     >
                       {displayValue}
                     </div>
@@ -548,36 +320,22 @@ export function MultiSelect({
                 );
               })}
             </InputCommandGroup>
-            {isCustomSelectEnabled && (
-              <InputCommandGroup forceMount={true} className={groupClassName}>
-                <InputCommandSeparator className="mx-0" />
+            {showCustomValue && (
+              <InputCommandGroup className={groupClassName}>
+                {filteredOptions.length > 0 && (
+                  <InputCommandSeparator className="mx-0" />
+                )}
                 <InputCommandItem
-                  key="freeTextField"
+                  key="__custom__"
+                  value={trimmedSearch}
                   className={itemClassName}
                   disabled={isLoading}
-                  onSelect={handleToggleCustomValue}
+                  onSelect={handleAddCustomValue}
                 >
-                  <div
-                    className={cn(
-                      "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
-                      Boolean(freeTextInput)
-                        ? "bg-control-fill border-control-fill text-primary-foreground"
-                        : "opacity-50 [&_svg]:invisible",
-                    )}
-                  >
-                    <Check size="base" />
+                  <Plus size="base" __rawClassName="mr-2 opacity-50" />
+                  <div className="overflow-x-hidden text-ellipsis whitespace-nowrap">
+                    Use &ldquo;{trimmedSearch}&rdquo;
                   </div>
-                  <Input
-                    type="text"
-                    disabled={isLoading}
-                    value={freeText}
-                    onChange={handleFreeTextChange}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                    placeholder="Enter custom value"
-                    className="h-5 w-full rounded-none border-t-0 border-r-0 border-b-2 border-l-0 border-dotted p-0 text-sm"
-                  />
                 </InputCommandItem>
               </InputCommandGroup>
             )}
@@ -586,8 +344,9 @@ export function MultiSelect({
                 <InputCommandSeparator className="mx-0" />
                 <InputCommandGroup className={groupClassName}>
                   <InputCommandItem
+                    value="__clear__"
                     disabled={isLoading}
-                    onSelect={handleClearFilters}
+                    onSelect={() => onValueChange([])}
                     className={cn(itemClassName, "justify-center text-center")}
                   >
                     Clear filters
