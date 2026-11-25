@@ -730,11 +730,9 @@ jobs:
             service: langfuse-web
             runner: blacksmith-8vcpu-ubuntu-2404
             health_url: http://localhost:3000/api/public/health
-          # The worker image compiles the Rust addon and its cargo tools, so a
-          # layer-cache miss is CPU-bound and this leg often finishes last.
           - component: worker
             service: langfuse-worker
-            runner: blacksmith-8vcpu-ubuntu-2404
+            runner: blacksmith-4vcpu-ubuntu-2404
             health_url: http://localhost:3030/api/health
     steps:
       - name: Checkout
