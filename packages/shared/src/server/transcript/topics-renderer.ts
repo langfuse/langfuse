@@ -107,10 +107,12 @@ const OPAQUE_PAYLOAD_KEYS = new Set([
   "tool_definitions",
 ]);
 
-/**
- * Render an assembled trace for Topics without assembling it a second time.
- * Observations provide root I/O and operation context omitted by assembly.
- */
+type TopicVisibleReply =
+  | "assistant text"
+  | "assistant audio"
+  | "application output"
+  | "none";
+
 /** What a run with `visible reply: none` ended on; reported to Datadog to size that line's false positives. */
 export type TopicNoneReplyEnding =
   | "pending_tool_call"
@@ -119,6 +121,10 @@ export type TopicNoneReplyEnding =
   | "no_text"
   | "unknown";
 
+/**
+ * Render an assembled trace for Topics without assembling it a second time.
+ * Observations provide root I/O and operation context omitted by assembly.
+ */
 export function renderTranscript(
   transcript: Transcript | null,
   observations: Observation[],
@@ -126,7 +132,10 @@ export function renderTranscript(
   countTokens?: (text: string) => number,
 ): {
   text: string;
-  visibleReply: { value: string; noneEnding: TopicNoneReplyEnding | null };
+  visibleReply: {
+    value: TopicVisibleReply;
+    noneEnding: TopicNoneReplyEnding | null;
+  };
   tokens: number | null;
   stats: {
     blocksCut: number;
@@ -699,7 +708,7 @@ export function renderTranscript(
       ? [event.part]
       : [],
   );
-  let visibleReply = "none";
+  let visibleReply: TopicVisibleReply = "none";
   if (assistantParts.some((part) => part.type === "text" && part.text.trim()))
     visibleReply = "assistant text";
   else if (
@@ -718,12 +727,29 @@ export function renderTranscript(
   let noneEnding: TopicNoneReplyEnding | null = null;
   if (visibleReply === "none") {
     noneEnding = "unknown";
-    if (lastPart?.kind === "part" && lastPart.part.type === "tool-call")
+    // Blank text is not a reply, so a call followed by blank text still counts as pending.
+    const endingPart = [...current]
+      .reverse()
+      .find(
+        ({ event }) =>
+          event.kind === "part" &&
+          !(
+            event.message.role === "assistant" &&
+            event.part.type === "text" &&
+            !event.part.text.trim()
+          ),
+      )?.event;
+    if (endingPart?.kind === "part" && endingPart.part.type === "tool-call")
       noneEnding =
-        config.toolCalls.include && !matchedCalls.has(lastPart)
+        config.toolCalls.include && !matchedCalls.has(endingPart)
           ? "pending_tool_call"
           : "tool_result";
-    else if (lastAction === "tool result") noneEnding = "tool_result";
+    else if (
+      endingPart?.kind === "part" &&
+      (endingPart.part.type === "tool-result" ||
+        endingPart.message.role === "tool")
+    )
+      noneEnding = "tool_result";
     else if (
       lastPart?.kind === "part" &&
       lastPart.message.role === "assistant" &&
@@ -731,7 +757,8 @@ export function renderTranscript(
         (part) => part.type === "data" || part.type === "custom",
       )
     ) {
-      if (lastPart.part.type === "reasoning") noneEnding = "reasoning_only";
+      if (endingPart?.kind === "part" && endingPart.part.type === "reasoning")
+        noneEnding = "reasoning_only";
       else if (lastPart.part.type === "text") noneEnding = "no_text";
     }
   }

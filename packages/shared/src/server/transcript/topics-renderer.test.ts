@@ -442,6 +442,25 @@ describe("Topics transcript renderer", () => {
     expect(
       renderTranscript(blank, [root, generation], topicsTranscriptConfig).text,
     ).toContain("visible reply: none");
+    // Blank text after the call still measures as a pending call.
+    const trailing: Transcript = {
+      threads: [
+        {
+          ...pending.threads[0],
+          currentTurn: {
+            ...pending.threads[0].currentTurn,
+            messages: [
+              request,
+              { ...call, parts: [...call.parts, { type: "text", text: "  " }] },
+            ],
+          },
+        },
+      ],
+    };
+    expect(
+      renderTranscript(trailing, [root, generation], topicsTranscriptConfig)
+        .visibleReply,
+    ).toEqual({ value: "none", noneEnding: "pending_tool_call" });
   });
 
   it("marks the request after supplied context without repeating trace input", () => {
