@@ -37,6 +37,8 @@
       "entry": [
         // Compile-time type assertions: `tsc` checks their `@ts-expect-error` cases, nothing imports them.
         "src/**/*types.assert.ts",
+        // Run by clickhouse/scripts/up.sh before pending clustered migrations.
+        "clickhouse/scripts/check-cluster-replicas.mjs",
       ],
       "project": [
         // Regular-only patterns become exclusions in production; keep them outside src.

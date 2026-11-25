@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 
+# `migrate version` reports the applied version on stderr, as golang-migrate does.
+for argument in "$@"; do
+  if [ "$argument" = "version" ]; then
+    printf "%s\n" "${FAKE_MIGRATE_VERSION:-}" >&2
+    exit 0
+  fi
+done
+
 : > "$CAPTURED_ARGS_PATH"
 for argument in "$@"; do
   printf "%s\n" "$argument" >> "$CAPTURED_ARGS_PATH"

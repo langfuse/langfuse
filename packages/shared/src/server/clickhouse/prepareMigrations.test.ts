@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   cpSync,
@@ -30,6 +30,11 @@ const historicalClusteredHash =
 const historicalUnclusteredHash =
   "26de8baf42d0690445c9e8ec11951b1c85696b63d8bd47845c695803fced0aa3";
 const temporaryDirectories: string[] = [];
+const latestMigrationVersion = Math.max(
+  ...readdirSync(migrationSourceDirectory)
+    .filter((file) => file.endsWith(".up.sql"))
+    .map((file) => Number.parseInt(file, 10)),
+);
 
 type MigrationMode = "clustered" | "unclustered";
 type MigrationScript = "up" | "down" | "drop";
@@ -37,6 +42,7 @@ type MigrationLayout = "delivered" | "source";
 
 type MigrationRun = {
   args: string[];
+  stderr: string;
   capturedMigrationsDirectory: string;
   databaseUrl: string;
   renderedMigrationsDirectory: string;
@@ -57,19 +63,25 @@ function createTemporaryDirectory(prefix: string): string {
 }
 
 function runMigrationScript({
+  appliedVersion = latestMigrationVersion,
+  clickhouseUrl = "http://localhost:8123",
   clusterName,
   databaseName = "default",
   migrationLayout = "source",
   migrateExitCode = 0,
+  expectedStatus = migrateExitCode,
   mode,
   script = "up",
   skipConfirm = script === "up" ? "false" : "true",
   ssl = false,
 }: {
+  appliedVersion?: number;
+  clickhouseUrl?: string;
   clusterName?: string;
   databaseName?: string;
   migrationLayout?: MigrationLayout;
   migrateExitCode?: number;
+  expectedStatus?: number;
   mode: MigrationMode;
   script?: MigrationScript;
   skipConfirm?: "true" | "false" | "1";
@@ -137,8 +149,9 @@ function runMigrationScript({
     CLICKHOUSE_MIGRATION_SSL: ssl ? "true" : "false",
     CLICKHOUSE_MIGRATION_URL: "clickhouse://localhost:9000",
     CLICKHOUSE_PASSWORD: "password",
-    CLICKHOUSE_URL: "http://localhost:8123",
+    CLICKHOUSE_URL: clickhouseUrl,
     CLICKHOUSE_USER: "user",
+    FAKE_MIGRATE_VERSION: String(appliedVersion),
     MIGRATE_EXIT_CODE: String(migrateExitCode),
     PATH: [
       binaryDirectory,
@@ -164,10 +177,14 @@ function runMigrationScript({
     env,
     encoding: "utf8",
   });
-  expect(execution.status, execution.stderr).toBe(migrateExitCode);
+  expect(execution.status, execution.stderr).toBe(expectedStatus);
 
-  const args = readFileSync(capturedArgsPath, "utf8").trimEnd().split("\n");
-  const renderedMigrationsDirectory = readFileSync(capturedSourcePath, "utf8");
+  const args = existsSync(capturedArgsPath)
+    ? readFileSync(capturedArgsPath, "utf8").trimEnd().split("\n")
+    : [];
+  const renderedMigrationsDirectory = existsSync(capturedSourcePath)
+    ? readFileSync(capturedSourcePath, "utf8")
+    : "";
   const databaseArgumentIndex = args.indexOf("-database");
 
   return {
@@ -176,10 +193,43 @@ function runMigrationScript({
     databaseUrl: args[databaseArgumentIndex + 1] ?? "",
     renderedMigrationsDirectory,
     status: execution.status,
+    stderr: execution.stderr,
     stdin: existsSync(capturedStdinPath)
       ? readFileSync(capturedStdinPath, "utf8")
       : "",
   };
+}
+
+/**
+ * Answers every request with a fixed ClickHouse HTTP response. Runs in a child
+ * process because runMigrationScript blocks this one with spawnSync.
+ */
+async function startFakeClickhouse(
+  status: number,
+  body: string,
+): Promise<{ url: string; stop: () => void }> {
+  const server = spawn(
+    process.execPath,
+    [
+      "-e",
+      `const http = require("node:http");
+       const s = http.createServer((req, res) => {
+         req.resume();
+         req.on("end", () => { res.writeHead(${status}); res.end(${JSON.stringify(body)}); });
+       });
+       s.listen(0, "127.0.0.1", () => console.log(s.address().port));`,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  const port = await new Promise<string>((resolvePort, reject) => {
+    server.stdout.once("data", (data: Buffer) =>
+      resolvePort(data.toString().trim()),
+    );
+    server.once("exit", (code) =>
+      reject(new Error(`fake ClickHouse exited with ${code}`)),
+    );
+  });
+  return { url: `http://127.0.0.1:${port}`, stop: () => server.kill() };
 }
 
 function readMigration(run: MigrationRun, file: string): string {
@@ -417,6 +467,44 @@ describe("ClickHouse migration preparation", () => {
 
     expect(run.status).toBe(23);
     expect(existsSync(run.renderedMigrationsDirectory)).toBe(false);
+  });
+
+  it("leaves pending clustered migrations unapplied while a replica is unreachable", async () => {
+    const clickhouse = await startFakeClickhouse(
+      500,
+      "Code: 279. DB::Exception: All connection tries failed. Log: Timeout exceeded while connecting to socket (clickhouse-02:9000, connection timeout 1000 ms)",
+    );
+    try {
+      const run = runMigrationScript({
+        appliedVersion: latestMigrationVersion - 1,
+        clickhouseUrl: clickhouse.url,
+        expectedStatus: 1,
+        mode: "clustered",
+      });
+
+      expect(run.args).toEqual([]);
+      expect(run.stderr).toContain("clickhouse-02:9000");
+    } finally {
+      clickhouse.stop();
+    }
+  });
+
+  it("applies pending clustered migrations once every replica answers", async () => {
+    const clickhouse = await startFakeClickhouse(
+      200,
+      '{"host":"clickhouse-01"}\n{"host":"clickhouse-02"}\n',
+    );
+    try {
+      const run = runMigrationScript({
+        appliedVersion: latestMigrationVersion - 1,
+        clickhouseUrl: clickhouse.url,
+        mode: "clustered",
+      });
+
+      expect(run.args).toContain("up");
+    } finally {
+      clickhouse.stop();
+    }
   });
 
   it("rejects hardcoded cluster clauses in canonical migrations", () => {
