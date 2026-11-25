@@ -202,6 +202,23 @@ function resolveBedrockExternalId(params: {
   );
 }
 
+/** Drops Bedrock `anthropicModels` entries whose model is no longer a custom model. */
+function pruneBedrockAnthropicModels(
+  config: LLMConnectionConfig | undefined,
+  customModels: string[],
+): LLMConnectionConfig | undefined {
+  if (!config || !Array.isArray(config.anthropicModels)) {
+    return config;
+  }
+  const { anthropicModels, ...rest } = config;
+  const keptModels = anthropicModels.filter((model) =>
+    customModels.includes(model),
+  );
+  return keptModels.length > 0
+    ? { ...rest, anthropicModels: keptModels }
+    : rest;
+}
+
 function getDisplaySecretKey(secretKey: string): string {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
@@ -435,8 +452,7 @@ async function testLlmConnection(
 
     let parsedConfig: LLMConnectionConfig | null = null;
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
-      const config = BedrockConfigSchema.parse(params.config);
-      parsedConfig = { region: config.region };
+      parsedConfig = BedrockConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
       parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
@@ -616,6 +632,10 @@ export class LlmConnectionService {
     )
       ? resolveBedrockExternalId({ bedrockIamRole: params.bedrockIamRole })
       : undefined;
+    const config = pruneBedrockAnthropicModels(
+      params.input.config,
+      params.input.customModels ?? [],
+    );
 
     let key: LlmApiKeys;
     try {
@@ -638,7 +658,7 @@ export class LlmConnectionService {
             baseURL: params.input.baseURL,
             withDefaultModels: params.input.withDefaultModels,
             customModels: params.input.customModels,
-            config: params.input.config,
+            config,
             extraHeaders: params.input.extraHeaders
               ? encrypt(JSON.stringify(params.input.extraHeaders))
               : undefined,
@@ -695,6 +715,10 @@ export class LlmConnectionService {
     const extraHeaderKeys = params.input.extraHeaders
       ? Object.keys(params.input.extraHeaders)
       : undefined;
+    const config = pruneBedrockAnthropicModels(
+      params.input.config,
+      params.input.customModels ?? [],
+    );
     const { connection, existing } = await this.db.$transaction(async (tx) => {
       const repository = this.repository.withDb(tx);
       const existing = await repository.findByProvider({
@@ -720,7 +744,7 @@ export class LlmConnectionService {
           baseURL: params.input.baseURL,
           withDefaultModels: params.input.withDefaultModels,
           customModels: params.input.customModels,
-          config: params.input.config,
+          config,
           extraHeaders: encryptedExtraHeaders,
           extraHeaderKeys,
         },
@@ -731,9 +755,7 @@ export class LlmConnectionService {
           baseURL: params.input.baseURL ?? null,
           withDefaultModels: params.input.withDefaultModels,
           customModels: params.input.customModels ?? [],
-          ...(params.input.config !== undefined
-            ? { config: params.input.config ?? Prisma.DbNull }
-            : {}),
+          ...(config !== undefined ? { config } : {}),
           extraHeaders: encryptedExtraHeaders ?? null,
           extraHeaderKeys: extraHeaderKeys ?? [],
         },
@@ -823,6 +845,16 @@ export class LlmConnectionService {
       extraHeaderKeys = [];
     }
 
+    const storedConfig =
+      LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
+      undefined;
+    // Changing only the custom models still prunes the stored config.
+    const config = pruneBedrockAnthropicModels(
+      params.input.config ??
+        (params.input.customModels ? storedConfig : undefined),
+      params.input.customModels ?? existingKey.customModels,
+    );
+
     const key = await this.repository.update({
       owner: params.owner,
       id: params.input.id,
@@ -839,7 +871,7 @@ export class LlmConnectionService {
         baseURL: params.input.baseURL,
         withDefaultModels: params.input.withDefaultModels,
         customModels: params.input.customModels,
-        config: params.input.config,
+        config,
       },
     });
 

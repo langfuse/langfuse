@@ -17,12 +17,19 @@ export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
 // Never persisted: a keyless GCS integration stores secretAccessKey = null.
 export const GCS_USE_DEFAULT_CREDENTIALS = "__GCS_DEFAULT_CREDENTIALS__";
 
-export const BedrockConfigSchema = z.object({ region: z.string() });
+export const BedrockConfigSchema = z.object({
+  region: z.string(),
+  // Custom models whose id does not reveal an Anthropic model, such as
+  // application inference profile ARNs. Calls to them declare the Anthropic
+  // model family so the AI SDK uses Anthropic request features.
+  anthropicModels: z.array(z.string()).optional(),
+});
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
 export const LLMConnectionConfigValueSchema = z.union([
   z.string(),
   z.boolean(),
+  z.array(z.string()),
 ]);
 export const LLMConnectionConfigSchema = z.record(
   z.string(),

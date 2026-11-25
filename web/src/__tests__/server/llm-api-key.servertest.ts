@@ -340,6 +340,46 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKey.config).toEqual({ region: "us-east-1" });
   });
 
+  it("keeps Bedrock Anthropic model flags only for remaining custom models", async () => {
+    const profileArn =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const otherModel = "us.anthropic.claude-sonnet-4-6";
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn, otherModel],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        anthropicModels: [profileArn, otherModel],
+      },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "bedrock" },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        anthropicModels: [profileArn, otherModel],
+      },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({ projectId });
+    expect(llmApiKeys[0].config).toEqual({
+      region: "us-east-1",
+      anthropicModels: [profileArn],
+    });
+  });
+
   it("should reject creating a Bedrock key with invalid secret key JSON", async () => {
     await expect(
       caller.llmApiKey.create({

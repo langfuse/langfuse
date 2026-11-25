@@ -50,6 +50,7 @@ import {
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
+import { AnthropicModelFamilyCheckbox } from "@/src/features/llm-api-key/components/AnthropicModelFamilyCheckbox/AnthropicModelFamilyCheckbox";
 import { BedrockRoleSetupInstructions } from "@/src/features/llm-api-key/components/BedrockRoleSetupInstructions/BedrockRoleSetupInstructions";
 import { useBedrockIamRoleAuth } from "@/src/features/llm-api-key/useBedrockIamRoleAuth";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -159,7 +160,12 @@ const createFormSchema = (params: {
         ),
       ),
       withDefaultModels: z.boolean(),
-      customModels: z.array(z.object({ value: z.string().min(1) })),
+      customModels: z.array(
+        z.object({
+          value: z.string().min(1),
+          anthropicModelFamily: z.boolean(),
+        }),
+      ),
       awsAccessKeyId: z.string().optional(),
       awsSecretAccessKey: z.string().optional(),
       bedrockApiKey: z.string().optional(),
@@ -477,7 +483,16 @@ export function CreateLLMApiKeyForm({
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
             typeSafeUpstream: resolveTypeSafeUpstream(existingKey.baseURL).id,
             withDefaultModels: existingKey.withDefaultModels,
-            customModels: existingKey.customModels.map((value) => ({ value })),
+            customModels: existingKey.customModels.map((value) => ({
+              value,
+              anthropicModelFamily:
+                existingKey.adapter === LLMAdapter.Bedrock &&
+                Boolean(
+                  (
+                    existingKey.config as BedrockConfig | null
+                  )?.anthropicModels?.includes(value),
+                ),
+            })),
             extraHeaders:
               existingKey.extraHeaderKeys?.map((key) => ({ key, value: "" })) ??
               [],
@@ -607,6 +622,18 @@ export function CreateLLMApiKeyForm({
                 {...form.register(`customModels.${index}.value`)}
                 placeholder={`Custom model name ${index + 1}`}
               />
+              {currentAdapter === LLMAdapter.Bedrock && (
+                <FormField
+                  control={form.control}
+                  name={`customModels.${index}.anthropicModelFamily`}
+                  render={({ field }) => (
+                    <AnthropicModelFamilyCheckbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -619,7 +646,7 @@ export function CreateLLMApiKeyForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => append({ value: "" })}
+            onClick={() => append({ value: "", anthropicModelFamily: false })}
             className="w-full"
           >
             <PlusIcon
@@ -775,8 +802,13 @@ export function CreateLLMApiKeyForm({
         }
       }
 
+      const anthropicModels = values.customModels
+        .filter((model) => model.anthropicModelFamily)
+        .map((model) => model.value.trim())
+        .filter(Boolean);
       config = {
         region: values.awsRegion ?? "",
+        ...(anthropicModels.length > 0 ? { anthropicModels } : {}),
       };
     } else if (currentAdapter === LLMAdapter.VertexAI) {
       // Handle Vertex AI credentials
