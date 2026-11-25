@@ -7,6 +7,7 @@ import {
   CreateViewNode,
   DefaultQueryCompiler,
   FunctionNode,
+  GroupByNode,
   IdentifierNode,
   InsertQueryNode,
   OperatorNode,
@@ -35,6 +36,7 @@ import { TupleParam } from "@clickhouse/client";
 
 import {
   ArrayJoinNode,
+  GroupingSetsNode,
   PLAIN_IDENTIFIER,
   TypedParam,
   asCustomNode,
@@ -57,6 +59,26 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
 };
 
 const TUPLE_INDEX = /^[1-9][0-9]*$/;
+
+/**
+ * A {@link GroupingSetsNode} compiles only as the one item of a GROUP BY:
+ * in `ancestors` (the compiler's node stack, innermost last), the node above
+ * its parent must be a GroupByNode with one item. A GroupByNode holds only
+ * GroupByItemNodes, so the parent is that item. Anywhere else it is not
+ * ClickHouse SQL: in a select list, WHERE, HAVING, ORDER BY or a set of its
+ * own, or beside a plain key (`group by a, grouping sets ((b))`).
+ */
+function assertGroupingSetsPlacement(
+  ancestors: ReadonlyArray<OperationNode>,
+): void {
+  const groupBy = ancestors.at(-2);
+  if (groupBy && GroupByNode.is(groupBy) && groupBy.items.length === 1) {
+    return;
+  }
+  throw new QueryCompileError(
+    "GROUPING SETS compiles only as the one item of a GROUP BY: write .groupBy((eb) => [groupingSets([...])]) and put every key into a set.",
+  );
+}
 
 /**
  * Operators ClickHouse parses as operators. Kysely also builds others that
@@ -324,6 +346,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     self.visitNode = (node: OperationNode) => {
       const custom = asCustomNode(node);
       if (!custom) return parentVisit(node);
+      if (GroupingSetsNode.is(custom)) {
+        assertGroupingSetsPlacement(self.nodeStack);
+      }
       self.nodeStack.push(node);
       compileCustomNode(
         custom,

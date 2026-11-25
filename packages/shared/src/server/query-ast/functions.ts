@@ -49,6 +49,7 @@ const ALLOWED_FUNCTIONS: ReadonlySet<string> = new Set([
   "endsWith",
   "formatDateTime",
   "greatest",
+  "grouping",
   "has",
   "hasAll",
   "hasAllTokens",

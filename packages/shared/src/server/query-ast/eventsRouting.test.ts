@@ -25,6 +25,7 @@ import { QueryCompileError } from "./errors";
 import { EventsTableRoutingPlugin } from "./eventsRouting";
 import {
   firstMetadataValue,
+  groupingSets,
   ifElse,
   limitBy,
   literal,
@@ -105,6 +106,21 @@ describe("logical events routing", () => {
     expect(
       routedTables(
         routeAlone(db.selectFrom("events as e").select(`e.${column}`)),
+      ),
+    ).toEqual(["events_full"]);
+  });
+
+  it("routes a grouping set key on a truncated column to events_full", () => {
+    expect(
+      routedTables(
+        routeAlone(
+          db
+            .selectFrom("events as e")
+            .select("e.name")
+            .groupBy((eb) => [
+              groupingSets([[eb.ref("e.name"), eb.ref("e.input")]]),
+            ]),
+        ),
       ),
     ).toEqual(["events_full"]);
   });

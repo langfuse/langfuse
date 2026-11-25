@@ -254,6 +254,29 @@ export const TupleSubcolumnNode = {
 };
 
 /**
+ * ClickHouse `GROUPING SETS ((a, b), (a))`: one GROUP BY per set, the rows
+ * of all of them in one result. A {@link CustomNode} in the GroupByItem slot;
+ * the compiler emits it only as the one item of a GROUP BY. Passes see each
+ * key as an ordinary expression.
+ */
+export type GroupingSetsNode = {
+  readonly kind: "GroupingSetsNode";
+  readonly sets: ReadonlyArray<ReadonlyArray<OperationNode>>;
+};
+
+export const GroupingSetsNode = {
+  is(node: { kind: string }): node is GroupingSetsNode {
+    return node.kind === "GroupingSetsNode";
+  },
+  create(sets: ReadonlyArray<ReadonlyArray<OperationNode>>): GroupingSetsNode {
+    return Object.freeze({
+      kind: "GroupingSetsNode",
+      sets: Object.freeze(sets.map((set) => Object.freeze([...set]))),
+    });
+  },
+};
+
+/**
  * Select query extended with ClickHouse-only clauses.
  * Extra fields are ignored by Kysely's default compiler/transformer; our
  * dialect compiler and {@link ClickHouseOperationNodeTransformer} are the
@@ -298,15 +321,16 @@ export const FinalTableNode = {
 
 /**
  * The ClickHouse node kinds that stand in an `OperationNode` slot (an
- * expression or a FROM/JOIN item). Kysely's `OperationNodeKind` union is
- * closed, so Kysely's transformer and compiler cannot dispatch them; both of
- * ours do, through {@link CUSTOM_NODE_OPS}. ARRAY JOIN and LIMIT BY are not
- * here: they are extra fields on {@link ClickHouseSelectQueryNode}, never in a
- * node slot.
+ * expression, a FROM/JOIN item or a GROUP BY item). Kysely's
+ * `OperationNodeKind` union is closed, so Kysely's transformer and compiler
+ * cannot dispatch them; both of ours do, through {@link CUSTOM_NODE_OPS}.
+ * ARRAY JOIN and LIMIT BY are not here: they are extra fields on
+ * {@link ClickHouseSelectQueryNode}, never in a node slot.
  */
 export type CustomNode =
   | ArrayIndexNode
   | FinalTableNode
+  | GroupingSetsNode
   | ParametricAggregateNode
   | TupleSubcolumnNode;
 
@@ -349,6 +373,24 @@ const CUSTOM_NODE_OPS: {
     compile: (node, child, sql) => {
       child(node.table);
       sql(" final");
+    },
+  },
+  GroupingSetsNode: {
+    transform: (node, child) =>
+      GroupingSetsNode.create(node.sets.map((set) => set.map(child))),
+    // `grouping sets ((a, b), (a))`
+    compile: (node, child, sql) => {
+      sql("grouping sets (");
+      node.sets.forEach((set, setIndex) => {
+        if (setIndex > 0) sql(", ");
+        sql("(");
+        set.forEach((key, keyIndex) => {
+          if (keyIndex > 0) sql(", ");
+          child(key);
+        });
+        sql(")");
+      });
+      sql(")");
     },
   },
   ParametricAggregateNode: {

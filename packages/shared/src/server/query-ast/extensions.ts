@@ -50,6 +50,7 @@ import {
   ArrayIndexNode,
   ArrayJoinNode,
   FinalTableNode,
+  GroupingSetsNode,
   LimitByNode,
   MetadataPrefilterNode,
   ParametricAggregateNode,
@@ -179,6 +180,44 @@ export function mapValues<V>(
 /** ClickHouse `uniq(value)`, an approximate distinct count. */
 export function uniq(value: Expression<unknown>): ChExpression<number> {
   return aggregate("uniq", [value]);
+}
+
+/**
+ * ClickHouse `GROUPING SETS ((a, b), (a))`, the one item of a GROUP BY:
+ * `.groupBy((eb) => [groupingSets([[eb.ref("t.a"), eb.ref("t.b")], [eb.ref("t.a")]])])`.
+ * Each set groups the rows on its own; the result holds the rows of every
+ * set; an empty set `[]` is the grand total. Anywhere else, or beside another
+ * GROUP BY key, the compile throws.
+ */
+export function groupingSets(
+  sets: ReadonlyArray<ReadonlyArray<Expression<unknown>>>,
+): ChExpression<unknown> {
+  if (sets.length === 0) {
+    throw new QueryCompileError(
+      "groupingSets needs at least one set; write [[]] for the grand total only.",
+    );
+  }
+  return new ExpressionWrapper(
+    asOperationNode(
+      GroupingSetsNode.create(
+        sets.map((set) => set.map((key) => key.toOperationNode())),
+      ),
+    ),
+  );
+}
+
+/**
+ * ClickHouse `grouping(a, b)` under {@link groupingSets}: a bit per argument,
+ * the first argument the highest, set when the row's set does not group by
+ * that key (`grouping(b)` is 1 on the rows of set `(a)`). A rolled-up key
+ * reads its type's default there, `''` for a String, so `grouping` tells
+ * those rows apart from a real `''`. ClickHouse rejects an argument that is
+ * not a GROUP BY key.
+ */
+export function grouping(
+  ...columns: Expression<unknown>[]
+): ChExpression<number> {
+  return functionCall("grouping", columns);
 }
 
 /** ClickHouse `count()`. Kysely's `eb.fn.countAll()` renders `count(*)`. */

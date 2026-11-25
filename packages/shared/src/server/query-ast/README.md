@@ -220,6 +220,25 @@ db.selectFrom("events as e")
 // … order by bucket with fill from toStartOfInterval({p:DateTime64(3)}, toIntervalMinute(5)) to … step toIntervalMinute(5)
 ```
 
+**Group by several key sets in one query** (`groupingSets` — the one GROUP BY item, anywhere else the compile throws; an empty set `[]` is the grand total; `grouping(...)` is 1 on the rows of a set without that key, whose value reads its type's default, `''` for a String):
+
+```ts
+db.selectFrom("traces as t")
+  .select((eb) => [
+    "t.id",
+    "t.environment",
+    grouping(eb.ref("t.environment")).as("is_total"),
+    count().as("n"),
+  ])
+  .groupBy((eb) => [
+    groupingSets([
+      [eb.ref("t.id"), eb.ref("t.environment")],
+      [eb.ref("t.id")],
+    ]),
+  ]);
+// … group by grouping sets ((t.id, t.environment), (t.id))
+```
+
 **Read one field of an `Array(Tuple(…))` column** (`tupleArrayField` — the
 field as a subcolumn, an array with one element per tuple; the column must be a
 qualified `eb.ref("<alias>.<column>")`, anything else throws):
@@ -254,6 +273,7 @@ preserve it:
 | FINAL              | Plugin wraps a FROM/JOIN table expression in `FinalTableNode`. Compiler emits `final` after that expression (`scores as s final`). `$call(useFinal(["scores"]))`. Tables declared `dedup: none` throw; so does FINAL on a `limitBy` table at compile (drop the `useFinal`).            | no    |
 | metadata subscript | Helper builds an `ArrayIndexNode` over the `metadataMap` `FunctionNode`, indexed by a string key expression (a bound value or a `literal(...)`). Transformer + compiler special-case the node. No plugin.                                                                              | no    |
 | tuple subcolumn    | `tupleArrayField` builds a `TupleSubcolumnNode` over the `q.col` `ReferenceNode` and the field name. Compiler emits `q.col.field`. Transformer walks `q.col` as an ordinary reference, so every pass counts it as a read of `col` (routing, tenancy, physical-name checks). No plugin. | no    |
+| GROUPING SETS      | `groupingSets` builds a `GroupingSetsNode` over the key expressions of each set. Compiler emits `grouping sets ((a, b), (a))`, and throws unless it is the one GROUP BY item. Transformer walks every key, so every pass reads it like a plain GROUP BY key; dedup still sees a GROUP BY. No plugin.                       | no    |
 | Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                                                                                                           | no    |
 
 These are real node objects whose children are traced Kysely
@@ -262,7 +282,7 @@ string splices. Any plugin using the default `OperationNodeTransformer` would
 drop them, so ours overrides `transformSelectQuery` to keep them. Upstream is
 not patched.
 
-`FinalTableNode`, `ArrayIndexNode`, `ParametricAggregateNode` and `TupleSubcolumnNode` sit in ordinary node slots, so they form the `CustomNode` union in `nodes.ts`. One table there, `CUSTOM_NODE_OPS`, holds each kind's `transform` and `compile`; the transformer and the compiler both dispatch through it. A new kind joins the union and adds one entry: a missing entry is a `tsc` error. Builders wrap a new node with `asOperationNode`, the only cast for these kinds.
+`FinalTableNode`, `ArrayIndexNode`, `GroupingSetsNode`, `ParametricAggregateNode` and `TupleSubcolumnNode` sit in ordinary node slots, so they form the `CustomNode` union in `nodes.ts`. One table there, `CUSTOM_NODE_OPS`, holds each kind's `transform` and `compile`; the transformer and the compiler both dispatch through it. A new kind joins the union and adds one entry: a missing entry is a `tsc` error. Builders wrap a new node with `asOperationNode`, the only cast for these kinds.
 
 ### Kysely never runs — it only compiles
 
@@ -355,7 +375,7 @@ widening behavior.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
-`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
+`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `GroupingSetsNode` for `GROUPING SETS`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
 
 ### Types are asserted at compile time
 

@@ -8,7 +8,7 @@ import {
 import type { ClickhouseCompilable } from "./compile";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
-import { count, limitBy } from "./extensions";
+import { count, grouping, groupingSets, limitBy } from "./extensions";
 import { applyPassOnly, renderPassOutput } from "./passHarness";
 import { DEDUP_SPECS } from "./schema";
 
@@ -157,6 +157,33 @@ describeWithClickhouseLocal("dedup pass alone: one row per key", () => {
         .orderBy("n", "desc")
         .limit(1),
       ["1"],
+    ],
+    [
+      // One row per trace and environment, then one total per trace; t1's
+      // total counts its latest version only.
+      "GROUPING SETS",
+      db
+        .selectFrom("traces as t")
+        .select((eb) => [
+          "t.id",
+          "t.environment",
+          grouping(eb.ref("t.environment")).as("g"),
+          count().as("n"),
+        ])
+        .groupBy((eb) => [
+          groupingSets([
+            [eb.ref("t.id"), eb.ref("t.environment")],
+            [eb.ref("t.id")],
+          ]),
+        ]),
+      [
+        "t1\t\t1\t1",
+        "t1\tnew\t0\t1",
+        "t2\t\t1\t1",
+        "t2\tonly\t0\t1",
+        "t3\t\t1\t1",
+        "t3\told\t0\t1",
+      ],
     ],
     [
       "a GROUP BY with max",

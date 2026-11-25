@@ -27,6 +27,7 @@ import { QueryCompileError, UnscopedRelationError } from "./errors";
 import {
   arrayJoin,
   arrayMap,
+  groupingSets,
   limitBy,
   literal,
   mapExists,
@@ -289,6 +290,25 @@ describe("tenancy injection", () => {
 
     expect(renderPassOutput(tenancyOnly(qb)).sql).toMatchInlineSnapshot(
       `"select t.id from traces as t inner join scores as s on (s.trace_id = t.id or 1 = 1 and s.project_id = {p1:String}) and s.project_id = {p1:String} where t.project_id = {p1:String} and (1 = 1 or 1 = 1 and t.project_id = {p1:String})"`,
+    );
+  });
+
+  it("scopes a read inside a grouping set key", () => {
+    const db = getClickhouseKysely();
+    const qb = db
+      .selectFrom("traces as t")
+      .select("t.id")
+      .groupBy((eb) => [
+        groupingSets([
+          [
+            eb.ref("t.id"),
+            db.selectFrom("scores as s").select("s.name").limit(1),
+          ],
+        ]),
+      ]);
+
+    expect(renderPassOutput(tenancyOnly(qb)).sql).toMatchInlineSnapshot(
+      `"select t.id from traces as t where t.project_id = {p1:String} group by grouping sets ((t.id, (select s.name from scores as s where s.project_id = {p1:String} limit {p2:Int64})))"`,
     );
   });
 
@@ -1203,6 +1223,16 @@ describe("bare columns in a SELECT with several relations", () => {
       "a tuple element of an unqualified column",
       () => tracesWithScores().select(sql.ref("metadata.1").as("k")),
       /Qualifier "metadata" names no relation/,
+    ],
+    [
+      "an unqualified grouping set key",
+      () =>
+        tracesWithScores()
+          .select("t.id")
+          .groupBy((eb) => [
+            groupingSets([[eb.ref("t.id"), eb.ref("name")], [eb.ref("t.id")]]),
+          ]),
+      /Column "name" is unqualified/,
     ],
   ])("rejects %s", (_, build, error) => {
     expect(() => compileClickhouseQuery(build(), projectId)).toThrow(error);

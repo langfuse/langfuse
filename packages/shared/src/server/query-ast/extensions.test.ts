@@ -37,6 +37,8 @@ import {
   count,
   countIf,
   firstMetadataValue,
+  grouping,
+  groupingSets,
   histogram,
   interval,
   latestNonEmpty,
@@ -922,6 +924,9 @@ describe("64-bit results", () => {
     expectTypeOf(
       medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(grouping(eb.ref("e.name")).expressionType).toEqualTypeOf<
+      number | undefined
+    >();
   });
 
   it("types a template count or sum as number and any as its value", () => {
@@ -1109,5 +1114,92 @@ describe("time buckets", () => {
 
   it.each([0, 1.5])("interval rejects count %s", (count) => {
     expect(() => interval(count, "day")).toThrow(QueryCompileError);
+  });
+});
+
+describe("grouping sets", () => {
+  const traces = () => getClickhouseKysely().selectFrom("traces as t");
+
+  it("groups by each set and reads which keys a row rolled up", () => {
+    const { sql: compiled } = compileClickhouseQuery(
+      traces()
+        .select((eb) => [
+          "t.id",
+          grouping(eb.ref("t.environment")).as("g"),
+          grouping(eb.ref("t.id"), eb.ref("t.environment")).as("g2"),
+          count().as("n"),
+        ])
+        .groupBy((eb) => [
+          groupingSets([
+            [eb.ref("t.id"), eb.ref("t.environment")],
+            [eb.ref("t.id")],
+          ]),
+        ]),
+      projectId,
+    );
+    expect(compiled).toBe(
+      "select t.id, grouping(t.environment) as g, grouping(t.id, t.environment) as g2, count() as n from traces as t where t.project_id = {p1:String} group by grouping sets ((t.id, t.environment), (t.id))",
+    );
+  });
+
+  // The compiler emits GROUPING SETS only as the one item of a GROUP BY.
+  it.each([
+    [
+      "in the select list",
+      () => traces().select((eb) => groupingSets([[eb.ref("t.id")]]).as("x")),
+    ],
+    [
+      "in WHERE",
+      () =>
+        traces()
+          .select("t.id")
+          .where((eb) => eb(groupingSets([[eb.ref("t.id")]]), "=", 1)),
+    ],
+    [
+      "in HAVING",
+      () =>
+        traces()
+          .select("t.id")
+          .groupBy("t.id")
+          .having((eb) => eb(groupingSets([[eb.ref("t.id")]]), "=", 1)),
+    ],
+    [
+      "in ORDER BY",
+      () =>
+        traces()
+          .select("t.id")
+          .orderBy((eb) => groupingSets([[eb.ref("t.id")]])),
+    ],
+    [
+      "beside a plain GROUP BY key",
+      () =>
+        traces()
+          .select("t.id")
+          .groupBy((eb) => [
+            eb.ref("t.id"),
+            groupingSets([[eb.ref("t.environment")]]),
+          ]),
+    ],
+    [
+      "as a key of another grouping set",
+      () =>
+        traces()
+          .select("t.id")
+          .groupBy((eb) => [
+            groupingSets([[groupingSets([[eb.ref("t.id")]])]]),
+          ]),
+    ],
+  ])("rejects GROUPING SETS %s", (_slot, build) => {
+    expect(() => compileClickhouseQuery(build(), projectId)).toThrow(
+      "GROUPING SETS compiles only as the one item of a GROUP BY",
+    );
+  });
+
+  it("rejects GROUPING SETS without a set", () => {
+    expect(() =>
+      traces()
+        .select("t.id")
+        .groupBy(() => [groupingSets([])]),
+    ).toThrow("groupingSets needs at least one set");
   });
 });

@@ -4,6 +4,9 @@ import type { ClickhouseCompilable } from "../compile";
 import { getClickhouseKysely } from "../dialect";
 import {
   arrayJoin,
+  count,
+  grouping,
+  groupingSets,
   limitBy,
   mapKeys,
   mapValues,
@@ -360,6 +363,33 @@ export const CATALOG: CatalogEntry[] = [
           eb.fn.countAll().as("n"),
         ])
         .groupBy("model"),
+  },
+  {
+    // GROUPING SETS: one row per trace id and environment, plus one total per
+    // trace id, which `grouping(t.environment) = 1` marks.
+    id: "grouping_sets",
+    tier: 6,
+    referenceSql: `
+      SELECT t.id, t.environment, grouping(t.environment) AS is_total, count() AS n
+      FROM traces AS t
+      WHERE t.project_id = {p1:String}
+      GROUP BY GROUPING SETS ((t.id, t.environment), (t.id))
+    `,
+    build: () =>
+      db()
+        .selectFrom("traces as t")
+        .select((eb) => [
+          "t.id",
+          "t.environment",
+          grouping(eb.ref("t.environment")).as("is_total"),
+          count().as("n"),
+        ])
+        .groupBy((eb) => [
+          groupingSets([
+            [eb.ref("t.id"), eb.ref("t.environment")],
+            [eb.ref("t.id")],
+          ]),
+        ]),
   },
   {
     // mapKeys/mapValues filtering in a WHERE position over a real Map column.
