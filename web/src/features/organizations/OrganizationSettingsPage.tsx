@@ -16,6 +16,7 @@ import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/co
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
 import { GroupsSettings } from "@/src/features/groups/components/GroupsSettings";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { Building2 } from "@langfuse/icons";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -52,7 +53,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     organizationId: organization?.id,
     scope: "groups:read",
   });
-  const showGroups = hasAdminApiEntitlement && canReadGroups;
+  const isGroupsUiEnabled = useIsGroupsUiEnabled();
+  const showGroups = isGroupsUiEnabled && canReadGroups;
   const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,

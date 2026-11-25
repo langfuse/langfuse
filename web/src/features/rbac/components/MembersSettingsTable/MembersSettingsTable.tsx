@@ -284,6 +284,7 @@ export function MembersSettingsTable({
             } satisfies LangfuseColumnDef<MembersSettingsTableRow>,
           ]
         : directRoleColumns({
+            orgId,
             project,
             orgRoles: allRoles.filter(
               (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
@@ -384,6 +385,12 @@ export function MembersSettingsTable({
     [currentUserId, hasOrgCudAccess, onDelete],
   );
 
+  const projectRoleFilterLabel = isGroupsEnabled
+    ? "Direct project role"
+    : "Project role";
+  const orgRoleFilterLabel = isGroupsEnabled ? "Direct role" : "Role";
+  const roleFilterLabel = project ? projectRoleFilterLabel : orgRoleFilterLabel;
+
   return (
     <TableCard
       tableName={project ? "project members" : "organization members"}
@@ -405,7 +412,7 @@ export function MembersSettingsTable({
       filters={[
         {
           id: "roles",
-          label: project ? "Direct project role" : "Direct role",
+          label: roleFilterLabel,
           placeholder: "All roles",
           options: roleFilterOptions,
           value: roleFilter.value,

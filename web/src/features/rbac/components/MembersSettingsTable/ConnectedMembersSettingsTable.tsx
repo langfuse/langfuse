@@ -16,6 +16,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -72,8 +73,7 @@ export function ConnectedMembersSettingsTable({
   const canManageProjectOwnership = canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
-  // Groups ship with the admin API entitlement, as on the settings pages.
-  const isGroupsEnabled = useHasEntitlement("admin-api");
+  const isGroupsEnabled = useIsGroupsUiEnabled();
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
     useState<Set<string>>(() => new Set());
   const [
@@ -334,7 +334,7 @@ export function ConnectedMembersSettingsTable({
               icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
-            ...(project && hasOrgCudAccess
+            ...(isGroupsEnabled && project && hasOrgCudAccess
               ? [
                   {
                     id: "org-members",

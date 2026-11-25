@@ -49,6 +49,7 @@ import { useExternalMediaStorage } from "@/src/ee/features/external-media-storag
 import { ExternalMediaStorageIntegrationCard } from "@/src/ee/features/external-media-storage/components/ExternalMediaStorageIntegrationCard/ExternalMediaStorageIntegrationCard";
 import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 import { ProjectGroupsSettings } from "@/src/features/groups/components/ProjectGroupsSettings";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -74,12 +75,12 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
     scope: "scoreConfigs:read",
   });
   const showV4Migration = useV4UpgradeUiFlag();
-  const hasAdminApiEntitlement = useHasEntitlement("admin-api");
+  const isGroupsUiEnabled = useIsGroupsUiEnabled();
   const canReadGroups = useHasProjectAccess({
     projectId: project?.id,
     scope: "projectGroups:read",
   });
-  const showGroups = hasAdminApiEntitlement && canReadGroups;
+  const showGroups = isGroupsUiEnabled && canReadGroups;
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
