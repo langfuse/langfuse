@@ -2,12 +2,12 @@
 name: cursor-agents-workflow
 description: |
   Human handoff, Linear branch names, reviewable (non-draft) PRs, the
-  `cursor` GitHub label, Claude, Greptile, and Codex review comments,
+  `cursor` GitHub label, Bugbot, Claude, Greptile, and Codex review comments,
   preview test steps, proof of work posted on the GitHub PR, and
   review-doubt notes for Cursor agents. Use when a Cursor Cloud or
   Cursor desktop agent implements a Linear issue, opens a GitHub PR,
   asks a human to test, posts screenshots or videos, or handles Claude,
-  Greptile, or Codex code-review comments.
+  Bugbot, Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -49,6 +49,8 @@ the context that should have gone on the ticket. Do not skip it silently.
 
 ## Pull requests
 
+Follow the [protected-branch approval policy](../git-workflow/references/protected-branches.md) for latest-commit Bugbot review, approver-bot approval, human review of sensitive paths, and maintainer-first approval of public fork PRs. Resolving feedback or receiving a clean Claude, Greptile, or Codex review does not replace those gates.
+
 Open the GitHub PR as reviewable, not as a draft. Draft PRs hide the work
 from reviewers and skip Claude/Greptile review workflows. Use a draft only
 when a human asks for one.
@@ -68,7 +70,7 @@ asks for another pass.
 
 ## Bot review comments
 
-When Claude (Claude Code, `claude[bot]`, or the security-review action),
+When Bugbot, Claude (Claude Code, `claude[bot]`, or the security-review action),
 Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
 leaves review comments on a PR you own:
 
@@ -76,7 +78,7 @@ leaves review comments on a PR you own:
 2. If the finding is right: apply the fix, then resolve the thread.
 3. If you are sure it should be skipped: tell the human in plain language
    what you skipped and why, invite them to doubt that call, then resolve
-   the thread. Never skip quietly.
+   the thread. Never skip quietly. For a Bugbot finding, use the teammate approval path in the protected-branch policy; resolving a skipped finding does not make its review clean.
 
 Do not leave those threads unresolved. Do not argue. Human reviewer comments
 are different: those may need a real reply and must stay open until a human
