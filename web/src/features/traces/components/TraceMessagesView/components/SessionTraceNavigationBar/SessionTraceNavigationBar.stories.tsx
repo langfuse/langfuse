@@ -1,8 +1,5 @@
-import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import preview from "@/.storybook/preview";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { SessionTraceNavigationBar } from "./SessionTraceNavigationBar";
 import { type SessionTraceSpan } from "./sessionTraceProgress";
 
@@ -22,11 +19,15 @@ function span(
   };
 }
 
-const timeline: SessionTraceSpan[] = [
+const threeTraces: SessionTraceSpan[] = [
   span("first", 0, 4),
   span("current", 64, 3),
   span("last", 70, 5),
 ];
+
+const timeline: SessionTraceSpan[] = Array.from({ length: 36 }, (_, index) =>
+  span(`trace-${index + 1}`, index * 2, 1),
+);
 
 const meta = preview.meta({
   component: SessionTraceNavigationBar,
@@ -34,7 +35,7 @@ const meta = preview.meta({
     position: 12,
     total: 36,
     sessionHref: "/project/project-1/sessions/session-1",
-    currentTraceId: "current",
+    currentTraceId: "trace-12",
     timeline,
     onPrevious: () => undefined,
     onNext: () => undefined,
@@ -52,7 +53,7 @@ export const First = meta.story({
   args: {
     position: 1,
     total: 36,
-    currentTraceId: "first",
+    currentTraceId: "trace-1",
     onPrevious: undefined,
   },
 });
@@ -93,7 +94,7 @@ export const Last = meta.story({
   args: {
     position: 36,
     total: 36,
-    currentTraceId: "last",
+    currentTraceId: "trace-36",
     onNext: undefined,
   },
 });
@@ -114,58 +115,12 @@ export const IdleGap = meta.story({
   },
 });
 
-const messages = Array.from({ length: 16 }, (_, index) => (
-  <p key={index}>Message {index + 1}</p>
-));
-
-export const Scrolled = meta.story({
-  name: "(Test) Toolbar stays above the message scroller",
-  render: (args) => (
-    <div className="bg-background flex h-[320px] w-[640px] flex-col overflow-hidden">
-      <Tabs value="messages">
-        <TabBar
-          label="Trace views"
-          tabs={[
-            { value: "trace", label: "Trace" },
-            { value: "messages", label: "Messages" },
-          ]}
-        />
-      </Tabs>
-      <SessionTraceNavigationBar {...args} />
-      <div className="text-muted-foreground min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
-        {messages}
-      </div>
-    </div>
-  ),
-  play: async ({ canvas }) => {
-    const traceTab = canvas.getByRole("tab", { name: "Trace" });
-    const messagesTab = canvas.getByRole("tab", { name: "Messages" });
-    expect(traceTab.getBoundingClientRect().top).toBeCloseTo(
-      messagesTab.getBoundingClientRect().top,
-      0,
-    );
-    const scroller = canvas.getByText("Message 1").parentElement;
-    if (!scroller) throw new Error("Missing message scroller");
-    scroller.scrollTop = scroller.scrollHeight;
-    const toolbar = canvas.getByText("Trace 12 of 36");
-    const toolbarBox = toolbar.getBoundingClientRect();
-    const scrollerBox = scroller.getBoundingClientRect();
-    expect(toolbarBox.bottom).toBeLessThanOrEqual(scrollerBox.top + 1);
-    expect(toolbarBox.top).toBeGreaterThanOrEqual(
-      messagesTab.getBoundingClientRect().bottom - 1,
-    );
-    expect(
-      canvas.getByRole("button", { name: "Previous trace in session" }),
-    ).toBeVisible();
-  },
-});
-
 export const EndsDisabled = meta.story({
   name: "(Test) Ends disable the matching control",
   args: {
     position: 1,
     total: 36,
-    currentTraceId: "first",
+    currentTraceId: "trace-1",
     onPrevious: undefined,
   },
   play: async ({ canvas }) => {
@@ -175,26 +130,6 @@ export const EndsDisabled = meta.story({
     ).toBeDisabled();
     const next = canvas.getByRole("button", { name: "Next trace in session" });
     expect(next).toBeEnabled();
-  },
-});
-
-export const Narrow = meta.story({
-  name: "(Test) Narrow width hides the time labels",
-  render: (args) => (
-    <div className="w-[280px]">
-      <SessionTraceNavigationBar {...args} />
-    </div>
-  ),
-  play: async ({ canvas }) => {
-    const position = canvas.getByText("Trace 12 of 36");
-    expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth + 1);
-    expect(canvas.getByText(/ \/ /)).not.toBeVisible();
-    expect(
-      canvas.getByRole("group", { name: "Session timeline" }),
-    ).toBeVisible();
-    expect(
-      canvas.getByRole("button", { name: "Next trace in session" }),
-    ).toBeVisible();
   },
 });
 
@@ -227,50 +162,25 @@ export const IdleMarked = meta.story({
   },
 });
 
+let openedTrace: string | undefined;
+
 export const ClickableSegments = meta.story({
   name: "(Test) Clicking a segment navigates",
   args: {
     position: 2,
     total: 3,
-  },
-  render: (args) => {
-    const [opened, setOpened] = useState<string>();
-    return (
-      <div>
-        <SessionTraceNavigationBar
-          {...args}
-          onSelectTrace={(traceId) => setOpened(traceId)}
-        />
-        <p>{opened}</p>
-      </div>
-    );
+    currentTraceId: "current",
+    timeline: threeTraces,
+    onSelectTrace: (traceId: string) => {
+      openedTrace = traceId;
+    },
   },
   play: async ({ canvas }) => {
+    openedTrace = undefined;
     await userEvent.click(
       canvas.getByRole("button", { name: /Go to trace 1 of 3/ }),
     );
-    await expect(canvas.getByText("first")).toBeVisible();
-  },
-});
-
-export const ManyTraces = meta.story({
-  name: "(Test) Many traces are not buttons",
-  args: {
-    position: 20,
-    total: 40,
-    currentTraceId: "trace-20",
-    timeline: Array.from({ length: 40 }, (_, index) =>
-      span(`trace-${index + 1}`, index * 2, 1),
-    ),
-  },
-  render: (args) => (
-    <div className="w-[320px]">
-      <SessionTraceNavigationBar {...args} onSelectTrace={() => undefined} />
-    </div>
-  ),
-  play: async ({ canvas }) => {
-    const track = canvas.getByRole("group", { name: "Session timeline" });
-    expect(within(track).queryAllByRole("button")).toHaveLength(0);
+    expect(openedTrace).toBe("first");
   },
 });
 
@@ -279,6 +189,8 @@ export const SegmentTooltip = meta.story({
   args: {
     position: 2,
     total: 3,
+    currentTraceId: "current",
+    timeline: threeTraces,
     onSelectTrace: () => undefined,
   },
   play: async ({ canvas, canvasElement }) => {

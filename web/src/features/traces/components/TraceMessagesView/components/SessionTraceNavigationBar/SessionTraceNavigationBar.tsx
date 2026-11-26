@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Clock } from "@langfuse/icons";
+import { ArrowLeft, ArrowRight, Clock } from "@langfuse/icons";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { SessionTraceTrack } from "../SessionTraceTrack/SessionTraceTrack";
 import {
-  buildSessionTraceProgress,
+  sessionContainsTrace,
   type SessionTraceSpan,
 } from "./sessionTraceProgress";
 
@@ -29,7 +29,7 @@ export function SessionTraceNavigationBar({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useSessionTraceNavigationKeys({ rootRef, onPrevious, onNext });
-  const progress = buildSessionTraceProgress(timeline, currentTraceId);
+  const showTrack = sessionContainsTrace(timeline, currentTraceId);
 
   return (
     <div ref={rootRef} className="@container/sessionnav sticky top-0 z-1">
@@ -47,9 +47,8 @@ export function SessionTraceNavigationBar({
             Trace {position} of {total}
           </span>
         </Link>
-        {progress ? (
-          <SessionTraceProgress
-            progress={progress}
+        {showTrack ? (
+          <SessionTraceTrack
             traces={timeline.map((span) => ({
               id: span.id,
               name: span.name,
@@ -59,63 +58,33 @@ export function SessionTraceNavigationBar({
             activeIndex={timeline.findIndex(
               (span) => span.id === currentTraceId,
             )}
-            onSelectTrace={onSelectTrace}
+            onSelect={
+              onSelectTrace
+                ? (index) => {
+                    const trace = timeline[index];
+                    if (trace) onSelectTrace(trace.id);
+                  }
+                : undefined
+            }
           />
         ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <HeaderActionButton
             label="Previous trace in session"
             shortcut={["Shift", "K"]}
-            icon={<ArrowUp size="base" />}
+            icon={<ArrowLeft size="base" />}
             disabled={!onPrevious}
             onClick={onPrevious}
           />
           <HeaderActionButton
             label="Next trace in session"
             shortcut={["Shift", "J"]}
-            icon={<ArrowDown size="base" />}
+            icon={<ArrowRight size="base" />}
             disabled={!onNext}
             onClick={onNext}
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function SessionTraceProgress({
-  progress,
-  traces,
-  activeIndex,
-  onSelectTrace,
-}: {
-  progress: NonNullable<ReturnType<typeof buildSessionTraceProgress>>;
-  traces: readonly {
-    id: string;
-    name?: string | null;
-    start: number;
-    end: number;
-  }[];
-  activeIndex: number;
-  onSelectTrace?: (traceId: string) => void;
-}) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 @min-[520px]/sessionnav:gap-4">
-      <SessionTraceTrack
-        traces={traces}
-        activeIndex={activeIndex}
-        onSelect={
-          onSelectTrace
-            ? (index) => {
-                const trace = traces[index];
-                if (trace) onSelectTrace(trace.id);
-              }
-            : undefined
-        }
-      />
-      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[520px]/sessionnav:inline">
-        {progress.valueText}
-      </span>
     </div>
   );
 }

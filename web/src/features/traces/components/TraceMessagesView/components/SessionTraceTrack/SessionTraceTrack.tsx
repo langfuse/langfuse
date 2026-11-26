@@ -13,7 +13,7 @@ const idleClassName =
 
 const pieceClassName = {
   fill: "bg-observation-trace-line",
-  muted: "bg-muted-foreground/60",
+  muted: "bg-observation-trace-line/35",
   idle: idleClassName,
   rest: idleClassName,
 } as const;
@@ -55,7 +55,7 @@ export function SessionTraceTrack({
       ref={trackRef}
       role="group"
       aria-label="Session timeline"
-      className="relative flex h-6 min-w-6 flex-1 overflow-hidden rounded-sm"
+      className="border-border relative flex h-[22px] min-w-6 flex-1 overflow-hidden rounded-sm border"
     >
       {pieces.map((piece, index) => {
         const next = pieces[index + 1];
@@ -310,7 +310,7 @@ function TraceSegmentButton({
             "ph-no-capture h-full min-w-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-observation-trace-line",
             piece.tone === "fill"
               ? "bg-observation-trace-line hover:brightness-110 min-w-1"
-              : "bg-muted-foreground/60 hover:bg-muted-foreground/80",
+              : "bg-observation-trace-line/35 hover:bg-observation-trace-line/50",
           )}
           data-edge={edge}
           data-active={piece.tone === "fill" ? "" : undefined}
