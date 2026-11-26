@@ -360,6 +360,9 @@ export const env = createEnv({
     // Forces public sharing of traces and sessions off for every organization.
     // Only takes effect with the self-host-ui-customization entitlement.
     LANGFUSE_DISABLE_PUBLIC_SHARING: z.enum(["true", "false"]).optional(),
+    // Forces UI-based data exports and downloads off for every organization.
+    // Only takes effect with the self-host-ui-customization entitlement.
+    LANGFUSE_DISABLE_UI_EXPORTS: z.enum(["true", "false"]).optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -1300,6 +1303,7 @@ export const env = createEnv({
     LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
     LANGFUSE_DISABLE_PUBLIC_SHARING:
       process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
+    LANGFUSE_DISABLE_UI_EXPORTS: process.env.LANGFUSE_DISABLE_UI_EXPORTS,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:

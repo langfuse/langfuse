@@ -99,6 +99,10 @@ vi.mock(
   }),
 );
 
+vi.mock("@/src/ee/features/ui-exports/components/UiExportsSettings", () => ({
+  UiExportsSettings: () => null,
+}));
+
 vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));

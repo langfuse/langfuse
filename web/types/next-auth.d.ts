@@ -45,6 +45,8 @@ declare module "next-auth" {
             accessAuditLogEnabled?: boolean;
             // Optional so existing session mocks need not set it.
             publicSharingDisabled?: boolean;
+            // Optional so existing session mocks need not set it.
+            uiExportsDisabled?: boolean;
             featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
@@ -99,6 +101,9 @@ declare module "next-auth" {
       // LANGFUSE_DISABLE_PUBLIC_SHARING, applied only with an enterprise
       // license. Optional so existing session mocks need not set it.
       publicSharingDisabledByInstance?: boolean;
+      // LANGFUSE_DISABLE_UI_EXPORTS, applied only with an enterprise
+      // license. Optional so existing session mocks need not set it.
+      uiExportsDisabledByInstance?: boolean;
     };
   }
 
