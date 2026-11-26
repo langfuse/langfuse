@@ -36,7 +36,6 @@ vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
 
 import { env } from "../../../env";
 import { type QueryType } from "../types";
-import { QueryBuilder } from "./queryBuilder";
 import { executeQuery } from "./queryExecutor";
 
 const FIXED_PROJECT_ID = "golden-project";
@@ -234,19 +233,17 @@ describeWithClickhouse("golden: SQL-text executeQuery options", () => {
   });
 
   describe("root-event window", () => {
-    // executeQuery creates its own QueryBuilder, so set the window per build.
+    // Each QueryBuilder reads the threshold from env when it is constructed.
+    const originalMaxWindowHours =
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
     function withMaxWindowHours(hours: number) {
-      const build = QueryBuilder.prototype.build;
-      vi.spyOn(QueryBuilder.prototype, "build").mockImplementation(function (
-        this: QueryBuilder,
-        ...args
-      ) {
-        this.setRootEventConditionMaxWindowHours(hours);
-        return build.apply(this, args);
-      });
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = hours;
     }
 
-    afterEach(() => vi.restoreAllMocks());
+    afterEach(() => {
+      env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
+        originalMaxWindowHours;
+    });
 
     // A 72-hour window.
     const tracesQuery = {
