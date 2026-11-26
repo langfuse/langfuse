@@ -53,11 +53,7 @@ export function buildSessionTraceProgress(
   segments.push(spanSegment(current, toPercent, "fill"));
   const offsetSeconds = Math.max(0, (current.startMs - sessionStart) / 1000);
   const totalSeconds = sessionMs / 1000;
-  const clock = formatLocalIsoDate(
-    new Date(current.startMs),
-    false,
-    "second",
-  ).slice(11);
+  const clock = formatTraceClock(current.startMs, sessionStart, sessionEnd);
   return {
     label: clock,
     valueText: `${formatSessionDuration(offsetSeconds)} / ${formatSessionDuration(totalSeconds)}`,
@@ -76,6 +72,21 @@ function spanSegment(
   const width = Math.min(100, Math.max(end - start, MIN_SEGMENT_PERCENT));
   const left = Math.max(0, Math.min(start, 100 - width));
   return { start: left, end: left + width, tone };
+}
+
+function formatTraceClock(
+  startMs: number,
+  sessionStart: number,
+  sessionEnd: number,
+) {
+  const spansDays =
+    new Date(sessionStart).toDateString() !==
+    new Date(sessionEnd).toDateString();
+  const accuracy =
+    spansDays || sessionEnd - sessionStart >= 2 * 60_000 ? "minute" : "second";
+  const formatted = formatLocalIsoDate(new Date(startMs), false, accuracy);
+  if (spansDays) return formatted.slice(5, 16);
+  return formatted.slice(11);
 }
 
 /** Hour and minute units from formatIntervalSeconds, without trailing zero seconds. */

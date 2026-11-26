@@ -146,7 +146,7 @@ export const EndsDisabled = meta.story({
 });
 
 export const Narrow = meta.story({
-  name: "(Test) Progress label truncates before the position",
+  name: "(Test) Narrow width hides the time labels",
   render: (args) => (
     <div className="w-[280px]">
       <SessionTraceNavigationBar {...args} />
@@ -155,8 +155,8 @@ export const Narrow = meta.story({
   play: async ({ canvas }) => {
     const position = canvas.getByText("Trace 12 of 36");
     expect(position.scrollWidth).toBeLessThanOrEqual(position.clientWidth + 1);
-    const clock = canvas.getByTitle(/ \/ /);
-    expect(clock.scrollWidth).toBeGreaterThan(clock.clientWidth);
+    expect(canvas.getByText(/ \/ /)).not.toBeVisible();
+    expect(canvas.getByRole("progressbar")).toBeVisible();
     expect(
       canvas.getByRole("button", { name: "Next trace in session" }),
     ).toBeVisible();

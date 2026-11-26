@@ -32,7 +32,7 @@ export function SessionTraceNavigationBar({
   return (
     <div
       ref={rootRef}
-      className="bg-muted/40 sticky top-0 z-1 flex shrink-0 items-center gap-3 border-b px-2 py-1"
+      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-2 border-b px-2"
     >
       <Link
         href={sessionHref}
@@ -47,18 +47,7 @@ export function SessionTraceNavigationBar({
           Trace {position} of {total}
         </span>
       </Link>
-      {progress ? (
-        <div className="ph-no-capture min-w-0 flex-1">
-          <Progress
-            size="sm"
-            value={progress.value}
-            label={progress.label}
-            valueText={progress.valueText}
-            labelTitle={`${progress.label} · ${progress.valueText}`}
-            segments={progress.segments}
-          />
-        </div>
-      ) : null}
+      {progress ? <SessionTraceProgress progress={progress} /> : null}
       <div className="flex shrink-0 items-center gap-0.5">
         <HeaderActionButton
           label="Previous trace in session"
@@ -75,6 +64,30 @@ export function SessionTraceNavigationBar({
           onClick={onNext}
         />
       </div>
+    </div>
+  );
+}
+
+function SessionTraceProgress({
+  progress,
+}: {
+  progress: NonNullable<ReturnType<typeof buildSessionTraceProgress>>;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+        {progress.label}
+      </span>
+      <div className="min-w-0 flex-1 @min-[460px]/sessionnav:min-w-24">
+        <Progress
+          size="sm"
+          value={progress.value}
+          segments={progress.segments}
+        />
+      </div>
+      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+        {progress.valueText}
+      </span>
     </div>
   );
 }

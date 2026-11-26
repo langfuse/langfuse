@@ -26,7 +26,7 @@ describe("buildSessionTraceProgress", () => {
     expect(progress).not.toBeNull();
     if (!progress) return;
     expect(progress.label).toBe(
-      formatLocalIsoDate(new Date(start + 64 * minute), false, "second").slice(
+      formatLocalIsoDate(new Date(start + 64 * minute), false, "minute").slice(
         11,
       ),
     );
@@ -62,5 +62,19 @@ describe("buildSessionTraceProgress", () => {
     );
     expect(current?.end).toBe(100);
     expect(current?.start).toBeCloseTo(100 - 0.8, 5);
+  });
+
+  it("includes the date when the session crosses midnight", () => {
+    const nextDay = start + 26 * 60 * minute;
+    const progress = buildSessionTraceProgress(
+      [
+        { id: "first", startMs: start, endMs: start + minute },
+        { id: "current", startMs: nextDay, endMs: nextDay + minute },
+      ],
+      "current",
+    );
+    expect(progress?.label).toBe(
+      formatLocalIsoDate(new Date(nextDay), false, "minute").slice(5, 16),
+    );
   });
 });
