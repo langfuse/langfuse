@@ -24,10 +24,10 @@ const SECRET_KEY = "sk-lf-0f2a4c6e-8b1d-4e3f-9a7c-5d6e7f8a9b0c";
 const PUBLIC_KEY = "pk-lf-1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 
 describe("redactApiKey", () => {
-  it("keeps the prefix and the last four characters", () => {
+  it("keeps only a Langfuse prefix and the last four characters", () => {
     expect(redactApiKey(SECRET_KEY)).toBe("sk-lf-...9b0c");
     expect(redactApiKey("sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")).toBe(
-      "sk-pro...6789",
+      "...6789",
     );
   });
 
@@ -61,7 +61,7 @@ describe("formatSubmittedPublicKeyForLog", () => {
 
   it("masks non-Langfuse secrets without revealing their middle", () => {
     const openAiStyle = "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"sk-pro...6789"');
+    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"...6789"');
   });
 
   it("does not echo short values whose head and tail would overlap", () => {

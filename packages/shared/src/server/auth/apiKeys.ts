@@ -34,9 +34,10 @@ export const secretKeyPattern = new RegExp(
   "g",
 );
 
-/** redactApiKey masks an API key to its display form, `sk-lf-...abcd`. */
+/** redactApiKey masks an API key to its last four characters, keeping only a Langfuse prefix: `sk-lf-...abcd`, `...abcd`. */
 export function redactApiKey(value: string): string {
-  return `${value.slice(0, secretKeyPrefix.length)}...${value.slice(-4)}`;
+  const prefix = value.startsWith(secretKeyPrefix) ? secretKeyPrefix : "";
+  return `${prefix}...${value.slice(-4)}`;
 }
 
 const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
