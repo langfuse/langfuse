@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { useResizeObserver } from "@/src/hooks/useResizeObserver";
@@ -29,13 +29,18 @@ export function SampleBadge() {
       ROW_END_INSET_PX;
     setFits(badge.offsetWidth <= available);
   }, []);
+  // The first check runs before paint, so a row too narrow never shows the badge.
+  useLayoutEffect(measure, [measure]);
   useResizeObserver(lineRef, measure);
 
   return (
     <span
       ref={lineRef}
-      // A hidden badge keeps its line for measuring but takes no height.
-      className={cn("flex min-w-0 basis-full", fits ? "mt-1" : "h-0")}
+      // A hidden badge stays measurable, clipped to a line with no height.
+      className={cn(
+        "flex min-w-0 basis-full",
+        fits ? "mt-1" : "h-0 overflow-hidden",
+      )}
     >
       <span
         ref={badgeRef}
