@@ -509,13 +509,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(30),
-  // First UTC day (YYYY-MM-DD) of the backfill; unset starts at the oldest
-  // project. Ignored once the export has a watermark.
+  // Earliest UTC day (YYYY-MM-DD) the media usage export covers; nothing
+  // before it is exported, even if the watermark is older. The default is a few
+  // days before the media upload API launched (media API merged 2024-11-14
+  // 09:26 UTC), so no media can predate it.
   LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)))
-    .optional(),
+    .default("2024-11-10"),
 
   // Media upload
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),

@@ -51,11 +51,13 @@ const computeMediaUsageExportDays = ({
   now,
   exportedUntil,
   backfillStart,
+  minStartDay,
   lookbackDays = MEDIA_USAGE_LOOKBACK_DAYS,
 }: {
   now: Date;
   exportedUntil: Date | null;
   backfillStart: Date | null;
+  minStartDay: Date;
   lookbackDays?: number;
 }): Date[] => {
   const lastClosedDay = addUtcDays(toUtcDay(now), -1);
@@ -67,6 +69,9 @@ const computeMediaUsageExportDays = ({
     start = toUtcDay(backfillStart);
   } else {
     return [];
+  }
+  if (start < minStartDay) {
+    start = minStartDay;
   }
 
   const days: Date[] = [];
@@ -120,19 +125,12 @@ const writeMediaUsageWatermark = (
   });
 
 // Media rows reference an existing project, so they cannot predate the oldest
-// project. `minStartDay` raises the start for the first run only; once a
-// watermark exists it is ignored.
-const getMediaUsageBackfillStart = async (
-  minStartDay: Date | null,
-): Promise<Date | null> => {
+// project.
+const getMediaUsageBackfillStart = async (): Promise<Date | null> => {
   const { _min } = await prisma.project.aggregate({
     _min: { createdAt: true },
   });
-  const oldestProject = _min.createdAt;
-  if (!oldestProject || !minStartDay) {
-    return oldestProject ?? minStartDay;
-  }
-  return oldestProject > minStartDay ? oldestProject : minStartDay;
+  return _min.createdAt;
 };
 
 type MediaUsageHourlyQueryRow = {
@@ -273,11 +271,9 @@ export const exportMediaUsageHourly = async ({
   lookbackDays = MEDIA_USAGE_LOOKBACK_DAYS,
   timeBudgetMs = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES *
     60_000,
-  minStartDay = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE
-    ? new Date(
-        `${env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE}T00:00:00.000Z`,
-      )
-    : null,
+  minStartDay = new Date(
+    `${env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE}T00:00:00.000Z`,
+  ),
   projectBatchSize = MEDIA_USAGE_PROJECT_BATCH_SIZE,
 }: {
   s3Client: StorageService;
@@ -285,7 +281,7 @@ export const exportMediaUsageHourly = async ({
   now?: Date;
   lookbackDays?: number;
   timeBudgetMs?: number;
-  minStartDay?: Date | null;
+  minStartDay?: Date;
   projectBatchSize?: number;
 }): Promise<void> => {
   const startedAt = Date.now();
@@ -293,9 +289,8 @@ export const exportMediaUsageHourly = async ({
   const days = computeMediaUsageExportDays({
     now,
     exportedUntil: watermark,
-    backfillStart: watermark
-      ? null
-      : await getMediaUsageBackfillStart(minStartDay),
+    backfillStart: watermark ? null : await getMediaUsageBackfillStart(),
+    minStartDay,
     lookbackDays,
   });
 
