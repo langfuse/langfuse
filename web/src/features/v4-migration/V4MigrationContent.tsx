@@ -19,6 +19,7 @@ import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/comp
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
@@ -1501,19 +1502,10 @@ export function V4MigrationHeaderContent({
           <V4MigrationDocsLink />
         </p>
         {remainingActionsAreMigrated ? (
-          <div className="flex items-start gap-1.5">
-            <CircleCheck
-              size="sm"
-              color="inherit"
-              __rawClassName="mt-0.5 text-green-600"
-              aria-hidden="true"
-            />
-            <p>
-              Everything looks good. This banner will disappear automatically
-              once no legacy traffic has been seen for{" "}
-              {V4_MIGRATION_LOOKBACK_DAYS} days.
-            </p>
-          </div>
+          <Banner variant="success">
+            Migration complete. This banner disappears after{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days without legacy traffic.
+          </Banner>
         ) : null}
         {showActionPrompt && <V4MigrationDeadlineNote />}
       </div>

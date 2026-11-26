@@ -1434,11 +1434,15 @@ describe("V4MigrationHeaderContent", () => {
       />,
     );
 
-    const note = screen.getByText(/Everything looks good/);
-    expect(note.closest("div")?.querySelector("svg")).not.toBeNull();
+    const note = screen.getByRole("alert");
+    expect(note).toHaveAttribute("data-variant", "success");
+    expect(note).toHaveTextContent(
+      "Migration complete. This banner disappears after 3 days without legacy traffic.",
+    );
     expect(
       screen.queryByText(/Complete the action items below/),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Everything looks good/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Migration is done/)).not.toBeInTheDocument();
   });
 
