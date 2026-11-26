@@ -123,6 +123,7 @@ describe("partitionPendingRunEvents", () => {
       toolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
       source: "auto",
     });
+    expect(sidecar).not.toHaveProperty("toolCallId");
     const start = {
       type: EventType.TOOL_CALL_START,
       toolCallId: "redirect-1",

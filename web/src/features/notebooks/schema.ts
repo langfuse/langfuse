@@ -454,6 +454,7 @@ const storedEmbedBlock = z.strictObject({
       z.strictObject({
         kind: z.literal("trace"),
         id: z.string().min(1).max(2048).optional(),
+        sidebar: z.enum(["expanded", "collapsed"]).optional(),
       }),
       z.strictObject({
         kind: z.literal("session"),

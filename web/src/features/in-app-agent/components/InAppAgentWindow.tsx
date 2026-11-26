@@ -41,6 +41,8 @@ import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
+  ActivityNotebookLinks,
+  getActivityNotebooks,
   InAppAgentMessage,
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
@@ -375,19 +377,22 @@ function AssistantActivityGroup({
     startTimestamp !== undefined && endTimestamp !== undefined
       ? Math.max(1, Math.round((endTimestamp - startTimestamp) / 1_000))
       : null;
-  const toolNames = messages.flatMap((message) =>
-    message.content.type === "toolGroup"
-      ? message.content.tools.map((tool) => tool.name)
-      : [],
+  const tools = messages.flatMap((message) =>
+    message.content.type === "toolGroup" ? message.content.tools : [],
   );
-  const label = getActivityGroupLabel({
-    durationSeconds,
-    hasDetails,
-    isAwaitingApproval,
-    isInProgress,
-    outcome,
-    toolNames,
-  });
+  const notebooks = getActivityNotebooks(tools);
+  const hasNotebook = notebooks.size > 0;
+  const label =
+    hasNotebook && !isAwaitingApproval
+      ? "Activity"
+      : getActivityGroupLabel({
+          durationSeconds,
+          hasDetails,
+          isAwaitingApproval,
+          isInProgress,
+          outcome,
+          toolNames: tools.map((tool) => tool.name),
+        });
 
   return (
     <div className="w-full">
@@ -436,6 +441,20 @@ function AssistantActivityGroup({
           ))}
         </div>
       ) : null}
+      {hasNotebook && (
+        <div
+          className={cn(
+            "mt-2 grid gap-2",
+            isCompact ? "text-[0.775rem]" : "text-sm",
+          )}
+        >
+          <ActivityNotebookLinks
+            notebooks={notebooks}
+            isEditing={isInProgress && !isAwaitingApproval}
+            isAwaitingApproval={isInProgress && isAwaitingApproval}
+          />
+        </div>
+      )}
     </div>
   );
 }

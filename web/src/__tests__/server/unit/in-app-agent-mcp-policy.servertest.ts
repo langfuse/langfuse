@@ -115,8 +115,12 @@ describe("IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES", () => {
       "write_document",
       "patch_document",
       "update_notebook_layout",
-      "publish_notebook",
     ] as const) {
+      expect(viewer.available.has(name)).toBe(false);
+      expect(member.autoApproved.has(name)).toBe(true);
+    }
+
+    for (const name of ["publish_notebook"] as const) {
       expect(viewer.available.has(name)).toBe(false);
       expect(member.autoApproved.has(name)).toBe(false);
       expect(getInAppAgentMcpAllowedToolNames(member, name)).toContain(name);

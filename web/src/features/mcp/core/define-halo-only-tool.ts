@@ -72,8 +72,7 @@ export function defineHaloOnlyTool<TInput, const TName extends string>({
     description,
     baseSchema,
     inputSchema,
-    readOnlyHint,
-    destructiveHint,
+    annotations: { readOnlyHint, destructiveHint },
     handler: (input, context) =>
       runMcpTool({
         spanName,

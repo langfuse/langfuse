@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { LANGFUSE_HALO_SKILLS } from "@repo/langfuse-skills";
 import { MastraAgent } from "@ag-ui/mastra";
 import { normalizeMastraEvent, toMastraRunInput } from "./mastraAdapter";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -1188,6 +1189,31 @@ async function createMastraAdapter(params: {
       });
     }
 
+    const notebookMutations = [
+      "create_notebook",
+      "write_document",
+      "patch_document",
+      "update_notebook_layout",
+      "publish_notebook",
+    ] as const;
+    const langfuseTools = filterInAppAgentAvailableLangfuseMcpTools({
+      tools: toolsets.langfuse,
+      policy: params.options.langfuseMcp.toolPolicy,
+    });
+    let notebookAuthoring: string | undefined;
+    if (notebookMutations.some((name) => Object.hasOwn(langfuseTools, name))) {
+      // Use the bundled skill, not an overridable hosted skill of the same name.
+      notebookAuthoring = LANGFUSE_HALO_SKILLS.find(
+        ({ frontmatter }) => frontmatter.name === "notebook-authoring",
+      )?.resources.find(({ path }) => path === "SKILL.md")?.text;
+      if (!notebookAuthoring?.trim()) {
+        for (const name of notebookMutations) delete langfuseTools[name];
+        notebookAuthoring =
+          "Notebook editing is unavailable because the built-in Notebook Authoring skill could not be loaded. Tell the user if they request an edit or publication.";
+        logger.error("Built-in Notebook Authoring skill could not be loaded");
+      }
+    }
+
     // @ag-ui/mastra drives execution via adapter.run(input), not a direct
     // agent.stream(..., { toolsets }) call. Keep Mastra's per-request MCP
     // discovery, then prefix tool names for constructor-based tools so the
@@ -1198,13 +1224,7 @@ async function createMastraAdapter(params: {
           {
             ...withOptionalSilentMcpOutput({
               tools: withLangfuseMcpRateLimitWait({
-                tools: prefixToolsetTools(
-                  "langfuse",
-                  filterInAppAgentAvailableLangfuseMcpTools({
-                    tools: toolsets.langfuse,
-                    policy: params.options.langfuseMcp.toolPolicy,
-                  }),
-                ),
+                tools: prefixToolsetTools("langfuse", langfuseTools),
                 signal: params.signal,
                 runId: params.input.runId,
                 threadId: params.input.threadId,
@@ -1269,7 +1289,12 @@ async function createMastraAdapter(params: {
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
-        [params.instructions, CONTEXT_TOOL_INSTRUCTION, developerGuidance]
+        [
+          params.instructions,
+          CONTEXT_TOOL_INSTRUCTION,
+          notebookAuthoring,
+          developerGuidance,
+        ]
           .filter(Boolean)
           .join("\n\n"),
       model,

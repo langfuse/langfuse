@@ -5,13 +5,15 @@ import { getNotebookLayoutDocumentIds } from "./getNotebookLayoutDocumentIds";
 import { parseDocument } from "./parseDocument";
 import { resolveNotebookPort } from "../../ports";
 import { getNotebookPresentationWarnings } from "../../presentation";
+import { hasMarkdownTable, markdownTableError } from "./findMarkdownTable";
 
 export function validateNotebookDocuments(
   documents: readonly { documentId: string; jsonl: string }[],
   layout: NotebookLayout,
   checkLayout: boolean,
 ) {
-  const errors: { documentId?: string; message: string }[] = [];
+  const errors: { documentId?: string; blockId?: string; message: string }[] =
+    [];
   const blocks = new Map<string, ReturnType<typeof parseDocument>>();
   const wide = layout.kind === "inbox" || layout.width === "full";
   const warnings: (ReturnType<
@@ -44,6 +46,17 @@ export function validateNotebookDocuments(
     try {
       const parsed = parseDocument(jsonl, "validate");
       blocks.set(documentId, parsed);
+      const pending = [...parsed];
+      for (const block of pending) {
+        if (block.schema === "row@1") pending.push(...block.props.children);
+        if (block.schema === "text@1" && hasMarkdownTable(block.content)) {
+          errors.push({
+            documentId,
+            blockId: block.id,
+            message: markdownTableError,
+          });
+        }
+      }
       for (const warning of getNotebookPresentationWarnings(parsed, wide)) {
         warnings.push({ documentId, ...warning });
       }

@@ -11,6 +11,7 @@ import { useNotebookMetricVisualization } from "./useNotebookMetricVisualization
 type ChartState =
   | { type: "ready"; rows: Record<string, unknown>[] }
   | { type: "loading" }
+  | { type: "blocked"; message: string }
   | { type: "error"; onRetry: () => void };
 
 export function NotebookChart({
@@ -41,8 +42,10 @@ export function NotebookChart({
   const content = (() => {
     if (isBigNumber && bigNumber !== undefined) {
       return (
-        <div>
-          <p className="text-2xl font-bold tabular-nums">{bigNumber}</p>
+        <div className="h-16 overflow-auto">
+          <p className="text-2xl font-bold wrap-break-word tabular-nums">
+            {bigNumber}
+          </p>
           {display.caption && (
             <p className="text-muted-foreground mt-1 text-xs">
               {display.caption}
@@ -51,7 +54,7 @@ export function NotebookChart({
         </div>
       );
     }
-    if (state.type === "ready" && !isBigNumber && query.metrics.length > 0) {
+    if (!isBigNumber && query.metrics.length > 0) {
       return query.metrics.map(({ aggregation, measure }) => (
         <NotebookMetricChart
           key={`${aggregation}_${measure}`}
@@ -60,7 +63,8 @@ export function NotebookChart({
             aggregation === measure ? measure : `${aggregation} ${measure}`
           }
           showLabel={query.metrics.length > 1}
-          rows={state.rows}
+          rows={state.type === "ready" ? state.rows : []}
+          state={state}
           dimensions={query.dimensions}
           hasTimeDimension={query.timeDimension !== null}
           kind={display.kind}
@@ -69,22 +73,24 @@ export function NotebookChart({
     }
     return (
       <div className={isBigNumber ? "h-16" : "h-64"}>
-        <VisualizationFrame
-          content={((): Visualization => {
-            if (state.type === "error") {
-              return {
-                type: "error",
-                message: "Could not load chart.",
-                onRetry: state.onRetry,
-              };
-            }
-            if (state.type === "loading") {
-              return { type: "loading", progress: { type: "spinner" } };
-            }
-            if (state.type === "ready") return { type: "empty" };
-            return assertUnreachable(state);
-          })()}
-        />
+        {state.type !== "blocked" && (
+          <VisualizationFrame
+            content={((): Visualization => {
+              if (state.type === "error") {
+                return {
+                  type: "error",
+                  message: "Could not load chart.",
+                  onRetry: state.onRetry,
+                };
+              }
+              if (state.type === "loading") {
+                return { type: "loading", progress: { type: "spinner" } };
+              }
+              if (state.type === "ready") return { type: "empty" };
+              return assertUnreachable(state);
+            })()}
+          />
+        )}
       </div>
     );
   })();
@@ -92,10 +98,10 @@ export function NotebookChart({
   return (
     <figure className="bg-background flex min-w-0 flex-1 flex-col gap-3 rounded-lg border">
       <figcaption>
-        {!!filters?.length && (
-          <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-t-lg border-b px-4 py-2">
-            <span className="text-muted-foreground text-xs font-medium">
-              Chart filters
+        {filters !== undefined && (
+          <div className="bg-muted/40 flex h-10 items-center gap-2 overflow-x-auto rounded-t-lg border-b px-4 whitespace-nowrap">
+            <span className="text-muted-foreground shrink-0 text-xs font-medium">
+              {state.type === "blocked" ? state.message : "Chart filters"}
             </span>
             {filters.map((filter, index) => (
               <Badge key={index} text={filter} size="sm" />
@@ -113,9 +119,11 @@ export function NotebookChart({
 
 function NotebookMetricChart({
   showLabel,
+  state,
   ...metric
 }: Parameters<typeof useNotebookMetricVisualization>[0] & {
   showLabel: boolean;
+  state: ChartState;
 }) {
   const content = useNotebookMetricVisualization(metric);
 
@@ -125,7 +133,21 @@ function NotebookMetricChart({
         <p className="text-muted-foreground text-xs">{metric.label}</p>
       )}
       <div className="h-64">
-        <VisualizationFrame content={content} />
+        {state.type !== "blocked" && (
+          <VisualizationFrame
+            content={
+              state.type === "loading"
+                ? { type: "loading", progress: { type: "spinner" } }
+                : state.type === "error"
+                  ? {
+                      type: "error",
+                      message: "Could not load chart.",
+                      onRetry: state.onRetry,
+                    }
+                  : content
+            }
+          />
+        )}
       </div>
     </div>
   );

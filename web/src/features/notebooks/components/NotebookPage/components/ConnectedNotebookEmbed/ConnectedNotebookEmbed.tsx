@@ -12,14 +12,23 @@ import { NotebookEmbed } from "../NotebookEmbed/NotebookEmbed";
 import { NotebookEmbedNavigation } from "../NotebookEmbed/NotebookEmbedNavigation";
 import { NotebookEmbedWorkspace } from "../NotebookEmbed/NotebookEmbedWorkspace";
 
-type ResourceProps = { projectId: string; resourceId: string };
+type ResourceProps = {
+  projectId: string;
+  resourceId: string;
+  sidebar?: "expanded" | "collapsed";
+};
 type EmbedProps = ComponentProps<typeof NotebookEmbed>;
 
-function ConnectedTraceWorkspace({ projectId, resourceId }: ResourceProps) {
+function ConnectedTraceWorkspace({
+  projectId,
+  resourceId,
+  sidebar,
+}: ResourceProps) {
   const trace = useTraceDetailData({ projectId, traceId: resourceId });
   if (!trace.isLoading && (trace.isError || !trace.data)) {
     return (
       <NotebookEmbed
+        embedded
         projectId={projectId}
         kind="trace"
         state={{ status: "unavailable" }}
@@ -37,6 +46,7 @@ function ConnectedTraceWorkspace({ projectId, resourceId }: ResourceProps) {
         <TraceDetailBody
           trace={trace.data}
           context="peek"
+          layout={sidebar === "collapsed" ? "observation-focused" : undefined}
           truncatedAtObservations={trace.truncatedAtObservations}
           header={{
             variant: "page",
@@ -53,6 +63,7 @@ function ConnectedSessionWorkspace({ projectId, resourceId }: ResourceProps) {
   if (!isResolved) {
     return (
       <NotebookEmbed
+        embedded
         projectId={projectId}
         kind="session"
         state={{ status: "loading" }}
@@ -91,27 +102,33 @@ export function ConnectedNotebookEmbed({
   kind,
   resourceId,
   variableName,
+  sidebar,
 }: Pick<EmbedProps, "projectId" | "kind"> & {
   resourceId: string | undefined;
   variableName: string | undefined;
+  sidebar?: ResourceProps["sidebar"];
 }) {
-  if (!resourceId?.trim()) {
-    return (
-      <NotebookEmbed
-        projectId={projectId}
-        kind={kind}
-        state={{ status: "empty", variableName }}
-      />
-    );
-  }
   const Workspace = workspaces[kind];
   return (
     <NotebookEmbedWorkspace kind={kind}>
-      <NotebookEmbedNavigation key={`${projectId}:${kind}:${resourceId}`}>
-        <DetailPageListsProvider>
-          <Workspace projectId={projectId} resourceId={resourceId} />
-        </DetailPageListsProvider>
-      </NotebookEmbedNavigation>
+      {resourceId?.trim() ? (
+        <NotebookEmbedNavigation key={`${projectId}:${kind}:${resourceId}`}>
+          <DetailPageListsProvider>
+            <Workspace
+              projectId={projectId}
+              resourceId={resourceId}
+              sidebar={sidebar}
+            />
+          </DetailPageListsProvider>
+        </NotebookEmbedNavigation>
+      ) : (
+        <NotebookEmbed
+          embedded
+          projectId={projectId}
+          kind={kind}
+          state={{ status: "empty", variableName }}
+        />
+      )}
     </NotebookEmbedWorkspace>
   );
 }

@@ -8,7 +8,7 @@ export const blockDiscoverySchema = z.strictObject({
   schema: z
     .enum(["text@1", "chart@1", "row@1", "table@1", "embed@1", "button@1"])
     .describe(
-      "For embed@1, use props {target: {kind: 'trace' or 'session', id?}}. Set id for a fixed resource or bind a notebook string variable to the resourceId input. For button@1, use props {label, action: {type: 'score.upsert@1', inputs: {traceId?, name, value}}}. Value is a number. Omit traceId when binding a string variable to the traceId input. Scores are upserted per reviewer, trace, and name.",
+      "For embed@1, use props {target: {kind: 'trace' or 'session', id?}}. Trace targets also accept sidebar: 'expanded' or 'collapsed' as an initial layout preference. Set id for a fixed resource or bind a notebook string variable to the resourceId input. For button@1, use props {label, action: {type: 'score.upsert@1', inputs: {traceId?, name, value}}}. Value is a number. Omit traceId when binding a string variable to the traceId input. Scores are upserted per reviewer, trace, and name.",
     ),
   props: z
     .looseObject({})

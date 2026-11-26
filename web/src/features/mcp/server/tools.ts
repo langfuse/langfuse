@@ -160,6 +160,10 @@ export function canCallTool(
   return (
     !inAppAgent ||
     tool.definition.annotations?.readOnlyHint === true ||
+    tool.definition.name === "create_notebook" ||
+    tool.definition.name === "write_document" ||
+    tool.definition.name === "patch_document" ||
+    tool.definition.name === "update_notebook_layout" ||
     (inAppAgent.permissions === "tool-allowlist" &&
       inAppAgent.allowedToolNames.some((name) => name === tool.definition.name))
   );

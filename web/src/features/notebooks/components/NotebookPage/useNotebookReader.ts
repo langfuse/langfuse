@@ -11,6 +11,7 @@ export function useNotebookReader(input: RouterInput["notebooks"]["view"]) {
   const notebook = api.notebooks.view.useQuery(input, {
     placeholderData: keepPreviousData,
     refetchOnMount: "always",
+    refetchInterval: input.draftDocumentId ? 3000 : false,
     meta: { silentAllErrors: true },
   });
   function onDocumentChange(documentId: string | null, version: number | null) {

@@ -8,6 +8,7 @@ import {
 import { writeDocument } from "@/src/features/notebooks/server/notebookService";
 import { defineHaloOnlyTool } from "../../../core/define-halo-only-tool";
 import { auditNotebookMutation } from "../auditNotebookMutation";
+import { getEvidenceLinks } from "../evidenceLinks";
 import { blockDiscoverySchema } from "../schema";
 
 import {
@@ -52,7 +53,7 @@ export const [writeDocumentTool, handleWriteDocument] = defineHaloOnlyTool({
   action: "notebooks:CUD",
   spanName: "mcp.notebooks.write_document",
   description:
-    "Stage a notebook document without publishing. Usually pass notebookId and markdown; this replaces main. Pass documentId to replace another document, or label to add one to Inbox or Tabs. Use blocks or jsonl instead of markdown for structured content. Prefer update_notebook_layout for layout changes.",
+    "Stage a notebook document without publishing. Pass notebookId and exactly one of markdown, blocks, or jsonl. Omit documentId and label to replace main, pass documentId to replace another document, or pass label to add a document to Inbox or Tabs.",
   baseSchema: writeDocumentSchema,
   inputSchema: writeDocumentSchema.superRefine((input, ctx) => {
     const bodyCount = [input.markdown, input.blocks, input.jsonl].filter(
@@ -96,6 +97,6 @@ export const [writeDocumentTool, handleWriteDocument] = defineHaloOnlyTool({
     await auditNotebookMutation(context, input.notebookId, "writeDocument", {
       documentId: result.documentId,
     });
-    return result;
+    return { ...result, evidenceLinks: getEvidenceLinks(result.blocks) };
   },
 });

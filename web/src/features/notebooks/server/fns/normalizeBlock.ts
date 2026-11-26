@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { assertUnreachable } from "@langfuse/shared";
+import { assertUnreachable, InvalidRequestError } from "@langfuse/shared";
 import type { z } from "zod";
 import {
   type NotebookBlock,
@@ -8,6 +8,7 @@ import {
   MAX_NOTEBOOK_NESTING,
 } from "../../schema";
 import { markdownToContent } from "./markdownToContent";
+import { hasMarkdownTable, markdownTableError } from "./findMarkdownTable";
 
 export function normalizeBlock(
   block: z.output<typeof notebookInputBlockSchema>,
@@ -21,6 +22,8 @@ export function normalizeBlock(
             maxNesting: MAX_NOTEBOOK_NESTING,
           })
         : block.content;
+    if (block.source === "markdown" && hasMarkdownTable(content))
+      throw new InvalidRequestError(`Block ${id}: ${markdownTableError}`);
     return { id, schema: block.schema, props: block.props ?? {}, content };
   }
   if (block.schema === "row@1") {

@@ -172,11 +172,17 @@ export async function listNotebooks(input: {
   };
 }
 
-export async function getNotebook(input: NotebookKey & { version?: number }) {
+export async function getNotebook(
+  input: NotebookKey & { version?: number; preferStaged?: boolean },
+) {
   return prisma.$transaction(
     async (tx) => {
       const notebook = await getNotebookRow(tx, input);
-      const version = input.version ?? notebook.latestPublishedVersion;
+      const version =
+        input.version ??
+        (input.preferStaged && notebook.dirty
+          ? null
+          : notebook.latestPublishedVersion);
       const { staged, published, dirty } = await readIndexes(tx, notebook);
       const snapshots = await tx.notebookPublication.findMany({
         where: { notebookId: notebook.id },
@@ -319,20 +325,32 @@ async function findCandidate(
   };
 }
 
+function getSnapshotFingerprint(
+  revision: number,
+  candidate: Awaited<ReturnType<typeof findCandidate>>,
+) {
+  return createHash("sha256")
+    .update(JSON.stringify({ revision, ...candidate }))
+    .digest("hex");
+}
+
 export async function validateNotebook(
   input: NotebookKey & { documentId?: string; sourceVersion?: number },
 ) {
   return prisma.$transaction(
     async (tx) => {
       const notebook = await getNotebookRow(tx, input);
-      const { documents, layout } = await findCandidate(
-        tx,
-        notebook.id,
+      const revision =
         input.sourceVersion === undefined
           ? notebook.draftRevision
-          : await getPublishedRevision(tx, notebook.id, input.sourceVersion),
+          : await getPublishedRevision(tx, notebook.id, input.sourceVersion);
+      const candidate = await findCandidate(
+        tx,
+        notebook.id,
+        revision,
         input.documentId,
       );
+      const { documents, layout } = candidate;
       const { errors, warnings } = validateNotebookDocuments(
         documents,
         layout,
@@ -343,6 +361,11 @@ export async function validateNotebook(
         valid: errors.length === 0,
         errors,
         warnings,
+        revision,
+        snapshotFingerprint:
+          input.documentId === undefined
+            ? getSnapshotFingerprint(revision, candidate)
+            : null,
         sourceVersion: input.sourceVersion ?? null,
         dirty: input.documentId ? dirty.has(input.documentId) : notebook.dirty,
         checkedDocumentIds: documents.map(({ documentId }) => documentId),
@@ -353,7 +376,11 @@ export async function validateNotebook(
 }
 
 export async function publishNotebook(
-  input: NotebookKey & { sourceVersion?: number; sourceRevision?: number },
+  input: NotebookKey & {
+    sourceVersion?: number;
+    sourceRevision?: number;
+    expectedSnapshotFingerprint?: string;
+  },
 ) {
   if (input.sourceVersion !== undefined && input.sourceRevision !== undefined) {
     throw new InvalidRequestError("Choose a source version or revision.");
@@ -365,11 +392,17 @@ export async function publishNotebook(
       input.sourceVersion === undefined
         ? (input.sourceRevision ?? notebook.draftRevision)
         : await getPublishedRevision(tx, notebook.id, input.sourceVersion);
-    const { documents, layout } = await findCandidate(
-      tx,
-      notebook.id,
-      revision,
-    );
+    const candidate = await findCandidate(tx, notebook.id, revision);
+    if (
+      input.expectedSnapshotFingerprint !== undefined &&
+      input.expectedSnapshotFingerprint !==
+        getSnapshotFingerprint(revision, candidate)
+    ) {
+      throw new InvalidRequestError(
+        "The notebook snapshot changed. Review it again before publishing.",
+      );
+    }
+    const { documents, layout } = candidate;
     const { errors } = validateNotebookDocuments(documents, layout, true);
     if (errors.length) {
       throw new InvalidRequestError(
@@ -472,7 +505,7 @@ export async function readDocument(input: ReadTarget) {
       (input.revision === undefined &&
         input.version === undefined &&
         input.preferStaged === true &&
-        notebook.dirty);
+        (notebook.dirty || notebook.latestPublishedVersion === null));
     const version =
       useDraft || input.revision !== undefined
         ? null

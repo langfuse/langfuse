@@ -3,6 +3,7 @@ import {
   type NotebookAction,
 } from "@/src/features/notebooks/schema";
 import { NotebookActionButton } from "./NotebookActionButton";
+import { NotebookChart } from "../NotebookChart/NotebookChart";
 import { Fragment, useState, type ComponentProps, type ReactNode } from "react";
 import { ArrowUpDown, Check } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -114,6 +115,7 @@ export function NotebookReader({
     >["props"]["target"]["kind"],
     resourceId: string | undefined,
     variableName: string | undefined,
+    sidebar?: "expanded" | "collapsed",
   ) => ReactNode;
   onExecuteAction?: (
     action: NotebookAction,
@@ -369,7 +371,12 @@ export function NotebookReader({
             "resourceId",
             target.id,
           );
-          return renderEmbed?.(target.kind, value, variableName);
+          return renderEmbed?.(
+            target.kind,
+            value,
+            variableName,
+            target.kind === "trace" ? target.sidebar : undefined,
+          );
         }}
         renderButton={(block) => {
           const { action, label } = block.props;
@@ -502,21 +509,28 @@ export function NotebookReader({
               (source && !choice)
             ) {
               return (
-                <div className="rounded-md border p-4 text-sm">
-                  <strong>{block.props.title ?? "Chart"}</strong>
-                  <p>
-                    {value === undefined
-                      ? `Select ${variable?.name ?? "a value"} to view this chart.`
-                      : `${variable?.name ?? "Value"} is unavailable.`}
-                  </p>
-                </div>
+                <NotebookChart
+                  block={block}
+                  filters={[]}
+                  state={{
+                    type: "blocked",
+                    message:
+                      value === undefined
+                        ? `Select ${variable?.name ?? "a value"} to view this chart.`
+                        : `${variable?.name ?? "Value"} is unavailable.`,
+                  }}
+                />
               );
             }
             if (portId === "filter" || portId === "timeRange")
               values[portId] = value;
             labels.push(`${variable.name}: ${choice?.label ?? labelOf(value)}`);
           }
-          return renderChart(block, labels.length ? values : undefined, labels);
+          return renderChart(
+            block,
+            labels.length ? values : undefined,
+            labels.length ? labels : undefined,
+          );
         }}
       />
     );

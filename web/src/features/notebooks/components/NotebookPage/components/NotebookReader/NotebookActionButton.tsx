@@ -35,16 +35,18 @@ export function NotebookActionButton({
           }
         }}
       />
-      {saved && status === "idle" && (
-        <p role="status" className="text-sm">
-          Saved rating: {label}.
-        </p>
-      )}
-      {status === "error" && (
-        <p role="alert" className="text-sm">
-          Could not save. Try again.
-        </p>
-      )}
+      <div className="min-h-5">
+        {saved && status === "idle" && (
+          <p role="status" className="text-sm">
+            Saved rating: {label}.
+          </p>
+        )}
+        {status === "error" && (
+          <p role="alert" className="text-sm">
+            Could not save. Try again.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

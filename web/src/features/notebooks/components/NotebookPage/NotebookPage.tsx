@@ -18,6 +18,9 @@ import { NotebookReader } from "./components/NotebookReader/NotebookReader";
 import { ConnectedNotebookEmbed } from "./components/ConnectedNotebookEmbed/ConnectedNotebookEmbed";
 import { NotebookVersionHistory } from "./components/NotebookVersionHistory/NotebookVersionHistory";
 import { useNotebookReader } from "./useNotebookReader";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 const notebookDocumentPath = z.tuple([notebookDocumentId]).optional();
 
@@ -90,6 +93,17 @@ function ConnectedNotebookReader({
   draftDocumentId,
   version,
 }: RouterInput["notebooks"]["view"]) {
+  const router = useRouter();
+  const { isV4 } = useReadPath();
+  const { closePeek, expandPeek } = usePeekNavigation({
+    tableName: "notebook",
+    isV4,
+    queryParams: ["observation", "timestamp"],
+    expandConfig: {
+      basePath: `/project/${encodeURIComponent(projectId)}/traces`,
+      reader: "trace",
+    },
+  });
   const [showControlledVariables, setShowControlledVariables] = useState(false);
   const { notebook, onDocumentChange, onVersionChange } = useNotebookReader({
     projectId,
@@ -106,6 +120,9 @@ function ConnectedNotebookReader({
   );
   const headerActions = (
     <>
+      {draftDocumentId && view?.isDraft && (
+        <Badge text="Live draft" size="sm" />
+      )}
       {view?.layout.bindings?.some(({ kind }) => kind === "write") && (
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
@@ -157,12 +174,13 @@ function ConnectedNotebookReader({
         showControlledVariables={showControlledVariables}
         isLoadingDocument={notebook.isPlaceholderData}
         onDocumentChange={onDocumentChange}
-        renderEmbed={(kind, resourceId, variableName) => (
+        renderEmbed={(kind, resourceId, variableName, sidebar) => (
           <ConnectedNotebookEmbed
             projectId={projectId}
             kind={kind}
             resourceId={resourceId}
             variableName={variableName}
+            sidebar={sidebar}
           />
         )}
         renderChart={(block, values, filters) => (
@@ -208,6 +226,18 @@ function ConnectedNotebookReader({
       >
         {content}
       </Page>
+      {typeof router.query.peek === "string" && (
+        <TablePeekViewTraceDetail
+          projectId={projectId}
+          itemType="TRACE"
+          tableName="notebook"
+          isV4={isV4}
+          layout={router.query.observation ? "observation-focused" : "default"}
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          disableScopeToggle
+        />
+      )}
     </div>
   );
 }

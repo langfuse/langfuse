@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  notebookDocumentId,
-  notebookVersion,
-} from "@/src/features/notebooks/schema";
+import { notebookDocumentId } from "@/src/features/notebooks/schema";
 import { getNotebook } from "@/src/features/notebooks/server/notebookService";
 import { defineHaloOnlyTool } from "../../../core/define-halo-only-tool";
 
@@ -14,8 +11,14 @@ export const [getNotebookTool, handleGetNotebook] = defineHaloOnlyTool({
   spanName: "mcp.notebooks.get_notebook",
   readOnlyHint: true,
   description:
-    "Get notebook metadata, the document index for the requested or latest published version, and live draft status. Unpublished notebooks return a staged index and no version.",
-  baseSchema: z.object({ notebookId, version: notebookVersion.optional() }),
-  handler: (input, context) =>
-    getNotebook({ ...input, projectId: context.projectId }),
+    "Get notebook metadata and the current document index and layout. Unpublished changes take precedence over the latest publication.",
+  baseSchema: z.strictObject({ notebookId }),
+  handler: async (input, context) => {
+    const { versions, revisions, ...notebook } = await getNotebook({
+      ...input,
+      projectId: context.projectId,
+      preferStaged: true,
+    });
+    return notebook;
+  },
 });

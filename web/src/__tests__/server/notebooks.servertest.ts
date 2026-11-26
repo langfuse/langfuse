@@ -117,6 +117,33 @@ describe("notebooks", () => {
     });
   });
 
+  it("rejects a stale publish fingerprint even when the revision number is unchanged", async () => {
+    const { projectId } = await project();
+    const { notebookId } = await createNotebook({ projectId, title: "Review" });
+    const key = { projectId, notebookId };
+    const edit = { ...key, documentId: "main", userId: "editor" };
+    await writeDocument({ ...edit, markdown: "Before review" });
+    const before = await validateNotebook(key);
+    await writeDocument({ ...edit, markdown: "After review" });
+    const after = await validateNotebook(key);
+    expect(after.revision).toBe(before.revision);
+    if (!before.snapshotFingerprint || !after.snapshotFingerprint) {
+      throw new Error("Missing snapshot fingerprint");
+    }
+    await expect(
+      publishNotebook({
+        ...key,
+        expectedSnapshotFingerprint: before.snapshotFingerprint,
+      }),
+    ).rejects.toThrow("The notebook snapshot changed");
+    await expect(
+      publishNotebook({
+        ...key,
+        expectedSnapshotFingerprint: after.snapshotFingerprint,
+      }),
+    ).resolves.toMatchObject({ version: 1 });
+  });
+
   it("recovers staged content and reads immutable published versions through project-scoped links", async () => {
     const { projectId, caller } = await project();
     const { caller: outsider, projectId: otherProjectId } = await project();

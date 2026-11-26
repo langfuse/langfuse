@@ -289,7 +289,7 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "notebooks:read" },
   },
   create_notebook: {
-    approval: "approval",
+    approval: "auto",
     availability: { scope: "notebooks:CUD" },
   },
   validate_notebook: {
@@ -305,15 +305,15 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "notebooks:read" },
   },
   write_document: {
-    approval: "approval",
+    approval: "auto",
     availability: { scope: "notebooks:CUD" },
   },
   patch_document: {
-    approval: "approval",
+    approval: "auto",
     availability: { scope: "notebooks:CUD" },
   },
   update_notebook_layout: {
-    approval: "approval",
+    approval: "auto",
     availability: { scope: "notebooks:CUD" },
   },
   listObservations: {

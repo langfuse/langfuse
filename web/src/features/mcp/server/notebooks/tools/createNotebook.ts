@@ -14,7 +14,7 @@ export const [createNotebookTool, handleCreateNotebook] = defineHaloOnlyTool({
   action: "notebooks:CUD",
   spanName: "mcp.notebooks.create_notebook",
   description:
-    "Create an unpublished notebook with a main document. Default shows only main; Inbox and Tabs can hold more documents. Use write_document or patch_document to stage content, then publish_notebook to release it.",
+    "Create an unpublished notebook with a main document. Default shows only main; Inbox and Tabs can hold more documents.",
   baseSchema: z.object({
     title: notebookTitleText.trim().min(1),
     layout: notebookLayoutKind
