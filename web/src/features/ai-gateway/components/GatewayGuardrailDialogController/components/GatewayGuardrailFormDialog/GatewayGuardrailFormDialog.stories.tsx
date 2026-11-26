@@ -326,9 +326,9 @@ export const OutputStreamingNotice = meta.story({
   },
   play: async () => {
     const dialog = within(document.body).getByRole("dialog");
-    await expect(
-      within(dialog).getByText("Streaming is turned off when checking output."),
-    ).toBeVisible();
+    await expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Streaming is turned off when checking output.",
+    );
   },
 });
 
@@ -353,11 +353,7 @@ export const InputHidesStreamingNotice = meta.story({
   },
   play: async () => {
     const dialog = within(document.body).getByRole("dialog");
-    await expect(
-      within(dialog).queryByText(
-        "Streaming is turned off when checking output.",
-      ),
-    ).toBeNull();
+    await expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   },
 });
 
