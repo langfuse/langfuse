@@ -81,12 +81,11 @@ export function EvaluationTypeToggle({
           onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
         >
           <Tabs.List variant="inset" size="md">
-            {visibleTypes.map(({ value: typeValue, label, icon }) => (
+            {visibleTypes.map(({ value: typeValue, label }) => (
               <Tabs.Trigger
                 key={typeValue}
                 value={typeValue}
                 disabled={disabled}
-                icon={icon}
                 label={label}
               />
             ))}

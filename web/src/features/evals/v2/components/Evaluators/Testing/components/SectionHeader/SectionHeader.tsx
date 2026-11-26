@@ -14,7 +14,7 @@ export function SectionHeader({
   title: string;
   meta: ReactNode;
   description: string | null;
-  tooltip: string;
+  tooltip?: string;
   trailing: ReactNode;
   /** "wrap" moves the trailing control below the description when space is tight. */
   trailingLayout?: "inline" | "wrap";
@@ -26,7 +26,9 @@ export function SectionHeader({
           {title}
         </h3>
         {meta}
-        <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip>
+        {tooltip ? (
+          <InfoTooltip label={`About ${title}`}>{tooltip}</InfoTooltip>
+        ) : null}
       </div>
       {description || trailing ? (
         <div

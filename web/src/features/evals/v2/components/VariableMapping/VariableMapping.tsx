@@ -34,7 +34,7 @@ function ReadOnlyVariableMapping({
   variableDisplay?: VariableDisplay;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       {mappings.map((mapping) => (
         <ReadOnlyVariableMappingCardShell
           key={mapping.variable}

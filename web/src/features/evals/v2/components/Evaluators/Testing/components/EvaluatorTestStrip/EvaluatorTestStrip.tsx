@@ -46,17 +46,17 @@ export function EvaluatorTestStrip({
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-6">
+      <div className="flex h-11 shrink-0 items-center justify-between gap-3 px-4">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-sm"
+          className="inline-flex items-center gap-1.5 text-sm font-bold"
           aria-expanded={showResult}
           onClick={() => setOpen((current) => !current)}
         >
           {showResult ? (
-            <ChevronDown size="sm" color="default" />
+            <ChevronDown size="sm" color="muted" />
           ) : (
-            <ChevronRight size="sm" color="default" />
+            <ChevronRight size="sm" color="muted" />
           )}
           Test
         </button>
@@ -68,8 +68,8 @@ export function EvaluatorTestStrip({
             onRunTest();
           }}
           label="Run test"
-          variant="default"
           showIcon={false}
+          size="default"
         />
       </div>
       {showResult ? (

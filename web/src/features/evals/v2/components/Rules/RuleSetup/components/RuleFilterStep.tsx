@@ -81,7 +81,7 @@ export function RuleFilterStep({
               disabled={scopeLocked}
               onChange={() => actions.setTargetObject(TopicsTargetObject)}
             />
-            Trace messages
+            Trace
           </label>
           {scopeLocked ? (
             <span className="text-muted-foreground text-xs">

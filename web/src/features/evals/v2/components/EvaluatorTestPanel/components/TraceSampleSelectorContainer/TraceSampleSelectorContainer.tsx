@@ -58,7 +58,10 @@ export function TraceSampleSelectorContainer({
       filterTooltip={TRACE_FILTER_TOOLTIP}
       matchingDescription=""
       matchingTooltip=""
-      formatCount={(count) => compactNumberFormatter(count)}
+      filterTitle="Filter traces"
+      formatCount={(count) =>
+        `· ${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"}`
+      }
       mapObservedOptions={preserveObservedOptions}
       samplePresentation="detail"
       targetObject={TopicsTargetObject}

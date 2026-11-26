@@ -19,7 +19,7 @@ export function VariableMappingBinding({
   if (segments === null) {
     return (
       <span
-        className="min-w-0 truncate font-mono text-sm"
+        className="min-w-0 truncate text-sm"
         title={`${columnLabel}: ${jsonSelector ?? ""} — custom path`}
       >
         {columnLabel}: {jsonSelector}
@@ -42,7 +42,7 @@ export function VariableMappingBinding({
         >
           <ChevronRight size="sm" color="muted" __rawClassName="self-center" />
           <span
-            className="relative top-px max-w-40 truncate font-mono text-sm"
+            className="max-w-40 truncate text-sm"
             title={label === "..." ? fullPath : label}
           >
             {label}

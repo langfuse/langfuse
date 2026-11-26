@@ -23,7 +23,7 @@ export function ScoreOutputConfiguration(props: ScoreOutputConfigurationProps) {
     change({ ...props.state, ...selector });
 
   return (
-    <div className="@container flex flex-col gap-4">
+    <div className="@container flex flex-col gap-2">
       <ScoreOutputSection
         state={props.state}
         onChange={changeSelector}

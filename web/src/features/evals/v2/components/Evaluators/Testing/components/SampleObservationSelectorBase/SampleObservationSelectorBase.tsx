@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type UIEvent } from "react";
 import {
   CircleAlert,
   Database,
@@ -25,7 +25,7 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
@@ -40,6 +40,7 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
@@ -62,6 +63,9 @@ export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
 
 const PAGE_SIZE = 25;
+/** Trace samples keep loading observation pages until this many traces show up. */
+const MIN_SAMPLE_TRACES = 5;
+const MAX_TRACE_SAMPLE_PAGES = 8;
 
 const EXAMPLES = [
   {
@@ -194,7 +198,7 @@ function matchingTraces(observations: SampleObservation[]) {
 
 function selectorLayoutClassName(showTraceDetail: boolean) {
   if (showTraceDetail) {
-    return "flex min-h-0 flex-1 flex-col overflow-hidden";
+    return "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden";
   }
   return "flex shrink-0 flex-col gap-6";
 }
@@ -462,6 +466,28 @@ export function SampleObservationSelectorBase(
   const detailSelectionToReconcile = querySettled
     ? resolveSelection(detailObservations, selectedObservationId)
     : undefined;
+  const loadedPageCount = observationQuery.data?.pages.length ?? 0;
+  const needsMoreTraces =
+    isTraceTarget &&
+    showTraceDetail &&
+    querySettled &&
+    observationQuery.hasNextPage &&
+    detailObservations.length < MIN_SAMPLE_TRACES &&
+    loadedPageCount < MAX_TRACE_SAMPLE_PAGES;
+  const selectedSampleIndex = detailObservations.findIndex(
+    (observation) => observation.id === selectedObservationId,
+  );
+  const isNearLastSample =
+    showTraceDetail &&
+    querySettled &&
+    observationQuery.hasNextPage &&
+    selectedSampleIndex >= detailObservations.length - 2;
+  const needsNextPage = needsMoreTraces || isNearLastSample;
+  const fetchNextObservationPage = observationQuery.fetchNextPage;
+  useEffect(() => {
+    if (!needsNextPage) return;
+    fetchNextObservationPage().catch(() => undefined);
+  }, [needsNextPage, loadedPageCount, fetchNextObservationPage]);
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -568,6 +594,7 @@ export function SampleObservationSelectorBase(
   const filterModeControl = (
     <EvaluatorFilterModeDropdown
       mode={filterMode}
+      size={showTraceDetail ? "sm" : "default"}
       onChange={(mode) => {
         if (mode === "builder" && searchQuery !== null) {
           search.applyFilters(filterState);
@@ -577,27 +604,58 @@ export function SampleObservationSelectorBase(
     />
   );
 
+  const traceCountQuery = api.events.countAll.useQuery(
+    {
+      projectId,
+      filter: effectiveFilters,
+      searchQuery,
+      searchType,
+      orderBy: null,
+    },
+    { enabled: isTraceTarget && showTraceDetail },
+  );
+  const traceCount = traceCountQuery.data?.uniqueTraceCount ?? null;
+  const sampleCount = isTraceTarget ? traceCount : options.approxTotalCount;
+  const sampleCountLabel =
+    sampleCount !== null ? formatCount(sampleCount) : null;
+  // An approximate count can trail what is already loaded.
+  const sampleTotal =
+    sampleCount !== null
+      ? compactNumberFormatter(Math.max(sampleCount, detailObservations.length))
+      : null;
+  const sampleTitle = isTraceTarget
+    ? "Matching traces"
+    : "Matching observations";
+  const presetButtons =
+    filterMode === "query"
+      ? examples.map((example) => (
+          <Button
+            key={example.label}
+            type="button"
+            variant="ghost"
+            size={showTraceDetail ? "sm" : "default"}
+            icon={example.icon}
+            text={example.label}
+            onClick={() => {
+              setFilters((current) =>
+                toggleExampleFilters(current, [...example.filters]),
+              );
+            }}
+          />
+        ))
+      : null;
+
   return (
     <div className={selectorLayoutClassName(showTraceDetail)}>
       <section
+        aria-label={showTraceDetail ? filterTitle : undefined}
         className={
           showTraceDetail
-            ? "bg-secondary flex flex-col gap-1 px-4 py-2"
+            ? "bg-card flex shrink-0 flex-col gap-2 rounded-lg border px-2.5 py-2"
             : "flex flex-col gap-2"
         }
       >
-        {showTraceDetail ? (
-          <div className="flex items-center gap-2">
-            <SectionHeader
-              title="Filter"
-              meta={null}
-              description={null}
-              tooltip={filterTooltip}
-              trailing={null}
-            />
-            <div className="ml-auto shrink-0">{filterModeControl}</div>
-          </div>
-        ) : (
+        {showTraceDetail ? null : (
           <SectionHeader
             title={filterTitle}
             meta={null}
@@ -633,39 +691,23 @@ export function SampleObservationSelectorBase(
             queryOnlyColumnIds={queryOnlyColumnIds}
           />
         )}
-        {filterMode === "query" ? (
-          <div
-            className={
-              showTraceDetail ? "flex flex-wrap gap-1" : "flex flex-wrap gap-2"
-            }
-          >
-            {examples.map((example) => (
-              <Button
-                key={example.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                className={
-                  showTraceDetail
-                    ? "gap-1"
-                    : "flex h-8 items-center gap-2 text-sm"
-                }
-                onClick={() => {
-                  setFilters((current) =>
-                    toggleExampleFilters(current, [...example.filters]),
-                  );
-                }}
-              >
-                <example.icon size="base" />
-                <span>{example.label}</span>
-              </Button>
-            ))}
+        {showTraceDetail ? (
+          <div className="flex items-center gap-2">
+            <div className="text-muted-foreground -ml-2 flex min-w-0 flex-wrap gap-0.5">
+              {presetButtons}
+            </div>
+            <div className="ml-auto shrink-0">{filterModeControl}</div>
           </div>
+        ) : presetButtons ? (
+          <div className="-ml-3 flex flex-wrap">{presetButtons}</div>
         ) : null}
       </section>
 
       {showTraceDetail && (
-        <div className="flex min-h-0 flex-1 flex-col border-t">
+        <section
+          aria-label={sampleTitle}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <div
             ref={
               detailSelectionToReconcile !== undefined
@@ -680,12 +722,15 @@ export function SampleObservationSelectorBase(
           <EvaluatorSampleDetail
             projectId={projectId}
             targetObject={targetObject}
+            title={sampleTitle}
+            count={sampleCountLabel}
+            total={sampleTotal}
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}
             onSelect={onSelect}
           />
-        </div>
+        </section>
       )}
       {!showTraceDetail && !isTraceTarget && (
         <section className="flex min-h-0 flex-col gap-2">

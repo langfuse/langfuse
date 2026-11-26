@@ -9,21 +9,21 @@ export function TestRunButton({
   onRun,
   disabledReason,
   label = "Run test on this sample",
-  variant = "outline",
   showIcon = true,
+  size = "sm",
 }: {
   isPending: boolean;
   onRun: () => void;
   disabledReason: string | null;
   label?: string;
-  variant?: "outline" | "default";
   showIcon?: boolean;
+  size?: "sm" | "default";
 }) {
   const button = (
     <Button
       type="button"
-      variant={variant}
-      size="sm"
+      variant="outline"
+      size={size}
       loading={isPending}
       disabled={Boolean(disabledReason)}
       title={

@@ -21,7 +21,7 @@ function VariableMappingCardHeaderContent({
 }) {
   return (
     <>
-      <span className="text-primary-accent shrink-0 font-mono font-bold">
+      <span className="text-primary-accent shrink-0 font-bold">
         {variableDisplay === "stateKey" ? variable : `{{${variable}}}`}
       </span>
       <span className="text-muted-foreground shrink-0">

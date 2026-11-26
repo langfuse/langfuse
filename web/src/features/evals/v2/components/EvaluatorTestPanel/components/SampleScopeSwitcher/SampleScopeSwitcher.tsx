@@ -25,45 +25,49 @@ export function SampleScopeSwitcher({
   );
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <h2 className="font-bold whitespace-nowrap">Test with</h2>
-      <Tabs
-        value={targetObject}
-        onValueChange={(value) =>
-          onTargetObjectChange(
-            value === TopicsTargetObject
-              ? TopicsTargetObject
-              : EvalTargetObject.EVENT,
-          )
-        }
-      >
-        <Tabs.List variant="inset" size="sm">
-          <Tabs.Trigger
-            value={EvalTargetObject.EVENT}
-            label="Observation"
-            tooltip="Evaluate one observation's input, output, and metadata."
-          />
-          {traceAvailable ? (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <h2 className="text-base font-bold whitespace-nowrap">Evaluate</h2>
+      <div className="min-w-0">
+        <Tabs
+          value={targetObject}
+          onValueChange={(value) =>
+            onTargetObjectChange(
+              value === TopicsTargetObject
+                ? TopicsTargetObject
+                : EvalTargetObject.EVENT,
+            )
+          }
+        >
+          <Tabs.List
+            variant="inset"
+            size="md"
+            emphasis="strong"
+            aria-label="Evaluate"
+          >
             <Tabs.Trigger
-              value={TopicsTargetObject}
-              label="Trace messages"
-              tooltip="Evaluate all the messages within a trace as one transcript."
+              value={EvalTargetObject.EVENT}
+              label="Observations"
+              tooltip="Evaluate one observation's input, output, and metadata."
             />
-          ) : (
-            <Tabs.Trigger
-              value={TopicsTargetObject}
-              disabled
-              title="Coming soon"
-            >
-              Trace messages
-              <FeatureReleaseStatus status="coming-soon" />
-            </Tabs.Trigger>
-          )}
-        </Tabs.List>
-      </Tabs>
-      {targetObject === TopicsTargetObject ? (
-        <FeatureReleaseStatus status="internal" />
-      ) : null}
+            {traceAvailable ? (
+              <Tabs.Trigger
+                value={TopicsTargetObject}
+                label="Traces"
+                tooltip="Evaluate all the messages within a trace as one transcript."
+              />
+            ) : (
+              <Tabs.Trigger
+                value={TopicsTargetObject}
+                disabled
+                title="Coming soon"
+              >
+                Traces
+                <FeatureReleaseStatus status="coming-soon" />
+              </Tabs.Trigger>
+            )}
+          </Tabs.List>
+        </Tabs>
+      </div>
     </div>
   );
 }
