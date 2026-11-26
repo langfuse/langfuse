@@ -193,32 +193,33 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the bound project, else the project the path, header, and Basic auth username agree on, else a query-string projectId; a bound key refuses a request naming another project. */
+/** getProjectId resolves the bound project, else the path project, else the project the header and Basic auth username agree on, else a query-string projectId; a bound key refuses a request naming another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError | InvalidRequestError> {
-  const selected = [
-    getPathProjectId(req),
+  const pathProjectId = getPathProjectId(req);
+  const defaultProjectIds = [
     getHeaderProjectId(req),
     getBasicAuthProjectId(context, req),
   ];
-  if (!equal(selected)) {
+  if (!equal(defaultProjectIds)) {
     return invalidProjectError();
   }
 
   const boundProjectId = getBoundProjectId(context);
-  const requestedProjectId = first(selected);
-  if (
-    boundProjectId &&
-    requestedProjectId &&
-    requestedProjectId !== boundProjectId
-  ) {
-    return unauthorizedProjectError(requestedProjectId);
+  const foreignProjectId = [pathProjectId, ...defaultProjectIds].find(
+    (id) => boundProjectId && id && id !== boundProjectId,
+  );
+  if (foreignProjectId) {
+    return unauthorizedProjectError(foreignProjectId);
   }
 
   const projectId =
-    boundProjectId ?? requestedProjectId ?? getUrlProjectId(req);
+    boundProjectId ??
+    pathProjectId ??
+    first(defaultProjectIds) ??
+    getUrlProjectId(req);
   if (!projectId) {
     return missingProjectError();
   }
@@ -233,10 +234,10 @@ function missingProjectError(): ErrorResult<ForbiddenError> {
   );
 }
 
-/** invalidProjectError is the 400 for a request whose header, authorization header, and URL path name different projects. */
+/** invalidProjectError is the 400 for a request whose header and authorization header name different projects. */
 function invalidProjectError(): ErrorResult<InvalidRequestError> {
   return invalidRequestError(
-    `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
+    `Project ids from the '${projectIdHeader}' header and authorization header disagree`,
   );
 }
 

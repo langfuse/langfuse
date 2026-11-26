@@ -218,7 +218,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("400s an unbound key whose path and header name different projects", () => {
+    it("prefers the path project over the header for an unbound key", () => {
       expect(
         getProjectId(
           orgKey(),
@@ -228,10 +228,32 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
             `/api/public/projects/${PRJ}/apiKeys`,
           ),
         ),
-      ).toMatchObject(
-        invalidRequest(
-          "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("prefers the path project over the Basic auth username for an unbound key", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req(
+            { projectId: PRJ },
+            basic("prj_2"),
+            `/api/public/projects/${PRJ}/apiKeys`,
+          ),
         ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("403s a bound key whose header names another project than its path", () => {
+      expect(
+        getProjectId(
+          projectKey(),
+          req(
+            { projectId: PRJ },
+            { [projectIdHeader]: "prj_2" },
+            `/api/public/projects/${PRJ}/apiKeys`,
+          ),
+        ),
+      ).toMatchObject(
+        forbidden("The API Key is not authorized to access project 'prj_2'"),
       );
     });
     it("prefers the header over a query-string project", () => {
@@ -301,7 +323,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toMatchObject(
         invalidRequest(
-          "Project ids from the 'langfuse-project-id' header, authorization header, and url path disagree",
+          "Project ids from the 'langfuse-project-id' header and authorization header disagree",
         ),
       );
     });
