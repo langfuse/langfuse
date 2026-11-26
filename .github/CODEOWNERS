@@ -132,8 +132,8 @@
 
 # Query builder: code that applies the project_id (tenant isolation) filter.
 # tenancy.ts is narrower than /packages/shared/src/server/query-ast/ above, so it wins for this file.
-/packages/shared/src/features/query/server/queryBuilder.ts @niklassemmler
-/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler
+/packages/shared/src/features/query/server/queryBuilder.ts @niklassemmler @Steffen911
+/packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts @niklassemmler @Steffen911
 /packages/shared/src/server/query-ast/tenancy.ts @niklassemmler @Steffen911 @sumerman
 
 # Dockerfiles and root docker-compose files
