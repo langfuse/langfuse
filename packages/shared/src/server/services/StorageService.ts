@@ -1008,8 +1008,10 @@ class S3StorageService implements StorageService {
     err: unknown,
     fields?: Record<string, unknown>,
   ): void {
+    // A caller-initiated cancellation (AbortError) is not a client failure.
     const log =
-      this.logSlowDownAsWarning && isS3SlowDownError(err)
+      (this.logSlowDownAsWarning && isS3SlowDownError(err)) ||
+      (err instanceof Error && err.name === "AbortError")
         ? logger.warn
         : logger.error;
     if (fields) {

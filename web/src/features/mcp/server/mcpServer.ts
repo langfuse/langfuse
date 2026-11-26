@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Server Instance
  *
@@ -13,10 +12,11 @@
  */
 
 import {
-  Server,
+  McpServer,
   ProtocolError,
   ProtocolErrorCode,
   isInputRequiredResult,
+  type ClientCapabilities,
 } from "@modelcontextprotocol/server";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
@@ -24,8 +24,6 @@ import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { canCallTool, getEnabledTool, getEnabledTools } from "./tools";
-import { registerSkillResources } from "./skills/resources";
-import { registerResources } from "./resources";
 import {
   clientMayRenderApps,
   isAppTool,
@@ -34,6 +32,8 @@ import {
 } from "../core/mcp-app";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { langfuseSkills } from "@/src/features/mcp/server/skills/resources";
+import { registerWidgetAppResource } from "@/src/features/mcp/server/apps/resources";
 
 const MCP_SERVER_NAME = "langfuse";
 
@@ -65,29 +65,35 @@ export const getMcpServerInstructions = (): string =>
  * Tools come from the feature modules listed in `tools.ts`.
  *
  * @param context - Server context from authenticated request (captured in closures)
+ * @param clientCapabilities - Capabilities the request declared, if any;
+ *   decides whether MCP App tools and their resources are offered
  * @returns Configured MCP Server instance
  *
  * @example
  * // In API route:
- * const server = createMcpServer(context);
+ * const server = await createMcpServer(context);
  * await server.connect(transport);
  * // ... handle request ...
  * // Server discarded after request
  */
-export function createMcpServer(context: ServerContext): Server {
-  const server = new Server(
+export async function createMcpServer(
+  context: ServerContext,
+  clientCapabilities?: ClientCapabilities,
+): Promise<McpServer> {
+  const server = new McpServer(
     {
       name: MCP_SERVER_NAME,
       version: MCP_SERVER_VERSION,
     },
     {
       capabilities: {
-        tools: {},
-        resources: {},
-        extensions: {
-          "io.modelcontextprotocol/skills": {},
-          ...MCP_APPS_EXTENSION,
-        },
+        // Each request gets a fresh instance and nothing publishes change
+        // events, so no list-changed notification is ever sent. Advertising
+        // them would have 2026-07-28 clients hold a subscriptions/listen
+        // response open until they disconnect.
+        tools: { listChanged: false },
+        resources: { listChanged: false },
+        extensions: MCP_APPS_EXTENSION,
       },
       instructions: getMcpServerInstructions(),
       // A stateless 2025-era request carries no client capabilities (those
@@ -97,15 +103,28 @@ export function createMcpServer(context: ServerContext): Server {
     },
   );
 
-  registerSkillResources(server);
-  registerResources(server);
+  const skillCatalog = await langfuseSkills;
+  skillCatalog.attach(server);
+  if (clientMayRenderApps(clientCapabilities)) {
+    registerWidgetAppResource(server);
+  }
+
+  // Tools keep their own handlers on the underlying low-level server.
+  server.server.registerCapabilities({ tools: {} });
 
   // ListTools handler - dynamically load from registry
-  server.setRequestHandler("tools/list", async (_request, ctx) => {
+  server.server.setRequestHandler("tools/list", async () => {
+    // Protocol fields only: `action` is for the server's permission check.
     const definitions = (await getEnabledTools(context)).map(
-      (tool) => tool.definition,
+      ({ definition }) => ({
+        name: definition.name,
+        description: definition.description,
+        inputSchema: definition.inputSchema,
+        annotations: definition.annotations,
+        _meta: definition._meta,
+      }),
     );
-    const tools = clientMayRenderApps(ctx)
+    const tools = clientMayRenderApps(clientCapabilities)
       ? definitions
       : definitions.filter((definition) => !isAppTool(definition));
 
@@ -119,7 +138,7 @@ export function createMcpServer(context: ServerContext): Server {
   });
 
   // CallTool handler - route to registered tool handlers
-  server.setRequestHandler("tools/call", async (request, ctx) => {
+  server.server.setRequestHandler("tools/call", async (request, ctx) => {
     const { name, arguments: args } = request.params;
 
     logger.debug("MCP CallTool", {

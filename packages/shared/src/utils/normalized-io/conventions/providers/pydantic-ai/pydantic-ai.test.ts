@@ -5,7 +5,7 @@ import {
   capturedTraceFixtures,
   agentRunFixture,
   pydanticAiProductionShapeFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("Pydantic AI normalized I/O", () => {
   it("leaves unrelated message history as data", () => {

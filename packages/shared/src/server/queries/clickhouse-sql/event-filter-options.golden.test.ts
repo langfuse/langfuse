@@ -35,7 +35,7 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../../repositories/goldenHarness";
+} from "../../repositories/__tests__/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
@@ -44,7 +44,7 @@ vi.mock("../../repositories/clickhouse", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../../repositories/clickhouse")>();
   const { buildClickhouseMock } =
-    await import("../../repositories/goldenHarness.js");
+    await import("../../repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 

@@ -1,8 +1,40 @@
 import { describe, expect, it } from "vitest";
 
-import { buildComponentRelationshipGraph } from "./componentRelationshipData";
+import {
+  buildComponentRelationshipGraph,
+  componentIdForDesignSystemStory,
+  focusComponentRelationshipGraph,
+} from "./componentRelationshipData";
+
+describe("componentIdForDesignSystemStory", () => {
+  it("maps nested design-system story paths to graph node IDs", () => {
+    expect(
+      componentIdForDesignSystemStory(
+        "./src/components/design-system/table/components/UserTableCell/UserTableCell.stories.tsx",
+      ),
+    ).toBe("Table / UserTableCell");
+  });
+
+  it("ignores stories outside the design system", () => {
+    expect(
+      componentIdForDesignSystemStory("./src/features/Button.stories.tsx"),
+    ).toBeNull();
+  });
+});
 
 describe("buildComponentRelationshipGraph", () => {
+  it("matches Windows source paths to their story node IDs", () => {
+    const graph = buildComponentRelationshipGraph({
+      "src\\components\\design-system\\Button\\Button.tsx": "",
+    });
+
+    expect(graph.nodes.map(({ id }) => id)).toEqual([
+      componentIdForDesignSystemStory(
+        "src\\components\\design-system\\Button\\Button.stories.tsx",
+      ),
+    ]);
+  });
+
   it("builds component-level edges from alias and relative imports", () => {
     const graph = buildComponentRelationshipGraph({
       "../../src/components/design-system/Button/Button.tsx": "export {}",
@@ -21,20 +53,42 @@ describe("buildComponentRelationshipGraph", () => {
           label: "Button",
           kind: "component",
           group: null,
+          paths: ["Button/Button.tsx"],
         },
         {
           id: "Dialog",
           label: "Dialog",
           kind: "component",
           group: null,
+          paths: ["Dialog/Dialog.tsx"],
         },
-        { id: "Form", label: "Form", kind: "component", group: null },
+        {
+          id: "Form",
+          label: "Form",
+          kind: "component",
+          group: null,
+          paths: ["Form/Form.tsx"],
+        },
       ],
       edges: [
         { id: "Dialog->Button", source: "Dialog", target: "Button" },
         { id: "Form->Dialog", source: "Form", target: "Dialog" },
       ],
     });
+  });
+
+  it("keeps every source path represented by a component node", () => {
+    const graph = buildComponentRelationshipGraph({
+      "../../src/components/design-system/Button/Button.tsx": "export {};",
+      "../../src/components/design-system/Button/components/ButtonIcon.tsx":
+        "export {};",
+    });
+
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]?.paths).toEqual([
+      "Button/Button.tsx",
+      "Button/components/ButtonIcon.tsx",
+    ]);
   });
 
   it("keeps nested design-system areas readable", () => {
@@ -86,5 +140,59 @@ describe("buildComponentRelationshipGraph", () => {
       id: "Utilities / formatLabel",
       group: "Utilities",
     });
+  });
+
+  it("classifies constants files separately from components", () => {
+    const graph = buildComponentRelationshipGraph({
+      "../../src/components/design-system/charts/constants.ts":
+        "export const chartHeight = 200;",
+    });
+
+    expect(graph.nodes[0]).toMatchObject({
+      id: "Charts / constants",
+      kind: "constants",
+    });
+  });
+});
+
+describe("focusComponentRelationshipGraph", () => {
+  it.each([
+    [
+      "dependencies",
+      ["Base", "Leaf", "Selected"],
+      ["Base->Leaf", "Selected->Base"],
+    ],
+    [
+      "dependents",
+      ["Page", "Selected", "Wrapper"],
+      ["Page->Wrapper", "Wrapper->Selected"],
+    ],
+    [
+      "both",
+      ["Base", "Leaf", "Page", "Selected", "Wrapper"],
+      ["Base->Leaf", "Page->Wrapper", "Selected->Base", "Wrapper->Selected"],
+    ],
+  ] as const)("follows only %s paths", (direction, nodes, edges) => {
+    const graph = buildComponentRelationshipGraph({
+      "../../src/components/design-system/Selected/Selected.tsx":
+        'import "../Base/Base";',
+      "../../src/components/design-system/Base/Base.tsx":
+        'import "../Leaf/Leaf";',
+      "../../src/components/design-system/Leaf/Leaf.tsx": "export {};",
+      "../../src/components/design-system/Wrapper/Wrapper.tsx":
+        'import "../Selected/Selected"; import "../Base/Base";',
+      "../../src/components/design-system/Page/Page.tsx":
+        'import "../Wrapper/Wrapper"; import "../Unrelated/Unrelated";',
+      "../../src/components/design-system/Unrelated/Unrelated.tsx":
+        "export {};",
+    });
+
+    const focused = focusComponentRelationshipGraph(
+      graph,
+      "Selected",
+      direction,
+    );
+    expect(focused.nodes.map(({ id }) => id)).toEqual(nodes);
+    expect(focused.edges.map(({ id }) => id)).toEqual(edges);
   });
 });

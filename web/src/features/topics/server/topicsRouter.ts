@@ -131,6 +131,8 @@ const tracesInput = projectInput.extend({
           "awaiting_map",
           "not_applicable",
           "insufficient_input",
+          "empty_input",
+          "input_too_large",
         ]),
       ),
     })

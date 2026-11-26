@@ -77,9 +77,13 @@ import { applyObservationFieldOverflow } from "../../features/observation-field-
  * Parse a value to a UInt16-compatible number (0–65535).
  * Returns undefined if the value is nullish or not a valid UInt16 integer.
  */
-function parseUInt16(value: string | null | undefined): number | undefined {
+function parseUInt16(
+  value: string | number | null | undefined,
+): number | undefined {
   if (value == null) return undefined;
-  const num = parseInt(value, 10);
+  // parseInt stringifies a number first, and 1e21 and above stringify in
+  // exponent notation, so parseInt(1e21) is 1.
+  const num = typeof value === "number" ? value : parseInt(value, 10);
   if (!Number.isInteger(num) || num < 0 || num > 65535) return undefined;
   return num;
 }

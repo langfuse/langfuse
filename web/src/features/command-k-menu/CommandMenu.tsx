@@ -306,9 +306,11 @@ function RecentItem({
 
 function CreateActionItem({
   action,
+  hasSearch,
   onNavigate,
 }: {
   action: CreateAction;
+  hasSearch: boolean;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
@@ -320,6 +322,7 @@ function CreateActionItem({
       type: "create_action",
       title: action.title,
       url: action.url,
+      hasSearch,
     });
     onNavigate({
       title: action.title,
@@ -559,49 +562,52 @@ function MainNavigationGroup({
       {navItems.map((item) => (
         <Fragment key={item.url}>
           <MainNavigationItem item={item} onNavigate={onNavigate} />
-          {isSearching && (
-            <NavItemExtras
-              shortcuts={pageShortcuts.byNavUrl.get(item.url) ?? []}
-              actions={createActions.byNavUrl.get(item.url) ?? []}
-              onNavigate={onNavigate}
-            />
-          )}
+          <NavItemExtras
+            shortcuts={pageShortcuts.byNavUrl.get(item.url) ?? []}
+            actions={createActions.byNavUrl.get(item.url) ?? []}
+            isSearching={isSearching}
+            onNavigate={onNavigate}
+          />
         </Fragment>
       ))}
-      {isSearching && (
-        <NavItemExtras
-          shortcuts={pageShortcuts.standalone}
-          actions={createActions.standalone}
-          onNavigate={onNavigate}
-        />
-      )}
+      <NavItemExtras
+        shortcuts={pageShortcuts.standalone}
+        actions={createActions.standalone}
+        isSearching={isSearching}
+        onNavigate={onNavigate}
+      />
       {isSearching && <ThemeItem onDone={onDone} />}
     </CommandGroup>
   );
 }
 
+// Create actions always show; page shortcuts only while searching.
 function NavItemExtras({
   shortcuts,
   actions,
+  isSearching,
   onNavigate,
 }: {
   shortcuts: NavMenuItem[];
   actions: CreateAction[];
+  isSearching: boolean;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   return (
     <>
-      {shortcuts.map((shortcut) => (
-        <MainNavigationItem
-          key={shortcut.url}
-          item={shortcut}
-          onNavigate={onNavigate}
-        />
-      ))}
+      {isSearching &&
+        shortcuts.map((shortcut) => (
+          <MainNavigationItem
+            key={shortcut.url}
+            item={shortcut}
+            onNavigate={onNavigate}
+          />
+        ))}
       {actions.map((action) => (
         <CreateActionItem
           key={action.url}
           action={action}
+          hasSearch={isSearching}
           onNavigate={onNavigate}
         />
       ))}

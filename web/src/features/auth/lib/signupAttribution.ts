@@ -23,7 +23,7 @@ type AdClickIds = {
 };
 
 /** Where a new user's first visit came from, as `cloud_signup_complete` properties */
-export type SignupSource = {
+type SignupSource = {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;

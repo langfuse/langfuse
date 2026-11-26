@@ -7,12 +7,79 @@
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { EXTENSION_ID as MCP_APPS_EXTENSION_ID } from "@modelcontextprotocol/ext-apps/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
-import { createMcpHandler } from "@modelcontextprotocol/server";
+import {
+  CLIENT_CAPABILITIES_META_KEY,
+  createMcpHandler,
+  type ClientCapabilities,
+} from "@modelcontextprotocol/server";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import { createMcpServer } from "./mcpServer";
-import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
+import { recordResourceRead } from "./resources";
+
+/**
+ * Capabilities a 2026-07-28 request declares in its `_meta` envelope, as sent:
+ * the SDK validates the request only after the server is built.
+ */
+const declaredClientCapabilities = (
+  body: unknown,
+): ClientCapabilities | undefined =>
+  (
+    body as
+      | { params?: { _meta?: Record<string, ClientCapabilities | undefined> } }
+      | undefined
+  )?.params?._meta?.[CLIENT_CAPABILITIES_META_KEY];
+
+const TRACKED_CAPABILITIES = [
+  "elicitation",
+  "roots",
+  "sampling",
+  "tasks",
+] as const satisfies readonly (keyof ClientCapabilities)[];
+
+/**
+ * The non-experimental extensions from
+ * https://modelcontextprotocol.io/extensions/overview that a client declares.
+ * Server Cards is left out: it is a document clients fetch, not a declaration.
+ */
+const TRACKED_EXTENSIONS = {
+  enterprise_managed_authorization:
+    "io.modelcontextprotocol/enterprise-managed-authorization",
+  events: "io.modelcontextprotocol/events",
+  oauth_client_credentials: "io.modelcontextprotocol/oauth-client-credentials",
+  skills: "io.modelcontextprotocol/skills",
+  tasks: "io.modelcontextprotocol/tasks",
+  ui: MCP_APPS_EXTENSION_ID,
+} as const;
+
+/**
+ * One boolean span attribute per tracked capability and extension, `false`
+ * included, so each one splits requests into supported and unsupported.
+ */
+const clientSupportAttributes = (
+  capabilities: ClientCapabilities,
+): Record<string, boolean> => {
+  const extensions: unknown = capabilities?.extensions;
+  const declaredExtensions =
+    extensions !== null && typeof extensions === "object" ? extensions : {};
+  return {
+    ...Object.fromEntries(
+      TRACKED_CAPABILITIES.map((name) => [
+        `mcp.client.capabilities.${name}`,
+        capabilities?.[name] !== undefined,
+      ]),
+    ),
+    ...Object.fromEntries(
+      Object.entries(TRACKED_EXTENSIONS).map(([name, id]) => [
+        `mcp.client.extensions.${name}`,
+        id in declaredExtensions,
+      ]),
+    ),
+  };
+};
 
 /**
  * Handle an authenticated MCP request.
@@ -40,10 +107,18 @@ export async function handleMcpRequest(
       span?.setAttribute("mcp.protocol.version", protocolVersion);
     }
 
+    // 2025-era clients declare capabilities only on `initialize`, so only
+    // 2026-07-28 requests carry them.
+    const clientCapabilities = declaredClientCapabilities(req.body);
+    if (clientCapabilities !== undefined) {
+      span?.setAttributes(clientSupportAttributes(clientCapabilities));
+    }
+    recordResourceRead(req.body, clientCapabilities);
+
     const handler = createMcpHandler(
       ({ era }) => {
         span?.setAttribute("mcp.protocol.era", era);
-        return createMcpServer(context);
+        return createMcpServer(context, clientCapabilities);
       },
       {
         onerror: (error) => {

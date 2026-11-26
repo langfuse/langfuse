@@ -68,10 +68,19 @@ function StoryGuardrailFormDialog(
   );
 }
 
-const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES[0]!;
-const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[1]!;
-const containsTemplate = GATEWAY_GUARDRAIL_TEMPLATES[2]!;
-const bedrockTemplate = GATEWAY_GUARDRAIL_TEMPLATES[3]!;
+const piiTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find((t) => t.id === "pii")!;
+const secretsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "secrets",
+)!;
+const containsTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "contains",
+)!;
+const customRegexTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "custom_regex",
+)!;
+const bedrockTemplate = GATEWAY_GUARDRAIL_TEMPLATES.find(
+  (t) => t.id === "bedrock",
+)!;
 
 const meta = preview.meta({
   component: StoryGuardrailFormDialog,
@@ -140,6 +149,35 @@ export const CreateKeywordBlocklist = meta.story({
   },
 });
 
+export const CreateCustomRegex = meta.story({
+  args: {
+    title: customRegexTemplate.name,
+    submitLabel: "Add guardrail",
+    templateKind: "custom_regex",
+    availablePresets: [],
+    initialValues: {
+      name: customRegexTemplate.name,
+      presets: [],
+      secretPrefixes: [],
+      containsWords: [],
+      customRegex: String.raw`\bORD-\d{6}\b`,
+      action: "BLOCK",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: customRegexTemplate.sampleTestText,
+    customRegexPreview: {
+      pattern: String.raw`\bORD-\d{6}\b`,
+      text: customRegexTemplate.sampleTestText,
+      isFetching: false,
+      result: { valid: true, matches: [{ start: 6, end: 16 }] },
+      onChange: fn(),
+    },
+    isSubmitting: false,
+    errorMessage: null,
+    onBack: fn(),
+  },
+});
+
 export const CreateBedrock = meta.story({
   args: {
     title: bedrockTemplate.name,
@@ -156,7 +194,7 @@ export const CreateBedrock = meta.story({
       presets: [],
       secretPrefixes: [],
       containsWords: [],
-      action: "BLOCK",
+      action: "ENFORCE",
       targets: [EVERYONE_TARGET_OPTION],
     },
     isSubmitting: false,
@@ -187,7 +225,7 @@ export const EditBedrock = meta.story({
         guardrailVersion: "1",
         region: "us-east-1",
       },
-      action: "BLOCK",
+      action: "ENFORCE",
       targets: [EVERYONE_TARGET_OPTION],
     },
     isSubmitting: false,
@@ -209,6 +247,27 @@ export const EditGuardrail = meta.story({
       action: "BLOCK",
       targets: [TARGET_OPTIONS[1]!, TARGET_OPTIONS[2]!],
     },
+    isSubmitting: false,
+    errorMessage: null,
+  },
+});
+
+export const EditRedactGuardrail = meta.story({
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Redact emails",
+      presets: ["email"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "REDACT",
+      redactionLabel: "[EMAIL]",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    initialTestText: piiTemplate.sampleTestText,
     isSubmitting: false,
     errorMessage: null,
   },

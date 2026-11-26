@@ -11,6 +11,10 @@
  * the host query owns, which a WHERE-only condition cannot express) and
  * `positionInTrace` (a window over the trace, not a row condition) throw.
  * A condition's `target` is host-owned and ignored here.
+ *
+ * `lowerFieldCondition` lowers one condition over any host query, from a
+ * lowering whose value that query's builder builds: the same templates for
+ * the dashboard score views, which read `scores` and joined relations.
  */
 import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 
@@ -46,6 +50,8 @@ import {
   hasAny,
   literal,
   lower,
+  mapContains,
+  mapValue,
   metadataSubstringPrefilter,
   metadataTokenPrefilter,
   notEmpty,
@@ -66,11 +72,19 @@ import { clickhouseCompliantRandomCharacters } from "./clickhouse";
 import {
   EVENTS_FIELD_LOWERINGS,
   type EventsFieldLowering,
+  type FieldLowering,
   type ScalarFieldLowering,
 } from "./events-predicate-fields";
 import { scopedToEvents, type EventsExpressionBuilder } from "./events-selects";
 
 type Condition = Expression<SqlBool>;
+
+/**
+ * Combines values a host query's builder already built (`ops(a, "=", b)`,
+ * `ops.and`, `ops.val`); it reads no relation of its own, so the lowerings
+ * share it across hosts.
+ */
+const ops = expressionBuilder<Record<string, never>, never>();
 
 /** A condition type of `PredicateCondition`, narrowed to its value. */
 type ConditionOf<T extends PredicateCondition["type"]> = Extract<
@@ -246,11 +260,7 @@ function lowerCondition(
   eb: EventsExpressionBuilder,
   condition: PredicateCondition,
 ): Condition[] {
-  return lowerFieldCondition(
-    eb,
-    resolveCondition(condition).lowering,
-    condition,
-  );
+  return lowerEventsField(eb, resolveCondition(condition).lowering, condition);
 }
 
 /**
@@ -266,21 +276,45 @@ export const lowerEventsFieldCondition = scopedToEvents(
     eb,
     lowering: EventsFieldLowering,
     condition: PredicateCondition,
-  ): Condition[] => lowerFieldCondition(eb, lowering, condition),
+  ): Condition[] => lowerEventsField(eb, lowering, condition),
 );
 
 /**
  * The conjuncts of {@link lowerEventsFieldCondition}: a metadata lowering
- * takes the metadata conditions, any other lowering dispatches on
- * `condition.type`.
+ * takes the metadata conditions, any other goes to
+ * {@link lowerFieldCondition}.
  */
-function lowerFieldCondition(
+function lowerEventsField(
   eb: EventsExpressionBuilder,
   lowering: EventsFieldLowering,
   condition: PredicateCondition,
 ): Condition[] {
-  if (lowering.kind === "metadata") {
-    return lowerMetadataCondition(eb, condition);
+  return lowering.kind === "metadata"
+    ? lowerMetadataCondition(eb, condition)
+    : lowerFieldCondition(eb, lowering, condition);
+}
+
+/**
+ * `condition` as conjuncts over any host query, comparing the value
+ * `lowering` builds with that query's expression builder `eb`; the
+ * condition's field id is not looked up. The dashboard score views lower
+ * their filters on `scores` and joined relations through it, and
+ * {@link lowerEventsFieldCondition} its non-metadata lowerings.
+ *
+ * - A scalar lowering dispatches on `condition.type`; a type its value kind
+ *   does not take throws `QueryCompileError`, as do the condition types no
+ *   scalar lowering takes (`categoryOptions`, `stringObject`,
+ *   `booleanObject`, `positionInTrace`, …).
+ * - A `mapMetadata` lowering takes `stringObject` conditions on one key of a
+ *   `Map(String, String)` column ({@link lowerMapMetadataCondition}).
+ */
+export function lowerFieldCondition<B>(
+  eb: B,
+  lowering: FieldLowering<B>,
+  condition: PredicateCondition,
+): Condition[] {
+  if (lowering.kind === "mapMetadata") {
+    return lowerMapMetadataCondition(lowering.map(eb), condition);
   }
   switch (condition.type) {
     case "string":
@@ -289,10 +323,10 @@ function lowerFieldCondition(
       return [lowerStringOptions(eb, lowering, condition)];
     case "arrayOptions":
       if (lowering.kind !== "array") throw loweringKindError(condition);
-      return [lowerArrayOptions(eb, lowering.value(eb), condition)];
+      return [lowerArrayOptions(lowering.value(eb), condition)];
     case "number":
       return [
-        eb(
+        ops(
           lowering.value(eb),
           condition.op,
           typedValue(
@@ -305,7 +339,7 @@ function lowerFieldCondition(
       // Precision 3 is the value's: a `Date` holds milliseconds. ClickHouse
       // compares it exactly against the `DateTime64(6)` columns.
       return [
-        eb(
+        ops(
           lowering.value(eb),
           condition.op,
           typedValue(
@@ -316,7 +350,7 @@ function lowerFieldCondition(
       ];
     case "boolean":
       return [
-        eb(
+        ops(
           lowering.value(eb),
           condition.op,
           typedValue(condition.value, "Boolean"),
@@ -335,11 +369,50 @@ function lowerFieldCondition(
   }
 }
 
+/**
+ * A `stringObject` condition on one key of a `Map(String, String)` column
+ * `map`, as `FilterList` renders it on a map: the key must be present
+ * (`mapContains(map, k)`, else the lookup reads `''`), then `map[k]` is
+ * compared; `is not set` is `not (mapContains(map, k))`. Throws
+ * `InvalidRequestError` for an empty `contains` / `starts with` / `ends with`
+ * value, and `QueryCompileError` for `matches` (a map has no text index)
+ * and for any other condition type.
+ */
+function lowerMapMetadataCondition(
+  map: Expression<Record<string, string>>,
+  condition: PredicateCondition,
+): Condition[] {
+  const keyed = checkMetadataKeyCondition(condition);
+  if (keyed.type !== "stringObject" || keyed.op === FTS_MATCH_OPERATOR) {
+    throw new QueryCompileError(
+      `'${keyed.type}' '${keyed.op}' conditions on a metadata map are not lowered.`,
+    );
+  }
+  const { field, op, value: search } = keyed;
+  const hasKey = mapContains(map, ops.val(field.key));
+  const entry = mapValue(map, field.key);
+  const bound = ops.val(search);
+  switch (op) {
+    case "=":
+      return [hasKey, ops(entry, "=", bound)];
+    case "contains":
+      return [hasKey, ops(position(entry, bound), ">", literal(0))];
+    case "does not contain":
+      return [hasKey, ops(position(entry, bound), "=", literal(0))];
+    case "starts with":
+      return [hasKey, ops.parens(startsWith(entry, bound))];
+    case "ends with":
+      return [hasKey, ops.parens(endsWith(entry, bound))];
+    case "is set":
+      return [hasKey];
+    case "is not set":
+      return [ops.not(ops.parens(hasKey))];
+  }
+}
+
 /** `(value = '' OR value IS NULL)` */
-const isEmptyOrNull = (
-  eb: EventsExpressionBuilder,
-  value: Expression<unknown>,
-) => eb.or([eb(value, "=", literal("")), eb(value, "is", null)]);
+const isEmptyOrNull = (value: Expression<unknown>) =>
+  ops.or([ops(value, "=", literal("")), ops(value, "is", null)]);
 
 /**
  * `hasAllTokens(lower(text), arraySlice(arrayDistinct(tokens(lower(search))), 1, 64))`:
@@ -359,32 +432,31 @@ const textTokenPrefilter = (
   );
 
 /** `lower(value) LIKE lower(pattern)`: the ngram-index prefilter. */
-const ngramLike = (
-  eb: EventsExpressionBuilder,
-  value: Expression<string>,
-  pattern: string,
-) => eb(lower(value), "like", lower(eb.val(pattern)));
+const ngramLike = (value: Expression<string>, pattern: string) =>
+  ops(lower(value), "like", lower(ops.val(pattern)));
 
 /**
  * `({p:Array(String)})`, the operand of `IN`. Typed as one string, as Kysely
  * types a one-column subquery operand.
  */
-const inList = (eb: EventsExpressionBuilder, values: string[]) =>
-  eb.parens(typedValue<string>(values, STRING_ARRAY));
+const inList = (values: string[]) =>
+  ops.parens(typedValue<string>(values, STRING_ARRAY));
 
-type TextLowering = Extract<
-  ScalarFieldLowering,
+/** A string-valued lowering (`string` or `nullableString`) over builder `B`. */
+type TextLowering<B> = Extract<
+  ScalarFieldLowering<B>,
   { kind: "string" | "nullableString" }
 >;
 
 /**
- * `lowering` of a string-valued field. Throws `QueryCompileError` when the
- * source field takes string conditions its lowering's value kind does not.
+ * `lowering` of a string-valued field, over the host builder `B`. Throws
+ * `QueryCompileError` when the source field takes string conditions its
+ * lowering's value kind does not.
  */
-function textLowering(
-  lowering: ScalarFieldLowering,
+function textLowering<B>(
+  lowering: ScalarFieldLowering<B>,
   condition: PredicateCondition,
-): TextLowering {
+): TextLowering<B> {
   if (lowering.kind === "string" || lowering.kind === "nullableString") {
     return lowering;
   }
@@ -392,14 +464,15 @@ function textLowering(
 }
 
 /**
- * `condition` on a string field. An empty value under `=`, `contains`,
+ * `condition` on a string field, its value built with the host builder
+ * `eb` of type `B`. An empty value under `=`, `contains`,
  * `starts with` or `ends with` matches empty-or-NULL on an
  * `emptyEqualsNull` field. Indexed columns add an ngram or text-token
  * prefilter. `matches` throws unless the field is text-indexed.
  */
-function lowerString(
-  eb: EventsExpressionBuilder,
-  lowering: TextLowering,
+function lowerString<B>(
+  eb: B,
+  lowering: TextLowering<B>,
   condition: ConditionOf<"string">,
 ): Condition[] {
   const { op, value: search } = condition;
@@ -407,7 +480,7 @@ function lowerString(
   // Index facts and the non-null value they read; only string columns have
   // them.
   const indexed = lowering.kind === "string" ? lowering : undefined;
-  const bound = eb.val(search);
+  const bound = ops.val(search);
   if (
     lowering.emptyEqualsNull &&
     search === "" &&
@@ -416,41 +489,41 @@ function lowerString(
       op === "starts with" ||
       op === "ends with")
   ) {
-    return [isEmptyOrNull(eb, value)];
+    return [isEmptyOrNull(value)];
   }
   // Substring operators prefilter on the ngram index for a non-empty value.
   const withNgram = (pattern: string, exact: Condition): Condition =>
     indexed?.ngramIndexed && search.length > 0
-      ? eb.and([ngramLike(eb, indexed.value(eb), pattern), exact])
+      ? ops.and([ngramLike(indexed.value(eb), pattern), exact])
       : exact;
   const escaped = escapeSqlLikePattern(search);
 
   switch (op) {
     case "=": {
-      const exact = eb(value, "=", bound);
+      const exact = ops(value, "=", bound);
       if (indexed?.textIndexed) {
         return [
           hasFtsSearchToken(search)
-            ? eb.and([exact, textTokenPrefilter(indexed.value(eb), bound)])
+            ? ops.and([exact, textTokenPrefilter(indexed.value(eb), bound)])
             : exact,
         ];
       }
       return [
         indexed?.ngramIndexed
-          ? eb.and([eb(lower(indexed.value(eb)), "=", lower(bound)), exact])
+          ? ops.and([ops(lower(indexed.value(eb)), "=", lower(bound)), exact])
           : exact,
       ];
     }
     case "contains":
       return [
-        withNgram(`%${escaped}%`, eb(position(value, bound), ">", literal(0))),
+        withNgram(`%${escaped}%`, ops(position(value, bound), ">", literal(0))),
       ];
     case "does not contain": {
-      const absent = eb(position(value, bound), "=", literal(0));
+      const absent = ops(position(value, bound), "=", literal(0));
       // '' counts as NULL, so an empty value must not match.
       return [
         lowering.emptyEqualsNull
-          ? eb.and([eb(value, "!=", literal("")), absent])
+          ? ops.and([ops(value, "!=", literal("")), absent])
           : absent,
       ];
     }
@@ -460,7 +533,7 @@ function lowerString(
       return [withNgram(`%${escaped}`, endsWith(value, bound))];
     case "is not empty":
       return [
-        eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]),
+        ops.and([ops(value, "!=", literal("")), ops(value, "is not", null)]),
       ];
     case FTS_MATCH_OPERATOR: {
       if (!hasFtsSearchToken(search)) {
@@ -470,8 +543,8 @@ function lowerString(
       if (!indexed?.textIndexed) throw loweringKindError(condition);
       const text = indexed.value(eb);
       return [
-        eb.and([
-          eb(position(lower(text), lower(bound)), ">", literal(0)),
+        ops.and([
+          ops(position(lower(text), lower(bound)), ">", literal(0)),
           textTokenPrefilter(text, bound),
         ]),
       ];
@@ -479,58 +552,67 @@ function lowerString(
   }
 }
 
-function lowerStringOptions(
-  eb: EventsExpressionBuilder,
-  lowering: ScalarFieldLowering,
+/**
+ * `condition` on a string field, its value built with the host builder
+ * `eb`: `IN` / `NOT IN` a bound list, `''` and NULL as one value on an
+ * `emptyEqualsNull` field, and an ngram prefilter on an indexed one.
+ */
+function lowerStringOptions<B>(
+  eb: B,
+  lowering: ScalarFieldLowering<B>,
   { op, value: values }: ConditionOf<"stringOptions">,
 ): Condition {
   const value = lowering.value(eb);
-  const list = inList(eb, values);
+  const list = inList(values);
   const hasEmpty = lowering.emptyEqualsNull && values.includes("");
   if (op === "any of") {
-    const listed = eb(value, "in", list);
+    const listed = ops(value, "in", list);
     const matched =
       lowering.kind === "string" && lowering.ngramIndexed && values.length > 0
-        ? eb.and([
-            eb(
+        ? ops.and([
+            ops(
               lower(lowering.value(eb)),
               "in",
-              inList(eb, values.map(clickhouseAsciiLower)),
+              inList(values.map(clickhouseAsciiLower)),
             ),
             listed,
           ])
         : listed;
     // '' counts as NULL, so listing '' also matches NULL.
-    return hasEmpty ? eb.or([matched, eb(value, "is", null)]) : matched;
+    return hasEmpty ? ops.or([matched, ops(value, "is", null)]) : matched;
   }
-  const notInList = eb(value, "not in", list);
+  const notInList = ops(value, "not in", list);
   if (!lowering.emptyEqualsNull) return notInList;
   // '' counts as NULL: exclude both, or only '' when '' is not listed.
-  return eb.and([
+  return ops.and([
     notInList,
-    hasEmpty ? eb(value, "is not", null) : eb(value, "!=", literal("")),
+    hasEmpty ? ops(value, "is not", null) : ops(value, "!=", literal("")),
   ]);
 }
 
 function lowerArrayOptions(
-  eb: EventsExpressionBuilder,
   array: Expression<Array<string | null>>,
   { op, value: values }: ConditionOf<"arrayOptions">,
 ): Condition {
   const list = typedValue<string[]>(values, STRING_ARRAY);
   switch (op) {
     case "any of":
-      return eb(hasAny(list, array), "=", literal(true));
+      return ops(hasAny(list, array), "=", literal(true));
     case "none of":
-      return eb(hasAny(list, array), "=", literal(false));
+      return ops(hasAny(list, array), "=", literal(false));
     case "all of":
-      return eb(hasAll(array, list), "=", literal(true));
+      return ops(hasAll(array, list), "=", literal(true));
   }
 }
 
-function lowerNull(
-  eb: EventsExpressionBuilder,
-  lowering: ScalarFieldLowering,
+/**
+ * `is [not] null` on a field, its value built with the host builder `eb`:
+ * emptiness for an array, `''` or NULL for a `string` or `emptyEqualsNull`
+ * field, NULL alone otherwise.
+ */
+function lowerNull<B>(
+  eb: B,
+  lowering: ScalarFieldLowering<B>,
   { op }: ConditionOf<"null">,
 ): Condition {
   // A missing string is '' (or NULL on a nullable one); a missing array is
@@ -542,10 +624,10 @@ function lowerNull(
   const value = lowering.value(eb);
   if (lowering.emptyEqualsNull || lowering.kind === "string") {
     return op === "is null"
-      ? isEmptyOrNull(eb, value)
-      : eb.and([eb(value, "!=", literal("")), eb(value, "is not", null)]);
+      ? isEmptyOrNull(value)
+      : ops.and([ops(value, "!=", literal("")), ops(value, "is not", null)]);
   }
-  return eb(value, op === "is null" ? "is" : "is not", null);
+  return ops(value, op === "is null" ? "is" : "is not", null);
 }
 
 type MetadataKeyCondition =
@@ -757,14 +839,10 @@ const ioMatcher =
 const SEARCH_MATCHERS: Record<string, SearchMatcher> = {
   span_id: (eb, { text }) => [eb("e.span_id", "=", eb.val(text))],
   trace_id: (eb, { text }) => [eb("e.trace_id", "=", eb.val(text))],
-  name: (eb, { pattern }) => [ngramLike(eb, eb.ref("e.name"), pattern)],
-  trace_name: (eb, { pattern }) => [
-    ngramLike(eb, eb.ref("e.trace_name"), pattern),
-  ],
-  user_id: (eb, { pattern }) => [ngramLike(eb, eb.ref("e.user_id"), pattern)],
-  session_id: (eb, { pattern }) => [
-    ngramLike(eb, eb.ref("e.session_id"), pattern),
-  ],
+  name: (eb, { pattern }) => [ngramLike(eb.ref("e.name"), pattern)],
+  trace_name: (eb, { pattern }) => [ngramLike(eb.ref("e.trace_name"), pattern)],
+  user_id: (eb, { pattern }) => [ngramLike(eb.ref("e.user_id"), pattern)],
+  session_id: (eb, { pattern }) => [ngramLike(eb.ref("e.session_id"), pattern)],
   input: ioMatcher("e.input"),
   output: ioMatcher("e.output"),
 };

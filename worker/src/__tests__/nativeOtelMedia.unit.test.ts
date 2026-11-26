@@ -10,7 +10,7 @@ import {
   mediaPayloadCases,
   PNG_BASE64,
   TEXT_BASE64,
-} from "../../../packages/shared/src/server/media/MediaPayloadProcessor.fixtures";
+} from "../../../packages/shared/src/server/media/__tests__/MediaPayloadProcessor.fixtures";
 import { getMediaId } from "../../../packages/shared/src/server/media/mediaService";
 import { processOtelMedia } from "../../../packages/shared/src/server/otel/OtelMediaProcessor";
 import { encodeOtelLookups } from "../features/otel-ingestion/encodeOtelLookups";

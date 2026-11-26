@@ -89,6 +89,7 @@ export class BufferedStreamUploader {
   private currentBuffer: Buffer[] = [];
   private currentBufferSize = 0;
   private isCompleted = false;
+  private sourceFailed = false;
   private inFlightUploads: Map<symbol, Promise<void>> = new Map();
   private readonly errors = new ErrorSink();
   private readonly stats: UploadPartStats;
@@ -104,6 +105,14 @@ export class BufferedStreamUploader {
   }
 
   async upload(stream: Readable): Promise<UploadPartStats> {
+    // A failed source (e.g. a shutdown abort) dooms the upload, so in-flight
+    // parts stop retrying and no new part is scheduled. Listened for directly:
+    // while the reader waits for a free part slot it does not pull, so the
+    // loop below would only see the error later.
+    const onSourceError = () => {
+      this.sourceFailed = true;
+    };
+    stream.once("error", onSourceError);
     try {
       await this.params.strategy.initialize();
 
@@ -169,6 +178,7 @@ export class BufferedStreamUploader {
       await this.params.strategy.complete(sortedParts);
       this.isCompleted = true;
     } finally {
+      stream.off("error", onSourceError);
       if (!this.isCompleted) {
         await Promise.all(this.inFlightUploads.values());
         await this.params.strategy.abort("upload failed or incomplete");
@@ -237,12 +247,13 @@ export class BufferedStreamUploader {
     // Wait for a slot if all concurrent slots are full
     while (
       this.inFlightUploads.size >= this.params.maxConcurrentParts &&
-      !this.errors.hasError()
+      !this.errors.hasError() &&
+      !this.sourceFailed
     ) {
       await Promise.race(this.inFlightUploads.values());
     }
 
-    if (this.errors.hasError()) return;
+    if (this.errors.hasError() || this.sourceFailed) return;
 
     this.scheduleUpload(partData, this.partNumber);
   }
@@ -278,7 +289,7 @@ export class BufferedStreamUploader {
       timeMultiple: 2,
       maxDelay: 10_000,
       retry: (error: Error, attemptNumber: number) => {
-        if (!isTransientError(error)) {
+        if (this.sourceFailed || !isTransientError(error)) {
           return false;
         }
         // backoff also invokes this on the final failing attempt; skip counting

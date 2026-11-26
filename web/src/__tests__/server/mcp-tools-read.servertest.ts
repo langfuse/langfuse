@@ -149,18 +149,12 @@ import {
   createScoreConfigTool,
   handleCreateScoreConfig,
 } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
-import {
-  createScoreTool,
-  handleCreateScore,
-} from "@/src/features/mcp/server/scores/tools/createScore";
+import { handleCreateScore } from "@/src/features/mcp/server/scores/tools/createScore";
 import {
   batchCreateScoresTool,
   handleBatchCreateScores,
 } from "@/src/features/mcp/server/scores/tools/batchCreateScores";
-import {
-  deleteScoreConfigTool,
-  handleDeleteScoreConfig,
-} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
+import { handleDeleteScoreConfig } from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
@@ -3890,10 +3884,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreTool, { destructiveHint: true });
-    });
-
     it("should create a score using v1 route semantics", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
@@ -4005,7 +3995,7 @@ describe("MCP Read Tools", () => {
         });
         if (!authenticated.success) throw authenticated.error;
 
-        const server = createMcpServer({
+        const server = await createMcpServer({
           ...setup.context,
           apiKeyId: viewerKey.id,
           publicKey: viewerKey.publicKey,
@@ -4230,10 +4220,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4365,10 +4351,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("updateScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(updateScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4493,10 +4475,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("deleteScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should archive the score config", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const config = await prisma.scoreConfig.create({

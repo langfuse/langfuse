@@ -2,17 +2,19 @@
 
 Review new or worsened code. Do not require unrelated legacy cleanup. New violations of team rules must be fixed before merge, even without a bug. Exceptions need explicit human approval.
 
+A technical review or accepted convention exception does not replace [protected-branch approval](.agents/skills/git-workflow/references/protected-branches.md). Verify the latest-commit Bugbot/approver path or teammate approval and required human review of sensitive paths and public fork PRs before declaring merge readiness.
+
 ## References
 
 Read the applicable `AGENTS.md` files and references below. Report unavailable references. This file overrides conflicting guidance for reviews.
 
-- [Backend](.agents/skills/backend-dev-guidelines/SKILL.md)
-- [Security](.agents/skills/security-review/SKILL.md): auth, RBAC, tenant isolation, outbound requests, secrets, and telemetry
-- [ClickHouse](.agents/skills/clickhouse-best-practices/SKILL.md)
-- [React](.agents/skills/react-component-guidelines/SKILL.md) and [design system](web/src/components/design-system/README.md)
-- [Frontend data and state](.agents/skills/frontend-large-feature-architecture/SKILL.md)
-- [Storybook](.agents/skills/storybook/SKILL.md)
-- [Architecture](.agents/ARCHITECTURE_PRINCIPLES.md)
+- `backend-dev-guidelines` skill
+- `security-review` skill: auth, RBAC, tenant isolation, outbound requests, secrets, and telemetry
+- `clickhouse-best-practices` skill
+- `react-component-guidelines` skill and the design system README
+- `frontend-large-feature-architecture` skill
+- `storybook` skill
+- `ARCHITECTURE_PRINCIPLES.md`
 
 Use their technical rules, not their implementation or handoff workflows.
 
@@ -32,7 +34,7 @@ Use their technical rules, not their implementation or handoff workflows.
 - Keep variants of one component close to each other. Flag a new variant that changes the layout, the actions, or the interaction enough to be a different component. A small duplicated copy of markup is acceptable in that case. When the shared part is chrome around a specialized control, ask for a slot that styles the caller's element, as `InputControl` does with Radix `Slot`.
 - Flag CSS selectors that cross component boundaries to style another component's descendants, regardless of the target: tags, classes, roles, data attributes, or other selectors. This includes plain CSS descendant and child combinators (`.parent .child`, `.parent > button`) and Tailwind descendant/child variants (`[&_button]:…`, `[&_.child]:…`, `[&_[data-state=active]]:…`, `[&_[role=tab]]:…`, `[&>span]:…`, `*:…`, `**:…`). For our own components, add or use component variants instead of reaching into their markup from outside. Allow cross-component selectors only when integrating with external libraries that offer no other styling option. Self-contained selectors styling markup owned by the same component are allowed, such as a `MarkdownRenderer` styling its rendered paragraphs with `> p`.
 - Importing raw primitives (`@radix-ui/*`, cmdk, etc.) in feature code is an exception, only when the design system has no suitable option.
-- Compose triggers and overlay content separately. Overlay owners manage content and open/close state, but must allow callers to supply or replace the trigger. Trigger components must not own the overlay content. Connect triggers through trigger props or controller callbacks rather than hard-coding a button inside the content component. Use `DialogController` for dialogs and follow the render-prop trigger APIs of `Tooltip` and `HoverCard` in `web/src/components/design-system/`. Support triggers nested inside child components by passing trigger props or callbacks—not overlay content.
+- Compose triggers and overlay content separately. Overlay owners manage content and open/close state, but must allow callers to supply or replace the trigger. Trigger components must not own the overlay content. Connect triggers through trigger props or controller callbacks rather than hard-coding a button inside the content component. Use `DialogController` for dialogs and follow the render-prop trigger APIs of `Tooltip` and `HoverCard` from the design system. Support triggers nested inside child components by passing trigger props or callbacks—not overlay content.
 - If a prop can be connected to behavior the component does not own, question exposing it. Prefer an API where the component owns that behavior, so the type leaves no way to wire the prop to something else. A tab menu is the example: the tab owns the menu, rather than taking `menu={{ open }}` for a caller to attach to an external menu. Keep the separate-trigger rule for reusable overlays whose caller chooses the trigger, such as `DialogController`, `Tooltip`, and `HoverCard`.
 - Export one component per file. Match the filename to the component. If a component has a named props type, name it `<ComponentName>Props`. Inline props types are allowed; do not require extracting a named type.
 - Name callback props that run before or after an internal action with explicit timing: `onBeforeExpand`, `onAfterCopy`, not ambiguous `onExpand` or `onCopy`. Reserve unqualified action callbacks for delegating the action to the caller, not notifying them around component-owned behavior.
@@ -58,6 +60,7 @@ Use their technical rules, not their implementation or handoff workflows.
 - No nested ternaries, including JSX. Use guards or separate components. Replace conditionals deeper than two levels with early returns.
 - Handle every switch variant explicitly. Compare `.length` explicitly.
 - Comments must add information beyond the name. Keep them terse, without commentary or speculation.
+- Avoid file paths in Markdown and code comments. Refer to the relevant concept or symbol when possible; use just the filename if a file reference is needed. Include a path only when necessary to disambiguate or make an instruction work.
 - In Markdown files only, do not hard-wrap prose paragraphs or list items; rely on editor soft wrapping. Preserve line breaks required by Markdown syntax. This rule does not apply to code comments or code blocks.
 
 ### Tests
@@ -78,7 +81,7 @@ Use their technical rules, not their implementation or handoff workflows.
 ### Security and performance
 
 - Verify auth and RBAC on every changed read/write path. Check for bypasses and privilege escalation through roles, resource IDs, and tenant context. Upstream checks must cover every entry point.
-- Elements containing customer data must use `ph-no-capture` to prevent capture by cloud session replay. Reuse protected renderers such as `JSONView` where appropriate. See [client telemetry privacy](.agents/skills/security-review/references/client-telemetry-privacy.md).
+- Elements containing customer data must use `ph-no-capture` to prevent capture by cloud session replay. Reuse protected renderers such as `JSONView` where appropriate. See `client-telemetry-privacy.md` in the `security-review` skill.
 - Ingestion changes must not worsen throughput, latency, or resource cost per event, including downstream jobs and writes. Check per-event work, batching, concurrency, and backpressure. Compare changed execution under equivalent, representative loads: throughput, tail latency, CPU, memory, and I/O as relevant.
 - ClickHouse queries must be fast at representative volumes and cardinalities. Follow the ClickHouse skill. Check schema and query plans; measure runtime, rows/bytes read, and peak memory, including broad supported filters. Tiny fixtures or cached results are insufficient.
 - Compare performance before/after; assess new queries against documented budgets. Do not invent budgets or results. Missing measurements require verification before merge, not an unsupported claim of safety or regression.

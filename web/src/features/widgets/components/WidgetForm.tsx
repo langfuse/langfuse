@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import {
   Card,

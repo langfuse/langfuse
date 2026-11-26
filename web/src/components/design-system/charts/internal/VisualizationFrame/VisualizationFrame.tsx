@@ -426,7 +426,7 @@ const ARIA_SORT = { asc: "ascending", desc: "descending" } as const;
 const TABLE_ROW_HEIGHT = 33;
 const TABLE_HEADER_HEIGHT = 45;
 
-export type DataTableProps = {
+type DataTableProps = {
   columns: {
     id: string;
     label: string;
