@@ -34,7 +34,7 @@ use bedrock::BedrockGuardrail;
 use external::{ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome, ExternalPayloads};
 use redact::{BodyEdit, RedactionSpan};
 use regex::Compiled;
-use response::{ParsedResponse, ResponseFormat};
+use response::{ParsedResponse, ResponseFormat, ResponseParseError};
 use text::{LastTurn, Unreadable};
 
 /// Evaluates local regex and external provider guardrails against a request's
@@ -190,17 +190,6 @@ impl Guardrails {
         async move {
             let check_started = std::time::Instant::now();
             let body_bytes = body.len();
-            // Parsed `serde_json::Value` trees hold roughly 3x the raw JSON size
-            // while guardrails inspect them; reserve up front and release on drop.
-            let parse_reservation = (body_bytes > 0)
-                .then(|| {
-                    MemoryReservation::from_budget(
-                        &self.memory_budget,
-                        body_bytes.saturating_mul(3),
-                        "guardrails",
-                    )
-                })
-                .transpose()?;
             let ((local, parsed, scanned_bytes), local_duration) = self
                 .cpu
                 .run(CpuJob::ScanGuardrails, body_bytes, {
@@ -208,24 +197,33 @@ impl Guardrails {
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
                         let started = std::time::Instant::now();
-                        let parsed = ParsedResponse::parse(api_format, format, &body);
+                        let parsed =
+                            match ParsedResponse::parse(api_format, format, body, Some(&budget)) {
+                                Ok(parsed) => Some(parsed),
+                                Err(ResponseParseError::Unreadable) => None,
+                                Err(ResponseParseError::Busy) => {
+                                    return (
+                                        (Err(ResolutionError::Busy), None, body_bytes),
+                                        started.elapsed(),
+                                    );
+                                }
+                            };
                         let scanned_bytes = parsed
                             .as_ref()
-                            .map_or(body.len(), ParsedResponse::text_bytes);
+                            .map_or(body_bytes, ParsedResponse::text_bytes);
                         let local = apply_local_response_guardrails(
                             &guardrails,
-                            parsed.as_ref().ok(),
+                            parsed.as_ref(),
                             max_scan_bytes,
                             Some(&budget),
                         );
-                        ((local, parsed.ok(), scanned_bytes), started.elapsed())
+                        ((local, parsed, scanned_bytes), started.elapsed())
                     }
                 })
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let mut eval = local?;
             let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
-                // Keep `parse_reservation` alive until `finalize_response` consumes `parsed`.
                 let mut no_drop = None;
                 self.evaluate_external(
                     &guardrails,
@@ -239,7 +237,6 @@ impl Guardrails {
                 None
             };
             let outcome = eval.finalize_response(&guardrails, parsed, Some(&self.memory_budget))?;
-            drop(parse_reservation);
             crate::observability::guardrails_checked(
                 &organization_id,
                 crate::observability::GuardrailTimings {
@@ -1205,9 +1202,11 @@ impl GuardrailEvaluation {
             match self.blocks.into_response_edits() {
                 Some(edits) if edits.is_empty() => {}
                 Some(edits) => {
-                    if let Some(rewritten) =
-                        parsed.and_then(|parsed| parsed.apply_redactions(&edits))
-                    {
+                    let rewritten = match parsed {
+                        Some(parsed) => parsed.apply_redactions(&edits, budget)?,
+                        None => None,
+                    };
+                    if let Some(rewritten) = rewritten {
                         if let Some(budget) = budget
                             && !rewritten.is_empty()
                         {

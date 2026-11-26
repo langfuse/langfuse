@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { KeyRound, User } from "@langfuse/icons";
 
 import preview from "@/.storybook/preview";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import { GatewayGuardrailDialogShell } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailDialogShell/GatewayGuardrailDialogShell";
 import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import {
@@ -35,9 +35,14 @@ const TARGET_OPTIONS: AsyncAutocompleteOption[] = [
   },
 ];
 
-function StoryGuardrailFormDialog(
-  props: Omit<GatewayGuardrailFormDialogProps, "targetPicker" | "onSubmit">,
-) {
+function StoryGuardrailFormDialog({
+  title,
+  onBack,
+  ...props
+}: Omit<GatewayGuardrailFormDialogProps, "targetPicker" | "onSubmit"> & {
+  title: string;
+  onBack?: () => void;
+}) {
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
   const options = needle
@@ -58,7 +63,13 @@ function StoryGuardrailFormDialog(
     <DialogController
       initialState={() => true}
       renderDialog={() => (
-        <GatewayGuardrailDialogShell size={isExternal ? "xl" : "4xl"} noCapture>
+        <Dialog
+          title={title}
+          size={isExternal ? "md" : "lg"}
+          noCapture
+          onBack={onBack}
+          backLabel="Back to guardrail types"
+        >
           <GatewayGuardrailFormDialog
             {...props}
             targetPicker={{
@@ -69,7 +80,7 @@ function StoryGuardrailFormDialog(
             }}
             onSubmit={fn()}
           />
-        </GatewayGuardrailDialogShell>
+        </Dialog>
       )}
     >
       {() => null}
@@ -287,6 +298,63 @@ export const EditRedactGuardrail = meta.story({
     initialTestText: piiTemplate.sampleTestText,
     isSubmitting: false,
     errorMessage: null,
+  },
+});
+
+export const OutputStreamingNotice = meta.story({
+  name: "(Test) Output guardrail shows streaming notice",
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Redact emails",
+      presets: ["email"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "REDACT",
+      runsOn: "OUTPUT",
+      redactionLabel: "[EMAIL]",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+  },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(
+      within(dialog).getByText("Streaming is turned off when checking output."),
+    ).toBeVisible();
+  },
+});
+
+export const InputHidesStreamingNotice = meta.story({
+  name: "(Test) Input guardrail hides streaming notice",
+  args: {
+    title: "Edit guardrail",
+    submitLabel: "Save changes",
+    templateKind: "pii",
+    availablePresets: piiTemplate.presets,
+    initialValues: {
+      name: "Block SSNs",
+      presets: ["us_ssn"],
+      secretPrefixes: [],
+      containsWords: [],
+      action: "BLOCK",
+      runsOn: "INPUT",
+      targets: [EVERYONE_TARGET_OPTION],
+    },
+    isSubmitting: false,
+    errorMessage: null,
+  },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(
+      within(dialog).queryByText(
+        "Streaming is turned off when checking output.",
+      ),
+    ).toBeNull();
   },
 });
 

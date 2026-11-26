@@ -9,16 +9,93 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt,
+    ops::Range,
+    sync::Arc,
 };
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, header};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Number, Value};
+use tokio::sync::Semaphore;
 
-use crate::{guardrails::text::Unreadable, resolution::ApiFormat, transport::identity_encoding};
+use crate::{
+    guardrails::text::Unreadable,
+    inference::MemoryReservation,
+    resolution::{ApiFormat, ResolutionError},
+    transport::identity_encoding,
+};
 
 const MAX_JSON_DEPTH: usize = 32;
+/// Batch size for charging dynamic `serde_json::Value` parse overhead to `memory_budget`.
+const PARSE_RESERVATION_BATCH_BYTES: usize = 16 * 1024;
+/// Per-element overhead of a `serde_json::Value` stored inside a `Vec`.
+const VALUE_NODE_OVERHEAD_BYTES: usize = size_of::<Value>() + 16;
+/// Per-entry overhead of a `serde_json::Map` (`BTreeMap<String, Value>` node + key + value).
+const MAP_ENTRY_OVERHEAD_BYTES: usize = size_of::<String>() + size_of::<Value>() + 64;
+
+/// Failure mode when parsing a response body for guardrails.
+#[derive(Debug)]
+pub(crate) enum ResponseParseError {
+    Unreadable,
+    Busy,
+}
+
+impl From<Unreadable> for ResponseParseError {
+    fn from(_: Unreadable) -> Self {
+        Self::Unreadable
+    }
+}
+
+/// Tracks dynamic memory reservations while building a temporary `serde_json::Value` tree.
+struct ParseBudget {
+    reservation: Option<MemoryReservation>,
+    pending: usize,
+    exhausted: bool,
+}
+
+impl ParseBudget {
+    fn new(budget: Option<&Arc<Semaphore>>) -> Result<Self, ResponseParseError> {
+        let reservation = budget
+            .map(|budget| MemoryReservation::from_budget(budget, 0, "guardrails"))
+            .transpose()
+            .map_err(|_| ResponseParseError::Busy)?;
+        Ok(Self {
+            reservation,
+            pending: 0,
+            exhausted: false,
+        })
+    }
+
+    fn charge(&mut self, bytes: usize) -> bool {
+        if self.reservation.is_none() || bytes == 0 {
+            return true;
+        }
+        self.pending = self.pending.saturating_add(bytes);
+        if self.pending >= PARSE_RESERVATION_BATCH_BYTES {
+            return self.flush();
+        }
+        true
+    }
+
+    fn flush(&mut self) -> bool {
+        let Some(reservation) = self.reservation.as_mut() else {
+            return true;
+        };
+        if self.pending == 0 {
+            return true;
+        }
+        let amount = std::mem::take(&mut self.pending);
+        if reservation
+            .try_reserve_additional(amount, "guardrails")
+            .is_err()
+        {
+            self.exhausted = true;
+            return false;
+        }
+        true
+    }
+}
 
 /// Supported response wire formats that response guardrails can inspect.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,29 +148,32 @@ pub(crate) struct ParsedResponse {
 }
 
 enum ParsedBody {
-    Json(Value),
-    Sse(Vec<SseFrame>),
+    Json(Bytes),
+    Sse {
+        raw: Bytes,
+        frames: Vec<SseFrameSpan>,
+        _frames_reservation: Option<MemoryReservation>,
+    },
 }
 
-struct SseFrame {
-    /// Non-data lines (`event:`, `id:`, etc.) preserved before `data:` on rewrite.
-    prefix: String,
-    json: Option<Value>,
-    modified: bool,
-    raw: String,
+struct SseFrameSpan {
+    raw_range: Range<usize>,
+    has_logprobs: bool,
 }
 
 impl ParsedResponse {
-    /// Parses `body` according to `api_format` and `format` and extracts all
-    /// logical model output text blocks.
+    /// Parses `body` according to `api_format` and `format`, dynamically
+    /// charging temporary `serde_json::Value` allocations against `budget`,
+    /// and retains only the raw bytes plus lightweight span metadata.
     pub(crate) fn parse(
         api_format: ApiFormat,
         format: ResponseFormat,
-        body: &[u8],
-    ) -> Result<Self, Unreadable> {
+        body: Bytes,
+        budget: Option<&Arc<Semaphore>>,
+    ) -> Result<Self, ResponseParseError> {
         match format {
-            ResponseFormat::Json => parse_json(api_format, body),
-            ResponseFormat::Sse => parse_sse(api_format, body),
+            ResponseFormat::Json => parse_json(api_format, body, budget),
+            ResponseFormat::Sse => parse_sse(api_format, body, budget),
         }
     }
 
@@ -107,83 +187,192 @@ impl ParsedResponse {
 
     /// Rewrites every modified `(block_index, redacted_text)` in place, scrubs
     /// `logprobs` token copies, and serializes the updated body.
-    pub(crate) fn apply_redactions(mut self, edits: &[(usize, String)]) -> Option<Bytes> {
+    pub(crate) fn apply_redactions(
+        self,
+        edits: &[(usize, String)],
+        budget: Option<&Arc<Semaphore>>,
+    ) -> Result<Option<Bytes>, ResolutionError> {
         if edits.is_empty() {
-            return None;
+            return Ok(None);
         }
+        let mut json_edits: Vec<(&str, &str)> = Vec::new();
+        let mut sse_edits: HashMap<usize, Vec<(&str, &str)>> = HashMap::new();
         for (index, replacement) in edits {
-            let block = self.blocks.get(*index)?;
+            let Some(block) = self.blocks.get(*index) else {
+                return Ok(None);
+            };
             if !block.editable {
-                return None;
+                return Ok(None);
             }
             for (pos, (frame_idx, ptr)) in block.deltas.iter().enumerate() {
                 let text = if pos == 0 { replacement.as_str() } else { "" };
-                set_string(&mut self.body, Some(*frame_idx), ptr, text)?;
+                sse_edits
+                    .entry(*frame_idx)
+                    .or_default()
+                    .push((ptr.as_str(), text));
             }
             for (frame_idx, ptr) in &block.leaves {
-                set_string(&mut self.body, *frame_idx, ptr, replacement)?;
-            }
-        }
-        scrub_logprobs(self.api_format, &mut self.body);
-        serialize_body(self.body)
-    }
-}
-
-fn set_string(
-    body: &mut ParsedBody,
-    frame_idx: Option<usize>,
-    ptr: &str,
-    text: &str,
-) -> Option<()> {
-    let target = match (body, frame_idx) {
-        (ParsedBody::Json(root), None) => root.pointer_mut(ptr)?,
-        (ParsedBody::Sse(frames), Some(index)) => {
-            let frame = frames.get_mut(index)?;
-            frame.modified = true;
-            frame.json.as_mut()?.pointer_mut(ptr)?
-        }
-        _ => return None,
-    };
-    *target = Value::String(text.to_owned());
-    Some(())
-}
-
-fn serialize_body(body: ParsedBody) -> Option<Bytes> {
-    match body {
-        ParsedBody::Json(value) => serde_json::to_vec(&value).ok().map(Bytes::from),
-        ParsedBody::Sse(frames) => {
-            let mut out = String::new();
-            for frame in frames {
-                if !frame.modified {
-                    out.push_str(&frame.raw);
-                    continue;
-                }
-                let encoded = serde_json::to_string(frame.json.as_ref()?).ok()?;
-                out.push_str(&frame.prefix);
-                out.push_str("data: ");
-                out.push_str(&encoded);
-                out.push_str("\n\n");
-            }
-            Some(Bytes::from(out))
-        }
-    }
-}
-
-fn scrub_logprobs(api_format: ApiFormat, body: &mut ParsedBody) {
-    match body {
-        ParsedBody::Json(value) => {
-            scrub_logprobs_value(api_format, value);
-        }
-        ParsedBody::Sse(frames) => {
-            for frame in frames {
-                if let Some(value) = frame.json.as_mut()
-                    && scrub_logprobs_value(api_format, value)
-                {
-                    frame.modified = true;
+                match frame_idx {
+                    None => json_edits.push((ptr.as_str(), replacement.as_str())),
+                    Some(idx) => sse_edits
+                        .entry(*idx)
+                        .or_default()
+                        .push((ptr.as_str(), replacement.as_str())),
                 }
             }
         }
+        match self.body {
+            ParsedBody::Json(raw) => {
+                if !sse_edits.is_empty() {
+                    return Ok(None);
+                }
+                let (mut value, _res) = match parse_unique_json(&raw, budget) {
+                    Ok(parsed) => parsed,
+                    Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
+                    Err(ResponseParseError::Unreadable) => return Ok(None),
+                };
+                for (ptr, text) in json_edits {
+                    let Some(target) = value.pointer_mut(ptr) else {
+                        return Ok(None);
+                    };
+                    *target = Value::String(text.to_owned());
+                }
+                scrub_logprobs_value(self.api_format, &mut value);
+                Ok(serde_json::to_vec(&value).ok().map(Bytes::from))
+            }
+            ParsedBody::Sse { raw, frames, .. } => {
+                if !json_edits.is_empty() {
+                    return Ok(None);
+                }
+                let Ok(text) = std::str::from_utf8(&raw) else {
+                    return Ok(None);
+                };
+                let mut out = String::with_capacity(text.len());
+                for (frame_idx, frame) in frames.iter().enumerate() {
+                    let Some(raw_slice) = text.get(frame.raw_range.clone()) else {
+                        return Ok(None);
+                    };
+                    let frame_edits = sse_edits.get(&frame_idx);
+                    if frame_edits.is_none() && !frame.has_logprobs {
+                        out.push_str(raw_slice);
+                        continue;
+                    }
+                    let Some((prefix, Some(payload))) = split_single_sse_frame(raw_slice) else {
+                        return Ok(None);
+                    };
+                    let (mut value, _res) = match parse_unique_json(payload.as_bytes(), budget) {
+                        Ok(parsed) => parsed,
+                        Err(ResponseParseError::Busy) => return Err(ResolutionError::Busy),
+                        Err(ResponseParseError::Unreadable) => return Ok(None),
+                    };
+                    if let Some(edits_for_frame) = frame_edits {
+                        for &(ptr, replacement) in edits_for_frame {
+                            let Some(target) = value.pointer_mut(ptr) else {
+                                return Ok(None);
+                            };
+                            *target = Value::String(replacement.to_owned());
+                        }
+                    }
+                    let scrubbed = scrub_logprobs_value(self.api_format, &mut value);
+                    if frame_edits.is_none() && !scrubbed {
+                        out.push_str(raw_slice);
+                        continue;
+                    }
+                    let Ok(encoded) = serde_json::to_string(&value) else {
+                        return Ok(None);
+                    };
+                    out.push_str(&prefix);
+                    out.push_str("data: ");
+                    out.push_str(&encoded);
+                    out.push_str("\n\n");
+                }
+                Ok(Some(Bytes::from(out)))
+            }
+        }
     }
+}
+
+fn split_single_sse_frame(frame: &str) -> Option<(String, Option<String>)> {
+    let mut prefix = String::new();
+    let mut data_lines: Vec<&str> = Vec::new();
+    let bytes = frame.as_bytes();
+    let mut cursor = 0usize;
+    while cursor < bytes.len() {
+        let line_start = cursor;
+        while bytes
+            .get(cursor)
+            .is_some_and(|&byte| byte != b'\n' && byte != b'\r')
+        {
+            cursor += 1;
+        }
+        let line = frame.get(line_start..cursor)?;
+        let eol_start = cursor;
+        if bytes.get(cursor) == Some(&b'\r') {
+            cursor += 1;
+            if bytes.get(cursor) == Some(&b'\n') {
+                cursor += 1;
+            }
+        } else if bytes.get(cursor) == Some(&b'\n') {
+            cursor += 1;
+        }
+        if line.is_empty() {
+            break;
+        }
+        if let Some(rest) = line.strip_prefix("data:") {
+            data_lines.push(rest.strip_prefix(' ').unwrap_or(rest));
+        } else if line == "data" {
+            data_lines.push("");
+        } else {
+            prefix.push_str(frame.get(line_start..cursor)?);
+            if cursor == eol_start {
+                prefix.push('\n');
+            }
+        }
+    }
+    let payload = (!data_lines.is_empty()).then(|| data_lines.join("\n"));
+    Some((prefix, payload))
+}
+
+fn has_non_null_logprobs(api_format: ApiFormat, value: &Value) -> bool {
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => value
+            .get("choices")
+            .and_then(Value::as_array)
+            .is_some_and(|choices| {
+                choices
+                    .iter()
+                    .any(|choice| choice.get("logprobs").is_some_and(|lp| !lp.is_null()))
+            }),
+        ApiFormat::OpenAiResponses => {
+            value.get("logprobs").is_some_and(Value::is_array)
+                || value.pointer("/part/logprobs").is_some_and(Value::is_array)
+                || value.get("item").is_some_and(has_responses_item_logprobs)
+                || value
+                    .get("response")
+                    .is_some_and(has_responses_output_logprobs)
+                || has_responses_output_logprobs(value)
+        }
+        ApiFormat::AnthropicMessages | ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            false
+        }
+    }
+}
+
+fn has_responses_output_logprobs(container: &Value) -> bool {
+    container
+        .get("output")
+        .and_then(Value::as_array)
+        .is_some_and(|output| output.iter().any(has_responses_item_logprobs))
+}
+
+fn has_responses_item_logprobs(item: &Value) -> bool {
+    item.get("content")
+        .and_then(Value::as_array)
+        .is_some_and(|parts| {
+            parts
+                .iter()
+                .any(|part| part.get("logprobs").is_some_and(Value::is_array))
+        })
 }
 
 /// Scrubs non-null `logprobs` fields (`null` for Chat Completions objects, `[]`
@@ -274,12 +463,17 @@ fn ptr_index(base: &str, index: usize) -> String {
 // Non-streaming JSON extraction
 // ---------------------------------------------------------------------------
 
-/// Parses JSON into [`Value`] while rejecting any object with duplicate keys
-/// so hidden earlier keys cannot bypass response guardrails.
-fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
-    struct UniqueValue;
+/// Parses JSON into [`Value`] while rejecting duplicate object keys and
+/// charging dynamic `Value` tree memory overhead against `budget`.
+fn parse_unique_json(
+    bytes: &[u8],
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<(Value, Option<MemoryReservation>), ResponseParseError> {
+    struct UniqueValue<'a> {
+        budget: &'a mut ParseBudget,
+    }
 
-    impl<'de> DeserializeSeed<'de> for UniqueValue {
+    impl<'de> DeserializeSeed<'de> for UniqueValue<'_> {
         type Value = Value;
 
         fn deserialize<D: serde::Deserializer<'de>>(
@@ -290,7 +484,7 @@ fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
         }
     }
 
-    impl<'de> Visitor<'de> for UniqueValue {
+    impl<'de> Visitor<'de> for UniqueValue<'_> {
         type Value = Value;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -311,10 +505,16 @@ fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
                 .map(Value::Number)
                 .ok_or_else(|| E::custom("non-finite float"))
         }
-        fn visit_str<E>(self, v: &str) -> Result<Value, E> {
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Value, E> {
+            if !self.budget.charge(v.len().saturating_add(32)) {
+                return Err(E::custom("memory budget exhausted"));
+            }
             Ok(Value::String(v.to_owned()))
         }
-        fn visit_string<E>(self, v: String) -> Result<Value, E> {
+        fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Value, E> {
+            if !self.budget.charge(v.len().saturating_add(32)) {
+                return Err(E::custom("memory budget exhausted"));
+            }
             Ok(Value::String(v))
         }
         fn visit_unit<E>(self) -> Result<Value, E> {
@@ -322,7 +522,12 @@ fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
         }
         fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
             let mut items = Vec::new();
-            while let Some(item) = seq.next_element_seed(UniqueValue)? {
+            while let Some(item) = seq.next_element_seed(UniqueValue {
+                budget: self.budget,
+            })? {
+                if !self.budget.charge(VALUE_NODE_OVERHEAD_BYTES) {
+                    return Err(A::Error::custom("memory budget exhausted"));
+                }
                 items.push(item);
             }
             Ok(Value::Array(items))
@@ -333,24 +538,48 @@ fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
                 if entries.contains_key(&key) {
                     return Err(A::Error::custom("duplicate object key"));
                 }
-                let value = map.next_value_seed(UniqueValue)?;
+                if !self
+                    .budget
+                    .charge(key.len().saturating_add(MAP_ENTRY_OVERHEAD_BYTES))
+                {
+                    return Err(A::Error::custom("memory budget exhausted"));
+                }
+                let value = map.next_value_seed(UniqueValue {
+                    budget: self.budget,
+                })?;
                 entries.insert(key, value);
             }
             Ok(Value::Object(entries))
         }
     }
 
+    let mut parse_budget = ParseBudget::new(budget)?;
     let mut deserializer = serde_json::Deserializer::from_slice(bytes);
-    UniqueValue
-        .deserialize(&mut deserializer)
-        .and_then(|value| deserializer.end().map(|()| value))
-        .map_err(|_| Unreadable)
+    let parsed = UniqueValue {
+        budget: &mut parse_budget,
+    }
+    .deserialize(&mut deserializer)
+    .and_then(|value| deserializer.end().map(|()| value));
+    match parsed {
+        Ok(value) => {
+            if !parse_budget.flush() {
+                return Err(ResponseParseError::Busy);
+            }
+            Ok((value, parse_budget.reservation))
+        }
+        Err(_) if parse_budget.exhausted => Err(ResponseParseError::Busy),
+        Err(_) => Err(ResponseParseError::Unreadable),
+    }
 }
 
-fn parse_json(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unreadable> {
-    let value = parse_unique_json(body)?;
+fn parse_json(
+    api_format: ApiFormat,
+    body: Bytes,
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<ParsedResponse, ResponseParseError> {
+    let (value, _parse_reservation) = parse_unique_json(&body, budget)?;
     if !value.is_object() {
-        return Err(Unreadable);
+        return Err(ResponseParseError::Unreadable);
     }
     let mut blocks = Vec::new();
     match api_format {
@@ -366,7 +595,7 @@ fn parse_json(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unre
     }
     Ok(ParsedResponse {
         api_format,
-        body: ParsedBody::Json(value),
+        body: ParsedBody::Json(body),
         blocks,
     })
 }
@@ -466,7 +695,13 @@ fn collect_all_strings(
         return Err(Unreadable);
     }
     match value {
-        Value::String(text) => push_leaf(blocks, frame_idx, text, ptr.to_owned(), true),
+        Value::String(text) => {
+            if frame_idx.is_some() {
+                attach_matching_or_push_leaf(blocks, frame_idx, text, ptr.to_owned());
+            } else {
+                push_leaf(blocks, frame_idx, text, ptr.to_owned(), true);
+            }
+        }
         Value::Array(items) => {
             for (index, item) in items.iter().enumerate() {
                 collect_all_strings(
@@ -522,6 +757,15 @@ fn extract_chat_json(value: &Value, blocks: &mut Vec<ResponseBlock>) -> Result<(
                         None,
                         args,
                         format!("{msg_ptr}/tool_calls/{call_idx}/function/arguments"),
+                        true,
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    push_leaf(
+                        blocks,
+                        None,
+                        input,
+                        format!("{msg_ptr}/tool_calls/{call_idx}/custom/input"),
                         true,
                     );
                 }
@@ -679,6 +923,16 @@ fn extract_responses_json(
                     }
                 }
             }
+            if let Some(action) = map.get("action").filter(|v| !v.is_null()) {
+                collect_all_strings(
+                    action,
+                    None,
+                    &ptr_push(&item_ptr, "action"),
+                    &["type"],
+                    0,
+                    blocks,
+                )?;
+            }
         }
     }
     if let Some(output_text) = value.get("output_text").and_then(Value::as_str) {
@@ -695,6 +949,7 @@ fn extract_responses_json(
 enum StreamKey {
     Chat(u64, &'static str),
     ChatToolArgs(u64, u64),
+    ChatToolCustomInput(u64, u64),
     Anthropic(u64, &'static str),
     Responses(u64, u64, &'static str),
 }
@@ -760,48 +1015,53 @@ impl StreamCollector {
     }
 }
 
-fn parse_sse(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unreadable> {
+fn parse_sse_frame(
+    api_format: ApiFormat,
+    frame_idx: usize,
+    data_lines: &[&str],
+    budget: Option<&Arc<Semaphore>>,
+    collector: &mut StreamCollector,
+) -> Result<bool, ResponseParseError> {
+    if data_lines.is_empty() {
+        return Ok(false);
+    }
+    let payload = data_lines.join("\n");
+    if payload == "[DONE]" {
+        return Ok(false);
+    }
+    let (value, _frame_reservation) = parse_unique_json(payload.as_bytes(), budget)?;
+    let has_logprobs = has_non_null_logprobs(api_format, &value);
+    match api_format {
+        ApiFormat::OpenAiChatCompletions => extract_chat_sse(frame_idx, &value, collector)?,
+        ApiFormat::AnthropicMessages => extract_anthropic_sse(frame_idx, &value, collector)?,
+        ApiFormat::OpenAiResponses => extract_responses_sse(frame_idx, &value, collector)?,
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            return Err(ResponseParseError::Unreadable);
+        }
+    }
+    Ok(has_logprobs)
+}
+
+fn parse_sse(
+    api_format: ApiFormat,
+    raw: Bytes,
+    budget: Option<&Arc<Semaphore>>,
+) -> Result<ParsedResponse, ResponseParseError> {
     if !matches!(
         api_format,
         ApiFormat::OpenAiChatCompletions
             | ApiFormat::AnthropicMessages
             | ApiFormat::OpenAiResponses
     ) {
-        return Err(Unreadable);
+        return Err(ResponseParseError::Unreadable);
     }
-    let frames = split_sse_frames(body)?;
-    let mut collector = StreamCollector::default();
-    for (frame_idx, frame) in frames.iter().enumerate() {
-        let Some(value) = frame.json.as_ref() else {
-            continue;
-        };
-        match api_format {
-            ApiFormat::OpenAiChatCompletions => {
-                extract_chat_sse(frame_idx, value, &mut collector)?;
-            }
-            ApiFormat::AnthropicMessages => {
-                extract_anthropic_sse(frame_idx, value, &mut collector)?;
-            }
-            ApiFormat::OpenAiResponses => {
-                extract_responses_sse(frame_idx, value, &mut collector)?;
-            }
-            ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => return Err(Unreadable),
-        }
-    }
-    Ok(ParsedResponse {
-        api_format,
-        body: ParsedBody::Sse(frames),
-        blocks: collector.finish(),
-    })
-}
-
-fn split_sse_frames(body: &[u8]) -> Result<Vec<SseFrame>, Unreadable> {
-    let text = std::str::from_utf8(body).map_err(|_| Unreadable)?;
+    let text = std::str::from_utf8(&raw).map_err(|_| ResponseParseError::Unreadable)?;
     let bytes = text.as_bytes();
     let mut frames = Vec::new();
+    let mut frames_budget = ParseBudget::new(budget)?;
+    let mut collector = StreamCollector::default();
     let mut cursor = 0usize;
     let mut event_start = 0usize;
-    let mut prefix = String::new();
     let mut data_lines: Vec<&str> = Vec::new();
 
     while cursor < bytes.len() {
@@ -812,8 +1072,9 @@ fn split_sse_frames(body: &[u8]) -> Result<Vec<SseFrame>, Unreadable> {
         {
             cursor += 1;
         }
-        let line = text.get(line_start..cursor).ok_or(Unreadable)?;
-        let eol_start = cursor;
+        let line = text
+            .get(line_start..cursor)
+            .ok_or(ResponseParseError::Unreadable)?;
         match bytes.get(cursor) {
             Some(&b'\r') => {
                 cursor += 1;
@@ -822,26 +1083,23 @@ fn split_sse_frames(body: &[u8]) -> Result<Vec<SseFrame>, Unreadable> {
                 }
             }
             Some(&b'\n') => cursor += 1,
-            _ if !line.is_empty() => return Err(Unreadable),
+            _ if !line.is_empty() => return Err(ResponseParseError::Unreadable),
             _ => {}
         }
         if line.is_empty() {
-            let raw = text.get(event_start..cursor).ok_or(Unreadable)?.to_owned();
-            let json = if data_lines.is_empty() {
-                None
-            } else {
-                let payload = data_lines.join("\n");
-                if payload == "[DONE]" {
-                    None
-                } else {
-                    Some(parse_unique_json(payload.as_bytes())?)
-                }
-            };
-            frames.push(SseFrame {
-                prefix: std::mem::take(&mut prefix),
-                json,
-                modified: false,
-                raw,
+            let has_logprobs = parse_sse_frame(
+                api_format,
+                frames.len(),
+                &data_lines,
+                budget,
+                &mut collector,
+            )?;
+            if !frames_budget.charge(size_of::<SseFrameSpan>()) {
+                return Err(ResponseParseError::Busy);
+            }
+            frames.push(SseFrameSpan {
+                raw_range: event_start..cursor,
+                has_logprobs,
             });
             data_lines.clear();
             event_start = cursor;
@@ -851,25 +1109,32 @@ fn split_sse_frames(body: &[u8]) -> Result<Vec<SseFrame>, Unreadable> {
             data_lines.push(rest.strip_prefix(' ').unwrap_or(rest));
         } else if line == "data" {
             data_lines.push("");
-        } else {
-            prefix.push_str(text.get(line_start..cursor).ok_or(Unreadable)?);
-            if cursor == eol_start {
-                prefix.push('\n');
-            }
         }
     }
     if !data_lines.is_empty() {
-        return Err(Unreadable);
+        return Err(ResponseParseError::Unreadable);
     }
     if event_start < bytes.len() {
-        frames.push(SseFrame {
-            prefix: String::new(),
-            json: None,
-            modified: false,
-            raw: text.get(event_start..).ok_or(Unreadable)?.to_owned(),
+        if !frames_budget.charge(size_of::<SseFrameSpan>()) {
+            return Err(ResponseParseError::Busy);
+        }
+        frames.push(SseFrameSpan {
+            raw_range: event_start..bytes.len(),
+            has_logprobs: false,
         });
     }
-    Ok(frames)
+    if !frames_budget.flush() {
+        return Err(ResponseParseError::Busy);
+    }
+    Ok(ParsedResponse {
+        api_format,
+        body: ParsedBody::Sse {
+            raw,
+            frames,
+            _frames_reservation: frames_budget.reservation,
+        },
+        blocks: collector.finish(),
+    })
 }
 
 fn extract_chat_sse(
@@ -925,6 +1190,14 @@ fn extract_chat_sse(
                         frame_idx,
                         format!("{delta_ptr}/tool_calls/{call_pos}/function/arguments"),
                         args,
+                    );
+                }
+                if let Some(input) = call.pointer("/custom/input").and_then(Value::as_str) {
+                    collector.push_delta(
+                        StreamKey::ChatToolCustomInput(choice_idx, call_idx),
+                        frame_idx,
+                        format!("{delta_ptr}/tool_calls/{call_pos}/custom/input"),
+                        input,
                     );
                 }
             }
@@ -1192,7 +1465,7 @@ fn extract_responses_sse(
         }
         "response.output_item.done" => {
             if let Some(item) = value.get("item") {
-                collect_responses_item_sse(frame_idx, item, "/item", output_idx, collector);
+                collect_responses_item_sse(frame_idx, item, "/item", output_idx, collector)?;
             }
         }
         "response.completed" | "response.incomplete" => {
@@ -1207,7 +1480,7 @@ fn extract_responses_sse(
                         &format!("/response/output/{index}"),
                         index as u64,
                         collector,
-                    );
+                    )?;
                 }
             }
             if let Some(output_text) = resp.get("output_text").and_then(Value::as_str) {
@@ -1271,7 +1544,7 @@ fn collect_responses_item_sse(
     ptr: &str,
     output_idx: u64,
     collector: &mut StreamCollector,
-) {
+) -> Result<(), Unreadable> {
     let item_type = item.get("type").and_then(Value::as_str);
     if let Some(content) = item.get("content").and_then(Value::as_array) {
         let text_slot = if item_type == Some("reasoning") {
@@ -1337,4 +1610,15 @@ fn collect_responses_item_sse(
             collector.push_summary(None, frame_idx, ptr_push(ptr, field), text);
         }
     }
+    if let Some(action) = item.get("action").filter(|v| !v.is_null()) {
+        collect_all_strings(
+            action,
+            Some(frame_idx),
+            &ptr_push(ptr, "action"),
+            &["type"],
+            0,
+            &mut collector.blocks,
+        )?;
+    }
+    Ok(())
 }

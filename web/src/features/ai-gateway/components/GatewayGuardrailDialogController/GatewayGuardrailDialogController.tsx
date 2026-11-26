@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { type MutationStatus } from "@tanstack/react-query";
 
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
-import { GatewayGuardrailDialogShell } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailDialogShell/GatewayGuardrailDialogShell";
 import {
   GatewayGuardrailFormDialog,
   type ExternalGuardrailTestControl,
@@ -343,10 +343,13 @@ function GuardrailDialogContent({
     };
     const isExternal = Boolean(selectedTemplate?.external);
     return (
-      <GatewayGuardrailDialogShell
-        size={selectedTemplate && isExternal ? "xl" : "4xl"}
+      <Dialog
+        title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
+        size={selectedTemplate && isExternal ? "md" : "lg"}
         closeOnInteractionOutside={selectedTemplate === null}
         noCapture={selectedTemplate !== null}
+        onBack={selectedTemplate ? handleBack : undefined}
+        backLabel="Back to guardrail types"
       >
         {selectedTemplate === null ? (
           <GatewayGuardrailTemplateGallery
@@ -358,7 +361,6 @@ function GuardrailDialogContent({
           <ConnectedGuardrailFormContent
             key={selectedTemplate.id}
             organizationId={organizationId}
-            title={selectedTemplate.name}
             submitLabel={isExternal ? "Test and save" : "Add guardrail"}
             templateKind={selectedTemplate.id}
             availablePresets={selectedTemplate.presets}
@@ -385,12 +387,11 @@ function GuardrailDialogContent({
             targetPicker={targetPicker}
             isSubmitting={isSubmitting}
             errorMessage={errorMessage}
-            onBack={handleBack}
             onContactSupport={onContactSupport}
             onSubmit={onSubmitForm}
           />
         )}
-      </GatewayGuardrailDialogShell>
+      </Dialog>
     );
   }
 
@@ -410,11 +411,10 @@ function GuardrailDialogContent({
   );
 
   return (
-    <GatewayGuardrailDialogShell size={isExternal ? "xl" : "4xl"} noCapture>
+    <Dialog title="Edit guardrail" size={isExternal ? "md" : "lg"} noCapture>
       <ConnectedGuardrailFormContent
         key={guardrail.id}
         organizationId={organizationId}
-        title="Edit guardrail"
         submitLabel={isExternal ? "Test and save" : "Save changes"}
         templateKind={templateKind}
         availablePresets={availablePresets}
@@ -441,7 +441,7 @@ function GuardrailDialogContent({
         onContactSupport={onContactSupport}
         onSubmit={onSubmitForm}
       />
-    </GatewayGuardrailDialogShell>
+    </Dialog>
   );
 }
 

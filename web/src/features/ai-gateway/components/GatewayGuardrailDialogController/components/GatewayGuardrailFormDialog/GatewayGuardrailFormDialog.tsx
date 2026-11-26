@@ -1,13 +1,6 @@
 import { useId, useMemo, useState, type ChangeEvent } from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ChevronLeft,
-  Info,
-  LifeBuoy,
-  SquareArrowOutUpRight,
-  X,
-} from "@langfuse/icons";
+import { Info, LifeBuoy, SquareArrowOutUpRight } from "@langfuse/icons";
 import { Controller, useForm, type Control } from "react-hook-form";
 import { z } from "zod";
 
@@ -391,7 +384,6 @@ export type CustomRegexPreviewControl = {
 };
 
 export type GatewayGuardrailFormDialogProps = {
-  title: string;
   submitLabel: string;
   templateKind: GatewayGuardrailTemplateKind;
   availablePresets: readonly GatewayGuardrailPreset[];
@@ -404,13 +396,11 @@ export type GatewayGuardrailFormDialogProps = {
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
-  onBack?: () => void;
   onContactSupport?: (reason?: GatewayGuardrailsLimitFeedbackReason) => void;
   onSubmit: (values: GatewayGuardrailFormValues) => void;
 };
 
 export function GatewayGuardrailFormDialog({
-  title,
   submitLabel,
   templateKind,
   availablePresets,
@@ -422,7 +412,6 @@ export function GatewayGuardrailFormDialog({
   targetPicker,
   isSubmitting,
   errorMessage,
-  onBack,
   onContactSupport,
   onSubmit,
 }: GatewayGuardrailFormDialogProps) {
@@ -643,35 +632,7 @@ export function GatewayGuardrailFormDialog({
 
   return (
     <>
-      <header className="bg-modal flex shrink-0 items-center justify-between gap-3 rounded-t-lg border-b px-5 py-3.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {onBack ? (
-            <button
-              type="button"
-              aria-label="Back to guardrail types"
-              onClick={onBack}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
-            >
-              <ChevronLeft size="base" aria-hidden />
-            </button>
-          ) : null}
-          <DialogPrimitive.Title
-            title={title}
-            className="min-w-0 flex-1 truncate text-base leading-none font-bold tracking-tight"
-          >
-            {title}
-          </DialogPrimitive.Title>
-        </div>
-        <DialogPrimitive.Close
-          className="ring-offset-background focus:ring-ring hover:bg-accent -mr-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-          tabIndex={-1}
-        >
-          <X size="base" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto border-t text-sm leading-relaxed md:flex-row md:overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
           {externalTemplate ? (
             <p className="text-muted-foreground mb-4 text-xs leading-relaxed">

@@ -678,7 +678,13 @@ fn check_response_local(
     format: ResponseFormat,
     body: &str,
 ) -> Outcome {
-    let parsed = ParsedResponse::parse(api_format, format, body.as_bytes()).ok();
+    let parsed = ParsedResponse::parse(
+        api_format,
+        format,
+        Bytes::copy_from_slice(body.as_bytes()),
+        None,
+    )
+    .ok();
     apply_local_response_guardrails(
         guardrails,
         parsed.as_ref(),
@@ -916,7 +922,8 @@ fn redacts_span_crossing_sse_chunks_and_deduplicates_responses_summaries() {
     let parsed = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Sse,
-        responses_sse.as_bytes(),
+        Bytes::from_static(responses_sse.as_bytes()),
+        None,
     )
     .unwrap();
     assert_eq!(parsed.blocks().len(), 1);
@@ -1101,7 +1108,8 @@ fn signed_anthropic_thinking_blocks_fail_closed_on_redact_or_enforce_but_allow_l
     let parsed = ParsedResponse::parse(
         ApiFormat::AnthropicMessages,
         ResponseFormat::Json,
-        signed_json.as_bytes(),
+        Bytes::from_static(signed_json.as_bytes()),
+        None,
     )
     .ok();
     let mut eval = apply_local_response_guardrails(
@@ -1205,7 +1213,8 @@ fn redacts_anthropic_citations_and_responses_shell_call_command_done() {
     let parsed = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Sse,
-        shell_sse.as_bytes(),
+        Bytes::from_static(shell_sse.as_bytes()),
+        None,
     )
     .unwrap();
     assert_eq!(parsed.blocks().len(), 1);
@@ -1251,7 +1260,8 @@ fn redacts_anthropic_sse_start_tool_content_chat_array_delta_and_dedupes_output_
     let parsed = ParsedResponse::parse(
         ApiFormat::OpenAiResponses,
         ResponseFormat::Json,
-        resp_with_output_text.as_bytes(),
+        Bytes::from_static(resp_with_output_text.as_bytes()),
+        None,
     )
     .unwrap();
     assert_eq!(parsed.blocks().len(), 1);
@@ -1265,4 +1275,87 @@ fn redacts_anthropic_sse_start_tool_content_chat_array_delta_and_dedupes_output_
         .unwrap();
     assert_eq!(rewritten["output"][0]["content"][0]["text"], "SSN [SSN]");
     assert_eq!(rewritten["output_text"], "SSN [SSN]");
+}
+
+#[test]
+fn redacts_custom_tool_calls_and_responses_nested_action_fields() {
+    let guardrails = [redact_guardrail("ssn", "[SSN]", &[SSN])];
+
+    let chat_json = r#"{"choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"custom","custom":{"name":"sql","input":"SELECT '123-45-6789'"}}]}}]}"#;
+    let chat_rewritten: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::OpenAiChatCompletions,
+            ResponseFormat::Json,
+            chat_json,
+        )))
+        .unwrap();
+    assert_eq!(
+        chat_rewritten["choices"][0]["message"]["tool_calls"][0]["custom"]["input"],
+        "SELECT '[SSN]'"
+    );
+
+    let chat_sse = concat!(
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"SELECT '123-\"}}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"custom\":{\"input\":\"45-6789'\"}}]}}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let chat_sse_rewritten = rewritten_response_str(check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiChatCompletions,
+        ResponseFormat::Sse,
+        chat_sse,
+    ));
+    assert!(!chat_sse_rewritten.contains("123-"));
+    assert!(!chat_sse_rewritten.contains("45-6789"));
+    assert!(chat_sse_rewritten.contains("SELECT '[SSN]'"));
+
+    let responses_json = r#"{"output":[{"type":"local_shell_call","action":{"type":"exec","command":["echo","123-45-6789"]}},{"type":"computer_call","action":{"type":"type","text":"SSN 123-45-6789"}}]}"#;
+    let resp_rewritten: serde_json::Value =
+        serde_json::from_str(&rewritten_response_str(check_response_local(
+            &guardrails,
+            ApiFormat::OpenAiResponses,
+            ResponseFormat::Json,
+            responses_json,
+        )))
+        .unwrap();
+    assert_eq!(resp_rewritten["output"][0]["action"]["type"], "exec");
+    assert_eq!(resp_rewritten["output"][0]["action"]["command"][1], "[SSN]");
+    assert_eq!(resp_rewritten["output"][1]["action"]["type"], "type");
+    assert_eq!(resp_rewritten["output"][1]["action"]["text"], "SSN [SSN]");
+
+    let responses_sse = concat!(
+        "event: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}}\n\n",
+        "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[{\"type\":\"local_shell_call\",\"action\":{\"type\":\"exec\",\"command\":[\"echo\",\"123-45-6789\"]}}]}}\n\n"
+    );
+    let resp_sse_rewritten = rewritten_response_str(check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiResponses,
+        ResponseFormat::Sse,
+        responses_sse,
+    ));
+    assert!(!resp_sse_rewritten.contains("123-45-6789"));
+    assert_eq!(resp_sse_rewritten.matches("[SSN]").count(), 2);
+}
+
+#[test]
+fn response_parse_charges_dynamic_value_tree_memory_against_budget() {
+    // High-expansion JSON (`[{"":0},...]`) expands ~100x into Value nodes and
+    // must fail with Busy against a tight memory_budget instead of bypassing it.
+    let mut entries = String::from(r#"{"choices":["#);
+    for idx in 0..400 {
+        if idx > 0 {
+            entries.push(',');
+        }
+        entries.push_str(r#"{"":0}"#);
+    }
+    entries.push_str("]}");
+    let tight_budget = Arc::new(Semaphore::new(24 * 1024));
+    let parsed = ParsedResponse::parse(
+        ApiFormat::OpenAiChatCompletions,
+        ResponseFormat::Json,
+        Bytes::from(entries),
+        Some(&tight_budget),
+    );
+    assert!(matches!(parsed, Err(ResponseParseError::Busy)));
 }
