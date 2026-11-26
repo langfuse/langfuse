@@ -6,9 +6,8 @@ import {
   type ApiAccessLevel,
   type ApiAccessScope,
   logger,
-  redactApiKey,
+  redactLangfuseSecretKeys,
   redis,
-  secretKeyPattern,
   traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -81,7 +80,7 @@ function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
 
 function logAuthenticationError(error: unknown): void {
   logger.error("Public API authentication failed", {
-    error: errorDiagnostic(error).replace(secretKeyPattern, redactApiKey),
+    error: redactLangfuseSecretKeys(errorDiagnostic(error)),
   });
 }
 

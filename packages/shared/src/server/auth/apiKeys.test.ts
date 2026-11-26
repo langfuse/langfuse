@@ -9,7 +9,7 @@ import {
   createShaHash,
   formatSubmittedPublicKeyForLog,
   redactApiKey,
-  secretKeyPattern,
+  redactLangfuseSecretKeys,
   verifySecretKey,
 } from "./apiKeys";
 import {
@@ -30,21 +30,23 @@ describe("redactApiKey", () => {
       "...6789",
     );
   });
+});
 
-  it("masks every secret key in a text when used with secretKeyPattern", () => {
+describe("redactLangfuseSecretKeys", () => {
+  it("masks every secret key embedded in a larger string", () => {
     const input = JSON.stringify([
       SECRET_KEY,
       PUBLIC_KEY,
       "sk-lf-gw-abcdef1234",
     ]);
-    expect(input.replace(secretKeyPattern, redactApiKey)).toBe(
+    expect(redactLangfuseSecretKeys(input)).toBe(
       JSON.stringify(["sk-lf-...9b0c", PUBLIC_KEY, "sk-lf-...1234"]),
     );
   });
 
-  it("finds no secret key in a text without one", () => {
-    expect(PUBLIC_KEY.replace(secretKeyPattern, redactApiKey)).toBe(PUBLIC_KEY);
-    expect("python-sdk 3.1.0".replace(secretKeyPattern, redactApiKey)).toBe(
+  it("leaves strings without a secret key unchanged", () => {
+    expect(redactLangfuseSecretKeys(PUBLIC_KEY)).toBe(PUBLIC_KEY);
+    expect(redactLangfuseSecretKeys("python-sdk 3.1.0")).toBe(
       "python-sdk 3.1.0",
     );
   });

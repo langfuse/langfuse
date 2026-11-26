@@ -28,16 +28,17 @@ import { withTransaction } from "../utils/withTransaction";
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
-/** secretKeyPattern matches every Langfuse secret key in a text. */
-export const secretKeyPattern = new RegExp(
-  `${secretKeyPrefix}[A-Za-z0-9_-]+`,
-  "g",
-);
-
 /** redactApiKey masks an API key to its last four characters, keeping only a Langfuse prefix: `sk-lf-...abcd`, `...abcd`. */
 export function redactApiKey(value: string): string {
   const prefix = value.startsWith(secretKeyPrefix) ? secretKeyPrefix : "";
   return `${prefix}...${value.slice(-4)}`;
+}
+
+const secretKeyPattern = new RegExp(`${secretKeyPrefix}[A-Za-z0-9_-]+`, "g");
+
+/** redactLangfuseSecretKeys masks every Langfuse secret key in a text, so it can be logged or attached to a span. */
+export function redactLangfuseSecretKeys(value: string): string {
+  return value.replace(secretKeyPattern, redactApiKey);
 }
 
 const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
