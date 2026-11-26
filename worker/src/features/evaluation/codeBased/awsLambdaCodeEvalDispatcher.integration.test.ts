@@ -29,6 +29,7 @@ const baseInput: DispatchInput = {
   execution: { jobExecutionId: "job-floci-integration" },
   code: { source: "function evaluate() {}" },
   payload: {
+    targetType: "observation",
     observation: {
       input: "hello",
       output: "hello world",
@@ -228,6 +229,199 @@ def evaluate(ctx):
         message: expect.stringMatching(
           /^TypeError: Cannot read properties of undefined/,
         ),
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it.each<CodeEvalRuntimeLanguage>(["TYPESCRIPT", "PYTHON"])(
+    "reads a payload without targetType as an observation in the %s runner",
+    async (language) => {
+      const source: Record<CodeEvalRuntimeLanguage, string> = {
+        TYPESCRIPT: `
+function evaluate(ctx: any) {
+  return {
+    scores: [
+      { name: "target", value: ctx.targetType, dataType: "CATEGORICAL" },
+      { name: "output", value: ctx.observation.output, dataType: "TEXT" },
+    ],
+  };
+}
+`,
+        PYTHON: `
+def evaluate(ctx):
+    return {
+        "scores": [
+            {"name": "target", "value": ctx.target_type, "dataType": "CATEGORICAL"},
+            {"name": "output", "value": ctx.observation.output, "dataType": "TEXT"},
+        ]
+    }
+`,
+      };
+
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language },
+          code: { source: source[language] },
+          // Dispatchers released before trace targets send no targetType.
+          payload: {
+            observation: {
+              input: "hello",
+              output: "hello world",
+              metadata: null,
+              toolCalls: [],
+            },
+          } as DispatchInput["payload"],
+        }),
+      ).resolves.toEqual({
+        scores: [
+          { name: "target", value: "observation", dataType: "CATEGORICAL" },
+          { name: "output", value: "hello world", dataType: "TEXT" },
+        ],
+      });
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  const tracePayload: DispatchInput["payload"] = {
+    targetType: "trace",
+    trace: {
+      threads: [
+        {
+          messages: [
+            {
+              role: "user",
+              source: "input",
+              parts: [{ type: "text", text: "Weather in Zurich?" }],
+            },
+            {
+              role: "assistant",
+              source: "output",
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: "call-1",
+                  toolName: "get_weather",
+                  input: { city: "Zurich" },
+                },
+              ],
+              observationId: "observation-1",
+              traceId: "trace-1",
+              startTime: "2026-11-26T09:00:00.000Z",
+              endTime: "2026-11-26T09:00:01.000Z",
+            },
+          ],
+        },
+        {
+          // Replayed history carries no observationId.
+          messages: [
+            {
+              role: "assistant",
+              source: "output",
+              parts: [
+                {
+                  type: "tool-call",
+                  toolCallId: "call-0",
+                  toolName: "search",
+                  input: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  it.each<CodeEvalRuntimeLanguage>(["TYPESCRIPT", "PYTHON"])(
+    "passes trace threads to the %s runner",
+    async (language) => {
+      const source: Record<CodeEvalRuntimeLanguage, string> = {
+        TYPESCRIPT: `
+function evaluate(ctx: any) {
+  const own = ctx.trace.threads.flatMap((t: any) =>
+    t.messages.filter((m: any) => m.observationId),
+  );
+  const calls = own
+    .flatMap((m: any) => m.parts)
+    .filter((p: any) => p.type === "tool-call");
+  return {
+    scores: [
+      { name: "target", value: ctx.targetType, dataType: "CATEGORICAL" },
+      { name: "threads", value: ctx.trace.threads.length, dataType: "NUMERIC" },
+      { name: "own-tool-calls", value: calls.length, dataType: "NUMERIC" },
+      { name: "start-time", value: own[0].startTime, dataType: "TEXT" },
+    ],
+  };
+}
+`,
+        PYTHON: `
+def evaluate(ctx):
+    own = [m for t in ctx.trace.threads for m in t["messages"] if "observationId" in m]
+    calls = [p for m in own for p in m["parts"] if p["type"] == "tool-call"]
+    return {
+        "scores": [
+            {"name": "target", "value": ctx.target_type, "dataType": "CATEGORICAL"},
+            {"name": "threads", "value": len(ctx.trace.threads), "dataType": "NUMERIC"},
+            {"name": "own-tool-calls", "value": len(calls), "dataType": "NUMERIC"},
+            {"name": "start-time", "value": own[0]["startTime"], "dataType": "TEXT"},
+        ]
+    }
+`,
+      };
+
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language },
+          code: { source: source[language] },
+          payload: tracePayload,
+        }),
+      ).resolves.toEqual({
+        scores: [
+          { name: "target", value: "trace", dataType: "CATEGORICAL" },
+          { name: "threads", value: 2, dataType: "NUMERIC" },
+          { name: "own-tool-calls", value: 1, dataType: "NUMERIC" },
+          {
+            name: "start-time",
+            value: "2026-11-26T09:00:00.000Z",
+            dataType: "TEXT",
+          },
+        ],
+      });
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it.each([
+    {
+      language: "TYPESCRIPT" as const,
+      source: `function evaluate(ctx: any) { return { scores: [{ name: "match", value: ctx.observation.output === ctx.observation.input ? 1 : 0 }] }; }`,
+      message: /^TypeError: Cannot read properties of undefined/,
+    },
+    {
+      language: "PYTHON" as const,
+      source: `
+def evaluate(ctx):
+    return {"scores": [{"name": "match", "value": 1 if ctx.observation.output == ctx.observation.input else 0}]}
+`,
+      message: /^AttributeError: 'NoneType' object has no attribute/,
+    },
+  ])(
+    "fails an observation evaluator on a trace payload in the $language runner",
+    async ({ language, source, message }) => {
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language },
+          code: { source },
+          payload: tracePayload,
+        }),
+      ).rejects.toMatchObject({
+        code: "USER_CODE_ERROR",
+        message: expect.stringMatching(message),
         retryable: false,
       } satisfies Partial<CodeEvalDispatcherError>);
     },

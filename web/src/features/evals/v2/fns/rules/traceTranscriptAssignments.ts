@@ -41,7 +41,7 @@ export function needsTraceMapping(assignment: {
   variableMapping: ObservationVariableMapping[] | null;
   defaultVariableMapping?: ObservationVariableMapping[] | null;
 }) {
-  // Code evaluators have no user mapping; the server rejects them on trace rules.
+  // Code evaluators have no user mapping; they read the whole transcript.
   if (assignment.evaluatorType === "CODE") return false;
   return (
     assignment.variableMapping ??
