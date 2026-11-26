@@ -1,7 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { SpanKind } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AwsLambdaCodeEvalDispatcher } from "./awsLambdaCodeEvalDispatcher";
-import type { DispatchInput } from "./codeEvalDispatcherTypes";
+import {
+  CODE_EVAL_SOURCE_MAX_BYTES,
+  type DispatchInput,
+} from "./codeEvalDispatcherTypes";
 
 const mocks = vi.hoisted(() => {
   const span = {
@@ -318,5 +322,85 @@ describe("AwsLambdaCodeEvalDispatcher observability", () => {
       "langfuse.code_eval.lambda.function_error": "Handled",
       "aws.request_id": "request-3",
     });
+  });
+});
+
+const PYTHON = "python3";
+
+describe("AwsLambdaCodeEvalDispatcher Python trace guard", () => {
+  const pythonTraceInput: DispatchInput = {
+    ...baseInput,
+    runtime: { language: "PYTHON" },
+    code: { source: "def evaluate(ctx):\n    return ctx.trace.threads\n" },
+    payload: { targetType: "trace", trace: { threads: [] } },
+  };
+
+  async function sentSource(input: DispatchInput) {
+    const send = vi.fn().mockResolvedValue({
+      StatusCode: 200,
+      Payload: Buffer.from(JSON.stringify({ scores: [] })),
+      $metadata: {},
+    });
+    await new AwsLambdaCodeEvalDispatcher({
+      lambdaClient: { send } as any,
+    }).dispatch(input);
+    return JSON.parse(send.mock.calls[0][0].input.Payload.toString()).code
+      .source as string;
+  }
+
+  // Runs the sent source against a context, like the runner's handler does.
+  function evaluateWith(source: string, ctx: string) {
+    return execFileSync(
+      PYTHON,
+      [
+        "-c",
+        `import sys, types
+namespace = {}
+exec(sys.argv[1], namespace)
+try:
+    print(namespace["evaluate"](${ctx}))
+except Exception as error:
+    print(f"{type(error).__name__}: {error}")`,
+        source,
+      ],
+      { encoding: "utf8" },
+    ).trim();
+  }
+
+  it("fails with a clear error on a runner without ctx.trace and passes through otherwise", async () => {
+    const source = await sentSource(pythonTraceInput);
+
+    expect(source.startsWith(pythonTraceInput.code.source)).toBe(true);
+    expect(
+      evaluateWith(source, "types.SimpleNamespace(observation=None)"),
+    ).toBe(
+      "RuntimeError: This code evaluator runtime does not support trace evaluators. Update the code eval runners.",
+    );
+    expect(
+      evaluateWith(
+        source,
+        "types.SimpleNamespace(trace=types.SimpleNamespace(threads=[1]))",
+      ),
+    ).toBe("[1]");
+  });
+
+  it("leaves observation runs and the source size check on the user's source", async () => {
+    const observationInput = {
+      ...pythonTraceInput,
+      payload: baseInput.payload,
+    };
+    expect(await sentSource(observationInput)).toBe(
+      pythonTraceInput.code.source,
+    );
+
+    const padding = "#".repeat(
+      CODE_EVAL_SOURCE_MAX_BYTES - pythonTraceInput.code.source.length,
+    );
+    await expect(
+      sentSource({
+        ...pythonTraceInput,
+        code: { source: pythonTraceInput.code.source + padding },
+      }),
+    ).resolves.toContain(padding);
   });
 });

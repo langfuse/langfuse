@@ -116,6 +116,43 @@ function getSharedLambdaClient(endpoint?: string): LambdaClient {
   return sharedLambdaClient;
 }
 
+// Python runners deployed before trace targets drop the payload's `trace`, so
+// ctx.trace raises AttributeError and observation-shaped code scores empty
+// data. The guard is appended after the user's code, which keeps their line
+// numbers, and passes through whenever the runner exposes ctx.trace.
+const PYTHON_TRACE_GUARD = `
+
+
+def __langfuse_require_trace_context(user_evaluate):
+    def evaluate(ctx):
+        if not hasattr(ctx, "trace"):
+            raise RuntimeError(
+                "This code evaluator runtime does not support trace evaluators. Update the code eval runners."
+            )
+        return user_evaluate(ctx)
+
+    return evaluate
+
+
+if callable(globals().get("evaluate")):
+    evaluate = __langfuse_require_trace_context(evaluate)
+`;
+
+function requiresPythonTraceGuard(input: DispatchInput) {
+  return (
+    input.runtime.language === "PYTHON" && input.payload.targetType === "trace"
+  );
+}
+
+// Runs after the limits check, so the guard never pushes an accepted source
+// over CODE_EVAL_SOURCE_MAX_BYTES.
+function withPythonTraceGuard(input: DispatchInput): DispatchInput {
+  return {
+    ...input,
+    code: { ...input.code, source: input.code.source + PYTHON_TRACE_GUARD },
+  };
+}
+
 export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
   public readonly name = "aws-lambda";
   private readonly lambdaClient: LambdaClient;
@@ -185,7 +222,10 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
     });
 
     try {
-      const serializedPayload = assertDispatchInputWithinLimits(input);
+      const validatedPayload = assertDispatchInputWithinLimits(input);
+      const serializedPayload = requiresPythonTraceGuard(input)
+        ? JSON.stringify(withPythonTraceGuard(input))
+        : validatedPayload;
       span.setAttribute(
         "langfuse.code_eval.payload.bytes",
         Buffer.byteLength(serializedPayload, "utf8"),
