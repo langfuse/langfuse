@@ -241,14 +241,7 @@ function axisTextWidth(text: string) {
   return text.length * AXIS_CHAR_PX;
 }
 
-function placedIdleLabels(
-  gaps: readonly GapMarker[],
-  ticks: readonly { x: number; label: string }[],
-): IdleAxisLabel[] {
-  const tickBoxes = ticks.map((tick) => {
-    const left = tick.x + TICK_LABEL_INSET_PX;
-    return { left, right: left + axisTextWidth(tick.label) };
-  });
+function placedIdleLabels(gaps: readonly GapMarker[]): IdleAxisLabel[] {
   const placed: IdleAxisLabel[] = [];
   let labelCursor = 0;
   for (const gap of gaps) {
@@ -256,41 +249,56 @@ function placedIdleLabels(
     const label = idleAxisLabel(gap.durationMs);
     if (gap.width < GAP_LABEL_MIN_WIDTH) continue;
     const width = axisTextWidth(label);
-    const room = freeSpans(gap.x, gap.x + gap.width, tickBoxes).find(
-      (span) => span.end - span.start >= width,
-    );
-    if (!room) continue;
-    const left = Math.max(
-      room.start + (room.end - room.start - width) / 2,
-      labelCursor,
-    );
-    if (left + width > room.end) continue;
+    if (width > gap.width) continue;
+    const left = gap.x + (gap.width - width) / 2;
+    if (left < labelCursor) continue;
     labelCursor = left + width;
     placed.push({ label, left, width });
   }
   return placed;
 }
 
-function freeSpans(
-  start: number,
-  end: number,
-  boxes: readonly { left: number; right: number }[],
-) {
-  let spans = [{ start, end }];
-  for (const box of boxes) {
-    const next = [];
-    for (const span of spans) {
-      if (box.right <= span.start || box.left >= span.end) {
-        next.push(span);
-        continue;
-      }
-      if (box.left > span.start)
-        next.push({ start: span.start, end: box.left });
-      if (box.right < span.end) next.push({ start: box.right, end: span.end });
-    }
-    spans = next;
+type TickSide = "right" | "left";
+type AxisBox = { left: number; right: number };
+
+function boxesOverlap(a: AxisBox, b: AxisBox) {
+  return a.left < b.right && b.left < a.right;
+}
+
+function tickLabelBox(x: number, label: string, side: TickSide): AxisBox {
+  const width = axisTextWidth(label);
+  if (side === "left") {
+    const right = x - TICK_LABEL_INSET_PX;
+    return { left: right - width, right };
   }
-  return spans.toSorted((a, b) => b.end - b.start - (a.end - a.start));
+  const left = x + TICK_LABEL_INSET_PX;
+  return { left, right: left + width };
+}
+
+function placedTickSides(
+  ticks: readonly { x: number; label: string }[],
+  idle: readonly IdleAxisLabel[],
+) {
+  const idleBoxes = idle.map((item) => ({
+    left: item.left,
+    right: item.left + item.width,
+  }));
+  const taken: AxisBox[] = [];
+  return ticks.map((tick) => {
+    const clear = (side: TickSide) => {
+      const box = tickLabelBox(tick.x, tick.label, side);
+      return (
+        box.left >= 0 &&
+        idleBoxes.every((other) => !boxesOverlap(box, other)) &&
+        taken.every((other) => !boxesOverlap(box, other))
+      );
+    };
+    let side: TickSide | null = null;
+    if (clear("right")) side = "right";
+    else if (clear("left")) side = "left";
+    if (side) taken.push(tickLabelBox(tick.x, tick.label, side));
+    return { tick, side };
+  });
 }
 
 function idleGapLabels(placed: readonly IdleAxisLabel[]) {
@@ -773,7 +781,8 @@ export function Timeline({
     barInsetPx: packed ? 2 : 0,
     selectedId,
   });
-  const axisIdleLabels = placedIdleLabels(result.gaps, result.ticks);
+  const axisIdleLabels = placedIdleLabels(result.gaps);
+  const axisTickLabels = placedTickSides(result.ticks, axisIdleLabels);
 
   // What each row occupies on the time axis, in the same compressed space the
   // window is expressed in — so a zoom can tell "nothing to see here" from "the
@@ -1729,19 +1738,33 @@ export function Timeline({
           className="absolute inset-y-0 overflow-hidden"
           style={{ left: `${railWidth}px`, width: `${laneWidth}px` }}
         >
-          {result.ticks.map((tick) => (
+          {axisTickLabels.map(({ tick, side }) => (
             <div
               key={tick.realMs}
               className="border-border-contrast absolute inset-y-0 border-l"
               style={{ left: `${tick.x}px` }}
             >
-              <span
-                className="text-muted-foreground absolute left-1 whitespace-nowrap"
-                style={{ top: 0, fontSize: `${TICK_FONT_PX}px` }}
-                data-testid="timeline-tick-label"
-              >
-                {tick.label}
-              </span>
+              {side == null ? null : (
+                <span
+                  className="text-muted-foreground absolute whitespace-nowrap"
+                  style={
+                    side === "left"
+                      ? {
+                          right: TICK_LABEL_INSET_PX,
+                          top: 0,
+                          fontSize: `${TICK_FONT_PX}px`,
+                        }
+                      : {
+                          left: TICK_LABEL_INSET_PX,
+                          top: 0,
+                          fontSize: `${TICK_FONT_PX}px`,
+                        }
+                  }
+                  data-testid="timeline-tick-label"
+                >
+                  {tick.label}
+                </span>
+              )}
             </div>
           ))}
           {idleGapLabels(axisIdleLabels)}
