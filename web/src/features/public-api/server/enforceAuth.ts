@@ -46,24 +46,13 @@ export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "langfuse-project-id";
 
-/** unauthorizedPrefix starts the 403 message for a project the key is not bound to. */
-const unauthorizedPrefix = "The API Key is not authorized to access project";
-
 /** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
 const projectErrors = {
   missing: `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
   mismatch: `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
-  unauthorized: (projectId: string) => `${unauthorizedPrefix} '${projectId}'`,
+  unauthorized: (projectId: string) =>
+    `The API Key is not authorized to access project '${projectId}'`,
 };
-
-/** isProjectError reports whether a 403 message comes from resolving the request's target project. */
-export function isProjectError(message: string): boolean {
-  return (
-    message === projectErrors.missing ||
-    message === projectErrors.mismatch ||
-    message.startsWith(unauthorizedPrefix)
-  );
-}
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
@@ -218,7 +207,7 @@ function getProjectId(
   const selected = [
     getPathProjectId(req),
     getHeaderProjectId(req),
-    getUsernameProjectId(req),
+    getBasicAuthProjectId(req),
   ];
   if (!equal(selected)) {
     return forbiddenError(projectErrors.mismatch);
@@ -279,8 +268,8 @@ function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
 
-/** getUsernameProjectId returns the Basic auth username as the target project, unless it is a public key. */
-function getUsernameProjectId(req: NextApiRequest): string | undefined {
+/** getBasicAuthProjectId returns the Basic auth username as the target project, unless it is a public key. */
+function getBasicAuthProjectId(req: NextApiRequest): string | undefined {
   const credential = parseAuthorizationHeader(req.headers.authorization);
   if (credential.kind !== "basic") return undefined;
   if (credential.publicKey.startsWith(publicKeyPrefix)) return undefined;

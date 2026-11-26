@@ -4,17 +4,8 @@ import { logger } from "@langfuse/shared/src/server";
 import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
-import { isProjectError } from "@/src/features/public-api/server/enforceAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";
-
-/** projectKeyRequired is the 403 body when the project-scoped GET receives a key without project access. */
-const projectKeyRequired =
-  "Invalid API key. Are you using an organization key?";
-
-/** getForbiddenMessage keeps the project-selection 403s, which name the fix, and masks the rest as a wrong-key hint. */
-const getForbiddenMessage = (message: string): string =>
-  isProjectError(message) ? message : projectKeyRequired;
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,13 +27,9 @@ export default async function handler(
       allowedAccessLevels: ["project"],
     });
     if (!auth.success) {
-      const status = auth.error.httpCode;
-      return res.status(status).json({
-        message:
-          status === 403
-            ? getForbiddenMessage(auth.error.message)
-            : auth.error.message,
-      });
+      return res
+        .status(auth.error.httpCode)
+        .json({ message: auth.error.message });
     }
     // project:read guarantees a project-scoped key, so projectId is always set.
     const projectId = auth.scope.projectId as string;
