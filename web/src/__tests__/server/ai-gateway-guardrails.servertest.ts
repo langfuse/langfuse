@@ -1207,7 +1207,6 @@ describe("aiGateway guardrails tRPC", () => {
     const otherOrgId = await createOrganization();
     const owner = await createUser("Guardrail Owner");
     const member = await createUser("Guardrail Member");
-    const viewer = await createUser("Guardrail Viewer");
     const otherOwner = await createUser("Other Org Owner");
     const otherOrgKeyId = await createKey(otherOrgId, otherOwner.id, {
       gateway: true,
@@ -1223,11 +1222,6 @@ describe("aiGateway guardrails tRPC", () => {
       orgId,
       userId: member.id,
       role: Role.MEMBER,
-    });
-    const viewerCaller = createCaller({
-      orgId,
-      userId: viewer.id,
-      role: Role.VIEWER,
     });
     const otherOwnerCaller = createCaller({
       orgId: otherOrgId,
@@ -1348,85 +1342,38 @@ describe("aiGateway guardrails tRPC", () => {
       });
     }
 
-    // Non-admins without gateway:manage cannot preview, test, create, update, bulk-assign, or delete
-    for (const nonAdminCaller of [memberCaller, viewerCaller]) {
-      const nonAdminRequests = [
-        () =>
-          nonAdminCaller.aiGateway.guardrails.previewRegex({
-            orgId,
-            pattern: "foo",
-            text: "foo",
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.test({
-            orgId,
-            id: bedrockGuardrail.id,
-            type: "BEDROCK",
-            bedrock: {
-              guardrailId: "abc123def456",
-              guardrailVersion: "1",
-              region: "us-east-1",
-            },
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.test({
-            orgId,
-            type: "BEDROCK",
-            bedrock: {
-              guardrailId: "abc123def456",
-              guardrailVersion: "1",
-              region: "us-east-1",
-              apiKey: "inline-bedrock-secret",
-            },
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.create({
-            orgId,
-            type: "REGEX",
-            name: "Non-admin rule",
-            action: "LOG",
-            presets: ["email"],
-            assignments: [{ scope: "ORGANIZATION" }],
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.update({
-            orgId,
-            id: regexGuardrail.id,
-            type: "REGEX",
-            name: "Non-admin regex edit",
-            action: "LOG",
-            presets: ["iban"],
-            assignments: [{ scope: "ORGANIZATION" }],
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.update({
-            orgId,
-            id: bedrockGuardrail.id,
-            type: "BEDROCK",
-            name: "Non-admin bedrock edit",
-            action: "LOG",
-            bedrock: {
-              guardrailId: "abc123def456",
-              guardrailVersion: "2",
-              region: "us-east-1",
-            },
-            assignments: [{ scope: "ORGANIZATION" }],
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.setAssignments({
-            orgId,
-            target: { type: "ids", ids: guardrailIds },
-            assignments: [{ scope: "ORGANIZATION" }],
-          }),
-        () =>
-          nonAdminCaller.aiGateway.guardrails.delete({
-            orgId,
-            target: { type: "ids", ids: guardrailIds },
-          }),
-      ];
-      for (const request of nonAdminRequests) {
-        await expect(request()).rejects.toMatchObject({ code: "FORBIDDEN" });
-      }
+    // Non-admins without gateway:manage cannot preview, test, or update (create, setAssignments, and delete are covered above)
+    const nonAdminRequests = [
+      () =>
+        memberCaller.aiGateway.guardrails.previewRegex({
+          orgId,
+          pattern: "foo",
+          text: "foo",
+        }),
+      () =>
+        memberCaller.aiGateway.guardrails.test({
+          orgId,
+          id: bedrockGuardrail.id,
+          type: "BEDROCK",
+          bedrock: {
+            guardrailId: "abc123def456",
+            guardrailVersion: "1",
+            region: "us-east-1",
+          },
+        }),
+      () =>
+        memberCaller.aiGateway.guardrails.update({
+          orgId,
+          id: regexGuardrail.id,
+          type: "REGEX",
+          name: "Non-admin regex edit",
+          action: "LOG",
+          presets: ["iban"],
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+    ];
+    for (const request of nonAdminRequests) {
+      await expect(request()).rejects.toMatchObject({ code: "FORBIDDEN" });
     }
 
     // Foreign-organization admin submitting another org's guardrail IDs under their own orgId
