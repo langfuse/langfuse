@@ -33,6 +33,9 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          scope:
+            type: optional<commons.ModelScope>
+            docs: Filter models by scope (`PROJECT`, `ORGANIZATION`, or `LANGFUSE`). Returns all visible scopes when omitted.
       response: PaginatedModels
     get:
       method: GET

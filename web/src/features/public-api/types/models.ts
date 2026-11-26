@@ -1,5 +1,6 @@
 import {
   type ModelUsageUnit as PrismaModelUsageUnit,
+  ModelScope,
   paginationMetaResponseZod,
   type Model as PrismaModel,
   jsonSchema,
@@ -15,6 +16,8 @@ import { type Decimal } from "decimal.js";
 /**
  * Objects
  */
+
+const APIModelScope = z.enum(ModelScope);
 
 const APIModelUsageUnit = z.enum([
   "TOKENS",
@@ -49,7 +52,7 @@ const APIModelDefinition = z
     unit: APIModelUsageUnit.nullish(),
     tokenizerId: z.string().nullable(),
     tokenizerConfig: z.any(), // Assuming Prisma.JsonValue is any type
-    scope: z.enum(["PROJECT", "ORGANIZATION", "LANGFUSE"]),
+    scope: APIModelScope,
     /** Deprecated: true when the model cannot be changed through the project, use `scope`. */
     isLangfuseManaged: z.boolean(),
     createdAt: z.coerce.date(),
@@ -136,6 +139,7 @@ export function prismaToApiModelDefinition({
 // GET /models
 export const GetModelsV1Query = z.object({
   ...publicApiPaginationZod,
+  scope: APIModelScope.optional(),
 });
 export const GetModelsV1Response = z
   .object({

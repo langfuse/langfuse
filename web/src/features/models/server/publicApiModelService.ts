@@ -174,8 +174,13 @@ export const listModelsForApi = async ({
   projectId,
   page,
   limit,
+  scope,
 }: ListModelsInput) => {
-  const where = visibleModelsWhere(projectId);
+  const where: Prisma.ModelWhereInput = scope
+    ? {
+        AND: [visibleModelsWhere(projectId), { scope }],
+      }
+    : visibleModelsWhere(projectId);
 
   const [models, totalItems] = await Promise.all([
     prisma.model.findMany({

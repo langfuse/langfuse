@@ -3339,6 +3339,15 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: scope
+          in: query
+          description: >-
+            Filter models by scope (`PROJECT`, `ORGANIZATION`, or `LANGFUSE`).
+            Returns all visible scopes when omitted.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ModelScope'
+            nullable: true
       responses:
         '200':
           description: ''

@@ -510,6 +510,134 @@ describe("organization model definitions", () => {
       expect(listed.has(ids.orgBOnly)).toBe(false);
     });
 
+    it("filters listed models by scope with accurate pagination totals and rejects invalid scopes", async () => {
+      const projectOnly = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        "/api/public/models?scope=PROJECT&limit=100",
+        undefined,
+        orgA.auth,
+      );
+      expect(projectOnly.body.data.map((m) => m.id)).toEqual([
+        ids.projectA1Shared,
+      ]);
+      expect(projectOnly.body.data.every((m) => m.scope === "PROJECT")).toBe(
+        true,
+      );
+      expect(projectOnly.body.meta).toEqual({
+        page: 1,
+        limit: 100,
+        totalItems: 1,
+        totalPages: 1,
+      });
+
+      const emptyProjectOnly = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        "/api/public/models?scope=PROJECT",
+        undefined,
+        orgB.auth,
+      );
+      expect(emptyProjectOnly.body.data).toEqual([]);
+      expect(emptyProjectOnly.body.meta).toEqual({
+        page: 1,
+        limit: 50,
+        totalItems: 0,
+        totalPages: 0,
+      });
+
+      const [orgPage1, orgPage2] = await Promise.all([
+        makeZodVerifiedAPICall(
+          GetModelsV1Response,
+          "GET",
+          "/api/public/models?scope=ORGANIZATION&page=1&limit=1",
+          undefined,
+          orgA.auth,
+        ),
+        makeZodVerifiedAPICall(
+          GetModelsV1Response,
+          "GET",
+          "/api/public/models?scope=ORGANIZATION&page=2&limit=1",
+          undefined,
+          orgA.auth,
+        ),
+      ]);
+      expect(orgPage1.body.meta).toEqual({
+        page: 1,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+      expect(orgPage2.body.meta).toEqual({
+        page: 2,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+      const orgModels = [...orgPage1.body.data, ...orgPage2.body.data];
+      expect(orgModels.every((m) => m.scope === "ORGANIZATION")).toBe(true);
+      expect(orgModels.map((m) => m.id).sort()).toEqual(
+        [ids.orgAShared, ids.orgAOnly].sort(),
+      );
+
+      const langfuseIds = new Set<string>();
+      for (let page = 1, totalPages = 1; page <= totalPages; page++) {
+        const response = await makeZodVerifiedAPICall(
+          GetModelsV1Response,
+          "GET",
+          `/api/public/models?scope=LANGFUSE&page=${page}&limit=100`,
+          undefined,
+          orgA.auth,
+        );
+        totalPages = response.body.meta.totalPages;
+        expect(response.body.meta.totalItems).toBeGreaterThanOrEqual(1);
+        expect(response.body.meta.totalPages).toBe(
+          Math.ceil(response.body.meta.totalItems / 100),
+        );
+        for (const m of response.body.data) {
+          expect(m.scope).toBe("LANGFUSE");
+          langfuseIds.add(m.id);
+        }
+      }
+      expect(langfuseIds.has(ids.langfuseShared)).toBe(true);
+      expect(langfuseIds.has(ids.projectA1Shared)).toBe(false);
+      expect(langfuseIds.has(ids.orgAShared)).toBe(false);
+      expect(langfuseIds.has(ids.orgAOnly)).toBe(false);
+      expect(langfuseIds.has(ids.orgBOnly)).toBe(false);
+
+      const langfusePage1 = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        "/api/public/models?scope=LANGFUSE&page=1&limit=1",
+        undefined,
+        orgA.auth,
+      );
+      expect(langfusePage1.body.data).toHaveLength(1);
+      expect(langfusePage1.body.data[0]?.scope).toBe("LANGFUSE");
+      expect(langfusePage1.body.meta.totalPages).toBe(
+        langfusePage1.body.meta.totalItems,
+      );
+
+      const unfiltered = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        "/api/public/models?page=1&limit=1",
+        undefined,
+        orgA.auth,
+      );
+      expect(unfiltered.body.meta.totalItems).toBeGreaterThanOrEqual(4);
+
+      for (const invalidScope of ["INVALID", "ALL", "project"]) {
+        const invalid = await makeAPICall(
+          "GET",
+          `/api/public/models?scope=${invalidScope}`,
+          undefined,
+          orgA.auth,
+        );
+        expect(invalid.status).toBe(400);
+      }
+    });
+
     it("forbids replacing or deleting own organization definitions, and hides another organization's", async () => {
       const body = {
         modelName: orgOnlyName,
