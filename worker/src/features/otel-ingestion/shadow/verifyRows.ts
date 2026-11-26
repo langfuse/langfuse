@@ -177,7 +177,7 @@ function nextGroup(now: number): typeof current {
   return {
     samples,
     rows: samples.reduce((sum, { rows }) => sum + rows.length, 0),
-    reads: readsOf(samples),
+    reads: packRowsIntoReads(samples),
     found: [],
   };
 }
@@ -191,8 +191,16 @@ function takeSettled(now: number): Sample[] {
   return [...new Map(due.map((sample) => [sample.fileKey, sample])).values()];
 }
 
-/** The samples' rows in reads whose form fields stay within their size limit. */
-function readsOf(samples: Sample[]): Read[] {
+/**
+ * Split the samples' rows into reads that ClickHouse accepts.
+ *
+ * Row ids and file names are sent as query parameters, and ClickHouse rejects
+ * a parameter above 128 KiB. A read therefore carries its row ids in up to
+ * ID_FIELDS_PER_READ parameters of at most FIELD_BYTES each, and its file
+ * names in one more. A full parameter starts the next one, and a full read
+ * starts the next read, so a large file's rows can span several reads.
+ */
+function packRowsIntoReads(samples: Sample[]): Read[] {
   const reads: Read[] = [];
   let read: Read = { idFields: [[]], fileKeys: [] };
   let idBytes = 0;
