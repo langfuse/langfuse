@@ -802,37 +802,20 @@ fn apply_local_guardrails(
             redaction_reservations: Vec::new(),
         });
     }
-    let regex_slots: Vec<(usize, &[String])> = rules
-        .iter()
-        .enumerate()
-        .filter_map(|(slot, rule)| {
-            let patterns = guardrails.get(rule.guardrail_index)?.regex_patterns()?;
-            Some((slot, patterns))
-        })
-        .collect();
     let has_external = rules.iter().any(|rule| {
         guardrails
             .get(rule.guardrail_index)
             .is_some_and(Guardrail::is_external)
     });
-    let detector = (!regex_slots.is_empty()).then(|| regex::compiled_detector(&regex_slots));
 
-    let mut state = LocalEvalState::new(
-        guardrails,
-        rules,
-        regex_slots,
-        detector,
-        body,
-        has_external,
-        budget,
-    );
+    let mut state = LocalEvalState::new(guardrails, rules, body, has_external, budget);
     let unreadable = turn
         .as_ref()
         .map_or(true, |turn| state.evaluate_turn(turn, scanned));
     state.finish(unreadable)
 }
 
-struct RedactorSlot {
+struct CompiledRedactor {
     compiled: Arc<Compiled>,
     caps: Vec<Captures>,
 }
@@ -841,10 +824,10 @@ struct LocalEvalState<'g, 'b> {
     guardrails: &'g [Guardrail],
     rules: Vec<RuleState>,
     regex_slots: Vec<(usize, &'g [String])>,
+    redact_slots: Vec<(usize, &'g [String])>,
     detector: Option<Arc<Compiled>>,
     patsets: Vec<PatternSet>,
-    redactors: Vec<Option<RedactorSlot>>,
-    matched_redact_slots: Vec<usize>,
+    redactor: Option<CompiledRedactor>,
     body: &'b [u8],
     has_external: bool,
     budget: Option<&'b Arc<Semaphore>>,
@@ -858,12 +841,29 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
     fn new(
         guardrails: &'g [Guardrail],
         rules: Vec<RuleState>,
-        regex_slots: Vec<(usize, &'g [String])>,
-        detector: Option<Arc<Compiled>>,
         body: &'b [u8],
         has_external: bool,
         budget: Option<&'b Arc<Semaphore>>,
     ) -> Self {
+        let regex_slots: Vec<(usize, &'g [String])> = rules
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, rule)| {
+                let patterns = guardrails.get(rule.guardrail_index)?.regex_patterns()?;
+                Some((slot, patterns))
+            })
+            .collect();
+        let redact_slots: Vec<(usize, &'g [String])> = regex_slots
+            .iter()
+            .copied()
+            .filter(|&(slot, _)| {
+                rules
+                    .get(slot)
+                    .and_then(|rule| guardrails.get(rule.guardrail_index))
+                    .is_some_and(|guardrail| guardrail.action == GuardrailAction::Redact)
+            })
+            .collect();
+        let detector = (!regex_slots.is_empty()).then(|| regex::compiled_detector(&regex_slots));
         let patsets = detector.as_ref().map_or_else(Vec::new, |compiled| {
             compiled
                 .matchers
@@ -871,15 +871,14 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 .map(|matcher| PatternSet::new(matcher.regex.pattern_len()))
                 .collect()
         });
-        let redactors = (0..rules.len()).map(|_| None).collect();
         Self {
             guardrails,
             rules,
             regex_slots,
+            redact_slots,
             detector,
             patsets,
-            redactors,
-            matched_redact_slots: Vec::new(),
+            redactor: None,
             body,
             has_external,
             budget,
@@ -900,7 +899,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 return;
             }
             self.span_scratch.clear();
-            self.matched_redact_slots.clear();
+            let mut matched_redact = false;
             if let Some(detector) = self.detector.as_deref() {
                 let input = Input::new(leaf.text.as_bytes());
                 for (matcher, patset) in detector.matchers.iter().zip(&mut self.patsets) {
@@ -922,10 +921,8 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                         };
                         rule.verdict
                             .escalate(RuleVerdict::from_local_match(guardrail.action));
-                        if guardrail.action == GuardrailAction::Redact
-                            && !self.matched_redact_slots.contains(&slot)
-                        {
-                            self.matched_redact_slots.push(slot);
+                        if guardrail.action == GuardrailAction::Redact {
+                            matched_redact = true;
                         }
                     }
                 }
@@ -934,7 +931,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 .rules
                 .iter()
                 .any(|rule| rule.verdict == RuleVerdict::Block);
-            if !blocking {
+            if matched_redact && !blocking {
                 self.collect_redact_spans(leaf.text);
             }
             let Ok(redacted) = redact_leaf(
@@ -967,50 +964,56 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
     }
 
     fn collect_redact_spans(&mut self, text: &str) {
-        for index in 0..self.matched_redact_slots.len() {
-            let Some(&slot) = self.matched_redact_slots.get(index) else {
-                continue;
-            };
-            let Some(rule) = self.rules.get_mut(slot) else {
-                continue;
-            };
-            let Some(guardrail) = self.guardrails.get(rule.guardrail_index) else {
-                continue;
-            };
-            let Some(patterns) = guardrail.regex_patterns() else {
-                continue;
-            };
-            let Some(entry) = self.redactors.get_mut(slot) else {
-                continue;
-            };
-            let redactor = entry.get_or_insert_with(|| {
-                let compiled = regex::compiled_redactor(patterns);
-                let caps = compiled
-                    .matchers
-                    .iter()
-                    .map(|matcher| matcher.regex.create_captures())
-                    .collect();
-                RedactorSlot { compiled, caps }
+        if self.redact_slots.is_empty() {
+            return;
+        }
+        let redactor = self.redactor.get_or_insert_with(|| {
+            let compiled = regex::compiled_redactor(&self.redact_slots);
+            let caps = compiled
+                .matchers
+                .iter()
+                .map(|matcher| matcher.regex.create_captures())
+                .collect();
+            CompiledRedactor { compiled, caps }
+        });
+        let before = self.span_scratch.len();
+        for (matcher, caps) in redactor.compiled.matchers.iter().zip(&mut redactor.caps) {
+            regex::for_each_match(&matcher.regex, caps, text, |pattern, start, end| {
+                let Some(&(slot, _)) = matcher
+                    .owners
+                    .get(pattern.as_usize())
+                    .and_then(|&owner| self.redact_slots.get(owner))
+                else {
+                    return;
+                };
+                let Some(rule) = self.rules.get_mut(slot) else {
+                    return;
+                };
+                let Some(guardrail) = self.guardrails.get(rule.guardrail_index) else {
+                    return;
+                };
+                if start < end {
+                    self.span_scratch.push(RedactionSpan {
+                        start,
+                        end,
+                        priority: slot,
+                        label: guardrail.redaction_label(),
+                    });
+                } else {
+                    rule.verdict
+                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                }
             });
-            let before = self.span_scratch.len();
-            let mut empty_match = false;
-            for (matcher, caps) in redactor.compiled.matchers.iter().zip(&mut redactor.caps) {
-                regex::for_each_match(&matcher.regex, caps, text, |_, start, end| {
-                    if start < end {
-                        self.span_scratch.push(RedactionSpan {
-                            start,
-                            end,
-                            priority: slot,
-                            label: guardrail.redaction_label(),
-                        });
-                    } else {
-                        empty_match = true;
-                    }
-                });
-            }
-            if empty_match || self.span_scratch.len() == before {
-                rule.verdict
-                    .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+        }
+        if self.span_scratch.len() == before {
+            for &(slot, _) in &self.redact_slots {
+                if let Some(rule) = self.rules.get_mut(slot)
+                    && rule.verdict == RuleVerdict::Redact
+                    && let Some(guardrail) = self.guardrails.get(rule.guardrail_index)
+                {
+                    rule.verdict
+                        .escalate(RuleVerdict::from_fail_closed(guardrail.action));
+                }
             }
         }
     }

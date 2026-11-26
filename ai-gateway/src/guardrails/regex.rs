@@ -1,5 +1,5 @@
 //! Bounded cache of compiled multi-pattern guardrail regexes for overlapping
-//! detection (`MatchKind::All`) and per-guardrail `LeftmostFirst` span extraction.
+//! detection (`MatchKind::All`) and single-pass `LeftmostFirst` span extraction.
 use std::{
     sync::{Arc, LazyLock},
     time::Duration,
@@ -67,9 +67,14 @@ pub(super) fn compiled_detector(active: &[(usize, &[String])]) -> Arc<Compiled> 
     lookup(&(CompileMode::Detect, patterns))
 }
 
-/// Per-guardrail `LeftmostFirst` capture matcher for redaction span extraction.
-pub(super) fn compiled_redactor(patterns: &[String]) -> Arc<Compiled> {
-    lookup(&(CompileMode::Redact, vec![patterns.to_vec()]))
+/// Combined `LeftmostFirst` capture matcher across all `REDACT` guardrails so
+/// redaction runs in at most one pass per matching leaf.
+pub(super) fn compiled_redactor(active: &[(usize, &[String])]) -> Arc<Compiled> {
+    let patterns = active
+        .iter()
+        .map(|(_, patterns)| (*patterns).to_vec())
+        .collect();
+    lookup(&(CompileMode::Redact, patterns))
 }
 
 fn lookup(key: &CacheKey) -> Arc<Compiled> {
