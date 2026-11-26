@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { formatDistanceToNowStrict } from "date-fns";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 

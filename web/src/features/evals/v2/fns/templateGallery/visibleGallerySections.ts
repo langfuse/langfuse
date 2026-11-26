@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,

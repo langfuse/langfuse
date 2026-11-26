@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { type FilterState, computeSelectedValues } from "@langfuse/shared";
 import { type ASTNode, type FilterNode, type Span } from "../ast";
 import { type FieldRegistry } from "../fields";

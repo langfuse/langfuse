@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { type DashboardWidgetChartType } from "@langfuse/shared";
 import { getResultUnit, type ViewVersion } from "@langfuse/shared/query";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";

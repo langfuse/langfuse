@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 // Client-side metadata structure analysis feeding the bar's `metadata.<key>`
 // key suggestions. The API does not enumerate metadata keys (see
 // observed-options.ts) and backend structure analysis is deferred, so the map

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import {
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,

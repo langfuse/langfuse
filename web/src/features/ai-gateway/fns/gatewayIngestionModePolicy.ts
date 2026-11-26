@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import type { GatewayIngestionMode } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";

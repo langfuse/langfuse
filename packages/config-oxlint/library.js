@@ -1,5 +1,4 @@
 import { allowedPrismaWriters } from "./prismaWriters.js";
-import { existingFnsSingleFunctionExceptions } from "./fnsSingleFunctionBaseline.js";
 
 export default {
   categories: { correctness: "off" },
@@ -43,10 +42,6 @@ export default {
         "**/fns/**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
         "**/fns/**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
       ],
-      rules: { "@repo/single-function-export-matching-filename": "off" },
-    },
-    {
-      files: existingFnsSingleFunctionExceptions,
       rules: { "@repo/single-function-export-matching-filename": "off" },
     },
     {

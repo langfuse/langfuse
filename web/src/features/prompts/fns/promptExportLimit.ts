@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 /** @internal */
 export const PROMPT_EXPORT_VERSION_LIMIT = 10_000;
 

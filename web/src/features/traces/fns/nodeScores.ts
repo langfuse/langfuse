@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 /**
  * Which tree node owns a trace's trace-level scores (`observationId === null`).
  *

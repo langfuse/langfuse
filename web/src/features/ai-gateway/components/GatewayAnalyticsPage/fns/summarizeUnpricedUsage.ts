@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 export type GatewayUnpricedUsage = {
   requests: number;
   tokens: number;

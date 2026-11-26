@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
 
 export type ActivationEstimate = {

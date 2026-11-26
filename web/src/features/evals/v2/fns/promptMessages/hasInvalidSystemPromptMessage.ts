@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
 export const EMPTY_PROMPT_MESSAGE_ERROR =

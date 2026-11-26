@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { type AggregatedScoreData } from "@langfuse/shared";
 
 /** The score's declared type, which decides what an aggregate of it can mean. */

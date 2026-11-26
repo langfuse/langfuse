@@ -4,8 +4,7 @@ import { createRule } from "../util.js";
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/;
 
-type FunctionExport = { kind: "function"; name: string | null };
-type ExportRecord = FunctionExport | { kind: "other" };
+type PendingExport = { local: string; name: string | null };
 
 function isFunctionValue(
   node: TSESTree.Expression | null | undefined,
@@ -29,57 +28,6 @@ function moduleName(
   return null;
 }
 
-function functionDeclarationName(
-  node: TSESTree.FunctionDeclaration | TSESTree.TSDeclareFunction,
-): string | null {
-  if (node.id === null) return null;
-  return node.id.name;
-}
-
-function readDefault(
-  declaration: TSESTree.ExportDefaultDeclaration["declaration"],
-  functionBindings: Set<string>,
-): ExportRecord {
-  if (declaration.type === N.FunctionDeclaration) {
-    return { kind: "function", name: functionDeclarationName(declaration) };
-  }
-  if (
-    declaration.type === N.FunctionExpression ||
-    declaration.type === N.ArrowFunctionExpression
-  ) {
-    const name =
-      declaration.type === N.FunctionExpression && declaration.id !== null
-        ? declaration.id.name
-        : null;
-    return { kind: "function", name };
-  }
-  if (
-    declaration.type === N.Identifier &&
-    functionBindings.has(declaration.name)
-  ) {
-    return { kind: "function", name: declaration.name };
-  }
-  return { kind: "other" };
-}
-
-function isModuleLevel(node: TSESTree.Node): boolean {
-  const parent = node.parent;
-  if (parent?.type === N.Program) return true;
-  if (parent?.type === N.ExportDefaultDeclaration) {
-    return parent.parent?.type === N.Program;
-  }
-  if (parent?.type === N.ExportNamedDeclaration) {
-    return parent.parent?.type === N.Program;
-  }
-  if (parent?.type !== N.VariableDeclaration) return false;
-  const owner = parent.parent;
-  if (owner?.type === N.Program) return true;
-  if (owner?.type === N.ExportNamedDeclaration) {
-    return owner.parent?.type === N.Program;
-  }
-  return false;
-}
-
 function exportedFunctionName(
   local: string,
   exported: TSESTree.Identifier | TSESTree.StringLiteral,
@@ -89,87 +37,162 @@ function exportedFunctionName(
   return exportedName;
 }
 
-function readNamed(
-  statement: TSESTree.ExportNamedDeclaration,
-  functionBindings: Set<string>,
-): ExportRecord[] {
+type Counts = {
+  functions: Set<string>;
+  exportedNames: Set<string>;
+  pending: PendingExport[];
+  functionCount: number;
+  otherCount: number;
+  soleName: string | null;
+};
+
+function noteFunction(counts: Counts, name: string | null) {
+  if (name !== null && counts.exportedNames.has(name)) return;
+  if (name !== null) counts.exportedNames.add(name);
+  counts.functionCount += 1;
+  counts.soleName = name;
+}
+
+function noteOther(counts: Counts) {
+  counts.otherCount += 1;
+}
+
+function declarationName(declaration: {
+  id: TSESTree.Identifier | null;
+}): string | null {
+  if (declaration.id === null) return null;
+  return declaration.id.name;
+}
+
+function rememberFunction(counts: Counts, name: string | null) {
+  if (name === null) return;
+  counts.functions.add(name);
+}
+
+function rememberDeclarator(
+  counts: Counts,
+  declarator: TSESTree.VariableDeclarator,
+) {
+  const name = bindingName(declarator.id);
+  if (name !== null && isFunctionValue(declarator.init)) {
+    counts.functions.add(name);
+  }
+}
+
+function noteDefault(
+  counts: Counts,
+  declaration: TSESTree.ExportDefaultDeclaration["declaration"],
+) {
+  if (declaration.type === N.FunctionDeclaration) {
+    const name = declarationName(declaration);
+    rememberFunction(counts, name);
+    noteFunction(counts, name);
+    return;
+  }
+  if (declaration.type === N.FunctionExpression) {
+    const name = declarationName(declaration);
+    noteFunction(counts, name);
+    return;
+  }
+  if (declaration.type === N.ArrowFunctionExpression) {
+    noteFunction(counts, null);
+    return;
+  }
+  if (declaration.type === N.Identifier) {
+    counts.pending.push({ local: declaration.name, name: declaration.name });
+    return;
+  }
+  noteOther(counts);
+}
+
+function noteSpecifier(counts: Counts, specifier: TSESTree.ExportSpecifier) {
+  if (specifier.exportKind === "type") {
+    noteOther(counts);
+    return;
+  }
+  // A string-literal local is only legal on `export { "a" as b } from`.
+  const local = (specifier.local as TSESTree.Identifier).name;
+  counts.pending.push({
+    local,
+    name: exportedFunctionName(local, specifier.exported),
+  });
+}
+
+function noteNamed(counts: Counts, statement: TSESTree.ExportNamedDeclaration) {
   const declaration = statement.declaration;
   if (
     declaration !== null &&
     (declaration.type === N.FunctionDeclaration ||
       declaration.type === N.TSDeclareFunction)
   ) {
-    return [{ kind: "function", name: functionDeclarationName(declaration) }];
-  }
-  if (statement.exportKind === "type") return [{ kind: "other" }];
-
-  if (declaration !== null) {
-    if (declaration.type === N.VariableDeclaration) {
-      return declaration.declarations.map((declarator) => {
-        const name = bindingName(declarator.id);
-        if (name !== null && isFunctionValue(declarator.init)) {
-          return { kind: "function", name };
-        }
-        return { kind: "other" };
-      });
-    }
-    return [{ kind: "other" }];
-  }
-
-  if (statement.source !== null) return [{ kind: "other" }];
-  if (statement.specifiers.length === 0) return [];
-
-  return statement.specifiers.map((specifier) => {
-    if (specifier.exportKind === "type") return { kind: "other" };
-    // A string-literal local binding is only legal on `export { "a" as b } from`.
-    const local = (specifier.local as TSESTree.Identifier).name;
-    if (!functionBindings.has(local)) return { kind: "other" };
-    return {
-      kind: "function",
-      name: exportedFunctionName(local, specifier.exported),
-    };
-  });
-}
-
-function addExport(exported: ExportRecord[], record: ExportRecord) {
-  if (
-    record.kind === "function" &&
-    record.name !== null &&
-    exported.some(
-      (item) => item.kind === "function" && item.name === record.name,
-    )
-  ) {
+    const name = declarationName(declaration);
+    rememberFunction(counts, name);
+    noteFunction(counts, name);
     return;
   }
-  exported.push(record);
+  if (statement.exportKind === "type") {
+    noteOther(counts);
+    return;
+  }
+  if (declaration !== null) {
+    if (declaration.type === N.VariableDeclaration) {
+      for (const declarator of declaration.declarations) {
+        rememberDeclarator(counts, declarator);
+        const name = bindingName(declarator.id);
+        if (name !== null && isFunctionValue(declarator.init)) {
+          noteFunction(counts, name);
+        } else {
+          noteOther(counts);
+        }
+      }
+      return;
+    }
+    noteOther(counts);
+    return;
+  }
+  if (statement.source !== null) {
+    noteOther(counts);
+    return;
+  }
+  for (const specifier of statement.specifiers)
+    noteSpecifier(counts, specifier);
 }
 
-function collect(
-  statement: TSESTree.ProgramStatement,
-  functionBindings: Set<string>,
-  exported: ExportRecord[],
-) {
+function noteStatement(counts: Counts, statement: TSESTree.ProgramStatement) {
+  if (statement.type === N.FunctionDeclaration) {
+    rememberFunction(counts, declarationName(statement));
+    return;
+  }
+  if (statement.type === N.VariableDeclaration) {
+    for (const declarator of statement.declarations) {
+      rememberDeclarator(counts, declarator);
+    }
+    return;
+  }
   if (statement.type === N.ExportDefaultDeclaration) {
-    addExport(exported, readDefault(statement.declaration, functionBindings));
+    noteDefault(counts, statement.declaration);
     return;
   }
   if (statement.type === N.ExportAllDeclaration) {
-    addExport(exported, { kind: "other" });
+    noteOther(counts);
     return;
   }
-  if (statement.type !== N.ExportNamedDeclaration) return;
-  for (const record of readNamed(statement, functionBindings)) {
-    addExport(exported, record);
+  if (statement.type === N.ExportNamedDeclaration) {
+    noteNamed(counts, statement);
   }
 }
 
-function reportedCount(
-  exported: ExportRecord[],
-  functions: FunctionExport[],
-): number {
-  if (functions.length === 0) return 0;
-  if (functions.length !== exported.length) return exported.length;
-  return functions.length;
+function resolvePending(counts: Counts) {
+  for (const pending of counts.pending) {
+    if (counts.functions.has(pending.local)) noteFunction(counts, pending.name);
+    else noteOther(counts);
+  }
+}
+
+function reportedCount(functionCount: number, otherCount: number): number {
+  if (functionCount === 0) return 0;
+  if (otherCount === 0) return functionCount;
+  return functionCount + otherCount;
 }
 
 export default createRule({
@@ -188,44 +211,34 @@ export default createRule({
   },
   defaultOptions: [],
   create(context) {
-    const functionBindings = new Set<string>();
+    const expected = basename(context.filename).replace(SOURCE_EXTENSION, "");
 
     return {
-      FunctionDeclaration(node) {
-        if (!isModuleLevel(node)) return;
-        if (node.id === null) return;
-        functionBindings.add(node.id.name);
-      },
-      VariableDeclarator(node) {
-        if (!isModuleLevel(node)) return;
-        const name = bindingName(node.id);
-        if (name === null) return;
-        if (!isFunctionValue(node.init)) return;
-        functionBindings.add(name);
-      },
-      "Program:exit"(program) {
-        const exported: ExportRecord[] = [];
-        for (const statement of program.body) {
-          collect(statement, functionBindings, exported);
-        }
+      Program(program) {
+        const counts: Counts = {
+          functions: new Set(),
+          exportedNames: new Set(),
+          pending: [],
+          functionCount: 0,
+          otherCount: 0,
+          soleName: null,
+        };
+        for (const statement of program.body) noteStatement(counts, statement);
+        resolvePending(counts);
 
-        const functions = exported.filter(
-          (item): item is FunctionExport => item.kind === "function",
-        );
-        if (exported.length !== 1 || functions.length !== 1) {
+        if (counts.functionCount !== 1 || counts.otherCount !== 0) {
           context.report({
             node: program,
             messageId: "count",
-            data: { count: String(reportedCount(exported, functions)) },
+            data: {
+              count: String(
+                reportedCount(counts.functionCount, counts.otherCount),
+              ),
+            },
           });
           return;
         }
-
-        const expected = basename(context.filename).replace(
-          SOURCE_EXTENSION,
-          "",
-        );
-        if (functions[0].name === expected) return;
+        if (counts.soleName === expected) return;
         context.report({
           node: program,
           messageId: "filename",

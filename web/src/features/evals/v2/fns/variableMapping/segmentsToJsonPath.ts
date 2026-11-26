@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 /**
  * The drill-down JSONPath grammar shared between the prompt pills and the
  * mapping panel: plain keys, numeric indices, the every-entry wildcard, and

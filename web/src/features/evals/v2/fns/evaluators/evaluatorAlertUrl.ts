@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { encodeFiltersGeneric } from "@langfuse/shared";
 
 /** Builds an alerts-list URL, optionally filtered to one evaluator. */

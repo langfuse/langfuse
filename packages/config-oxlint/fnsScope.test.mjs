@@ -37,18 +37,24 @@ test("fns scoping lives in the oxlint config", () => {
     path.join(fns, "exportsTwo.test.ts"),
     "export function left() { return 1; }\nexport function right() { return 2; }\n",
   );
+  writeFileSync(
+    path.join(fns, "left.ts"),
+    "/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */\nexport function left() { return 1; }\nexport function right() { return 2; }\n",
+  );
 
   try {
     const output = lint([
       path.join(relative, "keepsOne.ts"),
       path.join(relative, "exportsTwo.ts"),
       path.join(relative, "exportsTwo.test.ts"),
+      path.join(relative, "left.ts"),
       "src/features/traces/fns/treeBuilding.ts",
     ]);
     assert.match(output, /exportsTwo\.ts/);
     assert.match(output, /single-function-export-matching-filename/);
     assert.doesNotMatch(output, /keepsOne\.ts/);
     assert.doesNotMatch(output, /exportsTwo\.test\.ts/);
+    assert.doesNotMatch(output, /left\.ts/);
     assert.doesNotMatch(output, /treeBuilding\.ts/);
   } finally {
     rmSync(directory, { recursive: true, force: true });

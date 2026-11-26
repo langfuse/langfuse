@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import type { FilterState } from "@langfuse/shared";
 
 const DATASET_NAME_COLUMN = "experimentDatasetName";

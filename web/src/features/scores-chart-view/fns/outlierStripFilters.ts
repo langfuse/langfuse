@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { type FilterState } from "@langfuse/shared";
 import { partitionStoredUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 

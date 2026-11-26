@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { stringify } from "@langfuse/shared";
 
 export interface ServerTraceDownloadParams {

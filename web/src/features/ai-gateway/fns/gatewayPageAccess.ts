@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { env } from "@/src/env.mjs";
 import {
   GATEWAY_PAGE_SLUGS,

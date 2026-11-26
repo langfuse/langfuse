@@ -60,6 +60,10 @@ ruleTester.run("single-function-export-matching-filename", rule, {
       filename: file("pack.ts"),
     },
     {
+      code: "export { pack };\nconst pack = () => 1;",
+      filename: file("pack.ts"),
+    },
+    {
       code: "const pack = () => 1;\nexport { pack as pack };",
       filename: file("pack.ts"),
     },

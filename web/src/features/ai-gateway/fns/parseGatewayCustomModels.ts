@@ -1,3 +1,4 @@
+/* eslint-disable @repo/single-function-export-matching-filename -- TODO: split into one function per file */
 import { z } from "zod/v4";
 
 /** Objects rather than plain IDs, so per-model settings can be added later. */
