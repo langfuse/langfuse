@@ -27,6 +27,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env, v4WritesToEventsTable } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
+import { ClickhouseReadSkipCache } from "../utils/clickhouseReadSkipCache";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
 import {
@@ -120,6 +121,13 @@ export const ingestionQueueProcessorBuilder = (
 
       // Check if project should be redirected to secondary queue
       const projectId = job.data.payload.authCheck.scope.projectId;
+      if (
+        (await ClickhouseReadSkipCache.getInstance(
+          prisma,
+        ).shouldSkipClickHouseRead(projectId)) === null
+      ) {
+        return;
+      }
       const shouldRedirectEnv =
         projectIdsToRedirectToSecondaryQueue.includes(projectId);
       const shouldRedirectSlowdown = await hasS3SlowdownFlag(projectId);

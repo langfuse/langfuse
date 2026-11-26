@@ -1,10 +1,16 @@
-import { PrismaClient, LangfuseNotFoundError } from "@langfuse/shared";
+import { PrismaClient } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
+
+// A missing row is usually a deleted project, but it can also be a lookup
+// that raced project creation. Expire the miss so a later job can see the row
+// without waiting for a worker restart.
+const MISSING_PROJECT_TTL_MS = 60 * 60 * 1000;
 
 export class ClickhouseReadSkipCache {
   private static instance: ClickhouseReadSkipCache | null = null;
   private projectSkipMap = new Map<string, boolean>();
+  private missingProjectExpiresAt = new Map<string, number>();
   private initialized = false;
   private initializing = false;
   private initPromise: Promise<void> | null = null;
@@ -99,10 +105,11 @@ export class ClickhouseReadSkipCache {
     }
   }
 
+  // null: the project row does not exist. Callers drop the job.
   public async shouldSkipClickHouseRead(
     projectId: string,
     minProjectCreateDate?: string,
-  ): Promise<boolean> {
+  ): Promise<boolean | null> {
     // Check explicit project ID list first
     if (
       env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
@@ -131,6 +138,11 @@ export class ClickhouseReadSkipCache {
       return this.projectSkipMap.get(projectId) ?? false;
     }
 
+    const missingExpiresAt = this.missingProjectExpiresAt.get(projectId);
+    if (missingExpiresAt !== undefined && missingExpiresAt > Date.now()) {
+      return null;
+    }
+
     // If not in cache, we need to fetch the project
     logger.debug(`Project ${projectId} not in cache, fetching from database`);
 
@@ -147,8 +159,17 @@ export class ClickhouseReadSkipCache {
       });
 
       if (!project) {
-        throw new LangfuseNotFoundError(`Project ${projectId} not found`);
+        this.missingProjectExpiresAt.set(
+          projectId,
+          Date.now() + MISSING_PROJECT_TTL_MS,
+        );
+        logger.warn(
+          `Project ${projectId} not found for ClickHouse skip check; skipping ingestion`,
+        );
+        return null;
       }
+
+      this.missingProjectExpiresAt.delete(projectId);
 
       const cutoffDate = new Date(
         env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??

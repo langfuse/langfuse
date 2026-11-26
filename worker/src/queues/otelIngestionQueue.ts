@@ -37,6 +37,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
+import { ClickhouseReadSkipCache } from "../utils/clickhouseReadSkipCache";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { logRetryableJobFailure } from "./jobFailureLog";
@@ -582,6 +583,14 @@ export const otelIngestionQueueProcessorBuilder = (
         );
       }
       logger.debug(`Processing ${fileKey} for project ${projectId}`);
+
+      if (
+        (await ClickhouseReadSkipCache.getInstance(
+          prisma,
+        ).shouldSkipClickHouseRead(projectId)) === null
+      ) {
+        return;
+      }
 
       // Check if project should be redirected to secondary queue
       if (

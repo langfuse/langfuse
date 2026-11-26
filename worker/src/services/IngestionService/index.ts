@@ -203,6 +203,16 @@ export class IngestionService {
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
 
+    // A missing project is cached by the skip check. Drop the write so the
+    // queue job completes instead of retrying.
+    if (
+      (await ClickhouseReadSkipCache.getInstance(
+        this.prisma,
+      ).shouldSkipClickHouseRead(projectId)) === null
+    ) {
+      return;
+    }
+
     switch (eventType) {
       case "trace":
         return await this.processTraceEventList({
