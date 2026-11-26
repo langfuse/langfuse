@@ -1,4 +1,4 @@
-/* oxlint-disable prefer-promise-reject-errors -- baseline before rule enablement */
+/* oxlint-disable prefer-promise-reject-errors, radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
@@ -42,7 +42,11 @@ import {
 } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  hasUnstorableYear,
+} from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
@@ -445,11 +449,14 @@ export class OtelIngestionProcessor {
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
                   : null;
-                const { startTimeISO, endTimeISO } =
-                  OtelIngestionProcessor.resolveSpanTimestamps({
+                const timestamps = OtelIngestionProcessor.resolveSpanTimestamps(
+                  {
                     startTimeUnixNano: span.startTimeUnixNano,
                     endTimeUnixNano: span.endTimeUnixNano,
-                  });
+                  },
+                );
+                if (!timestamps) continue;
+                const { startTimeISO, endTimeISO } = timestamps;
 
                 const isLangfuseSDKSpans =
                   scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
@@ -1030,11 +1037,12 @@ export class OtelIngestionProcessor {
       "trace",
       resourceAttributes,
     );
-    const { startTimeISO, endTimeISO } =
-      OtelIngestionProcessor.resolveSpanTimestamps({
-        startTimeUnixNano: span.startTimeUnixNano,
-        endTimeUnixNano: span.endTimeUnixNano,
-      });
+    const timestamps = OtelIngestionProcessor.resolveSpanTimestamps({
+      startTimeUnixNano: span.startTimeUnixNano,
+      endTimeUnixNano: span.endTimeUnixNano,
+    });
+    if (!timestamps) return events;
+    const { startTimeISO, endTimeISO } = timestamps;
 
     const isRootSpan =
       !parentObservationId ||
@@ -4186,11 +4194,13 @@ export class OtelIngestionProcessor {
   /**
    * Ensure a stable time range for spans even if a timestamp is missing.
    * If one edge is missing, use the other edge. If both are missing, use current time.
+   * Returns undefined when an edge lies outside years 0000-9999: ClickHouse
+   * cannot store such a time, so the caller drops the span.
    */
   private static resolveSpanTimestamps(params: {
     startTimeUnixNano?: NanoTimestamp;
     endTimeUnixNano?: NanoTimestamp;
-  }): { startTimeISO: string; endTimeISO: string } {
+  }): { startTimeISO: string; endTimeISO: string } | undefined {
     const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
       params.startTimeUnixNano,
       "start_time",
@@ -4217,10 +4227,18 @@ export class OtelIngestionProcessor {
       );
     }
 
-    return {
+    const resolved = {
       startTimeISO: startTimeISO ?? endTimeISO ?? fallbackISO,
       endTimeISO: endTimeISO ?? startTimeISO ?? fallbackISO,
     };
+    if (
+      hasUnstorableYear(resolved.startTimeISO) ||
+      hasUnstorableYear(resolved.endTimeISO)
+    ) {
+      OtelIngestionProcessor.recordConversionFailure("timestamp_out_of_range");
+      return undefined;
+    }
+    return resolved;
   }
 
   private static recordConversionFailure(

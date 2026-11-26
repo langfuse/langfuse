@@ -54,6 +54,29 @@ export function findGuardrailMatches(
 
   if (spans.length === 0) return [{ text, matched: false }];
 
+  return buildSegmentsFromSpans(text, spans);
+}
+
+/** Converts UTF-16 match spans into contiguous highlight segments. */
+export function segmentsFromMatchSpans(
+  text: string,
+  matches: readonly { start: number; end: number }[],
+): GuardrailTestSegment[] {
+  if (!text) return [];
+  const spans: Array<[number, number]> = [];
+  for (const match of matches) {
+    const start = Math.max(0, Math.min(text.length, match.start));
+    const end = Math.max(0, Math.min(text.length, match.end));
+    if (start < end) spans.push([start, end]);
+  }
+  if (spans.length === 0) return [{ text, matched: false }];
+  return buildSegmentsFromSpans(text, spans);
+}
+
+function buildSegmentsFromSpans(
+  text: string,
+  spans: Array<[number, number]>,
+): GuardrailTestSegment[] {
   spans.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const merged: Array<[number, number]> = [];
   for (const [start, end] of spans) {

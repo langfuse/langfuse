@@ -9,11 +9,13 @@ use quick_cache::{
     Weighter,
     sync::{Cache, GuardResult},
 };
-use regex_automata::{
-    Input, MatchKind, PatternID, meta,
-    nfa::thompson::WhichCaptures,
-    util::{captures::Captures, syntax},
-};
+use regex_automata::{Input, PatternID, meta, util::captures::Captures};
+
+/// Named capture group emitted by boundary-wrapped generated patterns
+/// (`containsWords`, `secretPrefixes`, compressed IPv6) so redaction replaces
+/// only the matched token while user-authored custom regexes with ordinary
+/// capture groups still redact their full match.
+const MATCH_CAPTURE_GROUP_NAME: &str = "__lf_match";
 
 /// A compiled regex set and, per pattern, the index of the guardrail it belongs to.
 pub(super) struct Matcher {
@@ -95,25 +97,17 @@ fn compile(key: &GuardrailPatterns) -> Arc<Compiled> {
     Arc::new(Compiled { matchers, bytes })
 }
 
-/// The patterns compiled in ASCII mode, so `\b` and `\d` stay on the fast DFA path
-/// even when the text holds non-ASCII; `None` when a pattern does not compile.
-/// Uses `LeftmostFirst` with captures enabled so detection and `redact` span
-/// extraction share one compiled cache and run in a single pass.
+/// The patterns compiled via `ai-gateway-guardrail-rules` (ASCII semantics for
+/// `\w`/`\d`/`\s`/`\b`/`(?i)` with UTF-8-safe `.` and negated classes); `None`
+/// when a pattern does not compile. Uses `LeftmostFirst` with captures enabled
+/// so detection and `redact` span extraction share one compiled cache and run
+/// in a single pass.
 pub(super) fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
-    let regex = meta::Builder::new()
-        .configure(
-            meta::Config::new()
-                .match_kind(MatchKind::LeftmostFirst)
-                .utf8_empty(false)
-                .which_captures(WhichCaptures::All),
-        )
-        .syntax(syntax::Config::new().unicode(false).utf8(false))
-        .build_many(
-            &patterns
-                .iter()
-                .map(|(_, pattern)| pattern.as_str())
-                .collect::<Vec<_>>(),
-        )
+    let raw: Vec<&str> = patterns
+        .iter()
+        .map(|(_, pattern)| pattern.as_str())
+        .collect();
+    let regex = ai_gateway_guardrail_rules::compile_captures_set(&raw)
         .inspect_err(|error| tracing::warn!(%error, "guardrail patterns failed to compile"))
         .ok()?;
     Some(Matcher {
@@ -125,9 +119,11 @@ pub(super) fn matcher(patterns: &[(usize, &String)]) -> Option<Matcher> {
 /// Walks every non-overlapping `LeftmostFirst` match of `regex` in `text`,
 /// passing `(pattern_id, start, end)` aligned to UTF-8 char boundaries.
 ///
-/// Patterns that use capture group 1 to exclude surrounding boundary characters
-/// (such as keyword lists, custom secret prefixes, and compressed IPv6) report
-/// only group 1 and resume right after it so adjacent tokens still match.
+/// Generated patterns that use the `__lf_match` named capture group to exclude
+/// surrounding boundary characters (such as keyword lists, custom secret
+/// prefixes, and compressed IPv6) report only that group and resume right after
+/// it so adjacent tokens still match. User-authored custom regexes with regular
+/// capture groups report their full match.
 pub(super) fn for_each_match(
     regex: &meta::Regex,
     caps: &mut Captures,
@@ -142,8 +138,8 @@ pub(super) fn for_each_match(
             break;
         };
         let pattern = full.pattern();
-        let (raw_start, raw_end) = match caps.get_group(1) {
-            Some(group1) => (group1.start, group1.end),
+        let (raw_start, raw_end) = match caps.get_group_by_name(MATCH_CAPTURE_GROUP_NAME) {
+            Some(group) => (group.start, group.end),
             None => (full.start(), full.end()),
         };
         let start = text.floor_char_boundary(raw_start);

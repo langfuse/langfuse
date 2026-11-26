@@ -2,8 +2,10 @@ import { z } from "zod/v4";
 
 import {
   GATEWAY_GUARDRAIL_MAX_BULK_DELETE,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_NAME_LENGTH,
   GATEWAY_GUARDRAIL_MAX_TARGETS,
+  GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_TARGET_SEARCH_LIMIT,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import {
@@ -18,6 +20,7 @@ import {
   GatewayExternalGuardrailActionSchema,
   GatewayGuardrailAssignmentsInputSchema,
   GatewayGuardrailContainsListSchema,
+  GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailPresetSchema,
   GatewayGuardrailRedactionLabelSchema,
   GatewayGuardrailSecretPrefixesSchema,
@@ -55,19 +58,22 @@ const regexRuleFields = {
   presets: z.array(GatewayGuardrailPresetSchema).default([]),
   secretPrefixes: GatewayGuardrailSecretPrefixesSchema.default([]),
   containsWords: GatewayGuardrailContainsListSchema.default([]),
+  customRegex: GatewayGuardrailCustomRegexSchema.optional(),
 };
 
 const hasGuardrailRule = (value: {
   presets: unknown[];
   secretPrefixes: unknown[];
   containsWords: unknown[];
+  customRegex?: string;
 }) =>
   value.presets.length > 0 ||
   value.secretPrefixes.length > 0 ||
-  value.containsWords.length > 0;
+  value.containsWords.length > 0 ||
+  Boolean(value.customRegex);
 
 const GUARDRAIL_RULE_REQUIRED_MESSAGE =
-  "Configure at least one pattern, prefix, or keyword to detect";
+  "Configure at least one pattern, prefix, keyword, or custom regex to detect";
 
 const regexWriteSchema = z
   .discriminatedUnion("action", [
@@ -228,6 +234,24 @@ export const gatewayGuardrailRouter = createTRPCRouter({
       });
     }),
 
+  previewRegex: protectedOrganizationProcedureWithoutTracing
+    .input(
+      organizationInput.extend({
+        pattern: z.string().max(GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH),
+        text: z.string().max(GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
+      }),
+    )
+    .query(({ input, ctx }) => {
+      requireGatewayGuardrailsAdmin({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayGuardrailService(ctx.prisma).previewRegex({
+        pattern: input.pattern,
+        text: input.text,
+      });
+    }),
+
   test: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
@@ -288,6 +312,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });
@@ -324,6 +349,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
         presets: input.presets,
         secretPrefixes: input.secretPrefixes,
         containsWords: input.containsWords,
+        customRegex: input.customRegex,
         assignments: input.assignments,
         session: ctx.session,
       });

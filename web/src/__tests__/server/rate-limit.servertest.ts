@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import {
   createHttpHeaderFromRateLimit,
   RATE_LIMIT_REDIS_KEY_PREFIX,

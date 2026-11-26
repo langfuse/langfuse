@@ -7,6 +7,7 @@ export type GatewayGuardrailTemplateKind =
   | "pii"
   | "secrets"
   | "contains"
+  | "custom_regex"
   | "bedrock";
 
 export type GatewayGuardrailTemplatePreview =
@@ -94,6 +95,19 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultPresets: [],
       sampleTestText:
         "This document mentions Project Falcon and is internal only.",
+    },
+    {
+      id: "custom_regex",
+      name: "Custom regex",
+      description: "Match your own regular expression.",
+      preview: {
+        kind: "snippet",
+        label: "regex",
+        value: String.raw`ORD-\d{6}`,
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "Order ORD-123456 is ready for pickup.",
     },
     {
       id: "bedrock",

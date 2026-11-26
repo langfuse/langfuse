@@ -1,3 +1,5 @@
+// Golden SQL for the Topics trace-selection query.
+
 import { describe, expect, it } from "vitest";
 
 import { prisma } from "../../db";

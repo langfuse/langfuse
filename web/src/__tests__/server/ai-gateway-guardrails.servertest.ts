@@ -14,6 +14,8 @@ import { env } from "@/src/env.mjs";
 import {
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
@@ -1147,5 +1149,186 @@ describe("aiGateway guardrails tRPC", () => {
     });
     expect(switchedToBlock.action).toBe("BLOCK");
     expect(switchedToBlock.redactionLabel).toBeNull();
+  });
+
+  it("validates custom regex rules with the WASM engine, previews UTF-16 spans, and enforces 128 KiB rule and 512 KiB org limits", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Regex Owner");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, {
+      gateway: true,
+      name: "regex-key",
+    });
+
+    // Rejects Unicode, lookaround, backreferences, empty-matching, syntax errors, and >128 KiB rules
+    for (const badPattern of [
+      String.raw`(?u:\w)+`,
+      String.raw`\p{L}+`,
+      String.raw`foo(?=bar)`,
+      String.raw`(a)\1`,
+      "x?",
+      "(unclosed",
+      String.raw`\w{1,500}`.repeat(5),
+    ]) {
+      await expect(
+        ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Bad ${badPattern.slice(0, 12)}`,
+          action: "BLOCK",
+          customRegex: badPattern,
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+
+    // Preview returns UTF-16 match spans (accounting for astral emoji) and validation errors
+    const sampleText = "😀 Order ORD-123456 and ORD-999999";
+    const validPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: String.raw`\bORD-\d{6}\b`,
+      text: sampleText,
+    });
+    expect(validPreview.valid).toBe(true);
+    expect(
+      validPreview.matches.map(({ start, end }) =>
+        sampleText.slice(start, end),
+      ),
+    ).toEqual(["ORD-123456", "ORD-999999"]);
+
+    const invalidPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: String.raw`(?u:\w)+`,
+      text: sampleText,
+    });
+    expect(invalidPreview.valid).toBe(false);
+    expect(invalidPreview.errorCode).toBe("unicode_not_allowed");
+    expect(invalidPreview.error).toContain("external guardrail provider");
+    expect(invalidPreview.matches).toEqual([]);
+
+    const lookaroundPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`foo(?=bar)`,
+        text: sampleText,
+      });
+    expect(lookaroundPreview.valid).toBe(false);
+    expect(lookaroundPreview.errorCode).toBe("unsupported_lookaround");
+    expect(lookaroundPreview.error).toContain("Look-ahead and look-behind");
+    expect(lookaroundPreview.error).toContain("external guardrail provider");
+    expect(lookaroundPreview.error).not.toContain("error:");
+
+    const syntaxPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: "(unclosed",
+      text: sampleText,
+    });
+    expect(syntaxPreview.valid).toBe(false);
+    expect(syntaxPreview.errorCode).toBe("syntax_error");
+    expect(syntaxPreview.error).toBe(
+      "Invalid regular expression: Unclosed group.",
+    );
+
+    const oversizedPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`\w{1,1500}`,
+        text: sampleText,
+      });
+    expect(oversizedPreview.valid).toBe(false);
+    expect(oversizedPreview.errorCode).toBe("size_limit_exceeded");
+    expect(oversizedPreview.error).toBe(
+      GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+    );
+
+    // Creates, updates, and resolves a valid custom regex (including `.`, `\S`, and negated classes)
+    const created = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Order IDs",
+      action: "BLOCK",
+      customRegex: String.raw`order=\S+`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(created.customRegex).toBe(String.raw`order=\S+`);
+
+    const updated = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "REGEX",
+      name: "Order IDs",
+      action: "BLOCK",
+      customRegex: String.raw`\bORD-\d{6}\b`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(updated.customRegex).toBe(String.raw`\bORD-\d{6}\b`);
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "regex",
+        action: "block",
+        patterns: [String.raw`\bORD-\d{6}\b`],
+      }),
+    ]);
+
+    // Enforces 512 KiB combined compiled NFA limit across an organization's guardrails
+    const mediumPattern = String.raw`\w{1,500}`;
+    let hitOrgLimit = false;
+    for (let i = 0; i < 15; i++) {
+      try {
+        await ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Medium rule ${i}`,
+          action: "BLOCK",
+          customRegex: mediumPattern,
+          assignments: [{ scope: "ORGANIZATION" }],
+        });
+      } catch (error) {
+        expect(error).toMatchObject({
+          code: "BAD_REQUEST",
+          message: GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+        });
+        hitOrgLimit = true;
+        break;
+      }
+    }
+    expect(hitOrgLimit).toBe(true);
+
+    // Unchanged rule config on an already-stored oversized guardrail still allows editing name/action/targets
+    const legacyOversized = await createGuardrail({
+      organizationId: orgId,
+      name: "Legacy oversized",
+      config: { presets: [], customRegex: String.raw`\w{1,1500}` },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const renamedLegacy = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: legacyOversized.id,
+      type: "REGEX",
+      name: "Legacy oversized renamed",
+      action: "LOG",
+      customRegex: String.raw`\w{1,1500}`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(renamedLegacy.name).toBe("Legacy oversized renamed");
+    expect(renamedLegacy.action).toBe("LOG");
   });
 });

@@ -1,3 +1,5 @@
+// Pins that the tenancy pass scopes or rejects every join shape.
+
 import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 import { describe, expect, it } from "vitest";
 

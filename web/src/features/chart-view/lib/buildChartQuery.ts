@@ -1,3 +1,6 @@
+// Builds the observations query for a chart view config and maps result rows
+// to chart data points.
+
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";

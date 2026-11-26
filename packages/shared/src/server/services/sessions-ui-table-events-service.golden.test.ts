@@ -1,3 +1,5 @@
+// Golden SQL for the events-backed sessions table aggregates.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

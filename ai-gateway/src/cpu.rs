@@ -14,7 +14,10 @@ pub(crate) enum CpuJob {
     /// Finding a conversation's last turn, which reads its structure at about the
     /// speed of parsing it.
     FindLastTurn,
-    /// Scanning the last turn with guardrails, at roughly 0.5 GB/s.
+    /// Scanning the last turn with guardrails. Presets and keyword lists run at
+    /// roughly 0.5 GB/s, while tenant-supplied custom regexes can fall back from
+    /// the lazy DFA to `PikeVM`; keep only small turns inline so slow scans leave
+    /// the async worker.
     ScanGuardrails,
 }
 
@@ -22,7 +25,7 @@ impl CpuJob {
     pub(crate) const fn inline_bytes(self) -> usize {
         match self {
             Self::ParseRequest | Self::FindLastTurn => 256 * 1024,
-            Self::ScanGuardrails => 64 * 1024,
+            Self::ScanGuardrails => 4 * 1024,
         }
     }
 }

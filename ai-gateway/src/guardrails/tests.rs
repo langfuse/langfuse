@@ -395,13 +395,16 @@ fn bedrock_enforce_handles_joined_multiline_outputs_and_sequential_chaining() {
 
 #[test]
 fn boundary_wrapped_contains_and_prefix_patterns_redact_cleanly() {
-    let contains = r"(?:^|[^A-Za-z0-9_])((?:[Ff][Aa][Ll][Cc][Oo][Nn]))(?:$|[^A-Za-z0-9_])";
-    let prefix = r"(?:^|[^A-Za-z0-9_-])(acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
-    let body = r#"{"messages":[{"role":"user","content":"café Falcon鍵acme_1234567890abcdef🔑"}]}"#;
+    let contains =
+        r"(?:^|[^A-Za-z0-9_])(?<__lf_match>(?:[Ff][Aa][Ll][Cc][Oo][Nn]))(?:$|[^A-Za-z0-9_])";
+    let prefix = r"(?:^|[^A-Za-z0-9_-])(?<__lf_match>acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
+    let custom_with_group = r"order-(123|456)";
+    let body = r#"{"messages":[{"role":"user","content":"café Falcon鍵acme_1234567890abcdef🔑 order-123"}]}"#;
     let outcome = check_request(
         &[
             redact_guardrail("kw", "[CODENAME]", &[contains]),
             redact_guardrail("sec", "[SECRET]", &[prefix]),
+            redact_guardrail("ord", "[ORDER]", &[custom_with_group]),
         ],
         ApiFormat::OpenAiChatCompletions,
         body.as_bytes(),
@@ -412,7 +415,7 @@ fn boundary_wrapped_contains_and_prefix_patterns_redact_cleanly() {
     let rewritten: serde_json::Value = serde_json::from_str(&apply_edits(body, &edits)).unwrap();
     assert_eq!(
         rewritten["messages"][0]["content"],
-        "café [CODENAME]鍵[SECRET]🔑"
+        "café [CODENAME]鍵[SECRET]🔑 [ORDER]"
     );
 }
 
@@ -452,8 +455,9 @@ fn collect_pattern_spans<'a>(pattern: &str, text: &str, label: &'a str) -> Vec<R
 }
 
 #[test]
-fn capture_group_1_preserves_surrounding_boundaries_and_catches_adjacent_words() {
-    let pattern = r"(?:^|[^A-Za-z0-9_])((?:[Ff][Oo][Oo]|[Bb][Aa][Rr]))(?:$|[^A-Za-z0-9_])";
+fn named_match_group_preserves_surrounding_boundaries_and_catches_adjacent_words() {
+    let pattern =
+        r"(?:^|[^A-Za-z0-9_])(?<__lf_match>(?:[Ff][Oo][Oo]|[Bb][Aa][Rr]))(?:$|[^A-Za-z0-9_])";
     let text = "foo bar,foo! café foo日本語bar";
     let mut spans = collect_pattern_spans(pattern, text, "[WORD]");
     assert_eq!(
@@ -464,7 +468,7 @@ fn capture_group_1_preserves_surrounding_boundaries_and_catches_adjacent_words()
 
 #[test]
 fn regex_with_multibyte_utf8_never_splits_codepoints() {
-    let pattern = r"(?:^|[^A-Za-z0-9_-])(acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
+    let pattern = r"(?:^|[^A-Za-z0-9_-])(?<__lf_match>acme_[A-Za-z0-9_-]{16,})(?:$|[^A-Za-z0-9_-])";
     let text = "鍵acme_1234567890abcdef🔑";
     let mut spans = collect_pattern_spans(pattern, text, "[KEY]");
     assert_eq!(

@@ -56,7 +56,7 @@ export function GatewayGuardrailTemplateGallery({
             {/* Hidden sizer keeps modal height constant when switching tabs. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3"
+              className="pointer-events-none invisible col-start-1 row-start-1 grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2"
             >
               {SIZING_TEMPLATES.map((template) => (
                 <TemplateCardContent key={template.id} template={template} />
@@ -90,7 +90,7 @@ type TemplateGridProps = {
 
 function TemplateGrid({ templates, onSelectTemplate }: TemplateGridProps) {
   return (
-    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
       {templates.map((template) => (
         <TemplateCard
           key={template.id}

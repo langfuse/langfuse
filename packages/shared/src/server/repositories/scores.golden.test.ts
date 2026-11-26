@@ -1,3 +1,5 @@
+// Golden SQL for score aggregations read for experiment items and prompts.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockQueryClickhouse = vi.hoisted(() => vi.fn().mockResolvedValue([]));

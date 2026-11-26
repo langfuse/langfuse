@@ -16,8 +16,25 @@ export const GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH = 16;
 export const GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS = 500;
 export const GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH = 100;
 
-export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES = 128 * 1024;
-export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES = 512 * 1024;
+export const GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH = 500;
+export const GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH = 4_000;
+
+const BYTES_PER_KIB = 1024;
+export const GATEWAY_GUARDRAIL_MAX_RULE_KIB = 128;
+export const GATEWAY_GUARDRAIL_MAX_ORG_KIB = 512;
+export const GATEWAY_GUARDRAIL_MAX_RULE_BYTES =
+  GATEWAY_GUARDRAIL_MAX_RULE_KIB * BYTES_PER_KIB;
+export const GATEWAY_GUARDRAIL_MAX_ORG_BYTES =
+  GATEWAY_GUARDRAIL_MAX_ORG_KIB * BYTES_PER_KIB;
+export const GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE = `This guardrail exceeds the ${GATEWAY_GUARDRAIL_MAX_RULE_KIB} KiB compiled size limit. Simplify the pattern, use an external guardrail provider, or contact support if you need more capacity.`;
+export const GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE = `Your organization's guardrails exceed the ${GATEWAY_GUARDRAIL_MAX_ORG_KIB} KiB combined size limit. Simplify or remove an existing guardrail, use an external guardrail provider, or contact support if you need more capacity.`;
+
+export const GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE =
+  "Look-ahead and look-behind are not supported in built-in regex guardrails. Rewrite the pattern without look-around, or use an external guardrail provider.";
+export const GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE =
+  "Backreferences are not supported in built-in regex guardrails. Rewrite the pattern without backreferences, or use an external guardrail provider.";
+export const GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE =
+  "Unicode classes (\\p{..}) and the u flag are not supported in built-in regex guardrails. Use ASCII patterns, or use an external guardrail provider.";
 
 export const GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL = "[REDACTED]";
 export const GATEWAY_GUARDRAIL_MAX_REDACTION_LABEL_LENGTH = 64;
