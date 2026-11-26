@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
-  title: server
-  version: ''
+  title: Langfuse API
+  version: '4'
   description: >-
     ## Real-time data
 
@@ -16757,3 +16757,12 @@ components:
     BasicAuth:
       type: http
       scheme: basic
+servers:
+  - url: https://cloud.langfuse.com
+    description: Langfuse Cloud, EU data region (default)
+  - url: https://us.cloud.langfuse.com
+    description: Langfuse Cloud, US data region
+  - url: https://jp.cloud.langfuse.com
+    description: Langfuse Cloud, Japan data region
+  - url: https://hipaa.cloud.langfuse.com
+    description: Langfuse Cloud, HIPAA data region
