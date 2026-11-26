@@ -79,7 +79,7 @@ function spanSegment(
 }
 
 /** Hour and minute units from formatIntervalSeconds, without trailing zero seconds. */
-export function formatSessionDuration(seconds: number) {
+function formatSessionDuration(seconds: number) {
   if (seconds < 60) return formatIntervalSeconds(seconds, 0);
   const whole = Math.round(seconds);
   const hrs = Math.floor(whole / 3600);
