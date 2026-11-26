@@ -40,6 +40,7 @@ export interface ObservationForScheduling {
  * Observation eval job configuration.
  * Represents a job configuration with targetObject: "event".
  * Passed to the scheduler after being fetched once per batch.
+ * @internal
  */
 export type LegacyObservationEvalConfig = Pick<
   JobConfiguration,
@@ -68,6 +69,7 @@ export type ObservationEvalAssignment = Pick<
   evaluator: Pick<Evaluator, "id" | "projectId" | "type">;
 };
 
+/** @internal */
 export type EvaluationRuleWithAssignments = Pick<
   EvaluationRule,
   "projectId" | "sampling" | "status"

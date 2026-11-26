@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "../llm/types";
+import { logger } from "../logger";
 import {
   getEnabledTopicsModels,
   prepareTopicsModelSettings,
@@ -212,6 +213,25 @@ describe("prepareTopicsModelSettings", () => {
       expect.objectContaining({ dimensions: 1024 }),
     );
     expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it("logs failed model checks without the provider's message, which can echo credentials", async () => {
+    const error = vi.spyOn(logger, "error");
+    mocks.current.mockResolvedValue({ enabled: true });
+    mocks.generateText.mockRejectedValue(
+      new Error("Incorrect API key provided: sk-proj-****_2gA"),
+    );
+    mocks.embed.mockResolvedValue({
+      embeddings: [Array(1536).fill(0.1), Array(1536).fill(0.1)],
+    });
+
+    await expect(saveTopicsModelSettings("project", settings)).rejects.toThrow(
+      "Incorrect API key provided",
+    );
+    const logged = JSON.stringify(error.mock.calls);
+    expect(logged).not.toContain("sk-proj");
+    // Our own check messages stay in the log.
+    expect(logged).toContain("instead of 1024");
   });
 
   it.each([

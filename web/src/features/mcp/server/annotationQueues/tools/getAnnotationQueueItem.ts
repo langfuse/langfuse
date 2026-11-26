@@ -42,5 +42,5 @@ export const [getAnnotationQueueItemTool, handleGetAnnotationQueueItem] =
           };
         },
       }),
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });

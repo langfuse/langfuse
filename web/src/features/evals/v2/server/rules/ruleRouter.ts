@@ -4,6 +4,7 @@ import {
   getTracingReadinessSettings,
   saveTracingReadinessSettings as persistTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
+import { TopicsTargetObject } from "@langfuse/shared";
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
@@ -152,6 +153,12 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       return serviceForContext(ctx).suggestName({
         ...input,
         projectId: ctx.session.projectId,
@@ -198,6 +205,12 @@ export const ruleRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      if (input.targetObject === TopicsTargetObject) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+      }
       return serviceForContext(ctx).createOrAttachFromEvaluatorFilters(
         { ...input, projectId: ctx.session.projectId },
         ctx.session.user.id,

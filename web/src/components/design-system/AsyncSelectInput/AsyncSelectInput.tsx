@@ -10,10 +10,9 @@ import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { cn } from "@/src/utils/tailwind";
 import { assertUnreachable } from "@/src/utils/types";
 import { type SelectDropdown } from "../SelectDropdown/SelectDropdown";
-import { InputControl } from "../internal/InputControl/InputControl";
+import type { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
-import { DropdownIndicator } from "../DropdownIndicator/DropdownIndicator";
-import { Badge } from "../Badge/Badge";
+import { SelectControl } from "../internal/SelectControl/SelectControl";
 
 type SelectedOption<V extends string> = Pick<
   Extract<
@@ -33,9 +32,13 @@ export function AsyncSelectInput<V extends string>({
   loading,
   callToActionOption,
   virtualized = false,
+  align = "start",
+  dropdownWidth = "trigger",
   emptyMessage = "No options available.",
   error,
   muted,
+  prefix,
+  clearAction,
   ref,
   ...triggerProps
 }: Pick<
@@ -49,6 +52,12 @@ export function AsyncSelectInput<V extends string>({
   | "disabled"
   | "onBlur"
 > & {
+  prefix?: React.ComponentProps<typeof InputControl>["prefix"];
+  /**
+   * Shown in place of the caret. Pass it whenever clearing is allowed,
+   * including when the selected id is not in `options` and `value` is null.
+   */
+  clearAction?: { label: string; onClear: () => void };
   value: SelectedOption<V> | null;
   onValueChange: (option: SelectedOption<V>) => void;
   placeholder: string;
@@ -64,6 +73,8 @@ export function AsyncSelectInput<V extends string>({
     onSelect: () => void;
   };
   virtualized?: boolean;
+  align?: "start" | "center" | "end";
+  dropdownWidth?: "trigger" | "wide";
   error?: boolean;
   muted?: boolean;
   ref?: React.Ref<HTMLButtonElement>;
@@ -140,10 +151,9 @@ export function AsyncSelectInput<V extends string>({
           <InputDropdown.SingleSelectOptionContent
             checked={value?.value === option.value}
             label={option.label}
+            secondaryLabel={option.secondaryLabel}
             title={option.disabled ? option.disabledReason : option.label}
-            badges={option.badges?.map((badge, index) => (
-              <Badge key={index} {...badge} />
-            ))}
+            badges={option.badges}
           />
         </Command.Item>
       </InputDropdown.Option>
@@ -167,39 +177,51 @@ export function AsyncSelectInput<V extends string>({
   const Icon = value?.icon;
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
-      <InputControl
-        contentLayout="spread"
-        error={error}
-        disabled={triggerProps.disabled}
-      >
-        <PopoverPrimitive.Trigger
-          ref={ref}
-          type="button"
-          role="combobox"
-          aria-controls={listId}
-          aria-expanded={open}
-          title={value?.label}
-          {...triggerProps}
+    <PopoverPrimitive.Root
+      open={open && !triggerProps.disabled}
+      onOpenChange={handleOpenChange}
+    >
+      <PopoverPrimitive.Anchor asChild>
+        <SelectControl
+          error={error}
+          disabled={triggerProps.disabled}
+          prefix={prefix}
+          clear={
+            clearAction
+              ? { label: clearAction.label, onClear: clearAction.onClear }
+              : undefined
+          }
         >
-          {Icon && <Icon size="base" aria-hidden />}
-          <span
+          <PopoverPrimitive.Trigger
+            ref={ref}
+            type="button"
+            role="combobox"
+            aria-controls={listId}
+            aria-expanded={open && !triggerProps.disabled}
             title={value?.label}
-            className={cn(
-              "min-w-0 flex-1 truncate text-left",
-              muted && "text-muted-foreground",
-            )}
+            {...triggerProps}
           >
-            {value?.label ?? placeholder}
-          </span>
-          <DropdownIndicator color={error ? "destructive" : "tertiary"} />
-        </PopoverPrimitive.Trigger>
-      </InputControl>
+            {Icon && <Icon size="base" aria-hidden />}
+            <span
+              title={value?.label}
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                muted && "text-muted-foreground",
+              )}
+            >
+              {value?.label ?? placeholder}
+            </span>
+          </PopoverPrimitive.Trigger>
+        </SelectControl>
+      </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={container}>
-        <InputDropdown.Content width="popover-trigger">
+        <InputDropdown.Content
+          width={dropdownWidth === "wide" ? "popover-wide" : "popover-trigger"}
+        >
           <PopoverPrimitive.Content
-            align="start"
+            align={align}
             sideOffset={4}
+            collisionPadding={dropdownWidth === "wide" ? 8 : undefined}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}
           >
@@ -273,7 +295,13 @@ export function AsyncSelectInput<V extends string>({
                             if (row.type === "action") return actionContent;
                             if (row.type === "heading")
                               return (
-                                <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+                                <div
+                                  className={cn(
+                                    "text-muted-foreground px-1.5 pt-2 pb-1 text-[11px] font-medium",
+                                    item.index > 0 &&
+                                      "border-border/60 mt-1 border-t",
+                                  )}
+                                >
                                   {row.label}
                                 </div>
                               );
@@ -313,12 +341,17 @@ export function AsyncSelectInput<V extends string>({
                           const content = items.map(renderOption);
                           if (group)
                             return (
-                              <Command.Group
+                              <InputDropdown.Group
                                 key={group.id}
-                                heading={group.label}
+                                label={group.label}
                               >
-                                {content}
-                              </Command.Group>
+                                <Command.Group
+                                  heading={group.label}
+                                  className="[&_[cmdk-group-heading]]:text-muted-foreground [[cmdk-group]:not([hidden])~&]:border-border/60 [&_[cmdk-group-heading]]:px-1.5 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [[cmdk-group]:not([hidden])~&]:mt-1 [[cmdk-group]:not([hidden])~&]:border-t"
+                                >
+                                  {content}
+                                </Command.Group>
+                              </InputDropdown.Group>
                             );
                           return (
                             <React.Fragment key={items[0].value}>

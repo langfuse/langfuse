@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { getObservationByIdFromEventsTable } from "@langfuse/shared/src/server";
+import waitForExpect from "wait-for-expect";
 
 import { GatewayResolveResponseSchema } from "@/src/features/ai-gateway/server/provider/registry";
 import {
@@ -15,6 +17,7 @@ import {
   listGatewayModelIds,
   ORGANIZATION_ID,
   missingLocalEnv,
+  POLL_INTERVAL_MS,
   requiredEnv,
   setUpGatewayE2e,
   TEST_TIMEOUT_MS,
@@ -163,29 +166,100 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
             providerModel: model,
           });
 
-          const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${secretKey}`,
-              "Content-Type": "application/json",
+          // Spend counting runs asynchronously in Redis after the response, so
+          // retry briefly in case fast ingestion outruns the counter write.
+          await waitForExpect(
+            async () => {
+              const response = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${secretKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+              });
+              expect(response.headers.get("retry-after")).toBeNull();
+              await expectGatewayError(response, 429, {
+                error: {
+                  message: expect.stringContaining("total budget"),
+                  type: "insufficient_quota",
+                  param: null,
+                  code: "spend_limit_exceeded",
+                },
+              });
             },
-            body: JSON.stringify(body),
-          });
-          expect(response.headers.get("retry-after")).toBeNull();
-          await expectGatewayError(response, 429, {
-            error: {
-              message: expect.stringContaining("total budget"),
-              type: "insufficient_quota",
-              param: null,
-              code: "spend_limit_exceeded",
-            },
-          });
+            10_000,
+            POLL_INTERVAL_MS,
+          );
         },
         {
           spendLimit: {
             interval: GatewaySpendLimitInterval.TOTAL,
             limitUsd: 0.000001,
           },
+        },
+      );
+    },
+    COMPLETION_TIMEOUT_MS,
+  );
+
+  // One provider is enough: guardrails read the request, not the provider's reply.
+  it(
+    "blocks a last turn that matches a blocking guardrail and marks one that matches a logging guardrail",
+    async () => {
+      const { apiFormat, model, path, body } = SPEND_LIMITED_COMPLETION;
+      const withLastTurn = (content: string) => ({
+        ...body,
+        messages: [
+          { role: "user", content: "My SSN is 123-45-6789." },
+          { role: "assistant", content: "Noted." },
+          { role: "user", content },
+        ],
+      });
+      await withGatewayApiKey(
+        apiFormat,
+        async ({ secretKey, guardrailIds: [, logGuardrailId] }) => {
+          const blocked = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${secretKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(withLastTurn("Card 4111 1111 1111 1111.")),
+          });
+          await expectGatewayError(blocked, 400, {
+            error: {
+              message: expect.stringContaining("Request blocked by guardrail"),
+              type: "invalid_request_error",
+              code: "guardrail_blocked",
+            },
+          });
+
+          // The SSN sits in an earlier turn, so only the email is checked.
+          const { traceId, observationId } = await completeAndExpectIngested({
+            secretKey,
+            apiFormat,
+            path,
+            body: withLastTurn(
+              "Reply with the word hello to jane@example.com.",
+            ),
+            providerModel: model,
+          });
+          const observation = await getObservationByIdFromEventsTable({
+            id: observationId,
+            projectId: suite.projectId,
+            traceId,
+          });
+          expect(observation?.level).toBe("WARNING");
+          expect(JSON.stringify(observation?.metadata)).toContain(
+            logGuardrailId,
+          );
+        },
+        {
+          guardrails: [
+            { action: "BLOCK", presets: ["us_ssn", "credit_card"] },
+            { action: "LOG", presets: ["email"] },
+          ],
         },
       );
     },
@@ -225,19 +299,25 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
               body,
               providerModel: model,
             });
-            const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${first.secretKey}`,
-                "Content-Type": "application/json",
+            await waitForExpect(
+              async () => {
+                const rejected = await fetch(`${suite.gatewayBaseUrl}${path}`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${first.secretKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(body),
+                });
+                await expectGatewayError(rejected, 429, {
+                  error: expect.objectContaining({
+                    code: "spend_limit_exceeded",
+                  }),
+                });
               },
-              body: JSON.stringify(body),
-            });
-            await expectGatewayError(rejected, 429, {
-              error: expect.objectContaining({
-                code: "spend_limit_exceeded",
-              }),
-            });
+              10_000,
+              POLL_INTERVAL_MS,
+            );
 
             // The first key spent the default, but the second has its own count.
             await completeAndExpectIngested({

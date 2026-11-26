@@ -72,5 +72,5 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

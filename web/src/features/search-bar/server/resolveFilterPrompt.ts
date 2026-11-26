@@ -55,6 +55,7 @@ import { type FieldRegistry, EVENTS_FIELD_REGISTRY } from "../lib/fields";
 /** Name of the managed chat prompt in the AI-features Langfuse project. Kept
  *  in sync with the repo seed file (`./prompts/search-bar-filter.prompt.json`)
  *  and the sync script (`scripts/ask-ai/sync-search-bar-filter-prompt.sh`). */
+/** @internal */
 export const SEARCH_BAR_FILTER_PROMPT_NAME = "search-bar-filter";
 
 export type ResolvedFilterSystemPrompt = {

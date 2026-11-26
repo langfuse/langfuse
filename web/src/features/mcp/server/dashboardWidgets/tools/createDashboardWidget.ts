@@ -38,7 +38,8 @@ export const DashboardWidgetChartConfigBaseSchema = z.object({
     .optional(),
 });
 
-const CreateDashboardWidgetBaseSchema = z.object({
+/** A widget definition; renderWidget charts the same shape ad hoc. */
+export const CreateDashboardWidgetBaseSchema = z.object({
   name: z.string().min(1).describe("Human-readable widget name."),
   description: z
     .string()
@@ -72,7 +73,7 @@ const CreateDashboardWidgetBaseSchema = z.object({
   ),
 });
 
-const throwActionableDashboardWidgetError = (
+export const throwActionableDashboardWidgetError = (
   error: unknown,
   input: z.infer<typeof PostUnstableDashboardWidgetBody>,
 ): never => {
@@ -121,7 +122,7 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,
     inputSchema: PostUnstableDashboardWidgetBody,
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.create",

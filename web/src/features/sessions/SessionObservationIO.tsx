@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
+import { Download, SquareArrowOutUpRight, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
@@ -287,7 +287,11 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon size="base" color="default" __rawClassName="mr-1" />
+          <SquareArrowOutUpRight
+            size="base"
+            color="default"
+            __rawClassName="mr-1"
+          />
           Open in trace view
         </Button>
         <Button

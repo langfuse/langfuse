@@ -1,6 +1,8 @@
+// Pins the golden harness's param normalization and WHERE-clause splitting.
+
 import { describe, expect, it } from "vitest";
 
-import { normalizeParams, splitConditions } from "./goldenHarness";
+import { normalizeParams, splitConditions } from "./__tests__/goldenHarness";
 
 // Pure logic — no `clickhouse` binary required, so this always runs.
 describe("normalizeParams", () => {

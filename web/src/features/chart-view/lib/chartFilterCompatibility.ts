@@ -115,6 +115,7 @@ const CHART_UNSUPPORTED_FIELD_REASON =
  * present-tense and polite, without claiming a hard impossibility (none of these
  * are) or promising a roadmap — plus the reassurance that the filter still works
  * on the table. No "dimension"/"measure" jargon.
+ * @internal
  */
 export function chartFilterExclusionReason(column: string): string | null {
   if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) return null;
@@ -221,6 +222,7 @@ export function chartSearchFieldReason(
  * Splits a `FilterState` into what the chart forwards and what it ignores, with
  * a per-column reason for the ignored ones. Both filter surfaces read the
  * `excluded` map (column -> reason) to deactivate the matching filter.
+ * @internal
  */
 export function classifyChartFilters(filterState: FilterState): {
   forwarded: FilterState;

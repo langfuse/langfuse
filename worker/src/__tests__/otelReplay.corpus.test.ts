@@ -4,11 +4,11 @@ import type { ResourceSpan } from "@langfuse/shared/src/server";
 import {
   createModelParametersBatch,
   modelParametersFixtures,
-} from "../../../packages/shared/src/server/otel/OtelIngestionProcessor.modelParameters.fixtures";
-import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/ai-sdk/fixtures";
-import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/fixtures";
-import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures";
-import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/fixtures";
+} from "../../../packages/shared/src/server/otel/__tests__/OtelIngestionProcessor.modelParameters.fixtures";
+import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/ai-sdk/__tests__/fixtures";
+import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/__tests__/fixtures";
+import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/__tests__/fixtures";
+import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/__tests__/fixtures";
 import {
   expectRawNativeParity,
   runOtelReplayComparison,

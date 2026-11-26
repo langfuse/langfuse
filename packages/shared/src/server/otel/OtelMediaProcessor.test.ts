@@ -19,7 +19,7 @@ import {
   PYTHON_STRINGIFIED_VALUE,
   MALFORMED_PYTHON_VALUE,
   providerMediaCases,
-} from "../media/MediaPayloadProcessor.fixtures";
+} from "../media/__tests__/MediaPayloadProcessor.fixtures";
 import {
   processOtelMedia,
   type OtelMediaPayload,

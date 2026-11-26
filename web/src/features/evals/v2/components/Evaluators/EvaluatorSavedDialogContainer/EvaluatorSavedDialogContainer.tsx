@@ -3,10 +3,15 @@
 import {
   EvalTemplateType,
   EvalTargetObject,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import type { RuleNeedingOverride } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
+import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -42,23 +47,32 @@ type EvaluatorSavedDialogEvaluator = {
   sampleFilter: FilterState;
   hasCompletedTestCall?: boolean;
   testRunCostUsd?: number | null;
+  /** Defaults to observations. */
+  targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
 };
 
 export function EvaluatorSavedDialogContainer({
   projectId,
   evaluator,
+  rulesNeedingOverride = [],
   onboardingAnalytics,
   onDismiss,
   onFinish,
 }: {
   projectId: string;
   evaluator: EvaluatorSavedDialogEvaluator;
+  rulesNeedingOverride?: RuleNeedingOverride[];
   onboardingAnalytics: ReturnType<typeof createEvalOnboardingAnalytics> | null;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const isTraceTranscript = evaluator.targetObject === TopicsTargetObject;
+  const ruleTargetObjects = isTraceTranscript
+    ? [TopicsTargetObject]
+    : [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT];
+  const analyticsTarget = isTraceTranscript ? "trace" : "observation";
   const activation = useActivationEstimate({ projectId });
   const requestActivation = activation.requestActivation;
   const setActivationSampling = activation.setSampling;
@@ -71,6 +85,8 @@ export function EvaluatorSavedDialogContainer({
   const [isEstimating, setIsEstimating] = useState(false);
   const [testFilterSampling, setTestFilterSampling] = useState(1);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [overrideWarningDismissed, setOverrideWarningDismissed] =
+    useState(false);
   const estimateRequestId = useRef(0);
   const initialEstimateRequested = useRef(false);
   const createRuleHandoffPending = useRef(false);
@@ -93,7 +109,7 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: true,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects: ruleTargetObjects,
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -103,7 +119,7 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: false,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects: ruleTargetObjects,
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -133,8 +149,12 @@ export function EvaluatorSavedDialogContainer({
     supportedFilters: supportedRuleFilters,
     unsupportedReasons: unsupportedRuleFilterReasons,
   } = useMemo(
-    () => classifySampleFiltersForRule(evaluator.sampleFilter),
-    [evaluator.sampleFilter],
+    () =>
+      classifySampleFiltersForRule(
+        evaluator.sampleFilter,
+        isTraceTranscript ? TopicsTargetObject : EvalTargetObject.EVENT,
+      ),
+    [evaluator.sampleFilter, isTraceTranscript],
   );
   const selectedRule = availableRules.find(
     (rule) => rule.id === selectedRuleId,
@@ -189,10 +209,12 @@ export function EvaluatorSavedDialogContainer({
       projectId,
       ruleId: rule.id,
     });
-    await backfill.schedule(
-      { filter: currentRule.filter, sampling: currentRule.sampling },
-      backfill.executionRange,
-    );
+    if (!isTraceTranscript) {
+      await backfill.schedule(
+        { filter: currentRule.filter, sampling: currentRule.sampling },
+        backfill.executionRange,
+      );
+    }
     onboardingAnalytics?.completeOnboarding({
       executionPath: "existing_rule",
       hasBackfill: backfill.enabled,
@@ -209,6 +231,7 @@ export function EvaluatorSavedDialogContainer({
       evaluatorId: evaluator.id,
       filter: supportedRuleFilters,
       sampling,
+      ...(isTraceTranscript ? { targetObject: TopicsTargetObject } : {}),
     });
     if (result.action === "created") {
       capture("evaluation_rules:create", {
@@ -224,10 +247,12 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
-    await backfill.schedule(
-      { filter: supportedRuleFilters, sampling },
-      backfill.executionRange,
-    );
+    if (!isTraceTranscript) {
+      await backfill.schedule(
+        { filter: supportedRuleFilters, sampling },
+        backfill.executionRange,
+      );
+    }
     onboardingAnalytics?.completeOnboarding({
       executionPath: "test_filters",
       hasBackfill: backfill.enabled,
@@ -239,6 +264,8 @@ export function EvaluatorSavedDialogContainer({
 
   const requestEstimate = useCallback(
     async ({ filter, sampling }: { filter: FilterState; sampling: number }) => {
+      // Cost estimates only cover observation targets.
+      if (isTraceTranscript) return;
       const requestId = ++estimateRequestId.current;
       // Stay in the loading state for the whole request: the numbers on screen
       // belong to the previous scope, so a rule switch must not show the old
@@ -300,6 +327,7 @@ export function EvaluatorSavedDialogContainer({
       evaluator.id,
       evaluator.name,
       evaluator.testRunCostUsd,
+      isTraceTranscript,
       requestActivation,
       resetMissingCostTest,
     ],
@@ -423,6 +451,7 @@ export function EvaluatorSavedDialogContainer({
     if (mode === "test-filters") {
       capture("evaluators:saved_dialog_submit", {
         action: "test_filters",
+        target: analyticsTarget,
         hasBackfill: backfill.enabled,
         backfillWindow: backfill.enabled ? backfill.window : undefined,
         backfillMaxItems: backfill.enabled
@@ -436,6 +465,7 @@ export function EvaluatorSavedDialogContainer({
     if (selectedRule) {
       capture("evaluators:saved_dialog_submit", {
         action: "existing_rule",
+        target: analyticsTarget,
         hasBackfill: backfill.enabled,
         backfillWindow: backfill.enabled ? backfill.window : undefined,
         backfillMaxItems: backfill.enabled
@@ -447,6 +477,7 @@ export function EvaluatorSavedDialogContainer({
     } else {
       capture("evaluators:saved_dialog_submit", {
         action: "new_rule",
+        target: analyticsTarget,
         hasBackfill: false,
       });
       onboardingAnalytics?.track("eval:onboarding_create_rule_opened", {});
@@ -523,7 +554,8 @@ export function EvaluatorSavedDialogContainer({
   };
 
   const hasConfiguredScope = mode === "test-filters" || Boolean(selectedRule);
-  const backfillContent = (
+  // Trace transcripts have no batch evaluation path yet, so there is nothing to backfill.
+  const backfillContent = isTraceTranscript ? undefined : (
     <EvaluatorBackfillSettings
       enabled={backfill.enabled}
       canEnable={hasConfiguredScope}
@@ -561,6 +593,7 @@ export function EvaluatorSavedDialogContainer({
       }
       isEstimating={isEstimating}
       evaluatorType={evaluator.type}
+      targetObject={evaluator.targetObject}
       backfill={
         backfill.enabled
           ? {
@@ -586,7 +619,7 @@ export function EvaluatorSavedDialogContainer({
           : null
       }
     />
-  ) : evaluator.type !== EvalTemplateType.CODE ? (
+  ) : evaluator.type !== EvalTemplateType.CODE && !isTraceTranscript ? (
     <div className="space-y-2">
       <h3 className="text-sm font-bold">Cost estimate</h3>
       <p className="text-muted-foreground text-sm">
@@ -595,6 +628,39 @@ export function EvaluatorSavedDialogContainer({
     </div>
   ) : null;
 
+  const overrideWarning =
+    rulesNeedingOverride.length > 0 && !overrideWarningDismissed ? (
+      <Callout
+        variant="warning"
+        align="top"
+        actions={[]}
+        onDismiss={() => setOverrideWarningDismissed(true)}
+      >
+        <div>
+          <p>
+            These rules inherit this evaluator&apos;s mapping, but their scope
+            can&apos;t read it. Set an override mapping on each:
+          </p>
+          <ul className="mt-1 list-disc pl-4">
+            {rulesNeedingOverride.map((rule) => (
+              <li key={rule.id}>
+                <TextLink
+                  path={getRuleNavigationUrl({
+                    projectId,
+                    ruleId: rule.id,
+                    targetObject: rule.targetObject,
+                    enabled: rule.enabled,
+                  })}
+                  value={rule.name}
+                  external
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Callout>
+    ) : null;
+
   if (dialogPhase === "saved" || dialogPhase === "closing-saved") {
     return (
       <EvaluatorSavedDialog
@@ -602,7 +668,9 @@ export function EvaluatorSavedDialogContainer({
         mode={mode}
         modeContentByMode={modeContentByMode}
         backfillContent={backfillContent}
+        warning={overrideWarning}
         costSummary={costSummary}
+        targetObject={evaluator.targetObject}
         canSubmit={
           !isEstimating &&
           !isCompleting &&
@@ -673,6 +741,13 @@ export function EvaluatorSavedDialogContainer({
           });
         }}
         initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
+        {...(isTraceTranscript
+          ? {
+              targetObject: TopicsTargetObject,
+              lockScope: true,
+              initialFilter: supportedRuleFilters,
+            }
+          : {})}
         successNotification="none"
       />
     );

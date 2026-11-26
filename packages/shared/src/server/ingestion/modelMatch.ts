@@ -542,8 +542,8 @@ export async function clearModelCacheForOrganization(
       );
     }
     const results = await pipeline.exec();
-    const failed = results?.find(([error]) => error);
-    if (failed) throw failed[0];
+    const pipelineError = results?.find(([error]) => error != null)?.[0];
+    if (pipelineError) throw pipelineError;
   } catch (error) {
     recordCacheClearFailure("organization");
     logger.error(

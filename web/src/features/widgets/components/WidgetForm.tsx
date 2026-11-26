@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import {
   Card,
@@ -99,10 +100,6 @@ import {
   type WidgetInitialValues,
   type WidgetSavePayload,
 } from "./widgetFormSchema";
-
-// Re-exported from the schema module so co-located tests keep importing it from
-// this file; it now backs the shared normalizeWidgetFormValues healing.
-export { resolveAggregationAndChartType } from "./widgetFormSchema";
 
 type ChartType = {
   group: "time-series" | "total-value";

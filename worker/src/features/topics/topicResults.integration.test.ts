@@ -34,6 +34,8 @@ describe("current Topics summaries and assignments", () => {
     stale: `t2-${randomUUID()}`,
     outlier: `t3-${randomUUID()}`,
     insufficient: `t4-${randomUUID()}`,
+    empty: `t4b-${randomUUID()}`,
+    tooLarge: `t4c-${randomUUID()}`,
     unpublished: `t5-${randomUUID()}`,
     internal: `t6-${randomUUID()}`,
   };
@@ -70,7 +72,7 @@ describe("current Topics summaries and assignments", () => {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: `2026-10-0${day}T13:00:00.000Z`,
+    createdAt: `2026-10-0${day}T13:00:00.000Z`,
     metadata: {},
     ...overrides,
   });
@@ -87,15 +89,16 @@ describe("current Topics summaries and assignments", () => {
     environment: source.environment,
     traceName: source.traceName,
     unitStartTime: source.unitStartTime,
-    summaryProcessedAt: source.processedAt,
+    summaryProcessedAt: source.createdAt,
     runId: publishedRunId,
+    ruleId: null,
     topicId: "topic-refunds",
     topicVersionId: "topic-refunds-v1",
     distance: 0.1,
     runnerUpDistance: 0.2,
     origin: "initial",
     coordinates: null,
-    assignedAt: "2026-10-07T00:00:00.000Z",
+    createdAt: "2026-10-07T00:00:00.000Z",
     ...overrides,
   });
 
@@ -149,7 +152,7 @@ describe("current Topics summaries and assignments", () => {
 
     const assigned = summary(traces.assigned, issues, 6);
     const staleOld = summary(traces.stale, issues, 5);
-    const stale = { ...staleOld, processedAt: "2026-10-06T00:00:00.000Z" };
+    const stale = { ...staleOld, createdAt: "2026-10-06T00:00:00.000Z" };
     const outlier = summary(traces.outlier, issues, 4, {
       summary: "Long summary. ".repeat(50),
     });
@@ -169,6 +172,16 @@ describe("current Topics summaries and assignments", () => {
         sessionId: "session-1",
         traceName: "Überprüfung",
       }),
+      summary(traces.empty, issues, 3, {
+        unitStartTime: "2026-10-03T11:00:00.000Z",
+        state: "empty_input",
+        summary: "",
+      }),
+      summary(traces.tooLarge, issues, 3, {
+        unitStartTime: "2026-10-03T10:00:00.000Z",
+        state: "input_too_large",
+        summary: "",
+      }),
       unpublished,
       summary(traces.internal, issues, 1, {
         environment: "llm-as-a-judge",
@@ -177,7 +190,11 @@ describe("current Topics summaries and assignments", () => {
     await writeTopicAssignments([
       assignment(assigned),
       assignment(staleOld),
-      assignment(outlier, { topicId: null, topicVersionId: null }),
+      assignment(outlier, {
+        topicId: null,
+        topicVersionId: null,
+        createdAt: "2026-10-07T12:00:00.000Z",
+      }),
       assignment(unpublished, { runId: runs[1].id }),
       // Assignments of an older completed run are retired: neither listed nor counted.
       assignment(unpublished, {
@@ -189,7 +206,7 @@ describe("current Topics summaries and assignments", () => {
         runId: runs[2].id,
         topicId: "topic-retired",
         topicVersionId: "topic-retired-v1",
-        assignedAt: "2026-10-06T00:00:00.000Z",
+        createdAt: "2026-10-06T00:00:00.000Z",
       }),
     ]);
   });
@@ -212,17 +229,25 @@ describe("current Topics summaries and assignments", () => {
       [traces.stale, issues],
       [traces.outlier, issues],
       [traces.insufficient, issues],
+      [traces.empty, issues],
+      [traces.tooLarge, issues],
       [traces.unpublished, issues],
     ]);
     expect(
       result.rows.find((row) => row.traceId === traces.stale),
     ).toMatchObject({
-      processedAt: new Date("2026-10-06T00:00:00.000Z"),
+      createdAt: new Date("2026-10-06T00:00:00.000Z"),
       state: "complete",
     });
     expect(
       result.rows.find((row) => row.traceId === traces.insufficient),
     ).toMatchObject({ state: "insufficient_input", traceName: "Überprüfung" });
+    expect(
+      result.rows.find((row) => row.traceId === traces.empty),
+    ).toMatchObject({ state: "empty_input" });
+    expect(
+      result.rows.find((row) => row.traceId === traces.tooLarge),
+    ).toMatchObject({ state: "input_too_large" });
   });
 
   it("truncates long summaries and flags them", async () => {
@@ -270,14 +295,30 @@ describe("current Topics summaries and assignments", () => {
         topicId: "topic-refunds",
         topicVersionId: "topic-refunds-v1",
         runId: publishedRunId,
-        assignedAt: new Date("2026-10-07T00:00:00.000Z"),
+        createdAt: new Date("2026-10-07T00:00:00.000Z"),
       }),
       expect.objectContaining({
         traceId: traces.outlier,
         status: "outlier",
         topicId: null,
+        createdAt: new Date("2026-10-07T12:00:00.000Z"),
       }),
     ]);
+
+    const filteredByCreatedAt = await listCurrentTopicAssignments({
+      ...base,
+      facetIds: [issues, intent],
+      conditions: [
+        {
+          column: "createdAt",
+          match: {
+            operator: ">=",
+            value: new Date("2026-10-07T06:00:00.000Z"),
+          },
+        },
+      ],
+    });
+    expect(traceIds(filteredByCreatedAt)).toEqual([traces.outlier]);
   });
 
   it("filters summary attributes", async () => {
@@ -309,6 +350,19 @@ describe("current Topics summaries and assignments", () => {
         ]),
       ),
     ).toEqual([[traces.assigned, intent]]);
+    expect(
+      traceIds(
+        await summaries([
+          {
+            column: "state",
+            match: {
+              operator: "any of",
+              values: ["empty_input", "input_too_large"],
+            },
+          },
+        ]),
+      ),
+    ).toEqual([traces.empty, traces.tooLarge]);
   });
 
   it("pages trace and facet rows with a keyset cursor", async () => {
@@ -337,6 +391,8 @@ describe("current Topics summaries and assignments", () => {
       [traces.stale, "awaiting_map"],
       [traces.outlier, "outlier"],
       [traces.insufficient, "insufficient_input"],
+      [traces.empty, "empty_input"],
+      [traces.tooLarge, "input_too_large"],
       [traces.unpublished, "awaiting_map"],
     ]);
   });
@@ -351,14 +407,22 @@ describe("current Topics summaries and assignments", () => {
       ],
     });
     expect(issuesCounts).toMatchObject({
-      total: 5,
+      total: 7,
       usable: 4,
       insufficientInput: 1,
+      emptyInput: 1,
+      inputTooLarge: 1,
       assigned: 2,
       outliers: 1,
       topics: [{ topicId: "topic-refunds", count: 2 }],
     });
-    expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
+    expect(intentCounts).toMatchObject({
+      total: 1,
+      notApplicable: 1,
+      insufficientInput: 0,
+      emptyInput: 0,
+      inputTooLarge: 0,
+    });
   });
 
   it("keeps only traces a tracing filter matches in each batch", async () => {
@@ -534,7 +598,7 @@ describe("current Topics results with several rules sharing a facet", () => {
       usageDetails: {},
       providedCostDetails: {},
       costDetails: {},
-      processedAt: `2026-10-0${day}T13:00:00.000Z`,
+      createdAt: `2026-10-0${day}T13:00:00.000Z`,
       metadata: {},
     });
     const assign = (
@@ -550,15 +614,16 @@ describe("current Topics results with several rules sharing a facet", () => {
       environment: source.environment,
       traceName: source.traceName,
       unitStartTime: source.unitStartTime,
-      summaryProcessedAt: source.processedAt,
+      summaryProcessedAt: source.createdAt,
       runId,
+      ruleId: null,
       topicId,
       topicVersionId: `${topicId}-v1`,
       distance: 0.1,
       runnerUpDistance: 0.2,
       origin: "initial",
       coordinates: null,
-      assignedAt: "2026-10-07T00:00:00.000Z",
+      createdAt: "2026-10-07T00:00:00.000Z",
     });
     const [bothSummary, firstOnlySummary] = [
       summary(both, 6),

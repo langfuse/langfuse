@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "@langfuse/icons";
-import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { cn } from "@/src/utils/tailwind";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
@@ -51,21 +51,17 @@ export function CollapsibleBadgeRow({
       >
         {children}
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={expanded ? "Show fewer details" : "Show more details"}
-        aria-expanded={expanded}
-        className="mt-0.5 shrink-0"
-        onClick={() => setExpanded((prev) => !prev)}
-      >
-        {expanded ? (
-          <ChevronUp size="sm" color="default" />
-        ) : (
-          <ChevronDown size="sm" color="default" />
-        )}
-      </Button>
+      <div className="mt-0.5 flex shrink-0 items-center">
+        <IconButton
+          type="button"
+          variant="ghost"
+          size="xsTouch"
+          label={expanded ? "Show fewer details" : "Show more details"}
+          aria-expanded={expanded}
+          icon={expanded ? ChevronUp : ChevronDown}
+          onClick={() => setExpanded((prev) => !prev)}
+        />
+      </div>
     </div>
   );
 }

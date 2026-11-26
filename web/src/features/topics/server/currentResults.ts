@@ -1,7 +1,6 @@
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
-  reportedTopicSummaryState,
   topicTimeRangeSchema,
   type TopicAssignment,
   type TopicFacet,
@@ -44,7 +43,7 @@ function resolveTopicResult(
     | "facetVersion"
     | "traceId"
     | "unitStartTime"
-    | "processedAt"
+    | "createdAt"
     | "state"
   >,
   stored?: TopicAssignment,
@@ -56,10 +55,10 @@ function resolveTopicResult(
     stored.facetVersion === summary.facetVersion &&
     stored.traceId === summary.traceId &&
     stored.unitStartTime === summary.unitStartTime &&
-    stored.summaryProcessedAt === summary.processedAt
+    stored.summaryProcessedAt === summary.createdAt
       ? stored
       : undefined;
-  let outcome: string = reportedTopicSummaryState(summary.state);
+  let outcome: string = summary.state;
   if (summary.state === "complete") outcome = "awaiting_map";
   if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
   return { assignment, outcome };
@@ -243,6 +242,8 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
             awaitingMap: 0,
             notApplicable: 0,
             insufficientInput: 0,
+            emptyInput: 0,
+            inputTooLarge: 0,
           }
         : {
             total: count.total,
@@ -251,6 +252,8 @@ async function facetMapCounts(projectId: string, maps: FacetMap[]) {
             awaitingMap: count.awaiting,
             notApplicable: count.notApplicable,
             insufficientInput: count.insufficientInput,
+            emptyInput: count.emptyInput,
+            inputTooLarge: count.inputTooLarge,
           },
       topics,
       map: run

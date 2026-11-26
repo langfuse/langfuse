@@ -110,6 +110,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
+  langfuse_renderWidget: [],
   langfuse_listModels: [],
   langfuse_createModel: ["models"],
   langfuse_getModel: [],

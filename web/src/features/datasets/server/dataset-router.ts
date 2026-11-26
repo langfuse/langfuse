@@ -126,6 +126,7 @@ const getAzureStorageVersionFromUploadUrl = (uploadUrl?: string | null) => {
   }
 };
 
+/** @internal */
 export const getItemMediaUploadHeaders = ({
   sha256Hash,
   uploadUrl,

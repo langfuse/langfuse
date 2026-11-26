@@ -248,6 +248,9 @@ export const WithAdvancedOpen = meta.story({
     await userEvent.click(
       body.getByRole("button", { name: "User assignments" }),
     );
+    await userEvent.click(
+      await body.findByRole("combobox", { name: "Users to assign" }),
+    );
     await expect(
       await body.findByPlaceholderText("Search users to add..."),
     ).toBeEnabled();

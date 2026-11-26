@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import * as React from "react";
 import {
-  ExternalLink,
+  SquareArrowOutUpRight,
   File,
   Image as ImageIcon,
   ImageOff,
@@ -292,7 +292,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                 >
                   <a href={url} target="_blank" rel="noopener noreferrer">
                     {openActionLabel ? <span>{openActionLabel}</span> : null}
-                    <ExternalLink size="sm" color="default" />
+                    <SquareArrowOutUpRight size="base" color="default" />
                   </a>
                 </Button>
               ) : (
@@ -304,7 +304,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
                   title="Open in new tab"
                 >
                   {openActionLabel ? <span>{openActionLabel}</span> : null}
-                  <ExternalLink size="sm" color="default" />
+                  <SquareArrowOutUpRight size="base" color="default" />
                 </Button>
               )}
             </div>
