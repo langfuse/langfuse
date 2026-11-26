@@ -14,9 +14,12 @@ import {
   useDeleteGatewayGuardrails,
   type GatewayGuardrailDeleteTargetInput,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailsPage/hooks/useDeleteGatewayGuardrails";
+import { useGatewayIngestionNavProjectId } from "@/src/features/ai-gateway/hooks/useGatewayIngestionNavProjectId";
 import type { useGatewayGuardrailsTableState } from "@/src/features/ai-gateway/hooks/useGatewayGuardrailsTableState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useQueryOrganization } from "@/src/features/organizations/hooks";
 
 export type ConnectedGatewayGuardrailsTableProps = {
   organizationId: string;
@@ -35,6 +38,9 @@ export function ConnectedGatewayGuardrailsTable({
   table,
 }: ConnectedGatewayGuardrailsTableProps) {
   const { canManageGateway } = useGatewaySettingsAccess(organizationId);
+  const organization = useQueryOrganization();
+  const ingestionProjectId = useGatewayIngestionNavProjectId(organization);
+  const { isV3Legacy } = useReadPath();
   const { guardrails, selectionStore, clearSelection } = table;
   const { selectActionColumn } = TableSelectionManager<GatewayGuardrailRow>({
     projectId: "",
@@ -109,6 +115,8 @@ export function ConnectedGatewayGuardrailsTable({
               <>
                 <GatewayGuardrailsTable
                   canManage={canManageGateway}
+                  ingestionProjectId={ingestionProjectId}
+                  tracesTarget={isV3Legacy ? "observations" : "traces"}
                   data={toTableData(guardrails)}
                   onRowClick={handleRowClick}
                   selectColumn={{
