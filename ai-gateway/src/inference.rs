@@ -107,6 +107,18 @@ impl MemoryReservation {
         })
     }
 
+    /// Reserve `bytes` more from the same budget without waiting.
+    pub(crate) fn try_reserve_additional(
+        &mut self,
+        bytes: usize,
+        phase: &'static str,
+    ) -> Result<(), ResolutionError> {
+        if bytes == 0 {
+            return Ok(());
+        }
+        self.try_acquire(bytes, phase)
+    }
+
     /// Grow the reservation to the overhead plus `body` bytes without waiting.
     ///
     /// # Errors

@@ -252,7 +252,9 @@ impl Guardrails {
     ) -> Result<MemoryReservation, ResolutionError> {
         MemoryReservation::from_budget(
             &self.memory_budget,
-            blocks.text_bytes_for_scope(scope).saturating_add(64),
+            blocks
+                .external_payload_bytes_for_scope(scope)
+                .saturating_add(64),
             "guardrails",
         )
     }
@@ -738,6 +740,12 @@ enum BlockMutation {
     External,
 }
 
+/// Per-`TurnBlock` structural overhead (struct + heap `String` allocator slack)
+/// charged against `memory_budget` when buffering leaves.
+const TURN_BLOCK_OVERHEAD_BYTES: usize = size_of::<TurnBlock>() + 32;
+/// Per-block JSON wrapper overhead (`{"text":{"text":""}},`) in external payloads.
+const EXTERNAL_PAYLOAD_BLOCK_OVERHEAD_BYTES: usize = 24;
+
 struct TurnBlock {
     raw_range: Range<usize>,
     text: String,
@@ -767,12 +775,18 @@ impl TurnBlocks {
         self.0.iter().any(|block| Self::matches_scope(block, scope))
     }
 
-    fn text_bytes_for_scope(&self, scope: GuardrailScope) -> usize {
+    fn external_payload_bytes_for_scope(&self, scope: GuardrailScope) -> usize {
         self.0
             .iter()
             .filter(|block| Self::matches_scope(block, scope))
-            .map(|block| block.text.len())
-            .sum()
+            .fold(0usize, |total, block| {
+                total.saturating_add(
+                    block
+                        .text
+                        .len()
+                        .saturating_add(EXTERNAL_PAYLOAD_BLOCK_OVERHEAD_BYTES),
+                )
+            })
     }
 
     fn push(
@@ -1240,6 +1254,16 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             }
             None if external_needs_leaf && !leaf.text.is_empty() => {
                 if let Some(range) = raw_range(self.body, leaf.raw) {
+                    if reserve_guardrail_bytes(
+                        self.budget,
+                        TURN_BLOCK_OVERHEAD_BYTES,
+                        &mut self.redaction_reservations,
+                    )
+                    .is_err()
+                    {
+                        self.budget_exhausted = true;
+                        return false;
+                    }
                     self.blocks.push(
                         range,
                         leaf.text.to_owned(),
@@ -1393,9 +1417,9 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
     }
 }
 
-/// Reserves memory for an expanded replacement buffer (`String` + JSON-encoded
-/// `BodyEdit` + body growth) before allocating it.
-fn reserve_redaction_bytes(
+/// Reserves `bytes` from `budget`, merging into the existing reservation so
+/// per-block reservations do not allocate one handle per leaf.
+fn reserve_guardrail_bytes(
     budget: Option<&Arc<Semaphore>>,
     bytes: usize,
     reservations: &mut Vec<MemoryReservation>,
@@ -1403,16 +1427,28 @@ fn reserve_redaction_bytes(
     let Some(budget) = budget else {
         return Ok(());
     };
-    let reserved = bytes.saturating_mul(2);
-    if reserved == 0 {
+    if bytes == 0 {
         return Ok(());
     }
-    reservations.push(MemoryReservation::from_budget(
-        budget,
-        reserved,
-        "guardrails",
-    )?);
-    Ok(())
+    if let Some(existing) = reservations.first_mut() {
+        existing.try_reserve_additional(bytes, "guardrails")
+    } else {
+        reservations.push(MemoryReservation::from_budget(budget, bytes, "guardrails")?);
+        Ok(())
+    }
+}
+
+/// Reserves memory for an expanded replacement buffer (`String` + JSON-encoded
+/// `BodyEdit` + `TurnBlock` overhead) before allocating it.
+fn reserve_redaction_bytes(
+    budget: Option<&Arc<Semaphore>>,
+    bytes: usize,
+    reservations: &mut Vec<MemoryReservation>,
+) -> Result<(), ResolutionError> {
+    let reserved = bytes
+        .saturating_mul(2)
+        .saturating_add(TURN_BLOCK_OVERHEAD_BYTES);
+    reserve_guardrail_bytes(budget, reserved, reservations)
 }
 
 fn redact_leaf(

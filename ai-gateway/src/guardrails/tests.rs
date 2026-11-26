@@ -568,6 +568,29 @@ fn redaction_respects_memory_budget_and_returns_busy() {
         Some(&tight_budget),
     );
     assert!(matches!(result, Err(ResolutionError::Busy)));
+
+    // Many tiny leaves for an external guardrail must charge per-block overhead against budget.
+    let many_parts: Vec<serde_json::Value> = (0..64)
+        .map(|_| serde_json::json!({"type": "text", "text": "a"}))
+        .collect();
+    let tiny_body =
+        serde_json::json!({"messages": [{"role": "user", "content": many_parts}]}).to_string();
+    let tiny_members = scanned(&tiny_body, &["messages"]);
+    let bedrock = [bedrock_enforce_guardrail("br")];
+    let tiny_budget = Arc::new(Semaphore::new(512));
+    let tiny_result = apply_local_guardrails(
+        &bedrock,
+        tiny_body.as_bytes(),
+        &tiny_members,
+        &last_turn(
+            ApiFormat::OpenAiChatCompletions,
+            tiny_body.as_bytes(),
+            &tiny_members,
+        ),
+        TEST_MAX_SCAN_BYTES,
+        Some(&tiny_budget),
+    );
+    assert!(matches!(tiny_result, Err(ResolutionError::Busy)));
 }
 
 fn collect_pattern_spans<'a>(pattern: &str, text: &str, label: &'a str) -> Vec<RedactionSpan<'a>> {
