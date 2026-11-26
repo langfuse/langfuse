@@ -1,8 +1,8 @@
 /**
  * Collapses idle time between session traces on the timeline axis.
  *
- * The threshold and the label words come from the session sidebar
- * (`IDLE_GAP_THRESHOLD_SECONDS`, `formatIdleGap`). Each collapsed gap keeps a
+ * The threshold comes from the session sidebar (`IDLE_GAP_THRESHOLD_SECONDS`).
+ * Each collapsed gap keeps a
  * fixed pixel band; zoom and pan stay in that compressed space, and
  * `toRealMs` puts tick labels back on the real clock.
  */
@@ -12,8 +12,11 @@ import type { LayoutNode, TimeCompression } from "../types";
 import { compressionFromCollapsedGaps } from "./compressionFromCollapsedGaps";
 import { spanOffsetsOf } from "./spanOffsetsOf";
 
-/** Width of one collapsed idle band. The label sits in the axis, not the band. */
-const SESSION_IDLE_BAND_PX = 36;
+/**
+ * Width of one collapsed idle band. Wide enough for a short idle label
+ * ("10h 29m idle") at the 9px tick font, so the words stay inside the band.
+ */
+const SESSION_IDLE_BAND_PX = 72;
 
 type TraceRow = {
   depth: number;

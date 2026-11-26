@@ -126,7 +126,7 @@ describe("sessionIdleCompression", () => {
       ((gap.compressedEnd - gap.compressedStart) /
         mapped.compressedDurationMs) *
       width;
-    expect(bandPx).toBeCloseTo(36, 4);
+    expect(bandPx).toBeCloseTo(72, 4);
 
     const positioned = layout({
       roots: [

@@ -2741,6 +2741,39 @@ export const IdleGap = meta.story({
   },
 });
 
+export const IdleGapMatchesAxis = meta.story({
+  name: "(Test) Idle gap matches the axis",
+  args: {
+    ...sessionArgs,
+    roots: idleRoots,
+    rowLayout: "tree",
+  },
+  play: async ({ canvas }) => {
+    const band = await canvas.findByTestId("timeline-idle-band");
+    expect(band.className.includes("repeating-linear-gradient")).toBe(false);
+    expect(band.className.includes("border-dashed")).toBe(true);
+    const label = canvas.getByTestId("timeline-idle-gap");
+    const tick = canvas.getAllByTestId("timeline-tick-label")[0];
+    if (!tick) throw new Error("no tick label");
+    const labelStyle = getComputedStyle(label);
+    const tickStyle = getComputedStyle(tick);
+    expect(labelStyle.fontSize).toBe(tickStyle.fontSize);
+    expect(labelStyle.fontFamily).toBe(tickStyle.fontFamily);
+    expect(labelStyle.lineHeight).toBe(tickStyle.lineHeight);
+    expect(labelStyle.color).toBe(tickStyle.color);
+    expect(label.textContent).toBe("54m idle");
+    const bandBox = band.getBoundingClientRect();
+    const metrics = canvas.getAllByTestId("timeline-dense-metrics");
+    expect(metrics.length).toBeGreaterThan(0);
+    for (const node of metrics) {
+      const box = node.getBoundingClientRect();
+      const overlaps =
+        box.right > bandBox.left + 0.5 && box.left < bandBox.right - 0.5;
+      expect(overlaps).toBe(false);
+    }
+  },
+});
+
 export const IdleGapUncompressed = meta.story({
   name: "Idle gap uncompressed",
   render: (args) => <PackedToggleStory {...args} />,

@@ -55,6 +55,35 @@ function createClusterFitter(budgetPx: number, gapPx: number) {
   };
 }
 
+function roomBefore(
+  barLeft: number,
+  gaps: readonly { x: number; width: number }[],
+) {
+  let start = 0;
+  for (const gap of gaps) {
+    const gapEnd = gap.x + gap.width;
+    if (gapEnd <= start || gap.x >= barLeft) continue;
+    if (gapEnd >= barLeft) return 0;
+    start = Math.max(start, gapEnd);
+  }
+  return Math.max(barLeft - start, 0);
+}
+
+function roomAfter(
+  barRight: number,
+  laneWidth: number,
+  gaps: readonly { x: number; width: number }[],
+) {
+  let end = laneWidth;
+  for (const gap of gaps) {
+    const gapEnd = gap.x + gap.width;
+    if (gapEnd <= barRight || gap.x >= end) continue;
+    if (gap.x <= barRight) return 0;
+    end = Math.min(end, gap.x);
+  }
+  return Math.max(end - barRight, 0);
+}
+
 export type RowMetrics = {
   /** Already formatted, e.g. `$0.02`. */
   costText?: string | null;
@@ -69,6 +98,7 @@ export function TimelineRowMetrics({
   showDuration: durationEnabled,
   toneClass,
   insideOnly = false,
+  gaps = [],
 }: {
   row: PositionedNode;
   laneWidth: number;
@@ -80,6 +110,8 @@ export function TimelineRowMetrics({
   toneClass: string;
   /** Draw the cluster only inside the bar, and only when the whole string fits. */
   insideOnly?: boolean;
+  /** Idle bands the cluster must not enter. */
+  gaps?: readonly { x: number; width: number }[];
 }) {
   const gapPx = density.labelGapPx;
   const insetPx = density.labelPaddingPx;
@@ -92,8 +124,8 @@ export function TimelineRowMetrics({
   // being "the rest of the lane" and becomes "this bar", so a cluster that fit a
   // moment ago no longer does. More space for the bar meant less for the label.
   // Inside is now the LAST resort, taken only when neither flank has room.
-  const spaceBefore = Math.max(row.x - gapPx, 0);
-  const spaceAfter = Math.max(laneWidth - (row.x + row.width + gapPx), 0);
+  const spaceBefore = roomBefore(Math.max(row.x - gapPx, 0), gaps);
+  const spaceAfter = roomAfter(row.x + row.width + gapPx, laneWidth, gaps);
   const spaceInside = Math.max(
     row.width - insetPx * 2 - (insideOnly ? 8 : 0),
     0,

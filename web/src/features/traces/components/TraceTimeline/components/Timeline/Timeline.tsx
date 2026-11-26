@@ -84,10 +84,7 @@ import { spanOffsetsOf } from "./fns/spanOffsetsOf";
 import { timeCompressionFor } from "./fns/timeCompressionFor";
 import { packLanes } from "./fns/packLanes";
 import { sessionIdleCompression } from "./fns/sessionIdleCompression";
-import {
-  formatIdleGap,
-  IDLE_GAP_THRESHOLD_SECONDS,
-} from "@/src/features/sessions/sessionIdleGap";
+import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleGap";
 import { collapsedForSearch } from "./fns/collapsedForSearch";
 import { createTextMeasurer } from "./fns/createTextMeasurer";
 import { resolveBarTones } from "./fns/resolveBarTones";
@@ -219,33 +216,37 @@ const FOCUS_ANIMATION_MS = 320;
 /** Slack around the rail so the peek zone is reachable at rail width. */
 const PEEK_MARGIN_PX = 6;
 
-function idleGapLabels(
-  gaps: readonly GapMarker[],
-  laneWidth: number,
-  measurer: { measure: (text: string) => number },
-) {
+/** Same size the axis tick labels render at. The idle label uses it too. */
+const TICK_FONT_PX = 9;
+/** A collapsed-gap band narrower than this has no room to name itself. */
+const GAP_LABEL_MIN_WIDTH = 14;
+
+function idleAxisLabel(durationMs: number): string {
+  const whole = Math.max(0, Math.round(durationMs / 1000));
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m idle`;
+  if (hours > 0) return `${hours}h idle`;
+  return `${minutes}m idle`;
+}
+
+function idleGapLabels(gaps: readonly GapMarker[]) {
   const labels = [];
   let labelCursor = 0;
   for (const gap of gaps) {
     if (gap.durationMs < IDLE_GAP_THRESHOLD_SECONDS * 1000) continue;
-    const label = `+${formatIdleGap(gap.durationMs / 1000)} idle`;
-    const labelWidth = measurer.measure(label) + 8;
-    const center = gap.x + gap.width / 2;
-    const left = Math.min(
-      Math.max(center - labelWidth / 2, 0),
-      Math.max(laneWidth - labelWidth, 0),
-    );
+    const label = idleAxisLabel(gap.durationMs);
+    if (gap.width < GAP_LABEL_MIN_WIDTH) continue;
+    const labelWidth = label.length * (TICK_FONT_PX * 0.62);
+    if (labelWidth > gap.width) continue;
+    const left = gap.x + (gap.width - labelWidth) / 2;
     if (left < labelCursor) continue;
     labelCursor = left + labelWidth;
     labels.push(
       <span
         key={`idle-${gap.x}`}
-        className="bg-background text-muted-foreground absolute top-0 z-1 px-1 font-mono whitespace-nowrap"
-        style={{
-          left: `${left}px`,
-          fontSize: "11px",
-          lineHeight: `${AXIS_HEIGHT}px`,
-        }}
+        className="text-muted-foreground absolute whitespace-nowrap"
+        style={{ left: `${left}px`, top: 0, fontSize: `${TICK_FONT_PX}px` }}
         data-testid="timeline-idle-gap"
       >
         {label}
@@ -254,8 +255,6 @@ function idleGapLabels(
   }
   return labels;
 }
-/** A collapsed-gap band narrower than this has no room to name itself. */
-const GAP_LABEL_MIN_WIDTH = 14;
 /** Below this in both axes a drag was a stray click, not a box. */
 const MARQUEE_MIN_PX = 6;
 /** Two taps within this long, and this close, are one double-tap. */
@@ -1686,13 +1685,14 @@ export function Timeline({
             >
               <span
                 className="text-muted-foreground absolute left-1 whitespace-nowrap"
-                style={{ fontSize: "9px" }}
+                style={{ top: 0, fontSize: `${TICK_FONT_PX}px` }}
+                data-testid="timeline-tick-label"
               >
                 {tick.label}
               </span>
             </div>
           ))}
-          {idleGapLabels(result.gaps, laneWidth, measurer)}
+          {idleGapLabels(result.gaps)}
         </div>
       </div>
 
@@ -1755,9 +1755,10 @@ export function Timeline({
                   key={`${gap.x}-${gap.durationMs}`}
                   className={
                     sessionIdle
-                      ? "absolute inset-y-0 overflow-hidden bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)]"
+                      ? "border-border absolute inset-y-0 overflow-hidden border-x border-dashed"
                       : "bg-muted border-border-contrast absolute inset-y-0 overflow-hidden border-x border-dashed"
                   }
+                  data-testid={sessionIdle ? "timeline-idle-band" : undefined}
                   style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
                 >
                   {sessionIdle || gap.width < GAP_LABEL_MIN_WIDTH ? null : (
@@ -1925,6 +1926,10 @@ export function Timeline({
                       metrics={metricsOf?.(node.id) ?? {}}
                       showDuration={showDuration}
                       insideOnly={packed}
+                      gaps={result.gaps.filter(
+                        (gap) =>
+                          gap.durationMs >= IDLE_GAP_THRESHOLD_SECONDS * 1000,
+                      )}
                       toneClass={
                         barTones[barClass] === "dark"
                           ? "text-black/85"
