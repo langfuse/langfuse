@@ -3,6 +3,7 @@ import Link, { type LinkProps } from "next/link";
 import { ArrowLeft, ArrowRight, Clock } from "@langfuse/icons";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { Button } from "@/src/components/ui/button";
 import { SessionTraceTrack } from "../SessionTraceTrack/SessionTraceTrack";
 import {
   sessionContainsTrace,
@@ -129,15 +130,21 @@ function SessionArrow({
   return (
     <Tooltip label={label} shortcut={{ keys: [...shortcut] }}>
       {({ getTriggerProps }) => (
-        <Link
-          href={href}
-          shallow={shallow}
-          aria-label={label}
-          className="text-foreground-secondary hover:bg-accent hover:text-foreground-secondary inline-flex h-7 w-7 items-center justify-center rounded-md"
-          {...getTriggerProps()}
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          className="text-foreground-secondary hover:text-foreground-secondary h-7 w-7"
         >
-          {icon}
-        </Link>
+          <Link
+            href={href}
+            shallow={shallow}
+            aria-label={label}
+            {...getTriggerProps()}
+          >
+            {icon}
+          </Link>
+        </Button>
       )}
     </Tooltip>
   );
