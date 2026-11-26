@@ -227,8 +227,8 @@ interface EventsTracesScoresAggregationParams {
    * Adds the `score_categories_tuples` column for programmatic parsing (see
    * BaseScoresAggregationParams). Only meaningful together with
    * `hasScoreAggregationFilters` (the flat branch returns score ids only);
-   * used by the blob-export path so trace-level categorical scores export
-   * safely even when names contain colons.
+   * used by the observations batch export so trace-level categorical scores
+   * export safely even when names contain colons.
    */
   includeTupleEncoding?: boolean;
 }

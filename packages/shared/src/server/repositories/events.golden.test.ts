@@ -1727,20 +1727,19 @@ describeWithClickhouse("golden: events filtered streams family", () => {
   });
 
   // The batch export builds the query the worker runs; `startTimeFrom` feeds
-  // the worker's distinct-score-names read. Its scores join is written
-  // `scores_agg s ON s.trace_id = … AND s.observation_id = …`, unlike the
-  // planner's `scores_agg AS s` (#15591); kept byte-equal.
+  // the worker's distinct-score-names read. Its scores join is on
+  // `s.trace_id = … AND s.observation_id = …`, unlike the planner's
+  // `s.observation_id = …` alone.
   function renderBlobExportStream(
     input: Partial<Parameters<typeof buildEventsBlobExportStreamQuery>[0]>,
   ) {
-    const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
+    const { query, params, startTimeFrom } = buildEventsBlobExportStreamQuery({
       projectId: FIXED_PROJECT_ID,
       cutoffCreatedAt: FIXED_TO_TIMESTAMP,
       filter: [],
       rowLimit: 100,
       ...input,
     });
-    const { query, params } = queryBuilder.buildWithParams();
     return {
       queries: normalizeCapturedQueries([
         { fn: "buildEventsBlobExportStreamQuery", query, params },
@@ -1846,6 +1845,50 @@ describeWithClickhouse("golden: events filtered streams family", () => {
           key: "accuracy",
           operator: ">",
           value: 2,
+        },
+      ],
+      {},
+    ],
+    // `null` on a score column reads its own aggregate only (`s`, or `ts`
+    // for a trace column), by id or UI name.
+    [
+      "obsScore+traceScore null",
+      [
+        {
+          column: "scores_avg",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "score_categories",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "score_booleans",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "trace_scores_avg",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "trace_score_categories",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "Trace Scores (boolean)",
+          type: "null",
+          operator: "is null",
+          value: "",
         },
       ],
       {},

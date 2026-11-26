@@ -285,7 +285,7 @@ export { BooleanFilter } from "./queries/clickhouse-sql/clickhouse-filter";
 export { NumberObjectFilter } from "./queries/clickhouse-sql/clickhouse-filter";
 export { StringObjectFilter } from "./queries/clickhouse-sql/clickhouse-filter";
 export { NullFilter } from "./queries/clickhouse-sql/clickhouse-filter";
-export { encodeBooleanScoreEntry } from "./queries/clickhouse-sql/clickhouse-filter";
+export { encodeBooleanScoreEntry } from "./repositories/events-score-predicate";
 export { filtersRequireEventsFull } from "./queries/clickhouse-sql/clickhouse-filter";
 export { metadataFilterCanPruneEventsFull } from "./queries/clickhouse-sql/clickhouse-filter";
 export { type ClickhouseOperator } from "./queries/clickhouse-sql/clickhouse-filter";
