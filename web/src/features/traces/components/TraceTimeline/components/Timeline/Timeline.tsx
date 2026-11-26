@@ -275,8 +275,8 @@ function tickLabelBox(x: number, label: string, side: TickSide): AxisBox {
   return { left, right: left + width };
 }
 
-function placedTickSides(
-  ticks: readonly { x: number; label: string }[],
+function placedTickSides<T extends { x: number; label: string }>(
+  ticks: readonly T[],
   idle: readonly IdleAxisLabel[],
 ) {
   const idleBoxes = idle.map((item) => ({
