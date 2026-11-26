@@ -405,32 +405,30 @@ fn attach_matching_or_push_leaf(
     push_leaf(blocks, frame_idx, text, ptr, true);
 }
 
-fn collect_text_or_parts(
+fn visit_text_or_parts(
     value: &Value,
-    frame_idx: Option<usize>,
     ptr: &str,
     depth: usize,
-    blocks: &mut Vec<ResponseBlock>,
+    visit: &mut impl FnMut(String, &str),
 ) -> Result<(), Unreadable> {
     if depth > MAX_JSON_DEPTH {
         return Err(Unreadable);
     }
     match value {
-        Value::String(text) => push_leaf(blocks, frame_idx, text, ptr.to_owned(), true),
+        Value::String(text) => visit(ptr.to_owned(), text),
         Value::Array(items) => {
             for (index, item) in items.iter().enumerate() {
                 let item_ptr = ptr_index(ptr, index);
                 match item {
-                    Value::String(text) => push_leaf(blocks, frame_idx, text, item_ptr, true),
+                    Value::String(text) => visit(item_ptr, text),
                     Value::Object(map) => {
                         for key in ["text", "refusal", "transcript", "content"] {
                             if let Some(field) = map.get(key) {
-                                collect_text_or_parts(
+                                visit_text_or_parts(
                                     field,
-                                    frame_idx,
                                     &ptr_push(&item_ptr, key),
                                     depth + 1,
-                                    blocks,
+                                    visit,
                                 )?;
                             }
                         }
@@ -442,6 +440,18 @@ fn collect_text_or_parts(
         _ => {}
     }
     Ok(())
+}
+
+fn collect_text_or_parts(
+    value: &Value,
+    frame_idx: Option<usize>,
+    ptr: &str,
+    depth: usize,
+    blocks: &mut Vec<ResponseBlock>,
+) -> Result<(), Unreadable> {
+    visit_text_or_parts(value, ptr, depth, &mut |leaf_ptr, text| {
+        push_leaf(blocks, frame_idx, text, leaf_ptr, true);
+    })
 }
 
 fn collect_all_strings(
@@ -707,6 +717,14 @@ impl StreamCollector {
 }
 
 fn parse_sse(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unreadable> {
+    if !matches!(
+        api_format,
+        ApiFormat::OpenAiChatCompletions
+            | ApiFormat::AnthropicMessages
+            | ApiFormat::OpenAiResponses
+    ) {
+        return Err(Unreadable);
+    }
     let frames = split_sse_frames(body)?;
     let mut collector = StreamCollector::default();
     for (frame_idx, frame) in frames.iter().enumerate() {
@@ -723,7 +741,7 @@ fn parse_sse(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unrea
             ApiFormat::OpenAiResponses => {
                 extract_responses_sse(frame_idx, value, &mut collector)?;
             }
-            ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {}
+            ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => return Err(Unreadable),
         }
     }
     Ok(ParsedResponse {
@@ -837,12 +855,18 @@ fn extract_chat_sse(
                     );
                 }
                 Some(field @ Value::Array(_)) => {
-                    collect_text_or_parts(
+                    visit_text_or_parts(
                         field,
-                        Some(frame_idx),
                         &ptr_push(&delta_ptr, key),
                         0,
-                        &mut collector.blocks,
+                        &mut |leaf_ptr, text| {
+                            collector.push_delta(
+                                StreamKey::Chat(choice_idx, key),
+                                frame_idx,
+                                leaf_ptr,
+                                text,
+                            );
+                        },
                     )?;
                 }
                 Some(_) => return Err(Unreadable),

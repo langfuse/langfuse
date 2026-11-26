@@ -874,6 +874,23 @@ fn redacts_span_crossing_sse_chunks_and_deduplicates_responses_summaries() {
     assert!(!rewritten.contains("123-"));
     assert!(!rewritten.contains("45-6789"));
     assert_eq!(rewritten.matches("SSN [SSN]").count(), 5);
+
+    // 4. Chat Completions array-shaped delta.content chunks assemble onto the choice's stream.
+    let array_chat_sse = concat!(
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"SSN 123-\"}]}}]}\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"text\",\"text\":\"45-6789\"}]}}]}\n\n",
+        "data: [DONE]\n\n"
+    );
+    let array_outcome = check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiChatCompletions,
+        ResponseFormat::Sse,
+        array_chat_sse,
+    );
+    let array_rewritten = rewritten_response_str(array_outcome);
+    assert!(!array_rewritten.contains("123-"));
+    assert!(!array_rewritten.contains("45-6789"));
+    assert!(array_rewritten.contains("SSN [SSN]"));
 }
 
 #[test]
@@ -917,6 +934,20 @@ fn truncated_or_malformed_sse_fails_closed_for_output_guardrails() {
     );
     assert_eq!(
         dup_outcome.blocking().map(|finding| finding.id.as_str()),
+        Some("block")
+    );
+
+    let decisions_sse = "data: {\"answers\":[\"123-45-6789\"]}\n\ndata: [DONE]\n\n";
+    let decisions_outcome = check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiDecisions,
+        ResponseFormat::Sse,
+        decisions_sse,
+    );
+    assert_eq!(
+        decisions_outcome
+            .blocking()
+            .map(|finding| finding.id.as_str()),
         Some("block")
     );
 }
