@@ -142,8 +142,9 @@ function booleanUse(member: TSESTree.MemberExpression): BooleanUse | null {
   if (isAndOr(parent) && parent.left === expression) {
     // `length || fallback` and `count={length || n}` yield the number.
     if (parent.operator === "||" && !resultUsedAsBoolean(parent)) return null;
-    // A prop receives the value. A child `{length && <List />}` renders 0.
-    if (isJsxAttributeExpression(parent)) return null;
+    // A prop receives the value, including nested `length && flag && extra`.
+    // A child `{length && <List />}` renders 0.
+    if (attributeOwns(parent)) return null;
     return "truthy";
   }
 
@@ -313,6 +314,17 @@ function isJsxChildContainer(
     owner?.type === AST_NODE_TYPES.JSXElement ||
     owner?.type === AST_NODE_TYPES.JSXFragment
   );
+}
+
+/** True when `expression` is the value of a JSX prop, through nested && / || / ??. */
+function attributeOwns(expression: TSESTree.Node): boolean {
+  let current = expression;
+  for (;;) {
+    if (isJsxAttributeExpression(current)) return true;
+    const parent = parentOf(unwrapTransparent(current));
+    if (!isAndOr(parent) && !isNullish(parent)) return false;
+    current = parent;
+  }
 }
 
 function isJsxAttributeExpression(expression: TSESTree.Node): boolean {

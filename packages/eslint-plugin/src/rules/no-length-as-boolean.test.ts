@@ -37,6 +37,7 @@ ruleTester.run("no-length-as-boolean", rule, {
     `const element = <span>{flag && items.length}</span>;`,
     `const element = <List count={items.length || 10} />;`,
     `const element = <List count={items.length && flag} />;`,
+    `const element = <List count={items.length && flag && extra} />;`,
     `const element = <span>{items.length || <Empty />}</span>;`,
     `const count = items.length || fallback;`,
   ],
