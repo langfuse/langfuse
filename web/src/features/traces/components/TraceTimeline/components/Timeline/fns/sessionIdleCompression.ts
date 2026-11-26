@@ -23,6 +23,7 @@ type TraceRow = {
 function sessionIdleGaps(
   rows: readonly TraceRow[],
   originMs: number,
+  spans: readonly (readonly [number, number])[],
 ): Array<{ start: number; end: number }> {
   const intervals: Array<[number, number]> = [];
   for (const row of rows) {
@@ -30,6 +31,10 @@ function sessionIdleGaps(
     const offsets = spanOffsetsOf(row.node, originMs);
     const start = offsets.startMs;
     intervals.push([start, Math.max(offsets.endMs, start)]);
+  }
+  for (const [start, end] of spans) {
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    intervals.push([start, Math.max(end, start)]);
   }
   intervals.sort((a, b) => a[0] - b[0]);
 
@@ -58,8 +63,14 @@ export function sessionIdleCompression(options: {
   originMs: number;
   durationMs: number;
   physicalWidth: number;
+  /** Non-root spans. A gap is idle only when none of these are running. */
+  spans?: readonly (readonly [number, number])[];
 }): TimeCompression | null {
-  const gaps = sessionIdleGaps(options.rows, options.originMs);
+  const gaps = sessionIdleGaps(
+    options.rows,
+    options.originMs,
+    options.spans ?? [],
+  );
   if (gaps.length === 0) return null;
   return compressionFromCollapsedGaps({
     durationMs: options.durationMs,

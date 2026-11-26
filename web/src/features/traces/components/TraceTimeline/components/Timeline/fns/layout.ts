@@ -114,11 +114,26 @@ export function layout<TNode extends LayoutNode>(
     if (lane == null || lane < from || lane > to) continue;
     const row = prepared.rows[index];
     if (!row) continue;
-    if (
-      laneByRow &&
-      spanOutsideView(row.node, prepared.originMs, compression, view)
-    ) {
-      continue;
+    if (laneByRow) {
+      if (spanOutsideView(row.node, prepared.originMs, compression, view)) {
+        continue;
+      }
+      // A span thinner than a pixel cannot be told apart at this zoom. Drawing
+      // it at the minimum bar width mounts one node per observation, which a
+      // session of thousands of short spans cannot afford. Zooming in gives
+      // those spans pixels and they come back.
+      const offsets = spanOffsetsOf(row.node, prepared.originMs);
+      const compressedStart = compression.toCompressedMs(offsets.startMs);
+      const compressedEnd = compression.toCompressedMs(
+        Math.max(offsets.endMs, offsets.startMs),
+      );
+      if (
+        Math.abs(
+          transform.toPx(compressedEnd) - transform.toPx(compressedStart),
+        ) < 1
+      ) {
+        continue;
+      }
     }
     nodes.push(positionRow(row, lane, context));
   }

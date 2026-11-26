@@ -51,6 +51,44 @@ describe("sessionIdleCompression", () => {
     );
   });
 
+  it("does not treat a running child as idle when the trace has no end", () => {
+    const childEnd = 10 * MINUTE;
+    const nextStart = childEnd + IDLE_GAP_THRESHOLD_SECONDS * 1000;
+    const root: LayoutNode = {
+      id: "a",
+      name: "a",
+      type: "TRACE",
+      startTime: new Date(0),
+      children: [
+        {
+          id: "child",
+          name: "child",
+          type: "GENERATION",
+          startTime: new Date(0),
+          endTime: new Date(childEnd),
+          children: [],
+        },
+      ],
+    };
+    const prepared = prepareTimeline([
+      root,
+      trace("b", nextStart, nextStart + MINUTE),
+    ]);
+    const compression = sessionIdleCompression({
+      rows: prepared.rows,
+      originMs: prepared.originMs,
+      durationMs: prepared.durationMs,
+      physicalWidth: 1000,
+      spans: prepared.spans,
+    });
+    const gap = compression?.gaps[0];
+    expect(gap).toBeDefined();
+    expect(gap!.start).toBeGreaterThanOrEqual(childEnd - 1);
+    expect(compression!.toCompressedMs(childEnd / 2)).toBeLessThan(
+      gap!.compressedStart,
+    );
+  });
+
   it("maps time through a collapsed gap and back", () => {
     const idleMs = 54 * MINUTE;
     const prepared = prepareTimeline([

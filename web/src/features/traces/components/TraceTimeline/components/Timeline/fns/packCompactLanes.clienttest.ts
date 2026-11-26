@@ -87,4 +87,37 @@ describe("packCompactLanes", () => {
     const rightBar = separated.nodes.find((item) => item.id === "right")!;
     expect(leftBar.x + leftBar.width).toBeLessThan(rightBar.x);
   });
+
+  it("leaves sub-pixel spans unmounted until the zoom gives them a pixel", () => {
+    const tiny = Array.from({ length: 200 }, (_, index) =>
+      span(`t${index}`, index * 10, index * 10 + 1),
+    );
+    const roots = [span("wide", 0, 30_000, tiny)];
+    const prepared = prepareTimeline(roots);
+    const laneByRow = packCompactLanes(prepared.rows).lanes;
+    const fitted = layout({
+      roots,
+      box: { width: 300, height: 80 },
+      density: fineDensity,
+      measurer,
+      view: null,
+      compress: false,
+      prepared,
+      laneByRow,
+    });
+    expect(fitted.nodes.some((node) => node.id === "wide")).toBe(true);
+    expect(fitted.nodes.length).toBeLessThan(prepared.rows.length);
+
+    const zoomed = layout({
+      roots,
+      box: { width: 300, height: 80 },
+      density: fineDensity,
+      measurer,
+      view: { start: 0, duration: 50 },
+      compress: false,
+      prepared,
+      laneByRow,
+    });
+    expect(zoomed.nodes.some((node) => node.id.startsWith("t"))).toBe(true);
+  });
 });

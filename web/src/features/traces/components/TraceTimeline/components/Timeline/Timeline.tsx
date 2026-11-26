@@ -557,11 +557,40 @@ export function Timeline({
         originMs: prepared.originMs,
         durationMs: prepared.durationMs,
         physicalWidth: chartBox.width,
+        spans: prepared.spans,
       });
       if (idle) return idle;
     }
     return timeCompressionFor(prepared, chartBox, compress);
   }, [collapseIdleGaps, prepared, chartBox, compress]);
+
+  // The collapsed band is a fixed number of pixels, so its compressed duration
+  // changes when the lane width changes. The stored window is in that
+  // compressed clock. Map it through real time so a resize keeps the same span.
+  const compressionRef = useRef(compression);
+  const activeViewport = useMemo(() => {
+    if (!viewport || compressionRef.current === compression) return viewport;
+    const previous = compressionRef.current;
+    const realStart = previous.toRealMs(viewport.time.start);
+    const realEnd = previous.toRealMs(
+      viewport.time.start + viewport.time.duration,
+    );
+    const start = compression.toCompressedMs(realStart);
+    const duration = Math.max(compression.toCompressedMs(realEnd) - start, 0);
+    if (
+      Math.abs(start - viewport.time.start) <= 0.05 &&
+      Math.abs(duration - viewport.time.duration) <= 0.05
+    ) {
+      return viewport;
+    }
+    return { time: { start, duration }, rows: viewport.rows };
+  }, [viewport, compression]);
+  if (compressionRef.current !== compression) {
+    compressionRef.current = compression;
+    if (activeViewport && activeViewport !== viewport) {
+      setWindowState({ layout: rowLayout, viewport: activeViewport });
+    }
+  }
 
   const limits = useMemo(
     () => ({
@@ -575,8 +604,11 @@ export function Timeline({
   // Re-clamped every render, so a resize can never leave the viewport looking
   // outside the content.
   const current = useMemo(
-    () => (viewport ? clampViewport(viewport, limits) : fitViewport(limits)),
-    [viewport, limits],
+    () =>
+      activeViewport
+        ? clampViewport(activeViewport, limits)
+        : fitViewport(limits),
+    [activeViewport, limits],
   );
   const rowHeight = rowHeightOf(current, chartHeight);
   const isOpen = committedOpen;
