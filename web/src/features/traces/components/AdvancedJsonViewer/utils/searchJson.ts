@@ -88,7 +88,7 @@ export function getCurrentMatchIndexInRow(
  * Highlight text with search match positions
  * Returns array of segments with highlight info
  */
-export interface TextSegment {
+interface TextSegment {
   text: string;
   isHighlight: boolean;
 }

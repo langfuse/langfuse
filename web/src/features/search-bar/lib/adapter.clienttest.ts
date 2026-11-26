@@ -4,7 +4,7 @@ import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 import type { FilterState } from "@langfuse/shared";
 import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
-import { predicateMirrorIssue } from "./searchBarInvariants";
+import { predicateMirrorIssue } from "../__tests__/searchBarInvariants";
 import { planCommit } from "./commit";
 import {
   applyCheckboxSelection,

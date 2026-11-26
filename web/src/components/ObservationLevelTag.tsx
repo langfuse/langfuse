@@ -45,7 +45,7 @@ export const LevelColors = {
   ERROR: { text: "text-dark-red", bg: "bg-light-red" },
 };
 
-export type LevelColor = { text: string; bg: string };
+type LevelColor = { text: string; bg: string };
 
 const NEUTRAL_LEVEL_COLOR: LevelColor = { text: "", bg: "" };
 

@@ -35,20 +35,20 @@
 // parse/validate/lower calls below — the generators and assertions do not
 // change.
 
-import { effectiveSearchType, type FieldRegistry } from "./fields";
+import { effectiveSearchType, type FieldRegistry } from "../lib/fields";
 import {
   type AstToFilterStateResult,
   type ScoreTypeContext,
   astToFilterState,
-} from "./adapter";
+} from "../lib/adapter";
 import {
   coerceLegacyEmptyMetadataFilters,
   toFilterState,
   type FilterState,
 } from "@langfuse/shared";
-import { parse, serialize } from "./langQ";
-import { validateQuery } from "./validate";
-import { filterStateToQueryText } from "./filter-state-to-query";
+import { parse, serialize } from "../lib/langQ";
+import { validateQuery } from "../lib/validate";
+import { filterStateToQueryText } from "../lib/filter-state-to-query";
 
 /** A filterable view's grammar surface under test. */
 export type RegistryUnderTest = {

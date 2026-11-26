@@ -1,8 +1,8 @@
 import { createSidebarMenuControls } from "@/src/features/app-shell/fns/createSidebarMenuControls";
-import {
-  createSidebarStore,
-  SIDEBAR_EXPANDED_STORAGE_KEY,
-} from "@/src/features/app-shell/stores/sidebarStore";
+import { createSidebarStore } from "@/src/features/app-shell/stores/sidebarStore";
+
+// Keep this independent of the store to catch changes that break saved preferences.
+const SIDEBAR_EXPANDED_STORAGE_KEY = "langfuse:sidebar:pinned:v1";
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));

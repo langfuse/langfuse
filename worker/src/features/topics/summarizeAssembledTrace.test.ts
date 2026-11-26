@@ -1,3 +1,4 @@
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   recordDistribution,
@@ -38,7 +39,6 @@ vi.mock("./llm/models", () => ({
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
-import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 
 const transcript: Transcript = {
   threads: [

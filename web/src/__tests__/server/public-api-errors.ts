@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { StructuredPublicApiErrorDetails } from "./structuredPublicApiErrorSchema";
+import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
 
 const publicApiErrorCodes = [
   "authentication_failed",
@@ -20,6 +20,6 @@ export const PublicApiError = z
   .object({
     message: z.string(),
     code: PublicApiErrorCode,
-    details: StructuredPublicApiErrorDetails.optional(),
+    details: StructuredPublicApiErrorResponse.shape.details,
   })
   .strict();
