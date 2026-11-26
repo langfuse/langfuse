@@ -291,10 +291,6 @@ describe("coreDataTableExports", () => {
       vi.spyOn(delegate, "findMany").mockResolvedValue([]);
     }
 
-    vi.spyOn(prisma.project, "aggregate").mockResolvedValue({
-      _min: { createdAt: null },
-    } as Awaited<ReturnType<typeof prisma.project.aggregate>>);
-
     const uploadedFiles: string[] = [];
     const s3Client = {
       listFiles: vi.fn(async () => []),

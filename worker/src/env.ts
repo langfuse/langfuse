@@ -503,21 +503,6 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
-  // Media usage export: no new day is started once a run has used this long;
-  // the backfill continues in the next daily run.
-  LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES: z.coerce
-    .number()
-    .positive()
-    .default(30),
-  // Earliest UTC day (YYYY-MM-DD) the media usage export covers; nothing
-  // before it is exported, even if the watermark is older. The default is a few
-  // days before the media upload API launched (media API merged 2024-11-14
-  // 09:26 UTC), so no media can predate it.
-  LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)))
-    .default("2024-11-10"),
 
   // Media upload
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),

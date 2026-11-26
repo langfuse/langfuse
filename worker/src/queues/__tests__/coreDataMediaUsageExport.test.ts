@@ -18,11 +18,6 @@ import {
 import { env } from "../../env";
 import { coreDataTableExports } from "../coreDataS3ExportQueue";
 
-vi.mock("../../env", async () => {
-  const actual = await vi.importActual<{ env: object }>("../../env");
-  return { env: { ...actual.env } };
-});
-
 // The media usage export is the last core-data table export and is exercised
 // only through that public entry.
 const exportMediaUsage = (args: {
@@ -44,9 +39,6 @@ const dayAt = (offset: number) =>
 const isoDay = (day: Date) => day.toISOString().slice(0, 10);
 const atHour = (offset: number, hour: number, minute = 0) =>
   new Date(dayAt(offset).getTime() + (hour * 60 + minute) * 60 * 1000);
-
-const FAST_BUDGET_MINUTES = 1e-9;
-const LONG_BUDGET_MINUTES = 60;
 
 describe("coreDataTableExports media usage entry", () => {
   let s3Client: StorageService;
@@ -74,11 +66,6 @@ describe("coreDataTableExports media usage entry", () => {
       where: { id: projectId },
       data: { createdAt: dayAt(-60) },
     });
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES =
-      LONG_BUDGET_MINUTES;
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE = isoDay(
-      dayAt(-3),
-    );
   });
 
   afterEach(async () => {
@@ -120,7 +107,6 @@ describe("coreDataTableExports media usage entry", () => {
 
   const dayKey = (day: Date) =>
     `${uploadPrefix}mediaUsageHourly/date=${isoDay(day)}/mediaUsageHourly.jsonl`;
-  const watermarkKey = () => `${uploadPrefix}mediaUsageHourly/_watermark.json`;
 
   const exists = async (key: string) =>
     (await s3Client.listFiles(key)).some((file) => file.file === key);
@@ -133,11 +119,6 @@ describe("coreDataTableExports media usage entry", () => {
       .map((line) => JSON.parse(line) as Record<string, unknown>)
       .filter((row) => row.projectId === projectId);
   };
-
-  const readWatermark = async (): Promise<string | null> =>
-    (await exists(watermarkKey()))
-      ? JSON.parse(await s3Client.download(watermarkKey())).exportedUntil
-      : null;
 
   const spyOnDayUploads = () => {
     const uploadedDays: string[] = [];
@@ -218,7 +199,6 @@ describe("coreDataTableExports media usage entry", () => {
       },
     ]);
     expect(await exists(dayKey(dayAt(0)))).toBe(false);
-    expect(await readWatermark()).toBe(dayAt(0).toISOString());
 
     const allContent = (
       await Promise.all(
@@ -255,8 +235,9 @@ describe("coreDataTableExports media usage entry", () => {
     expect(rows.map((row) => row.contentType)).toEqual(contentTypes);
   });
 
-  it("never exports days before the minimum start date", async () => {
+  it("does not export days before the look-back window", async () => {
     await createMedia({ createdAt: atHour(-5, 12) });
+    await createMedia({ createdAt: atHour(-4, 12) });
     await createMedia({ createdAt: atHour(-3, 12) });
 
     await exportMediaUsage({ s3Client, uploadPrefix });
@@ -264,25 +245,34 @@ describe("coreDataTableExports media usage entry", () => {
     expect(await exists(dayKey(dayAt(-5)))).toBe(false);
     expect(await exists(dayKey(dayAt(-4)))).toBe(false);
     expect(await exists(dayKey(dayAt(-3)))).toBe(true);
+  });
 
-    // An older watermark does not pull the start before the minimum either.
-    await s3Client.deleteFiles([dayKey(dayAt(-3))]);
+  it("skips days whose object already exists and never rewrites it", async () => {
+    await createMedia({ createdAt: atHour(-2, 8), contentLength: 20 });
     await s3Client.uploadFile({
-      fileName: watermarkKey(),
-      fileType: "application/json",
-      data: JSON.stringify({ exportedUntil: dayAt(-10).toISOString() }),
+      fileName: dayKey(dayAt(-2)),
+      fileType: "application/x-ndjson",
+      data: "existing\n",
     });
     const uploadedDays = spyOnDayUploads();
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES =
-      FAST_BUDGET_MINUTES;
 
     await exportMediaUsage({ s3Client, uploadPrefix });
 
-    expect(uploadedDays).toEqual([isoDay(dayAt(-3))]);
-    expect(await readWatermark()).toBe(dayAt(-2).toISOString());
+    expect(uploadedDays).toEqual([isoDay(dayAt(-3)), isoDay(dayAt(-1))]);
+    expect(await s3Client.download(dayKey(dayAt(-2)))).toBe("existing\n");
+
+    // A later run finds every day of the window and writes nothing, so rows
+    // that arrive late for an exported day are not re-exported.
+    await createMedia({ createdAt: atHour(-1, 8), contentLength: 5 });
+    uploadedDays.length = 0;
+    await exportMediaUsage({ s3Client, uploadPrefix });
+    expect(uploadedDays).toEqual([]);
+    expect(await readDayRows(dayAt(-1))).toEqual([]);
   });
 
-  it("advances the watermark only after a day's object is written", async () => {
+  it("fills in a day missed by a failed run on the next run", async () => {
+    await createMedia({ createdAt: atHour(-2, 8), contentLength: 20 });
+    await createMedia({ createdAt: atHour(-1, 8), contentLength: 30 });
     const original = s3Client.uploadFileBuffered.bind(s3Client);
     vi.spyOn(s3Client, "uploadFileBuffered").mockImplementation(
       async (args) => {
@@ -297,96 +287,14 @@ describe("coreDataTableExports media usage entry", () => {
       "upload failed",
     );
     expect(await exists(dayKey(dayAt(-3)))).toBe(true);
-    expect(await readWatermark()).toBe(dayAt(-2).toISOString());
+    expect(await exists(dayKey(dayAt(-1)))).toBe(false);
 
     vi.restoreAllMocks();
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(await readWatermark()).toBe(dayAt(0).toISOString());
-    expect(await exists(dayKey(dayAt(-1)))).toBe(true);
-  });
-
-  it("never moves the watermark backwards when another run advanced it meanwhile", async () => {
-    const ahead = dayAt(5).toISOString();
-    const original = s3Client.uploadFileBuffered.bind(s3Client);
-    let overlapped = false;
-    vi.spyOn(s3Client, "uploadFileBuffered").mockImplementation(
-      async (args) => {
-        const result = await original(args);
-        if (!overlapped) {
-          overlapped = true;
-          await s3Client.uploadFile({
-            fileName: watermarkKey(),
-            fileType: "application/json",
-            data: JSON.stringify({ exportedUntil: ahead }),
-          });
-        }
-        return result;
-      },
-    );
-
-    await exportMediaUsage({ s3Client, uploadPrefix });
-
-    expect(await readWatermark()).toBe(ahead);
-  });
-
-  it("writes each closed day once and only rewrites it when a run is retried", async () => {
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE = isoDay(
-      dayAt(-4),
-    );
-    await createMedia({ createdAt: atHour(-4, 8), contentLength: 10 });
-    await createMedia({ createdAt: atHour(-2, 8), contentLength: 20 });
-
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    const days = [-4, -3, -2, -1];
-    const firstRun = await Promise.all(
-      days.map((offset) => s3Client.download(dayKey(dayAt(offset)))),
-    );
-
-    // Nothing new has closed: a rerun writes no day object, and rows that
-    // arrive late for an exported day are not re-exported.
-    await createMedia({ createdAt: atHour(-2, 8, 30), contentLength: 5 });
     const uploadedDays = spyOnDayUploads();
     await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays).toEqual([]);
-    expect(await s3Client.download(dayKey(dayAt(-2)))).toBe(firstRun[2]);
-    expect(await readWatermark()).toBe(dayAt(0).toISOString());
 
-    // A run that stopped before its watermark moved rewrites the same objects.
-    await s3Client.uploadFile({
-      fileName: watermarkKey(),
-      fileType: "application/json",
-      data: JSON.stringify({ exportedUntil: dayAt(-1).toISOString() }),
-    });
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays).toEqual([isoDay(dayAt(-1))]);
-    expect(await s3Client.download(dayKey(dayAt(-1)))).toBe(firstRun[3]);
-    expect(await readWatermark()).toBe(dayAt(0).toISOString());
-  });
-
-  it("stops starting new days when the time budget is used up and resumes on the next run", async () => {
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE = isoDay(
-      dayAt(-5),
-    );
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES =
-      FAST_BUDGET_MINUTES;
-    const uploadedDays = spyOnDayUploads();
-
-    // At least one day is attempted per run; the budget stops the rest.
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays).toEqual([isoDay(dayAt(-5))]);
-    expect(await readWatermark()).toBe(dayAt(-4).toISOString());
-
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays.slice(1)).toEqual([isoDay(dayAt(-4))]);
-    expect(await readWatermark()).toBe(dayAt(-3).toISOString());
-
-    // With enough budget the next run catches up to the last closed day.
-    env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES =
-      LONG_BUDGET_MINUTES;
-    await exportMediaUsage({ s3Client, uploadPrefix });
-    expect(uploadedDays.slice(2)).toEqual(
-      [-3, -2, -1].map((offset) => isoDay(dayAt(offset))),
-    );
-    expect(await readWatermark()).toBe(dayAt(0).toISOString());
+    expect(uploadedDays).toEqual([isoDay(dayAt(-2)), isoDay(dayAt(-1))]);
+    expect(await readDayRows(dayAt(-2))).toHaveLength(1);
+    expect(await readDayRows(dayAt(-1))).toHaveLength(1);
   });
 });

@@ -1,15 +1,15 @@
 import { logger, type StorageService } from "@langfuse/shared/src/server";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { env } from "../env";
 import { uploadTableCoreDataJsonl } from "./coreDataS3ExportQueue";
 
 // Mirrors the ClickHouse analytics views (analytics_traces, analytics_scores,
 // analytics_observations): one row per project and UTC hour, exported only for
 // closed periods and picked up downstream by a cursor on the period. Rows are
-// grouped into one object per closed UTC day, written once; a retried day
-// rewrites the same key instead of appending.
+// grouped into one object per closed UTC day, written once.
 const MEDIA_USAGE_TABLE_NAME = "mediaUsageHourly";
 const MEDIA_USAGE_PROJECT_BATCH_SIZE = 1_000;
+// Closed UTC days checked on every run: yesterday and the two days before it.
+const MEDIA_USAGE_LOOKBACK_DAYS = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const toUtcDay = (date: Date) =>
@@ -35,104 +35,25 @@ const toPgUtcTimestamp = (date: Date) =>
 const mediaUsageDayTableName = (day: Date) =>
   `${MEDIA_USAGE_TABLE_NAME}/date=${formatUtcDay(day)}/${MEDIA_USAGE_TABLE_NAME}`;
 
-const mediaUsageWatermarkKey = (uploadPrefix: string) =>
-  `${uploadPrefix}${MEDIA_USAGE_TABLE_NAME}/_watermark.json`;
+const mediaUsageDayKey = (uploadPrefix: string, day: Date) =>
+  `${uploadPrefix}${mediaUsageDayTableName(day)}.jsonl`;
 
-/**
- * Returns the UTC days to export, oldest first. Only closed days (before the
- * UTC day of `now`) are exported. Without a watermark the export backfills from
- * `backfillStart`; afterwards it exports every day from `exportedUntil` on.
- */
-const computeMediaUsageExportDays = ({
-  now,
-  exportedUntil,
-  backfillStart,
-  minStartDay,
-}: {
-  now: Date;
-  exportedUntil: Date | null;
-  backfillStart: Date | null;
-  minStartDay: Date;
-}): Date[] => {
-  const lastClosedDay = addUtcDays(toUtcDay(now), -1);
-  let start: Date;
-  if (exportedUntil) {
-    start = exportedUntil;
-  } else if (backfillStart) {
-    start = toUtcDay(backfillStart);
-  } else {
-    return [];
-  }
-  if (start < minStartDay) {
-    start = minStartDay;
-  }
-
-  const days: Date[] = [];
-  for (let day = start; day <= lastClosedDay; day = addUtcDays(day, 1)) {
-    days.push(day);
-  }
-  return days;
+/** Closed UTC days of the look-back window, oldest first. */
+const getMediaUsageLookbackDays = (now: Date): Date[] => {
+  const today = toUtcDay(now);
+  return Array.from({ length: MEDIA_USAGE_LOOKBACK_DAYS }, (_, index) =>
+    addUtcDays(today, index - MEDIA_USAGE_LOOKBACK_DAYS),
+  );
 };
 
-/**
- * The watermark is the exclusive end (00:00 UTC of the next day) of the last
- * day whose object was written. It is stored next to the day objects so it
- * lives and dies with the exported data.
- */
-const readMediaUsageWatermark = async (
+const mediaUsageDayExists = async (
   s3Client: StorageService,
   uploadPrefix: string,
-): Promise<Date | null> => {
-  const key = mediaUsageWatermarkKey(uploadPrefix);
+  day: Date,
+): Promise<boolean> => {
+  const key = mediaUsageDayKey(uploadPrefix, day);
   const files = await s3Client.listFiles(key);
-  if (!files.some((file) => file.file === key)) {
-    return null;
-  }
-
-  const parsed: unknown = JSON.parse(await s3Client.download(key));
-  const exportedUntil =
-    parsed && typeof parsed === "object" && "exportedUntil" in parsed
-      ? parsed.exportedUntil
-      : undefined;
-  const watermark =
-    typeof exportedUntil === "string" ? new Date(exportedUntil) : undefined;
-  if (
-    !watermark ||
-    Number.isNaN(watermark.getTime()) ||
-    toUtcDay(watermark).getTime() !== watermark.getTime()
-  ) {
-    throw new TypeError(`Invalid media usage watermark at ${key}`);
-  }
-  return watermark;
-};
-
-// Re-reads the stored watermark right before writing and keeps the later
-// value, so a run that is behind an overlapping run never moves it backwards.
-// Returns the watermark in effect afterwards.
-const advanceMediaUsageWatermark = async (
-  s3Client: StorageService,
-  uploadPrefix: string,
-  exportedUntil: Date,
-): Promise<Date> => {
-  const stored = await readMediaUsageWatermark(s3Client, uploadPrefix);
-  if (stored && stored >= exportedUntil) {
-    return stored;
-  }
-  await s3Client.uploadFile({
-    fileName: mediaUsageWatermarkKey(uploadPrefix),
-    fileType: "application/json",
-    data: JSON.stringify({ exportedUntil: exportedUntil.toISOString() }),
-  });
-  return exportedUntil;
-};
-
-// Media rows reference an existing project, so they cannot predate the oldest
-// project.
-const getMediaUsageBackfillStart = async (): Promise<Date | null> => {
-  const { _min } = await prisma.project.aggregate({
-    _min: { createdAt: true },
-  });
-  return _min.createdAt;
+  return files.some((file) => file.file === key);
 };
 
 type MediaUsageHourlyQueryRow = {
@@ -254,55 +175,28 @@ const fetchMediaUsageDayPage = async ({
 
 /**
  * Writes one JSONL object per closed UTC day with media counts and bytes per
- * project, hour and content type, one day at a time, advancing
- * the watermark after each written day. Stops starting new days once
- * `timeBudgetMs` has elapsed; the next run continues from the watermark. At
- * least one day is attempted per run. Counts and bytes only: ids, hashes,
- * bucket locations, upload status and errors, and media association tables are not
- * exported.
+ * project, hour and content type. Each run checks yesterday and the two days
+ * before it and writes every day whose object does not exist yet, so a day
+ * missed by a failed run is filled in by the next one. Existing day objects are
+ * never rewritten and no history before the look-back window is exported. Counts
+ * and bytes only: ids, hashes, bucket locations, upload status and errors, and
+ * media association tables are not exported.
  */
 export const exportMediaUsageHourly = async ({
   s3Client,
   uploadPrefix,
   now = new Date(),
-  timeBudgetMs = env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_TIME_BUDGET_MINUTES *
-    60_000,
-  minStartDay = new Date(
-    `${env.LANGFUSE_S3_CORE_DATA_MEDIA_USAGE_EXPORT_MIN_START_DATE}T00:00:00.000Z`,
-  ),
   projectBatchSize = MEDIA_USAGE_PROJECT_BATCH_SIZE,
 }: {
   s3Client: StorageService;
   uploadPrefix: string;
   now?: Date;
-  timeBudgetMs?: number;
-  minStartDay?: Date;
   projectBatchSize?: number;
 }): Promise<void> => {
-  const startedAt = Date.now();
-  const watermark = await readMediaUsageWatermark(s3Client, uploadPrefix);
-  const days = computeMediaUsageExportDays({
-    now,
-    exportedUntil: watermark,
-    backfillStart: watermark ? null : await getMediaUsageBackfillStart(),
-    minStartDay,
-  });
-
-  if (days.length === 0) {
-    logger.info(
-      `[CORE DATA] No closed days to export for ${MEDIA_USAGE_TABLE_NAME}`,
-    );
-    return;
-  }
-  logger.info(
-    `[CORE DATA] Exporting ${MEDIA_USAGE_TABLE_NAME} for up to ${days.length} days (${formatUtcDay(days[0])} to ${formatUtcDay(days[days.length - 1])}, exported until ${watermark?.toISOString() ?? "none"})`,
-  );
-
-  let exportedUntil = watermark;
   let exportedDays = 0;
-  for (const day of days) {
-    if (exportedDays > 0 && Date.now() - startedAt >= timeBudgetMs) {
-      break;
+  for (const day of getMediaUsageLookbackDays(now)) {
+    if (await mediaUsageDayExists(s3Client, uploadPrefix, day)) {
+      continue;
     }
 
     await uploadTableCoreDataJsonl({
@@ -314,19 +208,9 @@ export const exportMediaUsageHourly = async ({
       mapRow: mapMediaUsageHourlyRow,
     });
     exportedDays++;
-
-    const dayEnd = addUtcDays(day, 1);
-    if (!exportedUntil || dayEnd > exportedUntil) {
-      exportedUntil = await advanceMediaUsageWatermark(
-        s3Client,
-        uploadPrefix,
-        dayEnd,
-      );
-    }
   }
 
-  const lastClosedDayEnd = addUtcDays(days[days.length - 1], 1);
   logger.info(
-    `[CORE DATA] Finished ${MEDIA_USAGE_TABLE_NAME} (exported ${exportedDays} days, exported until ${exportedUntil?.toISOString()}${exportedUntil && exportedUntil < lastClosedDayEnd ? ", backfill continues in the next run" : ""})`,
+    `[CORE DATA] Finished ${MEDIA_USAGE_TABLE_NAME} (exported ${exportedDays} of ${MEDIA_USAGE_LOOKBACK_DAYS} look-back days)`,
   );
 };
