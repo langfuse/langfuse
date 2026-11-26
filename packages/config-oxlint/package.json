@@ -4,6 +4,9 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "test": "node --test fnsScope.test.mjs"
+  },
   "exports": {
     ".": "./library.js",
     "./library": "./library.js",

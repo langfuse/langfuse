@@ -62,6 +62,33 @@ function readDefault(
   return { kind: "other" };
 }
 
+function isModuleLevel(node: TSESTree.Node): boolean {
+  const parent = node.parent;
+  if (parent?.type === N.Program) return true;
+  if (parent?.type === N.ExportDefaultDeclaration) {
+    return parent.parent?.type === N.Program;
+  }
+  if (parent?.type === N.ExportNamedDeclaration) {
+    return parent.parent?.type === N.Program;
+  }
+  if (parent?.type !== N.VariableDeclaration) return false;
+  const owner = parent.parent;
+  if (owner?.type === N.Program) return true;
+  if (owner?.type === N.ExportNamedDeclaration) {
+    return owner.parent?.type === N.Program;
+  }
+  return false;
+}
+
+function exportedFunctionName(
+  local: string,
+  exported: TSESTree.Identifier | TSESTree.StringLiteral,
+): string | null {
+  const exportedName = moduleName(exported);
+  if (exportedName === "default") return local;
+  return exportedName;
+}
+
 function readNamed(
   statement: TSESTree.ExportNamedDeclaration,
   functionBindings: Set<string>,
@@ -93,7 +120,10 @@ function readNamed(
     // A string-literal local binding is only legal on `export { "a" as b } from`.
     const local = (specifier.local as TSESTree.Identifier).name;
     if (!functionBindings.has(local)) return { kind: "other" };
-    return { kind: "function", name: moduleName(specifier.exported) };
+    return {
+      kind: "function",
+      name: exportedFunctionName(local, specifier.exported),
+    };
   });
 }
 
@@ -129,7 +159,7 @@ export default createRule({
     type: "problem",
     docs: {
       description:
-        "Require each fns/ file to export exactly one function named after the file. Types and constants belong beside that folder.",
+        "Require this file to export exactly one function named after the file.",
     },
     messages: {
       count: "fns/ files must export exactly one function (found {{count}})",
@@ -144,10 +174,12 @@ export default createRule({
 
     return {
       FunctionDeclaration(node) {
+        if (!isModuleLevel(node)) return;
         if (node.id === null) return;
         functionBindings.add(node.id.name);
       },
       VariableDeclarator(node) {
+        if (!isModuleLevel(node)) return;
         const name = bindingName(node.id);
         if (name === null) return;
         if (!isFunctionValue(node.init)) return;

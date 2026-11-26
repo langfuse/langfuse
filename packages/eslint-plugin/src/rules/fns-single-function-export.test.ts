@@ -91,6 +91,10 @@ ruleTester.run("fns-single-function-export", rule, {
       code: "let value;\nexport function pack() { return value; }",
       filename: file("pack.ts"),
     },
+    {
+      code: "const pack = () => 1;\nexport { pack as default };",
+      filename: file("pack.ts"),
+    },
   ],
   invalid: [
     { code: "", filename: file("pack.ts"), errors: count(0) },
@@ -199,6 +203,11 @@ ruleTester.run("fns-single-function-export", rule, {
       code: "const pack = () => 1;\nexport { pack, missing };",
       filename: file("pack.ts"),
       errors: count(2),
+    },
+    {
+      code: "const pack = 1;\nfunction helper() { function pack() { return 1; } const inner = () => pack(); return inner; }\nexport { pack };\nvoid helper;",
+      filename: file("pack.ts"),
+      errors: count(0),
     },
     {
       code: "export function other() { return 1; }",
