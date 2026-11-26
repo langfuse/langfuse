@@ -23,7 +23,7 @@ service:
             docs: Page number, starts at 1.
           limit:
             type: optional<integer>
-            docs: Items per page. Defaults to 50, at most 100.
+            docs: Number of items per page. Maximum 100, default 50.
           scope:
             type: optional<OrganizationModelScopeFilter>
             docs: Which definitions to return. Defaults to `ORGANIZATION`.
@@ -113,9 +113,6 @@ types:
       pricingTiers:
         type: list<commons.PricingTier>
         docs: Pricing tiers, ordered by priority.
-      isOverridden:
-        type: boolean
-        docs: Always false for `ORGANIZATION` models. For a `LANGFUSE` model, true when the organization has a model with the same `modelName`. Ingestion matches on `matchPattern`, so a model with a different name can still take this model's traffic.
       createdAt: datetime
       updatedAt: datetime
 

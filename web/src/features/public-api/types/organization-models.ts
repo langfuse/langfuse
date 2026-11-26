@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { type ModelListItem } from "@/src/features/models/validation";
+import { type ModelDefinition } from "@/src/features/models/validation";
 import {
   paginationMetaResponseZod,
   PricingTierConditionSchema,
@@ -32,14 +32,13 @@ const APIOrganizationModel = z
         })
         .strict(),
     ),
-    isOverridden: z.boolean(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
   .strict();
 
 /** Maps a definition visible to an organization to its public API shape. */
-export function toApiOrganizationModel(model: ModelListItem) {
+export function toApiOrganizationModel(model: ModelDefinition) {
   // Organization reads never return project rows (`organizationModelsSql`).
   const scope = OrganizationModelScope.parse(model.scope);
   return {
@@ -48,7 +47,6 @@ export function toApiOrganizationModel(model: ModelListItem) {
     modelName: model.modelName,
     matchPattern: model.matchPattern,
     pricingTiers: model.pricingTiers,
-    isOverridden: model.isOverridden,
     createdAt: model.createdAt,
     updatedAt: model.updatedAt,
   } satisfies z.input<typeof APIOrganizationModel>;

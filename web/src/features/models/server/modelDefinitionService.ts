@@ -7,6 +7,7 @@ import {
 } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
+  ModelDefinitionSchema,
   ModelListItemSchema,
   type UpsertModelInput,
 } from "@/src/features/models/validation";
@@ -100,20 +101,6 @@ const modelColumnsSql = Prisma.sql`
   ) AS "pricingTiers"
 `;
 
-/** Whether a higher-precedence scope visible to `owner` defines the same name. */
-const isOverriddenSql = (
-  owner: ModelDefinitionOwner,
-  alias: string,
-) => Prisma.sql`
-  EXISTS (
-    SELECT 1
-    FROM models o
-    WHERE ${visibleSql(owner, "o")}
-      AND o.model_name = ${Prisma.raw(`"${alias}"`)}.model_name
-      AND ${modelScopeRankSql("o")} < ${modelScopeRankSql(alias)}
-  ) AS "isOverridden"
-`;
-
 const snapshot = (tx: Prisma.TransactionClient, id: string) =>
   tx.model.findUnique({
     where: { id },
@@ -135,12 +122,12 @@ export async function getModelDefinition(params: {
   modelId: string;
 }) {
   const rows = await prisma.$queryRaw`
-    SELECT ${modelColumnsSql}, ${isOverriddenSql(params.owner, "m")}
+    SELECT ${modelColumnsSql}
     FROM models m
     WHERE m.id = ${params.modelId}
       AND ${visibleSql(params.owner, "m")};
   `;
-  const model = z.array(ModelListItemSchema).parse(rows)[0];
+  const model = z.array(ModelDefinitionSchema).parse(rows)[0];
   if (!model) {
     throw new LangfuseNotFoundError("Model not found");
   }
@@ -173,7 +160,13 @@ export async function listModelDefinitions(params: {
     prisma.$queryRaw`
       SELECT DISTINCT ON (${modelScopeRankSql("m")}, m.model_name)
         ${modelColumnsSql},
-        ${isOverriddenSql(owner, "m")}
+        EXISTS (
+          SELECT 1
+          FROM models o
+          WHERE ${visibleSql(owner, "o")}
+            AND o.model_name = m.model_name
+            AND ${modelScopeRankSql("o")} < ${modelScopeRankSql("m")}
+        ) AS "isOverridden"
       FROM models m
       WHERE ${visibleSql(owner, "m")}
         ${searchCondition}

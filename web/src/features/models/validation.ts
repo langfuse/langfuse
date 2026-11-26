@@ -78,10 +78,14 @@ const GetModelResultSchema = z.object({
 
 export type GetModelResult = z.infer<typeof GetModelResultSchema>;
 
-export const ModelListItemSchema = GetModelResultSchema.extend({
-  isOverridden: z.boolean(),
+export const ModelDefinitionSchema = GetModelResultSchema.extend({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+});
+export type ModelDefinition = z.infer<typeof ModelDefinitionSchema>;
+
+export const ModelListItemSchema = ModelDefinitionSchema.extend({
+  isOverridden: z.boolean(),
 });
 export type ModelListItem = z.infer<typeof ModelListItemSchema>;
 

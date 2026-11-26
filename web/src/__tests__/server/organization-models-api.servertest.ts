@@ -89,7 +89,6 @@ describe("/api/public/organizations/models", () => {
     expect(created.body).toMatchObject({
       scope: "ORGANIZATION",
       modelName: name,
-      isOverridden: false,
     });
     expect(created.body.pricingTiers).toHaveLength(2);
 
@@ -172,10 +171,36 @@ describe("/api/public/organizations/models", () => {
       undefined,
       orgAuth,
     );
-    expect(langfuseModel.body).toMatchObject({
-      scope: "LANGFUSE",
-      isOverridden: false,
-    });
+    expect(langfuseModel.body.scope).toBe("LANGFUSE");
+  });
+
+  it("pages from 1 like the other public APIs", async () => {
+    const { orgAuth } = await createOrganizationWithKey();
+    const names = [`a-${randomUUID()}`, `b-${randomUUID()}`];
+    for (const name of names) {
+      await makeAPICall("PUT", BASE, modelBody(name), orgAuth);
+    }
+
+    for (const [index, name] of names.entries()) {
+      const page = await makeZodVerifiedAPICall(
+        GetOrganizationModelsV1Response,
+        "GET",
+        `${BASE}?page=${index + 1}&limit=1`,
+        undefined,
+        orgAuth,
+      );
+      expect(page.body.data.map((m) => m.modelName)).toEqual([name]);
+      expect(page.body.meta).toEqual({
+        page: index + 1,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+    }
+
+    const zero = await makeAPICall("GET", `${BASE}?page=0`, undefined, orgAuth);
+    expect(zero.status).toBe(400);
+    expect(zero.body).toMatchObject({ code: "invalid_query" });
   });
 
   it("refuses to delete a Langfuse model", async () => {

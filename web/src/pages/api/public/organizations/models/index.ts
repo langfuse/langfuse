@@ -1,8 +1,8 @@
 import {
-  listModelDefinitions,
   putOrganizationModelDefinitionByName,
   getModelDefinition,
 } from "@/src/features/models/server/modelDefinitionService";
+import { listOrganizationModelsForApi } from "@/src/features/models/server/publicApiOrganizationModelService";
 import { authenticateOrganizationApiRequest } from "@/src/features/public-api/server/authenticateOrganizationApiRequest";
 import { withStablePublicApiMiddlewares } from "@/src/features/public-api/server/stablePublicApiRoute";
 import {
@@ -41,26 +41,13 @@ export default withStablePublicApiMiddlewares({
         }),
       );
     }
-    const query = parsed.data;
-
-    const { models, totalCount } = await listModelDefinitions({
-      owner: { type: "organization", organizationId: scope.orgId },
-      searchString: query.search ?? "",
-      scopes: query.scope === "ALL" ? undefined : [query.scope],
-      page: query.page - 1,
-      limit: query.limit,
-    });
-
     return res.status(200).json(
-      GetOrganizationModelsV1Response.parse({
-        data: models.map(toApiOrganizationModel),
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          totalItems: totalCount,
-          totalPages: Math.ceil(totalCount / query.limit),
-        },
-      }),
+      GetOrganizationModelsV1Response.parse(
+        await listOrganizationModelsForApi({
+          organizationId: scope.orgId,
+          ...parsed.data,
+        }),
+      ),
     );
   },
 

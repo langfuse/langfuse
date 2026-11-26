@@ -4091,7 +4091,7 @@ paths:
             nullable: true
         - name: limit
           in: query
-          description: Items per page. Defaults to 50, at most 100.
+          description: Number of items per page. Maximum 100, default 50.
           required: false
           schema:
             type: integer
@@ -13729,13 +13729,6 @@ components:
           items:
             $ref: '#/components/schemas/PricingTier'
           description: Pricing tiers, ordered by priority.
-        isOverridden:
-          type: boolean
-          description: >-
-            Always false for `ORGANIZATION` models. For a `LANGFUSE` model, true
-            when the organization has a model with the same `modelName`.
-            Ingestion matches on `matchPattern`, so a model with a different
-            name can still take this model's traffic.
         createdAt:
           type: string
           format: date-time
@@ -13748,7 +13741,6 @@ components:
         - modelName
         - matchPattern
         - pricingTiers
-        - isOverridden
         - createdAt
         - updatedAt
     PaginatedOrganizationModels:
