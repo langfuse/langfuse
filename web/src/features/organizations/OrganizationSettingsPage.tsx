@@ -148,6 +148,8 @@ const getOrganizationSettingsPages = ({
       "name",
       "id",
       "delete",
+      "governance",
+      "controls",
       "sharing",
       "public",
       "export",
@@ -180,8 +182,15 @@ const getOrganizationSettingsPages = ({
           </Card>
         </div>
         <AIFeatureSwitch />
-        <PublicSharingSettings orgId={organization.id} />
-        <UiExportsSettings orgId={organization.id} />
+        <div id="governance-controls">
+          <Header title="Governance Controls" />
+          <Card className="p-3">
+            <PublicSharingSettings orgId={organization.id} />
+            <div className="mt-4 border-t pt-4">
+              <UiExportsSettings orgId={organization.id} />
+            </div>
+          </Card>
+        </div>
         <SettingsDangerZone
           items={[
             {

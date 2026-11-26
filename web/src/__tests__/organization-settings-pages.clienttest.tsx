@@ -255,6 +255,24 @@ describe("useOrganizationSettingsPages", () => {
     );
   });
 
+  it("includes governance and export keywords on the General organization settings page", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const generalPage = result.current.find((page) => page.slug === "index");
+
+    expect(generalPage?.cmdKKeywords).toEqual(
+      expect.arrayContaining([
+        "governance",
+        "controls",
+        "sharing",
+        "public",
+        "export",
+        "exports",
+        "download",
+        "downloads",
+      ]),
+    );
+  });
+
   describe("visible pages by role", () => {
     beforeEach(() => {
       vi.mocked(useHasEntitlement).mockReturnValue(true);
