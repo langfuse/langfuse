@@ -92,8 +92,8 @@ const { stringDimension, nullIfEmptyDimension, nullableStringDimension } =
   scalarDimensions<TracesBuilder>();
 
 /**
- * A `nullIf(column, '')` dimension whose per-trace value is the latest
- * non-empty `column` by `event_ts`.
+ * A string dimension where '' means unset; per trace, the latest non-empty
+ * value among its events.
  */
 const latestNonEmptyDimension = (
   column: Read<string>,
@@ -103,7 +103,7 @@ const latestNonEmptyDimension = (
   perTrace: (eb) => latestNonEmpty(column(eb), eb.ref("e.event_ts")),
 });
 
-/** `e.parent_span_id != ''`: the event is an observation, not the trace root. */
+/** The event is an observation, not the trace root. */
 const hasParent = (eb: TracesBuilder) =>
   eb("e.parent_span_id", "!=", literal(""));
 
@@ -223,9 +223,8 @@ const eventMeasure = (expression: Read<unknown>): MeasureEntry => ({
 });
 
 /**
- * `argMaxIf(nullIf(column, ''), e.event_ts, column != '')`: the trace's
- * latest non-empty `column`, which the distinct count of a `count` or `uniq`
- * aggregation counts once per trace.
+ * The trace's latest non-empty `column`, NULL when no event set it, so a
+ * `count` or `uniq` aggregation counts one value per trace.
  */
 const latestNonEmptyOrNull = (eb: TracesBuilder, column: Read<string>) =>
   argMaxIf(
@@ -235,8 +234,8 @@ const latestNonEmptyOrNull = (eb: TracesBuilder, column: Read<string>) =>
   );
 
 /**
- * `uniq(nullIf(column, ''))`, and for `count` / `uniq` the trace's latest
- * non-empty `column` ({@link latestNonEmptyOrNull}).
+ * The number of distinct non-empty values of `column`; for a `count` or
+ * `uniq` aggregation, one value per trace ({@link latestNonEmptyOrNull}).
  */
 const distinctValues = (column: Read<string>): MeasureEntry => ({
   expression: (eb: TracesBuilder) => uniq(nullIfEmpty(column(eb))),

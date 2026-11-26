@@ -5,12 +5,7 @@
  * `eventsTracesRegistry.ts`. The steps it shares with the other views are in
  * `viewQuerySteps.ts`; `QueryBuilder` dispatches the view here.
  */
-import {
-  expressionBuilder,
-  type AliasableExpression,
-  type Expression,
-  type SqlBool,
-} from "kysely";
+import { expressionBuilder, type Expression, type SqlBool } from "kysely";
 import { type QueryType, type ViewVersion } from "../types";
 import { eventsTracesView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
@@ -73,23 +68,23 @@ import {
 type TracesFilter = { pruning: boolean; conjuncts: Expression<SqlBool>[] };
 
 /**
- * `QueryBuilder.build` for the v2 traces view, on the query AST: one row per
- * trace in the inner select (grouped by `e.project_id, e.trace_id`), with the
- * view's entries from `eventsTracesRegistry.ts` and its filters lowered by
- * the events predicate lowering. Reads the logical `events`; a filter that
- * needs untruncated values routes it to `events_full`. Tenancy adds the
- * project conditions.
+ * `QueryBuilder.build` for the v2 traces view: a dashboard widget or metrics
+ * API query over traces, where each trace is aggregated from its events (one
+ * row per trace in the inner select, then the widget's aggregation).
  *
  * Level: single-level only with `enableSingleLevelOptimization`, no measure
  * and at most the `id` dimension (`canUseSingleLevelQuery`: every measure
  * aggregates per trace, every other dimension declares a per-trace
  * aggregation).
  *
- * Rows: the traces with an event in the query window, restricted to the
- * traces whose root event starts in it when the window is at most
- * `rootEventConditionMaxWindowHours` long (0: any window), see
- * {@link rootEventCondition}. `version` and `chartConfig` (histogram bins,
- * row limit) are the `QueryBuilder`'s.
+ * Rows: the traces with an event in the query window; on a window of at most
+ * `rootEventConditionMaxWindowHours` (0: every window), only the traces whose
+ * root event starts in it ({@link rootEventCondition}).
+ *
+ * `skipScoresFinal`: the project never updates its scores
+ * (`shouldSkipScoresDedup`), so the `scoresCount` join reads `scores` without
+ * `FINAL` and drops deleted scores in its ON clause instead. `version` and
+ * `chartConfig` (histogram bins, row limit) are the `QueryBuilder`'s.
  */
 export function buildEventsTraces(
   query: QueryType,
@@ -145,6 +140,8 @@ export function buildEventsTraces(
     filters,
     joinsScores: relationTables.has("scores"),
     skipScoresFinal,
+    // The condition scans the window a second time; on a long window the
+    // traces it drops, whose root event starts before the window, are few.
     restrictToRootEvents:
       rootEventConditionMaxWindowHours === 0 ||
       windowHours <= rootEventConditionMaxWindowHours,
@@ -163,7 +160,6 @@ export function buildEventsTraces(
   });
 
   if (level === "single") {
-    // select <dimensions>, <bucket>, count(*) as count from <source>
     return compileWithOuterClauses(
       projectId,
       outerClauses,
@@ -181,15 +177,15 @@ export function buildEventsTraces(
       ]),
     );
   }
-  // select e.project_id, e.trace_id, <dimensions>, <bucket>, <measures> from <source>
-  // group by e.project_id, e.trace_id
   const perTrace = source
     .select(["e.project_id", "e.trace_id"])
     .select((eb) => [
       ...appliedDimensions.map((d) => perTraceDimension(eb, d)),
       ...astBucketSelection(bucket, "two", bucketValue(eb)),
       ...astInnerMetrics(eb, appliedMetrics, (metric) =>
-        perTraceMeasure(eb, metric),
+        eventsTracesMeasure(metric.measureName, metric.aggregation).expression(
+          eb,
+        ),
       ),
     ])
     .groupBy(["e.project_id", "e.trace_id"]);
@@ -207,9 +203,10 @@ export function buildEventsTraces(
 }
 
 /**
- * A filter on `column` as its WHERE conjuncts over `e`. A dimension with
- * `prunedBy` columns (`name`) gets `(<condition on col1> OR <condition on
- * col2> …)` before the dimension's own condition. Throws
+ * A dashboard filter on `column` as WHERE conjuncts over `e`. The trace name
+ * is an expression no skip index covers, so a `name` filter first applies
+ * the same condition to its `prunedBy` columns, ORed, for their indexes to
+ * skip granules; its own condition then decides which events match. Throws
  * `InvalidRequestError` for a column the view has no filter for.
  */
 function lowerTracesFilter(
@@ -220,7 +217,6 @@ function lowerTracesFilter(
   const { filter, prunedBy } = eventsTracesFilterLowering(column);
   const own = lowerEventsFieldCondition(eb, filter, condition);
   if (!prunedBy) return { pruning: false, conjuncts: own };
-  // (<col1 condition> or <col2 condition> …) and <own condition>
   const pruned = eb.or(
     prunedBy.map((column) =>
       eb.and(lowerEventsFieldCondition(eb, column, condition)),
@@ -230,10 +226,9 @@ function lowerTracesFilter(
 }
 
 /**
- * The FROM, JOIN and WHERE of the v2 traces query:
- * `from events as e [inner join scores [final] on …] where <filters> and
- * e.start_time between <from> and <to> [and scores.timestamp between <from>
- * and <to>] and <name filters> [and <root-event condition>]`.
+ * The events a v2 traces query aggregates: those in the window that pass the
+ * filters, joined with their scores when a measure counts them. `name`
+ * filters come after the time windows, the other filters before them.
  */
 function astTracesSource({
   window,
@@ -256,10 +251,6 @@ function astTracesSource({
     .where("e.start_time", ">=", window.from)
     .where("e.start_time", "<=", window.to);
 
-  // … inner join scores [final] on <join> … and scores.timestamp between <from> and <to>
-  // The builder stays typed over `e` alone; the one measure that reads
-  // `scores` builds it from a builder typed with the join
-  // (`perTraceMeasure`).
   let joined = events.$if(joinsScores, (qb) => {
     const withScores = qb
       .innerJoin("scores", (join) =>
@@ -282,11 +273,9 @@ function astTracesSource({
 }
 
 /**
- * `select e.trace_id from events as e where <root event> and e.start_time
- * between <from> and <to>`: the traces whose root event starts in the
- * window. A new tree per call, since the condition reads it twice. Routing
- * picks its table on its own: it reads no truncated column, so it stays on
- * `events_core` when a metadata filter routes the outer read to
+ * The traces whose root event starts in the window. A new tree per call,
+ * since the condition reads it twice. It reads no truncated column, so it
+ * stays on `events_core` when a metadata filter routes the outer read to
  * `events_full`.
  */
 function rootEventTraceIds(window: TimeWindow) {
@@ -299,10 +288,12 @@ function rootEventTraceIds(window: TimeWindow) {
 }
 
 /**
- * `(e.trace_id in (<root trace ids>) or not exists (<root trace ids> limit
- * 1))`: the trace's root event starts in the window, unless the window has
- * no root event at all (a project whose events never set `parent_span_id`).
- * The `e.start_time` window on the outer select stays for partition pruning.
+ * Keeps the traces whose root event starts in the window, since a trace's
+ * time is its root event's start (the timestamp of the v1 `traceView`):
+ * drops a trace that has events in the window but whose root event starts
+ * outside it or is missing. A window
+ * without any root event (a project whose events never set
+ * `parent_span_id`) keeps every trace.
  */
 function rootEventCondition(
   eb: EventsExpressionBuilder,
@@ -315,9 +306,10 @@ function rootEventCondition(
 }
 
 /**
- * `ifNull(anyIf(toNullable(<bucket>), <root event>), min(<bucket>))`: a
- * trace's time bucket in the inner select of a two-level query, its root
- * event's bucket, else its earliest event's.
+ * A trace's time bucket in a two-level query: the bucket its root event
+ * starts in, so a trace whose events cross a bucket boundary lands where it
+ * started. A trace without a root event in the window takes its earliest
+ * event's bucket.
  */
 function rootEventTimeBucket(eb: TracesBuilder, bucketOf: TimeBucketOf) {
   return ifNull(
@@ -339,19 +331,6 @@ function perTraceDimension(eb: TracesBuilder, dimension: AppliedDimensionType) {
     ? entry.perTrace(eb)
     : atLevel(entry.expression(eb), "two");
   return value.as(dimensionAlias(dimension));
-}
-
-/** A measure's per-trace value, as `metric.aggregation` reads it. */
-function perTraceMeasure(
-  eb: TracesBuilder,
-  metric: AppliedMetricType,
-): AliasableExpression<unknown> {
-  const entry = eventsTracesMeasure(metric.measureName, metric.aggregation);
-  if ("relationTable" in entry) {
-    // Typed with the scores join, which the query adds for this measure.
-    return entry.expression(expressionBuilder<TracesDb, "e" | "scores">());
-  }
-  return entry.expression(eb);
 }
 
 /**
