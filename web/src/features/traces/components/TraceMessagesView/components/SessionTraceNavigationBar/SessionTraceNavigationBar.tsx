@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
-import Link from "next/link";
+import { useEffect, useRef, type ReactNode } from "react";
+import Link, { type LinkProps } from "next/link";
 import { ArrowLeft, ArrowRight, Clock } from "@langfuse/icons";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SessionTraceTrack } from "../SessionTraceTrack/SessionTraceTrack";
 import {
   sessionContainsTrace,
@@ -17,6 +18,10 @@ export function SessionTraceNavigationBar({
   onSelectTrace,
   onPrevious,
   onNext,
+  previousHref,
+  nextHref,
+  previousShallow,
+  nextShallow,
 }: {
   position: number;
   total: number;
@@ -26,6 +31,10 @@ export function SessionTraceNavigationBar({
   onSelectTrace?: (traceId: string) => void;
   onPrevious?: () => void;
   onNext?: () => void;
+  previousHref?: LinkProps["href"];
+  nextHref?: LinkProps["href"];
+  previousShallow?: boolean;
+  nextShallow?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useSessionTraceNavigationKeys({ rootRef, onPrevious, onNext });
@@ -69,23 +78,68 @@ export function SessionTraceNavigationBar({
           />
         ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
-          <HeaderActionButton
+          <SessionArrow
             label="Previous trace in session"
             shortcut={["Shift", "K"]}
             icon={<ArrowLeft size="base" />}
-            disabled={!onPrevious}
+            href={previousHref}
+            shallow={previousShallow}
             onClick={onPrevious}
           />
-          <HeaderActionButton
+          <SessionArrow
             label="Next trace in session"
             shortcut={["Shift", "J"]}
             icon={<ArrowRight size="base" />}
-            disabled={!onNext}
+            href={nextHref}
+            shallow={nextShallow}
             onClick={onNext}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+function SessionArrow({
+  label,
+  shortcut,
+  icon,
+  href,
+  shallow,
+  onClick,
+}: {
+  label: string;
+  shortcut: readonly ["Shift", "K" | "J"];
+  icon: ReactNode;
+  href?: LinkProps["href"];
+  shallow?: boolean;
+  onClick?: () => void;
+}) {
+  if (!href) {
+    return (
+      <HeaderActionButton
+        label={label}
+        shortcut={shortcut}
+        icon={icon}
+        disabled={!onClick}
+        onClick={onClick}
+      />
+    );
+  }
+  return (
+    <Tooltip label={label} shortcut={{ keys: [...shortcut] }}>
+      {({ getTriggerProps }) => (
+        <Link
+          href={href}
+          shallow={shallow}
+          aria-label={label}
+          className="text-foreground-secondary hover:bg-accent hover:text-foreground-secondary inline-flex h-7 w-7 items-center justify-center rounded-md"
+          {...getTriggerProps()}
+        >
+          {icon}
+        </Link>
+      )}
+    </Tooltip>
   );
 }
 

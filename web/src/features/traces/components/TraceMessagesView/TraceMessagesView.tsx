@@ -113,6 +113,10 @@ function SingleTraceMessagesView({
             }}
             onPrevious={openNeighbor(router, sessionNavigation.previous)}
             onNext={openNeighbor(router, sessionNavigation.next)}
+            previousHref={sessionNavigation.previous?.href}
+            nextHref={sessionNavigation.next?.href}
+            previousShallow={sessionNavigation.previous?.shallow}
+            nextShallow={sessionNavigation.next?.shallow}
           />
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
