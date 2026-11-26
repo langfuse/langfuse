@@ -48,7 +48,7 @@ export function EvaluatorGalleryScorePreview({
                 <span className="py-0.5">:</span>
               </span>
               <span
-                className="text-foreground truncate py-0.5 font-mono"
+                className="truncate py-0.5 font-mono text-white"
                 title={score.value}
               >
                 {score.value}
