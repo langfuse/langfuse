@@ -6,7 +6,11 @@ import { api } from "@/src/utils/api";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
 
-/** Every observation of one trace that a sample filter matches, loaded page by page up to a cap. */
+/**
+ * Every observation of one trace that a sample filter matches. Pages load up
+ * to a cap; the result stays empty until the last one is in, so older matches
+ * never slot in ahead of a sample the user is already on.
+ */
 export function useEvaluatorTraceMatches({
   projectId,
   filter,
@@ -52,11 +56,14 @@ export function useEvaluatorTraceMatches({
     fetchNextPage().catch(() => undefined);
   }, [needsNextPage, pageCount, fetchNextPage]);
 
+  const isComplete =
+    query.isSuccess && (!query.hasNextPage || pageCount >= MAX_PAGES);
+
   return useMemo(
     () =>
-      traceId === null
+      traceId === null || !isComplete
         ? []
         : (pages ?? []).flatMap((page) => page.observations),
-    [traceId, pages],
+    [traceId, isComplete, pages],
   );
 }

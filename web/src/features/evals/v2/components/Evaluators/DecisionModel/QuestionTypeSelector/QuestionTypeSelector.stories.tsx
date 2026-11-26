@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { expect, fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
 import { QuestionTypeSelector } from "./QuestionTypeSelector";
@@ -27,22 +27,18 @@ export const Default = meta.story({
   },
 });
 
-export const LinksGuidanceOutsideTheRadio = meta.story({
-  name: "(Test) Links type guidance from outside the radio",
+export const ShowsGuidanceFromTheInfoIcon = meta.story({
+  name: "(Test) Shows type guidance from the info icon",
   args: {
     value: DecisionModelQuestionType.CHOICE,
     onValueChange: fn(),
   },
-  play: async ({ canvas }) => {
-    const choice = canvas.getByRole("radio", { name: /Choice/ });
-    const help = canvas.getByRole("button", { name: "About Choice" });
-    const describedBy = choice.getAttribute("aria-describedby");
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.hover(canvas.getByLabelText("About Choice"));
 
-    await expect(choice).not.toContainElement(help);
-    await expect(describedBy).toBeTruthy();
-    await expect(document.getElementById(describedBy ?? "")).toHaveTextContent(
-      "Writes a categorical score.",
-    );
+    await expect(
+      await within(document.body).findByRole("tooltip"),
+    ).toHaveTextContent("Writes a categorical score.");
   },
 });
 
