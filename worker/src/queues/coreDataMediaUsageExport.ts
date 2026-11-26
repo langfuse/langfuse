@@ -1,7 +1,7 @@
-import { Readable } from "node:stream";
 import { logger, type StorageService } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { uploadTableCoreDataJsonl } from "./coreDataS3ExportQueue";
 
 // Mirrors the ClickHouse analytics views (analytics_traces, analytics_scores,
 // analytics_observations): one row per project and UTC hour, exported only for
@@ -10,7 +10,6 @@ import { env } from "../env";
 // rewrites the same key instead of appending.
 const MEDIA_USAGE_TABLE_NAME = "mediaUsageHourly";
 const MEDIA_USAGE_PROJECT_BATCH_SIZE = 1_000;
-const MEDIA_USAGE_PART_SIZE_BYTES = 100 * 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const toUtcDay = (date: Date) =>
@@ -31,8 +30,10 @@ const formatUtcDay = (day: Date) => day.toISOString().slice(0, 10);
 const toPgUtcTimestamp = (date: Date) =>
   date.toISOString().replace("T", " ").replace("Z", "");
 
-const mediaUsageDayObjectKey = (uploadPrefix: string, day: Date) =>
-  `${uploadPrefix}${MEDIA_USAGE_TABLE_NAME}/date=${formatUtcDay(day)}/${MEDIA_USAGE_TABLE_NAME}.jsonl`;
+// The table name doubles as the S3 object base name, so a day lands at
+// `{prefix}mediaUsageHourly/date=YYYY-MM-DD/mediaUsageHourly.jsonl`.
+const mediaUsageDayTableName = (day: Date) =>
+  `${MEDIA_USAGE_TABLE_NAME}/date=${formatUtcDay(day)}/${MEDIA_USAGE_TABLE_NAME}`;
 
 const mediaUsageWatermarkKey = (uploadPrefix: string) =>
   `${uploadPrefix}${MEDIA_USAGE_TABLE_NAME}/_watermark.json`;
@@ -146,20 +147,30 @@ type MediaUsageHourlyQueryRow = {
 // (project_id, created_at) index, so a query reads at most one project batch
 // for one day. Raw SQL because Prisma's `groupBy` cannot bucket by hour.
 // `created_at` is a `timestamp` without time zone and is read as UTC, which
-// holds when Postgres runs in UTC.
+// holds when Postgres runs in UTC. Rows resume strictly after `after` on the
+// (project, hour, content type) key.
 const queryMediaUsageHourly = ({
   projectIds,
   from,
   to,
+  after,
+  take,
 }: {
   projectIds: string[];
   from: Date;
   to: Date;
-}) =>
-  prisma.$queryRaw<MediaUsageHourlyQueryRow[]>`
+  after: MediaUsageHourlyQueryRow | null;
+  take: number;
+}) => {
+  const hourSql = Prisma.sql`to_char(date_trunc('hour', created_at), 'YYYY-MM-DD"T"HH24":00:00.000Z"')`;
+  const afterSql = after
+    ? Prisma.sql`AND (project_id, ${hourSql}, content_type) > (${after.projectId}, ${after.hour}, ${after.contentType})`
+    : Prisma.empty;
+
+  return prisma.$queryRaw<MediaUsageHourlyQueryRow[]>`
     SELECT
       project_id AS "projectId",
-      to_char(date_trunc('hour', created_at), 'YYYY-MM-DD"T"HH24":00:00.000Z"') AS "hour",
+      ${hourSql} AS "hour",
       content_type AS "contentType",
       COUNT(*)::bigint AS "mediaCount",
       SUM(content_length)::bigint AS "totalContentLength"
@@ -167,9 +178,12 @@ const queryMediaUsageHourly = ({
     WHERE project_id = ANY(${projectIds}::text[])
       AND created_at >= ${toPgUtcTimestamp(from)}::timestamp
       AND created_at < ${toPgUtcTimestamp(to)}::timestamp
+      ${afterSql}
     GROUP BY 1, 2, 3
     ORDER BY 1, 2, 3
+    LIMIT ${take}
   `;
+};
 
 /** Exports the BigInt aggregates as numbers, since JSON.stringify throws on BigInt. */
 const mapMediaUsageHourlyRow = (row: MediaUsageHourlyQueryRow) => ({
@@ -180,27 +194,35 @@ const mapMediaUsageHourlyRow = (row: MediaUsageHourlyQueryRow) => ({
   totalContentLength: Number(row.totalContentLength),
 });
 
-async function* createMediaUsageDayJsonlStream({
+// One keyset page of a day. The rows of a day are walked in (project, hour,
+// content type) order across batches of projects that existed by the end of
+// the day, so every project is covered; the batch size only bounds the
+// `ANY(...)` list. A page may span batches and only comes back short once the
+// last project is exhausted.
+const fetchMediaUsageDayPage = async ({
   day,
+  lastRow,
+  take,
   projectBatchSize,
-  onRows,
 }: {
   day: Date;
+  lastRow: MediaUsageHourlyQueryRow | null;
+  take: number;
   projectBatchSize: number;
-  onRows: (rowCount: number) => void;
-}): AsyncGenerator<string> {
+}): Promise<MediaUsageHourlyQueryRow[]> => {
   const from = day;
   const to = addUtcDays(day, 1);
-  let afterProjectId: string | undefined;
-  let isFirstRow = true;
+  const rows: MediaUsageHourlyQueryRow[] = [];
+  let projectIdFilter: { gte: string } | { gt: string } | undefined = lastRow
+    ? { gte: lastRow.projectId }
+    : undefined;
+  let after = lastRow;
 
-  // Walks every project that existed by the end of the day in id order. The
-  // batch size only bounds the `ANY(...)` list; no project is skipped.
-  while (true) {
-    const projects = await prisma.project.findMany({
+  while (rows.length < take) {
+    const projects: Array<{ id: string }> = await prisma.project.findMany({
       where: {
         createdAt: { lt: to },
-        ...(afterProjectId ? { id: { gt: afterProjectId } } : {}),
+        ...(projectIdFilter ? { id: projectIdFilter } : {}),
       },
       orderBy: { id: "asc" },
       select: { id: true },
@@ -210,51 +232,24 @@ async function* createMediaUsageDayJsonlStream({
       break;
     }
 
-    const rows = await queryMediaUsageHourly({
-      projectIds: projects.map((project) => project.id),
-      from,
-      to,
-    });
-    for (const row of rows) {
-      yield `${isFirstRow ? "" : "\n"}${JSON.stringify(mapMediaUsageHourlyRow(row))}`;
-      isFirstRow = false;
-    }
-    onRows(rows.length);
+    rows.push(
+      ...(await queryMediaUsageHourly({
+        projectIds: projects.map((project) => project.id),
+        from,
+        to,
+        after,
+        take: take - rows.length,
+      })),
+    );
 
     if (projects.length < projectBatchSize) {
       break;
     }
-    afterProjectId = projects[projects.length - 1].id;
+    projectIdFilter = { gt: projects[projects.length - 1].id };
+    after = null;
   }
-}
 
-const uploadMediaUsageDay = async ({
-  s3Client,
-  uploadPrefix,
-  day,
-  projectBatchSize,
-}: {
-  s3Client: StorageService;
-  uploadPrefix: string;
-  day: Date;
-  projectBatchSize: number;
-}) => {
-  let rowCount = 0;
-  await s3Client.uploadFileBuffered({
-    fileName: mediaUsageDayObjectKey(uploadPrefix, day),
-    fileType: "application/x-ndjson",
-    data: Readable.from(
-      createMediaUsageDayJsonlStream({
-        day,
-        projectBatchSize,
-        onRows: (pageRowCount) => {
-          rowCount += pageRowCount;
-        },
-      }),
-    ),
-    partSizeBytes: MEDIA_USAGE_PART_SIZE_BYTES,
-  });
-  return rowCount;
+  return rows;
 };
 
 /**
@@ -310,23 +305,14 @@ export const exportMediaUsageHourly = async ({
       break;
     }
 
-    try {
-      const rowCount = await uploadMediaUsageDay({
-        s3Client,
-        uploadPrefix,
-        day,
-        projectBatchSize,
-      });
-      logger.debug(
-        `[CORE DATA] Exported ${MEDIA_USAGE_TABLE_NAME} for ${formatUtcDay(day)} (${rowCount} rows)`,
-      );
-    } catch (error) {
-      logger.error(
-        `[CORE DATA] Export of ${MEDIA_USAGE_TABLE_NAME} failed for ${formatUtcDay(day)}`,
-        error,
-      );
-      throw error;
-    }
+    await uploadTableCoreDataJsonl({
+      s3Client,
+      uploadPrefix,
+      tableName: mediaUsageDayTableName(day),
+      fetchPage: ({ lastRow, take }) =>
+        fetchMediaUsageDayPage({ day, lastRow, take, projectBatchSize }),
+      mapRow: mapMediaUsageHourlyRow,
+    });
     exportedDays++;
 
     const dayEnd = addUtcDays(day, 1);

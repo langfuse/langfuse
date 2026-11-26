@@ -228,6 +228,33 @@ describe("coreDataTableExports media usage entry", () => {
     expect(allContent).not.toContain("secret");
   });
 
+  it("pages through a day with more groups than one page without gaps or repeats", async () => {
+    const contentTypes = Array.from(
+      { length: 1_005 },
+      (_, index) => `application/x-test-${String(index).padStart(4, "0")}`,
+    );
+    await prisma.media.createMany({
+      data: contentTypes.map((contentType) => {
+        const id = randomUUID();
+        return {
+          id,
+          projectId,
+          sha256Hash: Buffer.alloc(33, id).toString("base64"),
+          createdAt: atHour(-1, 5),
+          bucketPath: `secret/${projectId}/${id}`,
+          bucketName: "secret-bucket",
+          contentType,
+          contentLength: BigInt(1),
+        };
+      }),
+    });
+
+    await exportMediaUsage({ s3Client, uploadPrefix });
+
+    const rows = await readDayRows(dayAt(-1));
+    expect(rows.map((row) => row.contentType)).toEqual(contentTypes);
+  });
+
   it("never exports days before the minimum start date", async () => {
     await createMedia({ createdAt: atHour(-5, 12) });
     await createMedia({ createdAt: atHour(-3, 12) });
