@@ -48,3 +48,15 @@ export const GATEWAY_GUARDRAIL_ACTION_LABELS: Record<
   REDACT: "Redact",
   ENFORCE: "Enforce",
 };
+
+export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
+  GatewayGuardrailAction,
+  string
+> = {
+  BLOCK: "Reject the request before it reaches the provider.",
+  REDACT:
+    "Replace matched text with the replacement label before forwarding the request.",
+  ENFORCE:
+    "Follow the provider's verdict: block when it blocks, or anonymize matched text before forwarding.",
+  LOG: "Forward the request unchanged and record the match on the generation.",
+};

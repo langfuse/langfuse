@@ -56,6 +56,7 @@ import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect"
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import { GATEWAY_GUARDRAILS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import {
+  GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
@@ -89,21 +90,23 @@ import {
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { cn } from "@/src/utils/tailwind";
 
-const REGEX_ACTION_OPTIONS: Array<{
-  value: GatewayGuardrailUiAction;
-  label: string;
-}> = GATEWAY_REGEX_GUARDRAIL_ACTIONS.map((value) => ({
-  value,
-  label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
-}));
+function toActionOption(value: GatewayGuardrailUiAction) {
+  const label = GATEWAY_GUARDRAIL_ACTION_LABELS[value];
+  return {
+    value,
+    label,
+    explanation: {
+      title: label,
+      description: GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[value],
+    },
+  };
+}
 
-const EXTERNAL_ACTION_OPTIONS: Array<{
-  value: GatewayGuardrailUiAction;
-  label: string;
-}> = GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS.map((value) => ({
-  value,
-  label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
-}));
+const REGEX_ACTION_OPTIONS =
+  GATEWAY_REGEX_GUARDRAIL_ACTIONS.map(toActionOption);
+
+const EXTERNAL_ACTION_OPTIONS =
+  GATEWAY_EXTERNAL_GUARDRAIL_ACTIONS.map(toActionOption);
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 
@@ -665,43 +668,58 @@ export function GatewayGuardrailFormDialog({
                   />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="action"
-                      label="On match"
-                    >
-                      {({
-                        id,
-                        inputDescribedById,
-                        error,
-                        value,
-                        onChange,
-                        onBlur,
-                      }) => (
-                        <SelectInput
-                          id={id}
-                          aria-describedby={inputDescribedById}
-                          aria-invalid={Boolean(error)}
-                          error={Boolean(error)}
-                          placeholder="Select action"
-                          value={value}
-                          onValueChange={(nextValue) => {
-                            onChange(nextValue);
-                            if (!isExternal) {
-                              form
-                                .trigger("redactionLabel")
-                                .catch(() => undefined);
-                            }
-                          }}
-                          onBlur={onBlur}
-                          options={
-                            isExternal
-                              ? EXTERNAL_ACTION_OPTIONS
-                              : REGEX_ACTION_OPTIONS
+                    <CustomTooltip
+                      content={
+                        <span>
+                          {
+                            GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[
+                              selectedAction
+                            ]
                           }
-                        />
+                        </span>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="action"
+                          label="On match"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({
+                            id,
+                            inputDescribedById,
+                            error,
+                            value,
+                            onChange,
+                            onBlur,
+                          }) => (
+                            <SelectInput
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="Select action"
+                              value={value}
+                              onValueChange={(nextValue) => {
+                                onChange(nextValue);
+                                if (!isExternal) {
+                                  form
+                                    .trigger("redactionLabel")
+                                    .catch(() => undefined);
+                                }
+                              }}
+                              onBlur={onBlur}
+                              options={
+                                isExternal
+                                  ? EXTERNAL_ACTION_OPTIONS
+                                  : REGEX_ACTION_OPTIONS
+                              }
+                            />
+                          )}
+                        </FormField>
                       )}
-                    </FormField>
+                    </CustomTooltip>
 
                     <FormField label="Runs on">
                       {({ id, inputDescribedById }) => (

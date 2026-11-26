@@ -10,7 +10,10 @@ import type { TableProps } from "@/src/components/design-system/table/Table";
 import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GATEWAY_GUARDRAIL_ACTION_LABELS } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import {
+  GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_ACTION_LABELS,
+} from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
@@ -77,7 +80,9 @@ const onMatchColumn = createTextTableColumn<GatewayGuardrailRow>({
   accessorFn: (row) => GATEWAY_GUARDRAIL_ACTION_LABELS[row.action],
   id: "onMatch",
   header: "On match",
-  size: 110,
+  tooltip: (context) =>
+    GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[context.row.original.action],
+  size: 120,
   enableResizing: false,
 });
 
