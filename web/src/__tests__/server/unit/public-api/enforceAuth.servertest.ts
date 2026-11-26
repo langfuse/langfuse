@@ -89,6 +89,18 @@ const adminKey = (): AuthorizationContext => ({
 const req = (query = {}, headers = {}, url?: string) =>
   ({ query, headers, url }) as unknown as NextApiRequest;
 
+const basic = (username: string) => ({
+  authorization: `Basic ${btoa(`${username}:sk-lf-1`)}`,
+});
+
+const forbidden = (message: string) => ({
+  success: false,
+  error: expect.objectContaining({
+    constructor: ForbiddenError,
+    message,
+  }),
+});
+
 describe("getOrgId", () => {
   it("resolves the bound org without a header", () => {
     expect(getOrgId(orgKey(), req())).toEqual({ success: true, orgId: ORG });
@@ -219,13 +231,86 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("prefers the URL project over a conflicting header", () => {
+    it("403s an unbound key whose path and header name different projects", () => {
       expect(
         getProjectId(
           orgKey(),
-          req({ projectId: PRJ }, { [projectIdHeader]: "prj_2" }),
+          req(
+            { projectId: PRJ },
+            { [projectIdHeader]: "prj_2" },
+            `/api/public/projects/${PRJ}/apiKeys`,
+          ),
+        ),
+      ).toMatchObject(
+        forbidden(
+          "The project in the URL, the 'langfuse-project-id' header and the Basic auth username must name the same project",
+        ),
+      );
+    });
+    it("prefers the header over a query-string project", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req(
+            { projectId: "llm-app" },
+            { [projectIdHeader]: PRJ },
+            "/api/public/ingestion?projectId=llm-app",
+          ),
         ),
       ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("falls back to a query-string project when nothing else names one", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req({ projectId: PRJ }, {}, `/api/public/traces?projectId=${PRJ}`),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("resolves an unbound key from a Basic auth username", () => {
+      expect(getProjectId(orgKey(), req({}, basic(PRJ)))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
+    it("ignores a public-key Basic auth username", () => {
+      expect(getProjectId(orgKey(), req({}, basic("pk-lf-1")))).toMatchObject({
+        success: false,
+        error: expect.any(ForbiddenError),
+      });
+    });
+    it("resolves a Basic auth username agreeing with the bound project", () => {
+      expect(getProjectId(projectKey(), req({}, basic(PRJ)))).toEqual({
+        success: true,
+        projectId: PRJ,
+      });
+    });
+    it("403s a Basic auth username disagreeing with the bound project", () => {
+      expect(getProjectId(projectKey(), req({}, basic("prj_2")))).toMatchObject(
+        forbidden(
+          "The Basic auth username does not match the project this API key belongs to",
+        ),
+      );
+    });
+    it("resolves when the Basic auth username and header agree", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req({}, { ...basic(PRJ), [projectIdHeader]: PRJ }),
+        ),
+      ).toEqual({ success: true, projectId: PRJ });
+    });
+    it("403s when the Basic auth username and header disagree", () => {
+      expect(
+        getProjectId(
+          orgKey(),
+          req({}, { ...basic(PRJ), [projectIdHeader]: "prj_2" }),
+        ),
+      ).toMatchObject(
+        forbidden(
+          "The project in the URL, the 'langfuse-project-id' header and the Basic auth username must name the same project",
+        ),
+      );
     });
     it("prefers the X-prefixed header when both are provided", () => {
       expect(
@@ -248,7 +333,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "Organization API keys require the 'langfuse-project-id' header to select a project",
+        "Organization and user API keys require the 'langfuse-project-id' header to select a project",
       );
     });
   },
@@ -353,7 +438,7 @@ describe("enforceAuth span metadata", () => {
   });
 
   it.each([
-    ["URL", { projectId: PRJ }, { "x-langfuse-project-id": "ignored" }],
+    ["URL", { projectId: PRJ }, {}],
     ["header", {}, { "x-langfuse-project-id": PRJ }],
   ])(
     "records an organization key's %s project target",

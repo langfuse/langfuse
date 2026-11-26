@@ -26,6 +26,8 @@ import {
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
+import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { publicKeyPrefix } from "@/src/features/apiKey/verifier";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
@@ -49,10 +51,13 @@ const projectIdHeader = "langfuse-project-id";
 
 /** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
 export const projectErrors = {
-  missing: `Organization API keys require the '${projectIdHeader}' header to select a project`,
+  missing: `Organization and user API keys require the '${projectIdHeader}' header to select a project`,
   pathMismatch:
     "The project in the URL does not match the project this API key belongs to",
   headerMismatch: `The '${projectIdHeader}' header does not match the project this API key belongs to`,
+  usernameMismatch:
+    "The Basic auth username does not match the project this API key belongs to",
+  selectorConflict: `The project in the URL, the '${projectIdHeader}' header and the Basic auth username must name the same project`,
 } as const;
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
@@ -204,21 +209,31 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path or header names another project. */
+/** getProjectId prioritizes the bound project, then the path, header, and Basic auth username, which must agree, then a query-string projectId; a bound key refuses any of the three naming another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
   const boundProjectId = getBoundProjectId(context);
-  if (!equal([boundProjectId, getPathProjectId(req)])) {
+  const pathProjectId = getPathProjectId(req);
+  const headerProjectId = getHeaderProjectId(req);
+  const usernameProjectId = getUsernameProjectId(req);
+  if (!equal([boundProjectId, pathProjectId])) {
     return forbiddenError(projectErrors.pathMismatch);
   }
-  if (!equal([boundProjectId, getHeaderProjectId(req)])) {
+  if (!equal([boundProjectId, headerProjectId])) {
     return forbiddenError(projectErrors.headerMismatch);
   }
+  if (!equal([boundProjectId, usernameProjectId])) {
+    return forbiddenError(projectErrors.usernameMismatch);
+  }
 
-  const projectId =
-    boundProjectId ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
+  const selected = [pathProjectId, headerProjectId, usernameProjectId];
+  if (!equal(selected)) {
+    return forbiddenError(projectErrors.selectorConflict);
+  }
+
+  const projectId = boundProjectId ?? first(selected) ?? getUrlProjectId(req);
   if (!projectId) {
     return forbiddenError(projectErrors.missing);
   }
@@ -265,6 +280,14 @@ function getHeaderOrgId(req: NextApiRequest): string | undefined {
 /** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
+}
+
+/** getUsernameProjectId returns the Basic auth username as the target project when it is not a public key, which lets SDKs that cannot send the header select a project. */
+function getUsernameProjectId(req: NextApiRequest): string | undefined {
+  const credential = parseAuthorizationHeader(req.headers.authorization);
+  if (credential.kind !== "basic") return undefined;
+  if (credential.publicKey.startsWith(publicKeyPrefix)) return undefined;
+  return credential.publicKey;
 }
 
 /** getUrlProjectId returns the target project from the URL param. */

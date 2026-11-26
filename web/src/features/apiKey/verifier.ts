@@ -23,7 +23,7 @@ export const invalidCredentials =
   "Invalid credentials. Confirm that you've configured the correct host.";
 
 /** publicKeyPrefix is the prefix every Langfuse public key carries. */
-const publicKeyPrefix = "pk-lf-";
+export const publicKeyPrefix = "pk-lf-";
 
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {
