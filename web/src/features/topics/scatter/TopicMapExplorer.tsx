@@ -67,6 +67,7 @@ export function TopicMapExplorer({
   data,
   topics,
   selectedTopic,
+  pickedTopic = null,
   onSelectTopic,
   onSelectTrace,
   selectedTraceId,
@@ -449,7 +450,7 @@ export function TopicMapExplorer({
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
         />
-        <MapBackgroundLabels store={store} />
+        <MapBackgroundLabels store={store} pickedTopic={pickedTopic} />
         <MapLabels
           model={model}
           size={size}
@@ -688,7 +689,13 @@ function MapLabels({
   );
 }
 
-function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
+function MapBackgroundLabels({
+  store,
+  pickedTopic,
+}: {
+  store: TopicMapStore;
+  pickedTopic: string | null;
+}) {
   const frame = useStore(store, (state) => state.frame);
   return (
     <div
@@ -696,7 +703,7 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
       aria-hidden
     >
       {frame &&
-        prepareMapTextLabels(frame).map((label) => (
+        prepareMapTextLabels(frame, pickedTopic).map((label) => (
           <div
             key={label.id}
             data-topic-background-label={label.id}
@@ -721,7 +728,9 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
                 className={cn(
                   "line-clamp-2 block leading-[1.2]",
                   label.kind === "zone" && "font-bold",
-                  styles.labelTitle,
+                  label.selected
+                    ? styles.labelTitleSelected
+                    : styles.labelTitle,
                 )}
                 style={
                   {
@@ -777,6 +786,8 @@ function mapCoverageLabel(
 export type TopicMapExplorerProps = {
   data: MapData;
   topics: MapTopic[];
+  /** A topic chosen outside the map; its name is emphasized without moving the camera. */
+  pickedTopic?: string | null;
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
   onSelectTrace: (traceId: string | null) => void;

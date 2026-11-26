@@ -46,6 +46,11 @@
   color: color-mix(in srgb, var(--label-color) 15%, hsl(var(--foreground)));
 }
 
+/* The selected topic's name reads in full foreground, above the dimmed rest. */
+.labelTitleSelected {
+  color: hsl(var(--foreground));
+}
+
 @keyframes labelEnter {
   from {
     opacity: 0;

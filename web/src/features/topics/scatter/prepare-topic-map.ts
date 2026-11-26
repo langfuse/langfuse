@@ -29,6 +29,10 @@ type MapZone = {
   bounds: Bounds;
   x: number;
   y: number;
+  /** The member nearest the center, where the label sits so it stays on the cluster. */
+  anchor: { x: number; y: number };
+  /** The topic's core overlaps a larger topic's, so its name waits until zoomed in. */
+  overlapsLarger: boolean;
   countLabel: string;
   shareLabel: string;
 };
@@ -197,10 +201,13 @@ export function prepareTopicMap(
       points: members,
       bounds: pointBounds(members),
       ...center,
+      anchor: nearestPoint(members, center),
+      overlapsLarger: false,
       countLabel: `${members.length.toLocaleString()} mapped traces`,
       shareLabel: `${Math.round((members.length / Math.max(points.length, 1)) * 100)}% of map`,
     };
   }).sort((a, b) => b.points.length - a.points.length);
+  markOverlappingTopics(zones);
   return {
     points,
     zones,
@@ -208,6 +215,44 @@ export function prepareTopicMap(
     pointById: new Map(points.map((p) => [p.traceId, p])),
     populationLabel: `${points.length.toLocaleString()} mapped traces`,
   };
+}
+
+const isTopicZone = (id: string) => id !== "outliers" && id !== "awaiting_map";
+
+function nearestPoint(points: MapPoint[], center: { x: number; y: number }) {
+  let best = points[0]!;
+  let bestDistance = Infinity;
+  for (const point of points) {
+    const distance = (point.x - center.x) ** 2 + (point.y - center.y) ** 2;
+    if (distance < bestDistance) [best, bestDistance] = [point, distance];
+  }
+  return { x: best.x, y: best.y };
+}
+
+/** Median member distance to the center, so a few strays don't inflate the core. */
+function coreRadius(zone: MapZone) {
+  const distances = zone.points
+    .map((point) => Math.hypot(point.x - zone.x, point.y - zone.y))
+    .sort((a, b) => a - b);
+  return distances[Math.floor(distances.length / 2)] ?? 0;
+}
+
+/**
+ * Flags topics whose core sits inside a larger topic's. Zoom scales distances and
+ * radii alike, so this is decided once per map. Zones arrive largest first.
+ */
+function markOverlappingTopics(zones: MapZone[]) {
+  const cores: { zone: MapZone; radius: number }[] = [];
+  for (const zone of zones) {
+    if (!isTopicZone(zone.id)) continue;
+    const radius = coreRadius(zone);
+    zone.overlapsLarger = cores.some(
+      (larger) =>
+        Math.hypot(zone.x - larger.zone.x, zone.y - larger.zone.y) <
+        0.5 * (radius + larger.radius),
+    );
+    cores.push({ zone, radius });
+  }
 }
 
 function smoothStep(from: number, to: number, value: number) {
@@ -283,6 +328,8 @@ type MapTextLabel = {
   /** Selection and filter dimming, independent of placement. */
   emphasis: number;
   detailOpacity: number;
+  /** The topic the user selected; its name is always shown at full strength. */
+  selected: boolean;
 };
 
 /** Pixels of clear space over which a crowded label fades back in. */
@@ -310,13 +357,16 @@ function rectangleGap(a: MapRectangle, b: MapRectangle) {
   );
 }
 
-/** Lower ranks claim label space first: the topic being read, topics by size, then Unassigned. */
-function labelRank(zoneId: string, readingTopic: string | null) {
-  if (zoneId === readingTopic) return 0;
-  return zoneId === "outliers" || zoneId === "awaiting_map" ? 2 : 1;
+/** Lower ranks claim label space first: the selected topic, then topics by size. */
+function labelRank(label: MapTextLabel) {
+  return label.selected ? 0 : 1;
 }
 
-export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
+/** `pickedTopic` is a topic chosen outside the map, such as from the topic list. */
+export function prepareMapTextLabels(
+  frame: TopicMapNodeFrame,
+  pickedTopic: string | null = null,
+): MapTextLabel[] {
   const { camera, model, size, readingTopic, matchingTraceIds } = frame;
   const detailOpacity = smoothStep(3.5, 7, camera.zoom);
   const labels: MapTextLabel[] = [];
@@ -330,6 +380,13 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     rect.x < size.width &&
     rect.y < size.height;
   for (const zone of frame.zones) {
+    // Unassigned and awaiting traces are not a topic, so they get no name on the map.
+    if (!isTopicZone(zone.id)) continue;
+    const selected = zone.id === readingTopic || zone.id === pickedTopic;
+    // Zoomed out, only distinct topics are named; overlapping ones fade in with zoom.
+    const reveal =
+      zone.overlapsLarger && !selected ? smoothStep(2, 3.5, camera.zoom) : 1;
+    if (reveal === 0) continue;
     const titleWidth = titleEms(zone.name) * fontSize;
     const width = Math.min(
       // Short names hug their text until the description needs room.
@@ -359,7 +416,7 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
     // A zone keeps one geographic label as its center moves beyond the viewport.
     // Clamping to the visible intersection is continuous through pan and zoom.
     if (right < left || bottom < top) continue;
-    const center = screenPoint(zone, camera, model.bounds, size);
+    const center = screenPoint(zone.anchor, camera, model.bounds, size);
     const xInset = Math.min(width / 2 + 12, (right - left) / 2);
     const yInset = Math.min(height / 2 + 12, (bottom - top) / 2);
     const x = Math.max(left + xInset, Math.min(right - xInset, center.x));
@@ -390,15 +447,17 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
       description: zone.description,
       rect,
       fontSize,
-      opacity: 1,
-      emphasis:
-        (readingTopic && readingTopic !== zone.id ? 0.4 : 1) *
-        (matchesFilters ? 1 : 0.15),
+      // Placement starts from the overlap gate, so a hidden name claims no space.
+      opacity: reveal,
+      emphasis: selected
+        ? 1
+        : (readingTopic ? 0.4 : 1) * (matchesFilters ? 1 : 0.15),
       detailOpacity,
+      selected,
     });
   }
 
-  placeLabels(labels, readingTopic);
+  placeLabels(labels);
   return labels;
 }
 
@@ -410,17 +469,17 @@ export function prepareMapTextLabels(frame: TopicMapNodeFrame): MapTextLabel[] {
  * rather than pop while zooming or panning. Dimming does not affect placement,
  * so filtering never reshuffles which names are shown.
  */
-function placeLabels(labels: MapTextLabel[], readingTopic: string | null) {
+function placeLabels(labels: MapTextLabel[]) {
   const placed: { rect: MapRectangle; claim: number }[] = [];
   const byRank = labels
     .map((label, order) => ({
       label,
       order,
-      rank: labelRank(label.id, readingTopic),
+      rank: labelRank(label),
     }))
     .sort((a, b) => a.rank - b.rank || a.order - b.order);
   for (const { label } of byRank) {
-    let placement = 1;
+    let placement = label.opacity;
     for (const other of placed)
       placement = Math.min(
         placement,

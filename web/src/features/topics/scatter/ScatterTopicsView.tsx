@@ -236,6 +236,11 @@ export function ScatterTopicsView({
                     query={mapResult}
                     topics={mapTopics}
                     selectedTopic={null}
+                    pickedTopic={
+                      selectedTopicId === UNASSIGNED_TOPIC_ID
+                        ? null
+                        : selectedTopicId
+                    }
                     matchingTraceIds={highlightedTraceIds}
                     onSelectTopic={(topicId) =>
                       topicId === null

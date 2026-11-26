@@ -445,7 +445,7 @@ describe("trace dots", () => {
   });
 });
 describe("background group labels", () => {
-  it("reveals group context gradually and returns only one label per group", () => {
+  it("reveals group context gradually, returns one label per topic and none for Unassigned", () => {
     const model = prepareTopicMap(
       data([
         point("invoice", 0, 0),
@@ -459,9 +459,11 @@ describe("background group labels", () => {
     const details = prepareMapTextLabels(frameFor(model, 6));
     expect(titles.some((label) => label.opacity > 0)).toBe(true);
     expect(new Set(details.map((label) => label.id)).size).toBe(details.length);
-    expect(details.map((label) => label.id).sort()).toEqual(
-      model.zones.map((zone) => zone.id).sort(),
-    );
+    // Unassigned and awaiting traces are not a topic, so they get no name.
+    expect(details.map((label) => label.id).sort()).toEqual([
+      "billing",
+      "retrieval",
+    ]);
     expect(titles.find((label) => label.id === "billing")?.detailOpacity).toBe(
       0,
     );
@@ -472,6 +474,44 @@ describe("background group labels", () => {
       topics[0].description,
     );
     expect(details.every((label) => label.kind === "zone")).toBe(true);
+  });
+
+  it("names a topic inside a larger one only when zoomed in or selected", () => {
+    const ring = (
+      prefix: string,
+      count: number,
+      cx: number,
+      r: number,
+      topicId: string,
+    ) =>
+      Array.from({ length: count }, (_, i) =>
+        point(
+          `${prefix}-${i}`,
+          cx + (Math.cos(i) * r * ((i % 4) + 1)) / 4,
+          (Math.sin(i) * r * ((i % 4) + 1)) / 4,
+          { topicId },
+        ),
+      );
+    const model = prepareTopicMap(
+      data([
+        ...ring("billing", 40, 0, 10, "billing"),
+        // Its core sits inside billing's, so it waits until zoomed in.
+        ...ring("retrieval", 12, 2, 4, "retrieval"),
+      ]),
+      topics,
+    );
+    const shown = (frame: TopicMapNodeFrame, picked: string | null = null) =>
+      prepareMapTextLabels(frame, picked)
+        .filter((label) => label.opacity > 0)
+        .map((label) => label.id);
+    expect(shown(frameFor(model, 1))).toEqual(["billing"]);
+    expect(shown(frameFor(model, 4))).toContain("retrieval");
+    // A topic picked in the list or selected on the map is always named, at full strength.
+    const picked = prepareMapTextLabels(frameFor(model, 1), "retrieval").find(
+      (label) => label.id === "retrieval",
+    );
+    expect(picked).toMatchObject({ opacity: 1, emphasis: 1, selected: true });
+    expect(shown(frameFor(model, 1, size, "retrieval"))).toContain("retrieval");
   });
 
   it("names topics at fit zoom and never overlaps visible labels while zooming or panning", () => {
@@ -548,12 +588,9 @@ describe("background group labels", () => {
     }
   });
 
-  it("keeps one Unassigned label within the viewport when the group center is offscreen", () => {
+  it("keeps one topic label within the viewport when the topic center is offscreen", () => {
     const model = prepareTopicMap(
-      data([
-        point("distant-outlier", -90, 0, { topicId: null, outcome: "outlier" }),
-        point("visible-outlier", 90, 0, { topicId: null, outcome: "outlier" }),
-      ]),
+      data([point("distant-invoice", -90, 0), point("visible-invoice", 90, 0)]),
       topics,
     );
     const zone = model.zones[0];
@@ -562,12 +599,11 @@ describe("background group labels", () => {
       expect(screenPoint(zone, view, model.bounds, size).x).toBeLessThan(0);
       const frame = prepareMapNodes(model, view, size, pointer);
       expect(
-        frame.nodes.some((node) => node.point.traceId === "visible-outlier"),
+        frame.nodes.some((node) => node.point.traceId === "visible-invoice"),
       ).toBe(true);
       const labels = prepareMapTextLabels(frame);
       expect(labels).toHaveLength(1);
-      expect(labels[0].id).toBe("outliers");
-      expect(labels[0].title).toBe("Unassigned");
+      expect(labels[0].id).toBe("billing");
       expect(labels[0].opacity).toBeGreaterThan(0);
       expect(labels[0].rect.x).toBeGreaterThanOrEqual(0);
       expect(labels[0].rect.y).toBeGreaterThanOrEqual(0);
@@ -577,7 +613,7 @@ describe("background group labels", () => {
       expect(labels[0].rect.y + labels[0].rect.height).toBeLessThanOrEqual(
         size.height,
       );
-      expect(frame.nodeById.get("visible-outlier")?.worldPosition).toEqual({
+      expect(frame.nodeById.get("visible-invoice")?.worldPosition).toEqual({
         x: 90,
         y: 0,
       });
