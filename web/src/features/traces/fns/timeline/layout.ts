@@ -586,9 +586,11 @@ function buildTicks(context: {
     ticks.push({ realMs, x, label });
   };
 
-  // Each stretch of real time between collapsed gaps gets its own step. One
-  // step across the whole trace, idle included, is coarse enough that a few
-  // seconds on either side of a long gap collapses to a single label.
+  // Each visible stretch of real time between collapsed gaps gets its own
+  // step. A gap that sits entirely outside the window must not change the
+  // real time the window starts at, or the step is chosen for a duration the
+  // pixels are not showing.
+  const viewEnd = view.start + view.duration;
   const gaps = compression.gaps.toSorted(
     (a, b) => a.compressedStart - b.compressedStart,
   );
@@ -601,23 +603,39 @@ function buildTicks(context: {
   let compCursor = view.start;
   let realCursor = realStart;
   for (const gap of gaps) {
-    if (gap.compressedStart > compCursor) {
+    if (gap.compressedEnd <= view.start) continue;
+    if (gap.compressedStart >= viewEnd) break;
+    const segmentEnd = Math.min(gap.compressedStart, viewEnd);
+    if (segmentEnd > compCursor) {
       segments.push({
         compStart: compCursor,
-        compEnd: gap.compressedStart,
+        compEnd: segmentEnd,
         realStart: realCursor,
-        realEnd: gap.start,
+        realEnd: compression.toRealMs(segmentEnd),
       });
     }
-    compCursor = Math.max(compCursor, gap.compressedEnd);
-    realCursor = gap.end;
+    compCursor = Math.min(Math.max(compCursor, gap.compressedEnd), viewEnd);
+    realCursor = compression.toRealMs(compCursor);
   }
-  segments.push({
-    compStart: compCursor,
-    compEnd: view.start + view.duration,
-    realStart: realCursor,
-    realEnd,
-  });
+  if (viewEnd > compCursor) {
+    segments.push({
+      compStart: compCursor,
+      compEnd: viewEnd,
+      realStart: realCursor,
+      realEnd,
+    });
+  }
+
+  // Edges of a collapsed gap go in first. A nearby round step must not take
+  // their place: the labels on the break are what make the jump readable.
+  for (const gap of gaps) {
+    const edgeGap = Math.max(
+      MIN_TICK_GAP_PX,
+      measurer.measure(formatDurationMs(gap.end)) + TICK_LABEL_PADDING_PX,
+    );
+    place(gap.start, transform.toPx(gap.compressedStart), edgeGap);
+    place(gap.end, transform.toPx(gap.compressedEnd), edgeGap);
+  }
 
   for (const segment of segments) {
     const left = transform.toPx(segment.compStart);
@@ -641,17 +659,6 @@ function buildTicks(context: {
       if (x > laneWidth + EPSILON) break;
       place(realMs, x, gapPx);
     }
-  }
-
-  // Both edges of a collapsed gap, so the jump is labelled even when the
-  // segment step landed inside the gap or too close to the band to print.
-  for (const gap of gaps) {
-    const edgeGap = Math.max(
-      MIN_TICK_GAP_PX,
-      measurer.measure(formatDurationMs(gap.end)) + TICK_LABEL_PADDING_PX,
-    );
-    place(gap.start, transform.toPx(gap.compressedStart), edgeGap);
-    place(gap.end, transform.toPx(gap.compressedEnd), edgeGap);
   }
 
   return ticks.sort((a, b) => a.x - b.x);

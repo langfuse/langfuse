@@ -99,5 +99,25 @@ describe("sessionIdleCompression", () => {
     expect(
       labels.filter((label) => label.includes("m")).length,
     ).toBeGreaterThan(1);
+
+    const gapMarker = mapped.gaps[0]!;
+    const zoomed = layout({
+      roots: [
+        trace("before", 0, MINUTE),
+        trace("after", MINUTE + idleMs, MINUTE + idleMs + MINUTE),
+      ],
+      box: { width, height: 120 },
+      density: resolveDensity({ pointer: "fine" }),
+      measurer: createTextMeasurerFrom(null),
+      view: {
+        start: gapMarker.compressedEnd,
+        duration: mapped.compressedDurationMs - gapMarker.compressedEnd,
+      },
+      compress: false,
+      prepared,
+      compression: mapped,
+    });
+    expect(zoomed.ticks.length).toBeGreaterThan(4);
+    expect(zoomed.ticks[0]?.label).toContain("m");
   });
 });
