@@ -528,18 +528,26 @@ fn parse_sse_frame(
     data_lines: &[&str],
     budget: Option<&Arc<Semaphore>>,
     collector: &mut StreamCollector,
-) -> Result<bool, ResponseParseError> {
+) -> Result<(bool, usize), ResponseParseError> {
     if data_lines.is_empty() {
-        return Ok(false);
+        return Ok((false, 0));
     }
     let payload = data_lines.join("\n");
     if payload == "[DONE]" {
-        return Ok(false);
+        return Ok((false, 0));
     }
     let (value, _frame_reservation) = parse_unique_json(payload.as_bytes(), budget)?;
     let has_logprobs = capture::has_response_logprobs(api_format, &value);
+    let prev_blocks = collector.blocks.len();
     capture::extract_response_sse(api_format, frame_idx, &value, collector)?;
-    Ok(has_logprobs)
+    let new_blocks_bytes = collector
+        .blocks
+        .get(prev_blocks..)
+        .map_or(0, blocks_retained_bytes);
+    let growth = collector
+        .take_growth_bytes()
+        .saturating_add(new_blocks_bytes);
+    Ok((has_logprobs, growth))
 }
 
 fn parse_sse(
@@ -587,14 +595,14 @@ fn parse_sse(
             _ => {}
         }
         if line.is_empty() {
-            let has_logprobs = parse_sse_frame(
+            let (has_logprobs, growth) = parse_sse_frame(
                 api_format,
                 frames.len(),
                 &data_lines,
                 budget,
                 &mut collector,
             )?;
-            if !frames_budget.charge(size_of::<SseFrameSpan>()) {
+            if !frames_budget.charge(size_of::<SseFrameSpan>().saturating_add(growth)) {
                 return Err(ResponseParseError::Busy);
             }
             frames.push(SseFrameSpan {
@@ -627,7 +635,6 @@ fn parse_sse(
         return Err(ResponseParseError::Busy);
     }
     let blocks = collector.finish();
-    let blocks_reservation = reserve_retained_blocks(&blocks, budget)?;
     Ok(ParsedResponse {
         api_format,
         body: ParsedBody::Sse {
@@ -636,7 +643,7 @@ fn parse_sse(
             _frames_reservation: frames_budget.reservation,
         },
         blocks,
-        _blocks_reservation: blocks_reservation,
+        _blocks_reservation: None,
     })
 }
 
@@ -658,6 +665,8 @@ pub(crate) struct StreamCollector {
     blocks: Vec<ResponseBlock>,
     by_key: HashMap<StreamKey, usize>,
     signed_thinking: HashSet<u64>,
+    /// Bytes appended to already-existing blocks since the last `take_growth_bytes`.
+    existing_block_growth: usize,
 }
 
 impl StreamCollector {
@@ -668,8 +677,14 @@ impl StreamCollector {
         if let Some(&slot) = self.by_key.get(&key)
             && let Some(block) = self.blocks.get_mut(slot)
         {
+            let prev_cap = block.text.capacity();
+            let ptr_bytes = size_of::<(usize, String)>().saturating_add(ptr.capacity());
             block.text.push_str(text);
             block.deltas.push((frame_idx, ptr));
+            self.existing_block_growth = self
+                .existing_block_growth
+                .saturating_add(block.text.capacity().saturating_sub(prev_cap))
+                .saturating_add(ptr_bytes);
             return;
         }
         let slot = self.blocks.len();
@@ -697,7 +712,9 @@ impl StreamCollector {
             && let Some(block) = self.blocks.get_mut(slot)
             && block.text == text
         {
+            let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
             block.leaves.push((Some(frame_idx), ptr));
+            self.existing_block_growth = self.existing_block_growth.saturating_add(ptr_bytes);
             return;
         }
         self.blocks.push(ResponseBlock {
@@ -706,6 +723,10 @@ impl StreamCollector {
             deltas: Vec::new(),
             leaves: vec![(Some(frame_idx), ptr)],
         });
+    }
+
+    fn take_growth_bytes(&mut self) -> usize {
+        std::mem::take(&mut self.existing_block_growth)
     }
 
     pub(crate) fn mark_signed_thinking(&mut self, index: u64) {

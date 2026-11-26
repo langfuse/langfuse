@@ -210,7 +210,11 @@ pub(crate) fn extract_response_json(
         }
         ApiFormat::AnthropicMessages => anthropic_messages::extract_response_json(value, blocks),
         ApiFormat::OpenAiResponses => openai_responses::extract_response_json(value, blocks),
-        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => Ok(()),
+        // Decisions and Embeddings routes skip response guardrails in `Route::evaluates_response_guardrails`;
+        // fail closed if invoked directly.
+        ApiFormat::OpenAiDecisions | ApiFormat::OpenAiEmbeddings => {
+            Err(crate::guardrails::text::Unreadable)
+        }
     }
 }
 

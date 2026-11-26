@@ -97,6 +97,8 @@ impl Route {
         )
     }
 
+    // Decisions responses only return caller-defined choices/categories;
+    // embeddings and count_tokens have no generated model text.
     pub(crate) fn evaluates_response_guardrails(self) -> bool {
         matches!(
             self,
