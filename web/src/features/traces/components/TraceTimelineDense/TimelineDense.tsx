@@ -77,6 +77,11 @@ import {
   type PositionedNode,
 } from "../../fns/timeline/layout";
 import { packCompactLanes } from "../../fns/timeline/compactLanes";
+import { sessionIdleCompression } from "../../fns/timeline/sessionIdleCompression";
+import {
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/features/sessions/sessionIdleGap";
 import { collapsedForSearch } from "../../fns/timeline/searchMatches";
 import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
 import { resolveBarTones } from "../../fns/timeline/barContrast";
@@ -310,6 +315,12 @@ export type TimelineDenseProps = {
    */
   rowLayout?: "tree" | "compact";
   onRowLayoutChange?: (layout: "tree" | "compact") => void;
+  /**
+   * Collapse idle time between top-level traces that exceeds the session
+   * sidebar threshold. On for the product timeline; stories can turn it off
+   * to show the uncompressed clock.
+   */
+  collapseIdleGaps?: boolean;
 };
 
 export type GutterMode = "auto" | "expanded" | "collapsed";
@@ -345,6 +356,7 @@ export function TimelineDense({
   search,
   rowLayout = "tree",
   onRowLayoutChange,
+  collapseIdleGaps = true,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const compact = rowLayout === "compact";
@@ -398,7 +410,7 @@ export function TimelineDense({
     [roots, effectiveCollapsed],
   );
   const packing = useMemo(
-    () => (compact ? packCompactLanes(prepared.rows, prepared.originMs) : null),
+    () => (compact ? packCompactLanes(prepared.rows) : null),
     [compact, prepared],
   );
   const rowCount = packing?.laneCount ?? prepared.rows.length;
@@ -446,6 +458,14 @@ export function TimelineDense({
       (showReadout ? READOUT_HEIGHT : 0),
     0,
   );
+  // Compact sessions are a handful of depth rows. Keep them at a readable
+  // height and let the frame shrink instead of spreading three rows across
+  // the whole panel.
+  const chartHeight =
+    compact && rowCount > 0
+      ? Math.min(surfaceHeight, rowCount * HUMAN_ROW_HEIGHT)
+      : surfaceHeight;
+  const frameHeight = box.height - surfaceHeight + chartHeight;
 
   // Resolve the VERTICAL window first. It depends only on the row count and the
   // height, never on the width, so row height is known before the gutter width
@@ -454,14 +474,14 @@ export function TimelineDense({
   // forever, however far you zoomed in.
   const rowBounds = rowCountBounds({
     rowCount,
-    boxHeight: surfaceHeight,
+    boxHeight: chartHeight,
   });
   const liveRowCount = Math.min(
     Math.max(viewport?.rows.count ?? rowBounds.max, rowBounds.min),
     rowBounds.max,
   );
   const liveRowHeight =
-    liveRowCount > 0 ? surfaceHeight / liveRowCount : HUMAN_ROW_HEIGHT;
+    liveRowCount > 0 ? chartHeight / liveRowCount : HUMAN_ROW_HEIGHT;
 
   // The left side is the key to the lines — the tree gutter, names and all. It
   // can only open when the rows are tall enough to hold a name: at 4px there is
@@ -494,6 +514,9 @@ export function TimelineDense({
     if (override === "collapsed") {
       return false;
     }
+    // Compact rows share a lane, so an automatic gutter cannot name them.
+    // Show labels still opens it for the span under the pointer.
+    if (compact) return asked;
     return asked || gutterMode === "auto";
   })();
   const gutterFits =
@@ -516,21 +539,29 @@ export function TimelineDense({
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
   const chartBox = useMemo(
-    () => ({ width: laneWidth, height: surfaceHeight }),
-    [laneWidth, surfaceHeight],
+    () => ({ width: laneWidth, height: chartHeight }),
+    [laneWidth, chartHeight],
   );
-  const compression = useMemo(
-    () => timeCompressionFor(prepared, chartBox, compress),
-    [prepared, chartBox, compress],
-  );
+  const compression = useMemo(() => {
+    if (collapseIdleGaps) {
+      const idle = sessionIdleCompression({
+        rows: prepared.rows,
+        originMs: prepared.originMs,
+        durationMs: prepared.durationMs,
+        physicalWidth: chartBox.width,
+      });
+      if (idle) return idle;
+    }
+    return timeCompressionFor(prepared, chartBox, compress);
+  }, [collapseIdleGaps, prepared, chartBox, compress]);
 
   const limits = useMemo(
     () => ({
       traceSpace: traceSpaceOf(compression.compressedDurationMs),
       rowCount,
-      boxHeight: surfaceHeight,
+      boxHeight: chartHeight,
     }),
-    [compression.compressedDurationMs, rowCount, surfaceHeight],
+    [compression.compressedDurationMs, rowCount, chartHeight],
   );
 
   // Re-clamped every render, so a resize can never leave the viewport looking
@@ -539,7 +570,7 @@ export function TimelineDense({
     () => (viewport ? clampViewport(viewport, limits) : fitViewport(limits)),
     [viewport, limits],
   );
-  const rowHeight = rowHeightOf(current, surfaceHeight);
+  const rowHeight = rowHeightOf(current, chartHeight);
   const isOpen = committedOpen;
   const namesVisible = isOpen;
   // The overlay is not bound by MIN_LANE_WIDTH: it costs the chart no width, so
@@ -605,6 +636,7 @@ export function TimelineDense({
     compression,
     rowRange,
     laneByRow: packing?.lanes,
+    barInsetPx: compact ? 2 : 0,
   });
 
   // What each row occupies on the time axis, in the same compressed space the
@@ -1268,7 +1300,7 @@ export function TimelineDense({
     // A stray shift-click is not a zoom to a pinhole.
     if (width < MARQUEE_MIN_PX && height < MARQUEE_MIN_PX) return;
     const lane = Math.max(laneWidth, 1);
-    const tall = Math.max(surfaceHeight, 1);
+    const tall = Math.max(chartHeight, 1);
     flyTo(
       zoomToBox(current, limits, {
         xStartRatio: (box.from.x - railWidth) / lane,
@@ -1385,7 +1417,7 @@ export function TimelineDense({
   return (
     <div
       className="bg-background border-border text-foreground flex flex-col overflow-hidden rounded border select-none"
-      style={{ width: `${box.width}px`, height: `${box.height}px` }}
+      style={{ width: `${box.width}px`, height: `${frameHeight}px` }}
     >
       <div
         className="border-border flex shrink-0 items-center gap-1 border-b px-1"
@@ -1463,6 +1495,7 @@ export function TimelineDense({
             </span>
             <Switch
               size="sm"
+              color="green"
               checked={compact}
               aria-label="Compact layout"
               onCheckedChange={(checked) =>
@@ -1563,27 +1596,39 @@ export function TimelineDense({
                 layer and cover its full width, so a `title` here is never
                 reachable by a pointer. Narrow bands stay silent and leave it to
                 the axis ticks at their edges. */}
-            {result.gaps.map((gap) => (
-              <div
-                key={`${gap.x}-${gap.durationMs}`}
-                className="bg-muted border-border-contrast absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-dashed"
-                style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
-              >
-                {gap.width >= GAP_LABEL_MIN_WIDTH ? (
-                  <span
-                    className="text-muted-foreground rotate-90 whitespace-nowrap"
-                    style={{ fontSize: "9px" }}
-                  >
-                    {gap.label} idle
-                  </span>
-                ) : null}
-              </div>
-            ))}
+            {result.gaps.map((gap) => {
+              const sessionIdle =
+                gap.durationMs >= IDLE_GAP_THRESHOLD_SECONDS * 1000;
+              const label = sessionIdle
+                ? `+${formatIdleGap(gap.durationMs / 1000)} idle`
+                : `${gap.label} idle`;
+              return (
+                <div
+                  key={`${gap.x}-${gap.durationMs}`}
+                  className={
+                    sessionIdle
+                      ? "absolute inset-y-0 flex items-center justify-center overflow-hidden bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)]"
+                      : "bg-muted border-border-contrast absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-dashed"
+                  }
+                  style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
+                  data-testid={sessionIdle ? "timeline-idle-gap" : undefined}
+                >
+                  {gap.width >= GAP_LABEL_MIN_WIDTH ? (
+                    <span
+                      className="text-muted-foreground rotate-90 font-mono whitespace-nowrap"
+                      style={{ fontSize: "11px" }}
+                    >
+                      {label}
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
 
           {result.nodes.map((node) => {
             const y = (node.index - current.rows.start) * rowHeight;
-            if (y + rowHeight < 0 || y > surfaceHeight) return null;
+            if (y + rowHeight < 0 || y > chartHeight) return null;
 
             const isFocused = node.id === focused?.id;
             const isSelected = node.id === selectedId;
@@ -1732,6 +1777,7 @@ export function TimelineDense({
                       density={density}
                       metrics={metricsOf?.(node.id) ?? {}}
                       showDuration={showDuration}
+                      insideOnly={compact}
                       toneClass={
                         barTones[barClass] === "dark"
                           ? "text-black/85"
@@ -1771,7 +1817,7 @@ export function TimelineDense({
           >
             {result.nodes.map((node) => {
               const y = (node.index - current.rows.start) * rowHeight;
-              if (y + rowHeight < 0 || y > surfaceHeight) return null;
+              if (y + rowHeight < 0 || y > chartHeight) return null;
               if (compact && node.id !== focused?.id) return null;
               return (
                 <div

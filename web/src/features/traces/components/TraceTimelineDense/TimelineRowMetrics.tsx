@@ -69,6 +69,7 @@ export function TimelineRowMetrics({
   metrics,
   showDuration: durationEnabled,
   toneClass,
+  insideOnly = false,
 }: {
   row: PositionedNode;
   laneWidth: number;
@@ -78,6 +79,8 @@ export function TimelineRowMetrics({
   showDuration: boolean;
   /** Text colour for a label drawn ON the bar, from that bar's own luminance. */
   toneClass: string;
+  /** Draw the cluster only inside the bar, and only when the whole string fits. */
+  insideOnly?: boolean;
 }) {
   const gapPx = density.labelGapPx;
   const insetPx = density.labelPaddingPx;
@@ -92,8 +95,12 @@ export function TimelineRowMetrics({
   // Inside is now the LAST resort, taken only when neither flank has room.
   const spaceBefore = Math.max(row.x - gapPx, 0);
   const spaceAfter = Math.max(laneWidth - (row.x + row.width + gapPx), 0);
-  const spaceInside = Math.max(row.width - insetPx * 2, 0);
+  const spaceInside = Math.max(
+    row.width - insetPx * 2 - (insideOnly ? 8 : 0),
+    0,
+  );
   const placement = (() => {
+    if (insideOnly) return "inside";
     if (spaceAfter >= spaceBefore && spaceAfter >= spaceInside) {
       return "after";
     }

@@ -172,6 +172,8 @@ export type LayoutInput<TNode extends LayoutNode = LayoutNode> = {
    * fitted on the other one. Callers render `label`.
    */
   formatLabel?: (durationMs: number) => string;
+  /** Pull each bar in from its time edges so neighbours do not share a pixel. */
+  barInsetPx?: number;
 };
 
 const EPSILON = 0.5;
@@ -365,6 +367,7 @@ export function layout<TNode extends LayoutNode>(
     density,
     measurer,
     formatLabel: input.formatLabel ?? formatDurationMs,
+    barInsetPx: input.barInsetPx ?? 0,
   };
   const nodes: Array<PositionedNode<TNode>> = [];
   const lastIndex = laneByRow ? prepared.rows.length - 1 : to;
@@ -405,6 +408,7 @@ function positionRow<TNode extends LayoutNode>(
     density: Density;
     measurer: TextMeasurer;
     formatLabel: (durationMs: number) => string;
+    barInsetPx: number;
   },
 ): PositionedNode<TNode> {
   const {
@@ -416,6 +420,7 @@ function positionRow<TNode extends LayoutNode>(
     density,
     measurer,
     formatLabel,
+    barInsetPx,
   } = context;
   const node = row.node;
 
@@ -433,7 +438,12 @@ function positionRow<TNode extends LayoutNode>(
     ),
     laneWidth,
   );
-  const x = clamp(clamp(left, 0, laneWidth), 0, Math.max(laneWidth - width, 0));
+  let x = clamp(clamp(left, 0, laneWidth), 0, Math.max(laneWidth - width, 0));
+  let drawnWidth = width;
+  if (barInsetPx > 0 && drawnWidth > barInsetPx * 2 + 1) {
+    x += barInsetPx;
+    drawnWidth -= barInsetPx * 2;
+  }
 
   const durationMs = hasDuration(node) ? endMs - startMs : null;
   const label = durationMs == null ? "" : formatLabel(durationMs);
@@ -442,7 +452,7 @@ function positionRow<TNode extends LayoutNode>(
     label,
     labelWidth,
     x,
-    width,
+    width: drawnWidth,
     laneWidth,
     density,
   });
@@ -469,7 +479,7 @@ function positionRow<TNode extends LayoutNode>(
     y: index * rowHeight,
     height: rowHeight,
     x,
-    width,
+    width: drawnWidth,
     clippedLeft: left < -EPSILON,
     clippedRight: right > laneWidth + EPSILON,
     offscreen: right < -EPSILON || left > laneWidth + EPSILON,

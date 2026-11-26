@@ -22,19 +22,14 @@ function span(
   };
 }
 
-function lanesOf(roots: LayoutNode[]): number[] {
-  const prepared = prepareTimeline(roots);
-  return packCompactLanes(prepared.rows, prepared.originMs).lanes;
-}
-
 describe("packCompactLanes", () => {
-  it("puts sequential traces and their observations on shared depth rows", () => {
+  it("puts every depth on one row, including spans that overlap in time", () => {
     const roots = [
-      span("trace-a", 0, 10, [span("a1", 1, 4, [span("a2", 2, 3)])]),
-      span("trace-b", 10, 20, [span("b1", 12, 18)]),
+      span("trace-a", 0, 100, [span("a1", 0, 50, [span("a2", 10, 20)])]),
+      span("trace-b", 40, 90, [span("b1", 40, 80)]),
     ];
     const prepared = prepareTimeline(roots);
-    const packing = packCompactLanes(prepared.rows, prepared.originMs);
+    const packing = packCompactLanes(prepared.rows);
 
     expect(packing.laneCount).toBe(3);
     const laneById = new Map(
@@ -55,43 +50,31 @@ describe("packCompactLanes", () => {
       compress: false,
       prepared,
       laneByRow: packing.lanes,
+      barInsetPx: 2,
     });
     expect(positioned.rowCount).toBe(3);
-    const y = (id: string) =>
-      positioned.nodes.find((node) => node.id === id)!.y;
-    expect(y("trace-a")).toBe(y("trace-b"));
-    expect(y("a1")).toBeGreaterThan(y("trace-a"));
-    expect(y("a2")).toBeGreaterThan(y("a1"));
-  });
-
-  it("gives overlapping traces and observations extra lanes", () => {
-    const roots = [
-      span("trace-a", 0, 100, [span("a1", 0, 50)]),
-      span("trace-b", 40, 90, [span("b1", 40, 80)]),
-    ];
-    const prepared = prepareTimeline(roots);
-    const packing = packCompactLanes(prepared.rows, prepared.originMs);
-    const laneById = new Map(
-      prepared.rows.map((row, index) => [row.node.id, packing.lanes[index]]),
-    );
-
-    expect(laneById.get("trace-a")).toBe(0);
-    expect(laneById.get("trace-b")).toBe(1);
-    expect(laneById.get("a1")).toBe(2);
-    expect(laneById.get("b1")).toBe(3);
-    expect(packing.laneCount).toBe(4);
-    expect(lanesOf([span("only", 0, 5), span("next", 5, 9)])).toEqual([0, 0]);
-  });
-
-  it("does not stack two events that share an instant", () => {
-    const roots = [
-      span("left", 0, 5, [span("tick-a", 5, 5), span("tick-b", 5, 5)]),
-    ];
-    const prepared = prepareTimeline(roots);
-    const packing = packCompactLanes(prepared.rows, prepared.originMs);
-    const laneById = new Map(
-      prepared.rows.map((row, index) => [row.node.id, packing.lanes[index]]),
-    );
-    expect(laneById.get("tick-a")).not.toBe(laneById.get("tick-b"));
+    const node = (id: string) =>
+      positioned.nodes.find((item) => item.id === id)!;
+    expect(node("trace-a").y).toBe(node("trace-b").y);
+    expect(node("a1").y).toBeGreaterThan(node("trace-a").y);
+    // Touching time edges still leave a pixel gap between the bars.
+    const sequential = prepareTimeline([
+      span("left", 0, 10),
+      span("right", 10, 20),
+    ]);
+    const separated = layout({
+      roots: sequential.rows.map((row) => row.node),
+      box: { width: 400, height: 80 },
+      density: resolveDensity({ pointer: "fine" }),
+      measurer,
+      view: null,
+      compress: false,
+      prepared: sequential,
+      laneByRow: packCompactLanes(sequential.rows).lanes,
+      barInsetPx: 2,
+    });
+    const leftBar = separated.nodes.find((item) => item.id === "left")!;
+    const rightBar = separated.nodes.find((item) => item.id === "right")!;
+    expect(leftBar.x + leftBar.width).toBeLessThan(rightBar.x);
   });
 });

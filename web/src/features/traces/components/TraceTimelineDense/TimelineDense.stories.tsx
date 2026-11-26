@@ -2586,7 +2586,7 @@ export const ARowTooTightForMetricsStillSaysThem = meta.story({
  */
 function sessionRoots(
   count: number,
-  overlap: boolean,
+  options?: { idleAfter?: number; idleMs?: number },
 ): TimelineDenseProps["roots"] {
   let start = 0;
   const roots: TimelineDenseProps["roots"] = [];
@@ -2619,7 +2619,8 @@ function sessionRoots(
         },
       ],
     });
-    start = overlap ? start + 600 : end;
+    start = end;
+    if (options?.idleAfter === index) start += options.idleMs ?? 0;
   }
   return roots;
 }
@@ -2650,7 +2651,7 @@ export const SequentialSession = meta.story({
   render: (args) => <CompactToggleStory {...args} />,
   args: {
     ...sessionArgs,
-    roots: sessionRoots(24, false),
+    roots: sessionRoots(24),
   },
 });
 
@@ -2659,7 +2660,7 @@ export const CompactPacksSequentialSession = meta.story({
   render: (args) => <CompactToggleStory {...args} />,
   args: {
     ...sessionArgs,
-    roots: sessionRoots(24, false),
+    roots: sessionRoots(24),
   },
   play: async ({ canvas }) => {
     const before = canvas.getByTestId("dense-rows").textContent;
@@ -2675,20 +2676,32 @@ export const CompactPacksSequentialSession = meta.story({
   },
 });
 
-export const OverlappingSession = meta.story({
-  name: "Overlapping session",
-  render: (args) => <CompactToggleStory {...args} />,
-  args: {
-    ...sessionArgs,
-    roots: sessionRoots(8, true),
-  },
-});
-
 export const ShortSession = meta.story({
   name: "Short session",
   render: (args) => <CompactToggleStory {...args} />,
   args: {
     ...sessionArgs,
-    roots: sessionRoots(2, false),
+    roots: sessionRoots(2),
+  },
+});
+
+const idleRoots = sessionRoots(6, { idleAfter: 2, idleMs: 54 * 60 * 1000 });
+
+export const IdleGap = meta.story({
+  name: "Idle gap",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: idleRoots,
+  },
+});
+
+export const IdleGapUncompressed = meta.story({
+  name: "Idle gap uncompressed",
+  render: (args) => <CompactToggleStory {...args} />,
+  args: {
+    ...sessionArgs,
+    roots: idleRoots,
+    collapseIdleGaps: false,
   },
 });
