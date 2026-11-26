@@ -537,9 +537,7 @@ pub(super) fn extract_response_sse(
     value: &Value,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{
-        StreamKey, attach_matching_or_push_leaf, collect_citation_fields, ptr_push,
-    };
+    use crate::guardrails::response::{StreamKey, collect_citation_fields, ptr_push};
     use crate::guardrails::text::Unreadable;
 
     let Some(kind) = value.get("type").and_then(Value::as_str) else {
@@ -577,12 +575,7 @@ pub(super) fn extract_response_sse(
         "response.output_text.annotation.added" => {
             if let Some(annotation) = value.get("annotation") {
                 collect_citation_fields(annotation, "/annotation", &mut |text, ptr| {
-                    attach_matching_or_push_leaf(
-                        collector.blocks_mut(),
-                        Some(frame_idx),
-                        text,
-                        ptr,
-                    );
+                    collector.attach_or_push_leaf(frame_idx, text, ptr);
                 });
             }
         }
@@ -620,9 +613,8 @@ pub(super) fn extract_response_sse(
                 }
             }
             if let Some(output_text) = resp.get("output_text").and_then(Value::as_str) {
-                attach_matching_or_push_leaf(
-                    collector.blocks_mut(),
-                    Some(frame_idx),
+                collector.attach_or_push_leaf(
+                    frame_idx,
                     output_text,
                     "/response/output_text".into(),
                 );
@@ -642,9 +634,7 @@ fn collect_responses_part_sse(
     text_slot: &'static str,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) {
-    use crate::guardrails::response::{
-        StreamKey, attach_matching_or_push_leaf, collect_citation_fields, ptr_push,
-    };
+    use crate::guardrails::response::{StreamKey, collect_citation_fields, ptr_push};
 
     for (field, slot) in [
         ("text", text_slot),
@@ -666,12 +656,7 @@ fn collect_responses_part_sse(
                 annotation,
                 &format!("{ptr}/annotations/{idx}"),
                 &mut |text, leaf_ptr| {
-                    attach_matching_or_push_leaf(
-                        collector.blocks_mut(),
-                        Some(frame_idx),
-                        text,
-                        leaf_ptr,
-                    );
+                    collector.attach_or_push_leaf(frame_idx, text, leaf_ptr);
                 },
             );
         }
@@ -685,7 +670,7 @@ fn collect_responses_item_sse(
     output_idx: u64,
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
-    use crate::guardrails::response::{StreamKey, collect_all_strings, ptr_push};
+    use crate::guardrails::response::{StreamKey, ptr_push, visit_all_strings};
 
     let item_type = item.get("type").and_then(Value::as_str);
     if let Some(content) = item.get("content").and_then(Value::as_array) {
@@ -753,13 +738,12 @@ fn collect_responses_item_sse(
         }
     }
     if let Some(action) = item.get("action").filter(|v| !v.is_null()) {
-        collect_all_strings(
+        visit_all_strings(
             action,
-            Some(frame_idx),
             &ptr_push(ptr, "action"),
             &["type"],
             0,
-            collector.blocks_mut(),
+            &mut |leaf_ptr, text| collector.attach_or_push_leaf(frame_idx, text, leaf_ptr),
         )?;
     }
     Ok(())

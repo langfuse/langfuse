@@ -599,7 +599,7 @@ pub(super) fn extract_response_sse(
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     use crate::guardrails::response::{
-        StreamKey, attach_matching_or_push_leaf, collect_annotations, ptr_push, visit_text_or_parts,
+        StreamKey, collect_annotations, ptr_push, visit_text_or_parts,
     };
     use crate::guardrails::text::Unreadable;
 
@@ -687,12 +687,7 @@ pub(super) fn extract_response_sse(
                 annotations,
                 &format!("{delta_ptr}/annotations"),
                 &mut |text, ptr| {
-                    attach_matching_or_push_leaf(
-                        collector.blocks_mut(),
-                        Some(frame_idx),
-                        text,
-                        ptr,
-                    );
+                    collector.attach_or_push_leaf(frame_idx, text, ptr);
                 },
             )?;
         }

@@ -538,16 +538,8 @@ fn parse_sse_frame(
     }
     let (value, _frame_reservation) = parse_unique_json(payload.as_bytes(), budget)?;
     let has_logprobs = capture::has_response_logprobs(api_format, &value);
-    let prev_blocks = collector.blocks.len();
     capture::extract_response_sse(api_format, frame_idx, &value, collector)?;
-    let new_blocks_bytes = collector
-        .blocks
-        .get(prev_blocks..)
-        .map_or(0, blocks_retained_bytes);
-    let growth = collector
-        .take_growth_bytes()
-        .saturating_add(new_blocks_bytes);
-    Ok((has_logprobs, growth))
+    Ok((has_logprobs, collector.take_growth_bytes()))
 }
 
 fn parse_sse(
@@ -665,8 +657,8 @@ pub(crate) struct StreamCollector {
     blocks: Vec<ResponseBlock>,
     by_key: HashMap<StreamKey, usize>,
     signed_thinking: HashSet<u64>,
-    /// Bytes appended to already-existing blocks since the last `take_growth_bytes`.
-    existing_block_growth: usize,
+    /// Retained bytes allocated by `StreamCollector` since the last `take_growth_bytes`.
+    growth_bytes: usize,
 }
 
 impl StreamCollector {
@@ -674,27 +666,32 @@ impl StreamCollector {
         if text.is_empty() {
             return;
         }
+        let ptr_bytes = size_of::<(usize, String)>().saturating_add(ptr.capacity());
         if let Some(&slot) = self.by_key.get(&key)
             && let Some(block) = self.blocks.get_mut(slot)
         {
             let prev_cap = block.text.capacity();
-            let ptr_bytes = size_of::<(usize, String)>().saturating_add(ptr.capacity());
             block.text.push_str(text);
             block.deltas.push((frame_idx, ptr));
-            self.existing_block_growth = self
-                .existing_block_growth
+            self.growth_bytes = self
+                .growth_bytes
                 .saturating_add(block.text.capacity().saturating_sub(prev_cap))
                 .saturating_add(ptr_bytes);
             return;
         }
+        let owned = text.to_owned();
+        let added = size_of::<ResponseBlock>()
+            .saturating_add(owned.capacity())
+            .saturating_add(ptr_bytes);
         let slot = self.blocks.len();
         self.blocks.push(ResponseBlock {
-            text: text.to_owned(),
+            text: owned,
             editable: true,
             deltas: vec![(frame_idx, ptr)],
             leaves: Vec::new(),
         });
         self.by_key.insert(key, slot);
+        self.growth_bytes = self.growth_bytes.saturating_add(added);
     }
 
     pub(crate) fn push_summary(
@@ -707,34 +704,56 @@ impl StreamCollector {
         if text.is_empty() {
             return;
         }
+        let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
         if let Some(key) = key
             && let Some(&slot) = self.by_key.get(&key)
             && let Some(block) = self.blocks.get_mut(slot)
             && block.text == text
         {
-            let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
             block.leaves.push((Some(frame_idx), ptr));
-            self.existing_block_growth = self.existing_block_growth.saturating_add(ptr_bytes);
+            self.growth_bytes = self.growth_bytes.saturating_add(ptr_bytes);
             return;
         }
+        self.push_leaf(frame_idx, text, ptr);
+    }
+
+    pub(crate) fn push_leaf(&mut self, frame_idx: usize, text: &str, ptr: String) {
+        if text.is_empty() {
+            return;
+        }
+        let owned = text.to_owned();
+        let added = size_of::<ResponseBlock>()
+            .saturating_add(owned.capacity())
+            .saturating_add(size_of::<(Option<usize>, String)>())
+            .saturating_add(ptr.capacity());
         self.blocks.push(ResponseBlock {
-            text: text.to_owned(),
+            text: owned,
             editable: true,
             deltas: Vec::new(),
             leaves: vec![(Some(frame_idx), ptr)],
         });
+        self.growth_bytes = self.growth_bytes.saturating_add(added);
+    }
+
+    pub(crate) fn attach_or_push_leaf(&mut self, frame_idx: usize, text: &str, ptr: String) {
+        if text.is_empty() {
+            return;
+        }
+        if let Some(block) = self.blocks.iter_mut().find(|block| block.text == text) {
+            let ptr_bytes = size_of::<(Option<usize>, String)>().saturating_add(ptr.capacity());
+            block.leaves.push((Some(frame_idx), ptr));
+            self.growth_bytes = self.growth_bytes.saturating_add(ptr_bytes);
+            return;
+        }
+        self.push_leaf(frame_idx, text, ptr);
     }
 
     fn take_growth_bytes(&mut self) -> usize {
-        std::mem::take(&mut self.existing_block_growth)
+        std::mem::take(&mut self.growth_bytes)
     }
 
     pub(crate) fn mark_signed_thinking(&mut self, index: u64) {
         self.signed_thinking.insert(index);
-    }
-
-    pub(crate) fn blocks_mut(&mut self) -> &mut Vec<ResponseBlock> {
-        &mut self.blocks
     }
 
     fn finish(mut self) -> Vec<ResponseBlock> {
@@ -853,6 +872,35 @@ pub(crate) fn collect_text_or_parts(
     })
 }
 
+pub(crate) fn visit_all_strings(
+    value: &Value,
+    ptr: &str,
+    skip_keys: &[&str],
+    depth: usize,
+    visit: &mut impl FnMut(String, &str),
+) -> Result<(), Unreadable> {
+    if depth > MAX_JSON_DEPTH {
+        return Err(Unreadable);
+    }
+    match value {
+        Value::String(text) => visit(ptr.to_owned(), text),
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                visit_all_strings(item, &ptr_index(ptr, index), skip_keys, depth + 1, visit)?;
+            }
+        }
+        Value::Object(map) => {
+            for (key, field) in map {
+                if !skip_keys.contains(&key.as_str()) {
+                    visit_all_strings(field, &ptr_push(ptr, key), skip_keys, depth + 1, visit)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 pub(crate) fn collect_all_strings(
     value: &Value,
     frame_idx: Option<usize>,
@@ -861,46 +909,9 @@ pub(crate) fn collect_all_strings(
     depth: usize,
     blocks: &mut Vec<ResponseBlock>,
 ) -> Result<(), Unreadable> {
-    if depth > MAX_JSON_DEPTH {
-        return Err(Unreadable);
-    }
-    match value {
-        Value::String(text) => {
-            if frame_idx.is_some() {
-                attach_matching_or_push_leaf(blocks, frame_idx, text, ptr.to_owned());
-            } else {
-                push_leaf(blocks, frame_idx, text, ptr.to_owned(), true);
-            }
-        }
-        Value::Array(items) => {
-            for (index, item) in items.iter().enumerate() {
-                collect_all_strings(
-                    item,
-                    frame_idx,
-                    &ptr_index(ptr, index),
-                    skip_keys,
-                    depth + 1,
-                    blocks,
-                )?;
-            }
-        }
-        Value::Object(map) => {
-            for (key, field) in map {
-                if !skip_keys.contains(&key.as_str()) {
-                    collect_all_strings(
-                        field,
-                        frame_idx,
-                        &ptr_push(ptr, key),
-                        skip_keys,
-                        depth + 1,
-                        blocks,
-                    )?;
-                }
-            }
-        }
-        _ => {}
-    }
-    Ok(())
+    visit_all_strings(value, ptr, skip_keys, depth, &mut |leaf_ptr, text| {
+        push_leaf(blocks, frame_idx, text, leaf_ptr, true);
+    })
 }
 
 pub(crate) fn collect_citation_fields(

@@ -545,7 +545,7 @@ pub(super) fn extract_response_sse(
     collector: &mut crate::guardrails::response::StreamCollector,
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     use crate::guardrails::response::{
-        StreamKey, collect_all_strings, collect_citation_fields, collect_text_or_parts,
+        StreamKey, collect_citation_fields, visit_all_strings, visit_text_or_parts,
     };
     use crate::guardrails::text::Unreadable;
 
@@ -573,12 +573,11 @@ pub(super) fn extract_response_sse(
                 }
             }
             if let Some(content) = block.get("content").filter(|v| !v.is_null()) {
-                collect_text_or_parts(
+                visit_text_or_parts(
                     content,
-                    Some(frame_idx),
                     "/content_block/content",
                     0,
-                    collector.blocks_mut(),
+                    &mut |leaf_ptr, text| collector.push_leaf(frame_idx, text, leaf_ptr),
                 )?;
             }
             if let Some(citations) = block.get("citations").filter(|v| !v.is_null()) {
@@ -592,13 +591,12 @@ pub(super) fn extract_response_sse(
                 }
             }
             if let Some(input) = block.get("input").filter(|v| !v.is_null()) {
-                collect_all_strings(
+                visit_all_strings(
                     input,
-                    Some(frame_idx),
                     "/content_block/input",
                     &[],
                     0,
-                    collector.blocks_mut(),
+                    &mut |leaf_ptr, text| collector.attach_or_push_leaf(frame_idx, text, leaf_ptr),
                 )?;
             }
         }
