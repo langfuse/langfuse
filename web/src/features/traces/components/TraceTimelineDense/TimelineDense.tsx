@@ -1586,6 +1586,30 @@ export function TimelineDense({
               </span>
             </div>
           ))}
+          {result.gaps.map((gap) => {
+            if (gap.durationMs < IDLE_GAP_THRESHOLD_SECONDS * 1000) return null;
+            const label = `+${formatIdleGap(gap.durationMs / 1000)} idle`;
+            const labelWidth = measurer.measure(label) + 8;
+            const center = gap.x + gap.width / 2;
+            const left = Math.min(
+              Math.max(center - labelWidth / 2, 0),
+              Math.max(laneWidth - labelWidth, 0),
+            );
+            return (
+              <span
+                key={`idle-${gap.x}`}
+                className="bg-background text-muted-foreground absolute top-0 z-10 px-1 font-mono whitespace-nowrap"
+                style={{
+                  left: `${left}px`,
+                  fontSize: "11px",
+                  lineHeight: `${AXIS_HEIGHT}px`,
+                }}
+                data-testid="timeline-idle-gap"
+              >
+                {label}
+              </span>
+            );
+          })}
         </div>
       </div>
 
@@ -1643,28 +1667,24 @@ export function TimelineDense({
             {result.gaps.map((gap) => {
               const sessionIdle =
                 gap.durationMs >= IDLE_GAP_THRESHOLD_SECONDS * 1000;
-              const label = sessionIdle
-                ? `+${formatIdleGap(gap.durationMs / 1000)} idle`
-                : `${gap.label} idle`;
               return (
                 <div
                   key={`${gap.x}-${gap.durationMs}`}
                   className={
                     sessionIdle
-                      ? "absolute inset-y-0 flex items-center justify-center overflow-hidden bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)]"
-                      : "bg-muted border-border-contrast absolute inset-y-0 flex items-center justify-center overflow-hidden border-x border-dashed"
+                      ? "absolute inset-y-0 overflow-hidden bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)]"
+                      : "bg-muted border-border-contrast absolute inset-y-0 overflow-hidden border-x border-dashed"
                   }
                   style={{ left: `${gap.x}px`, width: `${gap.width}px` }}
-                  data-testid={sessionIdle ? "timeline-idle-gap" : undefined}
                 >
-                  {gap.width >= GAP_LABEL_MIN_WIDTH ? (
+                  {sessionIdle || gap.width < GAP_LABEL_MIN_WIDTH ? null : (
                     <span
-                      className="text-muted-foreground rotate-90 font-mono whitespace-nowrap"
+                      className="text-muted-foreground flex h-full items-center justify-center font-mono whitespace-nowrap"
                       style={{ fontSize: "11px" }}
                     >
-                      {label}
+                      {`${gap.label} idle`}
                     </span>
-                  ) : null}
+                  )}
                 </div>
               );
             })}

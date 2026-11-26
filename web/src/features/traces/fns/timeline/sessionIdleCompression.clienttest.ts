@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleGap";
-import { prepareTimeline, type LayoutNode } from "./layout";
+import { layout, prepareTimeline, type LayoutNode } from "./layout";
+import { resolveDensity } from "./density";
+import { createTextMeasurerFrom } from "./textMeasurer";
 import {
   SESSION_IDLE_BAND_PX,
   sessionIdleCompression,
@@ -76,5 +78,26 @@ describe("sessionIdleCompression", () => {
         mapped.compressedDurationMs) *
       width;
     expect(bandPx).toBeCloseTo(Math.min(SESSION_IDLE_BAND_PX, width / 2), 4);
+
+    const positioned = layout({
+      roots: [
+        trace("before", 0, MINUTE),
+        trace("after", MINUTE + idleMs, MINUTE + idleMs + MINUTE),
+      ],
+      box: { width, height: 120 },
+      density: resolveDensity({ pointer: "fine" }),
+      measurer: createTextMeasurerFrom(null),
+      view: null,
+      compress: false,
+      prepared,
+      compression: mapped,
+    });
+    const labels = positioned.ticks.map((tick) => tick.label);
+    expect(
+      labels.filter((label) => !label.includes("m")).length,
+    ).toBeGreaterThan(1);
+    expect(
+      labels.filter((label) => label.includes("m")).length,
+    ).toBeGreaterThan(1);
   });
 });

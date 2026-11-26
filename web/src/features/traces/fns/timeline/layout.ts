@@ -556,63 +556,102 @@ function buildTicks(context: {
   const { view, compression, transform, laneWidth, measurer } = context;
   const realStart = compression.toRealMs(view.start);
   const realEnd = compression.toRealMs(view.start + view.duration);
-  const realDuration = realEnd - realStart;
 
   if (laneWidth <= 0) return [];
-  if (!(realDuration > 0)) {
+  if (!(realEnd > realStart)) {
     return [{ realMs: realStart, x: 0, label: formatDurationMs(realStart) }];
   }
-
-  const minGapPx = Math.max(
-    MIN_TICK_GAP_PX,
-    measurer.measure(formatDurationMs(realEnd)) + TICK_LABEL_PADDING_PX,
-  );
-  const step =
-    TICK_STEPS_MS.find(
-      (candidate) => (candidate / realDuration) * laneWidth >= minGapPx,
-    ) ?? TICK_STEPS_MS[TICK_STEPS_MS.length - 1]!;
-
-  const insideCollapsedGap = (realMs: number) =>
-    compression.gaps.some((gap) => realMs > gap.start && realMs < gap.end);
 
   const fits = (x: number, label: string) =>
     x >= -EPSILON &&
     x + TICK_LABEL_INSET_PX + measurer.measure(label) <= laneWidth;
 
   const ticks: Tick[] = [];
-  const collides = (x: number) =>
-    ticks.some((tick) => Math.abs(tick.x - x) < minGapPx);
+  const collides = (x: number, gapPx: number) =>
+    ticks.some((tick) => Math.abs(tick.x - x) < gapPx);
 
-  // The far side of every collapsed gap gets a tick first. Without them a
-  // compressed axis loses every nice-step label into a gap and reads as a
-  // single "0ms" — and the visible jump from 95ms to 18.00s across a 28px band
-  // is what explains the band to the user.
-  //
-  // These are de-overlapped against EACH OTHER too, not only against the
-  // nice-step ticks below: two gaps a few px apart — several near-instant spans
-  // between collapsed idle, or the unbuffered fallback path where spans get no
-  // label padding at all — would otherwise print their labels on top of one
-  // another.
-  for (const gap of compression.gaps) {
-    const x = transform.toPx(gap.compressedEnd);
-    const label = formatDurationMs(gap.end);
-    if (fits(x, label) && !collides(x)) {
-      ticks.push({ realMs: gap.end, x, label });
+  const place = (realMs: number, x: number, gapPx: number) => {
+    if (ticks.length >= MAX_TICKS) return;
+    const label = formatDurationMs(realMs);
+    if (!fits(x, label) || collides(x, gapPx)) return;
+    // The formatter rounds to a second, so a 500ms step prints the same words
+    // twice. Keep the first of a run.
+    if (
+      ticks.some(
+        (tick) => tick.label === label && Math.abs(tick.x - x) < gapPx * 2,
+      )
+    ) {
+      return;
+    }
+    ticks.push({ realMs, x, label });
+  };
+
+  // Each stretch of real time between collapsed gaps gets its own step. One
+  // step across the whole trace, idle included, is coarse enough that a few
+  // seconds on either side of a long gap collapses to a single label.
+  const gaps = compression.gaps.toSorted(
+    (a, b) => a.compressedStart - b.compressedStart,
+  );
+  const segments: Array<{
+    compStart: number;
+    compEnd: number;
+    realStart: number;
+    realEnd: number;
+  }> = [];
+  let compCursor = view.start;
+  let realCursor = realStart;
+  for (const gap of gaps) {
+    if (gap.compressedStart > compCursor) {
+      segments.push({
+        compStart: compCursor,
+        compEnd: gap.compressedStart,
+        realStart: realCursor,
+        realEnd: gap.start,
+      });
+    }
+    compCursor = Math.max(compCursor, gap.compressedEnd);
+    realCursor = gap.end;
+  }
+  segments.push({
+    compStart: compCursor,
+    compEnd: view.start + view.duration,
+    realStart: realCursor,
+    realEnd,
+  });
+
+  for (const segment of segments) {
+    const left = transform.toPx(segment.compStart);
+    const right = transform.toPx(segment.compEnd);
+    const width = right - left;
+    const duration = segment.realEnd - segment.realStart;
+    if (!(width > 0) || !(duration > 0)) continue;
+    const gapPx = Math.max(
+      MIN_TICK_GAP_PX,
+      measurer.measure(formatDurationMs(segment.realEnd)) +
+        TICK_LABEL_PADDING_PX,
+    );
+    const step =
+      TICK_STEPS_MS.find(
+        (candidate) => (candidate / duration) * width >= gapPx,
+      ) ?? TICK_STEPS_MS[TICK_STEPS_MS.length - 1]!;
+    const first = Math.ceil(segment.realStart / step) * step;
+    for (let realMs = first; realMs <= segment.realEnd; realMs += step) {
+      if (ticks.length >= MAX_TICKS) break;
+      const x = transform.toPx(compression.toCompressedMs(realMs));
+      if (x > laneWidth + EPSILON) break;
+      place(realMs, x, gapPx);
     }
   }
 
-  const first = Math.ceil(realStart / step) * step;
-  for (let realMs = first; realMs <= realEnd; realMs += step) {
-    if (ticks.length >= MAX_TICKS) break;
-    if (insideCollapsedGap(realMs)) continue;
-    const x = transform.toPx(compression.toCompressedMs(realMs));
-    // `toPx ∘ toCompressedMs` is monotonic, so passing the right edge ends the
-    // walk. Compression makes px spacing non-uniform, so labels are
-    // de-overlapped against what is already placed, not assumed from the step.
-    if (x > laneWidth + EPSILON) break;
-    const label = formatDurationMs(realMs);
-    if (!fits(x, label) || collides(x)) continue;
-    ticks.push({ realMs, x, label });
+  // Both edges of a collapsed gap, so the jump is labelled even when the
+  // segment step landed inside the gap or too close to the band to print.
+  for (const gap of gaps) {
+    const edgeGap = Math.max(
+      MIN_TICK_GAP_PX,
+      measurer.measure(formatDurationMs(gap.end)) + TICK_LABEL_PADDING_PX,
+    );
+    place(gap.start, transform.toPx(gap.compressedStart), edgeGap);
+    place(gap.end, transform.toPx(gap.compressedEnd), edgeGap);
   }
 
   return ticks.sort((a, b) => a.x - b.x);
