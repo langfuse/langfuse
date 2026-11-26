@@ -67,8 +67,11 @@ function StoryGuardrailFormDialog({
           title={title}
           size={isExternal ? "md" : "lg"}
           noCapture
-          onBack={onBack}
-          backLabel="Back to guardrail types"
+          back={
+            onBack
+              ? { onClick: onBack, label: "Back to guardrail types" }
+              : undefined
+          }
         >
           <GatewayGuardrailFormDialog
             {...props}

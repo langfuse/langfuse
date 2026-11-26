@@ -58,9 +58,11 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   /** Renders a leading back button next to the title for multi-step dialogs. */
-  onBack?: () => void;
-  /** Accessible label for the back button. Defaults to "Back". */
-  backLabel?: string;
+  back?: {
+    onClick: () => void;
+    /** Accessible label for the back button. Defaults to "Back". */
+    label?: string;
+  };
   title: string;
 } & (
   | { children?: React.ReactNode; text?: never }
@@ -81,8 +83,7 @@ function DialogRoot({
   stopPropagationOnEnterSpace = true,
   size,
   text,
-  onBack,
-  backLabel = "Back",
+  back,
   title,
 }: DialogProps) {
   const container = useLayerContainer("modal");
@@ -179,11 +180,11 @@ function DialogRoot({
           <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
             <div className="flex w-full items-center justify-between gap-4 text-left">
               <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                {onBack ? (
+                {back ? (
                   <button
                     type="button"
-                    aria-label={backLabel}
-                    onClick={onBack}
+                    aria-label={back.label ?? "Back"}
+                    onClick={back.onClick}
                     className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -ml-1.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
                   >
                     <ChevronLeft size="base" aria-hidden />

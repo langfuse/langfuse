@@ -348,8 +348,11 @@ function GuardrailDialogContent({
         size={selectedTemplate && isExternal ? "md" : "lg"}
         closeOnInteractionOutside={selectedTemplate === null}
         noCapture={selectedTemplate !== null}
-        onBack={selectedTemplate ? handleBack : undefined}
-        backLabel="Back to guardrail types"
+        back={
+          selectedTemplate
+            ? { onClick: handleBack, label: "Back to guardrail types" }
+            : undefined
+        }
       >
         {selectedTemplate === null ? (
           <GatewayGuardrailTemplateGallery

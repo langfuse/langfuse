@@ -28,10 +28,14 @@ function StoryGuardrailTemplateGallery({
           title={selectedTemplate ? selectedTemplate.name : "Add a guardrail"}
           size={selectedTemplate?.external ? "md" : "lg"}
           closeOnInteractionOutside={selectedTemplate === null}
-          onBack={
-            selectedTemplate ? () => setSelectedTemplate(null) : undefined
+          back={
+            selectedTemplate
+              ? {
+                  onClick: () => setSelectedTemplate(null),
+                  label: "Back to guardrail types",
+                }
+              : undefined
           }
-          backLabel="Back to guardrail types"
         >
           {selectedTemplate === null ? (
             <GatewayGuardrailTemplateGallery
