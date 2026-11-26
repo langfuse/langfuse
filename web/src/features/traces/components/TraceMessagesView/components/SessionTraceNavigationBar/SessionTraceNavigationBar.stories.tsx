@@ -1,17 +1,8 @@
-import { expect } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { TabBar } from "@/src/components/design-system/TabBar/TabBar";
 import { SessionTraceNavigationBar } from "./SessionTraceNavigationBar";
-import { type TraceMessagesNeighbor } from "@/src/features/traces/components/TraceMessagesView/hooks/useTraceMessagesNavigation";
-
-const previous: TraceMessagesNeighbor = {
-  href: "/project/project-1/traces/previous?traceView=messages",
-};
-const next: TraceMessagesNeighbor = {
-  href: "/project/project-1/traces/next?traceView=messages",
-  shallow: true,
-};
 
 const meta = preview.meta({
   component: SessionTraceNavigationBar,
@@ -19,8 +10,10 @@ const meta = preview.meta({
     position: 12,
     total: 36,
     sessionHref: "/project/project-1/sessions/session-1",
-    previous,
-    next,
+    traceName: "Checkout recovery",
+    timestamp: new Date("2026-03-14T15:04:05.000Z"),
+    onPrevious: () => undefined,
+    onNext: () => undefined,
   },
 });
 
@@ -32,12 +25,12 @@ export const Middle = meta.story({
 
 export const First = meta.story({
   name: "First trace",
-  args: { position: 1, total: 36, previous: undefined },
+  args: { position: 1, total: 36, onPrevious: undefined },
 });
 
 export const Last = meta.story({
   name: "Last trace",
-  args: { position: 36, total: 36, next: undefined },
+  args: { position: 36, total: 36, onNext: undefined },
 });
 
 const messages = Array.from({ length: 16 }, (_, index) => (
@@ -73,7 +66,7 @@ export const Scrolled = meta.story({
     const scroller = canvas.getByText("Message 1").parentElement;
     if (!scroller) throw new Error("Missing message scroller");
     scroller.scrollTop = scroller.scrollHeight;
-    const toolbar = canvas.getByText("Trace 12 / 36");
+    const toolbar = canvas.getByText("Trace 12 of 36");
     const toolbarBox = toolbar.getBoundingClientRect();
     const scrollerBox = scroller.getBoundingClientRect();
     expect(toolbarBox.bottom).toBeLessThanOrEqual(scrollerBox.top + 1);
@@ -83,26 +76,63 @@ export const Scrolled = meta.story({
     expect(
       canvas.getByText("Message 1").getBoundingClientRect().top,
     ).toBeLessThan(scrollerBox.top);
-    expect(canvas.getByRole("link", { name: "Previous trace" })).toBeVisible();
+    expect(
+      canvas.getByRole("button", { name: "Previous trace in session" }),
+    ).toBeVisible();
   },
 });
 
 export const EndsDisabled = meta.story({
   name: "(Test) Ends disable the matching control",
-  args: { position: 1, total: 36, previous: undefined },
+  args: { position: 1, total: 36, onPrevious: undefined },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Trace 1 / 36")).toBeVisible();
+    await expect(canvas.getByText("Trace 1 of 36")).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: "Previous trace" }),
+      canvas.getByRole("button", { name: "Previous trace in session" }),
     ).toBeDisabled();
-    const nextLink = canvas.getByRole("link", { name: "Next trace" });
-    expect(nextLink).toHaveAttribute(
-      "href",
-      "/project/project-1/traces/next?traceView=messages",
-    );
-    const position = canvas.getByText("Trace 1 / 36");
-    expect(position.compareDocumentPosition(nextLink)).toBe(
+    const next = canvas.getByRole("button", {
+      name: "Next trace in session",
+    });
+    expect(next).toBeEnabled();
+    const position = canvas.getByText("Trace 1 of 36");
+    expect(position.compareDocumentPosition(next)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  },
+});
+
+export const Narrow = meta.story({
+  name: "(Test) Name truncates before the timestamp",
+  args: {
+    traceName:
+      "A very long trace name that should give way before the timestamp",
+  },
+  render: (args) => (
+    <div className="w-[420px]">
+      <SessionTraceNavigationBar {...args} />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const name = canvas.getByText(/very long trace name/);
+    const time = canvas.getByTitle(/Local:/);
+    expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+    expect(time.scrollWidth).toBeLessThanOrEqual(time.clientWidth + 1);
+    expect(name.compareDocumentPosition(time)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  },
+});
+
+export const ShortcutTooltip = meta.story({
+  name: "(Test) Previous shortcut tooltip",
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.hover(
+      canvas.getByRole("button", { name: "Previous trace in session" }),
+    );
+    const page = within(canvasElement.ownerDocument.body);
+    const tooltip = await page.findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("Previous trace in session");
+    await expect(tooltip).toHaveTextContent(/⇧|Shift/);
+    await expect(tooltip).toHaveTextContent("K");
   },
 });
