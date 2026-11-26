@@ -137,7 +137,7 @@ const HOME_PRESETS: Record<
   "home-chart-scores": (ctx) => (
     <ScoresCard
       actions={ctx.actions}
-      className={ctx.className}
+      fillHeight={ctx.className === "h-full"}
       agg={ctx.agg}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
