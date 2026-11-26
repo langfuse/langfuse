@@ -389,13 +389,15 @@ export async function findActiveRuleWithMatchingFilterAndSampling(params: {
   projectId: string;
   filter: FilterState;
   sampling: number;
+  targetObject?: typeof EvalTargetObject.EVENT | typeof TopicsTargetObject;
+  visibility?: RuleVisibility;
 }) {
   const rules = await params.prisma.evaluationRule.findMany({
     where: {
       projectId: params.projectId,
-      ...visibleRuleWhere(),
+      ...visibleRuleWhere(params.visibility),
+      AND: [{ targetObject: params.targetObject ?? EvalTargetObject.EVENT }],
       status: JobConfigState.ACTIVE,
-      targetObject: EvalTargetObject.EVENT,
       sampling: params.sampling,
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
