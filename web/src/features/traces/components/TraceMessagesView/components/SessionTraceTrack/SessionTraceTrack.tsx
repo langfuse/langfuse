@@ -55,7 +55,7 @@ export function SessionTraceTrack({
       ref={trackRef}
       role="group"
       aria-label="Session timeline"
-      className="bg-muted relative flex h-[22px] min-w-6 flex-1 gap-px overflow-hidden rounded-md p-0.5"
+      className="bg-muted relative flex h-[22px] min-w-0 flex-1 gap-px overflow-hidden rounded-md p-0.5"
     >
       {pieces.map((piece, index) => {
         const trace = piece.trace;

@@ -115,6 +115,21 @@ export const IdleGap = meta.story({
   },
 });
 
+export const Narrow = meta.story({
+  name: "(Test) Narrow bar keeps the arrows in view",
+  play: async ({ canvas, canvasElement }) => {
+    const frame = canvasElement.parentElement;
+    const row = canvas.getByRole("link", { name: /Session/ }).parentElement;
+    if (!frame || !row) throw new Error("Missing bar");
+    frame.style.width = "260px";
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 1);
+    await expect(
+      canvas.getByRole("button", { name: "Next trace in session" }),
+    ).toBeVisible();
+  },
+});
+
 export const EndsDisabled = meta.story({
   name: "(Test) Ends disable the matching control",
   args: {
