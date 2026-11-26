@@ -97,15 +97,8 @@ impl Guardrails {
                 .as_ref()
                 .map_or(0, |turn| turn.bytes_for_scope(needs_entire_input));
             let has_external = guardrails.iter().any(Guardrail::is_external);
-            let external_reservation_bytes = bytes.min(max_scan_bytes);
-            let mut turn_text_reservation = (has_external && external_reservation_bytes > 0)
-                .then(|| {
-                    MemoryReservation::from_budget(
-                        &self.memory_budget,
-                        external_reservation_bytes,
-                        "guardrails",
-                    )
-                })
+            let mut turn_text_reservation = (has_external && bytes > 0)
+                .then(|| MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails"))
                 .transpose()?;
             let (local, scanning) = self
                 .cpu
@@ -298,6 +291,8 @@ pub(crate) enum GuardrailScope {
     #[default]
     LastTurn,
     EntireInput,
+    #[serde(other)]
+    Unknown,
 }
 
 /// A guardrail assigned to the request's key, its user or its organization.
@@ -313,7 +308,7 @@ pub(crate) struct Guardrail {
 
 impl Guardrail {
     fn is_active(&self) -> bool {
-        if self.action == GuardrailAction::Unknown {
+        if self.action == GuardrailAction::Unknown || self.scope == GuardrailScope::Unknown {
             return false;
         }
         match &self.kind {
@@ -626,6 +621,7 @@ impl TurnBlocks {
         match scope {
             GuardrailScope::LastTurn => block.in_last_turn,
             GuardrailScope::EntireInput => true,
+            GuardrailScope::Unknown => false,
         }
     }
 
@@ -902,43 +898,49 @@ impl CompiledRedactor {
 }
 
 struct ScopeTracker {
-    active: bool,
+    has_regex: bool,
     has_external: bool,
     text_bytes: usize,
-    exceeded: bool,
+    regex_exceeded: bool,
 }
 
 impl ScopeTracker {
     fn for_rules(rules: &[RuleState], guardrails: &[Guardrail], scope: GuardrailScope) -> Self {
-        let mut active = false;
+        let mut has_regex = false;
         let mut has_external = false;
         for rule in rules {
             if let Some(guardrail) = guardrails.get(rule.guardrail_index)
                 && guardrail.scope == scope
             {
-                active = true;
+                if guardrail.regex_patterns().is_some() {
+                    has_regex = true;
+                }
                 if guardrail.is_external() {
                     has_external = true;
                 }
             }
         }
         Self {
-            active,
+            has_regex,
             has_external,
             text_bytes: 0,
-            exceeded: false,
+            regex_exceeded: false,
         }
+    }
+
+    fn is_active(&self) -> bool {
+        self.has_regex || self.has_external
     }
 
     fn record_bytes(&mut self, bytes: usize, max_scan_bytes: usize) {
         self.text_bytes = self.text_bytes.saturating_add(bytes);
-        if self.active && self.text_bytes > max_scan_bytes {
-            self.exceeded = true;
+        if self.has_regex && self.text_bytes > max_scan_bytes {
+            self.regex_exceeded = true;
         }
     }
 
     fn is_done(&self) -> bool {
-        !self.active || self.exceeded
+        !self.has_external && (!self.has_regex || self.regex_exceeded)
     }
 }
 
@@ -1035,7 +1037,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
 
     fn evaluate_turn(&mut self, turn: &LastTurn, scanned: &ScannedMembers) -> bool {
         let body = self.body;
-        let include_entire_input = self.entire_input.active;
+        let include_entire_input = self.entire_input.is_active();
         turn.read_scoped_leaves(
             member(body, scanned),
             include_entire_input,
@@ -1058,23 +1060,26 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             return false;
         }
 
-        let leaf_covered_by_last_turn = in_last_turn && !self.last_turn.exceeded;
-        let leaf_covered_by_entire_input = self.entire_input.active && !self.entire_input.exceeded;
-        if !leaf_covered_by_last_turn && !leaf_covered_by_entire_input {
+        let regex_last_turn =
+            in_last_turn && self.last_turn.has_regex && !self.last_turn.regex_exceeded;
+        let regex_entire_input = self.entire_input.has_regex && !self.entire_input.regex_exceeded;
+        let external_needs_leaf =
+            self.entire_input.has_external || (self.last_turn.has_external && in_last_turn);
+        if !regex_last_turn && !regex_entire_input && !external_needs_leaf {
             return true;
         }
 
-        self.detect_leaf(
-            leaf.text,
-            leaf_covered_by_last_turn,
-            leaf_covered_by_entire_input,
-        );
-        let blocking = self
-            .rules
-            .iter()
-            .any(|rule| rule.verdict == RuleVerdict::Block);
-        if !self.matched_redact_slots.is_empty() && !blocking {
-            self.collect_redact_spans(leaf.text, in_last_turn);
+        if regex_last_turn || regex_entire_input {
+            self.detect_leaf(leaf.text, regex_last_turn, regex_entire_input);
+            let blocking = self
+                .rules
+                .iter()
+                .any(|rule| rule.verdict == RuleVerdict::Block);
+            if !self.matched_redact_slots.is_empty() && !blocking {
+                self.collect_redact_spans(leaf.text, in_last_turn);
+            }
+        } else {
+            self.span_scratch.clear();
         }
         let Ok(redacted) = redact_leaf(
             self.body,
@@ -1091,8 +1096,6 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
         // Store locally redacted blocks (always) and unchanged non-empty blocks
         // covered by an external guardrail's scope so local secrets never leave
         // the gateway and external anonymizations compose cleanly in one pass.
-        let external_needs_leaf =
-            self.entire_input.has_external || (self.last_turn.has_external && in_last_turn);
         match redacted {
             Some((range, text)) => {
                 self.blocks
@@ -1140,6 +1143,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 let applies = match guardrail.scope {
                     GuardrailScope::LastTurn => covered_by_last_turn,
                     GuardrailScope::EntireInput => covered_by_entire,
+                    GuardrailScope::Unknown => false,
                 };
                 if !applies {
                     continue;
@@ -1217,11 +1221,13 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             let Some(guardrail) = self.guardrails.get(rule.guardrail_index) else {
                 continue;
             };
-            let exceeded = match guardrail.scope {
-                GuardrailScope::LastTurn => self.last_turn.exceeded,
-                GuardrailScope::EntireInput => self.entire_input.exceeded,
-            };
-            if unreadable || exceeded || matches!(guardrail.kind, GuardrailKind::FailClosed) {
+            let regex_exceeded = guardrail.regex_patterns().is_some()
+                && match guardrail.scope {
+                    GuardrailScope::LastTurn => self.last_turn.regex_exceeded,
+                    GuardrailScope::EntireInput => self.entire_input.regex_exceeded,
+                    GuardrailScope::Unknown => false,
+                };
+            if unreadable || regex_exceeded || matches!(guardrail.kind, GuardrailKind::FailClosed) {
                 rule.verdict
                     .escalate(RuleVerdict::from_fail_closed(guardrail.action));
             }

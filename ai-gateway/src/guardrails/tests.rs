@@ -451,7 +451,7 @@ fn entire_input_scope_scans_earlier_turns_and_max_scan_bytes_fails_closed() {
     assert_eq!(rewritten["messages"][1]["content"], "old [EMAIL]");
     assert_eq!(rewritten["messages"][0]["content"], "sys ssn 123-45-6789");
 
-    // Exceeding max_scan_bytes fails closed (blocks) for non-LOG guardrails.
+    // Exceeding max_scan_bytes fails closed (blocks) for local regex guardrails.
     let cap_outcome = apply_local_guardrails(
         &[entire_redact],
         body.as_bytes(),
@@ -467,6 +467,35 @@ fn entire_input_scope_scans_earlier_turns_and_max_scan_bytes_fails_closed() {
         cap_outcome.blocking().map(|finding| finding.id.as_str()),
         Some("redact-all")
     );
+
+    // External guardrails are not capped by max_scan_bytes; they forward all
+    // scoped blocks and rely on the external provider + fail-closed handling.
+    let mut entire_bedrock = bedrock_enforce_guardrail("br-all");
+    entire_bedrock.scope = GuardrailScope::EntireInput;
+    let br_eval = apply_local_guardrails(
+        &[entire_bedrock],
+        body.as_bytes(),
+        &members,
+        &last_turn(ApiFormat::OpenAiChatCompletions, body.as_bytes(), &members),
+        10,
+        None,
+    )
+    .unwrap();
+    assert!(!br_eval.is_blocking());
+    assert_eq!(br_eval.blocks.texts().len(), 4);
+
+    // Unknown scope values deserialize safely and skip the guardrail.
+    let unknown_scope: Guardrail = serde_json::from_value(serde_json::json!({
+        "id": "future-scope",
+        "name": "Future",
+        "action": "block",
+        "scope": "output_only",
+        "type": "regex",
+        "patterns": [EMAIL],
+    }))
+    .unwrap();
+    assert_eq!(unknown_scope.scope, GuardrailScope::Unknown);
+    assert!(!unknown_scope.is_active());
 }
 
 #[test]

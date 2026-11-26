@@ -26,7 +26,7 @@ pub struct GatewayConfig {
     pub execution_limits: ExecutionLimits,
     /// Per-call deadline for external guardrail providers (such as AWS Bedrock).
     pub external_guardrail_timeout: Duration,
-    /// Maximum extracted text bytes guardrails scan before failing closed.
+    /// Maximum extracted text bytes local regex guardrails scan before failing closed.
     pub guardrail_max_scan_bytes: usize,
     pub outbound_policy: OutboundPolicy,
     /// LLM connection whitelist entries that do not parse and so exempt nothing.
