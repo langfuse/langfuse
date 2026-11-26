@@ -32,7 +32,7 @@ export function SessionTraceNavigationBar({
   return (
     <div
       ref={rootRef}
-      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-2 border-b px-2"
+      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-3 border-b px-2"
     >
       <Link
         href={sessionHref}
@@ -74,8 +74,8 @@ function SessionTraceProgress({
   progress: NonNullable<ReturnType<typeof buildSessionTraceProgress>>;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+    <div className="flex min-w-0 flex-1 items-center gap-4">
+      <span className="text-primary ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
         {progress.label}
       </span>
       <div className="min-w-0 flex-1 @min-[460px]/sessionnav:min-w-24">

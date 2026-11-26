@@ -55,6 +55,37 @@ export const First = meta.story({
   },
 });
 
+const hour = 60 * minute;
+
+export const ShortTrace = meta.story({
+  name: "(Test) Short active trace stays visible",
+  args: {
+    position: 2,
+    total: 3,
+    currentTraceId: "current",
+    timeline: [
+      span("first", 0, 10),
+      {
+        id: "current",
+        startMs: start + 2 * hour,
+        endMs: start + 2 * hour,
+      },
+      {
+        id: "last",
+        startMs: start + 4 * hour,
+        endMs: start + 4 * hour + 10 * minute,
+      },
+    ],
+  },
+  play: async ({ canvas }) => {
+    const track = canvas.getByRole("progressbar");
+    const active = track.querySelector(".bg-primary");
+    if (!(active instanceof HTMLElement))
+      throw new Error("Missing active segment");
+    expect(active.getBoundingClientRect().width).toBeGreaterThanOrEqual(4);
+  },
+});
+
 export const Last = meta.story({
   name: "Last trace",
   args: {
