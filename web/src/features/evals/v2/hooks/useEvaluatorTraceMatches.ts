@@ -9,9 +9,9 @@ const MAX_PAGES = 10;
 
 /**
  * Every observation of one trace that a sample filter matches. Pages load up
- * to a cap; the result stays empty until the last one is in, and for good once
- * the lookup has failed, so older matches never slot in ahead of a sample the
- * user is already on.
+ * to a cap and the result stays empty until the last one is in. Once settled
+ * it does not change, so matches never slot in ahead of, or vanish around, a
+ * sample the user is already on.
  */
 export function useEvaluatorTraceMatches({
   projectId,
@@ -46,6 +46,13 @@ export function useEvaluatorTraceMatches({
     {
       enabled: traceId !== null,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
+      // A settled lookup never fetches again by itself, so the samples around
+      // the one the user is on hold still.
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      retryOnMount: false,
     },
   );
   const pages = query.data?.pages;
@@ -59,9 +66,8 @@ export function useEvaluatorTraceMatches({
   }, [needsNextPage, pageCount, fetchNextPage]);
 
   const isComplete =
-    query.isSuccess && (!query.hasNextPage || pageCount >= MAX_PAGES);
-  // Stays set after a retry succeeds.
-  const hasFailed = query.errorUpdateCount > 0;
+    pages !== undefined && (!query.hasNextPage || pageCount >= MAX_PAGES);
+  const hasFailed = query.isError;
 
   return useMemo(
     () =>

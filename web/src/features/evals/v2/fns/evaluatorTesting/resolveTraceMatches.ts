@@ -1,7 +1,7 @@
 /**
  * What a lookup of one trace's matches adds to the sample list. Nothing is
- * added until every page is in. A lookup that has failed stays closed, so a
- * retry cannot slot older matches in ahead of a sample chosen without them.
+ * added until every page is in. Matches that loaded stay, also when a later
+ * refetch fails; a lookup that fails before it completes adds nothing.
  */
 export function resolveTraceMatches<T>({
   traceId,
@@ -11,12 +11,13 @@ export function resolveTraceMatches<T>({
 }: {
   /** Null looks nothing up. */
   traceId: string | null;
+  /** Every page is loaded, whatever the latest fetch did. */
   isComplete: boolean;
-  /** The lookup has failed at least once, whatever happened since. */
+  /** The latest fetch failed. */
   hasFailed: boolean;
   pages: T[][];
 }): { samples: T[]; isSettled: boolean } {
-  if (traceId === null || hasFailed) return { samples: [], isSettled: true };
-  if (!isComplete) return { samples: [], isSettled: false };
-  return { samples: pages.flat(), isSettled: true };
+  if (traceId === null) return { samples: [], isSettled: true };
+  if (isComplete) return { samples: pages.flat(), isSettled: true };
+  return { samples: [], isSettled: hasFailed };
 }
