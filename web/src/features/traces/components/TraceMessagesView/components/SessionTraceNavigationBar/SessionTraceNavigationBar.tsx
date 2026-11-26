@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Clock } from "@langfuse/icons";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { SessionTraceTrack } from "./SessionTraceTrack";
+import { SessionTraceTrack } from "../SessionTraceTrack/SessionTraceTrack";
 import {
   buildSessionTraceProgress,
   type SessionTraceSpan,
@@ -50,7 +50,15 @@ export function SessionTraceNavigationBar({
         {progress ? (
           <SessionTraceProgress
             progress={progress}
-            total={total}
+            traces={timeline.map((span) => ({
+              id: span.id,
+              name: span.name,
+              start: span.startMs,
+              end: span.endMs,
+            }))}
+            activeIndex={timeline.findIndex(
+              (span) => span.id === currentTraceId,
+            )}
             onSelectTrace={onSelectTrace}
           />
         ) : null}
@@ -77,11 +85,18 @@ export function SessionTraceNavigationBar({
 
 function SessionTraceProgress({
   progress,
-  total,
+  traces,
+  activeIndex,
   onSelectTrace,
 }: {
   progress: NonNullable<ReturnType<typeof buildSessionTraceProgress>>;
-  total: number;
+  traces: readonly {
+    id: string;
+    name?: string | null;
+    start: number;
+    end: number;
+  }[];
+  activeIndex: number;
   onSelectTrace?: (traceId: string) => void;
 }) {
   return (
@@ -90,9 +105,16 @@ function SessionTraceProgress({
         {progress.label}
       </span>
       <SessionTraceTrack
-        segments={progress.segments}
-        total={total}
-        onSelectTrace={onSelectTrace}
+        traces={traces}
+        activeIndex={activeIndex}
+        onSelect={
+          onSelectTrace
+            ? (index) => {
+                const trace = traces[index];
+                if (trace) onSelectTrace(trace.id);
+              }
+            : undefined
+        }
       />
       <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[520px]/sessionnav:inline">
         {progress.valueText}
