@@ -1,5 +1,8 @@
-import { useId, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { type Role } from "@langfuse/shared";
+import { useId } from "react";
+import { Controller, useForm } from "react-hook-form";
+import * as z from "zod";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
@@ -13,7 +16,13 @@ import { noOrgRoleDescription } from "@/src/features/groups/groupRoles";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
 
-export type NewGroup = { displayName: string; role: Role; userIds: string[] };
+const formSchema = z.object({
+  displayName: z.string().trim().min(1).max(256),
+  role: z.custom<Role>(),
+  userIds: z.array(z.string()),
+});
+
+export type NewGroup = z.infer<typeof formSchema>;
 
 export function CreateGroupDialog({
   roles,
@@ -32,10 +41,11 @@ export function CreateGroupDialog({
 }) {
   const formId = useId();
   const roleId = useId();
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("NONE");
-  const [userIds, setUserIds] = useState<string[]>([]);
-  const trimmed = name.trim();
+  const form = useForm<NewGroup>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { displayName: "", role: "NONE", userIds: [] },
+    mode: "onChange",
+  });
 
   return (
     <Dialog
@@ -48,16 +58,15 @@ export function CreateGroupDialog({
           type: "submit",
           form: formId,
           loading: isPending,
-          disabled: trimmed.length === 0,
+          disabled: !form.formState.isValid,
         },
       ]}
     >
       <form
         id={formId}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (trimmed) onSubmit({ displayName: trimmed, role, userIds });
-        }}
+        onSubmit={form.handleSubmit((group) => {
+          if (!isPending) onSubmit(group);
+        })}
       >
         <Dialog.Body>
           <FormField label="Name">
@@ -65,40 +74,47 @@ export function CreateGroupDialog({
               <Input
                 id={id}
                 placeholder="e.g. platform-admins"
-                value={name}
                 maxLength={256}
                 autoFocus
-                onChange={(event) => setName(event.target.value)}
+                {...form.register("displayName")}
               />
             )}
           </FormField>
-          <div className="space-y-2">
-            <div className="flex items-baseline justify-between gap-3">
-              <label
-                htmlFor={roleId}
-                className="text-sm leading-none font-bold"
-              >
-                Role in the organization
-              </label>
-              {role !== "NONE" && <RolePermissionsLink role={role} />}
-            </div>
-            <RoleField
-              id={roleId}
-              roles={roles}
-              value={role}
-              onChange={setRole}
-              noneDescription={noOrgRoleDescription}
-            />
-          </div>
-          <FormField label="Members">
-            {({ id }) => (
+          <Controller
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label
+                    htmlFor={roleId}
+                    className="text-sm leading-none font-bold"
+                  >
+                    Role in the organization
+                  </label>
+                  {field.value !== "NONE" && (
+                    <RolePermissionsLink role={field.value} />
+                  )}
+                </div>
+                <RoleField
+                  id={roleId}
+                  roles={roles}
+                  value={field.value}
+                  onChange={field.onChange}
+                  noneDescription={noOrgRoleDescription}
+                />
+              </div>
+            )}
+          />
+          <FormField control={form.control} name="userIds" label="Members">
+            {({ id, value, onChange }) => (
               <MultiSelectInput
                 id={id}
-                value={userIds}
+                value={value}
                 options={people}
-                onValueChange={setUserIds}
+                onValueChange={onChange}
                 placeholder="Select organization members"
-                selectedLabel={`${memberCountLabel(userIds.length)} selected`}
+                selectedLabel={`${memberCountLabel(value.length)} selected`}
                 searchPlaceholder="Search members"
                 emptyMessage="No organization members"
                 disabled={isLoadingPeople}
