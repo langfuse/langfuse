@@ -1,3 +1,5 @@
+// Pins tenancy injection and the custom AST nodes across query shapes.
+
 import {
   AliasNode,
   BinaryOperationNode,
@@ -42,7 +44,7 @@ import {
   finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { type ClickHouseDatabase } from "./schema";
 import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";

@@ -12,9 +12,9 @@ import { env } from "@/src/env.mjs";
 // in the provider services, which invalidate this cache, and the resulting
 // import cycle leaves these schemas undefined at module init.
 import {
+  GatewayCachedGuardrailsSchema,
   GatewayMetadataSchema,
   GatewayProviderConfigSchema,
-  GatewayResolveGuardrailsSchema,
   GatewayResolveSpendLimitsSchema,
   gatewayApiFormats,
   gatewayProviders,
@@ -52,7 +52,7 @@ export const CachedResolveContext = z.object({
    * Required, so entries cached before guardrails existed are refetched
    * instead of letting the key skip its guardrails.
    */
-  guardrails: GatewayResolveGuardrailsSchema,
+  guardrails: GatewayCachedGuardrailsSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   plan: z.custom<Plan>((value) => plans.includes(value as Plan)),

@@ -26,6 +26,7 @@ unavailable ClickHouse server fails the run.
 3. Flush the writers and compare the rows ClickHouse stored. In dual-write
    tests, the harness also processes its own legacy jobs and checks the trace
    and observation tables. It removes those jobs even if processing fails.
+4. One generated suite also compares what the TypeScript and Rust paths hand evaluation scheduling for each span. It builds spans from every attribute key the TypeScript processor names and lists the keys the two paths still read differently.
 
 The test tables use the Memory engine. They exercise serialization, column types,
 and defaults. MergeTree deduplication and materialized views need separate coverage.

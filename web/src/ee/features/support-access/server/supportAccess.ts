@@ -31,6 +31,7 @@ export function parseSupportAccess(value: Prisma.JsonValue): SupportAccess {
   return SupportAccessSchema.safeParse(value ?? {}).data ?? {};
 }
 
+/** @internal */
 export function getActiveSupportAccessGrants(
   supportAccess: SupportAccess,
   now: Date = new Date(),

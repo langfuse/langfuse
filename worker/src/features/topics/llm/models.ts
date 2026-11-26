@@ -176,13 +176,14 @@ async function topicModelCall<T>(
             httpStatus,
             reason: failure.reason,
           });
+          const responseMetadata = getTopicTextResponseMetadata(error);
           const failed = {
             ...fields,
             "langfuse.topics.error.reason": failure.reason,
             "langfuse.topics.error.type":
               error instanceof Error ? error.name : "unknown",
             ...(httpStatus && { "http.status_code": httpStatus }),
-            ...getTopicTextResponseMetadata(error),
+            ...responseMetadata,
           };
           span.setAttributes(failed);
           logger.warn("Topics model request failed", failed);
@@ -198,6 +199,16 @@ async function topicModelCall<T>(
             );
             continue;
           }
+          // Length constraints can be dropped, so a stopped naming response may
+          // be an empty object. Ask once more. Truncation and refusals are not.
+          if (
+            stage === "naming" &&
+            failure.reason === "invalid_output" &&
+            responseMetadata?.["langfuse.topics.response.finish_reason"] ===
+              "stop" &&
+            attempt < 1
+          )
+            continue;
           throw failure;
         }
       }

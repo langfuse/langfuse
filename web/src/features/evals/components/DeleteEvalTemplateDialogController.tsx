@@ -1,4 +1,4 @@
-import { ExternalLinkIcon } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -30,7 +30,7 @@ const EvaluatorLink = ({
     className="inline-flex items-center gap-1 text-blue-600 hover:underline"
   >
     {evaluator.scoreName}
-    <ExternalLinkIcon size="sm" />
+    <SquareArrowOutUpRight size="sm" />
   </Link>
 );
 

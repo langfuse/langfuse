@@ -124,7 +124,8 @@ function canonicalParamValue(value: unknown): string {
 
 // A Date binds as the `YYYY-MM-DD hh:mm:ss.sss` UTC wall-clock string that
 // ingestion writes (`toClickhouseDateTime`). ClickHouse parses both in the
-// server timezone, so binds line up with stored rows on any server timezone.
+// column's timezone (the server's unless the type names one), so binds line
+// up with stored rows on any server timezone.
 // The string form also covers instants before 1970.
 function serializeParamValue(value: unknown): unknown {
   if (value instanceof TypedParam) return value.value;

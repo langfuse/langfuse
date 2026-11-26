@@ -1,3 +1,5 @@
+// Pins that each catalog shape compiles to its reference SQL and analyzes.
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,8 +9,8 @@ import {
   formatSql,
   normalizeParams,
   substituteNamedParams,
-} from "../repositories/goldenHarness";
-import { CATALOG, CATALOG_PROJECT_ID } from "./fixtures/catalog";
+} from "../repositories/__tests__/goldenHarness";
+import { CATALOG, CATALOG_PROJECT_ID } from "./__tests__/fixtures/catalog";
 import { compileClickhouseQuery } from "./compile";
 
 const describeWithClickhouse = clickhouseFormatAvailable()

@@ -99,4 +99,5 @@ type MetadataValueResult = {
   data: RouterOutputs["events"]["metadataValues"] | undefined;
 };
 
+/** @internal */
 export const __test = { zipMetadataValueOptions, metadataKeysInUse };

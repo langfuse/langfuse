@@ -53,11 +53,13 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
 MCP requests are limited to 4.5 MB and 50,000 object members/array elements combined.
 
+Each feature module (`server/<feature>/index.ts`) lists its tools; `MCP_FEATURES` in `server/tools.ts` lists the features the server offers.
+
 ### Stateless Design
 
 The Langfuse MCP server uses a **stateless per-request architecture**:
 
-1. **Fresh server instance per request:** Each MCP request creates a new server instance
+1. **Fresh server instance per request:** Each MCP request creates a new `McpServer` (`createMcpServer`)
 2. **Context captured in closures:** Authentication context is captured in handler closures
 3. **No session storage:** Server is discarded after request completes
 4. **No state between requests:** Each request is independent
@@ -67,6 +69,10 @@ This design:
 - Eliminates session management complexity
 - Prevents state leaks between projects
 - Simplifies authentication (project context derived from API key)
+
+`server/transport.ts` serves both protocol eras through the SDK's `createMcpHandler`: 2026-07-28 requests are answered directly (JSON unless a tool streams), 2025-era requests through its stateless legacy fallback, which always responds with SSE (`text/event-stream`).
+
+Resources are served by the SDK: the bundled Langfuse skills through its Skills extension (`langfuseSkills`: `skills/list`, `skills/get`, and `resources/read` on `skill://langfuse/...`), and the MCP App page `ui://langfuse/widget.html` with `registerAppResource`. The transport counts every `resources/read` (`recordResourceRead`) as `langfuse.mcp.resource_read`, tagged by kind, URI and outcome.
 
 ### Authentication Flow
 
@@ -123,7 +129,7 @@ Tools that return trace, observation, score or experiment data declare `accessAu
 How a call flows:
 
 1. The model calls `renderWidget` (`server/apps/tools/renderWidget.ts`). The server runs the same query a dashboard tile runs and returns a text summary for the model (`widgetSummary.ts`) plus the widget definition and rows in the result's `_meta.widget`, which hosts keep away from the model.
-2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`) and loads it into a sandboxed iframe.
+2. The tool definition points at `ui://langfuse/widget.html` (`ui` option of `defineTool`). The host reads that resource (`server/apps/resources.ts`, registered with `registerAppResource`) and loads it into a sandboxed iframe.
 3. The view (`views/widget/WidgetApp.tsx`) connects to the host with the `@modelcontextprotocol/ext-apps` SDK, receives the tool result and renders the dashboard's `WidgetChartCard`.
 4. When the host proxies tool calls (`serverTools` capability) and has sent the call's arguments (`toolinput`), a toolbar above the card shows the dashboard's `TimeRangePicker` and a refresh button. Both call `renderWidget` again through the host (`app.callServerTool`) with the original arguments and the chosen window (`timeRange` for a preset, `fromTimestamp`/`toTimestamp` for a calendar range), and render that result in place. Picking another window while a call runs cancels it (an aborted `signal`, which the host is told about). The host sizes the frame to the document, so the view adds height while the picker's popover is open. The model does not see these calls, so the view passes the new text summary to the host with `updateModelContext`, which hosts add to the user's next message.
 

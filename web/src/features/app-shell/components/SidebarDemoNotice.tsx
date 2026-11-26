@@ -1,4 +1,4 @@
-import { ExternalLink, LayoutGrid } from "@langfuse/icons";
+import { SquareArrowOutUpRight, LayoutGrid } from "@langfuse/icons";
 import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { useAppShellSidebarActions } from "@/src/features/app-shell/contexts/AppShellSidebarProvider";
 
@@ -14,7 +14,7 @@ export function SidebarDemoNotice() {
         href="https://langfuse.com/docs/demo"
         isActive={false}
         opensInNewTab
-        leading={<ExternalLink size="base" />}
+        leading={<SquareArrowOutUpRight size="base" />}
         label="Use Demo App"
       />
       <SidebarNavItem

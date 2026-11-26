@@ -170,6 +170,7 @@ const usdMaxFractionDigits = (value: number): number => {
   return 2;
 };
 
+/** @internal */
 export const formatCompoundDuration = (ms: number): string => {
   // Threshold on the SECOND-ROUNDED value: 59,998ms must take the compound
   // path ("1m") — the single-unit formatter's own rounding would print

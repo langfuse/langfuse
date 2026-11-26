@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from "react";
+import { type MutationStatus } from "@tanstack/react-query";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GatewayBulkGuardrailTargetsDialog } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayBulkGuardrailTargetsDialog/GatewayBulkGuardrailTargetsDialog";
 import {
   GatewayGuardrailFormDialog,
+  type ExternalGuardrailTestControl,
+  type ExternalGuardrailTestOutcome,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
 import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
@@ -31,7 +34,10 @@ import {
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
   type RouterInputs,
+  type RouterOutputs,
 } from "@/src/utils/api";
+
+type TestGuardrailResult = RouterOutputs["aiGateway"]["guardrails"]["test"];
 
 type BulkTargetsInput =
   RouterInputs["aiGateway"]["guardrails"]["setAssignments"]["target"];
@@ -61,6 +67,10 @@ export function GatewayGuardrailDialogController({
 }: GatewayGuardrailDialogControllerProps) {
   const invalidateGuardrails = useInvalidateGatewayGuardrails(organizationId);
   const openLimitFeedback = useOpenGuardrailsLimitFeedback();
+  const testMutation = api.aiGateway.guardrails.test.useMutation({
+    onError: (error) =>
+      reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
+  });
   const createMutation = api.aiGateway.guardrails.create.useMutation({
     onError: (error) =>
       reportTrpcErrorWithoutToast(error, "ai-gateway-guardrails"),
@@ -76,15 +86,19 @@ export function GatewayGuardrailDialogController({
     });
 
   const isPending =
+    testMutation.isPending ||
     createMutation.isPending ||
     updateMutation.isPending ||
     bulkTargetsMutation.isPending;
 
   const resetMutations = () => {
+    testMutation.reset();
     createMutation.reset();
     updateMutation.reset();
     bulkTargetsMutation.reset();
   };
+
+  const testOutcome = getTestOutcome(testMutation);
 
   return (
     <DialogController<GuardrailDialogState>
@@ -103,30 +117,75 @@ export function GatewayGuardrailDialogController({
           openLimitFeedback();
         };
 
+        const handleTestForm = async (values: GatewayGuardrailFormValues) => {
+          if (!values.bedrock) return;
+          try {
+            await testMutation.mutateAsync({
+              orgId: organizationId,
+              id: state.mode === "edit" ? state.guardrail.id : undefined,
+              type: "BEDROCK",
+              bedrock: values.bedrock,
+            });
+          } catch (error) {
+            reportNonTrpcError(error, "ai-gateway-guardrails");
+          }
+        };
+
         const handleSubmitForm = async (values: GatewayGuardrailFormValues) => {
+          testMutation.reset();
           const assignments = targetOptionsToAssignments(values.targets);
           try {
             if (state.mode === "create") {
-              await createMutation.mutateAsync({
-                orgId: organizationId,
-                name: values.name,
-                action: values.action,
-                presets: values.presets,
-                secretPrefixes: values.secretPrefixes,
-                containsWords: values.containsWords,
-                assignments,
-              });
+              if (values.bedrock) {
+                await createMutation.mutateAsync({
+                  orgId: organizationId,
+                  type: "BEDROCK",
+                  name: values.name,
+                  action: values.action,
+                  bedrock: {
+                    guardrailId: values.bedrock.guardrailId,
+                    guardrailVersion: values.bedrock.guardrailVersion,
+                    region: values.bedrock.region,
+                    apiKey: values.bedrock.apiKey ?? "",
+                  },
+                  assignments,
+                });
+              } else {
+                await createMutation.mutateAsync({
+                  orgId: organizationId,
+                  type: "REGEX",
+                  name: values.name,
+                  action: values.action,
+                  presets: values.presets,
+                  secretPrefixes: values.secretPrefixes,
+                  containsWords: values.containsWords,
+                  assignments,
+                });
+              }
             } else if (state.mode === "edit") {
-              await updateMutation.mutateAsync({
-                orgId: organizationId,
-                id: state.guardrail.id,
-                name: values.name,
-                action: values.action,
-                presets: values.presets,
-                secretPrefixes: values.secretPrefixes,
-                containsWords: values.containsWords,
-                assignments,
-              });
+              if (values.bedrock) {
+                await updateMutation.mutateAsync({
+                  orgId: organizationId,
+                  id: state.guardrail.id,
+                  type: "BEDROCK",
+                  name: values.name,
+                  action: values.action,
+                  bedrock: values.bedrock,
+                  assignments,
+                });
+              } else {
+                await updateMutation.mutateAsync({
+                  orgId: organizationId,
+                  id: state.guardrail.id,
+                  type: "REGEX",
+                  name: values.name,
+                  action: values.action,
+                  presets: values.presets,
+                  secretPrefixes: values.secretPrefixes,
+                  containsWords: values.containsWords,
+                  assignments,
+                });
+              }
             }
             closeDialog();
             resetMutations();
@@ -157,12 +216,23 @@ export function GatewayGuardrailDialogController({
           }
         };
 
+        const externalTest: ExternalGuardrailTestControl = {
+          isPending: testMutation.isPending,
+          outcome: testOutcome,
+          onTest: handleTestForm,
+        };
+
         return (
           <GuardrailDialogContent
             organizationId={organizationId}
             state={state}
-            isSubmitting={isPending}
+            isSubmitting={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              bulkTargetsMutation.isPending
+            }
             errorMessage={errorMessage}
+            externalTest={externalTest}
             onClearError={resetMutations}
             onContactSupport={handleContactSupport}
             onSubmitForm={handleSubmitForm}
@@ -181,6 +251,7 @@ type GuardrailDialogContentProps = {
   state: GuardrailDialogState;
   isSubmitting: boolean;
   errorMessage: string | null;
+  externalTest: ExternalGuardrailTestControl;
   onClearError: () => void;
   onContactSupport: () => void;
   onSubmitForm: (values: GatewayGuardrailFormValues) => void;
@@ -192,6 +263,7 @@ function GuardrailDialogContent({
   state,
   isSubmitting,
   errorMessage,
+  externalTest,
   onClearError,
   onContactSupport,
   onSubmitForm,
@@ -233,13 +305,15 @@ function GuardrailDialogContent({
       onClearError();
       setSelectedTemplate(null);
     };
+    const isExternal = Boolean(selectedTemplate.external);
     return (
       <GatewayGuardrailFormDialog
         key={selectedTemplate.id}
         title={selectedTemplate.name}
-        submitLabel="Add guardrail"
+        submitLabel={isExternal ? "Test and save" : "Add guardrail"}
         templateKind={selectedTemplate.id}
         availablePresets={selectedTemplate.presets}
+        externalTest={isExternal ? externalTest : undefined}
         initialValues={{
           name: selectedTemplate.name,
           presets: [...selectedTemplate.defaultPresets],
@@ -266,19 +340,23 @@ function GuardrailDialogContent({
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
   const initialAction: GatewayGuardrailUiAction =
     guardrail.action === "LOG" ? "LOG" : "BLOCK";
+  const isExternal = guardrail.type === "BEDROCK";
 
   return (
     <GatewayGuardrailFormDialog
       key={guardrail.id}
       title="Edit guardrail"
-      submitLabel="Save changes"
+      submitLabel={isExternal ? "Test and save" : "Save changes"}
       templateKind={templateKind}
       availablePresets={availablePresets}
+      hasSavedApiKey={isExternal}
+      externalTest={isExternal ? externalTest : undefined}
       initialValues={{
         name: guardrail.name,
         presets: guardrail.presets,
         secretPrefixes: guardrail.secretPrefixes,
         containsWords: guardrail.containsWords,
+        bedrock: guardrail.bedrock ?? undefined,
         action: initialAction,
         targets: assignmentsToTargetOptions(guardrail.assignments),
       }}
@@ -288,6 +366,37 @@ function GuardrailDialogContent({
       onSubmit={onSubmitForm}
     />
   );
+}
+
+function getTestOutcome({
+  status,
+  data,
+  error,
+}: {
+  status: MutationStatus;
+  data?: TestGuardrailResult;
+  error: { message: string } | null;
+}): ExternalGuardrailTestOutcome | null {
+  if (status === "idle") return null;
+  if (status === "pending") return { status };
+  if (error) {
+    return {
+      status: "error",
+      failure: {
+        title: "Error",
+        status: null,
+        statusText: null,
+        body: error.message,
+      },
+    };
+  }
+  if (data && !data.success) {
+    return {
+      status: "error",
+      failure: { title: "Provider response", ...data.providerResponse },
+    };
+  }
+  return { status: "success" };
 }
 
 function getMutationErrorMessage(
@@ -305,6 +414,9 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
   templateKind: GatewayGuardrailTemplateKind;
   availablePresets: readonly GatewayGuardrailPreset[];
 } {
+  if (guardrail.type === "BEDROCK") {
+    return { templateKind: "bedrock", availablePresets: [] };
+  }
   if (
     guardrail.presets.length === 0 &&
     guardrail.secretPrefixes.length === 0 &&

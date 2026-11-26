@@ -5,7 +5,11 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 import {
+  DecisionModelStateMappingInput,
+  PublicDecisionModelQuestion,
+  PublicDecisionModelQuestionsInput,
   PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   PromptVariableMapping,
   PublicCodeEvaluatorSourceCodeLanguage,
@@ -62,9 +66,22 @@ const CodeEvaluatorVersion = EvaluatorVersionBase.extend({
   sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguage,
 }).strict();
 
+const DecisionModelEvaluatorFields = z.object({
+  type: z.literal(PUBLIC_EVALUATOR_TYPE_DECISION_MODEL),
+  questions: z.array(PublicDecisionModelQuestion),
+  variables: z.array(z.string()),
+  variableMapping: z.array(PromptVariableMappingRead),
+  modelConfig: EvaluatorModelConfig,
+});
+
+const DecisionModelEvaluatorVersion = EvaluatorVersionBase.extend(
+  DecisionModelEvaluatorFields.shape,
+).strict();
+
 export const EvaluatorVersion = z.discriminatedUnion("type", [
   LlmAsJudgeEvaluatorVersion,
   CodeEvaluatorVersion,
+  DecisionModelEvaluatorVersion,
 ]);
 
 const EvaluationRuleAssignment = z
@@ -92,6 +109,7 @@ const EvaluatorBase = z.object({
   versionCreatedBy: PublicApiCreator.nullable(),
 });
 
+/** @internal */
 export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: EvaluatorChatPrompt,
@@ -107,9 +125,14 @@ const CodeEvaluator = EvaluatorBase.extend({
   sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguage,
 }).strict();
 
+const DecisionModelEvaluator = EvaluatorBase.extend(
+  DecisionModelEvaluatorFields.shape,
+).strict();
+
 export const Evaluator = z.discriminatedUnion("type", [
   LlmAsJudgeEvaluator,
   CodeEvaluator,
+  DecisionModelEvaluator,
 ]);
 
 const LlmAsJudgeEvaluatorDefinition = z
@@ -130,9 +153,19 @@ const CodeEvaluatorDefinition = z
   })
   .strict();
 
+const DecisionModelEvaluatorDefinition = z
+  .object({
+    type: z.literal(PUBLIC_EVALUATOR_TYPE_DECISION_MODEL),
+    questions: PublicDecisionModelQuestionsInput,
+    modelConfig: EvaluatorModelConfig,
+    variableMapping: z.array(DecisionModelStateMappingInput).min(1),
+  })
+  .strict();
+
 const _EvaluatorDefinition = z.discriminatedUnion("type", [
   LlmAsJudgeEvaluatorDefinition,
   CodeEvaluatorDefinition,
+  DecisionModelEvaluatorDefinition,
 ]);
 
 const CreateEvaluatorMetadata = z.object({
@@ -143,6 +176,9 @@ const CreateEvaluatorMetadata = z.object({
 export const CreateEvaluatorBody = z.discriminatedUnion("type", [
   CreateEvaluatorMetadata.extend(LlmAsJudgeEvaluatorDefinition.shape).strict(),
   CreateEvaluatorMetadata.extend(CodeEvaluatorDefinition.shape).strict(),
+  CreateEvaluatorMetadata.extend(
+    DecisionModelEvaluatorDefinition.shape,
+  ).strict(),
 ]);
 
 const UpdateEvaluatorMetadata = z
@@ -155,6 +191,9 @@ const UpdateEvaluatorMetadata = z
 export const UpdateEvaluatorBody = z.union([
   UpdateEvaluatorMetadata.extend(LlmAsJudgeEvaluatorDefinition.shape).strict(),
   UpdateEvaluatorMetadata.extend(CodeEvaluatorDefinition.shape).strict(),
+  UpdateEvaluatorMetadata.extend(
+    DecisionModelEvaluatorDefinition.shape,
+  ).strict(),
   UpdateEvaluatorMetadata.refine((value) => Object.keys(value).length > 0, {
     message: "Request body cannot be empty",
   }),

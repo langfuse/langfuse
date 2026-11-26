@@ -1,4 +1,4 @@
-import { type McpFeatureModule } from "@/src/features/mcp/server/registry";
+import type { McpFeatureModule } from "@/src/features/mcp/server/tools";
 
 import {
   handleListTopicAssignments,

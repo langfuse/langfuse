@@ -1,7 +1,9 @@
-//! Guardrails: patterns from the control plane checked against the last turn of a
+//! Guardrails: rules from the control plane checked against the last turn of a
 //! request before it reaches the provider. A `block` guardrail that matches
 //! refuses the request; a `log` guardrail that matches marks its generation. Each
 //! API format's capture module finds the last turn (`capture::guardrail_turn`).
+pub(crate) mod bedrock;
+pub(crate) mod external;
 pub(crate) mod text;
 
 use std::{
@@ -17,19 +19,291 @@ use quick_cache::{
 use regex_automata::{
     Input, MatchKind, PatternSet, meta, nfa::thompson::WhichCaptures, util::syntax,
 };
-use serde::{Deserialize, Serialize};
+use secrecy::{ExposeSecret, SecretString};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
+use tokio::sync::Semaphore;
+use tracing::Instrument;
 
-use crate::resolution::ApiFormat;
+use crate::{
+    cpu::{CpuJob, CpuWork},
+    http::ParsedRequest,
+    inference::MemoryReservation,
+    providers::OutboundPolicy,
+    resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
+};
+use bedrock::BedrockGuardrail;
+use external::{ExternalGuardrailClient, ExternalPayloads};
 use text::{LastTurn, Unreadable};
 
+/// Evaluates local regex and external provider guardrails against a request's
+/// last turn, keeping CPU work off the async workers and reserving memory for
+/// external prompt copies.
+pub(crate) struct Guardrails {
+    external: ExternalGuardrailClient,
+    cpu: CpuWork,
+    memory_budget: Arc<Semaphore>,
+}
+
+impl Guardrails {
+    pub(crate) fn new(
+        policy: OutboundPolicy,
+        external_timeout: Duration,
+        cpu: CpuWork,
+        memory_budget: Arc<Semaphore>,
+    ) -> Result<Self, ResolutionError> {
+        Ok(Self {
+            external: ExternalGuardrailClient::new(policy, external_timeout)?,
+            cpu,
+            memory_budget,
+        })
+    }
+
+    /// Scans the request's last turn with the guardrails resolved for its key.
+    /// Finding the last turn reads the whole conversation; the scan reads only
+    /// the last turn, so each step leaves the async worker based on what it reads.
+    /// External guardrails run concurrently after local regexes unless a local
+    /// `block` rule already matched.
+    pub(crate) async fn check(
+        &self,
+        api_format: ApiFormat,
+        context: &ResolvedRequestContext,
+        request: &ParsedRequest,
+    ) -> Result<Outcome, ResolutionError> {
+        if !context.guardrails().iter().any(Guardrail::is_active) {
+            return Ok(Outcome::default());
+        }
+        let guardrails: Arc<[Guardrail]> = context.guardrails().into();
+        let organization_id = context.attribution().organization_id().as_str().to_owned();
+        let body = request.body().clone();
+        let scanned = request.scanned.clone();
+        async move {
+            let (turn, finding) = self
+                .cpu
+                .run(CpuJob::FindLastTurn, scanned.len(), {
+                    let body = body.clone();
+                    let scanned = scanned.clone();
+                    move || {
+                        let started = std::time::Instant::now();
+                        let turn = last_turn(api_format, &body, &scanned);
+                        (turn, started.elapsed())
+                    }
+                })
+                .await
+                .ok_or(ResolutionError::Busy)?;
+            let bytes = turn.as_ref().map_or(0, LastTurn::bytes);
+            let has_external = guardrails.iter().any(Guardrail::is_external);
+            let turn_text_reservation = (has_external && bytes > 0)
+                .then(|| MemoryReservation::from_budget(&self.memory_budget, bytes, "guardrails"))
+                .transpose()?;
+            let (mut local, scanning) = self
+                .cpu
+                .run(CpuJob::ScanGuardrails, bytes, {
+                    let guardrails = Arc::clone(&guardrails);
+                    move || {
+                        let started = std::time::Instant::now();
+                        let local = scan_local(&guardrails, &body, &scanned, &turn);
+                        (local, started.elapsed())
+                    }
+                })
+                .await
+                .ok_or(ResolutionError::Busy)?;
+            let turn_text = local.take_turn_text();
+            let mut total_duration = finding + scanning;
+            let external_matches = if !local.is_unreadable()
+                && !local.has_local_block(&guardrails)
+                && !turn_text.is_empty()
+            {
+                let (matches, elapsed) = self
+                    .evaluate_external(
+                        &local.external_targets(&guardrails),
+                        turn_text,
+                        turn_text_reservation,
+                        bytes,
+                        &organization_id,
+                    )
+                    .await?;
+                total_duration += elapsed;
+                matches
+            } else {
+                drop(turn_text);
+                drop(turn_text_reservation);
+                Vec::new()
+            };
+            crate::observability::guardrails_checked(&organization_id, total_duration, bytes);
+            Ok(local.into_outcome(&guardrails, &external_matches))
+        }
+        .instrument(tracing::info_span!(
+            "request.guardrails",
+            otel.kind = "internal"
+        ))
+        .await
+    }
+
+    async fn evaluate_external(
+        &self,
+        targets: &[(usize, &Guardrail)],
+        turn_text: String,
+        turn_text_reservation: Option<MemoryReservation>,
+        turn_bytes: usize,
+        organization_id: &str,
+    ) -> Result<(Vec<(usize, bool)>, Duration), ResolutionError> {
+        if targets.is_empty() {
+            drop(turn_text);
+            drop(turn_text_reservation);
+            return Ok((Vec::new(), Duration::ZERO));
+        }
+        // Reserve for the serialized provider payload while `turn_text` is
+        // still live, then release `turn_text` and its budget before awaiting I/O.
+        let payload_reservation = MemoryReservation::from_budget(
+            &self.memory_budget,
+            turn_bytes.saturating_add(64),
+            "guardrails",
+        )?;
+        let guardrails: Vec<&Guardrail> = targets.iter().map(|(_, guardrail)| *guardrail).collect();
+        let payloads = ExternalPayloads::for_guardrails(&guardrails, &turn_text);
+        drop(turn_text);
+        drop(turn_text_reservation);
+        let started = std::time::Instant::now();
+        let results = self
+            .external
+            .evaluate_many(&guardrails, &payloads, organization_id)
+            .await;
+        let elapsed = started.elapsed();
+        drop(payload_reservation);
+        let matches = targets
+            .iter()
+            .zip(results)
+            .map(|((slot, _), matched)| (*slot, matched))
+            .collect();
+        Ok((matches, elapsed))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_external(mut self, external: ExternalGuardrailClient) -> Self {
+        self.external = external;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_memory_budget(&mut self, memory_budget: Arc<Semaphore>) {
+        self.memory_budget = memory_budget;
+    }
+}
+
+/// Provider-specific configuration of a resolved guardrail.
+#[derive(Clone, Debug)]
+pub(crate) enum GuardrailKind {
+    Regex {
+        patterns: Vec<String>,
+    },
+    Bedrock(BedrockGuardrail),
+    /// Control plane could not decrypt or validate a fail-closed guardrail;
+    /// always matches so the gateway enforces its action without forwarding
+    /// unscreened requests.
+    FailClosed,
+    /// A guardrail type this gateway does not know skips the guardrail rather
+    /// than failing resolution, so Web can add types before every gateway upgrades.
+    Unknown,
+}
+
 /// A guardrail assigned to the request's key, its user or its organization.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub(crate) struct Guardrail {
     pub id: String,
     pub name: String,
     pub action: GuardrailAction,
-    /// Regex patterns; the guardrail matches when any of them does.
-    pub patterns: Vec<String>,
+    pub kind: GuardrailKind,
+}
+
+impl Guardrail {
+    fn is_active(&self) -> bool {
+        if self.action == GuardrailAction::Unknown {
+            return false;
+        }
+        match &self.kind {
+            GuardrailKind::Regex { patterns } => !patterns.is_empty(),
+            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed => true,
+            GuardrailKind::Unknown => false,
+        }
+    }
+
+    pub(crate) fn is_valid_from_resolve(&self) -> bool {
+        match &self.kind {
+            GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
+                true
+            }
+            GuardrailKind::Bedrock(config) => {
+                crate::resolution::bedrock::is_aws_region(&config.region)
+                    && !config.guardrail_id.trim().is_empty()
+                    && !config.guardrail_version.trim().is_empty()
+                    && crate::resolution::valid_token(config.api_key.expose_secret())
+            }
+        }
+    }
+
+    fn regex_patterns(&self) -> Option<&[String]> {
+        match &self.kind {
+            GuardrailKind::Regex { patterns } => Some(patterns),
+            GuardrailKind::Bedrock(_) | GuardrailKind::FailClosed | GuardrailKind::Unknown => None,
+        }
+    }
+
+    fn is_external(&self) -> bool {
+        self.is_active() && matches!(self.kind, GuardrailKind::Bedrock(_))
+    }
+}
+
+impl<'de> Deserialize<'de> for Guardrail {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct RawGuardrail {
+            id: String,
+            name: String,
+            action: GuardrailAction,
+            #[serde(rename = "type", default)]
+            kind: Option<String>,
+            #[serde(default)]
+            patterns: Vec<String>,
+            #[serde(default)]
+            guardrail_id: Option<String>,
+            #[serde(default)]
+            guardrail_version: Option<String>,
+            #[serde(default)]
+            region: Option<String>,
+            #[serde(default)]
+            api_key: Option<SecretString>,
+        }
+
+        let raw = RawGuardrail::deserialize(deserializer)?;
+        let kind = match raw.kind.as_deref() {
+            // Absent `type` preserves compatibility with Web builds predating external guardrails.
+            None | Some("regex") => GuardrailKind::Regex {
+                patterns: raw.patterns,
+            },
+            Some("bedrock") => GuardrailKind::Bedrock(BedrockGuardrail {
+                guardrail_id: raw
+                    .guardrail_id
+                    .ok_or_else(|| D::Error::missing_field("guardrail_id"))?,
+                guardrail_version: raw
+                    .guardrail_version
+                    .ok_or_else(|| D::Error::missing_field("guardrail_version"))?,
+                region: raw
+                    .region
+                    .ok_or_else(|| D::Error::missing_field("region"))?,
+                api_key: raw
+                    .api_key
+                    .ok_or_else(|| D::Error::missing_field("api_key"))?,
+            }),
+            Some("fail_closed") => GuardrailKind::FailClosed,
+            Some(_) => GuardrailKind::Unknown,
+        };
+        Ok(Self {
+            id: raw.id,
+            name: raw.name,
+            action: raw.action,
+            kind,
+        })
+    }
 }
 
 /// An action this gateway does not know skips the guardrail rather than failing
@@ -139,7 +413,7 @@ static COMPILED: LazyLock<Cache<GuardrailPatterns, Arc<Compiled>, CompiledWeight
 
 /// Finds `body`'s last turn. A conversation the gateway cannot read the way a
 /// provider might, such as a member or field that appears twice, is unreadable.
-pub(crate) fn last_turn(
+fn last_turn(
     api_format: ApiFormat,
     body: &[u8],
     scanned: &ScannedMembers,
@@ -157,50 +431,160 @@ fn member<'a>(body: &'a [u8], scanned: &ScannedMembers) -> impl Fn(&str) -> Opti
     }
 }
 
-/// Checks `turn`, found by [`last_turn`], against `guardrails`. Guardrails fail
-/// open: one whose patterns do not compile matches nothing. An unreadable turn is
-/// not a failure but a way to show the provider other text than the gateway scans,
-/// so it matches every guardrail.
-pub(crate) fn check(
+/// Result of the CPU-bound local pass: regex matches plus the last turn's text
+/// when external guardrails also need to evaluate it.
+struct LocalScan {
+    active_indices: Vec<usize>,
+    matched: Vec<bool>,
+    unreadable: bool,
+    turn_text: String,
+}
+
+impl LocalScan {
+    fn is_unreadable(&self) -> bool {
+        self.unreadable
+    }
+
+    fn has_local_block(&self, guardrails: &[Guardrail]) -> bool {
+        self.active_indices
+            .iter()
+            .zip(&self.matched)
+            .any(|(&index, &matched)| {
+                matched
+                    && guardrails
+                        .get(index)
+                        .is_some_and(|guardrail| guardrail.action == GuardrailAction::Block)
+            })
+    }
+
+    fn external_targets<'a>(&self, guardrails: &'a [Guardrail]) -> Vec<(usize, &'a Guardrail)> {
+        self.active_indices
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, &index)| {
+                let guardrail = guardrails.get(index)?;
+                guardrail.is_external().then_some((slot, guardrail))
+            })
+            .collect()
+    }
+
+    fn take_turn_text(&mut self) -> String {
+        std::mem::take(&mut self.turn_text)
+    }
+
+    fn into_outcome(
+        mut self,
+        guardrails: &[Guardrail],
+        external_matches: &[(usize, bool)],
+    ) -> Outcome {
+        for &(slot, matched) in external_matches {
+            if matched && let Some(entry) = self.matched.get_mut(slot) {
+                *entry = true;
+            }
+        }
+        let findings = self
+            .active_indices
+            .into_iter()
+            .zip(self.matched)
+            .filter(|(_, matched)| self.unreadable || *matched)
+            .filter_map(|(index, _)| {
+                let guardrail = guardrails.get(index)?;
+                Some(Finding {
+                    id: guardrail.id.clone(),
+                    name: guardrail.name.clone(),
+                    action: guardrail.action,
+                    location: GuardrailLocation::Request,
+                })
+            })
+            .collect();
+        Outcome { findings }
+    }
+}
+
+/// Runs the local regex guardrails against `turn` and, when any active external
+/// guardrail is present, collects the last turn's text in the same pass.
+/// Regex guardrails fail open: a regex whose patterns do not compile matches
+/// nothing. Fail-closed guardrails always match.
+/// An unreadable turn is not a failure but a way to show the provider other text
+/// than the gateway scans, so it matches every active guardrail.
+fn scan_local(
     guardrails: &[Guardrail],
     body: &[u8],
     scanned: &ScannedMembers,
     turn: &Result<LastTurn, Unreadable>,
-) -> Outcome {
-    let active: Vec<&Guardrail> = guardrails
+) -> LocalScan {
+    let active_indices: Vec<usize> = guardrails
         .iter()
-        .filter(|guardrail| {
-            guardrail.action != GuardrailAction::Unknown && !guardrail.patterns.is_empty()
+        .enumerate()
+        .filter_map(|(index, guardrail)| guardrail.is_active().then_some(index))
+        .collect();
+    if active_indices.is_empty() {
+        return LocalScan {
+            active_indices,
+            matched: Vec::new(),
+            unreadable: false,
+            turn_text: String::new(),
+        };
+    }
+    let regex_slots: Vec<(usize, &[String])> = active_indices
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, &index)| {
+            let patterns = guardrails.get(index)?.regex_patterns()?;
+            Some((slot, patterns))
         })
         .collect();
-    if active.is_empty() {
-        return Outcome::default();
-    }
-    let compiled = compiled(&active);
-    let mut matched = vec![false; active.len()];
-    let mut found: Vec<PatternSet> = compiled
-        .matchers
+    let collect_text = active_indices
         .iter()
-        .map(|matcher| PatternSet::new(matcher.regex.pattern_len()))
-        .collect();
+        .any(|&index| guardrails.get(index).is_some_and(Guardrail::is_external));
+
+    let compiled = (!regex_slots.is_empty()).then(|| compiled(&regex_slots));
+    let mut regex_matched = vec![false; regex_slots.len()];
+    let mut found: Vec<PatternSet> = compiled
+        .as_ref()
+        .map(|compiled| {
+            compiled
+                .matchers
+                .iter()
+                .map(|matcher| PatternSet::new(matcher.regex.pattern_len()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut turn_text = String::new();
     let unreadable = turn.as_ref().map_or(true, |turn| {
         turn.read(member(body, scanned), &mut |text| {
-            record_matches(&compiled.matchers, &mut found, &mut matched, text);
+            if let Some(compiled) = &compiled {
+                record_matches(&compiled.matchers, &mut found, &mut regex_matched, text);
+            }
+            if collect_text && !text.is_empty() {
+                if !turn_text.is_empty() {
+                    turn_text.push('\n');
+                }
+                turn_text.push_str(text);
+            }
         })
         .is_err()
     });
-    let findings = active
-        .into_iter()
-        .zip(matched)
-        .filter(|(_, matched)| unreadable || *matched)
-        .map(|(guardrail, _)| Finding {
-            id: guardrail.id.clone(),
-            name: guardrail.name.clone(),
-            action: guardrail.action,
-            location: GuardrailLocation::Request,
+    let mut matched: Vec<bool> = active_indices
+        .iter()
+        .map(|&index| {
+            matches!(
+                guardrails.get(index).map(|guardrail| &guardrail.kind),
+                Some(GuardrailKind::FailClosed)
+            )
         })
         .collect();
-    Outcome { findings }
+    for ((slot, _), is_match) in regex_slots.into_iter().zip(regex_matched) {
+        if is_match && let Some(entry) = matched.get_mut(slot) {
+            *entry = true;
+        }
+    }
+    LocalScan {
+        active_indices,
+        matched,
+        unreadable,
+        turn_text,
+    }
 }
 
 /// One set over all guardrails' patterns, so each text is scanned once however
@@ -230,10 +614,10 @@ fn record_matches(
     }
 }
 
-fn compiled(active: &[&Guardrail]) -> Arc<Compiled> {
+fn compiled(active: &[(usize, &[String])]) -> Arc<Compiled> {
     let key: GuardrailPatterns = active
         .iter()
-        .map(|guardrail| guardrail.patterns.clone())
+        .map(|(_, patterns)| (*patterns).to_vec())
         .collect();
     // A request that finds the set being compiled elsewhere compiles its own copy
     // rather than parking its thread, which may be an async worker, until then.
@@ -312,12 +696,13 @@ mod tests {
         body: &[u8],
         scanned: &ScannedMembers,
     ) -> Outcome {
-        check(
+        scan_local(
             guardrails,
             body,
             scanned,
             &last_turn(api_format, body, scanned),
         )
+        .into_outcome(guardrails, &[])
     }
 
     const SSN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
@@ -328,10 +713,12 @@ mod tests {
             id: id.into(),
             name: format!("{id} name"),
             action,
-            patterns: patterns
-                .iter()
-                .map(|pattern| (*pattern).to_owned())
-                .collect(),
+            kind: GuardrailKind::Regex {
+                patterns: patterns
+                    .iter()
+                    .map(|pattern| (*pattern).to_owned())
+                    .collect(),
+            },
         }
     }
 

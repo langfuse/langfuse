@@ -135,7 +135,7 @@ async function topicsProject(userId: string) {
       usageDetails: {},
       providedCostDetails: {},
       costDetails: { total: 0.25 },
-      processedAt: now,
+      createdAt: now,
       metadata: {},
     },
   ]);

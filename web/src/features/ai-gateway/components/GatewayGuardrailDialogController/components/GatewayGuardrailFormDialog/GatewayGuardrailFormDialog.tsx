@@ -8,8 +8,14 @@ import {
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, LifeBuoy, X } from "@langfuse/icons";
-import { Controller, useForm } from "react-hook-form";
+import {
+  ChevronLeft,
+  Info,
+  LifeBuoy,
+  SquareArrowOutUpRight,
+  X,
+} from "@langfuse/icons";
+import { Controller, useForm, type Control } from "react-hook-form";
 import { z } from "zod";
 
 import {
@@ -18,13 +24,21 @@ import {
 } from "@/src/components/design-system/AsyncMultiSelectTagInput/AsyncMultiSelectTagInput";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { PopoverLayerProvider } from "@/src/context/LayerContext/PopoverLayerProvider";
+import {
+  ConnectionTestStatus,
+  type ConnectionTestFailure,
+} from "@/src/features/ai-gateway/components/ConnectionTestStatus/ConnectionTestStatus";
 import { GatewayGuardrailTestInput } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/components/GatewayGuardrailTestInput/GatewayGuardrailTestInput";
 import {
   GatewayGuardrailTargetsInput,
@@ -32,8 +46,11 @@ import {
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTargetsInput/GatewayGuardrailTargetsInput";
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
+  GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
+import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import {
   GATEWAY_GUARDRAIL_ACTION_LABELS,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
@@ -49,6 +66,8 @@ import {
   estimateCompiledPatternsBytes,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
   GATEWAY_GUARDRAIL_UI_ACTIONS,
+  GatewayBedrockGuardrailApiKeySchema,
+  GatewayBedrockGuardrailConfigSchema,
   parseContainsWordsText,
   validateContainsWordsText,
   validateSecretPrefix,
@@ -67,11 +86,20 @@ const ACTION_OPTIONS: Array<{
 
 const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
 
+const BEDROCK_FIELD_PATHS = {
+  guardrailId: "bedrockGuardrailId",
+  guardrailVersion: "bedrockGuardrailVersion",
+  region: "bedrockRegion",
+} as const;
+
 const PRESET_VALUE_PREFIX = "preset:";
 const CUSTOM_PREFIX_VALUE_PREFIX = "prefix:";
 const ADD_PREFIX_VALUE_PREFIX = "add-prefix:";
 
-function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
+function createGuardrailFormSchema(
+  templateKind: GatewayGuardrailTemplateKind,
+  hasSavedApiKey: boolean,
+) {
   return z
     .object({
       name: z
@@ -90,6 +118,10 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
           `At most ${GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes are allowed`,
         ),
       containsText: z.string(),
+      bedrockGuardrailId: z.string(),
+      bedrockGuardrailVersion: z.string(),
+      bedrockRegion: z.string(),
+      bedrockApiKey: z.string(),
       action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
@@ -100,6 +132,43 @@ function createGuardrailFormSchema(templateKind: GatewayGuardrailTemplateKind) {
         ),
     })
     .superRefine((values, ctx) => {
+      if (templateKind === "bedrock") {
+        const configResult = GatewayBedrockGuardrailConfigSchema.safeParse({
+          guardrailId: values.bedrockGuardrailId,
+          guardrailVersion: values.bedrockGuardrailVersion,
+          region: values.bedrockRegion,
+        });
+        if (!configResult.success) {
+          for (const issue of configResult.error.issues) {
+            const key = issue.path[0];
+            if (typeof key === "string" && key in BEDROCK_FIELD_PATHS) {
+              ctx.addIssue({
+                code: "custom",
+                path: [
+                  BEDROCK_FIELD_PATHS[key as keyof typeof BEDROCK_FIELD_PATHS],
+                ],
+                message: issue.message,
+              });
+            }
+          }
+        }
+        const trimmedApiKey = values.bedrockApiKey.trim();
+        if (!hasSavedApiKey || trimmedApiKey.length > 0) {
+          const apiKeyResult = GatewayBedrockGuardrailApiKeySchema.safeParse(
+            values.bedrockApiKey,
+          );
+          if (!apiKeyResult.success) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["bedrockApiKey"],
+              message:
+                apiKeyResult.error.issues[0]?.message ??
+                "Enter a Bedrock API key",
+            });
+          }
+        }
+        return;
+      }
       if (templateKind === "contains") {
         const error = validateContainsWordsText(values.containsText);
         if (error) {
@@ -161,8 +230,25 @@ export type GatewayGuardrailFormValues = {
   presets: GatewayGuardrailPreset[];
   secretPrefixes: string[];
   containsWords: string[];
+  bedrock?: {
+    guardrailId: string;
+    guardrailVersion: string;
+    region: string;
+    apiKey?: string;
+  };
   action: GatewayGuardrailUiAction;
   targets: AsyncAutocompleteOption[];
+};
+
+export type ExternalGuardrailTestOutcome = {
+  status: "pending" | "success" | "error";
+  failure?: ConnectionTestFailure;
+};
+
+export type ExternalGuardrailTestControl = {
+  isPending: boolean;
+  outcome: ExternalGuardrailTestOutcome | null;
+  onTest: (values: GatewayGuardrailFormValues) => void;
 };
 
 export type GatewayGuardrailFormDialogProps = {
@@ -172,6 +258,9 @@ export type GatewayGuardrailFormDialogProps = {
   availablePresets: readonly GatewayGuardrailPreset[];
   initialValues: GatewayGuardrailFormValues;
   initialTestText?: string;
+  /** True when editing an existing external guardrail so a blank key keeps the saved secret. */
+  hasSavedApiKey?: boolean;
+  externalTest?: ExternalGuardrailTestControl;
   targetPicker: GatewayGuardrailTargetPicker;
   isSubmitting: boolean;
   errorMessage: string | null;
@@ -187,6 +276,8 @@ export function GatewayGuardrailFormDialog({
   availablePresets,
   initialValues,
   initialTestText = "",
+  hasSavedApiKey = false,
+  externalTest,
   targetPicker,
   isSubmitting,
   errorMessage,
@@ -201,8 +292,8 @@ export function GatewayGuardrailFormDialog({
   const [testText, setTestText] = useState(initialTestText);
 
   const schema = useMemo(
-    () => createGuardrailFormSchema(templateKind),
-    [templateKind],
+    () => createGuardrailFormSchema(templateKind, hasSavedApiKey),
+    [templateKind, hasSavedApiKey],
   );
   const form = useForm<GuardrailFormSchemaValues>({
     resolver: zodResolver(schema),
@@ -211,6 +302,10 @@ export function GatewayGuardrailFormDialog({
       presets: initialValues.presets,
       secretPrefixes: initialValues.secretPrefixes,
       containsText: initialValues.containsWords.join("\n"),
+      bedrockGuardrailId: initialValues.bedrock?.guardrailId ?? "",
+      bedrockGuardrailVersion: initialValues.bedrock?.guardrailVersion ?? "",
+      bedrockRegion: initialValues.bedrock?.region ?? "",
+      bedrockApiKey: "",
       action: initialValues.action,
       targets: initialValues.targets,
     },
@@ -220,14 +315,54 @@ export function GatewayGuardrailFormDialog({
   const selectedPresets = form.watch("presets");
   const secretPrefixes = form.watch("secretPrefixes");
   const containsText = form.watch("containsText");
+  const bedrockGuardrailId = form.watch("bedrockGuardrailId");
+  const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
+  const bedrockRegion = form.watch("bedrockRegion");
+  const bedrockApiKey = form.watch("bedrockApiKey");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
+  const externalTemplate =
+    GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
+      ?.external ?? null;
+  const isExternal = externalTemplate !== null;
+  const isTesting = externalTest?.isPending ?? false;
+  const isBusy = isSubmitting || isTesting;
+  const canTestExternal =
+    templateKind === "bedrock" &&
+    GatewayBedrockGuardrailConfigSchema.safeParse({
+      guardrailId: bedrockGuardrailId,
+      guardrailVersion: bedrockGuardrailVersion,
+      region: bedrockRegion,
+    }).success &&
+    (hasSavedApiKey
+      ? bedrockApiKey.trim().length === 0 ||
+        GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success
+      : GatewayBedrockGuardrailApiKeySchema.safeParse(bedrockApiKey).success);
 
-  const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
-    onSubmit({
+  const toFormValues = (
+    values: GuardrailFormSchemaValues,
+  ): GatewayGuardrailFormValues => {
+    if (templateKind === "bedrock") {
+      const apiKey = values.bedrockApiKey.trim();
+      return {
+        name: values.name.trim(),
+        presets: [],
+        secretPrefixes: [],
+        containsWords: [],
+        bedrock: {
+          guardrailId: values.bedrockGuardrailId.trim(),
+          guardrailVersion: values.bedrockGuardrailVersion.trim(),
+          region: values.bedrockRegion.trim(),
+          ...(apiKey ? { apiKey } : {}),
+        },
+        action: values.action,
+        targets: values.targets,
+      };
+    }
+    return {
       name: values.name.trim(),
       presets:
         templateKind === "contains" ? initialValues.presets : values.presets,
@@ -241,7 +376,15 @@ export function GatewayGuardrailFormDialog({
           : initialValues.containsWords,
       action: values.action,
       targets: values.targets,
-    });
+    };
+  };
+
+  const handleValidSubmit = (values: GuardrailFormSchemaValues) => {
+    onSubmit(toFormValues(values));
+  };
+
+  const handleTestExternal = () => {
+    externalTest?.onTest(toFormValues(form.getValues()));
   };
 
   const handlePresetsChange = (nextPresets: GatewayGuardrailPreset[]) => {
@@ -285,7 +428,10 @@ export function GatewayGuardrailFormDialog({
       />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className="ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:max-w-4xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg"
+        className={cn(
+          "ph-no-capture bg-modal fixed top-0 left-0 flex h-dvh w-full flex-col shadow-lg sm:top-[50%] sm:left-[50%] sm:h-auto sm:max-h-[85vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg",
+          isExternal ? "sm:max-w-xl" : "sm:max-w-4xl",
+        )}
         onClick={handleStopClickPropagation}
         onKeyDown={handleKeyDown}
         onPointerDownOutside={handlePreventOutsideClose}
@@ -323,6 +469,17 @@ export function GatewayGuardrailFormDialog({
           <PopoverLayerProvider container={popoverContainer}>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto text-sm leading-relaxed md:flex-row md:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col p-5 md:overflow-y-auto">
+                {externalTemplate ? (
+                  <p className="text-muted-foreground mb-4 text-xs leading-relaxed">
+                    {externalTemplate.description}{" "}
+                    <TextLink
+                      path={externalTemplate.docsHref}
+                      value={externalTemplate.docsLabel}
+                      icon={SquareArrowOutUpRight}
+                      external
+                    />
+                  </p>
+                ) : null}
                 <Form
                   id={formId}
                   density="compact"
@@ -337,41 +494,28 @@ export function GatewayGuardrailFormDialog({
                         aria-describedby={inputDescribedById}
                         aria-invalid={Boolean(error)}
                         error={Boolean(error)}
-                        placeholder="e.g. Block SSNs"
+                        placeholder={
+                          isExternal ? "e.g. Content safety" : "e.g. Block SSNs"
+                        }
                       />
                     )}
                   </FormField>
 
-                  {templateKind === "contains" ? (
-                    <Controller
-                      control={form.control}
-                      name="containsText"
-                      render={({ field, fieldState }) => (
-                        <ContainsWordListField
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          entryCount={parsedContains.length}
-                          errorMessage={fieldState.error?.message}
-                        />
-                      )}
-                    />
-                  ) : (
-                    <PresetMultiSelectField
-                      availablePresets={availablePresets}
-                      selectedPresets={selectedPresets}
-                      secretPrefixes={
-                        templateKind === "secrets" ? secretPrefixes : []
-                      }
-                      allowCustomPrefixes={templateKind === "secrets"}
-                      onPresetsChange={handlePresetsChange}
-                      onSecretPrefixesChange={handleSecretPrefixesChange}
-                      errorMessage={
-                        form.formState.errors.presets?.message ??
-                        form.formState.errors.secretPrefixes?.message
-                      }
-                    />
-                  )}
+                  <TemplateRuleFields
+                    templateKind={templateKind}
+                    control={form.control}
+                    availablePresets={availablePresets}
+                    selectedPresets={selectedPresets}
+                    secretPrefixes={secretPrefixes}
+                    containsEntryCount={parsedContains.length}
+                    hasSavedApiKey={hasSavedApiKey}
+                    presetErrorMessage={
+                      form.formState.errors.presets?.message ??
+                      form.formState.errors.secretPrefixes?.message
+                    }
+                    onPresetsChange={handlePresetsChange}
+                    onSecretPrefixesChange={handleSecretPrefixesChange}
+                  />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
@@ -455,33 +599,53 @@ export function GatewayGuardrailFormDialog({
                 </Form>
               </div>
 
-              <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
-                <GatewayGuardrailTestInput
-                  value={testText}
-                  onChange={setTestText}
-                  presets={templateKind === "contains" ? [] : selectedPresets}
-                  secretPrefixes={
-                    templateKind === "secrets" ? secretPrefixes : undefined
-                  }
-                  containsWords={
-                    templateKind === "contains" ? parsedContains : undefined
-                  }
-                />
-              </aside>
+              {!isExternal ? (
+                <aside className="border-border flex shrink-0 flex-col border-t p-5 md:w-88 md:overflow-y-auto md:border-t-0 md:border-l lg:w-96">
+                  <GatewayGuardrailTestInput
+                    value={testText}
+                    onChange={setTestText}
+                    presets={templateKind === "contains" ? [] : selectedPresets}
+                    secretPrefixes={
+                      templateKind === "secrets" ? secretPrefixes : undefined
+                    }
+                    containsWords={
+                      templateKind === "contains" ? parsedContains : undefined
+                    }
+                  />
+                </aside>
+              ) : null}
             </div>
           </PopoverLayerProvider>
 
           <footer className="bg-modal flex shrink-0 flex-col-reverse gap-2 rounded-b-lg border-t px-5 py-3.5 sm:flex-row sm:justify-end">
-            <DialogPrimitive.Close asChild>
-              <Button variant="ghost" text="Cancel" disabled={isSubmitting} />
-            </DialogPrimitive.Close>
+            {externalTest?.outcome ? (
+              <ConnectionTestStatus
+                status={externalTest.outcome.status}
+                failure={externalTest.outcome.failure}
+              />
+            ) : null}
+            {externalTest ? (
+              <Button
+                type="button"
+                variant="secondary"
+                text={
+                  externalTest.outcome &&
+                  externalTest.outcome.status !== "pending"
+                    ? "Test again"
+                    : "Test"
+                }
+                loading={isTesting}
+                disabled={!canTestExternal || isBusy}
+                onClick={handleTestExternal}
+              />
+            ) : null}
             <Button
               type="submit"
               form={formId}
               variant="primary"
               text={submitLabel}
               loading={isSubmitting}
-              disabled={!form.formState.isValid}
+              disabled={!form.formState.isValid || isBusy}
             />
           </footer>
         </div>
@@ -492,6 +656,196 @@ export function GatewayGuardrailFormDialog({
         />
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
+  );
+}
+
+type TemplateRuleFieldsProps = {
+  templateKind: GatewayGuardrailTemplateKind;
+  control: Control<GuardrailFormSchemaValues>;
+  availablePresets: readonly GatewayGuardrailPreset[];
+  selectedPresets: readonly GatewayGuardrailPreset[];
+  secretPrefixes: readonly string[];
+  containsEntryCount: number;
+  hasSavedApiKey: boolean;
+  presetErrorMessage?: string;
+  onPresetsChange: (presets: GatewayGuardrailPreset[]) => void;
+  onSecretPrefixesChange: (prefixes: string[]) => void;
+};
+
+function TemplateRuleFields({
+  templateKind,
+  control,
+  availablePresets,
+  selectedPresets,
+  secretPrefixes,
+  containsEntryCount,
+  hasSavedApiKey,
+  presetErrorMessage,
+  onPresetsChange,
+  onSecretPrefixesChange,
+}: TemplateRuleFieldsProps) {
+  if (templateKind === "bedrock") {
+    return (
+      <BedrockGuardrailFields
+        control={control}
+        hasSavedApiKey={hasSavedApiKey}
+      />
+    );
+  }
+  if (templateKind === "contains") {
+    return (
+      <Controller
+        control={control}
+        name="containsText"
+        render={({ field, fieldState }) => (
+          <ContainsWordListField
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            entryCount={containsEntryCount}
+            errorMessage={fieldState.error?.message}
+          />
+        )}
+      />
+    );
+  }
+  return (
+    <PresetMultiSelectField
+      availablePresets={availablePresets}
+      selectedPresets={selectedPresets}
+      secretPrefixes={templateKind === "secrets" ? secretPrefixes : []}
+      allowCustomPrefixes={templateKind === "secrets"}
+      onPresetsChange={onPresetsChange}
+      onSecretPrefixesChange={onSecretPrefixesChange}
+      errorMessage={presetErrorMessage}
+    />
+  );
+}
+
+type BedrockGuardrailFieldsProps = {
+  control: Control<GuardrailFormSchemaValues>;
+  hasSavedApiKey: boolean;
+};
+
+function BedrockGuardrailFields({
+  control,
+  hasSavedApiKey,
+}: BedrockGuardrailFieldsProps) {
+  return (
+    <>
+      <CustomTooltip
+        content={<span>ID or ARN of your guardrail in Amazon Bedrock.</span>}
+      >
+        {({ getTriggerProps }) => (
+          <FormField
+            control={control}
+            name="bedrockGuardrailId"
+            label="Guardrail ID"
+            registerLabelTooltip={getTriggerProps}
+          >
+            {({ id, inputDescribedById, error, ...field }) => (
+              <Input
+                {...field}
+                id={id}
+                aria-describedby={inputDescribedById}
+                aria-invalid={Boolean(error)}
+                error={Boolean(error)}
+                placeholder="e.g. abc123def456 or arn:aws:bedrock:..."
+              />
+            )}
+          </FormField>
+        )}
+      </CustomTooltip>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CustomTooltip
+          content={
+            <span>
+              Published version (e.g. 1) or DRAFT for the working draft.
+            </span>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <FormField
+              control={control}
+              name="bedrockGuardrailVersion"
+              label="Version"
+              registerLabelTooltip={getTriggerProps}
+            >
+              {({ id, inputDescribedById, error, ...field }) => (
+                <Input
+                  {...field}
+                  id={id}
+                  aria-describedby={inputDescribedById}
+                  aria-invalid={Boolean(error)}
+                  error={Boolean(error)}
+                  placeholder="e.g. 1 or DRAFT"
+                />
+              )}
+            </FormField>
+          )}
+        </CustomTooltip>
+
+        <FormField control={control} name="bedrockRegion" label="AWS region">
+          {({ id, inputDescribedById, error, value, onChange, onBlur }) => (
+            <RegionSelect
+              id={id}
+              aria-describedby={inputDescribedById}
+              aria-invalid={Boolean(error)}
+              error={Boolean(error)}
+              groups={bedrockRegionGroups}
+              value={value}
+              onChange={onChange}
+              onBlur={onBlur}
+            />
+          )}
+        </FormField>
+      </div>
+
+      <CustomTooltip
+        content={
+          <span>
+            Use{" "}
+            <TextLink
+              path="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+              value="Amazon Bedrock API keys"
+              icon={SquareArrowOutUpRight}
+              external
+            />
+            . Needs{" "}
+            <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
+              bedrock:ApplyGuardrail
+            </code>{" "}
+            permission in the selected region.
+          </span>
+        }
+      >
+        {({ getTriggerProps }) => (
+          <FormField
+            control={control}
+            name="bedrockApiKey"
+            label="API key"
+            registerLabelTooltip={getTriggerProps}
+          >
+            {({ id, inputDescribedById, error, ...field }) => (
+              <PasswordInput
+                {...field}
+                id={id}
+                autoComplete="new-password"
+                aria-describedby={inputDescribedById}
+                aria-invalid={Boolean(error)}
+                error={Boolean(error)}
+                placeholder={
+                  hasSavedApiKey
+                    ? "Leave blank to keep current key"
+                    : "Enter API key"
+                }
+              />
+            )}
+          </FormField>
+        )}
+      </CustomTooltip>
+    </>
   );
 }
 
@@ -637,9 +991,31 @@ function PresetMultiSelectField({
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm leading-none font-bold">
-        Detect
-      </label>
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={inputId} className="text-sm leading-none font-bold">
+          Detect
+        </label>
+        {allowCustomPrefixes ? (
+          <CustomTooltip
+            content={
+              <span>
+                Search known secrets or type to add up to{" "}
+                {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes.
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={Info}
+                label="About Detect"
+                size="xs"
+                variant="toolbar"
+              />
+            )}
+          </CustomTooltip>
+        ) : null}
+      </div>
       <div className="flex flex-col gap-1">
         <AsyncMultiSelectTagInput
           id={inputId}
@@ -674,12 +1050,6 @@ function PresetMultiSelectField({
             {errorMessage}
           </p>
         ) : null}
-        {!errorMessage && allowCustomPrefixes ? (
-          <p className="text-muted-foreground text-xs">
-            Search known secrets or type to add up to{" "}
-            {GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES} custom prefixes.
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -707,10 +1077,31 @@ function ContainsWordListField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <label htmlFor={inputId} className="text-sm leading-none font-bold">
-          Words or phrases
-        </label>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <label htmlFor={inputId} className="text-sm leading-none font-bold">
+            Words or phrases
+          </label>
+          <CustomTooltip
+            content={
+              <span>
+                One word or phrase per line (ASCII only, up to{" "}
+                {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} chars each).
+                Matches whole words, case-insensitively.
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <IconButton
+                {...getTriggerProps()}
+                icon={Info}
+                label="About Words or phrases"
+                size="xs"
+                variant="toolbar"
+              />
+            )}
+          </CustomTooltip>
+        </div>
         <span className="text-muted-foreground text-xs">
           {entryCount} / {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS}
         </span>
@@ -732,13 +1123,7 @@ function ContainsWordListField({
       />
       {errorMessage ? (
         <p className="text-destructive text-sm">{errorMessage}</p>
-      ) : (
-        <p className="text-muted-foreground text-xs">
-          One word or phrase per line (ASCII only, up to{" "}
-          {GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH} chars each). Matches
-          whole words, case-insensitively.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
