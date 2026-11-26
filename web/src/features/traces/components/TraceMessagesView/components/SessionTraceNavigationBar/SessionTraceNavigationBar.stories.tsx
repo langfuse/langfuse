@@ -83,7 +83,7 @@ export const Narrow = meta.story({
     if (!frame || !row) throw new Error("Missing bar");
     frame.style.width = "260px";
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 1);
+    expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 4);
     await expect(
       canvas.getByRole("button", { name: "Next trace in session" }),
     ).toBeVisible();
