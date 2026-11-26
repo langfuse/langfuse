@@ -16,7 +16,7 @@ import {
 } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
-import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
+import { scoresAstView } from "./scoresQuery";
 import { eventsObservationsAstView } from "./eventsObservationsQuery";
 import { eventsTracesAstView } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
@@ -96,8 +96,8 @@ export class QueryBuilder {
         this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
-    if (SCORE_VIEWS_V2.has(view)) {
-      return buildScores(
+    if (scoresAstView.serves.includes(view)) {
+      return scoresAstView.build(
         query,
         view,
         this.astContext(projectId, enableSingleLevelOptimization),
