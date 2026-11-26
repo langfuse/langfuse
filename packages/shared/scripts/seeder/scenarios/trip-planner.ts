@@ -137,6 +137,28 @@ const VERDICTS: Record<Mode, [number, string, string]> = {
   ],
 };
 
+/**
+ * Yes/no answers a decision model with these questions gives per failure mode.
+ * A yes/no question writes the probability that the answer is yes (0-1), and
+ * decision models return no reasoning, so these scores carry no comment.
+ */
+const DECISION_QUESTIONS = [
+  "overall_fulfilled",
+  "had_execution_issues",
+  "had_tool_loop",
+  "was_out_of_scope",
+  "final_verdict_grounded",
+  "used_flight_search_skill",
+] as const;
+const DECISIONS: Record<Mode, string> = {
+  hero: "NYYNNN",
+  loop: "NYYNYN",
+  skip: "NNNNNN",
+  unconfirmed: "NNNNYN",
+  over: "NNNNNN",
+  clean: "YNNNYN",
+};
+
 type Run = {
   mode: Mode;
   city: string;
@@ -380,6 +402,7 @@ const run = async (
   const heroSteps = Math.max(15, Number(params["hero-steps"] ?? 186));
   const seedNum = Number(params["seed"] ?? 42);
   const withScores = params["scores"] as boolean;
+  const withDecisionScores = params["decision-scores"] as boolean;
 
   const runs = Array.from({ length: runCount }, (_, i) =>
     buildRun(
@@ -562,6 +585,31 @@ const run = async (
         }),
       );
     }
+
+    if (withDecisionScores) {
+      const answers = DECISIONS[r.mode];
+      DECISION_QUESTIONS.forEach((name, q) => {
+        const yes = answers[q] === "Y";
+        const spread = jitter(seedNum * 11 + q, i, 7) / 100;
+        scores.push(
+          createTraceScore({
+            id: `${traceId}-decision-${name}`,
+            project_id: ctx.projectId,
+            trace_id: traceId,
+            observation_id: null,
+            environment: ctx.environment,
+            name,
+            value:
+              Math.round((yes ? 0.99 - spread : 0.01 + spread) * 100) / 100,
+            data_type: "NUMERIC",
+            source: "EVAL",
+            comment: null,
+            metadata: {},
+            timestamp: ts + r.steps[0].end + 25_000,
+          }),
+        );
+      });
+    }
   });
 
   ctx.log(
@@ -652,9 +700,16 @@ export const tripPlannerScenario: ScenarioDefinition = {
     {
       flag: "scores",
       type: "boolean",
-      default: true,
+      default: false,
       description:
         "write trace-level EVAL scores (Goal completion, Execution check) with judge comments",
+    },
+    {
+      flag: "decision-scores",
+      type: "boolean",
+      default: false,
+      description:
+        "write one NUMERIC EVAL score (probability of yes, 0-1) per decision-model question (overall_fulfilled, had_execution_issues, had_tool_loop, was_out_of_scope, final_verdict_grounded, used_flight_search_skill), without comments",
     },
   ],
   run,
