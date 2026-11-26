@@ -528,18 +528,33 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * In a SELECT with several relations, the qualifier of `q.x` must name a
-   * relation in scope, a lambda parameter or an output alias. Otherwise `q` is
-   * a bare column and `.x` its subcolumn or tuple element (`metadata.keys`,
-   * `tags.1`), which ClickHouse reads from the left-most relation that has `q`.
+   * The qualifier of `q.x` must name a relation in scope, a lambda parameter
+   * or an output alias. Otherwise `q` is a bare column and `.x` its subcolumn
+   * or tuple element (`metadata.keys`, `tags.1`). A SELECT with one relation
+   * reads that from its relation, so `q` must be one of its columns; with
+   * several, ClickHouse reads it from the left-most relation that has `q`.
    */
   private assertQualifierResolves(qualifier: string): void {
     const scope = this.selectScopes.at(-1);
-    if (!scope || scope.relationCount <= 1) return;
+    if (!scope || scope.relationCount === 0) return;
     if (this.selectScopes.some((s) => s.relations.has(qualifier))) return;
     if (this.resolvesToLambdaOrAlias(qualifier, scope)) return;
+    if (scope.relationCount === 1) {
+      if (this.relationMayHaveColumn(scope, qualifier)) return;
+      throw new QueryCompileError(
+        `Qualifier "${qualifier}" names no relation, column, lambda parameter or output alias of its SELECT; ClickHouse would reject the query. Qualify the column with an alias the query declares, or join the relation it reads.`,
+      );
+    }
     throw new QueryCompileError(
       `Qualifier "${qualifier}" names no relation of a SELECT that reads ${scope.relationCount} relations; as a column, ClickHouse would read it from the left-most relation that has it. Qualify it with its relation's alias, e.g. "<alias>.${qualifier}".`,
+    );
+  }
+
+  /** Whether a relation of `scope` has `column`, or may: its columns are unknown. */
+  private relationMayHaveColumn(scope: SelectScope, column: string): boolean {
+    return [...scope.relations.values()].some(
+      (columns) =>
+        columns instanceof OpaqueRelation || Object.hasOwn(columns, column),
     );
   }
 
