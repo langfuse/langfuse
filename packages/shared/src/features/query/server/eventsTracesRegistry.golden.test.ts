@@ -138,6 +138,18 @@ describe("v2 traces registry", () => {
     expect(view.rootEventCondition?.column).toBe("trace_id");
   });
 
+  it("gives a per-trace value to exactly the dimensions the view aggregates", () => {
+    // Two copies decide one dimension: `aggregationFunction` in the view
+    // forces two levels, `perTrace` is what the inner select then reads.
+    const withPerTrace = dimensionEntries()
+      .filter(([, entry]) => entry.perTrace)
+      .map(([name]) => name);
+    const aggregated = Object.entries(view.dimensions)
+      .filter(([, declaration]) => declaration.aggregationFunction)
+      .map(([name]) => name);
+    expect(withPerTrace).toEqual(aggregated);
+  });
+
   // The string builder's `mapFilters` compared the column inside a
   // `nullIf(column, '')` dimension with `''` and NULL as one value, any other
   // dimension as its `sql`, and added the ngram conjunct by column name, on
