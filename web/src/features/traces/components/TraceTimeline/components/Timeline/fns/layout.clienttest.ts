@@ -9,7 +9,7 @@ import {
   longTailTrace,
   reporterTrace,
   singleSpan,
-} from "../timelineV2.fixtures";
+} from "../__tests__/timelineV2.fixtures";
 
 // Explicit null context: the PX_PER_LETTER fallback, so widths are
 // deterministic and jsdom is never asked for a canvas.

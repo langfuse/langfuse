@@ -94,6 +94,12 @@
         ".storybook/docs/**/*.tsx",
         // Runtime worker entry loaded by filename through Piscina.
         "src/server/otel/otelIngestionWorker.ts!",
+        // One-function timeline helpers used by client tests and stories. The
+        // product zoom and density paths do not import them, so production
+        // mode would report the files as unused.
+        "src/features/traces/components/TraceTimeline/components/Timeline/fns/zoomView.ts!",
+        "src/features/traces/components/TraceTimeline/components/Timeline/fns/zoomToSpan.ts!",
+        "src/features/traces/components/TraceTimeline/fns/resolveDensity.ts!",
         // Web Worker entry bundled into a string module by
         // scripts/build-json-parser-worker.mjs, never imported by the app.
         "src/workers/json-parser.worker.ts!",

@@ -10,7 +10,7 @@ import {
   reporterTrace,
   threeSpans,
   longTailTrace,
-} from "./timelineV2.fixtures";
+} from "./__tests__/timelineV2.fixtures";
 
 /**
  * In the Storybook canvas the chart fills the preview, so resizing the
