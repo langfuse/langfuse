@@ -34,6 +34,11 @@ ruleTester.run("no-length-as-boolean", rule, {
     `items[length];`,
     `const element = <span>{items.length}</span>;`,
     `const element = <span>{items?.length ?? 0}</span>;`,
+    `const element = <span>{flag && items.length}</span>;`,
+    `const element = <List count={items.length || 10} />;`,
+    `const element = <List count={items.length && flag} />;`,
+    `const element = <span>{items.length || <Empty />}</span>;`,
+    `const count = items.length || fallback;`,
   ],
   invalid: [
     {
@@ -63,12 +68,12 @@ ruleTester.run("no-length-as-boolean", rule, {
     },
     {
       code: `const empty = !items.length;`,
-      output: `const empty = items.length === 0;`,
+      output: `const empty = (items.length === 0);`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `const present = !!items.length;`,
-      output: `const present = items.length > 0;`,
+      output: `const present = (items.length > 0);`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
@@ -98,17 +103,17 @@ ruleTester.run("no-length-as-boolean", rule, {
     },
     {
       code: `if (items?.length) {}`,
-      output: `if ((items?.length ?? 0) > 0) {}`,
+      output: `if ((items != null && items.length > 0)) {}`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `const empty = !items?.length;`,
-      output: `const empty = (items?.length ?? 0) === 0;`,
+      output: `const empty = (items == null || items.length === 0);`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `if (a?.b.length) {}`,
-      output: `if ((a?.b.length ?? 0) > 0) {}`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
@@ -127,23 +132,18 @@ ruleTester.run("no-length-as-boolean", rule, {
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
-      code: `const count = items.length || fallback;`,
-      output: null,
-      errors: [{ messageId: "lengthAsBoolean" }],
-    },
-    {
       code: `if (items.length ?? fallback) {}`,
       output: `if (items.length > 0 ?? fallback) {}`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `if (a?.().length) {}`,
-      output: `if ((a?.().length ?? 0) > 0) {}`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
       code: `if ((a?.b).length) {}`,
-      output: `if (((a?.b).length ?? 0) > 0) {}`,
+      output: null,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
@@ -187,11 +187,6 @@ ruleTester.run("no-length-as-boolean", rule, {
       errors: [{ messageId: "lengthAsBoolean" }],
     },
     {
-      code: `const element = <span>{flag && items.length}</span>;`,
-      output: `const element = <span>{flag && items.length > 0}</span>;`,
-      errors: [{ messageId: "lengthAsBoolean" }],
-    },
-    {
       code: `if (!(flag && items.length)) {}`,
       output: `if (!(flag && items.length > 0)) {}`,
       errors: [{ messageId: "lengthAsBoolean" }],
@@ -209,6 +204,36 @@ ruleTester.run("no-length-as-boolean", rule, {
     {
       code: `if (flag ?? items.length) {}`,
       output: `if (flag ?? items.length > 0) {}`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const same = true === !items.length;`,
+      output: `const same = true === (items.length === 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const same = true === !!items.length;`,
+      output: `const same = true === (items.length > 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `if (!items?.length) items.map(fn);`,
+      output: `if ((items == null || items.length === 0)) items.map(fn);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const present = !!items?.length;`,
+      output: `const present = (items != null && items.length > 0);`,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `if (a?.b?.length) {}`,
+      output: null,
+      errors: [{ messageId: "lengthAsBoolean" }],
+    },
+    {
+      code: `const element = <span>{(flag || items.length) && <List />}</span>;`,
+      output: `const element = <span>{(flag || items.length > 0) && <List />}</span>;`,
       errors: [{ messageId: "lengthAsBoolean" }],
     },
   ],

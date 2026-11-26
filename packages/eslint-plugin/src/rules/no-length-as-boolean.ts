@@ -51,9 +51,9 @@ const rule = createRule({
             }
 
             const lengthText = sourceCode.getText(node);
-            const compared = accessCanBeNullish(node)
-              ? `(${lengthText} ?? 0)`
-              : lengthText;
+            const optionalObject = optionalIdentifier(node);
+
+            if (accessCanBeNullish(node) && !optionalObject) return null;
 
             if (use === "negated" || use === "double-negated") {
               const inner = parentOf(expression);
@@ -63,19 +63,40 @@ const rule = createRule({
                 outer?.type === AST_NODE_TYPES.UnaryExpression
                   ? outer
                   : inner;
-              const comparison =
-                use === "negated" ? `${compared} === 0` : `${compared} > 0`;
+              const comparison = negatedComparison(
+                use,
+                optionalObject,
+                lengthText,
+              );
               return fixer.replaceText(target, comparison);
             }
 
             if (!truthyFixPreservesValue(expression)) return null;
-            return fixer.replaceText(node, `${compared} > 0`);
+            const truthy = optionalObject
+              ? `(${optionalObject} != null && ${optionalObject}.length > 0)`
+              : `${lengthText} > 0`;
+            return fixer.replaceText(node, truthy);
           },
         });
       },
     };
   },
 });
+
+function negatedComparison(
+  use: BooleanUse,
+  optionalObject: string | null,
+  lengthText: string,
+): string {
+  if (optionalObject) {
+    if (use === "negated") {
+      return `(${optionalObject} == null || ${optionalObject}.length === 0)`;
+    }
+    return `(${optionalObject} != null && ${optionalObject}.length > 0)`;
+  }
+  if (use === "negated") return `(${lengthText} === 0)`;
+  return `(${lengthText} > 0)`;
+}
 
 function isLengthMember(
   node: TSESTree.MemberExpression,
@@ -117,7 +138,23 @@ function booleanUse(member: TSESTree.MemberExpression): BooleanUse | null {
 
   if (!isAndOr(parent) && !isNullish(parent)) return null;
 
-  if (isAndOr(parent) && parent.left === expression) return "truthy";
+  if (isAndOr(parent) && parent.left === expression) {
+    // `length || fallback` and `count={length || n}` yield the number.
+    if (parent.operator === "||" && !resultUsedAsBoolean(parent)) return null;
+    // A prop receives the value. A child `{length && <List />}` renders 0.
+    if (isJsxAttributeExpression(parent)) return null;
+    return "truthy";
+  }
+
+  // `{flag && items.length}` renders the count. That operand is not a test.
+  if (
+    isAndOr(parent) &&
+    parent.operator === "&&" &&
+    parent.right === expression &&
+    isJsxChild(parent)
+  ) {
+    return null;
+  }
 
   return resultUsedAsBoolean(parent) ? "truthy" : null;
 }
@@ -170,13 +207,10 @@ function resultUsedAsBoolean(node: TSESTree.Node): boolean {
   ) {
     return true;
   }
-  if (
-    parent.type === AST_NODE_TYPES.JSXExpressionContainer &&
-    parent.expression === expression
-  ) {
-    // `{count ?? 0}` renders a number. Only `&&` / `||` test truthiness here,
-    // which is what makes `{items.length && <List />}` render 0.
-    return isAndOr(expression);
+  if (isJsxChildContainer(parent, expression)) {
+    // `{count ?? 0}` renders a number. `{items.length && <List />}` renders 0
+    // because the length is the condition. The value operand is not a test.
+    return isAndOr(expression) && expression.operator === "&&";
   }
   if (
     (isAndOr(parent) || isNullish(parent)) &&
@@ -208,8 +242,10 @@ function truthyFixPreservesValue(expression: TSESTree.Node): boolean {
   const parent = parentOf(expression);
   if (isDirectTest(parent, expression)) return true;
   if (
-    parent.type === AST_NODE_TYPES.JSXExpressionContainer &&
-    parent.expression === expression
+    isAndOr(parent) &&
+    parent.operator === "&&" &&
+    parent.left === expression &&
+    isJsxChild(parent)
   ) {
     return true;
   }
@@ -246,6 +282,47 @@ function isTransparentWrapper(
       parent.type === AST_NODE_TYPES.TSTypeAssertion) &&
     parent.expression === child
   );
+}
+
+function isJsxChild(expression: TSESTree.Node): boolean {
+  return isJsxChildContainer(
+    parentOf(unwrapTransparent(expression)),
+    unwrapTransparent(expression),
+  );
+}
+
+function isJsxChildContainer(
+  parent: TSESTree.Node,
+  expression: TSESTree.Node,
+): boolean {
+  if (
+    parent.type !== AST_NODE_TYPES.JSXExpressionContainer ||
+    parent.expression !== expression
+  ) {
+    return false;
+  }
+  const owner = parent.parent;
+  return (
+    owner?.type === AST_NODE_TYPES.JSXElement ||
+    owner?.type === AST_NODE_TYPES.JSXFragment
+  );
+}
+
+function isJsxAttributeExpression(expression: TSESTree.Node): boolean {
+  const unwrapped = unwrapTransparent(expression);
+  const parent = parentOf(unwrapped);
+  return (
+    parent.type === AST_NODE_TYPES.JSXExpressionContainer &&
+    parent.expression === unwrapped &&
+    parent.parent?.type === AST_NODE_TYPES.JSXAttribute
+  );
+}
+
+/** `items?.length` can be rewritten with a null check. Calls and deeper chains cannot. */
+function optionalIdentifier(member: TSESTree.MemberExpression): string | null {
+  if (!member.optional) return null;
+  if (member.object.type !== AST_NODE_TYPES.Identifier) return null;
+  return member.object.name;
 }
 
 function accessCanBeNullish(member: TSESTree.MemberExpression): boolean {
