@@ -204,7 +204,7 @@ function getProjectId(
     getBasicAuthProjectId(req),
   ];
   if (!equal(selected)) {
-    return badProjectIdInputError();
+    return invalidProjectError();
   }
 
   const boundProjectId = getBoundProjectId(context);
@@ -220,21 +220,21 @@ function getProjectId(
   const projectId =
     boundProjectId ?? requestedProjectId ?? getUrlProjectId(req);
   if (!projectId) {
-    return missingProjectIdError();
+    return missingProjectError();
   }
 
   return { success: true, projectId };
 }
 
-/** missingProjectIdError is the 403 for a multi-project key that names no project. */
-function missingProjectIdError(): ErrorResult<ForbiddenError> {
+/** missingProjectError is the 403 for a multi-project key that names no project. */
+function missingProjectError(): ErrorResult<ForbiddenError> {
   return forbiddenError(
     `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
   );
 }
 
-/** badProjectIdInputError is the 400 for a request whose header, authorization header, and URL path name different projects. */
-function badProjectIdInputError(): ErrorResult<InvalidRequestError> {
+/** invalidProjectError is the 400 for a request whose header, authorization header, and URL path name different projects. */
+function invalidProjectError(): ErrorResult<InvalidRequestError> {
   return invalidRequestError(
     `Project ids from the '${projectIdHeader}' header, authorization header, and url path disagree`,
   );
