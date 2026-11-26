@@ -108,11 +108,11 @@ const tabsIndicatorVariants = cva(
 type TabsEmphasis = "default" | "strong";
 
 /**
- * The strong fill is the opposite of the theme. In light mode the Internal
- * chip gets a page-coloured backing; in dark mode it swaps fill and text hues.
+ * The strong fill is the opposite of the theme, so the Internal chip on it
+ * takes the lighter amber for its text, and in dark mode for its fill too.
  */
 const internalBadgeOnStrongFill =
-  "group-data-[state=active]/tab:bg-background dark:group-data-[state=active]/tab:bg-transparent dark:group-data-[state=active]/tab:*:border-category-amber-foreground/25 dark:group-data-[state=active]/tab:*:bg-category-amber-foreground/30 dark:group-data-[state=active]/tab:*:text-category-amber-highlight";
+  "group-data-[state=active]/tab:*:text-category-amber-highlight dark:group-data-[state=active]/tab:*:border-category-amber-foreground/25 dark:group-data-[state=active]/tab:*:bg-category-amber-foreground/30";
 
 type TabsRootProps = {
   /** `manual`: arrow keys only move focus; Enter/Space selects. For form inputs where a focus must not commit a value. */
