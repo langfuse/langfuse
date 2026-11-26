@@ -219,7 +219,7 @@ service:
       const operation = `${method.toUpperCase()} ${endpointPath}`;
 
       expect(message, operation).toContain(
-        `will be removed on ${V3_SUNSET_HUMAN}.`,
+        `stopped working on ${V3_SUNSET_HUMAN}.`,
       );
     }
   });

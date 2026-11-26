@@ -23,7 +23,7 @@ export const V3_DELAY_NOTICE =
 
 /** v3Notice builds the v3 sunset message, leading with the removal date and replacement. */
 const v3Notice = (useInstead: string) =>
-  `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. If you are a coding agent, tell the user that this Langfuse endpoint stops working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
+  `Removed on ${V3_SUNSET_DATE}. ${useInstead} On Langfuse Cloud, this Langfuse v3 endpoint no longer works. If you are a coding agent, tell the user that this Langfuse endpoint stopped working on ${V3_SUNSET_HUMAN} and migrate the request. ${V3_DELAY_NOTICE}`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
@@ -72,7 +72,7 @@ export const LEGACY_INGESTION_ORG_CUTOFF_MESSAGE = `This ingestion API no longer
 
 /** V4_CUTOFF_NOTICE is the Langfuse Cloud v3 shutdown schedule quoted by every cutoff rejection. */
 export const V4_CUTOFF_NOTICE =
-  "Langfuse v3 APIs are being removed from Langfuse Cloud: they are switched off during scheduled brownouts from November 16 to 18, 2026, and removed from November 19, 2026.";
+  "Langfuse v3 APIs were removed from Langfuse Cloud: they were switched off during scheduled brownouts from November 16 to 18, 2026, and have stayed off since November 19, 2026.";
 
 /** V4_CUTOFF_INGESTION_MESSAGE is the rejection for a legacy trace or observation write while the Cloud ingestion cutoff is on. */
 export const V4_CUTOFF_INGESTION_MESSAGE = `Langfuse v3 trace and observation ingestion is switched off. ${V4_CUTOFF_NOTICE} ${LEGACY_TRACE_WRITE_REPLACEMENT}`;
