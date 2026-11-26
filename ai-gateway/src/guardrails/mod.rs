@@ -507,7 +507,10 @@ impl RuleVerdict {
             Self::Redact => Some(GuardrailAction::Redact),
             Self::Block => Some(match configured {
                 GuardrailAction::Redact => GuardrailAction::Redact,
-                _ => GuardrailAction::Block,
+                GuardrailAction::Block
+                | GuardrailAction::Enforce
+                | GuardrailAction::Log
+                | GuardrailAction::Unknown => GuardrailAction::Block,
             }),
         }
     }

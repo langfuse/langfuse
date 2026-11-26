@@ -373,13 +373,11 @@ export class GatewayGuardrailService {
         }
     ),
   ) {
-    const redactionLabel = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[params.type]
-      .supportsRedactionLabel
-      ? normalizeRedactionLabel(
-          params.action,
-          params.type === "REGEX" ? params.redactionLabel : undefined,
-        )
-      : null;
+    const redactionLabel = normalizeRedactionLabel(
+      params.type,
+      params.action,
+      params.type === "REGEX" ? params.redactionLabel : undefined,
+    );
     let config: Prisma.InputJsonValue;
     let encryptedCredential: string | null = null;
     let compiledPatterns: string[] | null = null;
@@ -474,13 +472,11 @@ export class GatewayGuardrailService {
         }
     ),
   ) {
-    const redactionLabel = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[params.type]
-      .supportsRedactionLabel
-      ? normalizeRedactionLabel(
-          params.action,
-          params.type === "REGEX" ? params.redactionLabel : undefined,
-        )
-      : null;
+    const redactionLabel = normalizeRedactionLabel(
+      params.type,
+      params.action,
+      params.type === "REGEX" ? params.redactionLabel : undefined,
+    );
     if (params.type === "BEDROCK") {
       const existingCredential = await this.repository.findCredentialById({
         organizationId: params.organizationId,
@@ -1095,10 +1091,16 @@ async function assertOrgSizeLimit(
 }
 
 function normalizeRedactionLabel(
+  type: GatewayGuardrailRecord["type"],
   action: GatewayGuardrailRecord["action"],
   rawLabel: string | undefined,
 ): string | null {
-  if (action !== "REDACT") return null;
+  if (
+    !GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].supportsRedactionLabel ||
+    action !== "REDACT"
+  ) {
+    return null;
+  }
   if (rawLabel === undefined) return GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL;
   const parsed = GatewayGuardrailRedactionLabelSchema.safeParse(rawLabel);
   if (!parsed.success) {
