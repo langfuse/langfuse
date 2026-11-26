@@ -1,4 +1,10 @@
-import { type MultiSelectOption } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { type ComponentProps } from "react";
+
+import { type MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+
+export type MemberOption = ComponentProps<
+  typeof MultiSelectInput
+>["options"][number];
 
 export type GroupMember = {
   userId: string;
@@ -19,7 +25,7 @@ export const toMemberOption = (user: {
   id: string;
   name: string | null;
   email: string | null;
-}): MultiSelectOption<string> => ({
+}): MemberOption => ({
   value: user.id,
   label: user.name ?? user.email ?? user.id,
   secondaryLabel: user.name ? (user.email ?? undefined) : undefined,

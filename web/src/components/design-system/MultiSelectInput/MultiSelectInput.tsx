@@ -11,7 +11,7 @@ import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 import { InputControl } from "../internal/InputControl/InputControl";
 import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 
-export type MultiSelectOption<V> = {
+type MultiSelectOption<V> = {
   value: V;
   label: string;
   secondaryLabel?: string;

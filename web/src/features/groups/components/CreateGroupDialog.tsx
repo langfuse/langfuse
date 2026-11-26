@@ -4,11 +4,11 @@ import { type Role } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import {
-  MultiSelectInput,
-  type MultiSelectOption,
-} from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
-import { memberCountLabel } from "@/src/features/groups/groupMember";
+  memberCountLabel,
+  type MemberOption,
+} from "@/src/features/groups/groupMember";
 import { noOrgRoleDescription } from "@/src/features/groups/groupRoles";
 import { RoleField } from "@/src/features/rbac/components/RoleField";
 import { RolePermissionsLink } from "@/src/features/rbac/components/RolePermissionsLink";
@@ -24,7 +24,7 @@ export function CreateGroupDialog({
   onSubmit,
 }: {
   roles: Role[];
-  people: MultiSelectOption<string>[];
+  people: MemberOption[];
   isLoadingPeople?: boolean;
   isPending: boolean;
   error?: string;

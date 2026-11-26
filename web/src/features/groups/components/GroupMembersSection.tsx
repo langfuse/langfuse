@@ -2,18 +2,16 @@ import { useState } from "react";
 import { PlusIcon } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  MultiSelectInput,
-  type MultiSelectOption,
-} from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { GroupMemberList } from "@/src/features/groups/components/GroupMemberList";
 import {
   memberCountLabel,
   type GroupMember,
+  type MemberOption,
 } from "@/src/features/groups/groupMember";
 
 type AddMembers = {
-  candidates: MultiSelectOption<string>[];
+  candidates: MemberOption[];
   isLoadingCandidates: boolean;
   isAdding: boolean;
   onAdd: (userIds: string[]) => Promise<unknown>;
