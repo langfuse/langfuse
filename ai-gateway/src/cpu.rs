@@ -9,7 +9,8 @@ use tokio::sync::Semaphore;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum CpuJob {
     /// Parsing the request body, at roughly 7 GB/s for ASCII and 3 GB/s for
-    /// non-ASCII text, so 256 KiB takes under ~100 µs either way.
+    /// non-ASCII text; kept inline up to 2 MiB on this benchmark branch so
+    /// non-guardrail requests up to 2 MiB bypass `CpuWork` queue contention.
     ParseRequest,
     /// Finding a conversation's last turn, which reads its structure at about the
     /// speed of parsing it.
@@ -24,9 +25,19 @@ pub(crate) enum CpuJob {
 impl CpuJob {
     pub(crate) const fn inline_bytes(self) -> usize {
         match self {
-            Self::ParseRequest | Self::FindLastTurn => 256 * 1024,
+            Self::ParseRequest | Self::FindLastTurn => 2 * 1024 * 1024,
             Self::ScanGuardrails => 4 * 1024,
         }
+    }
+
+    fn effective_inline_bytes(self) -> usize {
+        #[cfg(feature = "bench-harness")]
+        if matches!(self, Self::ParseRequest | Self::FindLastTurn)
+            && let Some(override_bytes) = crate::bench_metrics::parse_inline_bytes()
+        {
+            return override_bytes;
+        }
+        self.inline_bytes()
     }
 }
 
@@ -75,7 +86,7 @@ impl CpuWork {
                 crate::bench_metrics::Phase::ScanCpu,
             ),
         };
-        if input_bytes <= job.inline_bytes() {
+        if input_bytes <= job.effective_inline_bytes() {
             #[cfg(feature = "bench-harness")]
             let started = std::time::Instant::now();
             let result = work();

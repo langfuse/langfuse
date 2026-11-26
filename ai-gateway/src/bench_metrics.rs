@@ -99,6 +99,16 @@ pub(crate) fn max_scan_bytes() -> Option<usize> {
     *CAP
 }
 
+pub(crate) fn parse_inline_bytes() -> Option<usize> {
+    static LIMIT: LazyLock<Option<usize>> = LazyLock::new(|| {
+        std::env::var("BENCH_PARSE_INLINE_BYTES")
+            .ok()
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .filter(|&value| value > 0)
+    });
+    *LIMIT
+}
+
 pub(crate) fn reset() {
     for bucket in &COLLECTOR.samples {
         let mut guard = bucket

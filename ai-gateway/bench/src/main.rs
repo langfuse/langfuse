@@ -36,6 +36,7 @@ struct GatewayOptions {
     cpu_set: String,
     memory_budget_bytes: Option<usize>,
     max_scan_bytes: Option<usize>,
+    parse_inline_bytes: Option<usize>,
     log_level: String,
 }
 
@@ -64,6 +65,7 @@ struct ScenarioRecord {
     cpu_set: String,
     memory_budget_bytes: Option<usize>,
     max_scan_bytes: Option<usize>,
+    parse_inline_bytes: Option<usize>,
     total_rps: f64,
     class_b_share: f64,
     class_a_body_bytes: usize,
@@ -114,6 +116,9 @@ impl RunningGateway {
         }
         if let Some(cap) = opts.max_scan_bytes {
             cmd.env("BENCH_GUARDRAIL_MAX_SCAN_BYTES", cap.to_string());
+        }
+        if let Some(limit) = opts.parse_inline_bytes {
+            cmd.env("BENCH_PARSE_INLINE_BYTES", limit.to_string());
         }
 
         let child = cmd.spawn().expect("spawn ai-gateway via taskset");
@@ -286,6 +291,7 @@ async fn run_scenario_group(
             cpu_set: opts.cpu_set.clone(),
             memory_budget_bytes: opts.memory_budget_bytes,
             max_scan_bytes: opts.max_scan_bytes,
+            parse_inline_bytes: opts.parse_inline_bytes,
             total_rps: scenario.total_rps,
             class_b_share: scenario.class_b_share,
             class_a_body_bytes: class_a_body.len(),
@@ -752,6 +758,142 @@ fn build_cpuwork_starvation_series(suite: &'static str, duration_secs: u64) -> V
     ]
 }
 
+fn build_inline_limit_compare_series(
+    suite: &'static str,
+    include_baselines: bool,
+    duration_secs: u64,
+) -> Vec<Scenario> {
+    const MB_1: usize = 1_000_000;
+    const MB_2: usize = 2_000_000; // strictly < 2 MiB (2,097,152) including JSON wrapper
+    const MB_3: usize = 3 * 1024 * 1024; // strictly > 2 MiB
+    const MB_10: usize = 10 * 1024 * 1024;
+
+    let mut list = Vec::new();
+
+    if include_baselines {
+        // Small 1 KB baseline + pure 2 MB inline-parse impact on 1 KB victim.
+        list.push(Scenario {
+            total_rps: 400.0,
+            class_b_share: 0.0,
+            class_b_rules: RuleSet::None,
+            duration_secs,
+            ..default_scenario(suite, "base-1KB-only-400rps")
+        });
+        list.push(Scenario {
+            total_rps: 200.0,
+            class_b_share: 0.5,
+            class_b_shape: PayloadShape::SingleTurn {
+                bytes: MB_2,
+                match_count: 0,
+            },
+            class_b_rules: RuleSet::None,
+            duration_secs,
+            ..default_scenario(suite, "1KB-vs-2MB-noguardrail-200rps")
+        });
+        // Class A-only baselines per victim body size (50 RPS).
+        for &(label, bytes) in &[
+            ("300KB", 300 * 1024usize),
+            ("1MB", MB_1),
+            ("2MB", MB_2),
+            ("3MB", MB_3),
+        ] {
+            list.push(Scenario {
+                total_rps: 50.0,
+                class_b_share: 0.0,
+                class_a_shape: PayloadShape::SingleTurn {
+                    bytes,
+                    match_count: 0,
+                },
+                class_b_rules: RuleSet::None,
+                duration_secs,
+                ..default_scenario(suite, format!("base-{label}-only-50rps"))
+            });
+        }
+    }
+
+    // Small 1 KB victim vs 1 MB (400 RPS) and 2 MB (200 RPS) Class B 50-rule REDACT.
+    list.push(Scenario {
+        total_rps: 400.0,
+        class_b_share: 0.5,
+        class_b_shape: PayloadShape::SingleTurn {
+            bytes: MB_1,
+            match_count: 20,
+        },
+        class_b_rules: RuleSet::Regex50Redact,
+        duration_secs,
+        ..default_scenario(suite, "1KB-vs-1MB-50r-400rps")
+    });
+    list.push(Scenario {
+        total_rps: 200.0,
+        class_b_share: 0.5,
+        class_b_shape: PayloadShape::SingleTurn {
+            bytes: MB_2,
+            match_count: 20,
+        },
+        class_b_rules: RuleSet::Regex50Redact,
+        duration_secs,
+        ..default_scenario(suite, "1KB-vs-2MB-50r-200rps")
+    });
+
+    // Starvation matrix vs Class B 10 MB 50-rule REDACT at 50 RPS (50% share = 25 A + 25 B).
+    for &(label, a_bytes) in &[
+        ("300KB", 300 * 1024usize),
+        ("1MB", MB_1),
+        ("2MB", MB_2),
+        ("3MB", MB_3),
+    ] {
+        list.push(Scenario {
+            total_rps: 50.0,
+            class_b_share: 0.5,
+            class_a_shape: PayloadShape::SingleTurn {
+                bytes: a_bytes,
+                match_count: 0,
+            },
+            class_b_shape: PayloadShape::SingleTurn {
+                bytes: MB_10,
+                match_count: 20,
+            },
+            class_b_rules: RuleSet::Regex50Redact,
+            duration_secs,
+            ..default_scenario(suite, format!("{label}-vs-10MB-50r-50rps"))
+        });
+    }
+
+    // Starvation matrix vs Class B 1 MB 50-rule REDACT (200 B req/s saturates 1 CpuWork permit).
+    // 300 KB and 1 MB use 400 RPS (50% = 200 A + 200 B); 2 MB and 3 MB use 250 RPS (80% B = 50 A + 200 B)
+    // to keep Class B saturation identical without saturating loopback bandwidth on multi-MB Class A.
+    for &(label, a_bytes, total_rps, share_b) in &[
+        ("300KB", 300 * 1024usize, 400.0f64, 0.5f64),
+        ("1MB", MB_1, 400.0, 0.5),
+        ("2MB", MB_2, 250.0, 0.8),
+        ("3MB", MB_3, 250.0, 0.8),
+    ] {
+        list.push(Scenario {
+            total_rps,
+            class_b_share: share_b,
+            class_a_shape: PayloadShape::SingleTurn {
+                bytes: a_bytes,
+                match_count: 0,
+            },
+            class_b_shape: PayloadShape::SingleTurn {
+                bytes: MB_1,
+                match_count: 20,
+            },
+            class_b_rules: RuleSet::Regex50Redact,
+            duration_secs,
+            ..default_scenario(
+                suite,
+                format!(
+                    "{label}-vs-1MB-50r-{total_rps:.0}rps-b{:.0}pct",
+                    share_b * 100.0
+                ),
+            )
+        });
+    }
+
+    list
+}
+
 fn build_4core_spotcheck(duration_secs: u64) -> Vec<Scenario> {
     vec![
         Scenario {
@@ -859,8 +1001,59 @@ async fn main() {
         cpu_set: cpu_set.clone(),
         memory_budget_bytes: None,
         max_scan_bytes: None,
+        parse_inline_bytes: None,
         log_level: "warn".to_owned(),
     };
+
+    if suite_filter == "inline-limit-compare" {
+        for &(inline_label, inline_bytes) in &[
+            ("inline256KiB", 256 * 1024usize),
+            ("inline2MiB", 2 * 1024 * 1024usize),
+        ] {
+            let uncapped_opts = GatewayOptions {
+                parse_inline_bytes: Some(inline_bytes),
+                max_scan_bytes: None,
+                ..base_opts.clone()
+            };
+            let uncapped_suite: &'static str = if inline_bytes == 256 * 1024 {
+                "inline256KiB-uncapped"
+            } else {
+                "inline2MiB-uncapped"
+            };
+            let uncapped_scenarios =
+                build_inline_limit_compare_series(uncapped_suite, true, duration_secs);
+            run_scenario_group(
+                &client,
+                &mocks,
+                &uncapped_opts,
+                &uncapped_scenarios,
+                &mut results,
+            )
+            .await;
+
+            let capped_opts = GatewayOptions {
+                parse_inline_bytes: Some(inline_bytes),
+                max_scan_bytes: Some(1024 * 1024),
+                ..base_opts.clone()
+            };
+            let capped_suite: &'static str = if inline_bytes == 256 * 1024 {
+                "inline256KiB-1MiBcap"
+            } else {
+                "inline2MiB-1MiBcap"
+            };
+            let _ = inline_label;
+            let capped_scenarios =
+                build_inline_limit_compare_series(capped_suite, false, duration_secs);
+            run_scenario_group(
+                &client,
+                &mocks,
+                &capped_opts,
+                &capped_scenarios,
+                &mut results,
+            )
+            .await;
+        }
+    }
 
     if suite_filter == "all" || suite_filter == "phase-profile" {
         let scenarios = build_phase_profile_series("phase-profile-uncapped");
