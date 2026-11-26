@@ -761,6 +761,28 @@ pub fn compile_captures(pattern: &str) -> Result<meta::Regex, String> {
         .map_err(|error| describe(&error))
 }
 
+/// Compiles rules into one multi-pattern regex with leftmost-first capture
+/// support for single-pass detection and redaction span extraction, using the
+/// same ASCII-only translation as [`validate`]. Size limits are enforced in
+/// the control plane via [`validate`], not here.
+#[cfg(feature = "gateway")]
+pub fn compile_captures_set<S: AsRef<str>>(patterns: &[S]) -> Result<meta::Regex, String> {
+    let hirs: Vec<Hir> = patterns
+        .iter()
+        .map(|pattern| check_pattern(pattern.as_ref()).map_err(|error| error.message))
+        .collect::<Result<_, _>>()?;
+    meta::Builder::new()
+        .configure(
+            meta::Config::new()
+                .match_kind(MatchKind::LeftmostFirst)
+                .utf8_empty(false)
+                .which_captures(WhichCaptures::All)
+                .nfa_size_limit(None),
+        )
+        .build_many_from_hir(&hirs)
+        .map_err(|error| describe(&error))
+}
+
 #[cfg(feature = "wasm")]
 mod wasm {
     use tsify::{Ts, Tsify};

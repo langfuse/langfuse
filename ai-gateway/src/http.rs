@@ -660,7 +660,7 @@ impl InferenceHttpError {
                     R::SpendLimitExceeded(_) => "spend_limit_exceeded",
                     R::SpendLimitUnavailable => "spend_limit_unavailable",
                     R::SpendLimitUnpricedModel => "spend_limit_unpriced_model",
-                    R::GuardrailBlocked(_) => "guardrail_blocked",
+                    R::GuardrailBlocked(rejection) => rejection.error_code(),
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -741,11 +741,11 @@ impl InferenceHttpError {
                 "unsupported_content_encoding",
             ),
             Self::Resolution(R::SpendLimitUnpricedModel) => SPEND_LIMIT_UNPRICED_MODEL,
-            Self::Resolution(R::GuardrailBlocked(_)) => (
-                StatusCode::BAD_REQUEST,
+            Self::Resolution(R::GuardrailBlocked(rejection)) => (
+                rejection.http_status(),
                 "Request blocked by a guardrail",
-                "invalid_request_error",
-                "guardrail_blocked",
+                rejection.error_type(),
+                rejection.error_code(),
             ),
             Self::InvalidBody => (
                 StatusCode::BAD_REQUEST,
@@ -811,7 +811,7 @@ impl InferenceHttpError {
     fn message<'a>(&'a self, message: &'a str) -> &'a str {
         match self {
             Self::Resolution(ResolutionError::RateLimited(limit)) => limit.message(),
-            Self::Resolution(ResolutionError::GuardrailBlocked(message)) => message,
+            Self::Resolution(ResolutionError::GuardrailBlocked(rejection)) => rejection.message(),
             _ => self
                 .spend_limit()
                 .map_or(message, SpendLimitExceeded::message),

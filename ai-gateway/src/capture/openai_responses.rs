@@ -384,11 +384,12 @@ pub(super) fn guardrail_turn<'a>(
     let continues = ["previous_response_id", "conversation"]
         .into_iter()
         .any(|name| member(name).is_some_and(|value| value != "null"));
-    if !had_model_item
-        && !continues
-        && let Some(instructions) = member("instructions")
-    {
-        turn.push_member("instructions", instructions);
+    if let Some(instructions) = member("instructions") {
+        if had_model_item || continues {
+            turn.push_earlier_member("instructions", instructions);
+        } else {
+            turn.push_member("instructions", instructions);
+        }
     }
     // Variables fill a stored prompt with new caller text on every request.
     if let Some(prompt) = member("prompt").filter(|prompt| prompt.starts_with('{')) {
@@ -406,7 +407,7 @@ struct GuardrailPrompt<'a> {
 /// Variable values are strings or input parts.
 fn read_guardrail_prompt(
     prompt: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(&str),
+    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     let prompt: GuardrailPrompt<'_> =
         serde_json::from_str(prompt.get()).map_err(|_| crate::guardrails::text::Unreadable)?;
@@ -427,7 +428,7 @@ fn read_guardrail_prompt(
 
 fn read_guardrail_item(
     item: &serde_json::value::RawValue,
-    sink: &mut dyn FnMut(&str),
+    sink: &mut dyn FnMut(crate::guardrails::text::TextLeaf<'_>),
 ) -> Result<(), crate::guardrails::text::Unreadable> {
     let item: GuardrailItem<'_> =
         serde_json::from_str(item.get()).map_err(|_| crate::guardrails::text::Unreadable)?;

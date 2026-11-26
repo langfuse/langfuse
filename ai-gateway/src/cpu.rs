@@ -3,28 +3,27 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use tokio::sync::Semaphore;
 
-/// The kinds of CPU-bound request work, which differ in how much input runs within
-/// the ~100 µs a task should run between awaits. Larger inputs would hold an async
-/// worker past that, so they move to the blocking pool.
+/// The kinds of CPU-bound request work, each with an inline size threshold up to
+/// which it runs on the async worker rather than queuing for the blocking pool.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum CpuJob {
-    /// Parsing the request body, at roughly 7 GB/s for ASCII and 3 GB/s for
-    /// non-ASCII text, so 256 KiB takes under ~100 µs either way.
+    /// Parsing the request body (~0.5 ms at 2 MiB); kept inline up to 2 MiB so
+    /// normal requests bypass blocking-pool queue contention behind guardrail scans.
     ParseRequest,
     /// Finding a conversation's last turn, which reads its structure at about the
-    /// speed of parsing it.
+    /// speed of parsing it and shares the 2 MiB inline threshold.
     FindLastTurn,
     /// Scanning the last turn with guardrails. Presets and keyword lists run at
     /// roughly 0.5 GB/s, while tenant-supplied custom regexes can fall back from
-    /// the lazy DFA to `PikeVM`; keep only small turns inline so slow scans leave
-    /// the async worker.
+    /// the lazy DFA to `PikeVM`; keep only small turns (up to 4 KiB) inline so
+    /// slow scans leave the async worker.
     ScanGuardrails,
 }
 
 impl CpuJob {
     pub(crate) const fn inline_bytes(self) -> usize {
         match self {
-            Self::ParseRequest | Self::FindLastTurn => 256 * 1024,
+            Self::ParseRequest | Self::FindLastTurn => 2 * 1024 * 1024,
             Self::ScanGuardrails => 4 * 1024,
         }
     }
@@ -82,14 +81,26 @@ mod tests {
     async fn large_inputs_leave_the_calling_thread_and_small_ones_do_not() {
         let cpu = CpuWork::with_permits(1);
         let caller = std::thread::current().id();
-        let job = CpuJob::ScanGuardrails;
-        let small = cpu
-            .run(job, job.inline_bytes(), || std::thread::current().id())
-            .await;
-        let large = cpu
-            .run(job, job.inline_bytes() + 1, || std::thread::current().id())
-            .await;
-        assert_eq!(small, Some(caller));
-        assert!(large.is_some_and(|thread| thread != caller));
+        for (job, threshold) in [
+            (CpuJob::ParseRequest, 2 * 1024 * 1024),
+            (CpuJob::FindLastTurn, 2 * 1024 * 1024),
+            (CpuJob::ScanGuardrails, 4 * 1024),
+        ] {
+            let small = cpu
+                .run(job, threshold, || std::thread::current().id())
+                .await;
+            let large = cpu
+                .run(job, threshold + 1, || std::thread::current().id())
+                .await;
+            assert_eq!(
+                small,
+                Some(caller),
+                "{job:?} at threshold should run inline"
+            );
+            assert!(
+                large.is_some_and(|thread| thread != caller),
+                "{job:?} above threshold should offload"
+            );
+        }
     }
 }

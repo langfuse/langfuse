@@ -50,13 +50,16 @@ import {
 import {
   GATEWAY_GUARDRAIL_PRESET_LABELS,
   GATEWAY_GUARDRAIL_TEMPLATES,
+  getGuardrailTypeForTemplate,
   type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
 import { RegionSelect } from "@/src/features/ai-gateway/components/RegionSelect";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import { GATEWAY_GUARDRAILS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import {
+  GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
+  GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
@@ -67,6 +70,9 @@ import {
   GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
   GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_SCOPE_LABELS,
+  GATEWAY_GUARDRAIL_SCOPES,
   GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
@@ -74,27 +80,76 @@ import {
 import type { GatewayGuardrailsLimitFeedbackReason } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   GATEWAY_GUARDRAIL_PRESET_KEYS,
-  GATEWAY_GUARDRAIL_UI_ACTIONS,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
   GatewayBedrockGuardrailApiKeySchema,
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
+  GatewayGuardrailRedactionLabelSchema,
   parseContainsWordsText,
+  resolveSupportedGuardrailScope,
+  supportsEntireInputScope,
   validateContainsWordsText,
   validateSecretPrefix,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import type {
+  GatewayGuardrailScope,
+  GatewayGuardrailType,
+} from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";
 
-const ACTION_OPTIONS: Array<{
-  value: GatewayGuardrailUiAction;
-  label: string;
-}> = GATEWAY_GUARDRAIL_UI_ACTIONS.map((value) => ({
-  value,
-  label: GATEWAY_GUARDRAIL_ACTION_LABELS[value],
-}));
+function toActionOption(value: GatewayGuardrailUiAction) {
+  const label = GATEWAY_GUARDRAIL_ACTION_LABELS[value];
+  return {
+    value,
+    label,
+    explanation: {
+      title: label,
+      description: GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[value],
+    },
+  };
+}
 
-const RUNS_ON_OPTIONS = [{ value: "input", label: "Input" }] as const;
+const ACTION_OPTIONS_BY_TYPE: Record<
+  GatewayGuardrailType,
+  ReturnType<typeof toActionOption>[]
+> = {
+  REGEX: GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.REGEX.actions.map(toActionOption),
+  BEDROCK:
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES.BEDROCK.actions.map(toActionOption),
+};
+
+const SCOPE_OPTIONS_ALL = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
+  const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
+  return {
+    value,
+    label,
+    explanation: {
+      title: label,
+      description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
+    },
+  };
+});
+
+const SCOPE_OPTIONS_LAST_TURN_ONLY = GATEWAY_GUARDRAIL_SCOPES.map((value) => {
+  const label = GATEWAY_GUARDRAIL_SCOPE_LABELS[value];
+  return value === "ENTIRE_INPUT"
+    ? {
+        value,
+        label,
+        disabled: true as const,
+        disabledReason: "Block guardrails only evaluate the last turn",
+      }
+    : {
+        value,
+        label,
+        explanation: {
+          title: label,
+          description: GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[value],
+        },
+      };
+});
 
 const BEDROCK_FIELD_PATHS = {
   guardrailId: "bedrockGuardrailId",
@@ -110,6 +165,10 @@ function createGuardrailFormSchema(
   templateKind: GatewayGuardrailTemplateKind,
   hasSavedApiKey: boolean,
 ) {
+  const capabilities =
+    GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[
+      getGuardrailTypeForTemplate(templateKind)
+    ];
   return z
     .object({
       name: z
@@ -133,7 +192,9 @@ function createGuardrailFormSchema(
       bedrockGuardrailVersion: z.string(),
       bedrockRegion: z.string(),
       bedrockApiKey: z.string(),
-      action: z.enum(GATEWAY_GUARDRAIL_UI_ACTIONS),
+      action: z.enum(capabilities.actions),
+      scope: z.enum(GATEWAY_GUARDRAIL_SCOPES),
+      redactionLabel: z.string(),
       targets: z
         .array(z.custom<AsyncAutocompleteOption>())
         .min(1, "Select who this guardrail applies to")
@@ -143,6 +204,30 @@ function createGuardrailFormSchema(
         ),
     })
     .superRefine((values, ctx) => {
+      if (
+        !supportsEntireInputScope(values.action) &&
+        values.scope === "ENTIRE_INPUT"
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scope"],
+          message: "Block guardrails only evaluate the last turn",
+        });
+      }
+      if (capabilities.supportsRedactionLabel && values.action === "REDACT") {
+        const labelResult = GatewayGuardrailRedactionLabelSchema.safeParse(
+          values.redactionLabel,
+        );
+        if (!labelResult.success) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["redactionLabel"],
+            message:
+              labelResult.error.issues[0]?.message ??
+              "Enter a replacement label",
+          });
+        }
+      }
       if (templateKind === "bedrock") {
         const configResult = GatewayBedrockGuardrailConfigSchema.safeParse({
           guardrailId: values.bedrockGuardrailId,
@@ -250,6 +335,8 @@ export type GatewayGuardrailFormValues = {
     apiKey?: string;
   };
   action: GatewayGuardrailUiAction;
+  scope?: GatewayGuardrailScope;
+  redactionLabel?: string;
   targets: AsyncAutocompleteOption[];
 };
 
@@ -339,6 +426,13 @@ export function GatewayGuardrailFormDialog({
       bedrockRegion: initialValues.bedrock?.region ?? "",
       bedrockApiKey: "",
       action: initialValues.action,
+      scope: resolveSupportedGuardrailScope(
+        initialValues.action,
+        initialValues.scope ?? "LAST_TURN",
+      ),
+      redactionLabel:
+        initialValues.redactionLabel ??
+        GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
       targets: initialValues.targets,
     },
     mode: "onChange",
@@ -352,11 +446,15 @@ export function GatewayGuardrailFormDialog({
   const bedrockGuardrailVersion = form.watch("bedrockGuardrailVersion");
   const bedrockRegion = form.watch("bedrockRegion");
   const bedrockApiKey = form.watch("bedrockApiKey");
+  const selectedAction = form.watch("action");
+  const selectedScope = form.watch("scope");
   const parsedContains = useMemo(
     () =>
       templateKind === "contains" ? parseContainsWordsText(containsText) : [],
     [templateKind, containsText],
   );
+  const guardrailType = getGuardrailTypeForTemplate(templateKind);
+  const capabilities = GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[guardrailType];
   const externalTemplate =
     GATEWAY_GUARDRAIL_TEMPLATES.find((template) => template.id === templateKind)
       ?.external ?? null;
@@ -419,9 +517,12 @@ export function GatewayGuardrailFormDialog({
           ...(apiKey ? { apiKey } : {}),
         },
         action: values.action,
+        scope: values.scope,
         targets: values.targets,
       };
     }
+    const redactionLabel =
+      values.action === "REDACT" ? values.redactionLabel.trim() : undefined;
     return {
       name: values.name.trim(),
       presets:
@@ -441,6 +542,8 @@ export function GatewayGuardrailFormDialog({
           ? values.customRegex
           : initialValues.customRegex,
       action: values.action,
+      scope: values.scope,
+      redactionLabel,
       targets: values.targets,
     };
   };
@@ -628,47 +731,134 @@ export function GatewayGuardrailFormDialog({
                   />
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="action"
-                      label="On match"
+                    <CustomTooltip
+                      content={
+                        <span>
+                          {
+                            GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS[
+                              selectedAction
+                            ]
+                          }
+                        </span>
+                      }
                     >
-                      {({
-                        id,
-                        inputDescribedById,
-                        error,
-                        value,
-                        onChange,
-                        onBlur,
-                      }) => (
-                        <SelectInput
-                          id={id}
-                          aria-describedby={inputDescribedById}
-                          aria-invalid={Boolean(error)}
-                          error={Boolean(error)}
-                          placeholder="Select action"
-                          value={value}
-                          onValueChange={onChange}
-                          onBlur={onBlur}
-                          options={ACTION_OPTIONS}
-                        />
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="action"
+                          label="On match"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({
+                            id,
+                            inputDescribedById,
+                            error,
+                            value,
+                            onChange,
+                            onBlur,
+                          }) => (
+                            <SelectInput
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="Select action"
+                              value={value}
+                              onValueChange={(nextValue) => {
+                                onChange(nextValue);
+                                if (!supportsEntireInputScope(nextValue)) {
+                                  form.setValue("scope", "LAST_TURN", {
+                                    shouldValidate: true,
+                                  });
+                                }
+                                if (capabilities.supportsRedactionLabel) {
+                                  form
+                                    .trigger("redactionLabel")
+                                    .catch(() => undefined);
+                                }
+                              }}
+                              onBlur={onBlur}
+                              options={ACTION_OPTIONS_BY_TYPE[guardrailType]}
+                            />
+                          )}
+                        </FormField>
                       )}
-                    </FormField>
+                    </CustomTooltip>
 
-                    <FormField label="Runs on">
-                      {({ id, inputDescribedById }) => (
-                        <SelectInput
-                          id={id}
-                          aria-describedby={inputDescribedById}
-                          placeholder="Input"
-                          value="input"
-                          onValueChange={noop}
-                          options={[...RUNS_ON_OPTIONS]}
-                          disabled
-                        />
+                    <CustomTooltip
+                      content={
+                        <span>
+                          {GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[selectedScope]}
+                        </span>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="scope"
+                          label="Runs on"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({
+                            id,
+                            inputDescribedById,
+                            error,
+                            value,
+                            onChange,
+                            onBlur,
+                          }) => (
+                            <SelectInput
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="Select scope"
+                              value={value}
+                              onValueChange={onChange}
+                              onBlur={onBlur}
+                              options={
+                                supportsEntireInputScope(selectedAction)
+                                  ? SCOPE_OPTIONS_ALL
+                                  : SCOPE_OPTIONS_LAST_TURN_ONLY
+                              }
+                            />
+                          )}
+                        </FormField>
                       )}
-                    </FormField>
+                    </CustomTooltip>
                   </div>
+
+                  {capabilities.supportsRedactionLabel &&
+                  selectedAction === "REDACT" ? (
+                    <CustomTooltip
+                      content={
+                        <span>
+                          Matched spans in the request are replaced with this
+                          label before forwarding.
+                        </span>
+                      }
+                    >
+                      {({ getTriggerProps }) => (
+                        <FormField
+                          control={form.control}
+                          name="redactionLabel"
+                          label="Replacement label"
+                          registerLabelTooltip={getTriggerProps}
+                        >
+                          {({ id, inputDescribedById, error, ...field }) => (
+                            <Input
+                              {...field}
+                              id={id}
+                              aria-describedby={inputDescribedById}
+                              aria-invalid={Boolean(error)}
+                              error={Boolean(error)}
+                              placeholder="e.g. [REDACTED] or [PHONE]"
+                            />
+                          )}
+                        </FormField>
+                      )}
+                    </CustomTooltip>
+                  ) : null}
 
                   <FormField
                     control={form.control}
@@ -1313,10 +1503,6 @@ const REGEX_DOCS_LINK_ERROR_CODES = new Set([
   "unicode_not_allowed",
   "size_limit_exceeded",
 ]);
-
-function noop() {
-  // Runs on is locked to Input in this release.
-}
 
 type CustomRegexFieldProps = {
   value: string;

@@ -357,6 +357,9 @@ export const env = createEnv({
     // web/src/ee/features/ui-customization/instanceLinks.ts so a bad value
     // disables the instance switcher instead of failing the deployment.
     LANGFUSE_UI_INSTANCE_LINKS: z.string().optional(),
+    // Forces public sharing of traces and sessions off for every organization.
+    // Only takes effect with the self-host-ui-customization entitlement.
+    LANGFUSE_DISABLE_PUBLIC_SHARING: z.enum(["true", "false"]).optional(),
 
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
@@ -1295,6 +1298,8 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
     LANGFUSE_UI_INSTANCE_LINKS: process.env.LANGFUSE_UI_INSTANCE_LINKS,
+    LANGFUSE_DISABLE_PUBLIC_SHARING:
+      process.env.LANGFUSE_DISABLE_PUBLIC_SHARING,
     LANGFUSE_UI_VISIBLE_PRODUCT_MODULES:
       process.env.LANGFUSE_UI_VISIBLE_PRODUCT_MODULES,
     LANGFUSE_UI_HIDDEN_PRODUCT_MODULES:
