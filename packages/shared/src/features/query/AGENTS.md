@@ -9,12 +9,14 @@ The view registry, query DSL and builder behind dashboards, the Metrics API, the
 - `types.ts`: the query DSL (`query`, `QueryType`), the view declaration schema (`viewDeclaration`) and the view enums (`views`, `viewsV2`).
 - `dataModel.ts`: client-safe view declarations: names, descriptions, types, units, and the `sql` strings the SQL-text builder reads. The web client imports it, so it holds no server code.
 - `validateQuery.ts`: pre-flight checks shared by every caller.
-- `server/queryBuilder.ts`: `QueryBuilder.build()` sends the v2 observations view to `buildEventsObservations` and the v2 score views to `buildScores` (AST), and every other view to `buildSqlText`, the SQL-text path. It only dispatches. The server barrel exports only `QueryBuilder` from the query modules.
+- `server/queryBuilder.ts`: `QueryBuilder.build()` sends the v2 observations view to `buildEventsObservations`, the v2 traces view to `buildEventsTraces` and the v2 score views to `buildScores` (AST), and every other view to `buildSqlText`, the SQL-text path. It only dispatches. The server barrel exports only `QueryBuilder` from the query modules.
 - `server/sqlTextQuery.ts`: `buildSqlText`, the SQL-text path for every other view and version: joins, `FilterList` filters, the inner, outer and single-level selects, WITH FILL, ORDER BY and LIMIT, assembled from the `sql` strings of `dataModel.ts`. It is the only query module that imports the SQL-text filter builder (`FilterList`, `clickhouse-filter`).
 - `server/viewQuerySteps.ts`: the steps every view path shares (dimension, metric, bucket and order-by mapping, filter and relation validation) and the AST-only ones (outer select and clauses, aggregates, compile). It imports nothing from the SQL-text builder (`FilterList`, `clickhouse-filter`); it does read the filter-type table `filterTypeCompatibility`, which lives in `queries/clickhouse-sql/` and imports only types.
 - `server/eventsObservationsQuery.ts`: `buildEventsObservations`, the v2 observations view's query on the AST.
+- `server/eventsTracesQuery.ts`: `buildEventsTraces`, the v2 traces view's query on the AST: one row per trace in the inner select, and the root-event condition.
 - `server/scoresQuery.ts`: `buildScores`, the v2 score views' query on the AST.
 - `server/eventsObservationsRegistry.ts`: the AST view to copy. Each dimension and measure of `eventsObservationsView` as a typed expression over `e`, keyed by the declaration's names, plus how a filter compares each dimension and the `scores` join.
+- `server/eventsTracesRegistry.ts`: the same for `eventsTracesView`, plus each dimension's per-trace value (the declaration's `aggregationFunction`), the `name` filter's pruning columns and the measures' aggregation overrides.
 - `server/queryExecutor.ts`: runs a built query. It picks the `EventsReadOnly` pool when the compiled SQL names `events_core` or `events_full`, and sets tags and ClickHouse settings.
 
 ## Adding a view
