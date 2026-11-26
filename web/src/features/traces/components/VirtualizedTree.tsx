@@ -38,6 +38,8 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   overscan?: number;
   defaultRowHeight?: number;
   className?: string;
+  /** Space above the first row, in px. */
+  paddingStart?: number;
 }
 
 export function VirtualizedTree<T extends { id: string; children: T[] }>({
@@ -55,6 +57,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   overscan = 16,
   defaultRowHeight = 37,
   className,
+  paddingStart = 8,
 }: VirtualizedTreeProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +105,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     // overlap (LFE-10591, worst right after "Collapse all"). Keying by id makes
     // each measurement travel with its node, so offsets stay correct.
     getItemKey: (index) => flattenedItems[index]!.node.id,
-    paddingStart: 8,
+    paddingStart,
     overscan,
     measureElement:
       typeof window !== "undefined"

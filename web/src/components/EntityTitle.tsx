@@ -23,6 +23,8 @@ type EntityTitleProps = {
   help?: DocPopupProps;
   /** Observation level badge after the title; DEFAULT shows nothing. */
   level?: ObservationLevelType;
+  /** `sm`: for a title inside a panel that has its own heading. */
+  size?: "default" | "sm";
   as: "h2" | "span";
   isFocusable?: boolean;
   "data-testid"?: string;
@@ -35,6 +37,7 @@ export function EntityTitle({
   tooltip,
   help,
   level,
+  size = "default",
   as: Heading,
   isFocusable,
   "data-testid": testId,
@@ -45,7 +48,9 @@ export function EntityTitle({
       <Heading
         className={cn(
           // Explicit colour: titles are the emphasis tier and never inherit a container tint.
-          "ph-no-capture text-primary min-w-0 truncate pt-px pb-0.75 text-lg leading-6 font-bold",
+          "ph-no-capture text-primary min-w-0 truncate pt-px pb-0.75 font-bold",
+          // A leading class must follow the font size, or tailwind-merge drops it.
+          size === "sm" ? "text-base" : "text-lg leading-6",
           isFocusable && "focus:outline-hidden",
         )}
         title={tooltip ? undefined : title}
