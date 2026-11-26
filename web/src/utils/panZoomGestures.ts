@@ -1,3 +1,4 @@
+/** @knipignore Storybook generates wheel input for a specific zoom increment. */
 export const PINCH_ZOOM_RATE = 1 / 40;
 const WHEEL_LINE_PX = 16;
 

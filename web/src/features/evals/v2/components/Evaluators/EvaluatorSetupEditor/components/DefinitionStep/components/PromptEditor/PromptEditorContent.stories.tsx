@@ -3,7 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
-import { PromptEditorContent } from "./PromptEditor";
+import { PromptEditorContent } from "./PromptEditorContent";
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 

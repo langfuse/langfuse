@@ -1,11 +1,7 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
-  V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
-  V4_MIGRATION_TOP_BANNER_MESSAGE,
-} from "@/src/features/v4-migration/v4MigrationBannerCopy";
+import { V4_MIGRATION_TOP_BANNER_MESSAGE } from "@/src/features/v4-migration/v4MigrationBannerCopy";
 import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
 
 const mocks = vi.hoisted(() => ({
@@ -181,7 +177,8 @@ describe("getV4MigrationTopBannerState", () => {
         cutoffExemptProjectIds: ["project-a"],
       }),
     ).resolves.toMatchObject({
-      message: V4_MIGRATION_DELAYED_DEADLINE_MESSAGE,
+      message:
+        "Action required: Deadline delayed by one week, until November 23, 2026. Some features may stop working after that for at least one of your projects.",
       variant: "delayed",
       href: "/v4-migration",
       linkLabel: "Check migration status",
@@ -229,7 +226,8 @@ describe("getV4MigrationTopBannerState", () => {
         cutoffExemptProjectIds: ["project-a"],
       }),
     ).resolves.toMatchObject({
-      message: V4_MIGRATION_DECEMBER_DEADLINE_MESSAGE,
+      message:
+        "Action required: Deadline delayed until December 31, 2026. Some features may stop working after that for at least one of your projects.",
       variant: "december",
       href: "/v4-migration",
     });

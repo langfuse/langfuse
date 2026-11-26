@@ -24,7 +24,7 @@ import {
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
 } from "@/src/features/public-api/types/evaluation/evaluators";
-import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+import { PublicApiError } from "./public-api-errors";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {

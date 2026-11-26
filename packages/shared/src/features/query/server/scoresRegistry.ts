@@ -154,6 +154,7 @@ const isEvaluatorTest = (eb: ScoresBuilder) =>
  * `scoresV2BaseDimensions` and `createScoreSpecificDimensions` order, then
  * each view's own value dimension.
  */
+/** @knipignore Registry tests compare the complete key set with the declared dimensions. */
 export const SCORE_DIMENSIONS = {
   sessionId: nullableStringDimension((eb) => eb.ref("scores.session_id")),
   // `Nullable(String)`, so its filter is kind `nullableString`.
@@ -285,6 +286,7 @@ export const SEGMENT_FILTER: ScalarFieldLowering<ScoresBuilder> = {
  * unqualified; the entry qualifies it, since the compiler rejects a bare
  * column in a SELECT that also joins a relation.
  */
+/** @knipignore Registry tests compare the complete key set with the declared measures. */
 export const SCORE_MEASURES = {
   count: (_eb: ScoresBuilder, level: QueryLevel) =>
     aggregationSlot({ agg1: "count" }, level)("agg1", literal(1)),

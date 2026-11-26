@@ -74,6 +74,39 @@ export const ConstrainedWidth = meta.story({
   },
 });
 
+export const WithoutSelection = meta.story({
+  args: {
+    value: [],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+  },
+  render: (args) => (
+    <div className="w-72">
+      <MultiSelectTagInput {...args} />
+    </div>
+  ),
+});
+
+export const Disabled = meta.story({
+  args: {
+    value: options.slice(0, 2).map((option) => option.value),
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+    disabled: true,
+  },
+  render: (args) => (
+    <div className="w-72">
+      <MultiSelectTagInput {...args} />
+    </div>
+  ),
+});
+
 export const Empty = meta.story({
   args: {
     value: [],
@@ -254,13 +287,20 @@ export const TestOverflowBadgePlacement = meta.story({
       const gap =
         overflowBadge.getBoundingClientRect().left -
         lastVisibleTag.getBoundingClientRect().right;
-      const clearGap =
-        clearButton.getBoundingClientRect().left -
-        layout.getBoundingClientRect().right;
       const layoutStyles = getComputedStyle(layout);
       const expectedTagGap = Number.parseFloat(layoutStyles.columnGap);
       expect(Math.abs(gap - expectedTagGap)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(clearGap)).toBeLessThanOrEqual(0.5);
+      const clearBox = clearButton.getBoundingClientRect();
+      const layoutBox = layout.getBoundingClientRect();
+      expect(clearBox.left).toBeGreaterThanOrEqual(
+        lastVisibleTag.getBoundingClientRect().right - 1,
+      );
+      expect(
+        Math.abs(
+          (clearBox.top + clearBox.bottom) / 2 -
+            (layoutBox.top + layoutBox.bottom) / 2,
+        ),
+      ).toBeLessThanOrEqual(1);
     });
   },
 });
