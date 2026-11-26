@@ -513,7 +513,7 @@ describe("tenancy injection", () => {
     const db = getClickhouseKysely();
     // Knows the CTE names `a` and `b` as tables, so a body can read a name
     // before its CTE is declared without a cast.
-    const loose = db.withTables<{
+    const loose = db.$extendTables<{
       a: { id: string };
       b: { id: string };
     }>();
@@ -1330,7 +1330,7 @@ describe("names the compiler writes verbatim", () => {
     [
       "tuple subcolumn field",
       db
-        .withTables<{
+        .$extendTables<{
           events: {
             skills_available: Array<{ "skillName from x --": string }>;
           };

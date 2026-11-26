@@ -311,13 +311,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   constructor(private readonly paramPrefix = "p") {
     super();
     // A `CustomNode` (nodes.ts) is a kind Kysely's dispatch cannot reach and
-    // Kysely has no public hook to register one, so we patch its private
-    // visitNode/nodeStack to route each to `compileCustomNode`. Kysely is
-    // pinned to 0.28.17 for this; see README.md ("upgrade hazard").
+    // Kysely has no public hook to register one, so we patch its protected
+    // readonly visitNode/nodeStack to route each to `compileCustomNode`. Kysely
+    // is pinned to 0.29.9 for this; see README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
-    // Anti-pattern: cast through `unknown` once to reach Kysely's private
-    // `visitNode` / `nodeStack` (not part of the public type). Deliberate, to
-    // avoid a fork.
+    // Anti-pattern: cast through `unknown` once to reassign Kysely's readonly
+    // `visitNode` and read `nodeStack`.
     const self = this as unknown as {
       visitNode: (node: OperationNode) => void;
       nodeStack: OperationNode[];
@@ -990,7 +989,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   /**
    * Wholesale copy of Kysely's `DefaultQueryCompiler.visitSelectQuery` (kept in
-   * sync with the pinned 0.28.17) with three ClickHouse-only insertions:
+   * sync with the pinned 0.29.9) with three ClickHouse-only insertions:
    *   - the ARRAY JOIN block, emitted after JOINs and before WHERE (line ~193)
    *   - the WITH FILL block, emitted right after ORDER BY
    *   - the LIMIT BY block, emitted before LIMIT (line ~225)
@@ -1120,7 +1119,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
     if (node.endModifiers?.length) {
       this.append(" ");
-      this.compileList(this.sortSelectModifiers([...node.endModifiers]), " ");
+      this.compileList(this.sortSelectModifiers(node.endModifiers), " ");
     }
 
     if (wrapInParens) {

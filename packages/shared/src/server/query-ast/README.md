@@ -2,7 +2,7 @@
 
 Server-only half of the query-builder AST module: the Kysely-based ClickHouse compiler, validation passes, physical registry, execution context, and exec integration, behind the `@langfuse/shared/src/server` export boundary. The client-safe half (predicate AST, `FilterState` codec, semantic source registry) lives under `packages/shared/src/query-ast/`.
 
-This folder is a compile-only ClickHouse dialect on Kysely 0.28: real `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map subscripts; a mandatory tenancy injection pass keyed on one `projectId`; per-table dedup lowering from the registry; schema-typed selection; virtual views as WITH CTEs; catalog parity.
+This folder is a compile-only ClickHouse dialect on Kysely 0.29: real `OperationNode`s for ARRAY JOIN, LIMIT BY, FINAL, and metadata map subscripts; a mandatory tenancy injection pass keyed on one `projectId`; per-table dedup lowering from the registry; schema-typed selection; virtual views as WITH CTEs; catalog parity.
 
 Two audiences: **[Using it](#using-it)** if you are calling the compiler from a
 repository, **[Developing the dialect](#developing-the-dialect)** if you are
@@ -337,7 +337,7 @@ widening behavior.
 
 ### The one Kysely-internals coupling (upgrade hazard)
 
-`compiler.ts` wraps Kysely's **private** `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.28.17** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
+`compiler.ts` wraps Kysely's `protected readonly` `visitNode` / `nodeStack` to dispatch each `CustomNode` (`ArrayIndexNode` for `metadata[key]`, `FinalTableNode` for `FINAL`, `ParametricAggregateNode` for `quantile(0.95)(x)`, `TupleSubcolumnNode` for `q.col.field`) through `compileCustomNode`, because they are not Kysely's closed `OperationNode` kinds. Kysely is pinned to **0.29.9** for this reason. Re-verify this hack on any Kysely bump; it is the single place that reaches past Kysely's documented surface. Everything else (plugins, dialect, transformer overrides) uses public or documented-protected API.
 
 ### Types are asserted at compile time
 
