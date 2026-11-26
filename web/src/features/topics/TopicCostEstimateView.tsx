@@ -48,7 +48,7 @@ const approxCount = (count: number) =>
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
 
-// Every question summarized on a trace is one billable unit. Null hides the row
+// Every facet summarized on a trace is one billable unit. Null hides the row
 // while the trace count is unknown or nothing is selected.
 function usageSummary({
   facetCount,
@@ -64,13 +64,13 @@ function usageSummary({
   newTraces?: number;
 }) {
   if (facetCount === 0) return null;
-  const questions = `${facetCount} ${facetCount === 1 ? "question" : "questions"}`;
-  const rule = "Each question summarized on a trace is one billable unit.";
+  const facets = `${facetCount} ${facetCount === 1 ? "facet" : "facets"}`;
+  const rule = "Each facet summarized on a trace is one billable unit.";
   if (newTraces !== undefined)
     return {
       units: newTraces * facetCount,
       period: "for this snapshot",
-      explanation: `${questions} × up to ${newTraces.toLocaleString("en-US")} new traces. ${rule}`,
+      explanation: `${facets} × up to ${newTraces.toLocaleString("en-US")} new traces. ${rule}`,
     };
   if (sampledDailyTraces === null) return null;
   const backfill = backfillTraces
@@ -79,7 +79,7 @@ function usageSummary({
   return {
     units: sampledDailyTraces * facetCount,
     period: "per day",
-    explanation: `${questions} × ${approxCount(sampledDailyTraces)} traces a day at ${samplingPercent}% sampling${backfill}. ${rule}`,
+    explanation: `${facets} × ${approxCount(sampledDailyTraces)} traces a day at ${samplingPercent}% sampling${backfill}. ${rule}`,
   };
 }
 
