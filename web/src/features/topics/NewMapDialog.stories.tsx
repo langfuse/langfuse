@@ -112,9 +112,10 @@ function NewMapStory({
       }
       costEstimateField={
         <TopicCostEstimateView
+          showUsage
           estimate={costEstimateFixture()}
           samplingPercent={samplingPercent}
-          dailyTraces={180}
+          dailyTraces={1_240}
           backfillTraces={412}
           onAddModelPrice={fn()}
           starting={false}

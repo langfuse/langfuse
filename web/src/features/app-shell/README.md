@@ -6,7 +6,7 @@ Collapsed icons keep the standard navigation label tooltips and hover styling. T
 
 Below `md`, the hamburger opens the same mounted surface as a full-width modal menu with touch-sized rows. Its close button, navigation, and breakpoint changes release transient menus and focus/scroll locks. Returning to desktop preserves the expansion preference.
 
-The shell is selected per browser through the user menu or `?shell=next` / `?shell=classic`. Project discovery, organization overview, and root landing policies are independent of this sidebar.
+Authenticated pages use this shell. Project discovery, organization overview, and root landing policies are independent of this sidebar.
 
 ## Owner map
 
