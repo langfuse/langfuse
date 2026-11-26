@@ -196,6 +196,14 @@ function getGuardrailBadge(row: GatewayGuardrailRow) {
   if (
     row.presets.length === 0 &&
     row.secretPrefixes.length === 0 &&
+    row.containsWords.length === 0 &&
+    row.customRegex
+  ) {
+    return ".*";
+  }
+  if (
+    row.presets.length === 0 &&
+    row.secretPrefixes.length === 0 &&
     row.containsWords.length > 0
   ) {
     return "Aa";

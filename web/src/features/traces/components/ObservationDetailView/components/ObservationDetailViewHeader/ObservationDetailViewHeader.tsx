@@ -31,7 +31,7 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
-import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/ConnectedDetailHeaderActionsMenuController";
 import {
   formatMetricCost,
   formatMetricTokens,

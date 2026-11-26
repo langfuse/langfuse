@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
   getValidAggregationsForMeasureType,
@@ -2429,7 +2430,7 @@ describe("queryBuilder", () => {
         await setupScores(projectId, scores);
 
         // Define query with filter using "scoreName" instead of "name"
-        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        // This tests the fallback handling in sqlTextQuery.ts that handles column names ending with "Name"
         const query: QueryType = {
           view: "scores-numeric",
           dimensions: [{ field: "name" }],

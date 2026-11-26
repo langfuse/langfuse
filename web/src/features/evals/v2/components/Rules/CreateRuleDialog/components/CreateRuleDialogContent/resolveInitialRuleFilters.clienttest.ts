@@ -1,3 +1,4 @@
+import { TopicsTargetObject } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
@@ -25,5 +26,23 @@ describe("resolveInitialRuleFilters", () => {
     ];
 
     expect(resolveInitialRuleFilters(filters)).toBe(filters);
+  });
+
+  it("keeps a trace filter and starts trace rules unfiltered", () => {
+    const filters = [
+      {
+        column: "traceName",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "support-chat",
+      },
+    ];
+
+    expect(resolveInitialRuleFilters(filters, TopicsTargetObject)).toBe(
+      filters,
+    );
+    expect(resolveInitialRuleFilters(undefined, TopicsTargetObject)).toEqual(
+      [],
+    );
   });
 });

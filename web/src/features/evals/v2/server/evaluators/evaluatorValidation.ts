@@ -36,7 +36,7 @@ export function extractEvaluatorPromptVariables(
   ];
 }
 
-export function assertEvaluatorVariablesMatchPrompt(params: {
+function assertEvaluatorVariablesMatchPrompt(params: {
   promptVariables: string[];
   variables: string[];
 }) {

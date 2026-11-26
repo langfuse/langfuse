@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
+/** @knipignore Keeps the setup dialog stories in sync with the production question sequence. */
 export const TOPIC_SETUP_QUESTIONS = [
   { name: "Intent" },
   { name: "Sentiment" },
