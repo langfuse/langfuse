@@ -152,6 +152,7 @@ function LoadedTraceTree() {
             onSelect={picksObservation ? pick : browse}
             node={typedNode}
             isDimmed={picksObservation && !isPickable}
+            isEvaluationMatch={isPickable}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
@@ -174,6 +175,7 @@ function TraceTreeRow({
   commentCount,
   onHover,
   isDimmed,
+  isEvaluationMatch,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
@@ -185,6 +187,7 @@ function TraceTreeRow({
   commentCount: number | undefined;
   onHover: () => void;
   isDimmed: boolean;
+  isEvaluationMatch: boolean;
 }) {
   const { isEmbedded, preferredObservationId } = useTracePresentation();
   const isSelectedObservation =
@@ -199,7 +202,9 @@ function TraceTreeRow({
       isSelected={isSelected}
       onSelect={onSelect}
       surfaceClassName={
-        isSelectedObservation ? "bg-light-blue text-foreground" : undefined
+        isSelectedObservation || isEvaluationMatch
+          ? "bg-light-blue text-foreground"
+          : undefined
       }
       className={isDimmed ? UNPICKABLE_ROW_CLASS_NAME : undefined}
     >

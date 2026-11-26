@@ -43,7 +43,7 @@ interface SpanContentProps {
   node: TreeNode;
   emphasis?: MetricEmphasisContext;
   commentCount?: number;
-  /** The observation an embedder will evaluate. */
+  /** The observation an embedder tests on. */
   isSelectedObservation?: boolean;
   onSelect?: () => void;
   onHover?: () => void;
@@ -179,7 +179,7 @@ function LoadedSpanContent({
           <div
             className={cn(
               "flex min-w-0 flex-wrap items-center gap-x-3 font-mono",
-              // The evaluated badge can wrap under a score chip.
+              // The sample badge can wrap under a score chip.
               isSelectedObservation && "gap-y-1",
             )}
           >
