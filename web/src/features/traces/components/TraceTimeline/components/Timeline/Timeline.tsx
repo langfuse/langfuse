@@ -69,6 +69,7 @@ import { cn } from "@/src/utils/tailwind";
 import type { Density, PointerModality } from "../../types";
 import type {
   Box,
+  GapMarker,
   LayoutNode,
   PositionedNode,
   RowExtent,
@@ -216,6 +217,42 @@ const AUTO_OPEN_MIN_LANE_WIDTH = 280;
 const FOCUS_ANIMATION_MS = 320;
 /** Slack around the rail so the peek zone is reachable at rail width. */
 const PEEK_MARGIN_PX = 6;
+
+function idleGapLabels(
+  gaps: readonly GapMarker[],
+  laneWidth: number,
+  measurer: { measure: (text: string) => number },
+) {
+  const labels = [];
+  let labelCursor = 0;
+  for (const gap of gaps) {
+    if (gap.durationMs < IDLE_GAP_THRESHOLD_SECONDS * 1000) continue;
+    const label = `+${formatIdleGap(gap.durationMs / 1000)} idle`;
+    const labelWidth = measurer.measure(label) + 8;
+    const center = gap.x + gap.width / 2;
+    const left = Math.min(
+      Math.max(center - labelWidth / 2, 0),
+      Math.max(laneWidth - labelWidth, 0),
+    );
+    if (left < labelCursor) continue;
+    labelCursor = left + labelWidth;
+    labels.push(
+      <span
+        key={`idle-${gap.x}`}
+        className="bg-background text-muted-foreground absolute top-0 z-1 px-1 font-mono whitespace-nowrap"
+        style={{
+          left: `${left}px`,
+          fontSize: "11px",
+          lineHeight: `${AXIS_HEIGHT}px`,
+        }}
+        data-testid="timeline-idle-gap"
+      >
+        {label}
+      </span>,
+    );
+  }
+  return labels;
+}
 /** A collapsed-gap band narrower than this has no room to name itself. */
 const GAP_LABEL_MIN_WIDTH = 14;
 /** Below this in both axes a drag was a stray click, not a box. */
@@ -1154,6 +1191,7 @@ export function Timeline({
       // takes no width, so this collapsed to "the leftmost 6px" and a tap there
       // set an override with nothing to show for it — which then sprang the names
       // open later, the moment a focus zoom grew the rows enough to honour it.
+      !compact &&
       canShowNames &&
       offsetX <= Math.max(railWidth, peekWidth) + PEEK_MARGIN_PX
     ) {
@@ -1617,30 +1655,7 @@ export function Timeline({
               </span>
             </div>
           ))}
-          {result.gaps.map((gap) => {
-            if (gap.durationMs < IDLE_GAP_THRESHOLD_SECONDS * 1000) return null;
-            const label = `+${formatIdleGap(gap.durationMs / 1000)} idle`;
-            const labelWidth = measurer.measure(label) + 8;
-            const center = gap.x + gap.width / 2;
-            const left = Math.min(
-              Math.max(center - labelWidth / 2, 0),
-              Math.max(laneWidth - labelWidth, 0),
-            );
-            return (
-              <span
-                key={`idle-${gap.x}`}
-                className="bg-background text-muted-foreground absolute top-0 z-10 px-1 font-mono whitespace-nowrap"
-                style={{
-                  left: `${left}px`,
-                  fontSize: "11px",
-                  lineHeight: `${AXIS_HEIGHT}px`,
-                }}
-                data-testid="timeline-idle-gap"
-              >
-                {label}
-              </span>
-            );
-          })}
+          {idleGapLabels(result.gaps, laneWidth, measurer)}
         </div>
       </div>
 
