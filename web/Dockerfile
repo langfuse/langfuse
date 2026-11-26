@@ -323,7 +323,7 @@ ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
+    exec node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
     else \
-    node ./web/server.js --keepAliveTimeout 110000; \
+    exec node ./web/server.js --keepAliveTimeout 110000; \
     fi

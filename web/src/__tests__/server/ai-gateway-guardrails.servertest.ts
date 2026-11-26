@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { decrypt } from "@langfuse/shared/encryption";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   createOrgMembership,
@@ -6,15 +7,18 @@ import {
 } from "@langfuse/shared/memberships";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import { env } from "@/src/env.mjs";
 import {
   GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayGuardrailService } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailService";
+import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -114,6 +118,7 @@ const createGuardrail = async (params: {
 
 afterEach(() => {
   Object.assign(env, originalEnv);
+  vi.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -198,6 +203,7 @@ describe("GatewayGuardrailService", () => {
     expect(resolved[0]).toEqual({
       id: expect.any(String),
       name: "Key rule",
+      type: "regex",
       action: "block",
       patterns: [...GATEWAY_GUARDRAIL_PRESETS.email.patterns],
     });
@@ -316,6 +322,7 @@ describe("aiGateway guardrails tRPC", () => {
     // Owner creates a guardrail for Everyone
     const created = await ownerCaller.aiGateway.guardrails.create({
       orgId,
+      type: "REGEX",
       name: "Block SSNs",
       action: "BLOCK",
       presets: ["us_ssn", "credit_card"],
@@ -331,6 +338,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Block SSNs",
         action: "LOG",
         presets: ["email"],
@@ -342,6 +350,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Bad combo",
         action: "BLOCK",
         presets: ["email"],
@@ -356,6 +365,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Foreign key",
         action: "BLOCK",
         presets: ["email"],
@@ -367,6 +377,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       memberCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Member rule",
         action: "LOG",
         presets: ["email"],
@@ -393,6 +404,7 @@ describe("aiGateway guardrails tRPC", () => {
     const updated = await ownerCaller.aiGateway.guardrails.update({
       orgId,
       id: created.id,
+      type: "REGEX",
       name: "Log PII for support",
       action: "LOG",
       presets: ["email", "iban"],
@@ -438,6 +450,7 @@ describe("aiGateway guardrails tRPC", () => {
       await ownerCaller.aiGateway.guardrails.update({
         orgId,
         id: created.id,
+        type: "REGEX",
         name: "Log PII renamed",
         action: "LOG",
         presets: ["email"],
@@ -486,6 +499,7 @@ describe("aiGateway guardrails tRPC", () => {
     await ownerCaller.aiGateway.guardrails.update({
       orgId,
       id: guardrail.id,
+      type: "REGEX",
       name: "Future preset rule renamed",
       action: "LOG",
       presets: ["email"],
@@ -550,6 +564,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Guardrail 21",
         action: "BLOCK",
         presets: ["email"],
@@ -563,6 +578,7 @@ describe("aiGateway guardrails tRPC", () => {
     // Another organization is unaffected.
     const otherCreated = await otherOrgCaller.aiGateway.guardrails.create({
       orgId: otherOrgId,
+      type: "REGEX",
       name: "Other org guardrail",
       action: "LOG",
       presets: ["email"],
@@ -577,6 +593,7 @@ describe("aiGateway guardrails tRPC", () => {
     });
     const createdAfterDelete = await ownerCaller.aiGateway.guardrails.create({
       orgId,
+      type: "REGEX",
       name: "Guardrail 21",
       action: "BLOCK",
       presets: ["email"],
@@ -625,6 +642,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Bad prefix",
         action: "BLOCK",
         presets: [],
@@ -636,6 +654,7 @@ describe("aiGateway guardrails tRPC", () => {
     await expect(
       ownerCaller.aiGateway.guardrails.create({
         orgId,
+        type: "REGEX",
         name: "Bad contains",
         action: "BLOCK",
         presets: [],
@@ -650,6 +669,7 @@ describe("aiGateway guardrails tRPC", () => {
     // Create secret guardrail with built-in preset + custom prefix, and a contains guardrail
     const secretRule = await ownerCaller.aiGateway.guardrails.create({
       orgId,
+      type: "REGEX",
       name: "Secrets",
       action: "BLOCK",
       presets: ["langfuse_api_key", "jwt"],
@@ -658,6 +678,7 @@ describe("aiGateway guardrails tRPC", () => {
     });
     const containsRule = await ownerCaller.aiGateway.guardrails.create({
       orgId,
+      type: "REGEX",
       name: "Blocked terms",
       action: "LOG",
       presets: [],
@@ -675,10 +696,20 @@ describe("aiGateway guardrails tRPC", () => {
     const resolvedContains = resolved.find(
       (item) => item.id === containsRule.id,
     );
-    expect(resolvedSecret?.patterns).toHaveLength(3);
-    expect(resolvedSecret?.patterns[2]).toContain("acme_sk_");
-    expect(resolvedContains?.patterns).toHaveLength(1);
-    expect(resolvedContains?.patterns[0]).toContain("[Cc][Oo][Nn]");
+    expect(resolvedSecret?.type).toBe("regex");
+    expect(
+      resolvedSecret?.type === "regex" ? resolvedSecret.patterns : [],
+    ).toHaveLength(3);
+    expect(
+      resolvedSecret?.type === "regex" ? resolvedSecret.patterns[2] : "",
+    ).toContain("acme_sk_");
+    expect(resolvedContains?.type).toBe("regex");
+    expect(
+      resolvedContains?.type === "regex" ? resolvedContains.patterns : [],
+    ).toHaveLength(1);
+    expect(
+      resolvedContains?.type === "regex" ? resolvedContains.patterns[0] : "",
+    ).toContain("[Cc][Oo][Nn]");
 
     // Bulk set applies-to denied for non-admin
     await expect(
@@ -703,5 +734,464 @@ describe("aiGateway guardrails tRPC", () => {
         expect.objectContaining({ scope: "API_KEY", apiKeyId: keyId }),
       ]);
     }
+  });
+
+  it("creates, edits, resolves, and encrypts Bedrock guardrails without returning the API key", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Bedrock Owner");
+    const keyId = await createKey(orgId, owner.id, { gateway: true });
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ action: "NONE" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    // Rejects invalid guardrail ID, version, or region before calling AWS
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "BEDROCK",
+        name: "Bad ID",
+        action: "BLOCK",
+        bedrock: {
+          guardrailId: "../evil",
+          guardrailVersion: "1",
+          region: "us-east-1",
+          apiKey: "bedrock-secret-1",
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Test endpoint returns provider response when AWS rejects the key
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Access denied" }), {
+        status: 403,
+        statusText: "Forbidden",
+      }),
+    );
+    const failedTest = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bad-key",
+      },
+    });
+    expect(failedTest).toEqual({
+      success: false,
+      providerResponse: {
+        status: 403,
+        statusText: "Forbidden",
+        body: JSON.stringify({ message: "Access denied" }),
+      },
+    });
+
+    // Save rejects if Bedrock rejects the guardrail test
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Guardrail not found" }), {
+        status: 404,
+      }),
+    );
+    await expect(
+      ownerCaller.aiGateway.guardrails.create({
+        orgId,
+        type: "BEDROCK",
+        name: "Missing guardrail",
+        action: "BLOCK",
+        bedrock: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "1",
+          region: "us-east-1",
+          apiKey: "bedrock-secret-1",
+        },
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    // Successful test & create sends ApplyGuardrail with Bearer auth
+    const passedTest = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bedrock-secret-1",
+      },
+    });
+    expect(passedTest).toEqual({ success: true });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/guardrail/abc123def456/version/1/apply",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer bedrock-secret-1",
+        }),
+      }),
+    );
+
+    const created = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "BEDROCK",
+      name: "Bedrock content filter",
+      action: "BLOCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+        apiKey: "bedrock-secret-1",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(created.type).toBe("BEDROCK");
+    expect(created.bedrock).toEqual({
+      guardrailId: "abc123def456",
+      guardrailVersion: "1",
+      region: "us-east-1",
+    });
+    expect(JSON.stringify(created)).not.toContain("bedrock-secret-1");
+
+    // Stored encrypted in Postgres and omitted from list responses and audit logs
+    const stored = await prisma.gatewayGuardrail.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { encryptedCredential: true, config: true },
+    });
+    expect(stored.encryptedCredential).toBeTruthy();
+    expect(stored.encryptedCredential).not.toContain("bedrock-secret-1");
+    expect(decodeBedrockApiKey(decrypt(stored.encryptedCredential!))).toBe(
+      "bedrock-secret-1",
+    );
+    expect(JSON.stringify(stored.config)).not.toContain("bedrock-secret-1");
+
+    const listed = await ownerCaller.aiGateway.guardrails.list({ orgId });
+    expect(JSON.stringify(listed)).not.toContain("bedrock-secret-1");
+    expect(JSON.stringify(listed)).not.toContain(stored.encryptedCredential!);
+
+    const audits = await prisma.auditLog.findMany({
+      where: { orgId, resourceId: created.id },
+    });
+    expect(JSON.stringify(audits)).not.toContain("bedrock-secret-1");
+    expect(JSON.stringify(audits)).not.toContain(stored.encryptedCredential!);
+
+    // Resolve keeps credential encrypted for the cache
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      {
+        id: created.id,
+        name: "Bedrock content filter",
+        type: "bedrock",
+        action: "block",
+        guardrail_id: "abc123def456",
+        guardrail_version: "1",
+        region: "us-east-1",
+        encrypted_credential: stored.encryptedCredential,
+      },
+    ]);
+
+    // Testing an existing guardrail without apiKey reuses the stored encrypted key
+    const retestSaved = await ownerCaller.aiGateway.guardrails.test({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+      },
+    });
+    expect(retestSaved).toEqual({ success: true });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/guardrail/abc123def456/version/1/apply",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer bedrock-secret-1",
+        }),
+      }),
+    );
+
+    // Renaming without changing Bedrock config skips re-calling AWS
+    const callsBeforeRename = fetchSpy.mock.calls.length;
+    await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      name: "Bedrock content filter renamed",
+      action: "LOG",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "1",
+        region: "us-east-1",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(fetchSpy.mock.calls.length).toBe(callsBeforeRename);
+
+    // Updating without apiKey keeps the stored encrypted key and validates the new region/ARN
+    const updatedWithoutKey = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      name: "Bedrock content filter v2",
+      action: "LOG",
+      bedrock: {
+        guardrailId:
+          "arn:aws:bedrock:eu-central-1:123456789012:guardrail/abc123def456",
+        guardrailVersion: "DRAFT",
+        region: "eu-central-1",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    expect(updatedWithoutKey.bedrock).toEqual({
+      guardrailId:
+        "arn:aws:bedrock:eu-central-1:123456789012:guardrail/abc123def456",
+      guardrailVersion: "DRAFT",
+      region: "eu-central-1",
+    });
+    const afterKeep = await prisma.gatewayGuardrail.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { encryptedCredential: true },
+    });
+    expect(afterKeep.encryptedCredential).toBe(stored.encryptedCredential);
+
+    // Updating with a new apiKey replaces the encrypted key
+    await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "BEDROCK",
+      name: "Bedrock content filter v2",
+      action: "LOG",
+      bedrock: {
+        guardrailId: "abc123def456",
+        guardrailVersion: "2",
+        region: "eu-central-1",
+        apiKey: "bedrock-secret-2",
+      },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const afterRotate = await prisma.gatewayGuardrail.findUniqueOrThrow({
+      where: { id: created.id },
+      select: { encryptedCredential: true },
+    });
+    expect(decodeBedrockApiKey(decrypt(afterRotate.encryptedCredential!))).toBe(
+      "bedrock-secret-2",
+    );
+
+    // Switching guardrail type on update is rejected
+    await expect(
+      ownerCaller.aiGateway.guardrails.update({
+        orgId,
+        id: created.id,
+        type: "REGEX",
+        name: "Cannot convert",
+        action: "BLOCK",
+        presets: ["email"],
+        assignments: [{ scope: "ORGANIZATION" }],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("validates custom regex rules with the WASM engine, previews UTF-16 spans, and enforces 128 KiB rule and 512 KiB org limits", async () => {
+    Object.assign(env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+      LANGFUSE_AI_GATEWAY_ENABLED: "true",
+    });
+
+    const orgId = await createOrganization();
+    const owner = await createUser("Regex Owner");
+    const ownerCaller = createCaller({
+      orgId,
+      userId: owner.id,
+      role: Role.OWNER,
+    });
+    const keyId = await createKey(orgId, owner.id, {
+      gateway: true,
+      name: "regex-key",
+    });
+
+    // Rejects Unicode, lookaround, backreferences, empty-matching, syntax errors, and >128 KiB rules
+    for (const badPattern of [
+      String.raw`(?u:\w)+`,
+      String.raw`\p{L}+`,
+      String.raw`foo(?=bar)`,
+      String.raw`(a)\1`,
+      "x?",
+      "(unclosed",
+      String.raw`\w{1,500}`.repeat(5),
+    ]) {
+      await expect(
+        ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Bad ${badPattern.slice(0, 12)}`,
+          action: "BLOCK",
+          customRegex: badPattern,
+          assignments: [{ scope: "ORGANIZATION" }],
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+
+    // Preview returns UTF-16 match spans (accounting for astral emoji) and validation errors
+    const sampleText = "😀 Order ORD-123456 and ORD-999999";
+    const validPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: String.raw`\bORD-\d{6}\b`,
+      text: sampleText,
+    });
+    expect(validPreview.valid).toBe(true);
+    expect(
+      validPreview.matches.map(({ start, end }) =>
+        sampleText.slice(start, end),
+      ),
+    ).toEqual(["ORD-123456", "ORD-999999"]);
+
+    const invalidPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: String.raw`(?u:\w)+`,
+      text: sampleText,
+    });
+    expect(invalidPreview.valid).toBe(false);
+    expect(invalidPreview.errorCode).toBe("unicode_not_allowed");
+    expect(invalidPreview.error).toContain("external guardrail provider");
+    expect(invalidPreview.matches).toEqual([]);
+
+    const lookaroundPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`foo(?=bar)`,
+        text: sampleText,
+      });
+    expect(lookaroundPreview.valid).toBe(false);
+    expect(lookaroundPreview.errorCode).toBe("unsupported_lookaround");
+    expect(lookaroundPreview.error).toContain("Look-ahead and look-behind");
+    expect(lookaroundPreview.error).toContain("external guardrail provider");
+    expect(lookaroundPreview.error).not.toContain("error:");
+
+    const syntaxPreview = await ownerCaller.aiGateway.guardrails.previewRegex({
+      orgId,
+      pattern: "(unclosed",
+      text: sampleText,
+    });
+    expect(syntaxPreview.valid).toBe(false);
+    expect(syntaxPreview.errorCode).toBe("syntax_error");
+    expect(syntaxPreview.error).toBe(
+      "Invalid regular expression: Unclosed group.",
+    );
+
+    const oversizedPreview =
+      await ownerCaller.aiGateway.guardrails.previewRegex({
+        orgId,
+        pattern: String.raw`\w{1,1500}`,
+        text: sampleText,
+      });
+    expect(oversizedPreview.valid).toBe(false);
+    expect(oversizedPreview.errorCode).toBe("size_limit_exceeded");
+    expect(oversizedPreview.error).toBe(
+      GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+    );
+
+    // Creates, updates, and resolves a valid custom regex (including `.`, `\S`, and negated classes)
+    const created = await ownerCaller.aiGateway.guardrails.create({
+      orgId,
+      type: "REGEX",
+      name: "Order IDs",
+      action: "BLOCK",
+      customRegex: String.raw`order=\S+`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(created.customRegex).toBe(String.raw`order=\S+`);
+
+    const updated = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: created.id,
+      type: "REGEX",
+      name: "Order IDs",
+      action: "BLOCK",
+      customRegex: String.raw`\bORD-\d{6}\b`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(updated.customRegex).toBe(String.raw`\bORD-\d{6}\b`);
+
+    const resolved = await new GatewayGuardrailService(prisma).resolveForKey({
+      organizationId: orgId,
+      apiKeyId: keyId,
+      userId: owner.id,
+    });
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: "regex",
+        action: "block",
+        patterns: [String.raw`\bORD-\d{6}\b`],
+      }),
+    ]);
+
+    // Enforces 512 KiB combined compiled NFA limit across an organization's guardrails
+    const mediumPattern = String.raw`\w{1,500}`;
+    let hitOrgLimit = false;
+    for (let i = 0; i < 15; i++) {
+      try {
+        await ownerCaller.aiGateway.guardrails.create({
+          orgId,
+          type: "REGEX",
+          name: `Medium rule ${i}`,
+          action: "BLOCK",
+          customRegex: mediumPattern,
+          assignments: [{ scope: "ORGANIZATION" }],
+        });
+      } catch (error) {
+        expect(error).toMatchObject({
+          code: "BAD_REQUEST",
+          message: GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+        });
+        hitOrgLimit = true;
+        break;
+      }
+    }
+    expect(hitOrgLimit).toBe(true);
+
+    // Unchanged rule config on an already-stored oversized guardrail still allows editing name/action/targets
+    const legacyOversized = await createGuardrail({
+      organizationId: orgId,
+      name: "Legacy oversized",
+      config: { presets: [], customRegex: String.raw`\w{1,1500}` },
+      assignments: [{ scope: "ORGANIZATION" }],
+    });
+    const renamedLegacy = await ownerCaller.aiGateway.guardrails.update({
+      orgId,
+      id: legacyOversized.id,
+      type: "REGEX",
+      name: "Legacy oversized renamed",
+      action: "LOG",
+      customRegex: String.raw`\w{1,1500}`,
+      assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
+    });
+    expect(renamedLegacy.name).toBe("Legacy oversized renamed");
+    expect(renamedLegacy.action).toBe("LOG");
   });
 });

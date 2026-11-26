@@ -509,8 +509,9 @@ impl RawRequest {
     }
 }
 
-/// The caller body's top-level members, parsed once when the request arrives and
-/// handed to capture, so capture does not parse the body again.
+/// The caller body's top-level members, parsed when capture starts (after
+/// resolution, spend limits, and guardrails) so the gateway does not hold a
+/// second copy of the body across pre-upstream waits or uncaptured requests.
 pub(crate) struct RequestInput {
     /// `None` when the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
     members: Option<BTreeMap<String, Box<RawValue>>>,
@@ -518,31 +519,54 @@ pub(crate) struct RequestInput {
 }
 
 impl RequestInput {
-    /// Copies the members of a body of `body_bytes`, unless the body is too large to capture.
-    pub(crate) fn from_members<'a>(
-        members: impl IntoIterator<Item = (String, &'a RawValue)>,
-        body_bytes: usize,
-    ) -> Self {
-        let members = (body_bytes <= MAX_INPUT_CAPTURE_BYTES).then(|| {
-            members
-                .into_iter()
-                .map(|(key, value)| (key, value.to_owned()))
-                .collect()
-        });
+    /// Skips parsing the body when telemetry delivery is disabled or
+    /// `IngestionMode::None`, while still preserving `body_bytes` for metrics.
+    pub(crate) fn omitted(body_bytes: usize) -> Self {
         Self {
-            members,
+            members: None,
             body_bytes,
         }
     }
 
-    #[cfg(test)]
+    /// Parses the top-level members of a validated JSON request body, unless
+    /// the body is larger than `MAX_INPUT_CAPTURE_BYTES`.
     pub(crate) fn from_body(body: &[u8]) -> Self {
-        let members: BTreeMap<String, &RawValue> = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
-            serde_json::from_slice(body).unwrap()
+        let members = (body.len() <= MAX_INPUT_CAPTURE_BYTES)
+            .then(|| {
+                serde_json::from_slice::<BTreeMap<String, &RawValue>>(body)
+                    .ok()
+                    .map(|parsed| {
+                        parsed
+                            .into_iter()
+                            .map(|(key, value)| (key, value.to_owned()))
+                            .collect()
+                    })
+            })
+            .flatten();
+        Self {
+            members,
+            body_bytes: body.len(),
+        }
+    }
+
+    /// Parses `body` on `cpu` while holding `reservation` inside the job so
+    /// request cancellation cannot release memory budget before the blocking
+    /// worker drops the body and parsed members.
+    pub(crate) async fn parse_on_cpu<R: Send + 'static>(
+        cpu: &crate::cpu::CpuWork,
+        body: axum::body::Bytes,
+        reservation: R,
+    ) -> Option<(Self, R)> {
+        let parse_bytes = if body.len() <= MAX_INPUT_CAPTURE_BYTES {
+            body.len()
         } else {
-            BTreeMap::new()
+            0
         };
-        Self::from_members(members, body.len())
+        cpu.run(crate::cpu::CpuJob::ParseRequest, parse_bytes, move || {
+            let input = Self::from_body(&body);
+            (input, reservation)
+        })
+        .await
     }
 }
 

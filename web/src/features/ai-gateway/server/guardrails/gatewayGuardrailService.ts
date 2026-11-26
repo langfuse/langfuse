@@ -1,8 +1,14 @@
 import {
+  preview as previewRegexRule,
+  validate as validateRegexRules,
+  type ValidationError,
+} from "@langfuse/ai-gateway-guardrail-rules";
+import {
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { Prisma, Role, type PrismaClient } from "@langfuse/shared/src/db";
 import { MAX_TIME_SERIES_BREAKDOWN_VALUES } from "@langfuse/shared/query";
 import { organizationRoleAccessRights } from "@langfuse/shared/rbac";
@@ -21,21 +27,36 @@ import {
   GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
   GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION,
   GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
+  GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH,
+  GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE,
+  GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import {
   GatewayGuardrailRepository,
   type GatewayGuardrailRecord,
 } from "@/src/features/ai-gateway/server/guardrails/gatewayGuardrailRepository";
-import type { GatewayResolveGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  bedrockRuntimeOrigin,
+  decodeBedrockApiKey,
+  encodeBedrockCredential,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
+import { ProviderCredentialRejectedError } from "@/src/features/ai-gateway/server/provider/connection/ProviderCredentialRejectedError";
+import { getGatewayFetch } from "@/src/features/ai-gateway/server/provider/getGatewayFetch";
+import type { GatewayCachedGuardrails } from "@/src/features/ai-gateway/server/provider/registry";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GATEWAY_USER_SCOPE } from "@/src/features/ai-gateway/server/team/gatewayTeamService";
 import {
   compileGuardrailConfigPatterns,
   deduplicateContainsWords,
-  estimateCompiledPatternsBytes,
+  GatewayBedrockGuardrailConfigSchema,
+  GatewayGuardrailCustomRegexSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
+  type GatewayBedrockGuardrailConfig,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
   type GatewayGuardrailUiAction,
@@ -49,6 +70,8 @@ const GATEWAY_MEMBER_ROLES = Object.values(Role).filter((role) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_NAME_MESSAGE = "A guardrail with this name already exists";
+const EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS = 10_000;
+const GUARDRAIL_TEST_FAILED_MESSAGE = "Guardrail test failed";
 
 export type GatewayGuardrailDeleteTarget =
   | { type: "ids"; ids: string[] }
@@ -67,38 +90,81 @@ export class GatewayGuardrailService {
     this.configService = new GatewayConfigService(prisma);
   }
 
-  /** The guardrails the gateway checks for a key, in the resolve response's shape. */
+  /** The guardrails the gateway checks for a key, in the resolve cache's shape. */
   async resolveForKey(params: {
     organizationId: string;
     apiKeyId: string;
     userId: string | null;
-  }): Promise<GatewayResolveGuardrails> {
+  }): Promise<GatewayCachedGuardrails> {
     const guardrails = await this.repository.findAssigned(params);
-    return guardrails.flatMap((guardrail) => {
+    return guardrails.flatMap<GatewayCachedGuardrails[number]>((guardrail) => {
       // The gateway does not redact yet; shipping these would turn them into another action.
       if (guardrail.action === "REDACT") return [];
-      const config = GatewayRegexGuardrailConfigSchema.safeParse(
-        guardrail.config,
-      );
-      const patterns = config.success
-        ? compileGuardrailConfigPatterns(config.data)
-        : [];
-      // A guardrail with nothing to match is skipped rather than failing every request of the key.
-      if (patterns.length === 0) {
-        logger.error("Skipping gateway guardrail without known rules", {
-          guardrailId: guardrail.id,
-          organizationId: params.organizationId,
-        });
-        return [];
+      const action = guardrail.action === "BLOCK" ? "block" : "log";
+      switch (guardrail.type) {
+        case "REGEX": {
+          const config = GatewayRegexGuardrailConfigSchema.safeParse(
+            guardrail.config,
+          );
+          const patterns = config.success
+            ? compileGuardrailConfigPatterns(config.data)
+            : [];
+          // A guardrail with nothing to match is skipped rather than failing every request of the key.
+          if (patterns.length === 0) {
+            logger.error("Skipping gateway guardrail without known rules", {
+              guardrailId: guardrail.id,
+              organizationId: params.organizationId,
+            });
+            return [];
+          }
+          return [
+            {
+              id: guardrail.id,
+              name: guardrail.name,
+              type: "regex" as const,
+              action,
+              patterns,
+            },
+          ];
+        }
+        case "BEDROCK": {
+          const config = GatewayBedrockGuardrailConfigSchema.safeParse(
+            guardrail.config,
+          );
+          if (!config.success || !guardrail.encryptedCredential) {
+            logger.error(
+              "Bedrock gateway guardrail has invalid config or missing credential; failing closed",
+              {
+                guardrailId: guardrail.id,
+                organizationId: params.organizationId,
+              },
+            );
+            return [
+              {
+                id: guardrail.id,
+                name: guardrail.name,
+                type: "fail_closed" as const,
+                action,
+                patterns: [] as [],
+              },
+            ];
+          }
+          return [
+            {
+              id: guardrail.id,
+              name: guardrail.name,
+              type: "bedrock" as const,
+              action,
+              guardrail_id: config.data.guardrailId,
+              guardrail_version: config.data.guardrailVersion,
+              region: config.data.region,
+              encrypted_credential: guardrail.encryptedCredential,
+            },
+          ];
+        }
+        default:
+          return assertUnreachable(guardrail.type);
       }
-      return [
-        {
-          id: guardrail.id,
-          name: guardrail.name,
-          action: guardrail.action === "BLOCK" ? "block" : "log",
-          patterns,
-        },
-      ];
     });
   }
 
@@ -203,22 +269,111 @@ export class GatewayGuardrailService {
     });
   }
 
-  async create(params: {
+  async test(params: {
     organizationId: string;
-    name: string;
-    action: GatewayGuardrailUiAction;
-    presets: GatewayGuardrailPreset[];
-    secretPrefixes?: string[];
-    containsWords?: string[];
-    assignments: GatewayGuardrailAssignmentInput[];
-    session: OrgAuthedContext["session"];
+    id?: string;
+    type: "BEDROCK";
+    bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
   }) {
-    const config = normalizeGuardrailConfig({
-      presets: params.presets,
-      secretPrefixes: params.secretPrefixes ?? [],
-      containsWords: params.containsWords ?? [],
+    const config = GatewayBedrockGuardrailConfigSchema.parse({
+      guardrailId: params.bedrock.guardrailId,
+      guardrailVersion: params.bedrock.guardrailVersion,
+      region: params.bedrock.region,
     });
-    const ruleBytes = assertRuleSizeLimit(config);
+    const apiKey = await this.resolveBedrockApiKey({
+      organizationId: params.organizationId,
+      id: params.id,
+      apiKey: params.bedrock.apiKey,
+    });
+    await validateBedrockGuardrail({ ...config, apiKey });
+    return { success: true as const };
+  }
+
+  previewRegex(params: { pattern: string; text: string }) {
+    const parsed = GatewayGuardrailCustomRegexSchema.safeParse(params.pattern);
+    if (!parsed.success) {
+      return {
+        valid: false,
+        error:
+          parsed.error.issues[0]?.message ?? "Enter a valid regular expression",
+        errorCode: undefined,
+        matches: [],
+        truncated: false,
+      };
+    }
+    const result = previewRegexRule(
+      parsed.data,
+      params.text.slice(0, GATEWAY_GUARDRAIL_PREVIEW_TEXT_MAX_LENGTH),
+      GATEWAY_GUARDRAIL_MAX_RULE_BYTES,
+    );
+    if (!result.valid) {
+      return {
+        valid: false,
+        error: result.error
+          ? formatRegexValidationError(result.error)
+          : "Enter a valid regular expression.",
+        errorCode: result.error?.code,
+        matches: [],
+        truncated: false,
+      };
+    }
+    return {
+      valid: true,
+      errorCode: undefined,
+      matches: result.matches,
+      truncated: result.truncated,
+    };
+  }
+
+  async create(
+    params: {
+      organizationId: string;
+      name: string;
+      action: GatewayGuardrailUiAction;
+      assignments: GatewayGuardrailAssignmentInput[];
+      session: OrgAuthedContext["session"];
+    } & (
+      | {
+          type: "REGEX";
+          presets: GatewayGuardrailPreset[];
+          secretPrefixes?: string[];
+          containsWords?: string[];
+          customRegex?: string;
+        }
+      | {
+          type: "BEDROCK";
+          bedrock: GatewayBedrockGuardrailConfig & { apiKey: string };
+        }
+    ),
+  ) {
+    let config: Prisma.InputJsonValue;
+    let encryptedCredential: string | null = null;
+    let compiledPatterns: string[] | null = null;
+    if (params.type === "BEDROCK") {
+      const bedrockConfig = GatewayBedrockGuardrailConfigSchema.parse({
+        guardrailId: params.bedrock.guardrailId,
+        guardrailVersion: params.bedrock.guardrailVersion,
+        region: params.bedrock.region,
+      });
+      await validateBedrockGuardrail({
+        ...bedrockConfig,
+        apiKey: params.bedrock.apiKey,
+      });
+      config = bedrockConfig;
+      encryptedCredential = encrypt(
+        encodeBedrockCredential(params.bedrock.apiKey),
+      );
+    } else {
+      const regexConfig = normalizeGuardrailConfig({
+        presets: params.presets,
+        secretPrefixes: params.secretPrefixes ?? [],
+        containsWords: params.containsWords ?? [],
+        customRegex: params.customRegex,
+      });
+      compiledPatterns = validateGuardrailPatterns(regexConfig);
+      config = regexConfig;
+    }
+
     const assignments = await this.normalizeAndValidateAssignments(
       params.organizationId,
       params.assignments,
@@ -232,12 +387,16 @@ export class GatewayGuardrailService {
       if (existingCount >= GATEWAY_GUARDRAIL_MAX_PER_ORGANIZATION) {
         throw new InvalidRequestError(GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE);
       }
-      await assertOrgSizeLimit(repo, params.organizationId, ruleBytes);
+      if (compiledPatterns !== null) {
+        await assertOrgSizeLimit(repo, params.organizationId, compiledPatterns);
+      }
       const record = await repo.create({
         organizationId: params.organizationId,
         name: params.name,
+        type: params.type,
         action: params.action,
         config,
+        encryptedCredential,
         assignments,
         createdBy: params.session.user.id,
       });
@@ -256,17 +415,61 @@ export class GatewayGuardrailService {
     });
   }
 
-  async update(params: {
-    organizationId: string;
-    id: string;
-    name: string;
-    action: GatewayGuardrailUiAction;
-    presets: GatewayGuardrailPreset[];
-    secretPrefixes?: string[];
-    containsWords?: string[];
-    assignments: GatewayGuardrailAssignmentInput[];
-    session: OrgAuthedContext["session"];
-  }) {
+  async update(
+    params: {
+      organizationId: string;
+      id: string;
+      name: string;
+      action: GatewayGuardrailUiAction;
+      assignments: GatewayGuardrailAssignmentInput[];
+      session: OrgAuthedContext["session"];
+    } & (
+      | {
+          type: "REGEX";
+          presets: GatewayGuardrailPreset[];
+          secretPrefixes?: string[];
+          containsWords?: string[];
+          customRegex?: string;
+        }
+      | {
+          type: "BEDROCK";
+          bedrock: GatewayBedrockGuardrailConfig & { apiKey?: string };
+        }
+    ),
+  ) {
+    if (params.type === "BEDROCK") {
+      const existingCredential = await this.repository.findCredentialById({
+        organizationId: params.organizationId,
+        id: params.id,
+      });
+      if (!existingCredential) {
+        throw new LangfuseNotFoundError("Guardrail not found");
+      }
+      if (existingCredential.type !== "BEDROCK") {
+        throw new InvalidRequestError("Guardrail type cannot be changed");
+      }
+      const nextConfig = GatewayBedrockGuardrailConfigSchema.parse({
+        guardrailId: params.bedrock.guardrailId,
+        guardrailVersion: params.bedrock.guardrailVersion,
+        region: params.bedrock.region,
+      });
+      const existingConfig = GatewayBedrockGuardrailConfigSchema.safeParse(
+        existingCredential.config,
+      );
+      const isBedrockConfigChanged =
+        params.bedrock.apiKey !== undefined ||
+        !existingConfig.success ||
+        existingConfig.data.guardrailId !== nextConfig.guardrailId ||
+        existingConfig.data.guardrailVersion !== nextConfig.guardrailVersion ||
+        existingConfig.data.region !== nextConfig.region;
+      if (isBedrockConfigChanged) {
+        const apiKey =
+          params.bedrock.apiKey ??
+          decryptStoredBedrockApiKey(existingCredential.encryptedCredential);
+        await validateBedrockGuardrail({ ...nextConfig, apiKey });
+      }
+    }
+
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
       const existing = await repo.findById({
@@ -274,6 +477,9 @@ export class GatewayGuardrailService {
         id: params.id,
       });
       if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
+      if (existing.type !== params.type) {
+        throw new InvalidRequestError("Guardrail type cannot be changed");
+      }
 
       const existingApiKeyIds = new Set(
         existing.assignments.flatMap((assignment) =>
@@ -291,27 +497,49 @@ export class GatewayGuardrailService {
         { existingApiKeyIds, existingUserIds, repository: repo },
       );
 
-      // Preserve stored preset IDs unknown to this build (e.g. from a newer pod during rollout).
-      const existingConfig = GatewayRegexGuardrailConfigSchema.safeParse(
-        existing.config,
-      );
-      const preservedUnknownPresets = existingConfig.success
-        ? existingConfig.data.presets.filter(
-            (preset) => !isKnownGuardrailPreset(preset),
-          )
-        : [];
-      const config = normalizeGuardrailConfig({
-        presets: [...params.presets, ...preservedUnknownPresets],
-        secretPrefixes: params.secretPrefixes ?? [],
-        containsWords: params.containsWords ?? [],
-      });
-      const ruleBytes = assertRuleSizeLimit(config);
-      await assertOrgSizeLimit(
-        repo,
-        params.organizationId,
-        ruleBytes,
-        existing.id,
-      );
+      let config: Prisma.InputJsonValue;
+      let encryptedCredential: string | undefined;
+      if (params.type === "BEDROCK") {
+        config = GatewayBedrockGuardrailConfigSchema.parse({
+          guardrailId: params.bedrock.guardrailId,
+          guardrailVersion: params.bedrock.guardrailVersion,
+          region: params.bedrock.region,
+        });
+        if (params.bedrock.apiKey !== undefined) {
+          encryptedCredential = encrypt(
+            encodeBedrockCredential(params.bedrock.apiKey),
+          );
+        }
+      } else {
+        // Preserve stored preset IDs unknown to this build (e.g. from a newer pod during rollout).
+        const existingConfig = GatewayRegexGuardrailConfigSchema.safeParse(
+          existing.config,
+        );
+        const preservedUnknownPresets = existingConfig.success
+          ? existingConfig.data.presets.filter(
+              (preset) => !isKnownGuardrailPreset(preset),
+            )
+          : [];
+        const regexConfig = normalizeGuardrailConfig({
+          presets: [...params.presets, ...preservedUnknownPresets],
+          secretPrefixes: params.secretPrefixes ?? [],
+          containsWords: params.containsWords ?? [],
+          customRegex: params.customRegex,
+        });
+        const ruleConfigChanged =
+          !existingConfig.success ||
+          !isSameRegexRuleConfig(existingConfig.data, regexConfig);
+        if (ruleConfigChanged) {
+          const compiledPatterns = validateGuardrailPatterns(regexConfig);
+          await assertOrgSizeLimit(
+            repo,
+            params.organizationId,
+            compiledPatterns,
+            existing.id,
+          );
+        }
+        config = regexConfig;
+      }
 
       const record = await repo.update({
         organizationId: params.organizationId,
@@ -319,6 +547,7 @@ export class GatewayGuardrailService {
         name: params.name,
         action: params.action,
         config,
+        encryptedCredential,
         assignments,
       });
       await audit(tx, {
@@ -422,6 +651,26 @@ export class GatewayGuardrailService {
       await invalidateGatewayResolveCacheForOrganization(params.organizationId);
     }
     return { updatedCount };
+  }
+
+  private async resolveBedrockApiKey(params: {
+    organizationId: string;
+    id?: string;
+    apiKey?: string;
+  }): Promise<string> {
+    if (params.apiKey) return params.apiKey;
+    if (!params.id) {
+      throw new InvalidRequestError("Enter a Bedrock API key");
+    }
+    const existing = await this.repository.findCredentialById({
+      organizationId: params.organizationId,
+      id: params.id,
+    });
+    if (!existing) throw new LangfuseNotFoundError("Guardrail not found");
+    if (existing.type !== "BEDROCK") {
+      throw new InvalidRequestError("Guardrail is not a Bedrock guardrail");
+    }
+    return decryptStoredBedrockApiKey(existing.encryptedCredential);
   }
 
   private async resolveBulkTargetIds(
@@ -544,6 +793,83 @@ export class GatewayGuardrailService {
   }
 }
 
+function decryptStoredBedrockApiKey(
+  encryptedCredential: string | null,
+): string {
+  if (!encryptedCredential) {
+    throw new InvalidRequestError("Enter a Bedrock API key");
+  }
+  return decodeBedrockApiKey(decrypt(encryptedCredential));
+}
+
+async function validateBedrockGuardrail(
+  params: GatewayBedrockGuardrailConfig & { apiKey: string },
+) {
+  const origin = bedrockRuntimeOrigin({ region: params.region });
+  const url = `${origin}/guardrail/${encodeURIComponent(params.guardrailId)}/version/${encodeURIComponent(params.guardrailVersion)}/apply`;
+  const fetcher = getGatewayFetch({
+    baseURL: null,
+    extraHeaders: {},
+    logContext: "AI Gateway Bedrock guardrail validation",
+  });
+
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "POST",
+      redirect: "error",
+      signal: AbortSignal.timeout(EXTERNAL_GUARDRAIL_TEST_TIMEOUT_MS),
+      headers: {
+        authorization: `Bearer ${params.apiKey}`,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        source: "INPUT",
+        content: [{ text: { text: "Hello" } }],
+      }),
+    });
+  } catch (error) {
+    if (error instanceof InvalidRequestError) throw error;
+    throw new ProviderCredentialRejectedError(
+      {
+        status: null,
+        body: "Could not reach Amazon Bedrock in the selected region.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
+  }
+
+  const body = await response.text().catch(() => "");
+  if (!response.ok) {
+    throw new ProviderCredentialRejectedError(
+      {
+        status: response.status,
+        body:
+          body || response.statusText || "Amazon Bedrock rejected the request.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
+  }
+
+  let action: unknown;
+  try {
+    const parsed = JSON.parse(body) as { action?: unknown };
+    action = parsed.action;
+  } catch {
+    action = null;
+  }
+  if (action !== "NONE" && action !== "GUARDRAIL_INTERVENED") {
+    throw new ProviderCredentialRejectedError(
+      {
+        status: response.status,
+        body: "Unexpected response from Amazon Bedrock.",
+      },
+      GUARDRAIL_TEST_FAILED_MESSAGE,
+    );
+  }
+}
+
 function deduplicateAssignments(
   assignments: GatewayGuardrailAssignmentInput[],
 ): GatewayGuardrailAssignmentInput[] {
@@ -573,62 +899,152 @@ function normalizeGuardrailConfig(input: {
   presets: string[];
   secretPrefixes: string[];
   containsWords: string[];
+  customRegex?: string;
 }) {
   const presets = [...new Set(input.presets)];
   const secretPrefixes = [...new Set(input.secretPrefixes)];
   const containsWords = deduplicateContainsWords(input.containsWords);
+  let customRegex: string | undefined;
+  if (input.customRegex !== undefined && input.customRegex.length > 0) {
+    const parsed = GatewayGuardrailCustomRegexSchema.safeParse(
+      input.customRegex,
+    );
+    if (!parsed.success) {
+      throw new InvalidRequestError(
+        parsed.error.issues[0]?.message ?? "Enter a valid regular expression",
+      );
+    }
+    customRegex = parsed.data;
+  }
   if (
     presets.length === 0 &&
     secretPrefixes.length === 0 &&
-    containsWords.length === 0
+    containsWords.length === 0 &&
+    customRegex === undefined
   ) {
     throw new InvalidRequestError(
-      "Configure at least one pattern, prefix, or keyword to detect",
+      "Configure at least one pattern, prefix, keyword, or custom regex to detect",
     );
   }
   return {
     presets,
     ...(secretPrefixes.length > 0 ? { secretPrefixes } : {}),
     ...(containsWords.length > 0 ? { containsWords } : {}),
+    ...(customRegex !== undefined ? { customRegex } : {}),
   };
 }
 
-function assertRuleSizeLimit(config: {
+function isSameStringSet(a: readonly string[], b: readonly string[]): boolean {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  if (setA.size !== setB.size) return false;
+  for (const value of setA) {
+    if (!setB.has(value)) return false;
+  }
+  return true;
+}
+
+function isSameRegexRuleConfig(
+  existing: {
+    presets: readonly string[];
+    secretPrefixes: readonly string[];
+    containsWords: readonly string[];
+    customRegex?: string;
+  },
+  next: {
+    presets: readonly string[];
+    secretPrefixes?: readonly string[];
+    containsWords?: readonly string[];
+    customRegex?: string;
+  },
+): boolean {
+  return (
+    isSameStringSet(existing.presets, next.presets) &&
+    isSameStringSet(existing.secretPrefixes, next.secretPrefixes ?? []) &&
+    isSameStringSet(
+      existing.containsWords.map((word) => word.toLowerCase()),
+      (next.containsWords ?? []).map((word) => word.toLowerCase()),
+    ) &&
+    (existing.customRegex ?? undefined) === (next.customRegex ?? undefined)
+  );
+}
+
+function formatRegexValidationError(error: ValidationError): string {
+  switch (error.code) {
+    case "empty_pattern":
+      return "Enter a regular expression.";
+    case "matches_empty_string":
+      return "Pattern cannot match empty text (for example `x?` or `\\d*`). Require at least one character.";
+    case "unicode_not_allowed":
+      return GATEWAY_GUARDRAIL_UNICODE_NOT_ALLOWED_ERROR_MESSAGE;
+    case "unsupported_lookaround":
+      return GATEWAY_GUARDRAIL_UNSUPPORTED_LOOKAROUND_ERROR_MESSAGE;
+    case "unsupported_backreference":
+      return GATEWAY_GUARDRAIL_UNSUPPORTED_BACKREFERENCE_ERROR_MESSAGE;
+    case "size_limit_exceeded":
+      return GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE;
+    case "syntax_error":
+      return `Invalid regular expression: ${error.message}`;
+    default:
+      return assertUnreachable(error.code);
+  }
+}
+
+function validateGuardrailPatterns(config: {
   presets: string[];
   secretPrefixes?: string[];
   containsWords?: string[];
-}) {
+  customRegex?: string;
+}): string[] {
   const patterns = compileGuardrailConfigPatterns(config);
-  const bytes = estimateCompiledPatternsBytes(patterns);
-  if (bytes > GATEWAY_GUARDRAIL_MAX_RULE_BYTES) {
+  const report = validateRegexRules(patterns, GATEWAY_GUARDRAIL_MAX_RULE_BYTES);
+  if (!report.ok) {
+    const error =
+      report.rules.find((rule) => rule.error)?.error ?? report.set_error;
     throw new InvalidRequestError(
-      "This guardrail exceeds the 128 KiB compiled size limit. Remove some entries or patterns and try again.",
+      error
+        ? formatRegexValidationError(error)
+        : GATEWAY_GUARDRAIL_RULE_SIZE_LIMIT_ERROR_MESSAGE,
     );
   }
-  return bytes;
+  return patterns;
 }
 
 async function assertOrgSizeLimit(
   repo: GatewayGuardrailRepository,
   organizationId: string,
-  newRuleBytes: number,
+  newPatterns: string[],
   excludeId?: string,
 ) {
   const existing = await repo.listConfigsByOrganization({
     organizationId,
     excludeId,
   });
-  let totalBytes = newRuleBytes;
+  const existingPatterns: string[] = [];
   for (const row of existing) {
     const parsed = GatewayRegexGuardrailConfigSchema.safeParse(row.config);
     if (!parsed.success) continue;
-    totalBytes += estimateCompiledPatternsBytes(
-      compileGuardrailConfigPatterns(parsed.data),
+    existingPatterns.push(...compileGuardrailConfigPatterns(parsed.data));
+  }
+
+  // Drop uncompilable legacy stored patterns (which the gateway also skips) so
+  // a stale row cannot block unrelated saves.
+  let report = validateRegexRules(
+    [...existingPatterns, ...newPatterns],
+    GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
+  );
+  if (!report.ok && !report.set_error && existingPatterns.length > 0) {
+    const validExisting = existingPatterns.filter(
+      (_, index) => !report.rules[index]?.error,
+    );
+    report = validateRegexRules(
+      [...validExisting, ...newPatterns],
+      GATEWAY_GUARDRAIL_MAX_ORG_BYTES,
     );
   }
-  if (totalBytes > GATEWAY_GUARDRAIL_MAX_ORG_BYTES) {
+  if (!report.ok) {
     throw new InvalidRequestError(
-      "Your organization's guardrails exceed the 512 KiB combined size limit. Simplify or remove an existing guardrail and try again.",
+      GATEWAY_GUARDRAIL_ORG_SIZE_LIMIT_ERROR_MESSAGE,
     );
   }
 }
@@ -638,12 +1054,26 @@ function toGuardrailDto(
   flaggedCounts: Map<string, number> | null,
   viewer: { canManageGateway: boolean; userId: string },
 ) {
-  const parsed = GatewayRegexGuardrailConfigSchema.safeParse(record.config);
-  const presets = parsed.success
-    ? parsed.data.presets.filter(isKnownGuardrailPreset)
+  const isBedrock = record.type === "BEDROCK";
+  const parsedRegex = isBedrock
+    ? null
+    : GatewayRegexGuardrailConfigSchema.safeParse(record.config);
+  const presets = parsedRegex?.success
+    ? parsedRegex.data.presets.filter(isKnownGuardrailPreset)
     : [];
-  const secretPrefixes = parsed.success ? parsed.data.secretPrefixes : [];
-  const containsWords = parsed.success ? parsed.data.containsWords : [];
+  const secretPrefixes = parsedRegex?.success
+    ? parsedRegex.data.secretPrefixes
+    : [];
+  const containsWords = parsedRegex?.success
+    ? parsedRegex.data.containsWords
+    : [];
+  const customRegex = parsedRegex?.success
+    ? (parsedRegex.data.customRegex ?? null)
+    : null;
+  const parsedBedrock = isBedrock
+    ? GatewayBedrockGuardrailConfigSchema.safeParse(record.config)
+    : null;
+  const bedrock = parsedBedrock?.success ? parsedBedrock.data : null;
 
   return {
     id: record.id,
@@ -653,6 +1083,8 @@ function toGuardrailDto(
     presets,
     secretPrefixes,
     containsWords,
+    customRegex,
+    bedrock,
     assignments: record.assignments.map((assignment) => {
       switch (assignment.scope) {
         case "ORGANIZATION":

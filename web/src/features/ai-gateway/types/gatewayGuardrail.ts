@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
@@ -135,6 +136,69 @@ export const PRINTABLE_ASCII_NO_WHITESPACE_REGEX = /^[\x21-\x7E]+$/;
 /** Printable ASCII including spaces (0x20-0x7E). */
 export const PRINTABLE_ASCII_TEXT_REGEX = /^[\x20-\x7E]+$/;
 
+// Matches AWS Bedrock ApplyGuardrail URI parameter constraints and GatewayBedrockConfigSchema.
+const BEDROCK_GUARDRAIL_ID_MAX_LENGTH = 2048;
+const BEDROCK_API_KEY_MAX_LENGTH = 8192;
+const BEDROCK_GUARDRAIL_ID_REGEX =
+  /^(?:[a-z0-9]+|arn:aws(?:-[a-z0-9-]+)?:bedrock:[a-z0-9-]{1,20}:[0-9]{12}:guardrail\/[a-z0-9]+)$/;
+const BEDROCK_GUARDRAIL_VERSION_REGEX = /^(?:[1-9][0-9]{0,7}|DRAFT)$/;
+const BEDROCK_AWS_REGION_REGEX = /^[a-z]{2}(-[a-z]+)+-[0-9]+$/;
+
+export const GatewayBedrockGuardrailConfigSchema = z.object({
+  guardrailId: z
+    .string()
+    .trim()
+    .min(1, "Enter a Bedrock guardrail ID or ARN")
+    .max(
+      BEDROCK_GUARDRAIL_ID_MAX_LENGTH,
+      `Guardrail ID must be at most ${BEDROCK_GUARDRAIL_ID_MAX_LENGTH} characters`,
+    )
+    .regex(
+      BEDROCK_GUARDRAIL_ID_REGEX,
+      "Enter a valid Bedrock guardrail ID (lowercase alphanumeric) or ARN",
+    ),
+  guardrailVersion: z
+    .string()
+    .trim()
+    .min(1, "Enter a guardrail version")
+    .regex(
+      BEDROCK_GUARDRAIL_VERSION_REGEX,
+      "Enter a version number (e.g. 1) or DRAFT",
+    ),
+  region: z
+    .string()
+    .trim()
+    .min(1, "Select an AWS region")
+    .regex(BEDROCK_AWS_REGION_REGEX, "Select a valid AWS region"),
+});
+
+export type GatewayBedrockGuardrailConfig = z.infer<
+  typeof GatewayBedrockGuardrailConfigSchema
+>;
+
+export const GatewayBedrockGuardrailApiKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a Bedrock API key")
+  .max(
+    BEDROCK_API_KEY_MAX_LENGTH,
+    `Bedrock API key must be at most ${BEDROCK_API_KEY_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
+    "Bedrock API key must be printable ASCII with no whitespace",
+  );
+
+export const GatewayBedrockGuardrailCreateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema,
+  });
+
+export const GatewayBedrockGuardrailUpdateInputSchema =
+  GatewayBedrockGuardrailConfigSchema.extend({
+    apiKey: GatewayBedrockGuardrailApiKeySchema.optional(),
+  });
+
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
   .min(
@@ -177,6 +241,14 @@ export const GatewayGuardrailContainsListSchema = z
     `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`,
   );
 
+export const GatewayGuardrailCustomRegexSchema = z
+  .string()
+  .min(1, "Enter a regular expression")
+  .max(
+    GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
+    `Regular expression must be at most ${GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} characters`,
+  );
+
 /** Actions the gateway enforces and the management UI offers. */
 export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG"] as const;
 
@@ -217,6 +289,7 @@ export const GatewayRegexGuardrailConfigSchema = z.object({
   presets: z.array(z.string()).default([]),
   secretPrefixes: z.array(z.string()).default([]),
   containsWords: z.array(z.string()).default([]),
+  customRegex: z.string().optional(),
 });
 
 function presetPatterns(preset: string): readonly string[] {
@@ -332,6 +405,7 @@ export function compileGuardrailConfigPatterns(config: {
   presets?: readonly string[];
   secretPrefixes?: readonly string[];
   containsWords?: readonly string[];
+  customRegex?: string | null;
 }): string[] {
   const patterns: string[] = [];
   for (const preset of config.presets ?? []) {
@@ -351,49 +425,8 @@ export function compileGuardrailConfigPatterns(config: {
   );
   const containsPattern = compileContainsPattern(validContains);
   if (containsPattern) patterns.push(containsPattern);
-  return patterns;
-}
-
-/**
- * Estimates compiled Thompson NFA bytes for a set of ASCII regex patterns
- * using an 8-byte state + 8-byte transition model.
- */
-export function estimateCompiledPatternsBytes(
-  patterns: readonly string[],
-): number {
-  const STATE_BYTES = 8;
-  const TRANSITION_BYTES = 8;
-  let bytes = 0;
-  for (const pattern of patterns) {
-    // Each character class `[Aa]` compiles to one state (~24 B); simple literals to one state (~16 B).
-    let index = 0;
-    while (index < pattern.length) {
-      const char = pattern[index];
-      if (char === "\\") {
-        bytes += STATE_BYTES + TRANSITION_BYTES;
-        index += 2;
-        continue;
-      }
-      if (char === "[") {
-        const end = pattern.indexOf("]", index + 1);
-        const span = end === -1 ? pattern.length - index : end - index;
-        bytes += STATE_BYTES + Math.min(span, 8) * TRANSITION_BYTES;
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      if (char === "{") {
-        const end = pattern.indexOf("}", index + 1);
-        const body = end === -1 ? "" : pattern.slice(index + 1, end);
-        const repeat = Number.parseInt(body.split(",")[0] ?? "1", 10);
-        if (Number.isFinite(repeat) && repeat > 1) {
-          bytes += (repeat - 1) * (STATE_BYTES + TRANSITION_BYTES);
-        }
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      bytes += STATE_BYTES + TRANSITION_BYTES;
-      index += 1;
-    }
+  if (config.customRegex && config.customRegex.length > 0) {
+    patterns.push(config.customRegex);
   }
-  return bytes;
+  return patterns;
 }

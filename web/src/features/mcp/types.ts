@@ -2,7 +2,7 @@ import type { AuditRequestContext } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
 import type { AuthorizationContext } from "@/src/features/auth/policy/types";
-import type { McpToolName } from "./server/bootstrap";
+import type { McpToolName } from "./server/tools";
 
 /**
  * MCP (Model Context Protocol) Server Types

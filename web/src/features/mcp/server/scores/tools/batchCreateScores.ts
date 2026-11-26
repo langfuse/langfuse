@@ -51,7 +51,7 @@ export const [batchCreateScoresTool, handleBatchCreateScores] = defineTool({
   action: "scores:save",
   baseSchema: BatchCreateScoresBaseSchema,
   inputSchema: BatchCreateScoresInputSchema,
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.scores.batch_create",

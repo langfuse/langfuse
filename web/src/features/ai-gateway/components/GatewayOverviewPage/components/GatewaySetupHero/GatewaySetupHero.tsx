@@ -1,18 +1,18 @@
 import { useId } from "react";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
-import {
-  GatewaySetupSwitchboard,
-  type GatewaySetupSwitchboardProps,
-} from "@/src/features/ai-gateway/components/GatewayOverviewPage/components/GatewaySetupHero/GatewaySetupSwitchboard";
+import { GatewayFanOutDiagram } from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/GatewayFanOutDiagram";
+import diagramStyles from "@/src/features/ai-gateway/components/GatewayFanOutDiagram/gatewayFanOutDiagram.module.css";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { cn } from "@/src/utils/tailwind";
 
-export type GatewaySetupHeroProps = GatewaySetupSwitchboardProps;
+export type GatewaySetupHeroProps = {
+  providers: ReadonlyArray<{ provider: GatewayProvider; isConnected: boolean }>;
+};
 
-/** Overview banner while the gateway is not set up; provider switches turn on as credentials are added. */
+/** Overview banner while the gateway is not set up. */
 export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
   const titleId = useId();
   const connectedLabels = providers
@@ -22,22 +22,19 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
   return (
     <section
       aria-labelledby={titleId}
-      className={cn(
-        "bg-surface-section overflow-hidden border-b",
-        styles.dotGrid,
-      )}
+      className={cn("overflow-hidden", diagramStyles.panel)}
     >
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-8 px-6 py-10">
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <h2 id={titleId} className="text-2xl font-bold">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-12 px-6 py-8">
+        <div className="flex max-w-lg min-w-0 flex-1 basis-96 flex-col gap-4">
+          <h2 id={titleId} className="text-3xl font-bold tracking-tight">
             Set up Langfuse AI Gateway
           </h2>
-          <p className="text-muted-foreground max-w-xl text-sm">
+          <p className="text-foreground-secondary text-base">
             Route Claude Code, Codex, OpenCode, and your own apps through
             Langfuse. Each call becomes a full trace, along with who made it and
             what it cost.
           </p>
-          <div className="mt-2">
+          <div>
             <Button
               variant="text"
               text="How to set up the gateway"
@@ -50,8 +47,8 @@ export function GatewaySetupHero({ providers }: GatewaySetupHeroProps) {
               : "No provider connected yet."}
           </p>
         </div>
-        <div className="hidden h-52 w-112 shrink-0 lg:block">
-          <GatewaySetupSwitchboard providers={providers} />
+        <div className="w-full max-w-md basis-md">
+          <GatewayFanOutDiagram sources={[]} />
         </div>
       </div>
     </section>

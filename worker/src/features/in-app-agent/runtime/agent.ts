@@ -1470,6 +1470,7 @@ type MastraApprovalStreamChunk = {
 // Preserve explicit failure markers for Halo persistence and instrumentation.
 // The adapter otherwise serializes tool errors as a string-valued error field,
 // which may also occur in successful tool output and is not a failure marker.
+/** @internal */
 export function patchMastraToolErrors(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;

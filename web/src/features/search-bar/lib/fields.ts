@@ -530,6 +530,7 @@ function eventsSourceField(id: string) {
 }
 
 /** The bar's events fields: each row joined with its `eventsPredicateSource` field. */
+/** @internal */
 export const FIELDS: FieldDef[] = Object.entries(EVENTS_FIELD_ROWS).map(
   ([id, row]) => ({
     id,

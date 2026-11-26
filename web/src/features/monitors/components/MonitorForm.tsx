@@ -1103,7 +1103,7 @@ const RenotifyField = ({
   </div>
 );
 
-/** __test exposes private helpers to co-located tests without widening the module API. */
+/** @internal */
 export const __test = {
   createDefaults,
   monitorToDefaults,

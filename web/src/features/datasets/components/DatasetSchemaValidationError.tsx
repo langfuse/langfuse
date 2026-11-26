@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Banner } from "@/src/components/design-system/Banner/Banner";
 import Link from "next/link";
@@ -63,7 +63,7 @@ export const DatasetSchemaValidationError: React.FC<
                         className="flex items-center gap-1 hover:underline"
                       >
                         Item: {error.datasetItemId}
-                        <ExternalLink size="sm" />
+                        <SquareArrowOutUpRight size="sm" />
                       </Link>
                     </div>
                     <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">

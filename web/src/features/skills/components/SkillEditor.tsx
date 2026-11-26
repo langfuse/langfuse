@@ -13,7 +13,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   Download,
   ChevronDown,
-  ExternalLink,
+  SquareArrowOutUpRight,
   Loader2,
   Pencil,
   Sparkles,
@@ -485,7 +485,7 @@ export function SkillEditor({
               type: "item",
               id: "api",
               title: "API",
-              icon: ExternalLink,
+              icon: SquareArrowOutUpRight,
               href: "https://api.reference.langfuse.com/#tag/skills",
               linkTarget: "_blank",
             },

@@ -696,7 +696,7 @@ async function testTopicsModelSlots(
       const llmApiKey = keys.find(
         (candidate) => candidate.id === slot.llmApiKeyId,
       );
-      // The test prompt is static, so provider messages carry no customer content.
+      // Provider messages can echo credentials, so only our own check messages are logged.
       const logFailure = (details: Record<string, unknown>) =>
         logger.error("Topics setup model test failed", {
           projectId,
@@ -708,7 +708,6 @@ async function testTopicsModelSlots(
             llmApiKey?.baseURL && URL.canParse(llmApiKey.baseURL)
               ? new URL(llmApiKey.baseURL).hostname
               : undefined,
-          error: errors[name],
           ...details,
         });
       if (!llmApiKey) {
@@ -748,14 +747,14 @@ async function testTopicsModelSlots(
           dimensions: settings.embeddingDimensions,
         });
         if (embeddings.length !== 2)
-          throw new Error(
+          throw new ModelCheckError(
             "The model must embed several texts in one request. Choose an embedding model or endpoint that supports batched input.",
           );
         const wrong = embeddings.find(
           (vector) => vector.length !== settings.embeddingDimensions,
         );
         if (wrong)
-          throw new Error(
+          throw new ModelCheckError(
             `The model returned ${wrong.length} dimensions instead of ${settings.embeddingDimensions}. Choose a size this model supports.`,
           );
       } catch (error) {
@@ -780,6 +779,7 @@ async function testTopicsModelSlots(
           status,
           kind: info?.kind,
           transient,
+          ...(error instanceof ModelCheckError && { error: detail }),
           ...providerErrorCode(info?.providerError?.data),
         });
       }
@@ -800,6 +800,9 @@ function modelTestHint(status: unknown, transient: boolean) {
 }
 
 /** OpenAI-style `error.code` and `error.param` only; free-text bodies can echo request details. */
+/** A model check failure Topics itself detected, whose message is safe to log. */
+class ModelCheckError extends Error {}
+
 function providerErrorCode(data: unknown): { code?: string; param?: string } {
   const error = (data as { error?: { code?: unknown; param?: unknown } } | null)
     ?.error;

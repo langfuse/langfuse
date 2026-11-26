@@ -1,10 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import {
+  assertUnreachable,
   EvalTemplateType,
   extractVariables,
   InternalServerError,
-  InvalidRequestError,
   observationVariableMappingList,
+  parseDecisionModelQuestions,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
   variableMappingList,
@@ -29,7 +30,10 @@ import {
   LegacyPromptVariableMapping,
   PublicEvaluationRuleReadFilter,
   PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  toInternalDecisionModelQuestion,
+  toPublicDecisionModelQuestion,
   type LegacyPromptVariableMappingType,
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
@@ -68,6 +72,7 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
 export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
   EvalTemplateType.LLM_AS_JUDGE,
   EvalTemplateType.CODE,
+  EvalTemplateType.DECISION_MODEL,
 ];
 
 export function isPublicApiEvaluatorType(type: EvalTemplateType) {
@@ -81,9 +86,7 @@ export function toPublicEvaluatorType(type: EvalTemplateType) {
     case EvalTemplateType.LLM_AS_JUDGE:
       return PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
     case EvalTemplateType.DECISION_MODEL:
-      throw new InvalidRequestError(
-        "Decision-model evaluators are not available through the public API",
-      );
+      return PUBLIC_EVALUATOR_TYPE_DECISION_MODEL;
   }
 }
 
@@ -251,26 +254,36 @@ function toInternalOutputDefinition(
 export function toEvaluatorServiceDefinition(
   definition: EvaluatorDefinitionType,
 ) {
-  return EvaluatorDefinitionInputSchema.parse(
-    definition.type === PUBLIC_EVALUATOR_TYPE_CODE
-      ? {
-          type: EvalTemplateType.CODE,
-          sourceCode: definition.sourceCode,
-          sourceCodeLanguage: definition.sourceCodeLanguage,
-        }
-      : {
-          type: EvalTemplateType.LLM_AS_JUDGE,
-          promptMessages: definition.prompt,
-          modelConfig: definition.modelConfig ?? null,
-          variableMapping:
-            definition.variableMapping == null
-              ? null
-              : toStoredMappingList(definition.variableMapping),
-          outputDefinition: toInternalOutputDefinition(
-            definition.outputDefinition,
-          ),
-        },
-  );
+  switch (definition.type) {
+    case PUBLIC_EVALUATOR_TYPE_CODE:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.CODE,
+        sourceCode: definition.sourceCode,
+        sourceCodeLanguage: definition.sourceCodeLanguage,
+      });
+    case PUBLIC_EVALUATOR_TYPE_DECISION_MODEL:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.DECISION_MODEL,
+        questions: definition.questions.map(toInternalDecisionModelQuestion),
+        modelConfig: definition.modelConfig,
+        variableMapping: toStoredMappingList(definition.variableMapping),
+      });
+    case PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE:
+      return EvaluatorDefinitionInputSchema.parse({
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        promptMessages: definition.prompt,
+        modelConfig: definition.modelConfig ?? null,
+        variableMapping:
+          definition.variableMapping == null
+            ? null
+            : toStoredMappingList(definition.variableMapping),
+        outputDefinition: toInternalOutputDefinition(
+          definition.outputDefinition,
+        ),
+      });
+    default:
+      return assertUnreachable(definition);
+  }
 }
 
 type ServiceEvaluator = Awaited<ReturnType<EvaluatorService["get"]>>;
@@ -290,9 +303,25 @@ export function toPublicEvaluatorVersion(
   };
 
   if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
-    throw new InvalidRequestError(
-      "Decision-model evaluators are not available through the public API",
-    );
+    if (!version.provider || !version.model) {
+      throw new InternalServerError(
+        "Decision-model evaluator model configuration is corrupted",
+      );
+    }
+    const questions = parseDecisionModelQuestions(version.questions);
+    if (!questions.success) {
+      throw new InternalServerError(
+        "Decision-model evaluator questions are corrupted",
+      );
+    }
+    return EvaluatorVersion.parse({
+      ...common,
+      type: PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
+      questions: questions.data.map(toPublicDecisionModelQuestion),
+      variables: version.vars,
+      variableMapping: toApiReadMappings(version.variableMapping),
+      modelConfig: { provider: version.provider, model: version.model },
+    });
   }
 
   if (evaluatorType === EvalTemplateType.CODE) {

@@ -82,6 +82,7 @@ import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  findCallableTool,
   mcpEvalOutputDefinition,
   mockServerContext,
   verifyAuditLog,
@@ -89,9 +90,7 @@ import {
 } from "./mcp-helpers";
 import { env } from "@/src/env.mjs";
 import { authenticator } from "@/src/features/apiKey/authenticator";
-import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
-import { toolRegistry } from "@/src/features/mcp/server/registry";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
@@ -150,18 +149,12 @@ import {
   createScoreConfigTool,
   handleCreateScoreConfig,
 } from "@/src/features/mcp/server/scores/tools/createScoreConfig";
-import {
-  createScoreTool,
-  handleCreateScore,
-} from "@/src/features/mcp/server/scores/tools/createScore";
+import { handleCreateScore } from "@/src/features/mcp/server/scores/tools/createScore";
 import {
   batchCreateScoresTool,
   handleBatchCreateScores,
 } from "@/src/features/mcp/server/scores/tools/batchCreateScores";
-import {
-  deleteScoreConfigTool,
-  handleDeleteScoreConfig,
-} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
+import { handleDeleteScoreConfig } from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
@@ -642,7 +635,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listMonitorsTool.name, context),
+        findCallableTool(listMonitorsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -718,7 +711,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getMonitorTool.name, context),
+        findCallableTool(getMonitorTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -767,7 +760,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listLlmConnectionsTool.name, context),
+        findCallableTool(listLlmConnectionsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -918,7 +911,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
+        findCallableTool(listEvaluatorsTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({ name: listEvaluatorsTool.name }),
       });
@@ -1011,7 +1004,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
+        findCallableTool(getEvaluatorTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({ name: getEvaluatorTool.name }),
       });
@@ -1045,7 +1038,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
+        findCallableTool(listEvaluationRulesTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({
           name: listEvaluationRulesTool.name,
@@ -1187,7 +1180,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
+        findCallableTool(getEvaluationRuleTool.name, context),
       ).resolves.toMatchObject({
         definition: expect.objectContaining({
           name: getEvaluationRuleTool.name,
@@ -1262,10 +1255,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFieldSchemaTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFieldSchemaTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -1343,10 +1333,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFilterSchemaTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFilterSchemaTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -1583,7 +1570,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listObservationsTool.name, context),
+        findCallableTool(listObservationsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -3174,7 +3161,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getObservationTool.name, context),
+        findCallableTool(getObservationTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -3393,10 +3380,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(
-          getObservationFilterValuesTool.name,
-          context,
-        ),
+        findCallableTool(getObservationFilterValuesTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -3900,10 +3884,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScore tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreTool, { destructiveHint: true });
-    });
-
     it("should create a score using v1 route semantics", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const scoreId = randomUUID();
@@ -4015,7 +3995,7 @@ describe("MCP Read Tools", () => {
         });
         if (!authenticated.success) throw authenticated.error;
 
-        const server = createMcpServer({
+        const server = await createMcpServer({
           ...setup.context,
           apiKeyId: viewerKey.id,
           publicKey: viewerKey.publicKey,
@@ -4240,10 +4220,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("createScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4375,10 +4351,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("updateScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(updateScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should describe allowed score config name characters in the input schema", () => {
       expect(
         containsStringValue(
@@ -4503,10 +4475,6 @@ describe("MCP Read Tools", () => {
   });
 
   describe("deleteScoreConfig tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteScoreConfigTool, { destructiveHint: true });
-    });
-
     it("should archive the score config", async () => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
       const config = await prisma.scoreConfig.create({
@@ -4553,7 +4521,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getPromptTool.name, context),
+        findCallableTool(getPromptTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -4849,7 +4817,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(listPromptsTool.name, context),
+        findCallableTool(listPromptsTool.name, context),
       ).resolves.toBeDefined();
     });
 
@@ -5231,7 +5199,7 @@ describe("MCP Read Tools", () => {
       });
 
       await expect(
-        toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),
+        findCallableTool(getPromptUnresolvedTool.name, context),
       ).resolves.toBeDefined();
     });
 

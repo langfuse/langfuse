@@ -7,7 +7,7 @@ import {
   geminiEmbeddedToolDefinitionFixture,
   geminiMediaAndCodeExecutionFixture,
   geminiSystemInstructionWithGenericMessagesFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("Gemini normalized I/O", () => {
   it.each([

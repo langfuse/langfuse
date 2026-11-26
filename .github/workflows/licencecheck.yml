@@ -91,6 +91,7 @@ jobs:
         run: |
           (cd ai-gateway && rustup toolchain install --no-self-update)
           (cd packages/native && rustup toolchain install --no-self-update)
+          (cd packages/ai-gateway-guardrail-rules && rustup toolchain install --no-self-update)
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
@@ -103,6 +104,10 @@ jobs:
 
       - name: Check native addon dependency licenses
         working-directory: packages/native
+        run: cargo deny --locked check licenses
+
+      - name: Check guardrail rules dependency licenses
+        working-directory: packages/ai-gateway-guardrail-rules
         run: cargo deny --locked check licenses
 
   # License checks are not required for merging, so a failure on main would

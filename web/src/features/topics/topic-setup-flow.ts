@@ -57,6 +57,7 @@ export type TopicSetupDraft = {
 const TOPIC_MAP_NAME_MAX_LENGTH = 100;
 
 /** The trace names an exact trace-name filter selects, else the default map name. */
+/** @internal */
 export function defaultTopicMapName(filter: FilterState) {
   const names = filter.flatMap((item) => {
     if (item.column !== "traceName") return [];
@@ -115,6 +116,7 @@ export function topicConnectionCaption(
   return "Project connections";
 }
 
+/** @internal */
 export function setupWaitMinutes(
   traceIdleMs: number | null,
 ): TopicSetupWaitMinutes {
@@ -160,6 +162,7 @@ export function topicProviderGroups(
   );
 }
 
+/** @internal */
 export function pickRecommendedTopicModel(
   slot: "summary" | "embedding" | "clustering",
   providerGroups: Array<[string, string[]]>,

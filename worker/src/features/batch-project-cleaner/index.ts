@@ -24,8 +24,10 @@ import { RedisLock } from "../../utils/RedisLock";
 
 export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
 
+/** @internal */
 export const BATCH_PROJECT_CLEANER_LOCK_PREFIX =
   "langfuse:batch-project-cleaner";
+/** @internal */
 export const BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY = `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:count-query`;
 
 // Safety net for an abandoned lock; successful count queries release it immediately.

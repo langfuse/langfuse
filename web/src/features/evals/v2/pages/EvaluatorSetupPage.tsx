@@ -102,12 +102,14 @@ type InitialEvaluator = {
   sampleFilter?: FilterState;
 };
 
+/** @internal */
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
   return evaluator.blockedAt === null;
 }
 
+/** @internal */
 export function applyEvaluatorSuggestion(
   suggestion: string | null,
   setSuggestion: (suggestion: string) => void,
@@ -117,6 +119,7 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
+/** @internal */
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
@@ -166,6 +169,7 @@ export function getEvaluatorVersionDefinition(
   };
 }
 
+/** @internal */
 export function restoreEvaluatorVersion({
   store,
   version,
@@ -1103,8 +1107,8 @@ export function EvaluatorSetupPage(
                   primaryContent={evaluatorEditor}
                   secondaryContent={evaluatorTestPanel}
                   open={testPanelOpen}
-                  defaultPrimarySize={60}
-                  defaultSecondarySize={40}
+                  defaultPrimarySize={50}
+                  defaultSecondarySize={50}
                   minPrimarySize={30}
                   minSecondarySize="360px"
                   collapsedSecondarySize="48px"

@@ -23,5 +23,5 @@ export const [getEvaluationRuleTool, handleGetEvaluationRule] = defineTool({
           ),
         ),
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

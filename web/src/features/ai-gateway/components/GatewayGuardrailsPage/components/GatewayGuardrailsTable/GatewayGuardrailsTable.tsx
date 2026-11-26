@@ -11,6 +11,7 @@ import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GATEWAY_GUARDRAIL_ACTION_LABELS } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
+import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";
@@ -189,6 +190,17 @@ export function GatewayGuardrailsTable({
 }
 
 function getGuardrailBadge(row: GatewayGuardrailRow) {
+  if (row.type === "BEDROCK") {
+    return <providerIcons.BEDROCK size="sm" aria-hidden />;
+  }
+  if (
+    row.presets.length === 0 &&
+    row.secretPrefixes.length === 0 &&
+    row.containsWords.length === 0 &&
+    row.customRegex
+  ) {
+    return ".*";
+  }
   if (
     row.presets.length === 0 &&
     row.secretPrefixes.length === 0 &&

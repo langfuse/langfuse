@@ -1,3 +1,5 @@
+// Golden SQL for the events-backed sessions table aggregates.
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,13 +7,13 @@ import {
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "../repositories/goldenHarness";
+} from "../repositories/__tests__/goldenHarness";
 
 vi.mock("../repositories/clickhouse", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../repositories/clickhouse")>();
   const { buildClickhouseMock } =
-    await import("../repositories/goldenHarness.js");
+    await import("../repositories/__tests__/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 

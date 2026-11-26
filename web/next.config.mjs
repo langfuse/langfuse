@@ -131,6 +131,7 @@ const nextConfig = {
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
     "piscina",
+    "@langfuse/ai-gateway-guardrail-rules",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
