@@ -547,6 +547,7 @@ export { getAgentGraphDataFromEventsTable } from "./repositories/events";
 export { hasAnyEventOlderThan } from "./repositories/events";
 export { deleteEventsOlderThanDays } from "./repositories/events";
 export { getObservationsBatchIOFromEventsTable } from "./repositories/events";
+export { getTraceTotalCostsFromEventsTable } from "./repositories/events";
 export { OBSERVATION_IO_STREAM_FIELDS } from "./repositories/events";
 export { type ObservationIoStreamField } from "./repositories/events";
 export { getObservationIOFieldByteLengthFromEventsTable } from "./repositories/events";

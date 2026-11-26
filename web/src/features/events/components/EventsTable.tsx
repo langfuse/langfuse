@@ -131,7 +131,10 @@ import type { TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import {
+  useEventsTableData,
+  useTraceTotalCosts,
+} from "@/src/features/events/hooks/useEventsTableData";
 import {
   useAppRootDefault,
   useApplyAppRootFallback,
@@ -240,6 +243,7 @@ export type EventsTableRow = {
   };
   usageDetails: Record<string, number>;
   totalCost?: number;
+  traceTotalCost?: number;
   cost: {
     inputCost?: number;
     outputCost?: number;
@@ -1488,6 +1492,24 @@ export default function ObservationsEventsTable({
       enableSorting,
     },
     {
+      accessorKey: "traceTotalCost",
+      header: "Trace Total Cost ($)",
+      id: "traceTotalCost",
+      size: 150,
+      headerTooltip: {
+        description:
+          "Sum of the cost of all observations (LLM calls) in this row's trace, as shown in the trace detail view. Not this observation's own cost.",
+      },
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("traceTotalCost");
+        return value !== undefined ? (
+          <span>{usdFormatter(value)}</span>
+        ) : undefined;
+      },
+      enableHiding: true,
+      enableSorting: false,
+    },
+    {
       accessorKey: "cost",
       header: "Cost",
       id: "cost",
@@ -1814,6 +1836,12 @@ export default function ObservationsEventsTable({
     columns,
   );
 
+  const traceTotalCosts = useTraceTotalCosts({
+    projectId,
+    rows: observations.status === "success" ? observations.rows : undefined,
+    enabled: !chartActive && columnVisibility.traceTotalCost !== false,
+  });
+
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: eventsFilterConfig.tableName,
@@ -1926,6 +1954,9 @@ export default function ObservationsEventsTable({
               scores: observation.scores ?? {},
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
+              traceTotalCost: observation.traceId
+                ? traceTotalCosts.get(observation.traceId)
+                : undefined,
               cost: {
                 inputCost: observation.inputCost ?? undefined,
                 outputCost: observation.outputCost ?? undefined,
@@ -1979,7 +2010,7 @@ export default function ObservationsEventsTable({
         : [];
 
     return result;
-  }, [observations]);
+  }, [observations, traceTotalCosts]);
 
   const visibleRows = useMemo(
     () =>

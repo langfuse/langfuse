@@ -345,3 +345,48 @@ export function useEventsTableData({
     usedAppRootFallback,
   };
 }
+
+const EMPTY_TRACE_TOTAL_COSTS: ReadonlyMap<string, number> = new Map();
+
+export function useTraceTotalCosts({
+  projectId,
+  rows,
+  enabled,
+}: {
+  projectId: string;
+  rows:
+    | ReadonlyArray<{ traceId?: string | null; startTime?: Date | null }>
+    | undefined;
+  enabled: boolean;
+}): ReadonlyMap<string, number> {
+  const payload = useMemo(() => {
+    const withTrace = (rows ?? []).filter(
+      (o): o is { traceId: string; startTime: Date } =>
+        Boolean(o.traceId && o.startTime),
+    );
+    if (withTrace.length === 0) {
+      return null;
+    }
+    return {
+      projectId,
+      traceIds: Array.from(new Set(withTrace.map((o) => o.traceId))),
+      minStartTime: new Date(
+        Math.min(...withTrace.map((o) => o.startTime.getTime())),
+      ),
+    };
+  }, [rows, projectId]);
+
+  const query = api.events.traceTotalCosts.useQuery(payload!, {
+    ...sendAsPostOption,
+    enabled: enabled && payload !== null,
+    refetchOnWindowFocus: false,
+  });
+
+  return useMemo(
+    () =>
+      query.data
+        ? new Map(query.data.map((r) => [r.traceId, r.totalCost]))
+        : EMPTY_TRACE_TOTAL_COSTS,
+    [query.data],
+  );
+}

@@ -64,6 +64,7 @@ import {
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
   getLatestSdkVersionInfoFromEvents,
+  getTraceTotalCostsFromEventsTable,
 } from "@langfuse/shared/src/server";
 
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
@@ -156,6 +157,12 @@ const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
 });
 
 type BatchIOInput = z.infer<typeof BatchIOInput>;
+
+const TraceTotalCostsInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  traceIds: zodSchema.array(zodSchema.string()).max(500),
+  minStartTime: zodSchema.date(),
+});
 
 export const eventsRouter = createTRPCRouter({
   all: auditedQuery(
@@ -302,6 +309,22 @@ export const eventsRouter = createTRPCRouter({
       );
     },
   ),
+  traceTotalCosts: protectedProjectProcedure
+    .input(TraceTotalCostsInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-event-trace-total-costs-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", ctx.session.projectId);
+          span.setAttribute("trace_count", input.traceIds.length);
+          return getTraceTotalCostsFromEventsTable({
+            projectId: ctx.session.projectId,
+            traceIds: input.traceIds,
+            minStartTime: input.minStartTime,
+          });
+        },
+      );
+    }),
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
