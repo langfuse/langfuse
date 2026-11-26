@@ -49,6 +49,7 @@ describe("downloadLegacyTraceAsJson", () => {
       trace: {
         id: "trace-1",
         input: '{"question":"\\u3053\\u3093\\u306b\\u3061\\u306f"}',
+        uiExportsDisabledReason: null,
       },
       observations: [
         { id: "obs-1", output: "\\u3042\\u308a\\u304c\\u3068\\u3046" },
@@ -61,5 +62,6 @@ describe("downloadLegacyTraceAsJson", () => {
     expect(content).toContain("こんにちは");
     expect(content).toContain("ありがとう");
     expect(content).not.toContain("\\u3053");
+    expect(content).not.toContain("uiExportsDisabledReason");
   });
 });

@@ -15,9 +15,9 @@ import { asSingleQueryParam } from "@/src/hooks/useReadyRouteParams";
  *
  * Accepts `{ projectId }` or `{ orgId }`; falls back to the current route's
  * `projectId` when omitted so shared leaf viewers can enforce the flag without
- * prop drilling. For public viewers who do not belong to the project's
- * organization, falls back to `fallbackReason` or `UiExportsPolicyContext`
- * populated from the authorized trace/session read query.
+ * prop drilling. Also honors `fallbackReason` and `UiExportsPolicyContext`
+ * populated from authorized trace/session read queries so public viewers and
+ * members whose session has not refreshed yet see the server policy immediately.
  */
 export function useUiExportsDisabledReason(scope?: {
   projectId?: string | null;
@@ -40,8 +40,8 @@ export function useUiExportsDisabledReason(scope?: {
     const org = organizations?.find(
       (candidate) => candidate.id === scope.orgId,
     );
-    if (org) {
-      return org.uiExportsDisabled ? UI_EXPORTS_DISABLED_BY_ORG_REASON : null;
+    if (org?.uiExportsDisabled) {
+      return UI_EXPORTS_DISABLED_BY_ORG_REASON;
     }
     return scope.fallbackReason ?? policyContextReason;
   }
@@ -52,8 +52,8 @@ export function useUiExportsDisabledReason(scope?: {
     const org = organizations.find((candidate) =>
       candidate.projects.some((project) => project.id === projectId),
     );
-    if (org) {
-      return org.uiExportsDisabled ? UI_EXPORTS_DISABLED_BY_ORG_REASON : null;
+    if (org?.uiExportsDisabled) {
+      return UI_EXPORTS_DISABLED_BY_ORG_REASON;
     }
   }
 

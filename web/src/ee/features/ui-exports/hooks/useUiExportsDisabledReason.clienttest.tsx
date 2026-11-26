@@ -181,7 +181,8 @@ describe("useUiExportsDisabledReason", () => {
       ).result.current,
     ).toBe(UI_EXPORTS_DISABLED_BY_ORG_REASON);
 
-    // Org member's own live session takes precedence over a stale context reason
+    // Fresh server policy in context still disables exports if a member's
+    // cached session has not refreshed yet.
     expect(
       renderHook(() => useUiExportsDisabledReason({ projectId: "project-1" }), {
         wrapper: withPolicy(
@@ -189,6 +190,6 @@ describe("useUiExportsDisabledReason", () => {
           UI_EXPORTS_DISABLED_BY_ORG_REASON,
         ),
       }).result.current,
-    ).toBeNull();
+    ).toBe(UI_EXPORTS_DISABLED_BY_ORG_REASON);
   });
 });

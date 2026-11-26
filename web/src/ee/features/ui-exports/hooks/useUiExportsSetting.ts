@@ -20,9 +20,17 @@ export function useUiExportsSetting(orgId: string) {
   const disabledByInstance =
     session?.environment.uiExportsDisabledByInstance === true;
 
+  const utils = api.useUtils();
   const mutation = api.uiExports.setDisabled.useMutation({
     onSuccess: async () => {
-      await updateSession();
+      await Promise.all([
+        updateSession(),
+        utils.traces.byIdWithObservationsAndScores.invalidate(),
+        utils.events.byTraceId.invalidate(),
+        utils.sessions.byIdWithScores.invalidate(),
+        utils.sessions.byIdWithScoresFromEvents.invalidate(),
+        utils.sessions.observationsForSessionFromEvents.invalidate(),
+      ]);
     },
   });
 

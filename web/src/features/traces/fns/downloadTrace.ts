@@ -73,8 +73,10 @@ export async function downloadServerTraceAsJson(
 
 export function downloadLegacyTraceAsJson(params: LegacyTraceDownloadParams) {
   const { trace, observations, filename } = params;
+  const { uiExportsDisabledReason: _uiExportsDisabledReason, ...exportTrace } =
+    trace;
   const exportData = {
-    trace,
+    trace: exportTrace,
     observations,
   };
 
