@@ -5,7 +5,10 @@ import {
   type TopicCostEstimatePrices,
 } from "@langfuse/shared/topics";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { Info } from "@langfuse/icons";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { cn } from "@/src/utils/tailwind";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { usdFormatter } from "@/src/utils/numbers";
 
@@ -44,6 +47,41 @@ const approxCount = (count: number) =>
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(Math.round(count))}`;
+
+// Every question summarized on a trace is one billable unit. Null hides the row
+// while the trace count is unknown or nothing is selected.
+function usageSummary({
+  facetCount,
+  samplingPercent,
+  sampledDailyTraces,
+  backfillTraces,
+  newTraces,
+}: {
+  facetCount: number;
+  samplingPercent?: number;
+  sampledDailyTraces: number | null;
+  backfillTraces?: number | null;
+  newTraces?: number;
+}) {
+  if (facetCount === 0) return null;
+  const questions = `${facetCount} ${facetCount === 1 ? "question" : "questions"}`;
+  const rule = "Each question summarized on a trace is one billable unit.";
+  if (newTraces !== undefined)
+    return {
+      units: newTraces * facetCount,
+      period: "for this snapshot",
+      explanation: `${questions} × up to ${newTraces.toLocaleString("en-US")} new traces. ${rule}`,
+    };
+  if (sampledDailyTraces === null) return null;
+  const backfill = backfillTraces
+    ? `, plus ${approxCount(backfillTraces * facetCount)} once for the first backfill`
+    : "";
+  return {
+    units: sampledDailyTraces * facetCount,
+    period: "per day",
+    explanation: `${questions} × ${approxCount(sampledDailyTraces)} traces a day at ${samplingPercent}% sampling${backfill}. ${rule}`,
+  };
+}
 
 export type TopicEstimateControls = {
   estimate: Estimate | null;
@@ -93,45 +131,42 @@ export function TopicCostEstimateView({
     ? ""
     : " You don't have permission to add one.";
 
-  // Every question summarized on a trace is one billable unit.
-  const usageTraces = newTraces ?? sampledDailyTraces;
-  const usageNote =
-    facetCount === 0
-      ? "Select at least one question."
-      : "Counting recent traces…";
+  const usage = usageSummary({
+    facetCount,
+    samplingPercent,
+    sampledDailyTraces,
+    backfillTraces,
+    newTraces,
+  });
 
   return (
     <div className="flex flex-col gap-3 rounded-md border px-3.5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5 text-sm font-bold">
-          Langfuse usage
-          {usageTraces !== null && facetCount > 0 ? (
-            <InfoTooltip label="About Langfuse usage">
-              {facetCount} {facetCount === 1 ? "question" : "questions"} ×{" "}
-              {newTraces === undefined
-                ? `${approxCount(usageTraces)} traces a day at ${samplingPercent}% sampling`
-                : `up to ${newTraces.toLocaleString("en-US")} new traces`}
-              {newTraces === undefined && backfillTraces
-                ? `, plus ${approxCount(backfillTraces * facetCount)} once for the first backfill`
-                : ""}
-              . Each question summarized on a trace is one billable unit.
-            </InfoTooltip>
-          ) : null}
-        </span>
-        {facetCount > 0 && usageTraces !== null ? (
-          <span className="text-sm whitespace-nowrap">
-            <span className="font-bold tabular-nums">
-              {approxCount(usageTraces * facetCount)}
-            </span>{" "}
-            billable units{" "}
-            {newTraces === undefined ? "per day" : "for this snapshot"}
+      {usage && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1 text-sm font-bold">
+            Langfuse usage
+            <Tooltip label={usage.explanation}>
+              {({ getTriggerProps }) => (
+                <IconButton
+                  {...getTriggerProps()}
+                  icon={Info}
+                  label="About Langfuse usage"
+                  size="sm"
+                  variant="ghost"
+                />
+              )}
+            </Tooltip>
           </span>
-        ) : (
-          <span className="text-muted-foreground text-sm">{usageNote}</span>
-        )}
-      </div>
+          <span className="text-sm">
+            <span className="font-bold tabular-nums">
+              {approxCount(usage.units)}
+            </span>{" "}
+            billable units {usage.period}
+          </span>
+        </div>
+      )}
 
-      <div className="flex flex-col gap-2 border-t pt-3">
+      <div className={cn("flex flex-col gap-2", usage && "border-t pt-3")}>
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-bold">
             Model cost{" "}

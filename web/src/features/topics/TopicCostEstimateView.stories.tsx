@@ -21,8 +21,8 @@ const meta = preview.meta({
 
 export const NotStarted = meta.story({});
 
-// Usage needs only the trace count, so it waits on that and not on the estimate.
-export const CountingTraces = meta.story({ args: { dailyTraces: null } });
+// Without a trace count there is nothing to project, so the usage row is hidden.
+export const TraceCountUnknown = meta.story({ args: { dailyTraces: null } });
 
 export const Snapshot = meta.story({
   args: {
