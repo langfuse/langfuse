@@ -74,6 +74,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
 import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
+import { throwIfPublicSharingDisabled } from "@/src/ee/features/public-sharing/server/publicSharing";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -1321,6 +1322,12 @@ export const sessionRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
+      if (input.public) {
+        await throwIfPublicSharingDisabled({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "session",
