@@ -77,7 +77,7 @@ export function GatewayGuardrailsPage({
               {
                 text: "Share feedback with support",
                 icon: LifeBuoy,
-                onClick: openLimitFeedback,
+                onClick: () => openLimitFeedback("count"),
               },
             ]}
           >

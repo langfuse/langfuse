@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
+// Derives bounded route and request-path tags for ClickHouse queries issued
+// by public API requests.
+
 import { type NextApiRequest } from "next";
 
 /**
@@ -44,7 +47,7 @@ export const DYNAMIC_API_ROUTE_TEMPLATES = [
   "/api/public/unstable/skills/[skillName]/versions/[skillVersion]",
   "/api/public/unstable/topic-facets/[facetId]",
   "/api/public/unstable/topic-rules/[ruleId]",
-  "/api/public/unstable/topics/[topicId]",
+  "/api/public/unstable/topics/[topicStableId]",
   "/api/public/v2/datasets/[datasetName]",
   "/api/public/v2/evaluation-rules/[evaluationRuleId]",
   "/api/public/v2/evaluators/[evaluatorId]",

@@ -17,7 +17,7 @@ export function topicAssignmentRows(input: {
   /** The matched rule online; the run's rule for a fit. */
   ruleId: string | null;
   origin: TopicAssignment["origin"];
-  assignedAt: string;
+  createdAt: string;
   coordinates?: Map<string, [number, number]>;
 }): TopicAssignment[] {
   const { projectId, facet, embeddingConfig, run } = input;
@@ -53,7 +53,7 @@ export function topicAssignmentRows(input: {
       environment: summary.environment,
       traceName: summary.traceName,
       unitStartTime: summary.unitStartTime,
-      summaryProcessedAt: summary.processedAt,
+      summaryProcessedAt: summary.createdAt,
       runId: run.id,
       ruleId: input.ruleId,
       topicId: topic?.topicId ?? null,
@@ -61,7 +61,7 @@ export function topicAssignmentRows(input: {
       distance: assigned.distance,
       runnerUpDistance: assigned.runnerUpDistance,
       origin: input.origin,
-      assignedAt: input.assignedAt,
+      createdAt: input.createdAt,
     };
   });
 }

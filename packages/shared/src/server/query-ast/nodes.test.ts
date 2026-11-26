@@ -1,3 +1,5 @@
+// Pins tenancy injection and the custom AST nodes across query shapes.
+
 import {
   AliasNode,
   BinaryOperationNode,
@@ -42,7 +44,7 @@ import {
   finalTable,
   isClickHouseSelectQueryNode,
 } from "./nodes";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { type ClickHouseDatabase } from "./schema";
 import { NameShadowingPlugin } from "./shadowing";
 import { TenancyInjectionPlugin } from "./tenancy";
@@ -1220,6 +1222,22 @@ describe("bare columns in a SELECT with several relations", () => {
       .groupBy("t.id")
       .orderBy("top", "desc");
 
+    expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
+  });
+});
+
+describe("qualifiers in a SELECT with one relation", () => {
+  const db = getClickhouseKysely();
+
+  it("rejects a relation the query did not join", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("zz.name").as("n"));
+    expect(() => compileClickhouseQuery(qb, projectId)).toThrow(
+      /Qualifier "zz" names no relation, registry column/,
+    );
+  });
+
+  it("accepts a subcolumn of its relation's column", () => {
+    const qb = db.selectFrom("scores").select(sql.ref("metadata.keys").as("k"));
     expect(() => compileClickhouseQuery(qb, projectId)).not.toThrow();
   });
 });

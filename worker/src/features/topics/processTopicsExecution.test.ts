@@ -37,6 +37,7 @@ const state = vi.hoisted(() => ({
   assignments: new Map<string, TopicAssignment>(),
   facets: new Map<string, TopicFacetVersion>(),
   visible: true,
+  hiddenSources: 0,
   resultReads: vi.fn(),
   assignmentWrites: vi.fn(),
   saveExecution: vi.fn(),
@@ -231,6 +232,36 @@ vi.mock("@langfuse/shared/topics/server", () => {
         ),
       );
     },
+    readUntilVisible: <T>(
+      _check: string,
+      _context: unknown,
+      read: () => Promise<T>,
+    ) => read(),
+    TopicAssignmentVisibilityError: class extends Error {
+      readonly name = "TopicAssignmentVisibilityError";
+    },
+    countTopicAssignmentSources: async (
+      projectId: string,
+      facet: TopicFacetRef,
+      runId: string,
+      timeRange: TopicTimeRange,
+    ) => {
+      if (!state.visible) return 0;
+      const sources = new Set(
+        [...state.assignments.values()]
+          .filter(
+            (row) =>
+              row.projectId === projectId &&
+              row.facetId === facet.facetId &&
+              row.facetVersion === facet.version &&
+              row.runId === runId &&
+              row.origin === "initial" &&
+              inTimeRange(row, timeRange),
+          )
+          .map(topicSourceKey),
+      );
+      return Math.max(0, sources.size - state.hiddenSources);
+    },
     readTopicAssignments: async (
       projectId: string,
       facet: TopicFacetRef,
@@ -332,7 +363,7 @@ function seedSummaries(
         usageDetails: {},
         providedCostDetails: {},
         costDetails: {},
-        processedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         metadata: {},
       };
       state.summaries.set(topicSourceKey(summary), summary);
@@ -430,6 +461,7 @@ beforeEach(() => {
   state.assignments.clear();
   state.facets.clear();
   state.visible = true;
+  state.hiddenSources = 0;
   state.sampleNaming = false;
   state.numeric.mockImplementation(async (vectors: number[][]) => ({
     status: "complete",
@@ -990,7 +1022,7 @@ describe("Topics execution", () => {
     },
   );
 
-  it("bounds assignment writes and retries publication when a batch is not visible", async () => {
+  it("publishes a map once 99% of its sources are readable and retries publication below that", async () => {
     seedSummaries(1);
     const template = [...state.summaries.values()][0];
     for (let index = 1; index < 2001; index++) {
@@ -1002,19 +1034,18 @@ describe("Topics execution", () => {
       labels: vectors.map(() => -1),
       coordinates: vectors.map(() => [0, 0]),
     }));
-    state.assignmentWrites.mockImplementation(async () => {
-      // A late visibility failure must prevent publication of the whole map.
-      if (state.assignmentWrites.mock.calls.length === 3) state.visible = false;
-    });
+    // 21 of 2,001 sources unreadable is below 99% coverage, so the map is not published.
+    state.hiddenSources = 21;
     await updateSelection("batched");
     expect(
       state.assignmentWrites.mock.calls.map(([rows]) => rows.length),
-    ).toEqual([1000, 1000, 1]);
+    ).toEqual([2001]);
     expect([...state.runs.values()].at(-1)?.status).toBe("failed");
     expect(state.executions.get("batched")?.facets[0].error).toContain(
       "not fully visible",
     );
-    state.visible = true;
+    // 20 unreadable is exactly 99%: published, the rest appear as they become readable.
+    state.hiddenSources = 20;
     await processTopicUpdateExecution({
       projectId: "project",
       executionId: "batched",

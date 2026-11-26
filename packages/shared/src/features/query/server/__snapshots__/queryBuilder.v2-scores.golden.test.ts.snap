@@ -14,13 +14,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build agg=histogram cha
       ],
     },
     "route": "unknown",
-    "sql": "SELECT histogram(25)(toFloat64((value))) AS histogram_value
-FROM scores AS scores_numeric
+    "sql": "SELECT histogram(25)(toFloat64(scores.value)) AS histogram_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY histogram_value DESC",
   },
 ]
@@ -40,13 +40,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT avg((value)) AS avg_value
-FROM scores AS scores_numeric
+    "sql": "SELECT avg(scores.value) AS avg_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY avg_value DESC",
   },
 ]
@@ -66,13 +66,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((value)) AS count_value
-FROM scores AS scores_numeric
+    "sql": "SELECT count(scores.value) AS count_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_value DESC",
   },
 ]
@@ -92,13 +92,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT histogram(10)(toFloat64((value))) AS histogram_value
-FROM scores AS scores_numeric
+    "sql": "SELECT histogram(10)(toFloat64(scores.value)) AS histogram_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY histogram_value DESC",
   },
 ]
@@ -118,13 +118,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT max((value)) AS max_value
-FROM scores AS scores_numeric
+    "sql": "SELECT max(scores.value) AS max_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY max_value DESC",
   },
 ]
@@ -144,13 +144,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT min((value)) AS min_value
-FROM scores AS scores_numeric
+    "sql": "SELECT min(scores.value) AS min_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY min_value DESC",
   },
 ]
@@ -170,13 +170,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT quantile(0.5)((value)) AS p50_value
-FROM scores AS scores_numeric
+    "sql": "SELECT quantile(0.5)(scores.value) AS p50_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY p50_value DESC",
   },
 ]
@@ -196,13 +196,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT quantile(0.75)((value)) AS p75_value
-FROM scores AS scores_numeric
+    "sql": "SELECT quantile(0.75)(scores.value) AS p75_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY p75_value DESC",
   },
 ]
@@ -222,13 +222,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT quantile(0.9)((value)) AS p90_value
-FROM scores AS scores_numeric
+    "sql": "SELECT quantile(0.9)(scores.value) AS p90_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY p90_value DESC",
   },
 ]
@@ -248,13 +248,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT quantile(0.95)((value)) AS p95_value
-FROM scores AS scores_numeric
+    "sql": "SELECT quantile(0.95)(scores.value) AS p95_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY p95_value DESC",
   },
 ]
@@ -274,13 +274,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT quantile(0.99)((value)) AS p99_value
-FROM scores AS scores_numeric
+    "sql": "SELECT quantile(0.99)(scores.value) AS p99_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY p99_value DESC",
   },
 ]
@@ -300,13 +300,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT sum((value)) AS sum_value
-FROM scores AS scores_numeric
+    "sql": "SELECT sum(scores.value) AS sum_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY sum_value DESC",
   },
 ]
@@ -326,13 +326,13 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single meas
       ],
     },
     "route": "unknown",
-    "sql": "SELECT uniq((value)) AS uniq_value
-FROM scores AS scores_numeric
+    "sql": "SELECT uniq(scores.value) AS uniq_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY uniq_value DESC",
   },
 ]
@@ -353,12 +353,12 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=single metr
     },
     "route": "unknown",
     "sql": "SELECT count(*) AS count
-FROM scores AS scores_numeric
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))",
+    AND (scores.data_type IN ({param4:Array(String)}))",
   },
 ]
 `;
@@ -369,22 +369,12 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=two measure
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -394,10 +384,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
-        any(value) AS value
-    FROM scores AS scores_numeric
+        any(scores.value) AS value
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -428,21 +418,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY histogram_value DESC",
   },
@@ -455,22 +445,12 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=two measure
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -480,10 +460,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
-        any(value) AS value
-    FROM scores AS scores_numeric
+        any(scores.value) AS value
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -514,21 +494,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY p95_value DESC",
   },
@@ -541,22 +521,12 @@ exports[`golden: executeQuery v2 scores > aggregations > build level=two metrics
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -566,10 +536,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(*) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -600,21 +570,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY traceName ASC",
   },
@@ -637,13 +607,13 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=entity field=
     "route": "unknown",
     "sql": "SELECT
     nullIf(scores.dataset_run_id, '') AS entity_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY entity_dimension
 ORDER BY count_count DESC",
   },
@@ -667,12 +637,12 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=entity field=
     "sql": "SELECT
     nullIf(scores.dataset_run_id, '') AS entity_dimension,
     count(*) AS count
-FROM scores AS scores_numeric
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY entity_dimension
 ORDER BY entity_dimension ASC",
   },
@@ -691,8 +661,6 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=entity field=
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -702,22 +670,22 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
-        any(nullIf(events_observations.experiment_id, '')) AS entity_dimension,
+        scores.id,
+        any(nullIf(e.experiment_id, '')) AS entity_dimension,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
     WHERE (scores.project_id = {param1:String})
         AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_observations.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param6:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY entity_dimension
 ORDER BY count_count DESC",
   },
@@ -730,22 +698,12 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=entity field=
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -755,10 +713,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS entity_dimension,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -789,21 +747,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY entity_dimension
 ORDER BY count_count DESC",
   },
@@ -826,13 +784,13 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time fill=ski
     "route": "unknown",
     "sql": "SELECT
     toDate(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
 ORDER BY time_dimension ASC",
   },
@@ -851,21 +809,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalDay(1)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(1)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalDay(1)) STEP toIntervalDay(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalDay(1)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalDay(1)) STEP toIntervalDay(1)",
   },
 ]
 `;
@@ -882,21 +838,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalHour(1)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(1)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalHour(1)) STEP toIntervalHour(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalHour(1)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalHour(1)) STEP toIntervalHour(1)",
   },
 ]
 `;
@@ -913,21 +867,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalDay(7)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(7)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalDay(7)) STEP toIntervalDay(7)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalDay(7)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalDay(7)) STEP toIntervalDay(7)",
   },
 ]
 `;
@@ -944,21 +896,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalDay(2)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalDay(2)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalDay(2)) STEP toIntervalDay(2)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalDay(2)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalDay(2)) STEP toIntervalDay(2)",
   },
 ]
 `;
@@ -975,21 +925,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalHour(2)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(2)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalHour(2)) STEP toIntervalHour(2)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalHour(2)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalHour(2)) STEP toIntervalHour(2)",
   },
 ]
 `;
@@ -1006,21 +954,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalHour(4)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalHour(4)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalHour(4)) STEP toIntervalHour(4)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalHour(4)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalHour(4)) STEP toIntervalHour(4)",
   },
 ]
 `;
@@ -1037,21 +983,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalMinute(5)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(5)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalMinute(5)) STEP toIntervalMinute(5)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalMinute(5)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalMinute(5)) STEP toIntervalMinute(5)",
   },
 ]
 `;
@@ -1068,21 +1012,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalMinute(10)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(10)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalMinute(10)) STEP toIntervalMinute(10)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalMinute(10)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalMinute(10)) STEP toIntervalMinute(10)",
   },
 ]
 `;
@@ -1099,21 +1041,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalMinute(15)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(15)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalMinute(15)) STEP toIntervalMinute(15)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalMinute(15)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalMinute(15)) STEP toIntervalMinute(15)",
   },
 ]
 `;
@@ -1130,21 +1070,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfInterval(scores.timestamp, toIntervalMinute(30)) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param5:DateTime64(3, 'UTC')}, toIntervalMinute(30)) TO toStartOfInterval({param6:DateTime64(3, 'UTC')}, toIntervalMinute(30)) STEP toIntervalMinute(30)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfInterval({param2:DateTime64(3, 'UTC')}, toIntervalMinute(30)) TO toStartOfInterval({param3:DateTime64(3, 'UTC')}, toIntervalMinute(30)) STEP toIntervalMinute(30)",
   },
 ]
 `;
@@ -1161,21 +1099,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toDate(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toDate({param5:DateTime64(3, 'UTC')}) TO toDate({param6:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toDate({param2:DateTime64(3, 'UTC')}) TO toDate({param3:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)",
   },
 ]
 `;
@@ -1192,21 +1128,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfHour(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param5:DateTime64(3, 'UTC')}) TO toStartOfHour({param6:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param2:DateTime64(3, 'UTC')}) TO toStartOfHour({param3:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
   },
 ]
 `;
@@ -1223,21 +1157,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfMinute(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfMinute({param5:DateTime64(3, 'UTC')}) TO toStartOfMinute({param6:DateTime64(3, 'UTC')}) STEP toIntervalMinute(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfMinute({param2:DateTime64(3, 'UTC')}) TO toStartOfMinute({param3:DateTime64(3, 'UTC')}) STEP toIntervalMinute(1)",
   },
 ]
 `;
@@ -1254,21 +1186,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toStartOfMonth(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfMonth({param5:DateTime64(3, 'UTC')}) TO toStartOfMonth({param6:DateTime64(3, 'UTC')}) STEP toIntervalMonth(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfMonth({param2:DateTime64(3, 'UTC')}) TO toStartOfMonth({param3:DateTime64(3, 'UTC')}) STEP toIntervalMonth(1)",
   },
 ]
 `;
@@ -1285,21 +1215,19 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time granular
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
     toMonday(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toMonday({param5:DateTime64(3, 'UTC')}) TO toMonday({param6:DateTime64(3, 'UTC')}) STEP toIntervalWeek(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toMonday({param2:DateTime64(3, 'UTC')}) TO toMonday({param3:DateTime64(3, 'UTC')}) STEP toIntervalWeek(1)",
   },
 ]
 `;
@@ -1320,13 +1248,13 @@ exports[`golden: executeQuery v2 scores > bucketing > build bucket=time orderBy=
     "route": "unknown",
     "sql": "SELECT
     toDate(scores.timestamp) AS time_dimension,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY time_dimension
 ORDER BY
     time_dimension DESC,
@@ -1343,24 +1271,12 @@ exports[`golden: executeQuery v2 scores > bucketing > build level=two bucket=tim
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
-      "param12": "2026-01-01 00:00:00.000",
-      "param13": "2026-01-08 00:00:00.000",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -1371,11 +1287,11 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         any(toStartOfHour(scores.timestamp)) AS time_dimension,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -1406,25 +1322,25 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     traceName,
     time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param12:DateTime64(3, 'UTC')}) TO toStartOfHour({param13:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
+ORDER BY time_dimension ASC WITH FILL FROM toStartOfHour({param2:DateTime64(3, 'UTC')}) TO toStartOfHour({param3:DateTime64(3, 'UTC')}) STEP toIntervalHour(1)",
   },
 ]
 `;
@@ -1444,17 +1360,17 @@ exports[`golden: executeQuery v2 scores > dimensions > build dims=name,source,da
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.name AS name,
-    scores_numeric.source AS source,
-    scores_numeric.data_type AS dataType,
-    count((1)) AS count_count,
-    avg((value)) AS avg_value
-FROM scores AS scores_numeric
+    scores.name AS name,
+    scores.source AS source,
+    scores.data_type AS dataType,
+    count(1) AS count_count,
+    avg(scores.value) AS avg_value
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY
     name,
     source,
@@ -1476,8 +1392,6 @@ exports[`golden: executeQuery v2 scores > dimensions > build join=events_observa
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -1492,27 +1406,27 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
-        any(events_observations.name) AS observationName,
-        any(nullIf(events_observations.provided_model_name, '')) AS observationModelName,
-        any(nullIf(events_observations.prompt_name, '')) AS observationPromptName,
-        any(events_observations.prompt_version) AS observationPromptVersion,
-        any(nullIf(events_observations.experiment_name, '')) AS experimentName,
-        any(nullIf(events_observations.experiment_id, '')) AS experimentId,
+        scores.id,
+        any(e.name) AS observationName,
+        any(nullIf(e.provided_model_name, '')) AS observationModelName,
+        any(nullIf(e.prompt_name, '')) AS observationPromptName,
+        any(e.prompt_version) AS observationPromptVersion,
+        any(nullIf(e.experiment_name, '')) AS experimentName,
+        any(nullIf(e.experiment_id, '')) AS experimentId,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
     WHERE (scores.project_id = {param1:String})
         AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_observations.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param6:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     observationName,
     observationModelName,
@@ -1531,22 +1445,12 @@ exports[`golden: executeQuery v2 scores > dimensions > build join=events_traces 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -1560,14 +1464,14 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         any(nullIf(events_traces.user_id, '')) AS userId,
         any(events_traces.tags) AS tags,
         any(nullIf(events_traces.release, '')) AS traceRelease,
         any(nullIf(events_traces.version, '')) AS traceVersion,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -1602,21 +1506,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     traceName,
     userId,
@@ -1643,29 +1547,29 @@ exports[`golden: executeQuery v2 scores > dimensions > build level=single dims=a
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.id AS id,
-    scores_numeric.environment AS environment,
-    scores_numeric.name AS name,
-    scores_numeric.evaluator_id AS evaluatorId,
-    scores_numeric.evaluation_rule_id AS ruleId,
-    toBool((scores_numeric.metadata['evaluator_test']) = 'true') AS isEvaluatorTest,
-    scores_numeric.source AS source,
-    scores_numeric.data_type AS dataType,
-    scores_numeric.trace_id AS traceId,
-    scores_numeric.config_id AS configId,
-    formatDateTime(scores_numeric.timestamp, '%Y-%m') AS timestampMonth,
-    formatDateTime(scores_numeric.timestamp, '%Y-%m-%d') AS timestampDay,
-    scores_numeric.observation_id AS observationId,
+    scores.id AS id,
+    scores.environment AS environment,
+    scores.name AS name,
+    scores.evaluator_id AS evaluatorId,
+    scores.evaluation_rule_id AS ruleId,
+    toBool((scores.metadata['evaluator_test']) = 'true') AS isEvaluatorTest,
+    scores.source AS source,
+    scores.data_type AS dataType,
+    scores.trace_id AS traceId,
+    scores.config_id AS configId,
+    formatDateTime(scores.timestamp, '%Y-%m') AS timestampMonth,
+    formatDateTime(scores.timestamp, '%Y-%m-%d') AS timestampDay,
+    scores.observation_id AS observationId,
     scores.session_id AS sessionId,
     nullIf(scores.dataset_run_id, '') AS datasetRunId,
-    scores_numeric.value AS value,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    scores.value AS value,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY
     id,
     environment,
@@ -1700,14 +1604,14 @@ exports[`golden: executeQuery v2 scores > dimensions > build view=scores-boolean
     },
     "route": "unknown",
     "sql": "SELECT
-    toBool(scores_boolean.value) AS booleanValue,
-    count((1)) AS count_count
-FROM scores AS scores_boolean
+    toBool(scores.value) AS booleanValue,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_boolean.data_type = {param4:String})
+    AND (scores.data_type = {param4:String})
 GROUP BY booleanValue
 ORDER BY count_count DESC",
   },
@@ -1726,15 +1630,43 @@ exports[`golden: executeQuery v2 scores > dimensions > build view=scores-categor
     },
     "route": "unknown",
     "sql": "SELECT
-    string_value AS stringValue,
-    count((1)) AS count_count
-FROM scores AS scores_categorical
+    scores.string_value AS stringValue,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_categorical.data_type = {param4:String})
+    AND (scores.data_type = {param4:String})
 GROUP BY stringValue
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=boolean isEvaluatorTest<> 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": true,
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (toBool((scores.metadata['evaluator_test']) = 'true') != {param2:Boolean})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1745,8 +1677,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=boolean isEvalu
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": true,
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": true,
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1755,14 +1687,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=boolean isEvalu
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (toBool((scores_numeric.metadata['evaluator_test']) = 'true') = {param1:Boolean})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (toBool((scores.metadata['evaluator_test']) = 'true') = {param2:Boolean})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1773,8 +1705,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=datetime timest
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "2026-01-03 00:00:00.000",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "2026-01-03 00:00:00.000",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1783,18 +1715,20 @@ exports[`golden: executeQuery v2 scores > filters > build filter=datetime timest
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores.timestamp >= {param1:DateTime64(3, 'UTC')})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
 `;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=invalid column throws 1`] = `[InvalidRequestError: Invalid filter column unknown. Must be one of sessionId,datasetRunId,traceName,userId,tags,traceRelease,traceVersion,observationName,observationModelName,observationPromptName,observationPromptVersion,experimentName,experimentId,id,environment,name,evaluatorId,ruleId,isEvaluatorTest,source,dataType,traceId,configId,timestampMonth,timestampDay,observationId,value or timestamp]`;
 
 exports[`golden: executeQuery v2 scores > filters > build filter=null environment is-not-null 1`] = `
 [
@@ -1810,14 +1744,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=null environmen
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.environment IS NOT NULL)
-    AND (scores.project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.environment != '') AND (scores.environment IS NOT NULL))
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1837,14 +1771,145 @@ exports[`golden: executeQuery v2 scores > filters > build filter=null environmen
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.environment IS NULL)
-    AND (scores.project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.environment = '') OR (scores.environment IS NULL))
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=null nullIf datasetRunId is-null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id = '') OR (scores.dataset_run_id IS NULL))
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=null tags is-not-null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE notEmpty(events_traces.tags)
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
+            ))
+    ))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=null tags is-null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE empty(events_traces.tags)
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
+            ))
+    ))
 ORDER BY count_count DESC",
   },
 ]
@@ -1855,8 +1920,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=number value>= 
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "0.5",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "0.5",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1865,14 +1930,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=number value>= 
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.value >= {param1:Decimal128(12)})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (scores.value >= {param2:Decimal128(12)})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1883,8 +1948,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name con
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "acc",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "acc",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1893,14 +1958,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name con
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (position(scores_numeric.name, {param1:String}) > 0)
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (position(scores.name, {param2:String}) > 0)
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1911,8 +1976,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name doe
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "acc",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "acc",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1921,14 +1986,69 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name doe
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (position(scores_numeric.name, {param1:String}) = 0)
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (position(scores.name, {param2:String}) = 0)
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=string name ends-with 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "acy",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND endsWith(scores.name, {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=string name is-not-empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.name != '') AND (scores.name IS NOT NULL))
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1939,8 +2059,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name sta
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "acc",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "acc",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1949,14 +2069,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name sta
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE startsWith(scores_numeric.name, {param1:String})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND startsWith(scores.name, {param2:String})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1967,8 +2087,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name= 1`
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "accuracy",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "accuracy",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -1977,14 +2097,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string name= 1`
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.name = {param1:String})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (scores.name = {param2:String})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -1995,8 +2115,8 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string nullIf d
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "run",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "run",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -2005,14 +2125,41 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string nullIf d
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE ((scores.dataset_run_id != '') AND (position(scores.dataset_run_id, {param1:String}) = 0))
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id != '') AND (position(scores.dataset_run_id, {param2:String}) = 0))
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=string nullIf datasetRunId is-not-empty 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id != '') AND (scores.dataset_run_id IS NOT NULL))
+    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2032,14 +2179,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=string nullIf d
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE ((scores.dataset_run_id = '') OR (scores.dataset_run_id IS NULL))
-    AND (scores.project_id = {param1:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id = '') OR (scores.dataset_run_id IS NULL))
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2047,14 +2194,42 @@ ORDER BY count_count DESC",
 
 exports[`golden: executeQuery v2 scores > filters > build filter=string on number value throws 1`] = `[InvalidRequestError: Invalid filter for field 'value': Filter type 'string' is not supported for dimension type 'number'. Expected 'number'.]`;
 
+exports[`golden: executeQuery v2 scores > filters > build filter=string scoreName= fallback 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "accuracy",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.name = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
 exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata contains 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "region",
-      "param2": "eu",
-      "param3": "golden-project",
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "eu",
       "param4": "2026-01-01 00:00:00.000",
       "param5": "2026-01-08 00:00:00.000",
       "param6": [
@@ -2063,15 +2238,161 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringObject me
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE mapContains(scores.metadata, {param1:String})
-    AND (position(scores.metadata[{param1:String}], {param2:String}) > 0)
-    AND (scores.project_id = {param3:String})
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND (position(scores.metadata[{param2:String}], {param3:String}) > 0)
     AND (scores.timestamp >= {param4:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param5:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param6:Array(String)}))
+    AND (scores.data_type IN ({param6:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata does-not-contain 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "eu",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+      "param6": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND (position(scores.metadata[{param2:String}], {param3:String}) = 0)
+    AND (scores.timestamp >= {param4:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param5:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param6:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata ends-with 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "eu",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+      "param6": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND (endsWith(scores.metadata[{param2:String}], {param3:String}))
+    AND (scores.timestamp >= {param4:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param5:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param6:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata is-not-set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (NOT (mapContains(scores.metadata, {param2:String})))
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata is-set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringObject metadata starts-with 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "eu",
+      "param4": "2026-01-01 00:00:00.000",
+      "param5": "2026-01-08 00:00:00.000",
+      "param6": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND (startsWith(scores.metadata[{param2:String}], {param3:String}))
+    AND (scores.timestamp >= {param4:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param5:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param6:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2082,9 +2403,9 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringObject me
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "region",
-      "param2": "eu",
-      "param3": "golden-project",
+      "param1": "golden-project",
+      "param2": "region",
+      "param3": "eu",
       "param4": "2026-01-01 00:00:00.000",
       "param5": "2026-01-08 00:00:00.000",
       "param6": [
@@ -2093,15 +2414,15 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringObject me
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE mapContains(scores.metadata, {param1:String})
-    AND ((scores.metadata[{param1:String}]) = {param2:String})
-    AND (scores.project_id = {param3:String})
+WHERE (scores.project_id = {param1:String})
+    AND mapContains(scores.metadata, {param2:String})
+    AND ((scores.metadata[{param2:String}]) = {param3:String})
     AND (scores.timestamp >= {param4:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param5:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param6:Array(String)}))
+    AND (scores.data_type IN ({param6:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2112,11 +2433,11 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions n
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param2": [
         "",
         "run-1",
       ],
-      "param2": "golden-project",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -2125,14 +2446,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions n
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE ((scores.dataset_run_id IN ({param1:Array(String)})) OR (scores.dataset_run_id IS NULL))
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id IN ({param2:Array(String)})) OR (scores.dataset_run_id IS NULL))
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2143,11 +2464,11 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions n
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param2": [
         "",
         "run-1",
       ],
-      "param2": "golden-project",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -2156,14 +2477,14 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions n
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE ((scores.dataset_run_id NOT IN ({param1:Array(String)})) AND (scores.dataset_run_id IS NOT NULL))
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND ((scores.dataset_run_id NOT IN ({param2:Array(String)})) AND (scores.dataset_run_id IS NOT NULL))
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -2176,11 +2497,11 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions s
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param2": [
         "API",
         "EVAL",
       ],
-      "param2": "golden-project",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -2189,28 +2510,30 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions s
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.source IN ({param1:Array(String)}))
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (scores.source IN ({param2:Array(String)}))
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
 `;
+
+exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions source any-of empty throws 1`] = `[InvalidRequestError: Invalid query: [{"code":"custom","path":["filters",0,"value"],"message":"Invalid input"}]]`;
 
 exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions source none-of 1`] = `
 [
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param2": [
         "ANNOTATION",
       ],
-      "param2": "golden-project",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
@@ -2219,14 +2542,54 @@ exports[`golden: executeQuery v2 scores > filters > build filter=stringOptions s
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (scores_numeric.source NOT IN ({param1:Array(String)}))
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (scores.source NOT IN ({param2:Array(String)}))
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param5:Array(String)}))
+    AND (scores.data_type IN ({param5:Array(String)}))
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > filters > build join=events_observations filter=null observationName is-null 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "2026-01-01 00:00:00.000",
+      "param3": "2026-01-08 00:00:00.000",
+      "param4": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+    },
+    "route": "unknown",
+    "sql": "SELECT count(count) AS count_count
+FROM
+(
+    SELECT
+        scores.project_id,
+        scores.id,
+        count(1) AS count
+    FROM scores
+    FINAL
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND ((e.name = '') OR (e.name IS NULL))
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
+    GROUP BY
+        scores.project_id,
+        scores.id
+) AS per_score
 ORDER BY count_count DESC",
   },
 ]
@@ -2237,16 +2600,14 @@ exports[`golden: executeQuery v2 scores > filters > build join=events_observatio
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": "2",
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": "2",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -2254,22 +2615,22 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
-    WHERE (events_observations.prompt_version >= {param1:Decimal128(12)})
-        AND (scores.project_id = {param2:String})
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (e.prompt_version >= {param2:Decimal128(12)})
         AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param5:Array(String)}))
-        AND (events_observations.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param7:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param5:Array(String)}))
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 ORDER BY count_count DESC",
   },
 ]
@@ -2280,19 +2641,17 @@ exports[`golden: executeQuery v2 scores > filters > build join=events_observatio
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": [
+      "param1": "golden-project",
+      "param2": [
         "",
         "gpt-4o",
       ],
-      "param2": "golden-project",
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT count(count) AS count_count
@@ -2300,22 +2659,22 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
-    WHERE ((events_observations.provided_model_name IN ({param1:Array(String)})) OR (events_observations.provided_model_name IS NULL))
-        AND (scores.project_id = {param2:String})
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND ((e.provided_model_name IN ({param2:Array(String)})) OR (e.provided_model_name IS NULL))
         AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param5:Array(String)}))
-        AND (events_observations.start_time >= {param6:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param7:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param5:Array(String)}))
+        AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 ORDER BY count_count DESC",
   },
 ]
@@ -2327,35 +2686,25 @@ exports[`golden: executeQuery v2 scores > filters > build semi-join filter=array
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "golden-project",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
-      "param8": [
+      "param5": [
         "a",
         "b",
       ],
-      "param9": "golden-project",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
     AND (scores.trace_id IN (
         SELECT events_traces.id
         FROM
@@ -2365,21 +2714,21 @@ WHERE (scores.project_id = {param1:String})
                 e.project_id AS project_id,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
-            WHERE (e.project_id = {param5:String})
-                AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
-                AND (e.start_time <= {param7:DateTime64(3, 'UTC')})
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             GROUP BY
                 e.trace_id,
                 e.project_id
         ) AS events_traces
-        WHERE (hasAll(events_traces.tags, {param8:Array(String)}) = true)
+        WHERE (hasAll(events_traces.tags, {param5:Array(String)}) = true)
             AND (events_traces.id IN (
                 SELECT scores.trace_id
-                FROM scores AS scores_numeric
-                WHERE (scores.project_id = {param9:String})
-                    AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-                    AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-                    AND (scores_numeric.data_type IN ({param12:Array(String)}))
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
             ))
     ))
 ORDER BY count_count DESC",
@@ -2393,32 +2742,22 @@ exports[`golden: executeQuery v2 scores > filters > build semi-join filter=array
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "golden-project",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
-      "param8": [],
-      "param9": "golden-project",
+      "param5": [],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
     AND (scores.trace_id IN (
         SELECT events_traces.id
         FROM
@@ -2428,21 +2767,21 @@ WHERE (scores.project_id = {param1:String})
                 e.project_id AS project_id,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
-            WHERE (e.project_id = {param5:String})
-                AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
-                AND (e.start_time <= {param7:DateTime64(3, 'UTC')})
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             GROUP BY
                 e.trace_id,
                 e.project_id
         ) AS events_traces
-        WHERE (hasAll(events_traces.tags, {param8:Array(String)}) = true)
+        WHERE (hasAll(events_traces.tags, {param5:Array(String)}) = true)
             AND (events_traces.id IN (
                 SELECT scores.trace_id
-                FROM scores AS scores_numeric
-                WHERE (scores.project_id = {param9:String})
-                    AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-                    AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-                    AND (scores_numeric.data_type IN ({param12:Array(String)}))
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
             ))
     ))
 ORDER BY count_count DESC",
@@ -2456,35 +2795,25 @@ exports[`golden: executeQuery v2 scores > filters > build semi-join filter=array
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "golden-project",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
-      "param8": [
+      "param5": [
         "a",
         "b",
       ],
-      "param9": "golden-project",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
     AND (scores.trace_id IN (
         SELECT events_traces.id
         FROM
@@ -2494,21 +2823,21 @@ WHERE (scores.project_id = {param1:String})
                 e.project_id AS project_id,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
-            WHERE (e.project_id = {param5:String})
-                AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
-                AND (e.start_time <= {param7:DateTime64(3, 'UTC')})
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             GROUP BY
                 e.trace_id,
                 e.project_id
         ) AS events_traces
-        WHERE (hasAny({param8:Array(String)}, events_traces.tags) = true)
+        WHERE (hasAny({param5:Array(String)}, events_traces.tags) = true)
             AND (events_traces.id IN (
                 SELECT scores.trace_id
-                FROM scores AS scores_numeric
-                WHERE (scores.project_id = {param9:String})
-                    AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-                    AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-                    AND (scores_numeric.data_type IN ({param12:Array(String)}))
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
             ))
     ))
 ORDER BY count_count DESC",
@@ -2522,34 +2851,24 @@ exports[`golden: executeQuery v2 scores > filters > build semi-join filter=array
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "golden-project",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
-      "param8": [
+      "param5": [
         "a",
       ],
-      "param9": "golden-project",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
     AND (scores.trace_id IN (
         SELECT events_traces.id
         FROM
@@ -2559,21 +2878,21 @@ WHERE (scores.project_id = {param1:String})
                 e.project_id AS project_id,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
-            WHERE (e.project_id = {param5:String})
-                AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
-                AND (e.start_time <= {param7:DateTime64(3, 'UTC')})
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             GROUP BY
                 e.trace_id,
                 e.project_id
         ) AS events_traces
-        WHERE (hasAny({param8:Array(String)}, events_traces.tags) = false)
+        WHERE (hasAny({param5:Array(String)}, events_traces.tags) = false)
             AND (events_traces.id IN (
                 SELECT scores.trace_id
-                FROM scores AS scores_numeric
-                WHERE (scores.project_id = {param9:String})
-                    AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-                    AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-                    AND (scores_numeric.data_type IN ({param12:Array(String)}))
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
             ))
     ))
 ORDER BY count_count DESC",
@@ -2586,21 +2905,21 @@ exports[`golden: executeQuery v2 scores > filters > build view=scores-boolean fi
   {
     "fn": "queryClickhouse",
     "params": {
-      "param1": true,
-      "param2": "golden-project",
+      "param1": "golden-project",
+      "param2": true,
       "param3": "2026-01-01 00:00:00.000",
       "param4": "2026-01-08 00:00:00.000",
       "param5": "BOOLEAN",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_boolean
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
-WHERE (toBool(scores_boolean.value) = {param1:Boolean})
-    AND (scores.project_id = {param2:String})
+WHERE (scores.project_id = {param1:String})
+    AND (toBool(scores.value) = {param2:Boolean})
     AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
-    AND (scores_boolean.data_type = {param5:String})
+    AND (scores.data_type = {param5:String})
 ORDER BY count_count DESC",
   },
 ]
@@ -2612,24 +2931,12 @@ exports[`golden: executeQuery v2 scores > joins > build join=events_observations
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
-      "param12": "2026-01-01 00:00:00.000",
-      "param13": "2026-01-08 00:00:00.000",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2640,13 +2947,13 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
-        any(events_observations.name) AS observationName,
+        scores.id,
+        any(e.name) AS observationName,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
     INNER JOIN
     (
         SELECT *
@@ -2676,23 +2983,23 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
-        AND (events_observations.start_time >= {param12:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param13:DateTime64(3, 'UTC')})
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     observationName,
     traceName
@@ -2707,25 +3014,13 @@ exports[`golden: executeQuery v2 scores > joins > build join=events_traces dim=t
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
-      "param13": "2026-01-01 00:00:00.000",
-      "param14": "2026-01-08 00:00:00.000",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "llm",
-      "param9": "golden-project",
+      "param5": "llm",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2735,10 +3030,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -2769,25 +3064,25 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
-    WHERE (events_observations.name = {param8:String})
-        AND (scores.project_id = {param9:String})
-        AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param12:Array(String)}))
-        AND (events_observations.start_time >= {param13:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param14:DateTime64(3, 'UTC')})
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (e.name = {param5:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY count_count DESC",
   },
@@ -2800,23 +3095,13 @@ exports[`golden: executeQuery v2 scores > joins > build join=events_traces dim=t
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "u1",
-      "param9": "golden-project",
+      "param5": "u1",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2826,10 +3111,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -2861,22 +3146,22 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (events_traces.user_id = {param8:String})
-        AND (scores.project_id = {param9:String})
-        AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param12:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (events_traces.user_id = {param5:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY count_count DESC",
   },
@@ -2889,28 +3174,15 @@ exports[`golden: executeQuery v2 scores > joins > build join=events_traces dim=t
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
-      "param11": "accuracy",
-      "param12": "region",
-      "param13": "eu",
-      "param14": "golden-project",
-      "param15": "2026-01-01 00:00:00.000",
-      "param16": "2026-01-08 00:00:00.000",
-      "param17": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": "accuracy",
       "param5": "region",
       "param6": "eu",
-      "param7": "golden-project",
-      "param8": "2026-01-01 00:00:00.000",
-      "param9": "2026-01-08 00:00:00.000",
+      "param7": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
     },
     "route": "unknown",
     "sql": "SELECT
@@ -2920,10 +3192,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -2954,27 +3226,27 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores_numeric.name = {param4:String})
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.name = {param4:String})
                 AND mapContains(scores.metadata, {param5:String})
                 AND ((scores.metadata[{param5:String}]) = {param6:String})
-                AND (scores.project_id = {param7:String})
-                AND (scores.timestamp >= {param8:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param9:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param10:Array(String)}))
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param7:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores_numeric.name = {param11:String})
-        AND mapContains(scores.metadata, {param12:String})
-        AND ((scores.metadata[{param12:String}]) = {param13:String})
-        AND (scores.project_id = {param14:String})
-        AND (scores.timestamp >= {param15:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param16:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param17:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.name = {param4:String})
+        AND mapContains(scores.metadata, {param5:String})
+        AND ((scores.metadata[{param5:String}]) = {param6:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param7:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY count_count DESC",
   },
@@ -2987,22 +3259,12 @@ exports[`golden: executeQuery v2 scores > joins > build level=two dim=value meas
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3013,11 +3275,11 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
-        any(scores_numeric.value) AS value,
-        any(value) AS value
-    FROM scores AS scores_numeric
+        any(scores.value) AS value,
+        any(scores.value) AS value
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -3048,21 +3310,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     traceName,
     value
@@ -3077,25 +3339,13 @@ exports[`golden: executeQuery v2 scores > joins > build semi-join filter=traceNa
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "chat",
-      "param11": "golden-project",
-      "param12": "2026-01-01 00:00:00.000",
-      "param13": "2026-01-08 00:00:00.000",
-      "param14": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": "golden-project",
-      "param8": "2026-01-01 00:00:00.000",
-      "param9": "2026-01-08 00:00:00.000",
+      "param5": "chat",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3105,18 +3355,18 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
-        any(events_observations.name) AS observationName,
+        scores.id,
+        any(e.name) AS observationName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
     WHERE (scores.project_id = {param1:String})
         AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_observations.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param6:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
         AND (scores.trace_id IN (
             SELECT events_traces.id
             FROM
@@ -3136,28 +3386,84 @@ FROM
                         )
                     ) AS name
                 FROM events_core AS e
-                WHERE (e.project_id = {param7:String})
-                    AND (e.start_time >= {param8:DateTime64(3, 'UTC')})
-                    AND (e.start_time <= {param9:DateTime64(3, 'UTC')})
+                WHERE (e.project_id = {param1:String})
+                    AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                    AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
                 GROUP BY
                     e.trace_id,
                     e.project_id
             ) AS events_traces
-            WHERE (events_traces.name = {param10:String})
+            WHERE (events_traces.name = {param5:String})
                 AND (events_traces.id IN (
                     SELECT scores.trace_id
-                    FROM scores AS scores_numeric
-                    WHERE (scores.project_id = {param11:String})
-                        AND (scores.timestamp >= {param12:DateTime64(3, 'UTC')})
-                        AND (scores.timestamp <= {param13:DateTime64(3, 'UTC')})
-                        AND (scores_numeric.data_type IN ({param14:Array(String)}))
+                    FROM scores
+                    WHERE (scores.project_id = {param1:String})
+                        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                        AND (scores.data_type IN ({param4:Array(String)}))
                 ))
         ))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY observationName
+ORDER BY count_count DESC",
+  },
+]
+`;
+
+exports[`golden: executeQuery v2 scores > joins > build semi-join filters=name,userId 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": "accuracy",
+      "param3": "2026-01-01 00:00:00.000",
+      "param4": "2026-01-08 00:00:00.000",
+      "param5": [
+        "NUMERIC",
+        "BOOLEAN",
+      ],
+      "param6": "u1",
+    },
+    "route": "unknown",
+    "sql": "SELECT count(1) AS count_count
+FROM scores
+FINAL
+WHERE (scores.project_id = {param1:String})
+    AND (scores.name = {param2:String})
+    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+    AND (scores.data_type IN ({param5:Array(String)}))
+    AND (scores.trace_id IN (
+        SELECT events_traces.id
+        FROM
+        (
+            SELECT
+                e.trace_id AS id,
+                e.project_id AS project_id,
+                argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id
+            FROM events_core AS e
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param3:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param4:DateTime64(3, 'UTC')})
+            GROUP BY
+                e.trace_id,
+                e.project_id
+        ) AS events_traces
+        WHERE (events_traces.user_id = {param6:String})
+            AND (events_traces.id IN (
+                SELECT scores.trace_id
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.name = {param2:String})
+                    AND (scores.timestamp >= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param4:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param5:Array(String)}))
+            ))
+    ))
 ORDER BY count_count DESC",
   },
 ]
@@ -3169,34 +3475,24 @@ exports[`golden: executeQuery v2 scores > joins > build semi-join filters=userId
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-01 00:00:00.000",
-      "param11": "2026-01-08 00:00:00.000",
-      "param12": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
       "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "golden-project",
-      "param6": "2026-01-01 00:00:00.000",
-      "param7": "2026-01-08 00:00:00.000",
-      "param8": [
+      "param5": [
         "a",
       ],
-      "param9": "golden-project",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
     AND (scores.trace_id IN (
         SELECT events_traces.id
         FROM
@@ -3207,22 +3503,22 @@ WHERE (scores.project_id = {param1:String})
                 argMaxIf(e.user_id, e.event_ts, e.user_id != '') AS user_id,
                 arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) AS tags
             FROM events_core AS e
-            WHERE (e.project_id = {param5:String})
-                AND (e.start_time >= {param6:DateTime64(3, 'UTC')})
-                AND (e.start_time <= {param7:DateTime64(3, 'UTC')})
+            WHERE (e.project_id = {param1:String})
+                AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+                AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
             GROUP BY
                 e.trace_id,
                 e.project_id
         ) AS events_traces
         WHERE ((events_traces.user_id = '') OR (events_traces.user_id IS NULL))
-            AND (hasAny({param8:Array(String)}, events_traces.tags) = true)
+            AND (hasAny({param5:Array(String)}, events_traces.tags) = true)
             AND (events_traces.id IN (
                 SELECT scores.trace_id
-                FROM scores AS scores_numeric
-                WHERE (scores.project_id = {param9:String})
-                    AND (scores.timestamp >= {param10:DateTime64(3, 'UTC')})
-                    AND (scores.timestamp <= {param11:DateTime64(3, 'UTC')})
-                    AND (scores_numeric.data_type IN ({param12:Array(String)}))
+                FROM scores
+                WHERE (scores.project_id = {param1:String})
+                    AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                    AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                    AND (scores.data_type IN ({param4:Array(String)}))
             ))
     ))
 ORDER BY count_count DESC",
@@ -3242,8 +3538,6 @@ exports[`golden: executeQuery v2 scores > joins > build singleLevel=true join=ev
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3253,22 +3547,22 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
-        any(events_observations.name) AS observationName,
+        scores.id,
+        any(e.name) AS observationName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
-    INNER JOIN events_core AS events_observations ON (scores.project_id = events_observations.project_id) AND (scores.trace_id = events_observations.trace_id) AND (scores.observation_id = events_observations.span_id)
+    INNER JOIN events_core AS e ON (scores.project_id = e.project_id) AND (scores.trace_id = e.trace_id) AND (scores.observation_id = e.span_id) AND (e.project_id = {param1:String})
     WHERE (scores.project_id = {param1:String})
         AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
         AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param4:Array(String)}))
-        AND (events_observations.start_time >= {param5:DateTime64(3, 'UTC')})
-        AND (events_observations.start_time <= {param6:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
+        AND (e.start_time >= {param2:DateTime64(3, 'UTC')})
+        AND (e.start_time <= {param3:DateTime64(3, 'UTC')})
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY observationName
 ORDER BY count_count DESC",
   },
@@ -3281,16 +3575,9 @@ exports[`golden: executeQuery v2 scores > joins > build view=scores-categorical 
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": "CATEGORICAL",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": "CATEGORICAL",
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
+      "param4": "CATEGORICAL",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3300,10 +3587,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_categorical.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_categorical
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -3334,21 +3621,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_categorical
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_categorical.data_type = {param7:String})
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type = {param4:String})
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_categorical.data_type = {param11:String})
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type = {param4:String})
     GROUP BY
         scores.project_id,
-        scores_categorical.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY count_count DESC",
   },
@@ -3370,14 +3657,14 @@ exports[`golden: executeQuery v2 scores > other clauses > build defaultOrder dim
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.name AS name,
+    scores.name AS name,
     count(*) AS count
-FROM scores AS scores_numeric
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY name
 ORDER BY name ASC",
   },
@@ -3390,24 +3677,12 @@ exports[`golden: executeQuery v2 scores > other clauses > build level=two bucket
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
-      "param12": "2026-01-01 00:00:00.000",
-      "param13": "2026-01-08 00:00:00.000",
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3418,11 +3693,11 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         any(toDate(scores.timestamp)) AS time_dimension,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     FINAL
     INNER JOIN
     (
@@ -3453,25 +3728,25 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY
     traceName,
     time_dimension
-ORDER BY time_dimension ASC WITH FILL FROM toDate({param12:DateTime64(3, 'UTC')}) TO toDate({param13:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)
+ORDER BY time_dimension ASC WITH FILL FROM toDate({param2:DateTime64(3, 'UTC')}) TO toDate({param3:DateTime64(3, 'UTC')}) STEP toIntervalDay(1)
 LIMIT 50",
   },
 ]
@@ -3492,14 +3767,14 @@ exports[`golden: executeQuery v2 scores > other clauses > build orderBy=dimensio
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.name AS name,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    scores.name AS name,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY name
 ORDER BY name ASC",
   },
@@ -3521,14 +3796,14 @@ exports[`golden: executeQuery v2 scores > other clauses > build orderBy=dimensio
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.name AS name,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    scores.name AS name,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY name
 ORDER BY
     name ASC,
@@ -3552,14 +3827,14 @@ exports[`golden: executeQuery v2 scores > other clauses > build row_limit via co
     },
     "route": "unknown",
     "sql": "SELECT
-    scores_numeric.name AS name,
-    count((1)) AS count_count
-FROM scores AS scores_numeric
+    scores.name AS name,
+    count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 GROUP BY name
 ORDER BY count_count DESC
 LIMIT 25",
@@ -3581,12 +3856,12 @@ exports[`golden: executeQuery v2 scores > views > build skipScoresFinal=true 1`]
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -3598,22 +3873,12 @@ exports[`golden: executeQuery v2 scores > views > build skipScoresFinal=true joi
     "fn": "queryClickhouse",
     "params": {
       "param1": "golden-project",
-      "param10": "2026-01-08 00:00:00.000",
-      "param11": [
-        "NUMERIC",
-        "BOOLEAN",
-      ],
       "param2": "2026-01-01 00:00:00.000",
       "param3": "2026-01-08 00:00:00.000",
-      "param4": "golden-project",
-      "param5": "2026-01-01 00:00:00.000",
-      "param6": "2026-01-08 00:00:00.000",
-      "param7": [
+      "param4": [
         "NUMERIC",
         "BOOLEAN",
       ],
-      "param8": "golden-project",
-      "param9": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
     "sql": "SELECT
@@ -3623,10 +3888,10 @@ FROM
 (
     SELECT
         scores.project_id,
-        scores_numeric.id,
+        scores.id,
         any(events_traces.name) AS traceName,
         count(1) AS count
-    FROM scores AS scores_numeric
+    FROM scores
     INNER JOIN
     (
         SELECT *
@@ -3656,21 +3921,21 @@ FROM
         ) AS events_traces_all
         WHERE events_traces_all.id IN (
             SELECT scores.trace_id
-            FROM scores AS scores_numeric
-            WHERE (scores.project_id = {param4:String})
-                AND (scores.timestamp >= {param5:DateTime64(3, 'UTC')})
-                AND (scores.timestamp <= {param6:DateTime64(3, 'UTC')})
-                AND (scores_numeric.data_type IN ({param7:Array(String)}))
+            FROM scores
+            WHERE (scores.project_id = {param1:String})
+                AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+                AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+                AND (scores.data_type IN ({param4:Array(String)}))
         )
     ) AS events_traces ON (scores.trace_id = events_traces.id) AND (scores.project_id = events_traces.project_id)
-    WHERE (scores.project_id = {param8:String})
-        AND (scores.timestamp >= {param9:DateTime64(3, 'UTC')})
-        AND (scores.timestamp <= {param10:DateTime64(3, 'UTC')})
-        AND (scores_numeric.data_type IN ({param11:Array(String)}))
+    WHERE (scores.project_id = {param1:String})
+        AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
+        AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
+        AND (scores.data_type IN ({param4:Array(String)}))
     GROUP BY
         scores.project_id,
-        scores_numeric.id
-)
+        scores.id
+) AS per_score
 GROUP BY traceName
 ORDER BY count_count DESC",
   },
@@ -3688,13 +3953,13 @@ exports[`golden: executeQuery v2 scores > views > build view=scores-boolean buck
       "param4": "BOOLEAN",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_boolean
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_boolean.data_type = {param4:String})
+    AND (scores.data_type = {param4:String})
 ORDER BY count_count DESC",
   },
 ]
@@ -3711,13 +3976,13 @@ exports[`golden: executeQuery v2 scores > views > build view=scores-categorical 
       "param4": "CATEGORICAL",
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_categorical
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_categorical.data_type = {param4:String})
+    AND (scores.data_type = {param4:String})
 ORDER BY count_count DESC",
   },
 ]
@@ -3739,13 +4004,13 @@ exports[`golden: executeQuery v2 scores > views > build view=scores-listable-cou
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_listable_count
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_listable_count.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]
@@ -3765,13 +4030,13 @@ exports[`golden: executeQuery v2 scores > views > build view=scores-numeric buck
       ],
     },
     "route": "unknown",
-    "sql": "SELECT count((1)) AS count_count
-FROM scores AS scores_numeric
+    "sql": "SELECT count(1) AS count_count
+FROM scores
 FINAL
 WHERE (scores.project_id = {param1:String})
     AND (scores.timestamp >= {param2:DateTime64(3, 'UTC')})
     AND (scores.timestamp <= {param3:DateTime64(3, 'UTC')})
-    AND (scores_numeric.data_type IN ({param4:Array(String)}))
+    AND (scores.data_type IN ({param4:Array(String)}))
 ORDER BY count_count DESC",
   },
 ]

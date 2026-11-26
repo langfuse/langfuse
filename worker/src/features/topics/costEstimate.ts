@@ -192,7 +192,7 @@ export async function runTopicCostEstimate(
         record.skipped.tooLarge++;
         return;
       }
-      const text = renderStoredTopicText(
+      const { text } = renderStoredTopicText(
         context.transcript,
         context.executionIssues,
       );

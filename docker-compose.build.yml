@@ -152,8 +152,8 @@ services:
 
   langfuse-ai-gateway:
     build:
-      dockerfile: Dockerfile
-      context: ./ai-gateway
+      dockerfile: ai-gateway/Dockerfile
+      context: .
     restart: always
     depends_on:
       - langfuse-web

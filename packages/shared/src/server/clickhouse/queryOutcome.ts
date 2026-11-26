@@ -1,3 +1,6 @@
+// Classifies each ClickHouse query's terminal outcome, table, route and shape,
+// and records them as metrics.
+
 import { ClickHouseError, parseError } from "@clickhouse/client";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { type NormalizedClickHouseQueryTags } from "./queryTags";

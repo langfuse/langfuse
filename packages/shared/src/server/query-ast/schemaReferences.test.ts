@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError } from "./errors";
-import { applyPassOnly } from "./passHarness";
+import { applyPassOnly } from "./__tests__/passHarness";
 import { SchemaReferencePlugin } from "./schemaReferences";
 
 // The schema reference pass alone: a three-part column reference is rejected
