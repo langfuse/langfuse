@@ -13,10 +13,9 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_ACTION_LABELS,
-  GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS,
-  GATEWAY_GUARDRAIL_RUNS_ON_LABELS,
-  GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
-  GATEWAY_GUARDRAIL_SCOPE_LABELS,
+  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS,
+  GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS,
+  toGuardrailRunsOnOption,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
@@ -72,16 +71,15 @@ const guardrailColumn = createTableColumn<
 });
 
 function formatGuardrailRunsOn(row: GatewayGuardrailRow) {
-  if (row.runsOn === "OUTPUT") return GATEWAY_GUARDRAIL_RUNS_ON_LABELS.OUTPUT;
-  const scopeLabel = GATEWAY_GUARDRAIL_SCOPE_LABELS[row.scope];
-  return row.runsOn === "BOTH" ? `${scopeLabel} & output` : scopeLabel;
+  return GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS[
+    toGuardrailRunsOnOption(row.runsOn, row.scope)
+  ];
 }
 
 function getGuardrailRunsOnTooltip(row: GatewayGuardrailRow) {
-  if (row.runsOn === "INPUT") {
-    return GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS[row.scope];
-  }
-  return GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS[row.runsOn];
+  return GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS[
+    toGuardrailRunsOnOption(row.runsOn, row.scope)
+  ];
 }
 
 const runsOnColumn = createTextTableColumn<GatewayGuardrailRow>({

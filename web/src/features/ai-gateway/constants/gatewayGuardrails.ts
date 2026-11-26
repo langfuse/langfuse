@@ -64,40 +64,71 @@ export const GATEWAY_GUARDRAIL_ACTION_DESCRIPTIONS: Record<
   LOG: "Pass through unchanged and record the match on the generation.",
 };
 
-export const GATEWAY_GUARDRAIL_RUNS_ON_LABELS: Record<
-  GatewayGuardrailRunsOn,
-  string
-> = {
-  INPUT: "Input",
-  OUTPUT: "Output",
-  BOTH: "Input & output",
-};
-
-export const GATEWAY_GUARDRAIL_RUNS_ON_DESCRIPTIONS: Record<
-  GatewayGuardrailRunsOn,
-  string
-> = {
-  INPUT: "Evaluate requests before they reach the provider.",
-  OUTPUT: "Evaluate provider responses before returning them to the client.",
-  BOTH: "Evaluate both requests and provider responses.",
-};
-
 export const GATEWAY_GUARDRAIL_SCOPES = ["LAST_TURN", "ENTIRE_INPUT"] as const;
 
-export const GATEWAY_GUARDRAIL_SCOPE_LABELS: Record<
-  GatewayGuardrailScope,
+export const GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS = [
+  "LAST_TURN",
+  "ENTIRE_INPUT",
+  "OUTPUT",
+  "LAST_TURN_AND_OUTPUT",
+  "ENTIRE_INPUT_AND_OUTPUT",
+] as const;
+
+export type GatewayGuardrailRunsOnOption =
+  (typeof GATEWAY_GUARDRAIL_RUNS_ON_OPTIONS)[number];
+
+export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_LABELS: Record<
+  GatewayGuardrailRunsOnOption,
   string
 > = {
   LAST_TURN: "Last turn",
   ENTIRE_INPUT: "Entire input",
+  OUTPUT: "Output",
+  LAST_TURN_AND_OUTPUT: "Last turn & output",
+  ENTIRE_INPUT_AND_OUTPUT: "Entire input & output",
 };
 
-export const GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS: Record<
-  GatewayGuardrailScope,
+export const GATEWAY_GUARDRAIL_RUNS_ON_OPTION_DESCRIPTIONS: Record<
+  GatewayGuardrailRunsOnOption,
   string
 > = {
   LAST_TURN:
     "Evaluate only the latest user turn and tool outputs since the last model reply.",
   ENTIRE_INPUT:
     "Evaluate all messages and system prompts in the request, including conversation history. Recommended for redaction so earlier turns aren't resent unredacted.",
+  OUTPUT: "Evaluate provider responses before returning them to the client.",
+  LAST_TURN_AND_OUTPUT:
+    "Evaluate the latest user turn and tool outputs, plus provider responses.",
+  ENTIRE_INPUT_AND_OUTPUT:
+    "Evaluate all messages and system prompts in the request, plus provider responses.",
 };
+
+export function toGuardrailRunsOnOption(
+  runsOn: GatewayGuardrailRunsOn,
+  scope: GatewayGuardrailScope,
+): GatewayGuardrailRunsOnOption {
+  if (runsOn === "OUTPUT") return "OUTPUT";
+  if (runsOn === "BOTH") {
+    return scope === "ENTIRE_INPUT"
+      ? "ENTIRE_INPUT_AND_OUTPUT"
+      : "LAST_TURN_AND_OUTPUT";
+  }
+  return scope === "ENTIRE_INPUT" ? "ENTIRE_INPUT" : "LAST_TURN";
+}
+
+export function fromGuardrailRunsOnOption(
+  option: GatewayGuardrailRunsOnOption,
+): { runsOn: GatewayGuardrailRunsOn; scope: GatewayGuardrailScope } {
+  switch (option) {
+    case "LAST_TURN":
+      return { runsOn: "INPUT", scope: "LAST_TURN" };
+    case "ENTIRE_INPUT":
+      return { runsOn: "INPUT", scope: "ENTIRE_INPUT" };
+    case "OUTPUT":
+      return { runsOn: "OUTPUT", scope: "LAST_TURN" };
+    case "LAST_TURN_AND_OUTPUT":
+      return { runsOn: "BOTH", scope: "LAST_TURN" };
+    case "ENTIRE_INPUT_AND_OUTPUT":
+      return { runsOn: "BOTH", scope: "ENTIRE_INPUT" };
+  }
+}
