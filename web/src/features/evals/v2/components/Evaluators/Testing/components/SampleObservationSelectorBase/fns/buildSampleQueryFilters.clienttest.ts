@@ -32,6 +32,7 @@ describe("buildSampleQueryFilters", () => {
           "langfuse-natural-language-filter",
           "langfuse-prompt-experiment",
           "langfuse-in-app-agent",
+          "langfuse-topics-internal",
           "langfuse-topics",
           "langfuse-evaluation",
           "llm-as-a-judge",

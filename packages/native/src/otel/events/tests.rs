@@ -597,7 +597,7 @@ fn prompt_lookup_preserves_raw_name_truthiness_and_alias_precedence() {
 fn recovers_internal_environment_from_failed_openrouter_request() {
     for (raw_env, expected) in [
         ("langfuse-llm-as-a-judge", "llm-as-a-judge"),
-        ("langfuse-topics", "topics-internal"),
+        ("langfuse-topics-internal", "topics-internal"),
     ] {
         let input = json!([{
             "resource": {"attributes": [
@@ -618,13 +618,12 @@ fn recovers_internal_environment_from_failed_openrouter_request() {
 }
 
 #[test]
-fn maps_public_langfuse_topics_to_non_colliding_alias_without_touching_customer_topics() {
+fn strips_public_langfuse_topics_internal_without_touching_customer_topics() {
     for (input_env, internal, expected) in [
-        ("langfuse-topics", false, "topics-internal"),
-        ("langfuselangfuse-topics", false, "topics-internal"),
-        ("topics-internal", false, "topics-internal"),
+        ("langfuse-topics-internal", false, "topics-internal"),
+        ("langfuselangfuse-topics-internal", false, "topics-internal"),
         ("topics", false, "topics"),
-        ("langfuse-topics", true, "langfuse-topics"),
+        ("langfuse-topics-internal", true, "langfuse-topics-internal"),
     ] {
         let input = json!([{
             "scopeSpans": [{"scope":{"name":"otel.scope"},"spans":[{

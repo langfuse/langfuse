@@ -441,9 +441,9 @@ describe("AI SDK request shapes", () => {
     });
     expect(
       nativeChat.request.headers.get("x-openrouter-trace-environment"),
-    ).toBe("langfuse-topics");
+    ).toBe("langfuse-topics-internal");
     expect(nativeChat.request.body.trace).toEqual({
-      environment: "langfuse-topics",
+      environment: "langfuse-topics-internal",
     });
 
     const responses = await runCompletion({
@@ -460,9 +460,9 @@ describe("AI SDK request shapes", () => {
     });
     expect(
       responses.request.headers.get("x-openrouter-trace-environment"),
-    ).toBe("langfuse-topics");
+    ).toBe("langfuse-topics-internal");
     expect(responses.request.body.trace).toEqual({
-      environment: "langfuse-topics",
+      environment: "langfuse-topics-internal",
     });
 
     const { calls, fetch } = createCaptureFetch({
@@ -488,9 +488,11 @@ describe("AI SDK request shapes", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.headers.get("x-openrouter-trace-environment")).toBe(
-      "langfuse-topics",
+      "langfuse-topics-internal",
     );
-    expect(calls[0]?.body.trace).toEqual({ environment: "langfuse-topics" });
+    expect(calls[0]?.body.trace).toEqual({
+      environment: "langfuse-topics-internal",
+    });
   });
 
   it("other OpenAI-compatible endpoints keep customer trace metadata unchanged", async () => {

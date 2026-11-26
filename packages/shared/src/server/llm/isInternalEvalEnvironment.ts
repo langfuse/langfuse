@@ -1,9 +1,9 @@
 export const INTERNAL_EVAL_ENVIRONMENT_PREFIX = "langfuse";
 
 // Public ingestion strips the reserved `langfuse-` prefix from environments
-// originating outside Langfuse, including OpenRouter Broadcast callbacks.
-// `langfuse-topics` maps to `topics-internal` rather than bare `topics` so
-// customer environments named `topics` remain eligible for evals and Topics.
+// originating outside Langfuse, including OpenRouter Broadcast callbacks:
+// `langfuse-llm-as-a-judge` -> `llm-as-a-judge` and
+// `langfuse-topics-internal` -> `topics-internal`.
 const PUBLIC_LLM_JUDGE_ENVIRONMENT = "llm-as-a-judge";
 export const PUBLIC_TOPICS_ENVIRONMENT = "topics-internal";
 

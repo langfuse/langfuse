@@ -6,7 +6,6 @@ import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 
 import { applyScoreValidation } from "../../utils/scores";
-import { PUBLIC_TOPICS_ENVIRONMENT } from "../llm/isInternalEvalEnvironment";
 
 export const idSchema = z
   .string()
@@ -289,9 +288,6 @@ const PublicEnvironmentName = z
     // ingestion event parse) — and closes the reserved-namespace bypass where
     // "langfuselangfuse-x" survived a single-pass strip as "langfuse-x".
     const stripped = val.replace(/^(?:langfuse[-_]?)+/, "");
-    if (stripped !== val && stripped === "topics") {
-      return PUBLIC_TOPICS_ENVIRONMENT;
-    }
     // Truncate to 40 chars, validate allowed chars
     const truncated = stripped.slice(0, 40);
     if (!truncated || !/^[a-z0-9-_]+$/.test(truncated)) {

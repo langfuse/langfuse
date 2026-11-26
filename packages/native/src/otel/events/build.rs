@@ -36,9 +36,8 @@ const INTERNAL_TRACE_ENVIRONMENTS: &[&str] = &[
     "langfuse-code-eval",
     "langfuse-natural-language-filter",
     "langfuse-in-app-agent",
-    "langfuse-topics",
+    "langfuse-topics-internal",
 ];
-const PUBLIC_TOPICS_ENVIRONMENT: &str = "topics-internal";
 pub(super) const AI_GATEWAY_SERVICE_NAME: &str = "langfuse-ai-gateway";
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX: &str = "gateway:";
 const AI_GATEWAY_KEY_ID_METADATA_KEY: &str = "langfuse.gateway.api_key.id";
@@ -649,17 +648,12 @@ fn normalize_environment(value: &str, internal: bool) -> String {
     let mut value = value.to_owned();
     if !internal {
         value = value.to_ascii_lowercase();
-        let mut stripped_prefix = false;
         while let Some(rest) = value.strip_prefix("langfuse") {
-            stripped_prefix = true;
             value = rest
                 .strip_prefix('-')
                 .or_else(|| rest.strip_prefix('_'))
                 .unwrap_or(rest)
                 .to_owned();
-        }
-        if stripped_prefix && value == "topics" {
-            return PUBLIC_TOPICS_ENVIRONMENT.to_owned();
         }
     }
     let value = value.chars().take(40).collect::<String>();

@@ -6,6 +6,7 @@ import {
 
 export const INTERNAL_EVALUATION_ENVIRONMENTS = [
   ...Object.values(LangfuseInternalTraceEnvironment),
+  "langfuse-topics",
   "langfuse-evaluation",
   "langfuse",
   ...PUBLIC_INTERNAL_EVAL_ENVIRONMENTS,

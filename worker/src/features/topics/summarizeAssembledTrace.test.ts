@@ -155,6 +155,7 @@ beforeEach(() => {
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before calling models", async () => {
     for (const environment of [
+      "langfuse-topics-internal",
       "langfuse-topics",
       "topics-internal",
       "llm-as-a-judge",

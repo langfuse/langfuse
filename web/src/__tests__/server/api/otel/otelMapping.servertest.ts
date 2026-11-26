@@ -1463,10 +1463,10 @@ describe("OTel Resource Span Mapping", () => {
       ]);
     });
 
-    it("recovers langfuse-topics from failed OpenRouter Broadcast requests as topics-internal", async () => {
+    it("recovers langfuse-topics-internal from failed OpenRouter Broadcast requests as topics-internal", async () => {
       const events = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan({
-          rawRequestEnvironment: "langfuse-topics",
+          rawRequestEnvironment: "langfuse-topics-internal",
         }),
         new Set(),
       );
@@ -1477,10 +1477,10 @@ describe("OTel Resource Span Mapping", () => {
       ]);
     });
 
-    it("maps explicit public langfuse-topics to topics-internal while keeping customer topics untouched", async () => {
+    it("strips public langfuse-topics-internal to topics-internal while keeping customer topics untouched", async () => {
       const bounced = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan({
-          explicitEnvironment: "langfuse-topics",
+          explicitEnvironment: "langfuse-topics-internal",
         }),
         new Set(),
       );
@@ -1502,15 +1502,15 @@ describe("OTel Resource Span Mapping", () => {
 
       const internal = await convertOtelSpanToIngestionEvent(
         createOpenRouterBroadcastSpan({
-          explicitEnvironment: "langfuse-topics",
+          explicitEnvironment: "langfuse-topics-internal",
         }),
         new Set(),
         undefined,
         { isLangfuseInternal: true },
       );
       expect(internal.map((event) => event.body.environment)).toEqual([
-        "langfuse-topics",
-        "langfuse-topics",
+        "langfuse-topics-internal",
+        "langfuse-topics-internal",
       ]);
     });
 

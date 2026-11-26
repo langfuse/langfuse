@@ -569,7 +569,7 @@ describe("generateTopicText", () => {
     },
   );
 
-  it("stamps langfuse-topics provenance onto untraced OpenRouter text and embedding calls", async () => {
+  it("stamps langfuse-topics-internal provenance onto untraced OpenRouter text and embedding calls", async () => {
     const captured: Array<{ headers: Headers; body: Record<string, unknown> }> =
       [];
     vi.stubGlobal(
@@ -637,9 +637,11 @@ describe("generateTopicText", () => {
     expect(captured).toHaveLength(2);
     for (const call of captured) {
       expect(call.headers.get("x-openrouter-trace-environment")).toBe(
-        "langfuse-topics",
+        "langfuse-topics-internal",
       );
-      expect(call.body.trace).toEqual({ environment: "langfuse-topics" });
+      expect(call.body.trace).toEqual({
+        environment: "langfuse-topics-internal",
+      });
     }
     expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
   });

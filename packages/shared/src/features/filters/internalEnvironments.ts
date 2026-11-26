@@ -13,6 +13,7 @@ export const DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
   LangfuseInternalTraceEnvironment.Topics,
   PUBLIC_TOPICS_ENVIRONMENT,
+  "langfuse-topics",
   "langfuse-evaluation",
   "sdk-experiment",
 ] as const;

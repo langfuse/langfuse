@@ -18,6 +18,7 @@ describe("isEvalTargetEnvironmentAllowed", () => {
     for (const environment of [
       "langfuse-llm-as-a-judge",
       "llm-as-a-judge",
+      "langfuse-topics-internal",
       "langfuse-topics",
       "topics-internal",
       "langfuse-code-eval",
