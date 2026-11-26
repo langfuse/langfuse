@@ -432,6 +432,32 @@ describe("queryBuilder filter type validation", () => {
       ),
     );
   });
+
+  it.each([
+    ["v1", "dimension", { dimensions: [{ field: "toString" }] }],
+    ["v2", "dimension", { dimensions: [{ field: "toString" }] }],
+    [
+      "v1",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    [
+      "v2",
+      "metric",
+      { metrics: [{ measure: "constructor", aggregation: "count" }] },
+    ],
+    ["v2", "entity dimension", { entityDimension: { field: "toString" } }],
+  ] as const)(
+    "rejects a %s %s named after an Object.prototype member",
+    async (version, _kind, overrides) => {
+      await expect(
+        new QueryBuilder(undefined, version).build(
+          { ...baseQuery, ...overrides } as QueryType,
+          "test-project",
+        ),
+      ).rejects.toThrow(InvalidRequestError);
+    },
+  );
 });
 
 describe("legacy traces compatibility when routed through v2", () => {
