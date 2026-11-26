@@ -43,11 +43,17 @@ interface ClickhouseTokenSource {
   close(): void;
 }
 
-/** Renew this long before expiry so a request cannot arrive with a token that expired in transit. */
+/**
+ * Renew this long before expiry so a request cannot arrive with a token that expired in transit.
+ * @internal
+ */
 export const TOKEN_RENEWAL_MARGIN_SECONDS = 300;
 /** Lifetime assumed when the token endpoint reports none and the token is opaque. */
 const DEFAULT_TOKEN_LIFETIME_SECONDS = 300;
-/** How often a token file is re-read even when its token has not expired. */
+/**
+ * How often a token file is re-read even when its token has not expired.
+ * @internal
+ */
 export const TOKEN_FILE_RECHECK_MS = 30_000;
 const TOKEN_REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_RETRY_INITIAL_DELAY_MS = 1_000;
@@ -115,6 +121,7 @@ class StaticTokenSource implements ClickhouseTokenSource {
   close(): void {}
 }
 
+/** @internal */
 export class FileTokenSource implements ClickhouseTokenSource {
   private cached: {
     token: string;
@@ -182,7 +189,7 @@ const TokenResponseSchema = z.object({
   expires_in: z.coerce.number().positive().optional(),
 });
 
-export type ClientCredentialsConfig = {
+type ClientCredentialsConfig = {
   tokenUrl: string;
   clientId: string;
   /** Exactly one of the two is set. */
@@ -198,6 +205,7 @@ export type ClientCredentialsConfig = {
  * OAuth 2.0 client credentials grant (RFC 6749, section 4.4). Renews the
  * token in the background before it expires and keeps serving the current
  * token while a renewal is retried.
+ * @internal
  */
 export class ClientCredentialsTokenSource implements ClickhouseTokenSource {
   private cached: {
@@ -427,6 +435,7 @@ export const initializeClickhouseAuth = async (): Promise<void> => {
   await getTokenSource().initialize();
 };
 
+/** @internal */
 export const resetClickhouseAuthForTests = (): void => {
   globalThis.clickhouseTokenSource?.close();
   globalThis.clickhouseTokenSource = undefined;
