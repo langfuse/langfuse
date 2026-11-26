@@ -66,7 +66,7 @@ const icons: Record<BannerVariant, IconComponent> = {
 };
 
 /** External links get the external link icon from Banner, in place of `icon`. */
-type BannerAction = {
+export type BannerAction = {
   text: string;
   icon?: IconComponent;
 } & (

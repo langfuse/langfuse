@@ -298,40 +298,6 @@ const mixedMigrationState = makeSdkState({
   delayedOtelIngestionCount: 1,
 });
 
-function MigrationPanelPreview({
-  sdk,
-  remainingActionsAreMigrated = false,
-}: {
-  sdk: V4MigrationSdkState;
-  remainingActionsAreMigrated?: boolean;
-}) {
-  return (
-    <div className="bg-background w-[520px]">
-      <div className="px-4 pt-4">
-        <V4MigrationHeaderContent
-          readiness="action-needed"
-          remainingActionsAreMigrated={remainingActionsAreMigrated}
-        />
-      </div>
-      <div className="flex flex-col gap-1 px-4 pt-6 pb-8">
-        <Separator />
-        <div className="flex items-center gap-2 pt-4 text-base font-bold">
-          Action items
-        </div>
-        <p className="text-muted-foreground text-sm">
-          SDK, instrumentation, experiment, and API checks cover activity from
-          the last 3 days.
-        </p>
-        <V4MigrationChecklist
-          migrationData={{ ...cleanData, sdk }}
-          assistant={null}
-          defaultOpen
-        />
-      </div>
-    </div>
-  );
-}
-
 const detectedInstrumentationState = makeSdkState({
   status: "latest",
   sdkUsageSeries: [makeSeries({}), realtimeOtelExporter],
@@ -404,6 +370,40 @@ const cleanData: Parameters<typeof V4MigrationChecklist>[0]["migrationData"] = {
   legacyIntegrations: [],
 };
 
+function MigrationPanelPreview({
+  sdk,
+  remainingActionsAreMigrated = false,
+}: {
+  sdk: V4MigrationSdkState;
+  remainingActionsAreMigrated?: boolean;
+}) {
+  return (
+    <div className="bg-background w-[520px]">
+      <div className="px-4 pt-4">
+        <V4MigrationHeaderContent
+          readiness="action-needed"
+          remainingActionsAreMigrated={remainingActionsAreMigrated}
+        />
+      </div>
+      <div className="flex flex-col gap-1 px-4 pt-6 pb-8">
+        <Separator />
+        <div className="flex items-center gap-2 pt-4 text-base font-bold">
+          Action items
+        </div>
+        <p className="text-muted-foreground text-sm">
+          SDK, instrumentation, experiment, and API checks cover activity from
+          the last 3 days.
+        </p>
+        <V4MigrationChecklist
+          migrationData={{ ...cleanData, sdk }}
+          assistant={null}
+          defaultOpen
+        />
+      </div>
+    </div>
+  );
+}
+
 const meta = preview.meta({
   component: V4MigrationChecklist,
   args: {
@@ -454,6 +454,7 @@ export const UpgradeInstrumentation = meta.story({
   args: { migrationData: { ...cleanData, sdk: customInstrumentationState } },
 });
 export const HiddenWhenClean = meta.story({
+  name: "(Test) Hidden When Clean",
   args: { migrationData: cleanData },
   play: async ({ canvas }) => {
     await expect(

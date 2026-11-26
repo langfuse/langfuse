@@ -1,5 +1,5 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/no-style-props */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useRef, useState } from "react";

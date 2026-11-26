@@ -1,15 +1,13 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
-/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
+/* eslint-disable @repo/no-null-render */
 import { type ReactNode } from "react";
 import Link from "next/link";
 import {
   BotMessageSquare,
-  Check,
   ChevronRight,
   CircleCheck,
   TriangleAlert,
 } from "@langfuse/icons";
-import { env } from "@/src/env.mjs";
 import { Button } from "@/src/components/ui/button";
 import {
   Collapsible,
@@ -41,7 +39,6 @@ import {
 } from "@/src/features/v4-migration/migrationData";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import {
   getApiMigrationGuidance,
@@ -885,7 +882,7 @@ function V4MigrationApisSection({
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <V4MigrationExternalLink
                       href={DEPRECATED_API_MIGRATION_URL}
-                      className="text-sm"
+                      size="sm"
                       analytics={{
                         section: "apis",
                         link: "deprecated_api_docs",
@@ -1147,7 +1144,7 @@ function V4MigrationIntegrationsSection({
                   href={
                     DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ?? V4_DOCS_URL
                   }
-                  className="text-sm"
+                  size="sm"
                   analytics={{
                     section: "integrations",
                     link: "integration_migration_docs",

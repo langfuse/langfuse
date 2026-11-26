@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";

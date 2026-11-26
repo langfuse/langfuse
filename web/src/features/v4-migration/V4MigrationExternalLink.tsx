@@ -5,13 +5,13 @@ import { cn } from "@/src/utils/tailwind";
 export function V4MigrationExternalLink({
   href,
   children,
-  className,
+  size = "default",
   analytics,
   ariaLabel,
 }: {
   href: string;
   children: ReactNode;
-  className?: string;
+  size?: "default" | "sm";
   /** Which guidance link in which section — for section_link_clicked. */
   analytics?: { section: string; link: string };
   ariaLabel?: string;
@@ -22,7 +22,7 @@ export function V4MigrationExternalLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn("underline", className)}
+      className={cn("underline", size === "sm" && "text-sm")}
       aria-label={ariaLabel}
       onClick={
         analytics
