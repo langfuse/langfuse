@@ -14,8 +14,16 @@ type SessionTracePiece = {
     name: string | null;
     position: number;
     clock: string;
+    endClock: string;
     durationLabel: string;
     index: number;
+  };
+  idle?: {
+    fromClock: string;
+    toClock: string;
+    durationLabel: string;
+    fromPosition: number;
+    toPosition: number;
   };
 };
 
@@ -27,8 +35,14 @@ export function layoutSessionTracePieces(
     end: number;
   }[],
   activeIndex: number,
-): SessionTracePiece[] {
-  if (traces.length === 0) return [];
+): {
+  pieces: SessionTracePiece[];
+  startClock: string;
+  endClock: string;
+} {
+  if (traces.length === 0) {
+    return { pieces: [], startClock: "", endClock: "" };
+  }
   const sessionStart = Math.min(...traces.map((trace) => trace.start));
   const sessionEnd = Math.max(...traces.map((trace) => trace.end));
   const sessionMs = Math.max(0, sessionEnd - sessionStart);
@@ -44,11 +58,32 @@ export function layoutSessionTracePieces(
     const left = clamp(Math.max(placed.start, cursor));
     const right = clamp(Math.max(placed.end, left));
     if (left > cursor + 0.2) {
-      const previous = ordered[position - 1]?.trace;
-      const idle =
-        previous !== undefined &&
-        idleGap(previous.end, trace.start) >= IDLE_GAP_THRESHOLD_SECONDS;
-      pieces.push({ tone: idle ? "idle" : "rest", width: left - cursor });
+      const previous = ordered[position - 1];
+      const gapSeconds =
+        previous === undefined ? 0 : idleGap(previous.trace.end, trace.start);
+      const idle = gapSeconds >= IDLE_GAP_THRESHOLD_SECONDS;
+      pieces.push({
+        tone: idle ? "idle" : "rest",
+        width: left - cursor,
+        idle:
+          idle && previous
+            ? {
+                fromClock: formatTraceClock(
+                  previous.trace.end,
+                  sessionStart,
+                  sessionEnd,
+                ),
+                toClock: formatTraceClock(
+                  trace.start,
+                  sessionStart,
+                  sessionEnd,
+                ),
+                durationLabel: formatSessionDuration(gapSeconds),
+                fromPosition: position,
+                toPosition: position + 1,
+              }
+            : undefined,
+      });
     }
     const width = Math.max(right - left, MIN_SEGMENT_PERCENT);
     pieces.push({
@@ -60,6 +95,7 @@ export function layoutSessionTracePieces(
         position: position + 1,
         index,
         clock: formatTraceClock(trace.start, sessionStart, sessionEnd),
+        endClock: formatTraceClock(trace.end, sessionStart, sessionEnd),
         durationLabel: formatSessionDuration(
           Math.max(0, trace.end - trace.start) / 1000,
         ),
@@ -68,7 +104,11 @@ export function layoutSessionTracePieces(
     cursor = Math.max(cursor, left + width);
   });
   if (cursor < 99.8) pieces.push({ tone: "rest", width: 100 - cursor });
-  return pieces;
+  return {
+    pieces,
+    startClock: formatTraceClock(sessionStart, sessionStart, sessionEnd),
+    endClock: formatTraceClock(sessionEnd, sessionStart, sessionEnd),
+  };
 }
 
 function placeTrace(

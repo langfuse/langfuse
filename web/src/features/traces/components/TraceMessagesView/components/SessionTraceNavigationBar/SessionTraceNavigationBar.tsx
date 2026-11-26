@@ -101,9 +101,6 @@ function SessionTraceProgress({
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 @min-[520px]/sessionnav:gap-4">
-      <span className="text-accent-dark-blue ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[520px]/sessionnav:inline">
-        {progress.label}
-      </span>
       <SessionTraceTrack
         traces={traces}
         activeIndex={activeIndex}

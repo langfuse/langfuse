@@ -288,6 +288,8 @@ export const SegmentTooltip = meta.story({
     const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
       "tooltip",
     );
-    await expect(tooltip).toHaveTextContent("first");
+    await expect(tooltip).toHaveTextContent("Trace 1 of 3 · first");
+    await expect(tooltip).toHaveTextContent("Started");
+    await expect(tooltip).toHaveTextContent("Duration");
   },
 });
