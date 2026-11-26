@@ -238,7 +238,7 @@ function LoadedSpanContent({
             {isSelectedObservation ? (
               <BadgeShell color="blue" size="sm">
                 <span className="size-1.5 shrink-0 rounded-full bg-current" />
-                <span className="uppercase">Will be evaluated</span>
+                <span className="uppercase">Test sample</span>
               </BadgeShell>
             ) : null}
           </div>
