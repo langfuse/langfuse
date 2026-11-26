@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
+import { publicKeyPrefix, secretKeyPrefix } from "@langfuse/shared";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   ApiKeyId,
@@ -82,15 +83,15 @@ export async function handleCreateApiKey(
       });
     }
 
-    if (!publicKey.startsWith("pk-lf-")) {
+    if (!publicKey.startsWith(publicKeyPrefix)) {
       return res.status(400).json({
-        message: "publicKey must start with 'pk-lf-'",
+        message: `publicKey must start with '${publicKeyPrefix}'`,
       });
     }
 
-    if (!secretKey.startsWith("sk-lf-")) {
+    if (!secretKey.startsWith(secretKeyPrefix)) {
       return res.status(400).json({
-        message: "secretKey must start with 'sk-lf-'",
+        message: `secretKey must start with '${secretKeyPrefix}'`,
       });
     }
   }

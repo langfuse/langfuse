@@ -1,5 +1,6 @@
 import { type ApiKey } from "@langfuse/shared/src/db";
 import {
+  publicKeyPrefix,
   type InternalServerError,
   type ServiceUnavailableError,
   type UnauthorizedError,
@@ -21,9 +22,6 @@ import {
 /** invalidCredentials is today's single 401 body for any unknown or malformed token. */
 export const invalidCredentials =
   "Invalid credentials. Confirm that you've configured the correct host.";
-
-/** publicKeyPrefix is the prefix every Langfuse public key carries. */
-export const publicKeyPrefix = "pk-lf-";
 
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {

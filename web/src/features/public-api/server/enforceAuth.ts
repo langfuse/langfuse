@@ -9,6 +9,7 @@ import {
   type LangfuseNotFoundError,
   type ServiceUnavailableError,
   type UnauthorizedError,
+  publicKeyPrefix,
 } from "@langfuse/shared";
 import {
   addUserToSpan,
@@ -28,7 +29,6 @@ import {
 import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import { publicKeyPrefix } from "@/src/features/apiKey/verifier";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
@@ -193,7 +193,7 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId resolves the bound project, else the path project, else the project the header and Basic auth username agree on, else a query-string projectId; a bound key refuses a request naming another project. */
+/** getProjectId resolves the target project from the bound key, path, headers or query string. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
@@ -224,21 +224,21 @@ function getProjectId(
   return { success: true, projectId };
 }
 
-/** missingProjectError is the 403 for a multi-project key that names no project. */
+/** missingProjectError returns a 403 for a multi-project key that names no project. */
 function missingProjectError(): ErrorResult<ForbiddenError> {
   return forbiddenError(
     `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
   );
 }
 
-/** invalidProjectError is the 400 for a request whose header and authorization header name different projects. */
+/** invalidProjectError returns a 400 for a header and authorization header that disagree. */
 function invalidProjectError(): ErrorResult<InvalidRequestError> {
   return invalidRequestError(
     `Project ids from the '${projectIdHeader}' header and authorization header disagree`,
   );
 }
 
-/** unauthorizedProjectError is the 403 for a key naming a project it is not bound to. */
+/** unauthorizedProjectError returns a 403 for a key naming a project it is not bound to. */
 function unauthorizedProjectError(
   projectId: string,
 ): ErrorResult<ForbiddenError> {
@@ -283,7 +283,7 @@ function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
 
-/** getBasicAuthProjectId returns the Basic auth username as the target project, unless it is a public key. */
+/** getBasicAuthProjectId returns the Basic auth username as the target project for non-public-key usernames. */
 function getBasicAuthProjectId(req: NextApiRequest): string | undefined {
   const credential = parseAuthorizationHeader(req.headers.authorization);
   if (credential.kind !== "basic") return undefined;

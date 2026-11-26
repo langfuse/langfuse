@@ -18,3 +18,9 @@ export const EXPERIMENT_IO_TRUNCATE_LENGTH = 1000;
 
 /** Aggregate object members and array elements allowed in one MCP request body. */
 export const MAX_MCP_REQUEST_ELEMENTS = 50_000;
+
+/** publicKeyPrefix is the prefix every Langfuse public key carries. */
+export const publicKeyPrefix = "pk-lf-";
+
+/** secretKeyPrefix is the prefix every Langfuse secret key carries. */
+export const secretKeyPrefix = "sk-lf-";

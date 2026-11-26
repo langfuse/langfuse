@@ -20,6 +20,7 @@ import {
 } from "../../features/rbac/types";
 import { logger } from "../logger";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { publicKeyPrefix, secretKeyPrefix } from "../../constants";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
@@ -31,7 +32,10 @@ export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
 }
 
-const LANGFUSE_SECRET_KEY_PATTERN = /sk-lf-[A-Za-z0-9_-]+/g;
+const LANGFUSE_SECRET_KEY_PATTERN = new RegExp(
+  `${secretKeyPrefix}[A-Za-z0-9_-]+`,
+  "g",
+);
 
 /**
  * Replaces every Langfuse secret key inside a user-controlled string with its
@@ -49,7 +53,7 @@ const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
 /** formatSubmittedPublicKeyForLog masks values without a pk-lf- prefix and sanitizes untrusted input for logging. */
 export function formatSubmittedPublicKeyForLog(value: string): string {
   let formatted: string;
-  if (value.startsWith("pk-lf-")) formatted = value;
+  if (value.startsWith(publicKeyPrefix)) formatted = value;
   else if (value.length < 12) formatted = "****";
   else formatted = getDisplaySecretKey(value);
 
@@ -78,8 +82,8 @@ export function createLegacySecretKeyPlaceholder(): string {
 
 export async function generateKeySet() {
   return {
-    pk: `pk-lf-${randomUUID()}`,
-    sk: `sk-lf-${randomUUID()}`,
+    pk: `${publicKeyPrefix}${randomUUID()}`,
+    sk: `${secretKeyPrefix}${randomUUID()}`,
   };
 }
 
@@ -216,17 +220,20 @@ async function generateKeyMaterial({
     throw new Error("SALT is not set");
   }
 
-  if (predefinedKeys && !predefinedKeys.publicKey.startsWith("pk-lf-")) {
-    throw new InvalidRequestError("Public keys must start with 'pk-lf-'");
-  }
-  if (predefinedKeys && !predefinedKeys.secretKey.startsWith("sk-lf-")) {
-    throw new InvalidRequestError("Secret keys must start with 'sk-lf-'");
-  }
-
   let keys = predefinedKeys;
   if (!keys) {
     const { pk, sk } = await generateKeySet();
     keys = { publicKey: pk, secretKey: sk };
+  }
+  if (!keys.publicKey.startsWith(publicKeyPrefix)) {
+    throw new InvalidRequestError(
+      `Public keys must start with '${publicKeyPrefix}'`,
+    );
+  }
+  if (!keys.secretKey.startsWith(secretKeyPrefix)) {
+    throw new InvalidRequestError(
+      `Secret keys must start with '${secretKeyPrefix}'`,
+    );
   }
   return {
     publicKey: keys.publicKey,
