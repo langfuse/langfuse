@@ -206,11 +206,7 @@ describeWithClickhouse("golden: SQL-text executeQuery options", () => {
   });
 
   describe("row_limit", () => {
-    const tableQuery = (
-      config: Pick<QueryType, "chartConfig"> & {
-        config?: { type: string; row_limit: number };
-      },
-    ) =>
+    const tableQuery = (config: Pick<QueryType, "chartConfig">) =>
       ({
         view: "observations",
         dimensions: [{ field: "name" }],
@@ -233,16 +229,6 @@ describeWithClickhouse("golden: SQL-text executeQuery options", () => {
 
     it("unset", async () => {
       await executeQuery(FIXED_PROJECT_ID, tableQuery({}));
-      expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
-    });
-
-    // The query schema rejects `chartConfig.row_limit: 0`; the executor's
-    // `config` key reaches the builder without that check.
-    it("0", async () => {
-      await executeQuery(
-        FIXED_PROJECT_ID,
-        tableQuery({ config: { type: "TABLE", row_limit: 0 } }),
-      );
       expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
     });
   });

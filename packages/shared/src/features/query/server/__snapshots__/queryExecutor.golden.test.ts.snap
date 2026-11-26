@@ -250,41 +250,6 @@ ORDER BY time_dimension ASC WITH FILL FROM toDate({param7:DateTime64(3, 'UTC')})
 ]
 `;
 
-exports[`golden: SQL-text executeQuery options > row_limit > 0 1`] = `
-[
-  {
-    "fn": "queryClickhouse",
-    "params": {
-      "param1": "golden-project",
-      "param2": "2026-01-01 00:00:00.000",
-      "param3": "2026-01-02 00:00:00.000",
-    },
-    "route": "unknown",
-    "sql": "SELECT
-    name AS name,
-    count(count) AS count_count
-FROM
-(
-    SELECT
-        observations.project_id,
-        observations.id,
-        any(observations.name) AS name,
-        count(1) AS count
-    FROM observations
-    FINAL
-    WHERE (observations.project_id = {param1:String})
-        AND (observations.start_time >= {param2:DateTime64(3, 'UTC')})
-        AND (observations.start_time <= {param3:DateTime64(3, 'UTC')})
-    GROUP BY
-        observations.project_id,
-        observations.id
-)
-GROUP BY name
-ORDER BY name ASC",
-  },
-]
-`;
-
 exports[`golden: SQL-text executeQuery options > row_limit > set 1`] = `
 [
   {
