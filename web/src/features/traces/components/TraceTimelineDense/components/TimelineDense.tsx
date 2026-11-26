@@ -526,9 +526,9 @@ export function TimelineDense({
     if (override === "collapsed") {
       return false;
     }
-    // Compact rows share a lane, so an automatic gutter cannot name them.
-    // Show labels still opens it for the span under the pointer.
-    if (compact) return asked;
+    // Compact rows share a lane. A name beside the row would name the lane,
+    // not a span, so the left side takes no width at all.
+    if (compact) return false;
     return asked || gutterMode === "auto";
   })();
   const gutterFits =
@@ -538,15 +538,11 @@ export function TimelineDense({
   // A COMMITTED open takes real space and re-lays out the chart. A PEEK must
   // not: it floats over the timeline instead, so hovering the edge never shoves
   // the bars sideways while you are reading them.
-  const committedOpen = canShowNames && gutterFits && wantsOpen;
+  const committedOpen = !compact && canShowNames && gutterFits && wantsOpen;
   const railWidth = (() => {
-    if (canShowNames) {
-      if (committedOpen) {
-        return wantedGutter;
-      }
-      return RAIL_WIDTH;
-    }
-    return 0;
+    if (compact || !canShowNames) return 0;
+    if (committedOpen) return wantedGutter;
+    return RAIL_WIDTH;
   })();
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
@@ -589,6 +585,7 @@ export function TimelineDense({
   // an explicit ask still gets the names where they could not fit beside the
   // chart.
   const peekWidth =
+    !compact &&
     canShowNames &&
     !committedOpen &&
     (peeking || labelsPinned || override === "expanded")
@@ -603,7 +600,7 @@ export function TimelineDense({
   // gutter — both are the same ask. A time-zoomed hairline keeps Fit.
   const clockFits = current.time.duration >= limits.traceSpace.duration - 0.5;
   const offerShowLabels =
-    clockFits && !labelsShowing && (canShowLabels || canShowNames);
+    !compact && clockFits && !labelsShowing && (canShowLabels || canShowNames);
   const fitSpent = fitted && !labelsPinned;
   const barHeight = Math.max(Math.min(rowHeight - 1, MAX_BAR_HEIGHT), 1);
 
@@ -1449,6 +1446,8 @@ export function TimelineDense({
       ? lastBar.current.id
       : null;
   const focusedId = barUnderPointer ?? gutterKeeps;
+  const ancestorLabel =
+    compact && focusedId ? ancestorPath(roots, focusedId).join(" / ") : "";
   const focused = focusedId
     ? (result.nodes.find((node) => node.id === focusedId) ?? null)
     : null;
@@ -1958,6 +1957,14 @@ export function TimelineDense({
                   </span>
                 ) : null}
               </span>
+              {ancestorLabel.length > 0 ? (
+                <span
+                  className="text-muted-foreground truncate"
+                  title={ancestorLabel}
+                >
+                  {ancestorLabel}
+                </span>
+              ) : null}
               {/* Duration and cost. NOT the start offset: the bar's own position
                   on the axis is what says when a span began, and saying it again
                   in words was one more number to read past — `@0ms` on a root
@@ -2009,6 +2016,26 @@ export function TimelineDense({
  * the two cannot drift apart.
  */
 /** The placement as inline style. Split out so the geometry stays pure. */
+/** Names above a span, so a compact bar still says which trace it sits under. */
+function ancestorPath(roots: readonly LayoutNode[], id: string): string[] {
+  const found: string[] = [];
+  const visit = (node: LayoutNode, stack: string[]): boolean => {
+    if (node.id === id) {
+      found.push(...stack);
+      return true;
+    }
+    const next = stack.concat(node.name);
+    for (const child of node.children) {
+      if (visit(child, next)) return true;
+    }
+    return false;
+  };
+  for (const root of roots) {
+    if (visit(root, [])) return found;
+  }
+  return found;
+}
+
 function tooltipStyle(placement: TooltipPlacement): CSSProperties {
   return {
     left: `${Math.round(placement.left)}px`,
