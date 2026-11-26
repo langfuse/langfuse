@@ -17,6 +17,7 @@ import {
 } from "@langfuse/icons";
 import {
   ObservabilityEntityDetailHeader,
+  type EntityDetailHeaderAction,
   type HeaderMetric,
 } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -373,6 +374,48 @@ export const ObservationDetailViewHeader = memo(
                           }),
                           companionTrace,
                         });
+                      const addToAction: EntityDetailHeaderAction = {
+                        id: "add-to",
+                        type: "dropdown",
+                        label: "Add to",
+                        icon: PlusIcon,
+                        disabled: !observationWithIO,
+                        items: addToItems,
+                      };
+                      const annotateAction: EntityDetailHeaderAction = {
+                        id: "annotate",
+                        type: "button",
+                        label: "Annotate",
+                        icon: annotationDisabled ? LockIcon : SquarePen,
+                        disabled: annotationDisabled,
+                        onClick: annotate,
+                      };
+                      const commentAction: EntityDetailHeaderAction = {
+                        id: "comment",
+                        type: "button",
+                        label: commentLabel,
+                        icon: commentDrawerControl.disabled
+                          ? MessageSquareOff
+                          : MessageSquare,
+                        disabled: commentDrawerControl.disabled,
+                        onClick: commentDrawerControl.openDrawer,
+                      };
+                      const optionsAction: EntityDetailHeaderAction = {
+                        id: "options",
+                        type: "dropdown",
+                        label: "Options",
+                        icon: EllipsisVertical,
+                        iconOnly: true,
+                        placement: "trailing",
+                        items: utilityItems,
+                      };
+                      const workflowActions = isAnnotationMode
+                        ? [addToAction, commentAction]
+                        : [addToAction, annotateAction, commentAction];
+                      // Embeds keep only the options menu.
+                      const shownWorkflowActions = isEmbedded
+                        ? []
+                        : workflowActions;
                       return (
                         <ObservabilityEntityDetailHeader
                           variant="page"
@@ -382,53 +425,7 @@ export const ObservationDetailViewHeader = memo(
                             itemType: observation.type as ObservationType,
                             titleLevel: observation.level,
                             titleSize: isEmbedded ? "sm" : undefined,
-                            actions: [
-                              ...(isEmbedded
-                                ? []
-                                : [
-                                    {
-                                      id: "add-to",
-                                      type: "dropdown" as const,
-                                      label: "Add to",
-                                      icon: PlusIcon,
-                                      disabled: !observationWithIO,
-                                      items: addToItems,
-                                    },
-                                    ...(!isAnnotationMode
-                                      ? [
-                                          {
-                                            id: "annotate",
-                                            type: "button" as const,
-                                            label: "Annotate",
-                                            icon: annotationDisabled
-                                              ? LockIcon
-                                              : SquarePen,
-                                            disabled: annotationDisabled,
-                                            onClick: annotate,
-                                          },
-                                        ]
-                                      : []),
-                                    {
-                                      id: "comment",
-                                      type: "button" as const,
-                                      label: commentLabel,
-                                      icon: commentDrawerControl.disabled
-                                        ? MessageSquareOff
-                                        : MessageSquare,
-                                      disabled: commentDrawerControl.disabled,
-                                      onClick: commentDrawerControl.openDrawer,
-                                    },
-                                  ]),
-                              {
-                                id: "options",
-                                type: "dropdown" as const,
-                                label: "Options",
-                                icon: EllipsisVertical,
-                                iconOnly: true,
-                                placement: "trailing" as const,
-                                items: utilityItems,
-                              },
-                            ],
+                            actions: [...shownWorkflowActions, optionsAction],
                           }}
                         />
                       );
