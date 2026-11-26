@@ -38,6 +38,7 @@ export type Density = {
   minBarWidthPx: number;
 };
 
+/** @knipignore Shared density resolver for timeline layout tests and stories. */
 export function resolveDensity(options: {
   pointer: PointerModality;
   /** 2 when the row stacks a name above its bar (no name gutter). */

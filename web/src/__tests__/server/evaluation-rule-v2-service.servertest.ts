@@ -304,6 +304,67 @@ describe("RuleService", () => {
         rule: { name: "Production checkout observations" },
       });
     });
+
+    it("creates a trace rule whose assignments inherit the evaluators' threads mappings, then attaches instead of creating another", async () => {
+      const threadsMapping = [
+        {
+          templateVariable: "output",
+          selectedColumnId: "threads",
+          jsonSelector: "$[0].messages",
+        },
+      ];
+      const [first, second] = await Promise.all([
+        createEvaluator(projectId, undefined, threadsMapping),
+        createEvaluator(projectId, undefined, threadsMapping),
+      ]);
+      const traceService = new RuleService(prisma, async () => undefined, {
+        includeTraceTranscriptRules: true,
+      });
+      const traceInput = {
+        projectId,
+        filter: [
+          {
+            type: "string" as const,
+            column: "traceName",
+            operator: "=" as const,
+            value: "support-chat",
+          },
+        ],
+        sampling: 0.5,
+        targetObject: TopicsTargetObject,
+      };
+
+      const created = await traceService.createOrAttachFromEvaluatorFilters(
+        { ...traceInput, evaluatorId: first.id },
+        null,
+      );
+      expect(created).toMatchObject({
+        action: "created",
+        rule: { targetObject: TopicsTargetObject, name: expect.any(String) },
+      });
+      await expect(
+        traceService.createOrAttachFromEvaluatorFilters(
+          { ...traceInput, evaluatorId: second.id },
+          null,
+        ),
+      ).resolves.toMatchObject({
+        action: "attached",
+        rule: { id: created.rule.id },
+      });
+
+      await expect(
+        prisma.evaluationRule.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findMany({
+          where: { evaluationRuleId: created.rule.id },
+          select: { variableMapping: true },
+        }),
+      ).resolves.toEqual([
+        { variableMapping: null },
+        { variableMapping: null },
+      ]);
+    });
   });
 
   describe("list", () => {
@@ -739,7 +800,7 @@ describe("RuleService", () => {
         targetObject: TopicsTargetObject,
         sampling: 0.5,
       });
-      // A second evaluator needs its own threads mapping on a trace rule.
+      // An evaluator mapping observation columns needs a threads override here.
       const second = await createEvaluator();
       await expect(
         gated.attach({

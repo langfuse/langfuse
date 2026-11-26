@@ -1,6 +1,10 @@
+// Golden SQL for the events repository read families (point reads,
+// aggregates, IO, exports, row selection, filtered streams).
+
 import {
   afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -1726,34 +1730,159 @@ describeWithClickhouse("golden: events filtered streams family", () => {
   // the worker's distinct-score-names read. Its scores join is written
   // `scores_agg s ON s.trace_id = … AND s.observation_id = …`, unlike the
   // planner's `scores_agg AS s` (#15591); kept byte-equal.
-  it.each([
+  function renderBlobExportStream(
+    input: Partial<Parameters<typeof buildEventsBlobExportStreamQuery>[0]>,
+  ) {
+    const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
+      projectId: FIXED_PROJECT_ID,
+      cutoffCreatedAt: FIXED_TO_TIMESTAMP,
+      filter: [],
+      rowLimit: 100,
+      ...input,
+    });
+    const { query, params } = queryBuilder.buildWithParams();
+    return {
+      queries: normalizeCapturedQueries([
+        { fn: "buildEventsBlobExportStreamQuery", query, params },
+      ]),
+      startTimeFrom,
+    };
+  }
+
+  // The export always reads the complete score source, so no score filter
+  // pushes `name IN (…)` into the CTEs; score leaves only change the WHERE.
+  // Exclusions (`none of`, `<>`) over the obs/trace union join with AND,
+  // inclusions with OR.
+  it.each<
+    [
+      string,
+      FilterState,
+      { searchQuery?: string; searchType?: TracingSearchType[] },
+    ]
+  >([
     ["none", [], {}],
     ["native", NATIVE_FILTER, {}],
     ["obsScore", OBSERVATION_SCORE_FILTER, {}],
-    ["startTime>=", START_TIME_FROM_FILTER, {}],
     [
-      "search",
-      [],
-      { searchQuery: "golden", searchType: ["id", "content"] as const },
+      "obsScore categoryOptions none of",
+      [
+        {
+          column: "score_categories",
+          type: "categoryOptions",
+          key: "sentiment",
+          operator: "none of",
+          value: ["negative"],
+        },
+      ],
+      {},
     ],
-  ] as const)(
+    [
+      "obsScore categoryOptions any of",
+      [
+        {
+          column: "score_categories",
+          type: "categoryOptions",
+          key: "sentiment",
+          operator: "any of",
+          value: ["positive"],
+        },
+      ],
+      {},
+    ],
+    [
+      "obsScore booleanObject <>",
+      [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          key: "correct",
+          operator: "<>",
+          value: true,
+        },
+      ],
+      {},
+    ],
+    [
+      "obsScore booleanObject =",
+      [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          key: "correct",
+          operator: "=",
+          value: true,
+        },
+      ],
+      {},
+    ],
+    [
+      "traceScore",
+      [
+        {
+          column: "trace_scores_avg",
+          type: "numberObject",
+          key: "quality",
+          operator: ">=",
+          value: 1,
+        },
+      ],
+      {},
+    ],
+    // A trace-score leaf before an observation-score leaf: pins the order of
+    // the score conjuncts.
+    [
+      "traceScore+obsScore",
+      [
+        {
+          column: "trace_scores_avg",
+          type: "numberObject",
+          key: "quality",
+          operator: ">",
+          value: 1,
+        },
+        {
+          column: "scores_avg",
+          type: "numberObject",
+          key: "accuracy",
+          operator: ">",
+          value: 2,
+        },
+      ],
+      {},
+    ],
+    ["startTime>=", START_TIME_FROM_FILTER, {}],
+    ["search", [], { searchQuery: "golden", searchType: ["id", "content"] }],
+  ])(
     "buildEventsBlobExportStreamQuery filter=%s",
     async (_name, filter, search) => {
-      const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
-        projectId: FIXED_PROJECT_ID,
-        cutoffCreatedAt: FIXED_TO_TIMESTAMP,
-        filter: [...filter],
-        searchQuery: "searchQuery" in search ? search.searchQuery : undefined,
-        searchType: "searchType" in search ? [...search.searchType] : undefined,
-        rowLimit: 100,
-      });
-      const { query, params } = queryBuilder.buildWithParams();
-      expect({
-        queries: normalizeCapturedQueries([
-          { fn: "buildEventsBlobExportStreamQuery", query, params },
-        ]),
-        startTimeFrom,
-      }).toMatchSnapshot();
+      expect(renderBlobExportStream({ filter, ...search })).toMatchSnapshot();
     },
   );
+
+  // `cutoffCreatedAt` is optional on the exported input: unset drops the
+  // `startTime <` leaf. The worker always sets it.
+  it("buildEventsBlobExportStreamQuery cutoff=unset", async () => {
+    expect(
+      renderBlobExportStream({
+        cutoffCreatedAt: undefined,
+        filter: NATIVE_FILTER,
+      }),
+    ).toMatchSnapshot();
+  });
+
+  describe("scores dedup skipped", () => {
+    const originalSkipIds = env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS;
+    beforeAll(() => {
+      env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS = new Set([FIXED_PROJECT_ID]);
+    });
+    afterAll(() => {
+      env.LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS = originalSkipIds;
+    });
+
+    // A project listed in LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS reads both
+    // score CTEs without FINAL.
+    it("buildEventsBlobExportStreamQuery scoresDedup=skip", async () => {
+      expect(renderBlobExportStream({})).toMatchSnapshot();
+    });
+  });
 });

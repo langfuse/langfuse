@@ -1,3 +1,5 @@
+// Pins that the AST registry and eventsObservationsView SQL strings agree.
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -65,7 +67,7 @@ const LEGACY_ALIAS = "events_observations";
 /** Columns the view's measure strings read without a relation alias. */
 const LEGACY_BARE_COLUMNS = ["usage_details", "cost_details", "total_cost"];
 
-/** The legacy `@@AGGn@@` substitution of `queryBuilder.ts`, per query level. */
+/** The legacy `@@AGGn@@` substitution of `sqlTextQuery.ts`, per query level. */
 function legacyMeasureSql(
   sql: string,
   aggs: Record<string, string>,

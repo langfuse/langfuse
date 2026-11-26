@@ -1,3 +1,5 @@
+// Pins how the routing pass maps logical events to events_core/events_full.
+
 import {
   AliasNode,
   FromNode,

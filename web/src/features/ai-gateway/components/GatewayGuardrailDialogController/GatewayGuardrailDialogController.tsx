@@ -8,6 +8,7 @@ import {
   GatewayGuardrailFormDialog,
   type ExternalGuardrailTestControl,
   type ExternalGuardrailTestOutcome,
+  type GatewayGuardrailFormDialogProps,
   type GatewayGuardrailFormValues,
 } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailFormDialog/GatewayGuardrailFormDialog";
 import { GatewayGuardrailTemplateGallery } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/components/GatewayGuardrailTemplateGallery/GatewayGuardrailTemplateGallery";
@@ -19,14 +20,20 @@ import {
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import { assignmentsToTargetOptions } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/assignmentsToTargetOptions";
 import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/fns/targetOptionsToAssignments";
+import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
+import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
-import { useOpenGuardrailsLimitFeedback } from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
+import {
+  useOpenGuardrailsLimitFeedback,
+  type GatewayGuardrailsLimitFeedbackReason,
+} from "@/src/features/ai-gateway/hooks/useOpenGuardrailsLimitFeedback";
 import {
   GATEWAY_GUARDRAIL_PRESETS,
   GATEWAY_GUARDRAIL_PRESET_KEYS,
+  GATEWAY_GUARDRAIL_TYPE_CAPABILITIES,
+  resolveSupportedGuardrailAction,
   type GatewayGuardrailPreset,
-  type GatewayGuardrailUiAction,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import {
@@ -111,10 +118,12 @@ export function GatewayGuardrailDialogController({
           bulkTargets: bulkTargetsMutation,
         });
 
-        const handleContactSupport = () => {
+        const handleContactSupport = (
+          reason: GatewayGuardrailsLimitFeedbackReason = "count",
+        ) => {
           closeDialog();
           resetMutations();
-          openLimitFeedback();
+          openLimitFeedback(reason);
         };
 
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
@@ -141,7 +150,11 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
+                  scope: values.scope,
                   bedrock: {
                     guardrailId: values.bedrock.guardrailId,
                     guardrailVersion: values.bedrock.guardrailVersion,
@@ -155,10 +168,11 @@ export function GatewayGuardrailDialogController({
                   orgId: organizationId,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
+                  customRegex: values.customRegex || undefined,
                   assignments,
                 });
               }
@@ -169,7 +183,11 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "BEDROCK",
                   name: values.name,
-                  action: values.action,
+                  action: resolveSupportedGuardrailAction(
+                    "BEDROCK",
+                    values.action,
+                  ),
+                  scope: values.scope,
                   bedrock: values.bedrock,
                   assignments,
                 });
@@ -179,10 +197,11 @@ export function GatewayGuardrailDialogController({
                   id: state.guardrail.id,
                   type: "REGEX",
                   name: values.name,
-                  action: values.action,
+                  ...toRegexActionInput(values),
                   presets: values.presets,
                   secretPrefixes: values.secretPrefixes,
                   containsWords: values.containsWords,
+                  customRegex: values.customRegex || undefined,
                   assignments,
                 });
               }
@@ -253,7 +272,7 @@ type GuardrailDialogContentProps = {
   errorMessage: string | null;
   externalTest: ExternalGuardrailTestControl;
   onClearError: () => void;
-  onContactSupport: () => void;
+  onContactSupport: (reason?: GatewayGuardrailsLimitFeedbackReason) => void;
   onSubmitForm: (values: GatewayGuardrailFormValues) => void;
   onSubmitBulkTargets: (targets: AsyncAutocompleteOption[]) => void;
 };
@@ -307,8 +326,9 @@ function GuardrailDialogContent({
     };
     const isExternal = Boolean(selectedTemplate.external);
     return (
-      <GatewayGuardrailFormDialog
+      <ConnectedGuardrailFormDialog
         key={selectedTemplate.id}
+        organizationId={organizationId}
         title={selectedTemplate.name}
         submitLabel={isExternal ? "Test and save" : "Add guardrail"}
         templateKind={selectedTemplate.id}
@@ -319,7 +339,12 @@ function GuardrailDialogContent({
           presets: [...selectedTemplate.defaultPresets],
           secretPrefixes: [],
           containsWords: [],
-          action: "BLOCK",
+          customRegex: null,
+          action:
+            GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[selectedTemplate.guardrailType]
+              .defaultAction,
+          scope: "LAST_TURN",
+          redactionLabel: GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
           targets: [EVERYONE_TARGET_OPTION],
         }}
         initialTestText={selectedTemplate.sampleTestText}
@@ -338,13 +363,16 @@ function GuardrailDialogContent({
     { mode: "edit" }
   >;
   const { templateKind, availablePresets } = resolveEditableTemplate(guardrail);
-  const initialAction: GatewayGuardrailUiAction =
-    guardrail.action === "LOG" ? "LOG" : "BLOCK";
   const isExternal = guardrail.type === "BEDROCK";
+  const initialAction = resolveSupportedGuardrailAction(
+    guardrail.type,
+    guardrail.action,
+  );
 
   return (
-    <GatewayGuardrailFormDialog
+    <ConnectedGuardrailFormDialog
       key={guardrail.id}
+      organizationId={organizationId}
       title="Edit guardrail"
       submitLabel={isExternal ? "Test and save" : "Save changes"}
       templateKind={templateKind}
@@ -356,14 +384,67 @@ function GuardrailDialogContent({
         presets: guardrail.presets,
         secretPrefixes: guardrail.secretPrefixes,
         containsWords: guardrail.containsWords,
+        customRegex: guardrail.customRegex,
         bedrock: guardrail.bedrock ?? undefined,
         action: initialAction,
+        scope: guardrail.scope,
+        redactionLabel:
+          guardrail.redactionLabel ?? GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL,
         targets: assignmentsToTargetOptions(guardrail.assignments),
       }}
       targetPicker={targetPicker}
       isSubmitting={isSubmitting}
       errorMessage={errorMessage}
+      onContactSupport={onContactSupport}
       onSubmit={onSubmitForm}
+    />
+  );
+}
+
+function toRegexActionInput(
+  values: Pick<
+    GatewayGuardrailFormValues,
+    "action" | "scope" | "redactionLabel"
+  >,
+) {
+  const action = resolveSupportedGuardrailAction("REGEX", values.action);
+  if (action === "REDACT") {
+    return {
+      action,
+      scope: values.scope,
+      redactionLabel: values.redactionLabel,
+    };
+  }
+  if (action === "BLOCK") {
+    return {
+      action,
+      scope: "LAST_TURN" as const,
+    };
+  }
+  return {
+    action,
+    scope: values.scope,
+  };
+}
+
+function ConnectedGuardrailFormDialog({
+  organizationId,
+  ...props
+}: Omit<GatewayGuardrailFormDialogProps, "customRegexPreview"> & {
+  organizationId: string;
+}) {
+  const isCustomRegex = props.templateKind === "custom_regex";
+  const customRegexPreview = useGatewayGuardrailRegexPreview({
+    organizationId,
+    enabled: isCustomRegex,
+    initialPattern: props.initialValues.customRegex ?? "",
+    initialText: props.initialTestText ?? "",
+  });
+
+  return (
+    <GatewayGuardrailFormDialog
+      {...props}
+      customRegexPreview={isCustomRegex ? customRegexPreview : undefined}
     />
   );
 }
@@ -416,6 +497,14 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
 } {
   if (guardrail.type === "BEDROCK") {
     return { templateKind: "bedrock", availablePresets: [] };
+  }
+  if (
+    guardrail.presets.length === 0 &&
+    guardrail.secretPrefixes.length === 0 &&
+    guardrail.containsWords.length === 0 &&
+    guardrail.customRegex
+  ) {
+    return { templateKind: "custom_regex", availablePresets: [] };
   }
   if (
     guardrail.presets.length === 0 &&

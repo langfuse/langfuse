@@ -1,13 +1,6 @@
-import { Input } from "@/src/components/ui/input";
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
+import { Form } from "@/src/components/design-system/Form/Form";
 import { type UseFormReturn } from "react-hook-form";
+import { type SlackActionFormData } from "./SlackActionHandler";
 import { type ActionDomain, isSlackActionConfig } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
@@ -21,7 +14,7 @@ import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface SlackActionFormProps {
-  form: UseFormReturn<any>;
+  form: UseFormReturn<SlackActionFormData>;
   disabled: boolean;
   projectId: string;
   action?: ActionDomain;
@@ -33,8 +26,8 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   projectId,
   action,
 }) => {
-  const initialChannelId = form.getValues("slack.channelId") as string;
-  const initialChannelName = form.getValues("slack.channelName") as string;
+  const initialChannelId = form.getValues("slack.channelId");
+  const initialChannelName = form.getValues("slack.channelName");
   // Saved private channels aren't in the list for users who can't see them,
   // so the lock icon has to come from the saved config.
   const initialIsPrivate =
@@ -93,46 +86,38 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
       {/* Channel Selection - Only show when connected */}
       {integrationStatus?.isConnected && (
         <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="slack.channelId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Channel</FormLabel>
-                <FormControl>
-                  <div className="max-w-md">
-                    <ChannelSelector
-                      projectId={projectId}
-                      selectedChannelId={field.value}
-                      selectedChannel={selectedChannel}
-                      onChannelSelect={handleChannelSelect}
-                      disabled={disabled}
-                      placeholder="Select a channel"
-                      showRefreshButton={true}
-                    />
-                  </div>
-                </FormControl>
-                <FormDescription>
-                  Select the Slack channel where notifications will be sent.
-                  Private channels appear only for the person who connected
-                  Slack, and only if both they and the app are members. Invite
-                  the app with{" "}
-                  <code className="bg-muted rounded px-1 py-0.5">
-                    /invite @Langfuse
-                  </code>
-                  .
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="max-w-md">
+            <Form.Field
+              control={form.control}
+              name="slack.channelId"
+              label="Channel"
+              description={[
+                {
+                  type: "text",
+                  text: "Select the Slack channel where notifications will be sent. Private channels appear only for the person who connected Slack, and only if both they and the app are members. Invite the app with ",
+                },
+                { type: "code", text: "/invite @Langfuse" },
+                { type: "text", text: "." },
+              ]}
+            >
+              {(field) => (
+                <ChannelSelector
+                  id={field.id}
+                  aria-describedby={field.inputDescribedById}
+                  aria-invalid={Boolean(field.error)}
+                  projectId={projectId}
+                  selectedChannelId={field.value}
+                  selectedChannel={selectedChannel}
+                  onChannelSelect={handleChannelSelect}
+                  disabled={disabled}
+                  placeholder="Select a channel"
+                  showRefreshButton={true}
+                />
+              )}
+            </Form.Field>
+          </div>
 
-          {/* Hidden field for channel name */}
-          <FormField
-            control={form.control}
-            name="slack.channelName"
-            render={({ field }) => <Input type="hidden" {...field} />}
-          />
+          <input type="hidden" {...form.register("slack.channelName")} />
 
           {/* Test Message Button - Only show when a channel is selected */}
           {selectedChannel && (

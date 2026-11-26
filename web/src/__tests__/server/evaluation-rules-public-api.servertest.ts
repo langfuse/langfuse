@@ -18,7 +18,7 @@ import {
   ListEvaluationRulesResponse,
 } from "@/src/features/public-api/types/evaluation/evaluationRules";
 import { Evaluator } from "@/src/features/public-api/types/evaluation/evaluators";
-import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+import { PublicApiError } from "./public-api-errors";
 
 const createLegacyRule = (projectId: string, name: string) =>
   prisma.evaluationRule.create({

@@ -1,3 +1,5 @@
+import type { GatewayGuardrailType } from "@langfuse/shared/src/db";
+
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
@@ -7,6 +9,7 @@ export type GatewayGuardrailTemplateKind =
   | "pii"
   | "secrets"
   | "contains"
+  | "custom_regex"
   | "bedrock";
 
 export type GatewayGuardrailTemplatePreview =
@@ -15,6 +18,7 @@ export type GatewayGuardrailTemplatePreview =
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
+  guardrailType: GatewayGuardrailType;
   name: string;
   description: string;
   preview: GatewayGuardrailTemplatePreview;
@@ -54,6 +58,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
   [
     {
       id: "pii",
+      guardrailType: "REGEX",
       name: "PII",
       description:
         "Detects emails, SSNs, credit cards, IBANs and IP addresses.",
@@ -69,6 +74,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     },
     {
       id: "secrets",
+      guardrailType: "REGEX",
       name: "Secrets and API keys",
       description: "Detects API keys, access tokens, JWTs and private keys.",
       preview: {
@@ -83,6 +89,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     },
     {
       id: "contains",
+      guardrailType: "REGEX",
       name: "Keyword list",
       description: "Detects words and phrases you define, like codenames.",
       preview: {
@@ -96,7 +103,22 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
         "This document mentions Project Falcon and is internal only.",
     },
     {
+      id: "custom_regex",
+      guardrailType: "REGEX",
+      name: "Custom regex",
+      description: "Match your own regular expression.",
+      preview: {
+        kind: "snippet",
+        label: "regex",
+        value: String.raw`ORD-\d{6}`,
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "Order ORD-123456 is ready for pickup.",
+    },
+    {
       id: "bedrock",
+      guardrailType: "BEDROCK",
       name: "Amazon Bedrock",
       description: "Evaluates prompts using your Amazon Bedrock guardrail.",
       preview: {
@@ -115,3 +137,20 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       sampleTestText: "",
     },
   ];
+
+const TEMPLATE_GUARDRAIL_TYPE: Record<
+  GatewayGuardrailTemplateKind,
+  GatewayGuardrailType
+> = {
+  pii: "REGEX",
+  secrets: "REGEX",
+  contains: "REGEX",
+  custom_regex: "REGEX",
+  bedrock: "BEDROCK",
+};
+
+export function getGuardrailTypeForTemplate(
+  templateKind: GatewayGuardrailTemplateKind,
+): GatewayGuardrailType {
+  return TEMPLATE_GUARDRAIL_TYPE[templateKind];
+}

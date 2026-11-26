@@ -1,3 +1,4 @@
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   recordDistribution,
@@ -38,7 +39,6 @@ vi.mock("./llm/models", () => ({
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
-import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 
 const transcript: Transcript = {
   threads: [
@@ -154,21 +154,44 @@ beforeEach(() => {
 
 describe("summarizeAssembledTrace", () => {
   it("skips internal traces before calling models", async () => {
+    for (const environment of [
+      "langfuse-topics-internal",
+      "langfuse-topics",
+      "topics-internal",
+      "llm-as-a-judge",
+    ]) {
+      const result = await summarize({
+        projectId: "project-a",
+        traceId: "trace-1",
+        sessionId: null,
+        traceTimestamp: "2026-09-22T12:00:00.000Z",
+        environment,
+        traceName: "topics-summary",
+        transcript,
+        models,
+        facets: [facet],
+      });
+      expect(result).toBe("disabled");
+    }
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(summaries).toEqual([]);
+  });
+
+  it("still summarizes a customer trace in an environment named topics", async () => {
     const result = await summarize({
       projectId: "project-a",
-      traceId: "trace-1",
+      traceId: "trace-customer-topics-env",
       sessionId: null,
       traceTimestamp: "2026-09-22T12:00:00.000Z",
-      environment: "langfuse-topics",
-      traceName: "topics-summary",
+      environment: "topics",
+      traceName: "agent-turn",
       transcript,
       models,
       facets: [facet],
     });
-    expect(result).toBe("disabled");
-    expect(state.summarize).not.toHaveBeenCalled();
-    expect(state.embed).not.toHaveBeenCalled();
-    expect(summaries).toEqual([]);
+    expect(result).toBe("summarized");
+    expect(state.summarize).toHaveBeenCalledTimes(1);
   });
 
   it("summarizes a snapshot trace into a priced row and attributes both model calls to the snapshot", async () => {
@@ -458,7 +481,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     // Rejected output is a local rule's decision; accepted output is the model's.
@@ -770,7 +793,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

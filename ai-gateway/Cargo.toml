@@ -37,6 +37,7 @@ redis = { version = "1.8", default-features = false, features = ["tokio-comp", "
 regex = "1"
 quick_cache = { version = "0.7.0", default-features = false, features = ["parking_lot"] }
 regex-automata = "0.4"
+ai-gateway-guardrail-rules = { path = "../packages/ai-gateway-guardrail-rules" }
 
 [dev-dependencies]
 http-body = "1"

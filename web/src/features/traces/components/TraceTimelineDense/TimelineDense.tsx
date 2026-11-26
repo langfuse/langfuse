@@ -40,11 +40,6 @@
  *  - What a row shows follows from how tall it has become: the type square grows
  *    around 10px, text returns around 20px. Zooming in makes the timeline grow
  *    its labels back rather than switching mode.
- *
- * A magnifying lens (rows near the pointer expanding, borrowing space from the
- * rest) is implemented and tested in fns/timeline/focusLens.ts and deliberately
- * NOT wired up: a fisheye needs an invertible transform to hit-test correctly,
- * and absolutely-positioned rows are the wrong substrate. That is the next spike.
  */
 
 import {

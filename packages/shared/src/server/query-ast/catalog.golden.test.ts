@@ -1,3 +1,5 @@
+// Pins that each catalog shape compiles to its reference SQL and analyzes.
+
 import { describe, expect, it } from "vitest";
 
 import {

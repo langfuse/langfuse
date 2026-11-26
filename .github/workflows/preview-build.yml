@@ -364,7 +364,7 @@ jobs:
             --build-arg "BUILD_ID=${COMMIT_SHA}" \
             -f ai-gateway/Dockerfile \
             -t "${IMAGE}" \
-            ai-gateway
+            .
           docker push "${IMAGE}"
 
       # Own marker, not <!-- aws-preview -->, so this cannot replace the

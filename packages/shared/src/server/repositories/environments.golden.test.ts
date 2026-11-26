@@ -1,3 +1,5 @@
+// Golden SQL for getEnvironmentsForProject across v4 write modes.
+
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../env";
