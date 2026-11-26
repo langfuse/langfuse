@@ -1022,6 +1022,29 @@ describe("Topics execution", () => {
     },
   );
 
+  it("fails a replayed rule refit and counts it as interrupted", async () => {
+    state.runs.set("refit", {
+      ...pendingRun({
+        id: "refit",
+        projectId: "project",
+        facetId: facet.facetId,
+        facetVersion: facet.version,
+        config: { refresh: true },
+      }),
+      status: "running",
+      ruleId: "rule",
+    });
+
+    await processTopicRuleRefit({ projectId: "project", runId: "refit" });
+
+    expect(state.runs.get("refit")?.status).toBe("failed");
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.topics.rule_fits",
+      1,
+      { outcome: "interrupted", trigger: "manual", owner: "platform" },
+    );
+  });
+
   it("publishes a map once 99% of its sources are readable and retries publication below that", async () => {
     seedSummaries(1);
     const template = [...state.summaries.values()][0];

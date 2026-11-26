@@ -185,13 +185,14 @@ export class TopicMetrics {
   ruleFit(
     outcome: string,
     trigger: "automatic" | "manual",
-    durationMs: number,
+    durationMs?: number,
     failure?: unknown,
   ): void {
     const tags = {
       outcome,
       trigger,
-      ...(outcome === "failed"
+      // An interrupted fit lost its worker or job, so it is ours.
+      ...(outcome === "failed" || outcome === "interrupted"
         ? {
             owner:
               failure instanceof TopicsProviderUnavailable
@@ -201,6 +202,7 @@ export class TopicMetrics {
         : {}),
     };
     recordIncrement("langfuse.topics.rule_fits", 1, tags);
+    if (durationMs === undefined) return;
     recordDistribution("langfuse.topics.rule_fit_duration_ms", durationMs, {
       outcome,
       trigger,

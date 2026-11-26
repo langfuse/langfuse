@@ -1021,6 +1021,10 @@ export async function processTopicRuleRefit({
       error: "Interrupted; the next nightly refit replaces it.",
       finishedAt: new Date().toISOString(),
     });
+    new TopicMetrics().ruleFit(
+      "interrupted",
+      run.config.refresh === true ? "manual" : "automatic",
+    );
     return;
   }
   if (run.status !== "pending") return;
