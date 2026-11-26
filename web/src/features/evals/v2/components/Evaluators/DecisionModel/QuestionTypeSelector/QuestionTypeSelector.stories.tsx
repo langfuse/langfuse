@@ -42,6 +42,19 @@ export const ShowsGuidanceFromTheInfoIcon = meta.story({
   },
 });
 
+export const KeepsTheTypeWhenTheInfoIconIsPressed = meta.story({
+  name: "(Test) Keeps the type when the info icon is pressed",
+  args: {
+    value: DecisionModelQuestionType.SCORE,
+    onValueChange: fn(),
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    await userEvent.click(canvas.getByLabelText("About Choice"));
+
+    await expect(args.onValueChange).not.toHaveBeenCalled();
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     value: DecisionModelQuestionType.SCORE,

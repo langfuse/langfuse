@@ -79,14 +79,26 @@ export function QuestionTypeSelector({
           return (
             <Tabs.Trigger key={type} value={type} disabled={disabled}>
               {copy.label}
-              <InfoTooltip label={`About ${copy.label}`}>
-                <div className="flex flex-col gap-1.5">
-                  <p className="font-bold">{copy.summary}</p>
-                  <p className="text-muted-foreground">e.g. “{copy.example}”</p>
-                  <p>Writes {copy.writes}.</p>
-                  <p>{copy.whenToUse}</p>
-                </div>
-              </InfoTooltip>
+              {/* Keeps a press on the info icon from selecting the tab. */}
+              <span
+                role="presentation"
+                className="inline-flex"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <InfoTooltip label={`About ${copy.label}`}>
+                  <div className="flex flex-col gap-1.5">
+                    <p className="font-bold">{copy.summary}</p>
+                    <p className="text-muted-foreground">
+                      e.g. “{copy.example}”
+                    </p>
+                    <p>Writes {copy.writes}.</p>
+                    <p>{copy.whenToUse}</p>
+                  </div>
+                </InfoTooltip>
+              </span>
             </Tabs.Trigger>
           );
         })}
