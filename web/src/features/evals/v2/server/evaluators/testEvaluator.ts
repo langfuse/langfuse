@@ -26,6 +26,7 @@ import {
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
   serializeTraceTranscriptInputs,
+  toCodeEvalThreads,
   unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -161,7 +162,10 @@ export async function testEvaluatorOnTrace(params: {
     };
   }
   let variables: ExtractedVariable[] = [
-    { var: TRACE_TRANSCRIPT_EVAL_COLUMN, value: transcript.threads },
+    {
+      var: TRACE_TRANSCRIPT_EVAL_COLUMN,
+      value: toCodeEvalThreads(transcript.threads),
+    },
   ];
   if (variableMapping) {
     const extracted = extractTranscriptEvalVariables(
