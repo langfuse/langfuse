@@ -16,6 +16,7 @@
  */
 
 import { getEvenTickInterval } from "@/src/features/widgets/chart-library/utils";
+import { truncateChartLabel } from "@/src/components/design-system/internal/charts/fns/chartLabels";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -57,15 +58,6 @@ const CATEGORY_MIN_TICK_GAP_PX = 16;
  * Categorical axes skip this — they are already end-anchored.
  */
 const TEMPORAL_TICK_RIGHT_PADDING_PX = 16;
-
-/** End-truncate a long categorical label ("foo-bar-…"). Entity names carry
- * their distinguishing token early (e.g. "…-run-2-…"), so keeping the head and
- * dropping the tail preserves what tells ticks apart; the tooltip has the full
- * name. Short labels pass through untouched. */
-function truncateCategoryLabel(label: string): string {
-  if (label.length <= MAX_CATEGORY_LABEL_CHARS) return label;
-  return `${label.slice(0, MAX_CATEGORY_LABEL_CHARS - 1)}…`;
-}
 
 /**
  * Parse a raw bucket value into a Date, but ONLY when it actually looks like a
@@ -256,7 +248,8 @@ export function prepareTimeAxis(
       // treatment, and it lets recharts fit a couple more without overlap. Also
       // end-truncate the shown label so a single outlier name can't run
       // off-canvas; the full name always stays in the tooltip.
-      formatTick: (raw: unknown) => truncateCategoryLabel(full(raw)),
+      formatTick: (raw: unknown) =>
+        truncateChartLabel(full(raw), MAX_CATEGORY_LABEL_CHARS),
       formatTooltip: full,
       mode: "category",
       showVerticalGrid: false,

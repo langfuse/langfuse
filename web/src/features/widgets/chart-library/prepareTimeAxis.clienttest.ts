@@ -182,6 +182,17 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
   });
 
+  it("keeps whole Unicode code points in categorical ticks", () => {
+    const prefix = "a".repeat(22);
+    const atLimit = `${prefix}🚀x`;
+    const longLabel = `${atLimit}y`;
+    const axis = prepareTimeAxis([atLimit, longLabel], 6);
+
+    expect(axis.formatTick(longLabel)).toBe(`${prefix}🚀…`);
+    expect(axis.formatTick(atLimit)).toBe(atLimit);
+    expect(axis.formatTooltip(longLabel)).toBe(longLabel);
+  });
+
   it("short categorical labels are not truncated and time ticks stay flat + numeric", () => {
     const shortCategories = prepareTimeAxis(["run-a", "run-b", "run-c"], 6);
     expect(shortCategories.formatTick("run-a")).toBe("run-a");

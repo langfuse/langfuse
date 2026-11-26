@@ -5,6 +5,7 @@ import type { ReactNode, ComponentProps } from "react";
 import type { CartesianPlot } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { CartesianLayout } from "./CartesianLayout";
 import { ChartContainer } from "./ChartContainer";
+import { chartLabelLength, truncateChartLabel } from "./fns/chartLabels";
 
 function ChartGrid({
   yTicks,
@@ -79,7 +80,7 @@ function ChartXAxis({
       (tick) =>
         tick.maxWidth !== undefined &&
         Math.floor(tick.maxWidth / characterWidth) <= 1 &&
-        tick.label.length > 1,
+        chartLabelLength(tick.label) > 1,
     );
   const axisTicks: typeof ticks = activeTick
     ? [...ticks.filter((tick) => tick.key !== activeTick.key), activeTick].sort(
@@ -96,11 +97,10 @@ function ChartXAxis({
     const maxCharacters = tick.maxWidth
       ? Math.max(1, Math.floor(tick.maxWidth / characterWidth))
       : undefined;
-    const label =
-      maxCharacters && tick.label.length > maxCharacters
-        ? `${tick.label.slice(0, Math.max(0, maxCharacters - 1))}…`
-        : tick.label;
-    const labelWidth = label.length * characterWidth;
+    const label = maxCharacters
+      ? truncateChartLabel(tick.label, maxCharacters)
+      : tick.label;
+    const labelWidth = chartLabelLength(label) * characterWidth;
     const x = tick.x;
     let left = x;
     if (anchor === "middle") left = x - labelWidth / 2;
@@ -108,9 +108,10 @@ function ChartXAxis({
     return { tick, index, active: false, anchor, label, labelWidth, x, left };
   });
   const active = labels.find(({ tick }) => tick.key === activeTick?.key);
-  const activeLabelWidth = active
-    ? Math.min(width - 32, active.tick.label.length * characterWidth)
+  const activeFullWidth = active
+    ? chartLabelLength(active.tick.label) * characterWidth
     : 0;
+  const activeLabelWidth = active ? Math.min(width - 32, activeFullWidth) : 0;
   const activeX = active
     ? Math.max(
         16 + activeLabelWidth / 2,
@@ -186,9 +187,7 @@ function ChartXAxis({
               y={y + 16}
               textAnchor={active ? "middle" : anchor}
               textLength={
-                active && tick.label.length * characterWidth > labelWidth
-                  ? labelWidth
-                  : undefined
+                active && activeFullWidth > labelWidth ? labelWidth : undefined
               }
               lengthAdjust="spacingAndGlyphs"
               fill={
