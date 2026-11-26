@@ -1,3 +1,6 @@
+// Export staleness metric: how far each integration's export lags behind now,
+// tagged by integration and frequency window.
+
 import { recordDistribution } from "@langfuse/shared/src/server";
 
 /** @internal */

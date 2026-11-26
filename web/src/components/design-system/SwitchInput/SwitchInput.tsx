@@ -32,11 +32,14 @@ export function SwitchInput({
   return (
     <label
       htmlFor={id}
-      className="border-input bg-background flex min-h-8 cursor-pointer items-center justify-between gap-4 rounded-md border px-3 py-2"
+      className="border-input bg-background flex min-h-8 cursor-pointer items-center justify-between gap-4 rounded-md border px-3 py-[5px]"
     >
-      <p id={descriptionId} className="text-muted-foreground min-w-0 text-sm">
+      <span
+        id={descriptionId}
+        className="text-muted-foreground min-w-0 text-sm leading-5"
+      >
         {description}
-      </p>
+      </span>
       <Switch
         {...props}
         id={id}

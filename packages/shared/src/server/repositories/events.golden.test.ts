@@ -1,3 +1,6 @@
+// Golden SQL for the events repository read families (point reads,
+// aggregates, IO, exports, row selection, filtered streams).
+
 import {
   afterAll,
   afterEach,

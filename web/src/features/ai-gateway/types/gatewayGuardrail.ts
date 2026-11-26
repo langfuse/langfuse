@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORD_LENGTH,
   GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS,
+  GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
   GATEWAY_GUARDRAIL_MAX_SECRET_PREFIXES,
   GATEWAY_GUARDRAIL_SECRET_BODY_MIN_LENGTH,
   GATEWAY_GUARDRAIL_SECRET_PREFIX_MAX_LENGTH,
@@ -240,6 +241,14 @@ export const GatewayGuardrailContainsListSchema = z
     `At most ${GATEWAY_GUARDRAIL_MAX_CONTAINS_WORDS} entries are allowed`,
   );
 
+export const GatewayGuardrailCustomRegexSchema = z
+  .string()
+  .min(1, "Enter a regular expression")
+  .max(
+    GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH,
+    `Regular expression must be at most ${GATEWAY_GUARDRAIL_MAX_CUSTOM_REGEX_LENGTH} characters`,
+  );
+
 /** Actions the gateway enforces and the management UI offers. */
 export const GATEWAY_GUARDRAIL_UI_ACTIONS = ["BLOCK", "LOG"] as const;
 
@@ -280,6 +289,7 @@ export const GatewayRegexGuardrailConfigSchema = z.object({
   presets: z.array(z.string()).default([]),
   secretPrefixes: z.array(z.string()).default([]),
   containsWords: z.array(z.string()).default([]),
+  customRegex: z.string().optional(),
 });
 
 function presetPatterns(preset: string): readonly string[] {
@@ -395,6 +405,7 @@ export function compileGuardrailConfigPatterns(config: {
   presets?: readonly string[];
   secretPrefixes?: readonly string[];
   containsWords?: readonly string[];
+  customRegex?: string | null;
 }): string[] {
   const patterns: string[] = [];
   for (const preset of config.presets ?? []) {
@@ -414,49 +425,8 @@ export function compileGuardrailConfigPatterns(config: {
   );
   const containsPattern = compileContainsPattern(validContains);
   if (containsPattern) patterns.push(containsPattern);
-  return patterns;
-}
-
-/**
- * Estimates compiled Thompson NFA bytes for a set of ASCII regex patterns
- * using an 8-byte state + 8-byte transition model.
- */
-export function estimateCompiledPatternsBytes(
-  patterns: readonly string[],
-): number {
-  const STATE_BYTES = 8;
-  const TRANSITION_BYTES = 8;
-  let bytes = 0;
-  for (const pattern of patterns) {
-    // Each character class `[Aa]` compiles to one state (~24 B); simple literals to one state (~16 B).
-    let index = 0;
-    while (index < pattern.length) {
-      const char = pattern[index];
-      if (char === "\\") {
-        bytes += STATE_BYTES + TRANSITION_BYTES;
-        index += 2;
-        continue;
-      }
-      if (char === "[") {
-        const end = pattern.indexOf("]", index + 1);
-        const span = end === -1 ? pattern.length - index : end - index;
-        bytes += STATE_BYTES + Math.min(span, 8) * TRANSITION_BYTES;
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      if (char === "{") {
-        const end = pattern.indexOf("}", index + 1);
-        const body = end === -1 ? "" : pattern.slice(index + 1, end);
-        const repeat = Number.parseInt(body.split(",")[0] ?? "1", 10);
-        if (Number.isFinite(repeat) && repeat > 1) {
-          bytes += (repeat - 1) * (STATE_BYTES + TRANSITION_BYTES);
-        }
-        index = end === -1 ? pattern.length : end + 1;
-        continue;
-      }
-      bytes += STATE_BYTES + TRANSITION_BYTES;
-      index += 1;
-    }
+  if (config.customRegex && config.customRegex.length > 0) {
+    patterns.push(config.customRegex);
   }
-  return bytes;
+  return patterns;
 }

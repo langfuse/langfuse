@@ -1,3 +1,6 @@
+// Reference query shapes (AST builder plus expected SQL) for the query-AST
+// catalog golden test.
+
 import type { SqlBool } from "kysely";
 
 import type { ClickhouseCompilable } from "../../compile";

@@ -458,7 +458,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     // Rejected output is a local rule's decision; accepted output is the model's.
@@ -770,7 +770,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output", owner: "platform" },
+        { stage: "summary", reason: "invalid_output", owner: "customer" },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

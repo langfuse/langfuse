@@ -6,6 +6,7 @@ export const GATEWAY_FIRST_REQUEST_DOCS_URL = `${GATEWAY_DOCS_BASE_URL}/get-star
 export const GATEWAY_MODELS_DOCS_URL = `${GATEWAY_DOCS_BASE_URL}/features/models`;
 export const GATEWAY_API_KEYS_DOCS_URL = `${GATEWAY_DOCS_BASE_URL}/features/api-keys`;
 export const GATEWAY_ANALYTICS_DOCS_URL = `${GATEWAY_DOCS_BASE_URL}/features/analytics`;
+export const GATEWAY_GUARDRAILS_DOCS_URL = `${GATEWAY_DOCS_BASE_URL}/features/guardrails`;
 export const GATEWAY_DEVELOPER_TOOLS_DOCS_URL =
   "https://langfuse.com/integrations/developer-tools";
 

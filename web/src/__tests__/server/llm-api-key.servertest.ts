@@ -102,44 +102,6 @@ describe("llmApiKey.all RPC", () => {
     caller = appRouter.createCaller({ ...ctx, prisma });
   });
 
-  it("should create an llm api key", async () => {
-    const secret = "test-secret";
-    const provider = "openai";
-    const adapter = LLMAdapter.OpenAI;
-    const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://example.com/v1";
-    const withDefaultModels = false;
-
-    const result = await caller.llmApiKey.create({
-      projectId,
-      secretKey: secret,
-      provider,
-      adapter,
-      baseURL,
-      customModels,
-      withDefaultModels,
-    });
-    expect(result).toBeUndefined();
-
-    const llmApiKeys = await prisma.llmApiKeys.findMany({
-      where: {
-        projectId,
-      },
-    });
-
-    expect(llmApiKeys.length).toBe(1);
-    expect(llmApiKeys[0].projectId).toBe(projectId);
-    expect(llmApiKeys[0].secretKey).not.toBeNull();
-    expect(llmApiKeys[0].secretKey).not.toEqual(secret);
-    expect(llmApiKeys[0].provider).toBe(provider);
-    expect(llmApiKeys[0].adapter).toBe(adapter);
-    expect(llmApiKeys[0].baseURL).toBe(baseURL);
-    expect(llmApiKeys[0].customModels).toEqual(customModels);
-    expect(llmApiKeys[0].withDefaultModels).toBe(withDefaultModels);
-    // this has to be 3 dots and the last 4 characters of the secret
-    expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
-  });
-
   it("resolves an organization connection for the project default model", async () => {
     const provider = `organization-default-${randomUUID()}`;
     const organizationConnection = await prisma.llmApiKeys.create({
@@ -1658,7 +1620,7 @@ describe("llmApiKey.all RPC", () => {
     const withDefaultModels = false;
 
     // Create initial key
-    await caller.llmApiKey.create({
+    const createResult = await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
       provider,
@@ -1667,6 +1629,7 @@ describe("llmApiKey.all RPC", () => {
       customModels,
       withDefaultModels,
     });
+    expect(createResult).toBeUndefined();
 
     // Verify initial key
     const initialKeys = await prisma.llmApiKeys.findMany({

@@ -73,9 +73,9 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
 
-import { AutomationForm } from "./AutomationForm";
+import { ConnectedAutomationForm } from "./ConnectedAutomationForm";
 
-describe("AutomationForm handleActionTypeChange", () => {
+describe("ConnectedAutomationForm webhook API version", () => {
   beforeAll(() => {
     vi.stubGlobal(
       "ResizeObserver",
@@ -96,7 +96,7 @@ describe("AutomationForm handleActionTypeChange", () => {
 
   it("monitor-source trigger: switching action type away and back to WEBHOOK keeps apiVersion monitor", async () => {
     render(
-      <AutomationForm
+      <ConnectedAutomationForm
         projectId="p1"
         isEditing={true}
         prefill={{
@@ -106,17 +106,17 @@ describe("AutomationForm handleActionTypeChange", () => {
       />,
     );
 
-    // comboboxes: [0] eventSource, [1] actionType.
-    fireEvent.click(screen.getAllByRole("combobox")[1]);
+    fireEvent.click(screen.getByRole("combobox", { name: "Action type" }));
     fireEvent.click(await screen.findByRole("option", { name: "Slack" }));
+    expect(screen.queryByRole("textbox", { name: "Webhook URL" })).toBeNull();
 
-    fireEvent.click(screen.getAllByRole("combobox")[1]);
+    fireEvent.click(screen.getByRole("combobox", { name: "Action type" }));
     fireEvent.click(await screen.findByRole("option", { name: "Webhook" }));
 
-    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Automation name" }), {
       target: { value: "My automation" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/https/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Webhook URL" }), {
       target: { value: "https://example.com/hook" },
     });
 
@@ -126,27 +126,33 @@ describe("AutomationForm handleActionTypeChange", () => {
       expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
     });
 
-    const payload = createAutomationMutateAsync.mock.calls[0][0];
-    expect(payload.actionConfig.apiVersion).toEqual({ monitor: "v1" });
+    expect(createAutomationMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventSource: TriggerEventSource.Monitor,
+        actionConfig: expect.objectContaining({
+          type: "WEBHOOK",
+          apiVersion: { monitor: "v1" },
+        }),
+      }),
+    );
   });
 
   it("switching event source from prompt to monitor derives apiVersion monitor", async () => {
     render(
-      <AutomationForm
+      <ConnectedAutomationForm
         projectId="p1"
         isEditing={true}
         prefill={{ actionType: "WEBHOOK" }}
       />,
     );
 
-    // comboboxes: [0] eventSource, [1] actionType.
-    fireEvent.click(screen.getAllByRole("combobox")[0]);
+    fireEvent.click(screen.getByRole("combobox", { name: "Event source" }));
     fireEvent.click(await screen.findByRole("option", { name: "Alert" }));
 
-    fireEvent.change(screen.getByPlaceholderText(/automation name/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Automation name" }), {
       target: { value: "My automation" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/https/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Webhook URL" }), {
       target: { value: "https://example.com/hook" },
     });
 
@@ -156,20 +162,14 @@ describe("AutomationForm handleActionTypeChange", () => {
       expect(createAutomationMutateAsync).toHaveBeenCalledTimes(1);
     });
 
-    const payload = createAutomationMutateAsync.mock.calls[0][0];
-    expect(payload.actionConfig.apiVersion).toEqual({ monitor: "v1" });
-  });
-
-  it("does not render an API version control for webhook actions", () => {
-    render(
-      <AutomationForm
-        projectId="p1"
-        isEditing={true}
-        prefill={{ actionType: "WEBHOOK" }}
-      />,
+    expect(createAutomationMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventSource: TriggerEventSource.Monitor,
+        actionConfig: expect.objectContaining({
+          type: "WEBHOOK",
+          apiVersion: { monitor: "v1" },
+        }),
+      }),
     );
-
-    expect(screen.queryByText("API Version")).toBeNull();
-    expect(screen.queryByText("Select API version")).toBeNull();
   });
 });

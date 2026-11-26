@@ -1,3 +1,5 @@
+// Pins the SQL the dedup pass emits per table, alone and with every pass.
+
 import type { Kysely } from "kysely";
 import { describe, expect, it } from "vitest";
 
@@ -264,5 +266,21 @@ describe("dedup lowering with every compile pass", () => {
     } finally {
       delete DEDUP_SPECS[table];
     }
+  });
+
+  // An execution's cost sums every summary row it wrote, re-written ones too.
+  it("compiles a Topics cost sum unwrapped, with column-typed binds", () => {
+    const query = getClickhouseKysely()
+      .selectFrom("topic_facet_summaries as s")
+      .select((eb) => [
+        "s.execution_id as id",
+        eb.fn.sum("s.total_cost").as("cost"),
+      ])
+      .where("s.facet_version", "=", 3)
+      .where("s.unit_start_time", ">=", new Date("2026-01-01T00:00:00.000Z"))
+      .groupBy("s.execution_id");
+    expect(compileClickhouseQuery(query, "proj-1").sql).toBe(
+      "select s.execution_id as id, sum(s.total_cost) as cost from topic_facet_summaries as s where s.project_id = {p1:String} and s.facet_version = {p2:UInt32} and s.unit_start_time >= {p3:DateTime64(3, 'UTC')} group by s.execution_id",
+    );
   });
 });
