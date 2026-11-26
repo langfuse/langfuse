@@ -57,8 +57,6 @@ interface TreeNodeWrapperProps {
   className?: string;
   /** Replaces the default selected and hover wash. */
   surfaceClassName?: string;
-  /** False hides the fold button; the connector lines stay. */
-  showFoldButton?: boolean;
 }
 
 /** Placeholder row: same geometry, a skeleton in the icon slot, no actions. */
@@ -78,7 +76,6 @@ export function VirtualizedTreeNodeWrapper(
   const isCollapsed = loaded?.isCollapsed ?? false;
   const isSelected = loaded?.isSelected ?? false;
   const onSelect = loaded?.onSelect;
-  const showFoldButton = loaded?.showFoldButton ?? true;
   const { depth, treeLines, isLastSibling } = metadata;
   const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
   // Visual depth: real depth, capped so indentation never exceeds the
@@ -174,7 +171,7 @@ export function VirtualizedTreeNodeWrapper(
         {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
             content lines up across rows. */}
         <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
-          {loaded && hasChildren && showFoldButton && (
+          {loaded && hasChildren && (
             <Button
               aria-label={isCollapsed ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isCollapsed}

@@ -7,11 +7,12 @@ import {
 
 import { cn } from "@/src/utils/tailwind";
 
-/** Underlined text action with a leading icon. */
+/** Text action with a leading icon; underlines on hover. */
 export function TextActionButton({
   text,
   icon: Icon = Plus,
   width = "content",
+  tone = "default",
   type = "button",
   disabled,
   onClick,
@@ -21,6 +22,8 @@ export function TextActionButton({
   text: string;
   icon?: IconComponent;
   width?: "content" | "fill";
+  /** `muted`: for a row of secondary shortcuts. */
+  tone?: "default" | "muted";
   ref?: Ref<HTMLButtonElement>;
 } & Omit<
   ComponentPropsWithoutRef<"button">,
@@ -38,11 +41,16 @@ export function TextActionButton({
       onClick={onClick}
       {...props}
       className={cn(
-        "text-foreground hover:text-foreground inline-flex h-6 items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline disabled:cursor-not-allowed disabled:opacity-50",
+        "hover:text-foreground inline-flex h-6 items-center gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline disabled:cursor-not-allowed disabled:opacity-50",
+        tone === "muted" ? "text-muted-foreground" : "text-foreground",
         width === "fill" && "w-full justify-start",
       )}
     >
-      <Icon size="base" color="default" aria-hidden />
+      <Icon
+        size="base"
+        color={tone === "muted" ? "muted" : "default"}
+        aria-hidden
+      />
       {text}
     </button>
   );
