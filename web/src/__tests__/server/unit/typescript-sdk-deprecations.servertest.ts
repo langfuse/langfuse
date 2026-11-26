@@ -160,6 +160,7 @@ describe("TypeScript SDK deprecations", () => {
             `${generatedPath.replaceAll(path.sep, "/")}:${typeName}.${propertyName}`,
         ),
     ).toEqual([
+      "api/resources/commons/types/Model.ts:Model.isLangfuseManaged",
       "api/resources/organizations/types/OrganizationApiKey.ts:OrganizationApiKey.note",
       "api/resources/projects/client/requests/CreateApiKeyRequest.ts:CreateApiKeyRequest.note",
       "api/resources/projects/types/ApiKeySummary.ts:ApiKeySummary.note",

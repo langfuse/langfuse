@@ -425,7 +425,9 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: run knip
+      - name: run knip in production mode
+        run: pnpm exec knip --production
+      - name: run knip in default mode
         run: pnpm exec knip
 
   format-check:

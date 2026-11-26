@@ -77,7 +77,9 @@ Use a two-phase architecture for agents that create PRs:
 - The publish job must not invoke the LLM.
 - The publish job should clear global/system git config where practical and disable hooks for any commit or push-adjacent git operation.
 - The publish job should re-check the applied commit's changed files against the same path allowlist before pushing.
-- Reviewer assignment should be non-fatal so a missing reviewer permission does not fail an otherwise valid maintenance PR.
+- Reviewer assignment should be non-fatal so a missing reviewer permission does not fail an otherwise valid maintenance PR. A failed assignment never waives the required approval before merge.
+- Follow [protected branches and PR approval](../../git-workflow/references/protected-branches.md). Publish to a task branch and PR; robot-user credentials do not permit direct default-branch writes. Coordinate any required App exception with Security rather than adding a bypass token.
+- Keep required human approval for workflow, policy, and security-boundary self-edits even when Bugbot is clean. A separate publisher does not exempt its PR from review.
 
 ## Self-Improvement
 

@@ -2,7 +2,7 @@ import {
   type MultiQueryConfig,
   type MultiQueryTab,
 } from "@langfuse/shared/dashboards";
-import { type DataTableProps } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
+import { type Visualization } from "@/src/components/design-system/charts/internal/VisualizationFrame/VisualizationFrame";
 import { toFullMetricString } from "@/src/features/widgets/chart-library/utils";
 import {
   multiQueryMetricLabel,
@@ -10,6 +10,8 @@ import {
   type MultiQueryValue,
 } from "./multiQueryModel";
 import { multiQueryFormatter } from "./multiQueryPresentation";
+
+type DataTableProps = Omit<Extract<Visualization, { type: "table" }>, "type">;
 
 export function returnedRowsSubtotal(
   queries: MultiQueryConfig["queries"],

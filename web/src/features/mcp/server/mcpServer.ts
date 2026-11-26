@@ -86,7 +86,15 @@ export async function createMcpServer(
       version: MCP_SERVER_VERSION,
     },
     {
-      capabilities: { extensions: MCP_APPS_EXTENSION },
+      capabilities: {
+        // Each request gets a fresh instance and nothing publishes change
+        // events, so no list-changed notification is ever sent. Advertising
+        // them would have 2026-07-28 clients hold a subscriptions/listen
+        // response open until they disconnect.
+        tools: { listChanged: false },
+        resources: { listChanged: false },
+        extensions: MCP_APPS_EXTENSION,
+      },
       instructions: getMcpServerInstructions(),
       // A stateless 2025-era request carries no client capabilities (those
       // are only declared in `initialize`), so there is nothing to check a
