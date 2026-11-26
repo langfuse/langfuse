@@ -1,7 +1,7 @@
 import {
+  getConnectionDefaultModels,
   isAllowedDecisionModel,
   LLMAdapter,
-  supportedModels,
   supportsDecisionModels,
   TEXT_ADAPTER_DECISION_MODEL_IDS,
 } from "@langfuse/shared";
@@ -11,15 +11,23 @@ import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 type DecisionModelConnection = {
   provider: string;
   adapter: string;
+  baseURL?: string | null;
   customModels: readonly string[];
   withDefaultModels: boolean;
 };
 
-function defaultModelsFor(adapter: string): readonly string[] {
-  if (adapter === LLMAdapter.TypeSafe) {
-    return supportedModels[LLMAdapter.TypeSafe];
+function defaultModelsFor(
+  connection: DecisionModelConnection,
+): readonly string[] {
+  if (connection.adapter === LLMAdapter.TypeSafe) {
+    return getConnectionDefaultModels({
+      adapter: connection.adapter,
+      baseURL: connection.baseURL,
+    });
   }
-  return TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter] ?? [];
+  return (
+    TEXT_ADAPTER_DECISION_MODEL_IDS[connection.adapter as LLMAdapter] ?? []
+  );
 }
 
 /** Decision models each connection can run, keyed by provider. */
@@ -32,9 +40,7 @@ export function decisionModelsByProvider(
     const models = Array.from(
       new Set([
         ...connection.customModels,
-        ...(connection.withDefaultModels
-          ? defaultModelsFor(connection.adapter)
-          : []),
+        ...(connection.withDefaultModels ? defaultModelsFor(connection) : []),
       ]),
     ).filter((model) => isAllowedDecisionModel(connection.adapter, model));
     if (models.length > 0) modelsByProvider.set(connection.provider, models);
