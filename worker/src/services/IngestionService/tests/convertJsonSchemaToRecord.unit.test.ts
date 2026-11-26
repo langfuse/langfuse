@@ -1,4 +1,4 @@
-import { convertJsonSchemaToRecord } from "../utils";
+import { convertIngestionMetadata, convertJsonSchemaToRecord } from "../utils";
 import { expect, describe, it } from "vitest";
 
 // Spec (LFE-14344): bare-scalar root metadata must be wrapped under the
@@ -11,9 +11,8 @@ describe("convertJsonSchemaToRecord", () => {
     expect(convertJsonSchemaToRecord(true)).toEqual({ metadata: "true" });
   });
 
-  // Function-level contract only: callers currently short-circuit falsy
-  // metadata (false/0/"") via truthy guards, so false does not reach this
-  // branch end-to-end.
+  // Bare false is valid metadata. Callers go through convertIngestionMetadata
+  // so false, 0, and "" are not dropped before they reach this function.
   it("wraps a bare boolean false as { metadata: 'false' }", () => {
     expect(convertJsonSchemaToRecord(false)).toEqual({ metadata: "false" });
   });
@@ -45,5 +44,28 @@ describe("convertJsonSchemaToRecord", () => {
         c: { d: true },
       },
     );
+  });
+});
+
+describe("convertIngestionMetadata", () => {
+  it.each([
+    [false, { metadata: "false" }],
+    [0, { metadata: "0" }],
+    ["", { metadata: "" }],
+    ["hello", { metadata: "hello" }],
+  ] as const)("keeps a bare %j metadata value", (metadata, expected) => {
+    expect(convertIngestionMetadata(metadata)).toEqual(expected);
+  });
+
+  it("treats null and undefined as omitted metadata", () => {
+    expect(convertIngestionMetadata(null)).toEqual({});
+    expect(convertIngestionMetadata(undefined)).toEqual({});
+  });
+
+  it("passes object metadata through unchanged", () => {
+    expect(convertIngestionMetadata({ enabled: false, n: 0 })).toEqual({
+      enabled: false,
+      n: 0,
+    });
   });
 });
