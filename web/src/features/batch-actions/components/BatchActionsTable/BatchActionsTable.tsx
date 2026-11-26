@@ -9,6 +9,7 @@ import { InfoIcon } from "@langfuse/icons";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { BatchActionStatus } from "@langfuse/shared";
 import type { CellContext } from "@tanstack/react-table";
 
@@ -39,7 +40,7 @@ function BatchActionProgressCell({
   const failedCount = row.original.failedCount ?? 0;
 
   if (!totalCount) {
-    return <span className="text-muted-foreground">-</span>;
+    return <EmptyValue />;
   }
 
   return (
@@ -67,7 +68,7 @@ function BatchActionLogCell({
   const log = row.getValue("log") as string | null;
 
   if (!log) {
-    return <span className="text-muted-foreground">-</span>;
+    return <EmptyValue />;
   }
 
   return (
