@@ -634,7 +634,7 @@ function TraceContent({
       }
     : false;
   const messagesView = (
-    <div className={cn("min-h-0 flex-1", messagesOnly ? "p-3" : "p-4")}>
+    <div className={cn("min-h-0 flex-1", messagesOnly ? "px-3" : "p-4")}>
       <TraceMessagesView
         onOpenObservation={(traceId, observationId) => {
           const params = new URLSearchParams({
