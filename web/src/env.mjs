@@ -636,7 +636,13 @@ export const env = createEnv({
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
     LANGFUSE_INIT_PROJECT_RETENTION: z.coerce.number().int().gte(3).optional(),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z
+      .string()
+      .startsWith(
+        "pk-lf-",
+        "must start with 'pk-lf-', like every Langfuse public key. Set a new key here and in the apps that use it.",
+      )
+      .optional(),
     LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
     LANGFUSE_INIT_USER_EMAIL: z
       .union([z.email(), z.string().length(0)])

@@ -19,6 +19,7 @@ import {
   type UserId,
 } from "../../features/rbac/types";
 import { logger } from "../logger";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
@@ -213,6 +214,10 @@ async function generateKeyMaterial({
   const salt = env.SALT;
   if (!salt) {
     throw new Error("SALT is not set");
+  }
+
+  if (predefinedKeys && !predefinedKeys.publicKey.startsWith("pk-lf-")) {
+    throw new InvalidRequestError("Public keys must start with 'pk-lf-'");
   }
 
   let keys = predefinedKeys;
