@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
 import { QuestionTypeSelector } from "./QuestionTypeSelector";
@@ -24,34 +24,6 @@ export const Default = meta.story({
         }}
       />
     );
-  },
-});
-
-export const ShowsGuidanceFromTheInfoIcon = meta.story({
-  name: "(Test) Shows type guidance from the info icon",
-  args: {
-    value: DecisionModelQuestionType.CHOICE,
-    onValueChange: fn(),
-  },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.hover(canvas.getByLabelText("About Choice"));
-
-    await expect(
-      await within(document.body).findByRole("tooltip"),
-    ).toHaveTextContent("Writes a categorical score.");
-  },
-});
-
-export const KeepsTheTypeWhenTheInfoIconIsPressed = meta.story({
-  name: "(Test) Keeps the type when the info icon is pressed",
-  args: {
-    value: DecisionModelQuestionType.SCORE,
-    onValueChange: fn(),
-  },
-  play: async ({ args, canvas, userEvent }) => {
-    await userEvent.click(canvas.getByLabelText("About Choice"));
-
-    await expect(args.onValueChange).not.toHaveBeenCalled();
   },
 });
 

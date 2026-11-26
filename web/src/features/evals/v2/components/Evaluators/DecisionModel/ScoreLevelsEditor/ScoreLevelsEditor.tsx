@@ -45,7 +45,6 @@ export function ScoreLevelsEditor({
       label="Levels"
       size="wide"
       align="start"
-      hint="Low to high"
       info={
         <InfoTooltip label="About levels">
           Each level is one point on the scale. The model judges every level on
@@ -105,9 +104,11 @@ export function ScoreLevelsEditor({
             disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
             onClick={() => onChange([...levels, { description: "" }])}
           />
-          <span className="text-muted-foreground text-xs">
-            {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
-          </span>
+          {levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels - 1 ? (
+            <span className="text-muted-foreground text-xs">
+              {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
+            </span>
+          ) : null}
           <InfoTooltip label="About the score">
             The score is the probability-weighted average of the level numbers,
             so it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.

@@ -187,17 +187,7 @@ export function DecisionModelQuestionCard({
           onChange={onChange}
         />
 
-        <FieldRow
-          label="Score name"
-          size="wide"
-          align="start"
-          info={
-            <InfoTooltip label="About score names">
-              Each question writes its own score under this name. Keep it
-              stable: renaming starts a new score series.
-            </InfoTooltip>
-          }
-        >
+        <FieldRow label="Score name" size="wide" align="start">
           <div className="flex flex-wrap items-center gap-3">
             <Input
               id={`${id}-score-name`}

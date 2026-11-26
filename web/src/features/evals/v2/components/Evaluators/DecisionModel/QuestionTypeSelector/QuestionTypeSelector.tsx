@@ -8,7 +8,6 @@ import {
 } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -57,9 +56,8 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. Each option's info icon says what it does, gives an
- * example and when to use it; the same text describes its tab to assistive
- * technology.
+ * Picks the question type. Each tab is described to assistive technology with
+ * what the type does, an example and when to use it.
  */
 export function QuestionTypeSelector({
   value,
@@ -89,27 +87,6 @@ export function QuestionTypeSelector({
               aria-describedby={`${helpIdPrefix}-${type}`}
             >
               {copy.label}
-              {/* Keeps a press on the info icon from selecting the tab. */}
-              <span
-                role="presentation"
-                aria-hidden="true"
-                className="inline-flex"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-              >
-                <InfoTooltip label={`About ${copy.label}`}>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="font-bold">{copy.summary}</p>
-                    <p className="text-muted-foreground">
-                      e.g. “{copy.example}”
-                    </p>
-                    <p>Writes {copy.writes}.</p>
-                    <p>{copy.whenToUse}</p>
-                  </div>
-                </InfoTooltip>
-              </span>
             </Tabs.Trigger>
           );
         })}
