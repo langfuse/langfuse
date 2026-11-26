@@ -192,7 +192,7 @@ impl Guardrails {
             let body_bytes = body.len();
             // Parsed `serde_json::Value` trees hold roughly 3x the raw JSON size
             // while guardrails inspect them; reserve up front and release on drop.
-            let mut parse_reservation = (body_bytes > 0)
+            let parse_reservation = (body_bytes > 0)
                 .then(|| {
                     MemoryReservation::from_budget(
                         &self.memory_budget,
@@ -225,11 +225,13 @@ impl Guardrails {
                 .ok_or(ResolutionError::Busy)?;
             let mut eval = local?;
             let external_duration = if !eval.is_blocking() && !eval.blocks.is_empty() {
+                // Keep `parse_reservation` alive until `finalize_response` consumes `parsed`.
+                let mut no_drop = None;
                 self.evaluate_external(
                     &guardrails,
                     GuardrailLocation::Response,
                     &mut eval,
-                    &mut parse_reservation,
+                    &mut no_drop,
                     &organization_id,
                 )
                 .await?
@@ -699,8 +701,7 @@ impl GuardrailRejection {
 
     pub(crate) fn http_status(&self) -> axum::http::StatusCode {
         match (self.location, self.reason) {
-            (_, BlockReason::Policy)
-            | (GuardrailLocation::Request, BlockReason::Unreadable) => {
+            (_, BlockReason::Policy) | (GuardrailLocation::Request, BlockReason::Unreadable) => {
                 axum::http::StatusCode::BAD_REQUEST
             }
             (_, BlockReason::RateLimited) => axum::http::StatusCode::TOO_MANY_REQUESTS,

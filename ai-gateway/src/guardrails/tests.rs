@@ -907,6 +907,18 @@ fn truncated_or_malformed_sse_fails_closed_for_output_guardrails() {
         too_large.message(),
         r#"Response too large for guardrail "block name""#
     );
+
+    let duplicate_key = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"123-45-6789","content":"safe"}}]}"#;
+    let dup_outcome = check_response_local(
+        &guardrails,
+        ApiFormat::OpenAiChatCompletions,
+        ResponseFormat::Json,
+        duplicate_key,
+    );
+    assert_eq!(
+        dup_outcome.blocking().map(|finding| finding.id.as_str()),
+        Some("block")
+    );
 }
 
 #[test]

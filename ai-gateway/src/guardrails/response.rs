@@ -6,11 +6,15 @@
 //! [`ResponseBlock`]. When no guardrail redacts the response, the caller relays
 //! the original raw bytes untouched; when redaction fires, modified strings and
 //! `logprobs` token copies are rewritten in place via JSON pointers.
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, header};
-use serde_json::Value;
+use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
+use serde_json::{Map, Number, Value};
 
 use crate::{guardrails::text::Unreadable, resolution::ApiFormat, transport::identity_encoding};
 
@@ -270,8 +274,81 @@ fn ptr_index(base: &str, index: usize) -> String {
 // Non-streaming JSON extraction
 // ---------------------------------------------------------------------------
 
+/// Parses JSON into [`Value`] while rejecting any object with duplicate keys
+/// so hidden earlier keys cannot bypass response guardrails.
+fn parse_unique_json(bytes: &[u8]) -> Result<Value, Unreadable> {
+    struct UniqueValue;
+
+    impl<'de> DeserializeSeed<'de> for UniqueValue {
+        type Value = Value;
+
+        fn deserialize<D: serde::Deserializer<'de>>(
+            self,
+            deserializer: D,
+        ) -> Result<Self::Value, D::Error> {
+            deserializer.deserialize_any(self)
+        }
+    }
+
+    impl<'de> Visitor<'de> for UniqueValue {
+        type Value = Value;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("any valid JSON value without duplicate object keys")
+        }
+
+        fn visit_bool<E>(self, v: bool) -> Result<Value, E> {
+            Ok(Value::Bool(v))
+        }
+        fn visit_i64<E>(self, v: i64) -> Result<Value, E> {
+            Ok(Value::Number(v.into()))
+        }
+        fn visit_u64<E>(self, v: u64) -> Result<Value, E> {
+            Ok(Value::Number(v.into()))
+        }
+        fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Value, E> {
+            Number::from_f64(v)
+                .map(Value::Number)
+                .ok_or_else(|| E::custom("non-finite float"))
+        }
+        fn visit_str<E>(self, v: &str) -> Result<Value, E> {
+            Ok(Value::String(v.to_owned()))
+        }
+        fn visit_string<E>(self, v: String) -> Result<Value, E> {
+            Ok(Value::String(v))
+        }
+        fn visit_unit<E>(self) -> Result<Value, E> {
+            Ok(Value::Null)
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
+            let mut items = Vec::new();
+            while let Some(item) = seq.next_element_seed(UniqueValue)? {
+                items.push(item);
+            }
+            Ok(Value::Array(items))
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
+            let mut entries = Map::new();
+            while let Some(key) = map.next_key::<String>()? {
+                if entries.contains_key(&key) {
+                    return Err(A::Error::custom("duplicate object key"));
+                }
+                let value = map.next_value_seed(UniqueValue)?;
+                entries.insert(key, value);
+            }
+            Ok(Value::Object(entries))
+        }
+    }
+
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    UniqueValue
+        .deserialize(&mut deserializer)
+        .and_then(|value| deserializer.end().map(|()| value))
+        .map_err(|_| Unreadable)
+}
+
 fn parse_json(api_format: ApiFormat, body: &[u8]) -> Result<ParsedResponse, Unreadable> {
-    let value: Value = serde_json::from_slice(body).map_err(|_| Unreadable)?;
+    let value = parse_unique_json(body)?;
     if !value.is_object() {
         return Err(Unreadable);
     }
@@ -695,7 +772,7 @@ fn split_sse_frames(body: &[u8]) -> Result<Vec<SseFrame>, Unreadable> {
                 if payload == "[DONE]" {
                     None
                 } else {
-                    Some(serde_json::from_str(&payload).map_err(|_| Unreadable)?)
+                    Some(parse_unique_json(payload.as_bytes())?)
                 }
             };
             frames.push(SseFrame {
@@ -878,7 +955,7 @@ fn extract_anthropic_sse(
 fn extract_anthropic_sse_delta(
     frame_idx: usize,
     index: u64,
-    delta: &serde_json::Map<String, Value>,
+    delta: &Map<String, Value>,
     collector: &mut StreamCollector,
 ) {
     match delta.get("type").and_then(Value::as_str) {

@@ -3225,18 +3225,13 @@ async fn bedrock_output_guardrail_uses_output_source_and_anonymizes_or_blocks_ss
         ExecutionLimits::default(),
     )
     .await;
-    let response = gateway
-        .post()
-        .bearer_auth("gateway-key")
-        .body(r#"{"model":"Production key:gpt-4.1","stream":true,"input":"hi"}"#)
-        .send()
-        .await
-        .unwrap();
+    let payload = r#"{"model":"Production key:gpt-4.1","stream":true,"input":"hi"}"#;
+    let send = |gw: &Gateway| gw.post().bearer_auth("gateway-key").body(payload).send();
+    let response = send(&gateway).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(bedrock.calls(), 1);
     let delivered = response.text().await.unwrap();
-    assert!(!delivered.contains("555-"));
-    assert!(!delivered.contains("0199"));
+    assert!(!delivered.contains("555-") && !delivered.contains("0199"));
     assert_eq!(delivered.matches("Call {PHONE} now").count(), 4);
     telemetry
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
@@ -3262,13 +3257,7 @@ async fn bedrock_output_guardrail_uses_output_source_and_anonymizes_or_blocks_ss
         ExecutionLimits::default(),
     )
     .await;
-    let response = gateway
-        .post()
-        .bearer_auth("gateway-key")
-        .body(r#"{"model":"Production key:gpt-4.1","stream":true,"input":"hi"}"#)
-        .send()
-        .await
-        .unwrap();
+    let response = send(&gateway).await.unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
     assert_eq!(body["error"]["code"], "guardrail_unavailable");

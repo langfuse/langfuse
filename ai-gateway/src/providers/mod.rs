@@ -21,7 +21,9 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     cpu::CpuWork,
-    guardrails::{BlockReason, Guardrail, GuardrailRejection, Guardrails, response::ResponseFormat},
+    guardrails::{
+        BlockReason, Guardrail, GuardrailRejection, Guardrails, response::ResponseFormat,
+    },
     inference::MemoryReservation,
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{
