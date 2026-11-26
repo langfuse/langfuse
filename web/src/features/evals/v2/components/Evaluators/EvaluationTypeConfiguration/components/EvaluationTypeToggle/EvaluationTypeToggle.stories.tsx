@@ -54,7 +54,7 @@ export const Narrow = meta.story({
   render: StatefulEvaluationTypeToggle,
 });
 export const SwitchesToDropdownInNarrowSlot = meta.story({
-  name: "(Test) Switches To Dropdown In Narrow Slot",
+  name: "(Test) Switches to a dropdown in a narrow slot",
   args: { value: EvalTemplateTypeEnum.LLM_AS_JUDGE, onValueChange: fn() },
   render: StatefulEvaluationTypeToggle,
   decorators: [
