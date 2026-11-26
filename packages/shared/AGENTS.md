@@ -16,7 +16,7 @@
 ## High-Signal Entry Points
 
 - Main exports: `src/index.ts`
-- Dashboard block formats live in `src/features/dashboards/`. Normalize multi-query charts for display or editing; API reads and round-trips preserve their stored configuration version. A converted Home preset retains its original grid placement. Readers that support conversions render the saved chart in that slot by matching its placement and preset IDs.
+- Dashboard widget formats live in `src/features/dashboards/`. Saved `DashboardWidget.definition` owns versioned charts and Markdown; dashboards use ordinary widget placements. A null definition uses the classic query fields. Normalize multi-query configurations for display or editing; reads preserve their stored version. `src/server/services/DashboardService/widget-definition-storage.ts` owns revision-checked widget saves, atomic Home-card replacement and compatibility conversion of older inline layouts. New authoring must create saved widgets, not inline dashboard content.
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
 - CloudWatch metrics: `recordGauge` batches values; windowed measurements can
