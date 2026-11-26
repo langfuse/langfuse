@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown, Info } from "@langfuse/icons";
 
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -16,6 +16,7 @@ const markerVariants = cva(
       },
       size: {
         default: "size-7 text-sm",
+        md: "size-6 text-xs",
         sm: "size-5 text-xs",
       },
       status: {
@@ -31,6 +32,7 @@ const headerVariants = cva("flex items-center gap-1.5 text-left", {
   variants: {
     size: {
       default: "min-h-7",
+      md: "min-h-6",
       sm: "min-h-5",
     },
   },
@@ -40,6 +42,7 @@ const titleVariants = cva("font-bold", {
   variants: {
     size: {
       default: "text-lg",
+      md: "text-base",
       sm: "text-sm",
     },
     status: {
@@ -54,6 +57,7 @@ const descriptionVariants = cva("text-muted-foreground", {
   variants: {
     size: {
       default: "text-sm",
+      md: "text-sm",
       sm: "text-xs",
     },
   },
@@ -62,11 +66,16 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
-  /** Shown in an info tooltip beside the title, outside the collapse control. */
-  tooltipText?: string;
+  /** Shown in an info tooltip in the header, outside the collapse control. Text, or a short list. */
+  tooltip?: ReactNode;
   description?: ReactNode;
+  /**
+   * A control after the title; stays visible when collapsed. The title then
+   * takes a field label's width, so the control lines up with labelled rows.
+   */
+  headerEnd?: ReactNode;
   variant?: "filled" | "outline";
-  size?: "default" | "sm";
+  size?: "default" | "md" | "sm";
   /** Complete swaps the number for a check; upcoming mutes the step. */
   status?: "current" | "complete" | "upcoming";
   compactBottomSpacing?: boolean;
@@ -97,8 +106,9 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
-  tooltipText,
+  tooltip,
   description,
+  headerEnd,
   variant = "filled",
   size = "default",
   status = "current",
@@ -112,6 +122,10 @@ export function Stepper({
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
   const hasBody = Boolean(description) || Boolean(children);
+  const titleClassName = cn(
+    titleVariants({ size, status }),
+    headerEnd ? "min-w-16 text-left" : null,
+  );
 
   const toggle = () => {
     const nextOpen = !expanded;
@@ -155,13 +169,20 @@ export function Stepper({
                   !expanded && "-rotate-90",
                 )}
               />
-              <span className={titleVariants({ size, status })}>{title}</span>
+              <span className={titleClassName}>{title}</span>
             </button>
           ) : (
-            <span className={titleVariants({ size, status })}>{title}</span>
+            <span className={titleClassName}>{title}</span>
           )}
-          {tooltipText ? (
-            <Tooltip label={tooltipText}>
+          {headerEnd ? (
+            <div className="-my-1 ml-0.5 flex shrink-0 items-center">
+              {headerEnd}
+            </div>
+          ) : null}
+          {tooltip ? (
+            <CustomTooltip
+              content={<div className="whitespace-pre-line">{tooltip}</div>}
+            >
               {({ getTriggerProps }) => (
                 <button
                   {...getTriggerProps()}
@@ -172,7 +193,7 @@ export function Stepper({
                   <Info aria-hidden size="base" color="muted" />
                 </button>
               )}
-            </Tooltip>
+            </CustomTooltip>
           ) : null}
         </div>
         {expanded && hasBody ? (
