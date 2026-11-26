@@ -55,7 +55,7 @@ export function SessionTraceTrack({
       ref={trackRef}
       role="group"
       aria-label="Session timeline"
-      className="bg-muted relative flex h-[22px] min-w-0 flex-1 gap-px overflow-hidden rounded-md p-0.5"
+      className="bg-muted relative flex h-[22px] min-w-0 flex-1 overflow-hidden rounded-md p-0.5"
     >
       {pieces.map((piece, index) => {
         const trace = piece.trace;
@@ -66,7 +66,8 @@ export function SessionTraceTrack({
         return (
           <span
             key={trace ? trace.id : `${piece.tone}-${index}`}
-            className="contents"
+            className="flex h-full min-w-0 px-px"
+            style={{ flexGrow: piece.width, flexBasis: 0 }}
           >
             {renderPiece(piece, interactive, traces.length, onSelect, edge)}
           </span>
@@ -271,13 +272,12 @@ function renderPiece(
   return (
     <span
       className={cn(
-        "h-full min-w-0",
+        "h-full w-full min-w-0",
         pieceClassName[piece.tone],
         piece.tone === "fill" && "min-w-1",
       )}
       data-edge={edge}
       data-active={piece.tone === "fill" ? "" : undefined}
-      style={{ flexGrow: piece.width, flexBasis: 0 }}
     />
   );
 }
@@ -313,14 +313,13 @@ function TraceSegmentButton({
           type="button"
           aria-label={label}
           className={cn(
-            "ph-no-capture h-full min-w-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-observation-trace-line",
+            "ph-no-capture h-full w-full min-w-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-observation-trace-line",
             piece.tone === "fill"
               ? "bg-observation-trace-line hover:brightness-110 min-w-1 rounded-sm shadow-sm dark:shadow-none"
               : "bg-observation-trace-line/20 hover:bg-observation-trace-line/30 rounded-sm",
           )}
           data-edge={edge}
           data-active={piece.tone === "fill" ? "" : undefined}
-          style={{ flexGrow: piece.width, flexBasis: 0 }}
           onClick={onSelect}
           {...getTriggerProps()}
         />
@@ -355,8 +354,7 @@ function IdleGap({
           role="img"
           data-edge={edge}
           aria-label={label}
-          className={cn("h-full min-w-0", pieceClassName.idle)}
-          style={{ flexGrow: piece.width, flexBasis: 0 }}
+          className={cn("h-full w-full min-w-0", pieceClassName.idle)}
           {...getTriggerProps()}
           tabIndex={-1}
         />

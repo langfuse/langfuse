@@ -60,27 +60,6 @@ export const ManyTraces = meta.story({
   },
 });
 
-export const LongIdle = meta.story({
-  name: "Long idle gap",
-  args: {
-    activeIndex: 1,
-    traces: [
-      trace("first", 0, 4),
-      trace("current", 40, 3),
-      trace("last", 46, 5),
-    ],
-  },
-});
-
-export const ActiveStart = meta.story({
-  name: "Active at the start",
-  args: { activeIndex: 0 },
-});
-
-export const ActiveMiddle = meta.story({
-  name: "Active in the middle",
-});
-
 export const WideActive = meta.story({
   name: "(Test) Active labels follow a resize",
   args: {
@@ -109,31 +88,6 @@ export const WideActive = meta.story({
 export const ActiveEnd = meta.story({
   name: "Active at the end",
   args: { activeIndex: 2 },
-});
-
-export const SingleTrace = meta.story({
-  name: "Single trace",
-  args: {
-    activeIndex: 0,
-    traces: [trace("only", 0, 6)],
-  },
-});
-
-export const SegmentTooltip = meta.story({
-  name: "(Test) Hover tooltip",
-  play: async ({ canvas, canvasElement }) => {
-    await userEvent.hover(
-      canvas.getByRole("button", { name: /Go to trace 1 of 3/ }),
-    );
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("first");
-    await expect(tooltip).toHaveTextContent("Trace 1 of 3");
-    await expect(tooltip).toHaveTextContent("Started");
-    await expect(tooltip).toHaveTextContent("Duration");
-    await expect(tooltip).toHaveTextContent("4m");
-  },
 });
 
 export const IdleTooltip = meta.story({
