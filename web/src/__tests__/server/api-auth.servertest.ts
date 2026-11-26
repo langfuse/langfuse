@@ -6,7 +6,7 @@ import {
   createOrgProjectAndApiKey,
   createShaHash,
   generateKeySet,
-  getDisplaySecretKey,
+  redactApiKey,
   hashSecretKey,
   logger,
 } from "@langfuse/shared/src/server";
@@ -271,7 +271,7 @@ describe("Authenticate API calls", () => {
           projectId: testApiKey.projectId,
           publicKey: legacyPublicKey,
           hashedSecretKey: await hashSecretKey(legacySecretKey),
-          displaySecretKey: getDisplaySecretKey(legacySecretKey),
+          displaySecretKey: redactApiKey(legacySecretKey),
           scope: "PROJECT",
         },
       });
@@ -403,9 +403,7 @@ describe("Authenticate API calls", () => {
         .find((message) => message.includes("Public key mismatch"));
       expect(mismatchWarning).toBeDefined();
       expect(mismatchWarning).not.toContain(testApiKey.secretKey);
-      expect(mismatchWarning).toContain(
-        getDisplaySecretKey(testApiKey.secretKey),
-      );
+      expect(mismatchWarning).toContain(redactApiKey(testApiKey.secretKey));
       expect(mismatchWarning).toContain(testApiKey.publicKey);
 
       warnSpy.mockRestore();
@@ -547,7 +545,7 @@ describe("Authenticate API calls", () => {
           projectId: testApiKey.projectId,
           publicKey: legacyPublicKey,
           hashedSecretKey: await hashSecretKey(legacySecretKey),
-          displaySecretKey: getDisplaySecretKey(legacySecretKey),
+          displaySecretKey: redactApiKey(legacySecretKey),
           scope: "PROJECT",
         },
       });

@@ -28,23 +28,13 @@ import { withTransaction } from "../utils/withTransaction";
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
-export function getDisplaySecretKey(secretKey: string) {
-  return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
-}
+const secretKeyPattern = new RegExp(`${secretKeyPrefix}[A-Za-z0-9_-]+`, "g");
 
-const LANGFUSE_SECRET_KEY_PATTERN = new RegExp(
-  `${secretKeyPrefix}[A-Za-z0-9_-]+`,
-  "g",
-);
-
-/**
- * Replaces every Langfuse secret key inside a user-controlled string with its
- * display form (`sk-lf-...abcd`), so the value can be logged or attached to a
- * span without exposing the secret.
- */
-export function redactLangfuseSecretKeys(value: string): string {
-  return value.replace(LANGFUSE_SECRET_KEY_PATTERN, (match) =>
-    getDisplaySecretKey(match),
+/** redactApiKey masks every Langfuse secret key in a value to its display form, `sk-lf-...abcd`. */
+export function redactApiKey(value: string): string {
+  return value.replace(
+    secretKeyPattern,
+    (secretKey) => `${secretKeyPrefix}...${secretKey.slice(-4)}`,
   );
 }
 
@@ -55,7 +45,8 @@ export function formatSubmittedPublicKeyForLog(value: string): string {
   let formatted: string;
   if (value.startsWith(publicKeyPrefix)) formatted = value;
   else if (value.length < 12) formatted = "****";
-  else formatted = getDisplaySecretKey(value);
+  else if (value.startsWith(secretKeyPrefix)) formatted = redactApiKey(value);
+  else formatted = `...${value.slice(-4)}`;
 
   return JSON.stringify(
     formatted
@@ -239,7 +230,7 @@ async function generateKeyMaterial({
     publicKey: keys.publicKey,
     hashedSecretKey: createLegacySecretKeyPlaceholder(),
     fastHashedSecretKey: createShaHash(keys.secretKey, salt),
-    displaySecretKey: getDisplaySecretKey(keys.secretKey),
+    displaySecretKey: redactApiKey(keys.secretKey),
     secretKey: keys.secretKey,
   };
 }

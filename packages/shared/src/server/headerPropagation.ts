@@ -8,7 +8,7 @@ import {
   type ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
 import { extractPublicApiCallerAttribution } from "./ingestion/ingestionAttribution";
-import { redactLangfuseSecretKeys } from "./auth/apiKeys";
+import { redactApiKey } from "./auth/apiKeys";
 
 export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
@@ -48,7 +48,7 @@ export const contextWithLangfuseProps = (
     (env.LANGFUSE_LOG_PROPAGATED_HEADERS as string[]).forEach((name) => {
       const value = props.headers![name];
       if (!value) return;
-      const strValue = redactLangfuseSecretKeys(
+      const strValue = redactApiKey(
         Array.isArray(value) ? JSON.stringify(value) : value,
       );
       baggage = baggage.setEntry(`langfuse.header.${name}`, {
@@ -64,7 +64,7 @@ export const contextWithLangfuseProps = (
       ) {
         const value = props.headers![name];
         if (!value) return;
-        const strValue = redactLangfuseSecretKeys(
+        const strValue = redactApiKey(
           Array.isArray(value) ? JSON.stringify(value) : value,
         );
         baggage = baggage.setEntry(`langfuse.header.${name}`, {

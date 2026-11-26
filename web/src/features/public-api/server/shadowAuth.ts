@@ -6,7 +6,7 @@ import {
   type ApiAccessLevel,
   type ApiAccessScope,
   logger,
-  redactLangfuseSecretKeys,
+  redactApiKey,
   redis,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -80,7 +80,7 @@ function enforceInfrastructureError(error: unknown): ErrorResult<BaseError> {
 
 function logAuthenticationError(error: unknown): void {
   logger.error("Public API authentication failed", {
-    error: redactLangfuseSecretKeys(errorDiagnostic(error)),
+    error: redactApiKey(errorDiagnostic(error)),
   });
 }
 

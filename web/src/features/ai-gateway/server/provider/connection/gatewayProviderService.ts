@@ -19,7 +19,7 @@ import {
   testModelCall,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
-import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { GatewayApiKeyRepository } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyRepository";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -735,7 +735,7 @@ function toStoredCredential(provider: GatewayProvider, credential: string) {
 function toDisplaySecret(provider: GatewayProvider, credential: string) {
   return provider === "VERTEX"
     ? parseVertexServiceAccountKey(credential).client_email
-    : getDisplaySecretKey(credential);
+    : getDisplayCredential(credential);
 }
 
 function parseVertexCredential(credential: string) {

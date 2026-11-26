@@ -16,7 +16,7 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
-import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
+import { createApiKey, logger } from "../../src/server";
 import {
   OrganizationId,
   ProjectId,
@@ -54,6 +54,9 @@ const options = {
 
 const prisma = new PrismaClient();
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
+
+/** displayCredential masks a third-party credential to its last four characters. */
+const displayCredential = (secret: string) => `...${secret.slice(-4)}`;
 const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
@@ -287,7 +290,7 @@ async function main() {
         data: {
           projectId: project1.id,
           secretKey: encrypt(OPENAI_API_KEY),
-          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
+          displaySecretKey: displayCredential(OPENAI_API_KEY),
           provider: "openai",
           adapter: "openai",
         },
@@ -537,7 +540,7 @@ async function seedAiGateway(params: {
           name: "OpenAI production",
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-seed-openai-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
+          displaySecret: displayCredential("sk-seed-openai-not-valid"),
           createdById: params.userId,
           status: "ENABLED",
         },
@@ -547,7 +550,7 @@ async function seedAiGateway(params: {
           name: "Anthropic production",
           provider: "ANTHROPIC",
           encryptedCredential: encrypt("sk-ant-seed-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
+          displaySecret: displayCredential("sk-ant-seed-not-valid"),
           createdById: params.userId,
           status: "ENABLED",
         },

@@ -8,7 +8,7 @@ import {
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
   createShaHash,
-  getDisplaySecretKey,
+  redactApiKey,
 } from "@langfuse/shared/src/server";
 import {
   ApiKeyId,
@@ -184,7 +184,7 @@ const createUnassignedApiKey = async (scope: "PROJECT" | "ORGANIZATION") => {
       publicKey,
       hashedSecretKey: `unused-fast-hash-${randomUUID()}`,
       fastHashedSecretKey: createShaHash(secretKey, env.SALT),
-      displaySecretKey: getDisplaySecretKey(secretKey),
+      displaySecretKey: redactApiKey(secretKey),
     },
   });
   return { apiKey, authorization: createBasicAuthHeader(publicKey, secretKey) };
