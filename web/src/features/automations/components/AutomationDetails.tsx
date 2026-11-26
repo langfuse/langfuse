@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Edit } from "@langfuse/icons";
-import { AutomationForm } from "./AutomationForm";
+import { ConnectedAutomationForm } from "./ConnectedAutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
@@ -111,7 +111,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   return (
     <div className="flex flex-col gap-6">
       {isEditing ? (
-        <AutomationForm
+        <ConnectedAutomationForm
           projectId={projectId}
           onSuccess={handleSaveEdit}
           onCancel={handleCancelEdit}
@@ -164,7 +164,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
-            <AutomationForm
+            <ConnectedAutomationForm
               projectId={projectId}
               automation={automationForForm}
               isEditing={false}
@@ -189,7 +189,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
 
               <Tabs.Content value="configuration">
                 <div className="mt-6">
-                  <AutomationForm
+                  <ConnectedAutomationForm
                     projectId={projectId}
                     automation={automationForForm}
                     isEditing={false}
