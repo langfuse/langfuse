@@ -691,92 +691,77 @@ describe("typed params from the column registry", () => {
       expect(sql).toMatch(/is_deleted = \{p\d+:Int64\}/);
     });
 
+    // `metadata` is a column of `scores`, so `metadata.a` compiles as its
+    // subcolumn, whose type the registry does not record.
     it.each([
       [
-        // No FROM or JOIN in scope is named `x`.
-        "a qualifier declared nowhere",
+        "a subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(db.dynamic.ref("x.is_deleted"), "=", 0),
-        /Qualifier "x" names no relation/,
+            .selectFrom("scores")
+            .select("id")
+            .where(db.dynamic.ref("metadata.a"), "=", "v"),
       ],
       [
         // `sql.ref` names a column like a plain reference does.
-        "a sql.ref column whose qualifier is declared nowhere",
+        "a sql.ref subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(sql_.ref("x.is_deleted"), "=", 0),
-        /Qualifier "x" names no relation/,
+            .selectFrom("scores")
+            .select("id")
+            .where(sql_.ref("metadata.a"), "=", "v"),
       ],
       [
-        "a CTE qualified * whose qualifier no relation declares",
+        // Each tuple position takes its column's type.
+        "a TupleParam whose tuple has a subcolumn",
         () =>
           db
-            .with("t", (qb) =>
-              qb.selectFrom("events as e").selectAll("x" as never),
-            )
-            .selectFrom("t as t")
-            .select(db.dynamic.ref("t.span_id"))
-            .where(db.dynamic.ref("t.start_time"), ">=", START),
-        /Qualifier "x" names no relation/,
-      ],
-      [
-        // Each tuple position takes its column's type; `x.a` has none.
-        "a TupleParam whose tuple has a column declared nowhere",
-        () =>
-          db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), [
-                new TupleParam(["a", "s"]),
+              tupleIn(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), [
+                new TupleParam(["v", "i"]),
               ]),
             ),
-        /Qualifier "x" names no relation/,
       ],
       [
         // Each value binds with the type of the column at its position.
-        "a tuple of values against a tuple with a column declared nowhere",
+        "a tuple of values against a tuple with a subcolumn",
         () =>
           db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              eb(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), "in", [
-                eb.tuple("a", "s"),
+              eb(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), "in", [
+                eb.tuple("v", "i"),
               ]),
             ),
-        /Qualifier "x" names no relation/,
       ],
       [
-        // An empty list has no value to infer from, so `x.a` decides its type.
-        "an empty TupleParam list whose tuple has a column declared nowhere",
+        // An empty list has no value to infer from, so `metadata.a` decides its type.
+        "an empty TupleParam list whose tuple has a subcolumn",
         () =>
           db
-            .selectFrom("events as e")
-            .select("e.span_id")
+            .selectFrom("scores as s")
+            .select("s.id")
             .where((eb) =>
-              tupleIn(eb.refTuple(db.dynamic.ref("x.a"), "e.span_id"), []),
+              tupleIn(eb.refTuple(db.dynamic.ref("metadata.a"), "s.id"), []),
             ),
-        /Qualifier "x" names no relation/,
       ],
       [
         // An IN list binds an array of the column's type.
-        "an IN list against a qualifier declared nowhere",
+        "an IN list against a subcolumn",
         () =>
           db
-            .selectFrom("events")
-            .select("span_id")
-            .where(db.dynamic.ref("x.trace_id"), "in", ["a", "b"]),
-        /Qualifier "x" names no relation/,
+            .selectFrom("scores")
+            .select("id")
+            .where(db.dynamic.ref("metadata.a"), "in", ["v", "w"]),
       ],
-    ])("rejects a value bound against %s", (_, build, message) => {
+    ])("rejects a value bound against %s", (_, build) => {
       expect(() => compile(build())).toThrow(QueryCompileError);
-      expect(() => compile(build())).toThrow(message);
+      expect(() => compile(build())).toThrow(
+        /Cannot type the value compared to metadata\.a: "metadata" names no relation in scope/,
+      );
     });
   });
 
