@@ -823,6 +823,7 @@ export function Timeline({
     originMs: prepared.originMs,
     compression,
     packed,
+    chartHeight,
   });
   layoutRef.current = {
     limits,
@@ -836,6 +837,7 @@ export function Timeline({
     originMs: prepared.originMs,
     compression,
     packed,
+    chartHeight,
   };
 
   /**
@@ -1158,14 +1160,21 @@ export function Timeline({
       notifyHoverRef.current(next);
     },
     onZoom: (levels, anchor) => {
-      const { railWidth: rail, laneWidth: width } = layoutRef.current;
-      const surfaceWidth =
-        surfaceRef.current?.getBoundingClientRect().width ?? width + rail;
+      const {
+        railWidth: rail,
+        laneWidth: width,
+        chartHeight: tall,
+      } = layoutRef.current;
+      const rect = surfaceRef.current?.getBoundingClientRect();
+      const surfaceWidth = rect?.width ?? width + rail;
+      const surfaceHeight = rect?.height ?? tall;
       const next = zoomAndAnchorRef.current(viewportRef.current, {
         factor: 2 ** levels,
         xRatio:
           (anchor.x * surfaceWidth - rail) / Math.max(surfaceWidth - rail, 1),
-        yRatio: anchor.y,
+        // The lanes occupy chartHeight at the top of a taller surface. A
+        // ratio of the whole surface puts the anchor above the lane it hit.
+        yRatio: clampRatio((anchor.y * surfaceHeight) / Math.max(tall, 1)),
       });
       viewportRef.current = next;
       setViewport(next);
@@ -1312,10 +1321,8 @@ export function Timeline({
           rect.width > rail
             ? clampRatio((midpoint.x - rect.left - rail) / (rect.width - rail))
             : 0.5;
-        queued.yRatio =
-          rect.height > 0
-            ? clampRatio((midpoint.y - rect.top) / rect.height)
-            : 0.5;
+        const tall = Math.max(layoutRef.current.chartHeight, 1);
+        queued.yRatio = clampRatio((midpoint.y - rect.top) / tall);
       }
       queued.dxPx += midpoint.x - active.midpoint.x;
       queued.dyPx += midpoint.y - active.midpoint.y;
