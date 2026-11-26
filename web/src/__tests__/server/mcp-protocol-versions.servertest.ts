@@ -159,4 +159,29 @@ describe("MCP protocol versions", () => {
       }
     },
   );
+
+  it("ends a 2026-07-28 subscriptions/listen response after its ack", async () => {
+    const client = new Client(
+      { name: "protocol-versions-test", version: "1.0.0" },
+      { versionNegotiation: { mode: { pin: "2026-07-28" } } },
+    );
+    await client.connect(new StreamableHTTPClientTransport(url));
+    const subscription = await client.listen({
+      toolsListChanged: true,
+      resourcesListChanged: true,
+    });
+    try {
+      // The server never sends change notifications, so it honors none and
+      // completes the listen response instead of holding it open.
+      expect(subscription.honoredFilter).toEqual({});
+      const outcome = await Promise.race([
+        subscription.closed,
+        new Promise((resolve) => setTimeout(() => resolve("open"), 2_000)),
+      ]);
+      expect(outcome).toBe("graceful");
+    } finally {
+      await subscription.close();
+      await client.close();
+    }
+  });
 });
