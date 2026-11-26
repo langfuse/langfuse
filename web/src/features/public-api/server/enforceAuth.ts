@@ -207,12 +207,16 @@ function getProjectId(
   }
 
   const boundProjectId = getBoundProjectId(context);
-  const inputProjectId = first([getPathProjectId(req), ...headerProjectIds]);
-  if (inputProjectId && !equal([boundProjectId, inputProjectId])) {
-    return unauthorizedProjectError(inputProjectId);
+  const inputProjectIds = [getPathProjectId(req), ...headerProjectIds];
+  const unauthorizedProjectId = inputProjectIds.find(
+    (id) => !equal([boundProjectId, id]),
+  );
+  if (unauthorizedProjectId) {
+    return unauthorizedProjectError(unauthorizedProjectId);
   }
 
-  const projectId = boundProjectId ?? inputProjectId ?? getUrlProjectId(req);
+  const projectId =
+    boundProjectId ?? first(inputProjectIds) ?? getUrlProjectId(req);
   if (!projectId) {
     return missingProjectError();
   }
