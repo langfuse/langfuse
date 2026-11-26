@@ -3,14 +3,8 @@ import type { GatewayGuardrailType } from "@langfuse/shared/src/db";
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
+  type GatewayGuardrailTemplateKind,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
-
-export type GatewayGuardrailTemplateKind =
-  | "pii"
-  | "secrets"
-  | "contains"
-  | "custom_regex"
-  | "bedrock";
 
 export type GatewayGuardrailTemplatePreview =
   | { kind: "snippet"; label: string; value: string }

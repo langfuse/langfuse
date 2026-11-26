@@ -19,6 +19,13 @@ import {
 
 export type GatewayGuardrailPresetGroup = "pii" | "secrets";
 
+export type GatewayGuardrailTemplateKind =
+  | "pii"
+  | "secrets"
+  | "contains"
+  | "custom_regex"
+  | "bedrock";
+
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
  * gateway holds no preset logic and a pattern change ships with the control
