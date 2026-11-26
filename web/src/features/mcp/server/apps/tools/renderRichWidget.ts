@@ -90,6 +90,8 @@ export async function renderRichWidget({
     throw new InvalidRequestError(
       "This widget tab no longer exists. Render the widget without tabId to select its first tab.",
     );
+  const sourceUrl = new URL(url);
+  sourceUrl.searchParams.set("tabId", tab.id);
   const environments = await getEnvironmentsForProject({
     projectId,
     fromTimestamp: window.fromTimestamp,
@@ -197,7 +199,7 @@ export async function renderRichWidget({
           unit,
         })),
       valuesTruncated: computed.values.length > 100,
-      url,
+      url: sourceUrl.toString(),
     }),
     meta: { widget: payload },
   });

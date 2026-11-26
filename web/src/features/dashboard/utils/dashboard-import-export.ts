@@ -240,7 +240,7 @@ export type DashboardImportParseResult =
  */
 export function parseDashboardImport(
   text: string,
-  params: { isV4: boolean },
+  params: { isV4: boolean; allowLegacyPresets?: boolean },
 ): DashboardImportParseResult {
   let parsedJson: unknown;
   try {
@@ -269,6 +269,17 @@ export function parseDashboardImport(
     return {
       status: "invalid",
       reason: "The dashboard configuration is malformed or not supported.",
+    };
+  }
+
+  if (
+    params.allowLegacyPresets === false &&
+    parsed.data.widgets.some((placement) => placement.type === "preset")
+  ) {
+    return {
+      status: "invalid",
+      reason:
+        "This file contains legacy Home cards. Add their editable replacements from Templates, or convert the cards before exporting. Nothing was imported.",
     };
   }
 

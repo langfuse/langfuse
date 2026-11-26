@@ -1,11 +1,22 @@
+import Page from "@/src/components/layouts/Page";
+import { MultiQueryChart } from "@/src/features/dashboard-blocks/multi-query/MultiQueryChart";
+import { DashboardMarkdown } from "@/src/features/dashboard-blocks/DashboardMarkdown";
+import {
+  rangeFromString,
+  toAbsoluteTimeRange,
+  DASHBOARD_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DashboardBlockEditor } from "@/src/features/dashboard-blocks/DashboardBlockEditor";
 import {
   HOME_DASHBOARD_PRESET_IDS,
   type HomeDashboardPresetId,
 } from "@langfuse/shared";
-import { toWidgetDefinition } from "@langfuse/shared/dashboards";
+import {
+  toWidgetDefinition,
+  normalizeMultiQueryConfig,
+} from "@langfuse/shared/dashboards";
 import { normalizeStoredWidgetFiltersForEditor } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -32,10 +43,19 @@ export function SavedWidgetEditor({
   const capture = usePostHogClientCapture();
   const { readPath, isResolved } = useReadPath();
   const capabilities = useDashboardBlockCapabilities(projectId, true);
-  const [dateRange] = useState(() => ({
+  const [fallbackRange] = useState(() => ({
     from: new Date(Date.now() - 30 * 86400000),
     to: new Date(),
   }));
+  const [selectedTabOverride, setSelectedTabId] = useState<string>();
+  const dateRange = useMemo(() => {
+    const value = router.query.dateRange;
+    return typeof value === "string"
+      ? (toAbsoluteTimeRange(
+          rangeFromString(value, DASHBOARD_AGGREGATION_OPTIONS, "last30Days"),
+        ) ?? fallbackRange)
+      : fallbackRange;
+  }, [router.query.dateRange, fallbackRange]);
   const adapted = (() => {
     try {
       return {
@@ -68,6 +88,14 @@ export function SavedWidgetEditor({
           config: { version: 1 as const, title: "", content: "" },
         }
       : undefined);
+  const requestedTabId =
+    typeof router.query.tabId === "string" ? router.query.tabId : undefined;
+  const selectedTabId =
+    definition?.kind === "multiQuery"
+      ? normalizeMultiQueryConfig(definition.config).tabs.find(
+          (tab) => tab.id === (selectedTabOverride ?? requestedTabId),
+        )?.id
+      : undefined;
   const back = () =>
     router.push(
       dashboardId
@@ -97,6 +125,44 @@ export function SavedWidgetEditor({
       definition: next,
     });
   const error = mutation.error?.message;
+  if (
+    widget?.definition &&
+    router.isReady &&
+    isResolved &&
+    readPath !== "unknown" &&
+    !capabilities.isPending &&
+    !capabilities.data?.[widget.definition.kind]
+  ) {
+    return (
+      <Page
+        withPadding
+        headerProps={{ title: widget.definition.config.title || widget.name }}
+      >
+        {widget.definition.kind === "markdown" ? (
+          <DashboardMarkdown
+            title={widget.definition.config.title}
+            content={widget.definition.config.content}
+          />
+        ) : (
+          <div className="flex h-[70vh] min-h-[400px] flex-col">
+            <p className="text-muted-foreground mb-3 text-sm">
+              {dateRange.from.toLocaleString()} –{" "}
+              {dateRange.to.toLocaleString()}
+            </p>
+            <MultiQueryChart
+              config={widget.definition.config}
+              projectId={projectId}
+              readPath={readPath}
+              dateRange={dateRange}
+              filterState={[]}
+              selectedTabId={selectedTabId}
+              onSelectTab={setSelectedTabId}
+            />
+          </div>
+        )}
+      </Page>
+    );
+  }
   return (
     <DialogController
       initialState={() => true}
@@ -105,7 +171,12 @@ export function SavedWidgetEditor({
       }}
       onBeforeClose={() => !mutation.isPending}
       renderDialog={() => {
-        if (!isResolved || readPath === "unknown" || capabilities.isPending)
+        if (
+          !router.isReady ||
+          !isResolved ||
+          readPath === "unknown" ||
+          capabilities.isPending
+        )
           return (
             <Dialog title="Opening widget" noCapture>
               <Dialog.Body>Loading widget editor…</Dialog.Body>
@@ -182,6 +253,7 @@ export function SavedWidgetEditor({
         return (
           <MultiQueryEditor
             initial={definition?.config}
+            initialTabId={selectedTabId}
             projectId={projectId}
             dateRange={dateRange}
             filterState={[]}

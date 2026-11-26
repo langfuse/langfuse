@@ -58,9 +58,7 @@ export const ResolveBeforeCreation = meta.story({
     );
     await userEvent.click(canvas.getByRole("button", { name: "Add widget" }));
     await waitFor(() =>
-      expect(
-        body.getByRole("menuitem", { name: /New multi-query chart/ }),
-      ).toBeVisible(),
+      expect(body.getByRole("menuitem", { name: /^New chart/ })).toBeVisible(),
     );
     await userEvent.click(body.getByRole("menuitem", { name: /^Markdown/ }));
     await expect(canvas.getByText("markdown editor opened")).toBeVisible();
@@ -106,7 +104,7 @@ export const MarkdownOnly = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Add widget" }));
     await waitFor(() => expect(body.getByRole("menu")).toBeVisible());
     await expect(
-      body.queryByRole("menuitem", { name: /New multi-query chart/ }),
+      body.queryByRole("menuitem", { name: /^New chart/ }),
     ).not.toBeInTheDocument();
     await userEvent.click(body.getByRole("menuitem", { name: /^Markdown/ }));
     await expect(canvas.getByText("markdown editor opened")).toBeVisible();
@@ -130,9 +128,7 @@ export const MultiQueryOnly = meta.story({
     await expect(
       body.queryByRole("menuitem", { name: /^Markdown/ }),
     ).not.toBeInTheDocument();
-    await userEvent.click(
-      body.getByRole("menuitem", { name: /New multi-query chart/ }),
-    );
+    await userEvent.click(body.getByRole("menuitem", { name: /^New chart/ }));
     await expect(canvas.getByText("multiQuery editor opened")).toBeVisible();
   },
 });

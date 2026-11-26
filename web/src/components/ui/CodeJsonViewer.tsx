@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
-import { default as React18JsonView } from "react18-json-view";
+import dynamic from "next/dynamic";
 import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
@@ -20,6 +20,9 @@ import {
   usePromptReferenceProjectId,
 } from "@/src/components/ui/PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+// Keep the JSON viewer's eval-based editor in a separate module scope.
+const React18JsonView = dynamic(() => import("react18-json-view"));
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 

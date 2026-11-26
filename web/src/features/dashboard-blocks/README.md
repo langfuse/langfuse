@@ -16,11 +16,15 @@ Dashboards use their existing `widgets` array of placements. Saving a chart crea
 
 Earlier dashboard documents may contain inline `blocks`, including converted Home cards. Readers continue to understand those documents. An explicit conversion materializes supported inline entries into widget records and placements in one transaction. Converted presets retain their original grid position. Inline notes and charts use their saved row anchors to determine placement. Repeating the conversion is safe. An unsupported configuration aborts the transaction so that its content remains available for a compatible reader.
 
+Layout writes preserve unrelated top-level document fields and untouched inline entries in PostgreSQL, including numeric values that cannot be represented exactly in JavaScript.
+
 ## Home card templates
 
 For authors with the feature flag, the Add widget interface offers the Home cards as starting templates. Choosing a template prepares a new editable widget. Editing an existing Home card opens its associated configuration in the same editor. Saving creates a saved widget and replaces that one preset placement atomically. The preset's size and position carry into the saved widget placement.
 
 Managed Home dashboards are copied into the project before editing. The copy becomes the editable destination. Existing preset readers remain available for dashboards that still contain preset placements.
+
+For enabled authors, importing a dashboard containing legacy Home cards is rejected before any writes. Convert those cards before exporting, or add their replacements from Templates. Classic import behavior remains unchanged for authors without the flag.
 
 The available templates cover traces, model costs, scores, observations over time, model usage, user consumption, scores over time, trace latency, generation latency, observation latency, model latencies, and score analytics. Template configuration accounts for the project's read path. Some legacy category and score analytics templates use the existing Home queries to preserve their data semantics.
 
@@ -31,6 +35,8 @@ The available templates cover traces, model costs, scores, observations over tim
 The employee opt-in uses the exact account email domains `@langfuse.com` and `@clickhouse.com`, case-insensitively. Internal view exposes enrollment. The personal flag defaults off. An employee can opt out in either view. Organization defaults and deployment-wide experimental settings cannot grant authoring.
 
 REST and MCP get/list expose saved widget definitions and revisions alongside the classic fields. Project keys can round-trip dashboard placements, preserving their widget references. Public widget POST/PATCH requests carrying a non-null definition return 403 during the employee authoring rollout. Classic PATCH requests targeting a rich widget return 409 rather than overwrite its content. Rich widget content is edited through the opted-in employee interface. MCP `renderWidget` renders saved and ad-hoc definitions using the dashboard chart renderer. It queries only the active tab, computes formulas from returned operands, preserves tab selection on refresh, and renders Markdown without an analytics query. Chat hosts with interactive tool calls can switch tabs directly; other hosts can request another tab by ID.
+
+Direct saved-widget links also render for readers without the authoring flag. MCP source links carry the effective query time range into that page.
 
 ## Frontend ownership
 

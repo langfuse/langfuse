@@ -142,38 +142,39 @@ async function writeLayout(
   projectId: string,
   dashboardId: string,
   layout: DashboardDefinition,
-  remaining: unknown[],
+  retainedInlineOrdinals: number[],
   userId?: string,
 ) {
-  const definition = remaining.length
-    ? {
-        version: "1",
-        widgets: layout.widgets,
-        blocks: [...layout.widgets, ...remaining],
-      }
-    : layout;
-  await tx.dashboard.update({
-    where: { id: dashboardId, projectId },
-    data: {
-      definition: definition as Prisma.InputJsonValue,
-      updatedBy: userId,
-    },
-  });
+  const classic = Prisma.sql`${JSON.stringify(layout)}::jsonb`;
+  // Keep opaque fields and untouched inline values inside PostgreSQL so numeric
+  // precision is not reduced by a round trip through JavaScript numbers.
+  const updated = retainedInlineOrdinals.length
+    ? Prisma.sql`(SELECT definition || grid || jsonb_build_object('version', '1', 'blocks', (grid->'widgets') || COALESCE((
+        SELECT jsonb_agg(entry ORDER BY ord)
+        FROM jsonb_array_elements(definition->'blocks') WITH ORDINALITY AS stored(entry, ord)
+        WHERE ord IN (${Prisma.join(retainedInlineOrdinals)})
+      ), '[]'::jsonb)) FROM (SELECT ${classic} AS grid) AS layout)`
+    : Prisma.sql`(definition - 'version' - 'blocks') || ${classic}`;
+  await tx.$executeRaw`
+    UPDATE dashboards SET definition = ${updated}, updated_at = CURRENT_TIMESTAMP,
+      updated_by = COALESCE(${userId ?? null}, updated_by)
+    WHERE id = ${dashboardId} AND project_id = ${projectId}
+  `;
 }
 
 function inlineEntries(raw: Record<string, Prisma.JsonValue>) {
   if (raw.blocks === undefined) return [];
   if (!Array.isArray(raw.blocks))
     throw new InvalidRequestError("Unsupported dashboard layout.");
-  return raw.blocks.filter((entry) => {
+  return raw.blocks.flatMap((entry, index) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry))
       throw new InvalidRequestError("Unsupported dashboard entry.");
-    if ("kind" in entry) return true;
+    if ("kind" in entry) return [{ value: entry, ordinal: index + 1 }];
     if (
       !DashboardDefinitionSchema.shape.widgets.element.safeParse(entry).success
     )
       throw new InvalidRequestError("Unsupported dashboard entry.");
-    return false;
+    return [];
   });
 }
 
@@ -235,17 +236,14 @@ export async function saveWidgetDefinition(
       : undefined;
     const remaining = dashboard ? inlineEntries(dashboard.raw) : [];
     const source = parsed.sourceBlockId
-      ? remaining.find(
-          (entry) =>
-            (entry as Record<string, unknown>).id === parsed.sourceBlockId,
-        )
+      ? remaining.find((entry) => entry.value.id === parsed.sourceBlockId)
       : undefined;
     if (parsed.sourceBlockId && !source)
       throw new LangfuseConflictError(
         "This dashboard widget was already converted or removed.",
       );
     const sourceBlock = source
-      ? storedInlineDashboardWidgetSchema.parse(source)
+      ? storedInlineDashboardWidgetSchema.parse(source.value)
       : undefined;
     if (sourceBlock && sourceBlock.revision !== parsed.expectedRevision)
       throw new LangfuseConflictError(
@@ -319,7 +317,9 @@ export async function saveWidgetDefinition(
         projectId,
         parsed.dashboardId,
         dashboard.layout,
-        remaining.filter((entry) => entry !== source),
+        remaining
+          .filter((entry) => entry !== source)
+          .map((entry) => entry.ordinal),
         userId,
       );
     }
@@ -340,7 +340,7 @@ export async function migrateInlineWidgets(
     const { raw, layout } = await lockDashboard(tx, projectId, dashboardId);
     const entries = inlineEntries(raw);
     const parsed = entries.map((entry) => {
-      const block = storedInlineDashboardWidgetSchema.safeParse(entry);
+      const block = storedInlineDashboardWidgetSchema.safeParse(entry.value);
       if (!block.success)
         throw new InvalidRequestError(
           "This dashboard contains a widget format this server cannot migrate.",

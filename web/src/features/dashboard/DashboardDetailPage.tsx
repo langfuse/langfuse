@@ -955,7 +955,10 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     async (file: File) => {
       const text = await file.text();
 
-      const dashboardResult = parseDashboardImport(text, { isV4 });
+      const dashboardResult = parseDashboardImport(text, {
+        isV4,
+        allowLegacyPresets: !authoringEnabled,
+      });
       if (dashboardResult.status === "dashboard") {
         await handleDashboardImport(dashboardResult.dashboard);
         return;
@@ -1025,6 +1028,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     },
     [
       isV4,
+      authoringEnabled,
       handleDashboardImport,
       handleParsedWidgetPaste,
       handlePastedPreset,

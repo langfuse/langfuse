@@ -294,6 +294,93 @@ describe("project dashboard blocks", () => {
     expect(failures).toEqual([]);
   });
 
+  it("preserves opaque JSON precision while saving and materializing widget placements", async () => {
+    const author = caller(projectId);
+    const sourceId = randomUUID();
+    const siblingId = randomUUID();
+    const opaqueId = randomUUID();
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Forward-compatible widget storage",
+        description: "",
+        definition: {
+          version: "1",
+          widgets: [],
+          extension: { mode: "future" },
+          blocks: [
+            ...[sourceId, siblingId].map((id) => ({
+              id,
+              kind: "markdown",
+              config: { version: 1, ...config },
+              revision: 1,
+              beforePlacementId: null,
+            })),
+            {
+              id: opaqueId,
+              kind: "future",
+              config: { version: 9 },
+              revision: 1,
+            },
+          ],
+        },
+      },
+    });
+    const target = { projectId, dashboardId: dashboard.id };
+    await prisma.$executeRaw`
+      UPDATE dashboards SET definition = jsonb_set(
+        jsonb_set(definition, '{extension,precision}', '9007199254740993.125000'::jsonb),
+        '{blocks,2,config,precision}', '9007199254740993.125000'::jsonb
+      ) WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    const untouched = () => prisma.$queryRaw<
+      {
+        extension: Uint8Array;
+        inline: Uint8Array | null;
+      }[]
+    >`
+      SELECT jsonb_send(definition->'extension') AS extension,
+        (SELECT jsonb_send(entry) FROM jsonb_array_elements(definition->'blocks') AS entry
+          WHERE entry->>'id' = ${opaqueId}) AS inline
+      FROM dashboards WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    const before = await untouched();
+    const definition = {
+      kind: "markdown" as const,
+      config: { version: 1 as const, ...config },
+    };
+    await author.dashboardWidgets.saveDefinition({ ...target, definition });
+    expect(await untouched()).toEqual(before);
+    await author.dashboardWidgets.saveDefinition({
+      ...target,
+      definition,
+      sourceBlockId: sourceId,
+      expectedRevision: 1,
+    });
+    expect(await untouched()).toEqual(before);
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).rejects.toThrow("cannot migrate");
+    expect(await untouched()).toEqual(before);
+    // Remove the unsupported fixture so the supported sibling can be materialized.
+    await prisma.$executeRaw`
+      UPDATE dashboards SET definition = jsonb_set(definition, '{blocks}', (
+        SELECT jsonb_agg(entry ORDER BY ord)
+        FROM jsonb_array_elements(definition->'blocks') WITH ORDINALITY AS stored(entry, ord)
+        WHERE entry->>'id' <> ${opaqueId}
+      )) WHERE id = ${dashboard.id} AND project_id = ${projectId}
+    `;
+    await expect(
+      author.dashboardWidgets.migrateInlineWidgets(target),
+    ).resolves.toEqual({ migrated: 1 });
+    expect((await untouched())[0]?.extension).toEqual(before[0]?.extension);
+    const persisted = await prisma.dashboard.findUniqueOrThrow({
+      where: { id: dashboard.id, projectId },
+    });
+    expect(persisted.definition).not.toHaveProperty("blocks");
+    expect(persisted.definition).not.toHaveProperty("version");
+  });
+
   it("migrates inline charts and Markdown transactionally and only once", async () => {
     const author = caller(projectId);
     const preset = {

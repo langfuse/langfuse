@@ -460,24 +460,31 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
       },
       fn: async () => {
         const window = resolveTimeWindow(input, context);
+        const sourceUrl = new URL(
+          input.widgetId
+            ? buildDashboardWidgetUrl({
+                projectId: context.projectId,
+                widgetId: input.widgetId,
+              })
+            : buildDashboardsUrl({ projectId: context.projectId }),
+        );
+        sourceUrl.searchParams.set(
+          "dateRange",
+          `${window.fromTimestamp.getTime()}-${window.toTimestamp.getTime()}`,
+        );
+        const url = sourceUrl.toString();
         if (!input.widgetId && input.definition) {
           return renderRichWidget({
             definition: input.definition,
             projectId: context.projectId,
             tabId: input.tabId,
             window,
-            url: buildDashboardsUrl({ projectId: context.projectId }),
+            url,
           });
         }
         const widget = input.widgetId
           ? await loadSavedWidget(input.widgetId, context)
           : adHocWidget(input);
-        const url = input.widgetId
-          ? buildDashboardWidgetUrl({
-              projectId: context.projectId,
-              widgetId: input.widgetId,
-            })
-          : buildDashboardsUrl({ projectId: context.projectId });
         if ("definition" in widget && widget.definition != null) {
           return renderRichWidget({
             widget,
@@ -499,12 +506,7 @@ export const [renderWidgetTool, handleRenderWidget] = defineTool({
           rows,
           window,
           rowLimit: query.chartConfig?.row_limit,
-          url: input.widgetId
-            ? buildDashboardWidgetUrl({
-                projectId: context.projectId,
-                widgetId: input.widgetId,
-              })
-            : buildDashboardsUrl({ projectId: context.projectId }),
+          url,
         });
       },
     }),

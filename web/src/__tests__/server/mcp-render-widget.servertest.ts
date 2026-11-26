@@ -140,6 +140,11 @@ describe("renderWidget", () => {
     )) as AppToolResult;
     const payload = result.meta.widget as WidgetPayload;
     expect(payload.rich?.activeTabId).toBe("count");
+    expect(
+      new URL(JSON.parse(result.text).url).searchParams.get("dateRange"),
+    ).toBe(
+      `${new Date(payload.rich!.from).getTime()}-${new Date(payload.rich!.to).getTime()}`,
+    );
     expect(payload.rich?.result?.status).toBe("complete");
     expect(payload.rich?.result?.values[0]?.value).toBe(0);
     const adHoc = (await handleRenderWidget(
@@ -158,6 +163,12 @@ describe("renderWidget", () => {
       "traces",
     );
     expect(JSON.parse(second.text).tab).toBe("Traces");
+    expect(new URL(JSON.parse(second.text).url).searchParams.get("tabId")).toBe(
+      "traces",
+    );
+    expect(new URL(JSON.parse(result.text).url).searchParams.get("tabId")).toBe(
+      "count",
+    );
     const scores = (await handleRenderWidget(
       { widgetId: widget.id, tabId: "scores" },
       context,
@@ -192,7 +203,14 @@ describe("renderWidget", () => {
       mockServerContext({ projectId: uuidv4() }),
     )) as AppToolResult;
 
-    const summary = JSON.parse(result.text) as { from: string; to: string };
+    const summary = JSON.parse(result.text) as {
+      from: string;
+      to: string;
+      url: string;
+    };
+    expect(new URL(summary.url).searchParams.get("dateRange")).toBe(
+      `${new Date(fromTimestamp).getTime()}-${new Date(toTimestamp).getTime()}`,
+    );
     expect({ from: summary.from, to: summary.to }).toEqual({
       from: fromTimestamp,
       to: toTimestamp,
