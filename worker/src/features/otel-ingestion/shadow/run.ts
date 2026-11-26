@@ -83,8 +83,12 @@ type RustRun = {
   processMs?: number;
 };
 
-/** Rust runs started and selected batches turned away in the current one-minute window. */
-const admission = { started: 0, refused: 0, since: 0 };
+/**
+ * The current one-minute window: Rust runs started, selected batches turned
+ * away while the comparison was behind, and runs skipped while too many were
+ * going.
+ */
+const admission = { started: 0, throttled: 0, skipped: 0, since: 0 };
 const ADMISSION_WINDOW_MS = 60_000;
 
 /**
@@ -117,25 +121,27 @@ export function admitOtelShadowBatch(
 /** Close a window that is a minute old, warning when it turned batches away. */
 function closeAdmissionWindow(now: number): void {
   if (now - admission.since < ADMISSION_WINDOW_MS) return;
-  if (admission.refused > 0) {
+  const refused = admission.throttled + admission.skipped;
+  if (refused > 0) {
     const configuredRate = env.LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE;
     logger.warn("OTEL shadow sampling is throttled", {
       configuredRate,
       effectiveRate:
-        (configuredRate * admission.started) /
-        (admission.started + admission.refused),
+        (configuredRate * admission.started) / (admission.started + refused),
       startedBatches: admission.started,
-      refusedBatches: admission.refused,
+      throttledBatches: admission.throttled,
+      skippedBatches: admission.skipped,
     });
   }
   admission.started = 0;
-  admission.refused = 0;
+  admission.throttled = 0;
+  admission.skipped = 0;
   admission.since = now;
 }
 
 /** Count a selected batch that gets no Rust run. */
 function refuse(result: "throttled" | "skipped"): void {
-  admission.refused++;
+  admission[result]++;
   recordIncrement(`${METRIC_PREFIX}batch`, 1, { result });
 }
 
