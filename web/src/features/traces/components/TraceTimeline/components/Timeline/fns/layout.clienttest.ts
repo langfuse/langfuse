@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { LayoutNode, PositionedNode, TimelineLayout } from "../types";
-import { resolveDensity } from "../../../fns/resolveDensity";
 import { layout } from "./layout";
 import { prepareTimeline } from "./prepareTimeline";
 import { createTextMeasurerFrom } from "./createTextMeasurerFrom";
@@ -14,6 +13,16 @@ import {
 // Explicit null context: the PX_PER_LETTER fallback, so widths are
 // deterministic and jsdom is never asked for a canvas.
 const measurer = createTextMeasurerFrom(null);
+
+const fineDensity = {
+  pointer: "fine" as const,
+  rowHeight: 26,
+  barHeight: 16,
+  labelFontPx: 12,
+  labelPaddingPx: 4,
+  labelGapPx: 6,
+  minBarWidthPx: 4,
+};
 
 const BOXES = [
   { width: 320, height: 240 },
@@ -32,7 +41,7 @@ function run(
   return layout({
     roots,
     box,
-    density: options.density ?? resolveDensity({ pointer: "fine" }),
+    density: options.density ?? fineDensity,
     measurer,
     view: options.view ?? null,
     compress: options.compress ?? false,

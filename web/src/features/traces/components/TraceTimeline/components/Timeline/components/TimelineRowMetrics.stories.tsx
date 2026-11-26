@@ -2,7 +2,6 @@ import { expect } from "storybook/test";
 import preview from "../../../../../../../../.storybook/preview";
 import { TimelineRowMetrics } from "./TimelineRowMetrics";
 import { createTextMeasurer } from "../fns/createTextMeasurer";
-import { resolveDensity } from "../../../fns/resolveDensity";
 import type { PositionedNode } from "../types";
 
 const LANE = 640;
@@ -57,7 +56,15 @@ const meta = preview.meta({
     // measurer seeded with the app's stack prices text nobody renders. The app
     // avoids this by seeding from a probe; a story has to state both sides.
     measurer: createTextMeasurer("12px sans-serif"),
-    density: resolveDensity({ pointer: "fine" }),
+    density: {
+      pointer: "fine",
+      rowHeight: 26,
+      barHeight: 16,
+      labelFontPx: 12,
+      labelPaddingPx: 4,
+      labelGapPx: 6,
+      minBarWidthPx: 4,
+    },
     metrics: {},
     showDuration: true,
     toneClass: "text-white/95",

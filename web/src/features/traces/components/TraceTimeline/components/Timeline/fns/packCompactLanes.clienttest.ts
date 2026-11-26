@@ -3,10 +3,18 @@ import { packCompactLanes } from "./packCompactLanes";
 import type { LayoutNode } from "../types";
 import { layout } from "./layout";
 import { prepareTimeline } from "./prepareTimeline";
-import { resolveDensity } from "../../../fns/resolveDensity";
 import { createTextMeasurerFrom } from "./createTextMeasurerFrom";
 
 const measurer = createTextMeasurerFrom(null);
+const fineDensity = {
+  pointer: "fine" as const,
+  rowHeight: 26,
+  barHeight: 16,
+  labelFontPx: 12,
+  labelPaddingPx: 4,
+  labelGapPx: 6,
+  minBarWidthPx: 4,
+};
 
 function span(
   id: string,
@@ -46,7 +54,7 @@ describe("packCompactLanes", () => {
     const positioned = layout({
       roots,
       box: { width: 400, height: 200 },
-      density: resolveDensity({ pointer: "fine" }),
+      density: fineDensity,
       measurer,
       view: null,
       compress: false,
@@ -67,7 +75,7 @@ describe("packCompactLanes", () => {
     const separated = layout({
       roots: sequential.rows.map((row) => row.node),
       box: { width: 400, height: 80 },
-      density: resolveDensity({ pointer: "fine" }),
+      density: fineDensity,
       measurer,
       view: null,
       compress: false,

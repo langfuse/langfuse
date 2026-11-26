@@ -3,11 +3,19 @@ import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleG
 import type { LayoutNode } from "../types";
 import { layout } from "./layout";
 import { prepareTimeline } from "./prepareTimeline";
-import { resolveDensity } from "../../../fns/resolveDensity";
 import { createTextMeasurerFrom } from "./createTextMeasurerFrom";
 import { sessionIdleCompression } from "./sessionIdleCompression";
 
 const MINUTE = 60_000;
+const fineDensity = {
+  pointer: "fine" as const,
+  rowHeight: 26,
+  barHeight: 16,
+  labelFontPx: 12,
+  labelPaddingPx: 4,
+  labelGapPx: 6,
+  minBarWidthPx: 4,
+};
 
 function trace(id: string, startMs: number, endMs: number): LayoutNode {
   return {
@@ -88,7 +96,7 @@ describe("sessionIdleCompression", () => {
         trace("after", MINUTE + idleMs, MINUTE + idleMs + MINUTE),
       ],
       box: { width, height: 120 },
-      density: resolveDensity({ pointer: "fine" }),
+      density: fineDensity,
       measurer: createTextMeasurerFrom(null),
       view: null,
       compress: false,
@@ -110,7 +118,7 @@ describe("sessionIdleCompression", () => {
         trace("after", MINUTE + idleMs, MINUTE + idleMs + MINUTE),
       ],
       box: { width, height: 120 },
-      density: resolveDensity({ pointer: "fine" }),
+      density: fineDensity,
       measurer: createTextMeasurerFrom(null),
       view: {
         start: gapMarker.compressedEnd,
