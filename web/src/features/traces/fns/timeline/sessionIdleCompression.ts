@@ -14,15 +14,15 @@ import {
   type TimeCompression,
 } from "./timeCompression";
 
-/** Width of one collapsed idle band. Wide enough for the rotated label. */
-export const SESSION_IDLE_BAND_PX = 36;
+/** Width of one collapsed idle band. The label sits in the axis, not the band. */
+const SESSION_IDLE_BAND_PX = 36;
 
 type TraceRow = {
   depth: number;
   node: LayoutNode;
 };
 
-export function sessionIdleGaps(
+function sessionIdleGaps(
   rows: readonly TraceRow[],
   originMs: number,
 ): Array<{ start: number; end: number }> {

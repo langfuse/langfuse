@@ -3,11 +3,7 @@ import { IDLE_GAP_THRESHOLD_SECONDS } from "@/src/features/sessions/sessionIdleG
 import { layout, prepareTimeline, type LayoutNode } from "./layout";
 import { resolveDensity } from "./density";
 import { createTextMeasurerFrom } from "./textMeasurer";
-import {
-  SESSION_IDLE_BAND_PX,
-  sessionIdleCompression,
-  sessionIdleGaps,
-} from "./sessionIdleCompression";
+import { sessionIdleCompression } from "./sessionIdleCompression";
 
 const MINUTE = 60_000;
 
@@ -33,9 +29,14 @@ describe("sessionIdleCompression", () => {
         MINUTE + 180_000 + IDLE_GAP_THRESHOLD_SECONDS * 1000,
       ),
     ]);
-    const gaps = sessionIdleGaps(prepared.rows, prepared.originMs);
-    expect(gaps).toHaveLength(1);
-    expect(gaps[0]!.end - gaps[0]!.start).toBe(
+    const compression = sessionIdleCompression({
+      rows: prepared.rows,
+      originMs: prepared.originMs,
+      durationMs: prepared.durationMs,
+      physicalWidth: 1000,
+    });
+    expect(compression?.gaps).toHaveLength(1);
+    expect(compression!.gaps[0]!.durationMs).toBe(
       IDLE_GAP_THRESHOLD_SECONDS * 1000,
     );
   });
@@ -77,7 +78,7 @@ describe("sessionIdleCompression", () => {
       ((gap.compressedEnd - gap.compressedStart) /
         mapped.compressedDurationMs) *
       width;
-    expect(bandPx).toBeCloseTo(Math.min(SESSION_IDLE_BAND_PX, width / 2), 4);
+    expect(bandPx).toBeCloseTo(36, 4);
 
     const positioned = layout({
       roots: [
