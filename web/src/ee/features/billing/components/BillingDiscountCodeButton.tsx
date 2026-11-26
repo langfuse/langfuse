@@ -18,7 +18,14 @@ import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
-export const BillingDiscountCodeButton = ({ orgId }: { orgId: string }) => {
+export const BillingDiscountCodeButton = ({
+  orgId,
+  label = "Add promotion code",
+}: {
+  orgId: string;
+  /** The trigger's text; the dialog is the same either way. */
+  label?: string;
+}) => {
   const [code, setCode] = useState("");
   const [open, setOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -63,20 +70,21 @@ export const BillingDiscountCodeButton = ({ orgId }: { orgId: string }) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          Add Promotion Code
+        <Button variant="link" className="h-auto p-0">
+          {label}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-lg">Add Promotion Code</DialogTitle>
+          <DialogTitle className="text-lg">Add promotion code</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-3 text-sm">
           <p>Enter a valid promotion code to apply it to your subscription.</p>
           <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="PROMO2025"
+            placeholder="LANGFUSE-COUPON"
+            aria-label="Promotion code"
             disabled={processing}
           />
         </DialogBody>

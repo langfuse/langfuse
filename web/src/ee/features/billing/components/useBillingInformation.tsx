@@ -33,6 +33,8 @@ export type UseBillingInformationResult = {
   hasActiveSubscription: boolean;
   hasValidPaymentMethod: boolean;
   billingProvider: BillingProvider;
+  /** The current billing period, or null when the organization has none. */
+  billingPeriod: { start: Date; end: Date } | null;
   /**
    * Stripe product id of the current paid plan, provider-agnostic: the real
    * product id for Stripe orgs, the mapped equivalent for CHB orgs. The plan
@@ -130,6 +132,12 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     ),
     hasValidPaymentMethod: subscriptionInfo?.hasValidPaymentMethod ?? false,
     billingProvider,
+    billingPeriod: subscriptionInfo?.billingPeriod
+      ? {
+          start: new Date(subscriptionInfo.billingPeriod.start),
+          end: new Date(subscriptionInfo.billingPeriod.end),
+        }
+      : null,
     currentProductId,
   };
 };

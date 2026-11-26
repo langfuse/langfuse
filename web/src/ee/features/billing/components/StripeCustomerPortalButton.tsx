@@ -11,7 +11,8 @@ export const StripeCustomerPortalButton = ({
 }: {
   orgId: string | undefined;
   title: string;
-  variant: "secondary" | "default";
+  /** "inline-link" reads as a link inside a line of text, without a button's box. */
+  variant: "secondary" | "default" | "ghost" | "inline-link";
 }) => {
   const [loading, setLoading] = useState(false);
 
@@ -79,7 +80,8 @@ export const StripeCustomerPortalButton = ({
 
   return (
     <Button
-      variant={variant}
+      variant={variant === "inline-link" ? "link" : variant}
+      className={variant === "inline-link" ? "h-auto p-0" : undefined}
       onClick={onClick}
       disabled={!orgId || loading}
       title={title}

@@ -18,13 +18,17 @@ import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
+const QUIET_LINK =
+  "text-muted-foreground hover:text-foreground h-auto p-0 text-xs font-normal";
+
 export const StripeCancellationButton = ({
   orgId,
   variant,
   className,
 }: {
   orgId: string;
-  variant: "secondary" | "default";
+  /** "quiet-link" is small grey text: for a cancel that should be findable, not inviting. */
+  variant: "secondary" | "default" | "ghost" | "quiet-link";
   className?: string;
 }) => {
   const { cancellation } = useBillingInformation();
@@ -120,7 +124,7 @@ export const StripeCancellationButton = ({
       <Dialog>
         <DialogTrigger asChild>
           <Button
-            variant={variant}
+            variant={variant === "quiet-link" ? "link" : variant}
             disabled={loading}
             title="Reactivate Subscription"
             className={className}
@@ -163,7 +167,8 @@ export const StripeCancellationButton = ({
     <Dialog>
       <DialogTrigger asChild>
         <Button
-          variant={variant}
+          variant={variant === "quiet-link" ? "link" : variant}
+          className={variant === "quiet-link" ? QUIET_LINK : undefined}
           disabled={loading}
           title="Cancel Subscription"
         >
