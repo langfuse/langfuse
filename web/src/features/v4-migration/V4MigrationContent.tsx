@@ -373,7 +373,7 @@ export function allRemainingActionsAreMigratedKeys(
     status.sdk.status === "checking" ||
     status.sdk.status === "error" ||
     getSdkSectionState(status.sdk).actionableCount > 0 ||
-    getOtelSectionState(status.sdk).delayedCount > 0 ||
+    getOtelSectionState(status.sdk).pendingCount > 0 ||
     getCustomInstrumentationSectionState(status.sdk).actionableCount > 0
   ) {
     return false;
@@ -652,14 +652,14 @@ export function V4MigrationOtelSection({
   )
     return null;
 
-  const allMigrated = section.delayedCount === 0;
+  const allMigrated = section.pendingCount === 0;
 
   return (
     <Section
       title="Update OTel Instrumentation"
       analyticsSection="otel"
       statusVariant={allMigrated ? "done" : "action"}
-      count={allMigrated ? undefined : section.delayedCount}
+      count={allMigrated ? undefined : section.pendingCount}
       defaultOpen={defaultOpen}
     >
       {allMigrated ? null : (
@@ -1738,7 +1738,7 @@ export function V4MigrationDetailsContent({
       readiness,
       sdkStatus: migrationData.sdk.status,
       sdkActionableCount: sdkSection.actionableCount,
-      delayedOtelCount: otelSection.delayedCount,
+      delayedOtelCount: otelSection.pendingCount,
       customInstrumentationCount: customSection.actionableCount,
       evalsCount:
         migrationData.evals.status === "loaded"

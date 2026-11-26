@@ -485,6 +485,28 @@ describe("v4 migration SDK status", () => {
     ).toEqual(["pk-lf-otel-delayed"]);
   });
 
+  it("keeps a later clean OTel key in the delay count the badge reads", () => {
+    const state = getLoadedSdkState(
+      delayedOtelSeries({
+        sdkName: "openlit",
+        sdkVersion: "1.35.4",
+        publicKey: "pk-lf-otel-then-clean",
+        lastSeen: "2026-07-23T08:00:00Z",
+      }),
+      realtimeOtelSeries({
+        sdkName: "openlit",
+        sdkVersion: "1.36.0",
+        publicKey: "pk-lf-otel-then-clean",
+        lastSeen: "2026-07-23T12:00:00Z",
+      }),
+    );
+
+    expect(getOtelSectionState(state)).toMatchObject({
+      delayedCount: 1,
+      pendingCount: 0,
+    });
+  });
+
   it("does not offer a major upgrade to non-SDK traffic", () => {
     expect(
       getAvailableSdkMajorUpgrade(

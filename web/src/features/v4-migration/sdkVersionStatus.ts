@@ -239,7 +239,13 @@ export const getCustomInstrumentationSectionState = (
 export type V4MigrationOtelSectionState = {
   /** Delayed OTel exporter series requiring action, most recently seen first. */
   series: V4MigrationSdkUsageSeries[];
+  /** Every required delayed row in the lookback, including keys that later
+   * sent a clean event. The data-delay badge uses this: the old events are
+   * still inside the window. */
   delayedCount: number;
+  /** Required rows whose key has not sent a later clean event. The panel
+   * section uses this for its count and green state. */
+  pendingCount: number;
 };
 
 export const getOtelSectionState = (
@@ -251,7 +257,8 @@ export const getOtelSectionState = (
   );
   return {
     series,
-    delayedCount: series.filter((usage) => !migrated.has(usageSeriesKey(usage)))
+    delayedCount: series.length,
+    pendingCount: series.filter((usage) => !migrated.has(usageSeriesKey(usage)))
       .length,
   };
 };
