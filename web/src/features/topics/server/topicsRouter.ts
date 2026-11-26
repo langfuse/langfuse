@@ -30,7 +30,6 @@ import {
   writeTopicSnapshotSummarizing,
   listTopicExecutions,
   listTopicFacets,
-  isTopicsProjectEnabled,
   getTopicFacetVersion,
   getLatestFacetSummaries,
   createTopicFacet,
@@ -132,6 +131,8 @@ const tracesInput = projectInput.extend({
           "awaiting_map",
           "not_applicable",
           "insufficient_input",
+          "empty_input",
+          "input_too_large",
         ]),
       ),
     })
@@ -146,12 +147,7 @@ const tracesInput = projectInput.extend({
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    // The allowlist comes from env here, so admins outside the project are covered too.
-    const project = {
-      id: input.projectId,
-      topicsEnabled: isTopicsProjectEnabled(input.projectId),
-    };
-    if (!canViewTopics(ctx.session, project))
+    if (!canViewTopics(ctx.session, input.projectId))
       throw new LangfuseNotFoundError("Topics is not available.");
     return next();
   });

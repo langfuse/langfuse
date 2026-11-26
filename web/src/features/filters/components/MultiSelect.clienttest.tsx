@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MultiSelect } from "./MultiSelect";
@@ -12,6 +13,28 @@ vi.stubGlobal(
 );
 Element.prototype.scrollIntoView = vi.fn();
 
+function ControlledMultiSelect({
+  options,
+  onValuesChange,
+}: {
+  options: { value: string; displayValue?: string }[];
+  onValuesChange: (values: string[]) => void;
+}) {
+  const [values, setValues] = useState<string[]>([]);
+  return (
+    <MultiSelect
+      title="Search"
+      values={values}
+      options={options}
+      onValueChange={(next) => {
+        setValues(next);
+        onValuesChange(next);
+      }}
+      isCustomSelectEnabled
+    />
+  );
+}
+
 describe("MultiSelect", () => {
   it("shows a selected value that is missing from the current options", () => {
     render(
@@ -25,26 +48,6 @@ describe("MultiSelect", () => {
     expect(screen.getByText("GENERATION")).toBeInTheDocument();
   });
 
-  it("shows edits to a selected custom value immediately", () => {
-    render(
-      <MultiSelect
-        values={["draft-value"]}
-        options={[]}
-        onValueChange={vi.fn()}
-        isCustomSelectEnabled
-      />,
-    );
-
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
-    fireEvent.change(screen.getByPlaceholderText("Enter custom value"), {
-      target: { value: "edited-value" },
-    });
-
-    expect(within(trigger).getByText("edited-value")).toBeInTheDocument();
-    expect(within(trigger).queryByText("draft-value")).not.toBeInTheDocument();
-  });
-
   it("summarizes several selected values that are missing from the options", () => {
     render(
       <MultiSelect
@@ -55,5 +58,43 @@ describe("MultiSelect", () => {
     );
 
     expect(screen.getByText("6 selected")).toBeInTheDocument();
+  });
+
+  it("adds a custom value once and keeps Select All aligned with visible options", () => {
+    const onValuesChange = vi.fn();
+    render(
+      <ControlledMultiSelect
+        options={[{ value: "user-1" }, { value: "user-2" }]}
+        onValuesChange={onValuesChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+    const dialog = screen.getByRole("dialog");
+    const search = screen.getByPlaceholderText("Search");
+
+    fireEvent.change(search, { target: { value: "ghost-user" } });
+    fireEvent.click(within(dialog).getByRole("option", { name: /ghost-user/ }));
+
+    expect(within(dialog).getAllByText("ghost-user")).toHaveLength(1);
+    expect(onValuesChange).toHaveBeenLastCalledWith(["ghost-user"]);
+
+    fireEvent.change(search, { target: { value: "ghost-user" } });
+    expect(within(dialog).queryByText(/Use/)).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.click(within(dialog).getByText("Select All"));
+    expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+      new Set(["ghost-user", "user-1", "user-2"]),
+    );
+
+    fireEvent.click(within(dialog).getByText("Deselect All"));
+    expect(onValuesChange).toHaveBeenLastCalledWith([]);
+    expect(within(dialog).queryByText("ghost-user")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByText("Select All"));
+    expect(new Set(onValuesChange.mock.lastCall?.[0] as string[])).toEqual(
+      new Set(["user-1", "user-2"]),
+    );
   });
 });

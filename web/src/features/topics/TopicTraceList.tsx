@@ -9,7 +9,7 @@ import {
   type UIEvent,
   useState,
 } from "react";
-import { ExternalLink } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -295,7 +295,7 @@ export function TopicTraceList({
                 text="Open in Tracing"
                 variant="ghost"
                 size="sm"
-                icon={ExternalLink}
+                icon={SquareArrowOutUpRight}
               />
             )}
           </div>

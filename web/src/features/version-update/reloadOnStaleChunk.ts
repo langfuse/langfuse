@@ -15,18 +15,21 @@
 
 import { versionUpdateStore } from "./versionUpdateStore";
 
+/** @internal */
 export const STALE_CHUNK_RELOAD_SESSION_KEY = "langfuse:stale-chunk-reloaded";
 
 const NEXT_STATIC_PATH = "/_next/static/";
 
 let installed = false;
 
+/** @internal */
 export function isStaleNextScriptElement(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLScriptElement && target.src.includes(NEXT_STATIC_PATH)
   );
 }
 
+/** @internal */
 export function handleStaleChunkScriptError(
   event: Event,
   hasObservedVersionMismatch: () => boolean = () =>

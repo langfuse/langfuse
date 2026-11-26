@@ -1,5 +1,5 @@
-# Common inputs affect both live suites.
-common: &common
+# Dependencies, build and CI setup shared by the worker live-provider suites.
+infra: &infra
   - package.json
   - pnpm-lock.yaml
   - pnpm-workspace.yaml
@@ -13,46 +13,60 @@ common: &common
   - packages/config-typescript/**
   - packages/shared/package.json
   - packages/shared/tsconfig*.json
-  - packages/shared/{src,prisma,clickhouse,scripts}/**
   - worker/package.json
   - worker/tsconfig*.json
 
 llm_connections:
-  - *common
+  - *infra
+  - packages/shared/{src,prisma,clickhouse,scripts}/**
   - worker/vitest.config.ts
   - worker/src/__tests__/llmConnections.test.ts
   - worker/src/__tests__/helpers/localLlmServer.ts
 
+# Code that builds, sends or parses Topics summary and naming requests.
+topics_llm:
+  - *infra
+  - worker/vitest.config.ts
+  - worker/src/features/topics/llm/**
+  - worker/src/features/topics/{event-loop,metrics,provider-error,summaryResult}.ts
+  - worker/src/services/exportVolumeMetric.ts
+  - packages/shared/src/topics/**
+  - packages/shared/src/server/topics/{text,embeddings,model-config}.ts
+  - packages/shared/src/server/llm/**
+  - packages/shared/src/server/outbound-url/**
+  - packages/shared/src/encryption/**
+  - packages/shared/src/interfaces/customLLMProviderConfigSchemas.ts
+
+# Gateway Rust service, control-plane/feature code, RBAC/API-key auth it depends on, and e2e suite.
 ai_gateway:
-  - *common
-  - ai-gateway/**
-  - packages/native/**
-  - web/package.json
-  - web/tsconfig*.json
-  - web/vitest.config.mts
-  - web/vitest.server.config.mts
-  - web/vitest.shared.mts
-  - web/next.config.*
-  - web/src/env.mjs
-  - web/src/instrumentation.ts
-  - web/src/middleware.ts
-  - web/src/__e2e__/ai-gateway/**
-  - web/src/__tests__/fixtures/feature-flags.ts
+  - ai-gateway/src/**
+  - ai-gateway/Cargo.{toml,lock}
+  - ai-gateway/rust-toolchain.toml
+  - ai-gateway/{package,turbo}.json
+  - packages/ai-gateway-guardrail-rules/**
+  - packages/shared/src/features/ai-gateway/**
+  - packages/shared/src/features/rbac/**
+  - packages/shared/src/server/auth/{apiKeys,apiKeyCache,invalidateApiKeys,types}.ts
+  - packages/shared/src/encryption/**
+  - packages/shared/src/server/llm/ai-sdk/providers/vertexAuth.ts
   - web/src/features/ai-gateway/**
-  - web/src/features/public-api/server/**
-  - web/src/features/auth/policy/**
-  - web/src/features/rbac/{authorize,types}.ts
-  - web/src/features/rbac/utils/checkOrganizationAccess.ts
-  - web/src/features/entitlements/server/**
   - web/src/pages/api/internal/ai-gateway/**
-  - web/src/pages/api/public/ingestion.ts
-  - web/src/pages/api/public/media/**
-  - web/src/pages/api/public/otel/**
-  - web/src/server/**
-  - worker/src/*.ts
-  - worker/src/features/{otel-ingestion,otel-media}/**
-  - worker/src/services/**
-  - worker/src/queues/**
-  - worker/src/utils/**
-  - worker/src/ee/fipsMode.ts
-  - worker/src/constants/default-model-prices.json
+  - web/src/pages/api/public/otel/v1/traces/index.ts
+  - web/src/server/utils/{hmac,jwt}.ts
+  - web/src/features/auth/policy/**
+  - web/src/features/rbac/{authorize,getRolesForPrincipal,types}.ts
+  - web/src/features/rbac/utils/checkOrganizationAccess.ts
+  - web/src/features/public-api/server/createAuthedProjectAPIRoute.ts
+  - worker/src/services/IngestionService/aiGatewayAttribution.ts
+  - web/src/__e2e__/ai-gateway/**
+  - web/vitest.server.config.mts
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+
+# The regex rule validator: its Rust source, build config and committed
+# WebAssembly output.
+ai_gateway_guardrail_rules:
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+  - deny.toml
+  - packages/ai-gateway-guardrail-rules/**

@@ -35,5 +35,5 @@ export const [getModelTool, handleGetModel] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

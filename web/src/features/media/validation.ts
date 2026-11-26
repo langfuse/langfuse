@@ -69,6 +69,7 @@ export const GetMediaUploadUrlResponseSchema = z.object({
   mediaId: z.string(),
 });
 
+/** @internal */
 export type GetMediaUploadUrlResponse = z.infer<
   typeof GetMediaUploadUrlResponseSchema
 >;
@@ -95,6 +96,7 @@ export const GetMediaResponseSchema = z.object({
   urlExpiry: z.string(),
 });
 
+/** @internal */
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
 const MediaReturnSchema = z.object({

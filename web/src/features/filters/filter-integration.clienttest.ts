@@ -26,10 +26,8 @@ import {
   sessionFilterConfig,
 } from "./config/sessions-config";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-import {
-  decodeAndNormalizeFilters,
-  resolveCheckboxOperator,
-} from "./hooks/useSidebarFilterState";
+import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
+import { resolveCheckboxOperator } from "./lib/sidebar-filter-actions";
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,

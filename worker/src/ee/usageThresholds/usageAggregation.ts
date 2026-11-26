@@ -328,5 +328,5 @@ export async function processUsageAggregationForAllOrgs(
   return stats;
 }
 
-// Export helper functions for testing
+/** @internal */
 export { buildProjectToOrgMap, aggregateByOrg };

@@ -10,7 +10,10 @@ import {
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
 } from "./observationEval/scheduleObservationEvals";
-import type { ObservationForEval } from "./observationEval/types";
+import type {
+  ObservationEvalSchedulerDeps,
+  ObservationForScheduling,
+} from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
 import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { prepareTraceDispatchRules } from "../traceDispatch/traceDispatchRules";
@@ -19,8 +22,25 @@ import {
   type TraceSpanActivity,
 } from "../traceDispatch/traceRuleRecording";
 
+/**
+ * The durable writes of evaluation scheduling: the job execution row, the
+ * observation snapshot, the queued job and the trace activity record.
+ */
+export type EvalWrites = ObservationEvalSchedulerDeps & {
+  recordTraceActivity: typeof recordTraceActivity;
+};
+
+export const productionEvalWrites = (): EvalWrites => ({
+  ...createObservationEvalSchedulerDeps(),
+  recordTraceActivity,
+});
+
 /** Prepare rules and own the trace-activity buffer for one ingestion batch. */
-export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
+export function createEvalSchedulerDeps(
+  projectId: string,
+  rules: EvalRules,
+  { recordTraceActivity: recordActivity, ...observationWrites }: EvalWrites,
+) {
   // The caller flushes this buffer before returning.
   const traceActivity: TraceSpanActivity[] = [];
   const traceTranscriptRules = prepareTraceDispatchRules(
@@ -36,7 +56,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   });
 
   return {
-    ...createObservationEvalSchedulerDeps(),
+    ...observationWrites,
     traceTranscriptRules,
     collectTraceActivity: (activity: TraceSpanActivity): void => {
       traceActivity.push(activity);
@@ -46,7 +66,7 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
       const startedAt = performance.now();
       let outcome = "success";
       try {
-        await recordTraceActivity(projectId, traceActivity);
+        await recordActivity(projectId, traceActivity);
         traceActivity.length = 0;
       } catch (error) {
         outcome = "error";
@@ -88,8 +108,8 @@ export async function scheduleEvals({
   schedulerDeps,
   buildFailureContext,
 }: {
-  /** Convert the payload only when an evaluation rule needs it. */
-  parseObservation: () => ObservationForEval;
+  /** Called only when an evaluation rule needs the observation. */
+  parseObservation: () => ObservationForScheduling;
   environment: string;
   /** Present only for sampled direct event writes. */
   traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
@@ -109,7 +129,7 @@ export async function scheduleEvals({
   }
 
   try {
-    const observation = parseObservation();
+    const { observation, loadSnapshot } = parseObservation();
     if (traceActivity && rules.traceTranscriptRules.length > 0) {
       matchedRuleIds = await matchTranscriptRules(
         { observation, traceActivity, schedulerDeps },
@@ -119,6 +139,7 @@ export async function scheduleEvals({
     if (isObservationAllowedForQueuedObservationEvals(observation)) {
       await scheduleObservationEvals({
         observation,
+        loadSnapshot,
         configs: rules.observationRules,
         schedulerDeps,
       });

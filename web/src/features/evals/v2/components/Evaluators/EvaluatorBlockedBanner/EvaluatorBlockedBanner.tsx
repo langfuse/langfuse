@@ -3,10 +3,9 @@ import {
   getEvaluatorBlockMetadata,
   type EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { AlertTriangle, ExternalLinkIcon, RefreshCcw } from "@langfuse/icons";
-import Link from "next/link";
+import { RefreshCcw } from "@langfuse/icons";
 
-import { Button } from "@/src/components/ui/button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 const DEFAULT_BLOCK_MESSAGE =
   "This evaluator is paused until its configuration is fixed.";
@@ -63,65 +62,33 @@ export function EvaluatorBlockedBanner({
   });
 
   return (
-    <section
-      role="alert"
-      aria-live="polite"
-      className="border-light-yellow bg-light-yellow rounded-lg border"
+    <Banner
+      variant="warning"
+      title="Evaluator paused"
+      actions={[
+        {
+          text: resolutionAction.label,
+          href: resolutionAction.href,
+        },
+        ...(canReactivate
+          ? [
+              {
+                text: "Reactivate",
+                icon: RefreshCcw,
+                disabled: reactivationPending,
+                onClick: onReactivate,
+              },
+            ]
+          : []),
+      ]}
     >
-      <div className="flex gap-3 p-4">
-        <AlertTriangle size="base" __rawClassName="text-dark-yellow mt-0.5" />
-
-        <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-base font-bold">
-            Evaluator paused
-          </h2>
-
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground font-bold">
-              {blockMetadata.shortLabel}
-            </span>
-            <span className="bg-border h-1 w-1 rounded-full" />
-            <span title={blockedAt.toLocaleString()}>
-              Paused {blockedAtLabel}
-            </span>
-          </div>
-
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
-            {blockMessage ?? DEFAULT_BLOCK_MESSAGE}
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="h-8 px-3">
-              <Link href={resolutionAction.href}>
-                <ExternalLinkIcon
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-1.5"
-                />
-                {resolutionAction.label}
-              </Link>
-            </Button>
-
-            {canReactivate ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                loading={reactivationPending}
-                onClick={onReactivate}
-                className="h-8 px-3"
-              >
-                <RefreshCcw
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-1.5"
-                />
-                Reactivate
-              </Button>
-            ) : null}
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold">{blockMetadata.shortLabel}</span>
+        <span className="bg-border h-1 w-1 rounded-full" />
+        <span title={blockedAt.toLocaleString()}>Paused {blockedAtLabel}</span>
       </div>
-    </section>
+
+      <p className="mt-2 max-w-3xl">{blockMessage ?? DEFAULT_BLOCK_MESSAGE}</p>
+    </Banner>
   );
 }

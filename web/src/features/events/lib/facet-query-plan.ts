@@ -4,7 +4,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 
-// Pure query planning for the events filter options (LFE-14489): which facet
+// Pure query planning for the events filter options: which facet
 // columns share one bulk query, which need a self-excluded per-column query,
 // and the refining filter each carries. useEventsFilterOptions executes the plan.
 
@@ -30,6 +30,7 @@ const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
   ]),
 );
 
+/** @internal */
 export const resolveEventFacetColumnId = (column: string): string =>
   FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
 

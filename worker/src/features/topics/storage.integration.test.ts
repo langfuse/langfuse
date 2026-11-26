@@ -67,7 +67,7 @@ function exampleSummary(projectId: string): TopicSummary {
     usageDetails: {},
     providedCostDetails: {},
     costDetails: {},
-    processedAt: "2026-09-01T00:00:00.000Z",
+    createdAt: "2026-09-01T00:00:00.000Z",
     metadata: {},
   };
 }
@@ -659,18 +659,20 @@ describe("Topics definition persistence", () => {
   it("counts billable summaries processed in the telemetry interval", async () => {
     const start = new Date("2026-09-01T00:00:00.000Z");
     const end = new Date("2026-09-02T00:00:00.000Z");
-    const row = (processedAt: string, state: TopicSummary["state"]) => ({
+    const row = (createdAt: string, state: TopicSummary["state"]) => ({
       ...summary,
       projectId: telemetryProjectId,
       traceId: randomUUID(),
       state,
-      processedAt,
+      createdAt,
     });
     await writeTopicSummaries([
       row(start.toISOString(), "complete"),
       row("2026-09-01T12:00:00.000Z", "complete"),
       row("2026-09-01T12:00:00.000Z", "not_applicable"),
       row("2026-09-01T12:00:00.000Z", "insufficient_input"),
+      row("2026-09-01T12:00:00.000Z", "empty_input"),
+      row("2026-09-01T12:00:00.000Z", "input_too_large"),
       row(end.toISOString(), "complete"),
     ]);
 
@@ -680,7 +682,7 @@ describe("Topics definition persistence", () => {
     });
     expect(
       counts.find((count) => count.projectId === telemetryProjectId)?.count,
-    ).toBe(3);
+    ).toBe(4);
   });
 
   it("partitions by source time while preserving replacement and published map identities", async () => {
@@ -688,7 +690,7 @@ describe("Topics definition persistence", () => {
       ...summary,
       summary: "latest",
       sessionId: "parent-session",
-      processedAt: "2026-10-01T00:00:00.000Z",
+      createdAt: "2026-10-01T00:00:00.000Z",
     };
     await writeTopicSummaries([summary, latest]);
     const assignment: TopicAssignment = {
@@ -700,7 +702,7 @@ describe("Topics definition persistence", () => {
       environment: "default",
       traceName: "trace",
       unitStartTime: summary.unitStartTime,
-      summaryProcessedAt: summary.processedAt,
+      summaryProcessedAt: summary.createdAt,
       runId: "published",
       topicId: null,
       topicVersionId: null,
@@ -708,25 +710,25 @@ describe("Topics definition persistence", () => {
       runnerUpDistance: null,
       origin: "initial",
       coordinates: [1, 2],
-      assignedAt: "2026-09-01T00:00:00.000Z",
+      createdAt: "2026-09-01T00:00:00.000Z",
     };
     await writeTopicAssignments([
       assignment,
       {
         ...assignment,
         sessionId: "parent-session",
-        assignedAt: "2026-10-01T00:00:00.000Z",
+        createdAt: "2026-10-01T00:00:00.000Z",
       },
       {
         ...assignment,
         origin: "online",
         coordinates: null,
-        assignedAt: "2026-10-02T00:00:00.000Z",
+        createdAt: "2026-10-02T00:00:00.000Z",
       },
       {
         ...assignment,
         runId: "unpublished",
-        assignedAt: "2026-10-03T00:00:00.000Z",
+        createdAt: "2026-10-03T00:00:00.000Z",
       },
     ]);
     const summaries = await clickhouseClient().query({
@@ -805,7 +807,7 @@ describe("Topics definition persistence", () => {
       {
         ...latest,
         projectId: otherProjectId,
-        processedAt: "2026-10-04T00:00:00.000Z",
+        createdAt: "2026-10-04T00:00:00.000Z",
       },
       { ...latest, facetId: "other-facet", facetVersion: 2 },
     ]);
@@ -818,7 +820,7 @@ describe("Topics definition persistence", () => {
       state: summary.state,
       summary: summary.summary,
       unitStartTime: summary.unitStartTime,
-      processedAt: summary.processedAt,
+      createdAt: summary.createdAt,
     };
     for (const version of [1, undefined])
       expect(
@@ -828,14 +830,14 @@ describe("Topics definition persistence", () => {
           ...displaySummary,
           summary: latest.summary,
           sessionId: latest.sessionId,
-          processedAt: latest.processedAt,
+          createdAt: latest.createdAt,
         },
       ]);
 
     const moved: TopicSummary = {
       ...summary,
       unitStartTime: "2026-09-01T00:00:00.000Z",
-      processedAt: "2026-10-02T00:00:00.000Z",
+      createdAt: "2026-10-02T00:00:00.000Z",
       state: "not_applicable",
       summary: "",
       embedding: [],
@@ -869,7 +871,7 @@ describe("Topics definition persistence", () => {
     const newerVersion = {
       ...summary,
       facetVersion: 2,
-      processedAt: "2026-09-30T00:00:00.000Z",
+      createdAt: "2026-09-30T00:00:00.000Z",
     };
     await writeTopicSummaries([newerVersion]);
     expect(
@@ -878,7 +880,7 @@ describe("Topics definition persistence", () => {
       {
         ...displaySummary,
         facetVersion: newerVersion.facetVersion,
-        processedAt: newerVersion.processedAt,
+        createdAt: newerVersion.createdAt,
       },
     ]);
     expect(
@@ -898,7 +900,7 @@ describe("Topics definition persistence", () => {
         {
           ...displaySummary,
           facetVersion: newerVersion.facetVersion,
-          processedAt: newerVersion.processedAt,
+          createdAt: newerVersion.createdAt,
         },
       ],
       [],
@@ -925,7 +927,7 @@ describe("Topics definition persistence", () => {
       {
         ...displaySummary,
         unitStartTime: moved.unitStartTime,
-        processedAt: moved.processedAt,
+        createdAt: moved.createdAt,
         state: moved.state,
         summary: moved.summary,
       },
@@ -1027,7 +1029,7 @@ describe("Topics definition persistence", () => {
       {
         ...live,
         executionId: "priced",
-        processedAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
         unitStartTime: "2026-07-01T00:00:00.000Z",
       },
       // Editing the facet causes a separate model call; both versions retain their owner.
@@ -1038,7 +1040,7 @@ describe("Topics definition persistence", () => {
         facetVersion: 2,
         ruleIds: ["previous-map"],
         unitStartTime: "2026-07-01T00:00:00.000Z",
-        processedAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-08-01T00:00:00.000Z",
       },
       {
         ...live,
@@ -1089,7 +1091,7 @@ describe("Topics definition persistence", () => {
     });
   });
 
-  it("round-trips Float64 geometry and normalized source references through ClickHouse", async () => {
+  it("round-trips every definition field, Float64 geometry and normalized source references through ClickHouse", async () => {
     const topic: TopicDefinition = {
       projectId,
       topicVersionId: randomUUID(),
@@ -1118,7 +1120,18 @@ describe("Topics definition persistence", () => {
           sessionId: "source/請求書",
         },
       ],
-      metadata: { effectiveMemberCount: 15, lineage: [], source: "請求書" },
+      // An undefined metadata value reads back as an absent key.
+      metadata: {
+        effectiveMemberCount: 15,
+        lineage: [],
+        source: "請求書",
+        namingSampled: undefined,
+      },
+      costDetails: {
+        input: 0.000123456789,
+        output: 0.5,
+        total: 0.500123456789,
+      },
     };
     const other: TopicDefinition = {
       ...topic,
@@ -1130,6 +1143,7 @@ describe("Topics definition persistence", () => {
       labels: [],
       representativeSummaries: [],
       metadata: {},
+      costDetails: undefined,
     };
 
     await writeTopicDefinitions([
@@ -1189,7 +1203,7 @@ describe("Topics definition persistence", () => {
       environment: "default",
       traceName: "trace",
       unitStartTime: summary.unitStartTime,
-      summaryProcessedAt: summary.processedAt,
+      summaryProcessedAt: summary.createdAt,
       runId: "serving",
       ruleId: "rule",
       topicId,
@@ -1198,13 +1212,13 @@ describe("Topics definition persistence", () => {
       runnerUpDistance: null,
       origin: "online",
       coordinates: null,
-      assignedAt: "2026-09-01T00:00:00.000Z",
+      createdAt: "2026-09-01T00:00:00.000Z",
       ...overrides,
     });
     await writeTopicAssignments([
       assign(current, "match"),
       assign(reassigned, "match"),
-      assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
+      assign(reassigned, "other", { createdAt: "2026-09-03T00:00:00.000Z" }),
       // An analysis's assignment never serves.
       assign(retired, "match", { runId: "analysis", ruleId: null }),
       // The column keeps a placement from the rule's earlier map; the filter does not.
@@ -1215,7 +1229,7 @@ describe("Topics definition persistence", () => {
       assign(current, "", {
         runId: "unfinished",
         topicVersionId: "",
-        assignedAt: "2026-09-05T00:00:00.000Z",
+        createdAt: "2026-09-05T00:00:00.000Z",
       }),
     ]);
     const timeRange = {

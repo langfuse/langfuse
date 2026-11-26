@@ -29,7 +29,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
     }) => Promise<unknown>,
   ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   TopicInputTooLarge: class extends Error {},
   charsPerToken: () => 4,
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
@@ -38,6 +38,7 @@ vi.mock("./models", () => ({
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 
 const transcript: Transcript = {
   threads: [
@@ -233,14 +234,14 @@ describe("summarizeAssembledTrace", () => {
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
     const submittedText = state.summarize.mock.calls[0][2] as string;
-    for (const [format, characters] of [
-      ["text", submittedText.length],
-      ["json", expect.any(Number)],
+    for (const [characters, tags] of [
+      [submittedText.length, { format: "text", over_limit: "false" }],
+      [expect.any(Number), { format: "json" }],
     ] as const)
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.topics.summary_input_characters",
         characters,
-        { format },
+        tags,
       );
   });
 
@@ -367,6 +368,44 @@ describe("summarizeAssembledTrace", () => {
     expect(state.embed).not.toHaveBeenCalled();
   });
 
+  it("stores an applicable result without a summary as insufficient input instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: { intent_1: { summary: " ", status: "applicable" } },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    const [written] = summaries;
+    expect(written).toMatchObject({ state: "insufficient_input", summary: "" });
+    expect(state.embed).not.toHaveBeenCalled();
+    // Counted as our rule's decision, so the rate stays visible.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "insufficient_input",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,
@@ -377,7 +416,10 @@ describe("summarizeAssembledTrace", () => {
     state.facets.mockReturnValue([facet, issues]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -565,7 +607,10 @@ describe("summarizeAssembledTrace", () => {
     ]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         tone_3: { summary: "", status: "not_applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
@@ -689,7 +734,12 @@ describe("summarizeAssembledTrace", () => {
 
   it("attributes invalid summary output to the failed summary stage", async () => {
     state.summarize.mockResolvedValue({
-      output: { intent_1: { summary: "  ", status: "applicable" } },
+      output: {
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
+      },
       ...usage,
     });
     await expect(

@@ -1,6 +1,7 @@
 import { useState, type ComponentProps } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { ErrorBoundary } from "@sentry/nextjs";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import {
   useTraceData,
@@ -91,21 +92,18 @@ function SingleTraceMessagesView({
     >
       <div className="flex h-full min-h-0 w-full flex-col">
         {state.type === "transcript" && hiddenThreadCount > 0 && (
-          <div
-            role="status"
-            className="text-muted-foreground flex shrink-0 items-center justify-between gap-3 rounded-md border p-3 text-sm"
-          >
-            <span>
+          <div className="shrink-0">
+            <Banner
+              actions={[
+                {
+                  text: "Show nested threads",
+                  onClick: () => setExpandedTraceId(messageTrace.id),
+                },
+              ]}
+            >
               {hiddenThreadCount} nested{" "}
               {hiddenThreadCount === 1 ? "thread is" : "threads are"} hidden.
-            </span>
-            <button
-              type="button"
-              className="text-foreground shrink-0 underline underline-offset-4"
-              onClick={() => setExpandedTraceId(messageTrace.id)}
-            >
-              Show nested threads
-            </button>
+            </Banner>
           </div>
         )}
         {data?.cutoff && (!data.transcript || entries.length <= 1) && (

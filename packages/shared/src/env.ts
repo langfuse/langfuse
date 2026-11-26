@@ -61,18 +61,6 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
-  // Topics deployment switch, read by web and worker. Processing also needs the
-  // worker's events dispatch (LANGFUSE_EVENTS_DISPATCH_ENABLED).
-  LANGFUSE_TOPICS_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
-    .string()
-    .default("")
-    .transform((value) =>
-      value
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean),
-    ),
   // Internal trace evals beta control; not a supported self-hosting configuration.
   LANGFUSE_TRACE_EVALS_ENABLED_PROJECT_IDS: z
     .string()
@@ -197,6 +185,10 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  // Comma-separated tables whose DELETE FROM always runs with
+  // lightweight_delete_mode = 'alter_update'.
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE_EXCLUDED_TABLES:
+    optionalCommaSeparatedLowercase,
   CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])

@@ -20,7 +20,8 @@ import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
-import { CheckCircle, SquareArrowOutUpRight } from "@langfuse/icons";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const validStringMap = (entries: Array<[string, string]>) =>
@@ -165,9 +166,7 @@ export function TestModelMatchDialogContent({
                   )}
 
                   {error && (
-                    <div className="border-destructive/50 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-                      Error: {error.message}
-                    </div>
+                    <Banner variant="error">Error: {error.message}</Banner>
                   )}
 
                   {!isLoading &&
@@ -175,15 +174,7 @@ export function TestModelMatchDialogContent({
                     data &&
                     (data.matched ? (
                       <>
-                        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
-                          <CheckCircle
-                            size="base"
-                            __rawClassName="text-green-600 dark:text-green-400"
-                          />
-                          <span className="text-sm font-bold text-green-900 dark:text-green-100">
-                            Match Found
-                          </span>
-                        </div>
+                        <Banner variant="success" title="Match found" />
                         <MatchedModelCard model={data.model} />
                         <MatchedTierCard tier={data.matchedTier} />
                       </>

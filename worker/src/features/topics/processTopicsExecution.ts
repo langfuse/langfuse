@@ -7,13 +7,15 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import {
-  isTopicsEnabled,
   readTopicExecutionSummary,
   writeTopicExecution,
   getTopicFacetVersion,
   listTopicFacets,
   writeTopicAssignments,
   readTopicAssignments,
+  readUntilVisible,
+  countTopicAssignmentSources,
+  TopicAssignmentVisibilityError,
   readTopicRunTraceIds,
   createTopicRun,
   getTopicRun,
@@ -38,6 +40,7 @@ import {
   type TopicFacetProgress,
   type TopicDefinition,
   type TopicTimeRange,
+  reportedTopicSummaryState,
   sameTopicGeometry,
   topicTimeRangeSchema,
 } from "@langfuse/shared/topics";
@@ -46,7 +49,7 @@ import {
   nameTopicGroup,
   prepareTopicNamingGroup,
   type NamingConflict,
-} from "./models";
+} from "./llm/models";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -95,6 +98,8 @@ type AssignmentScope = Pick<FitScope, "projectId" | "embeddingConfig">;
 
 // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
 const MAX_CLUSTERING_ROWS = 20_000;
+// Share of a run's sources that must be readable before its map is published.
+const ASSIGNMENT_COVERAGE = 0.99;
 const MAX_CLUSTERING_BYTES = 256 * 1024 * 1024;
 
 const errorMessage = (error: unknown) =>
@@ -125,7 +130,7 @@ function countSummaries(
     (row) => row.state === "not_applicable",
   ).length;
   progress.counts.insufficientInput = summaries.filter(
-    (row) => row.state === "insufficient_input",
+    (row) => reportedTopicSummaryState(row.state) === "insufficient_input",
   ).length;
 }
 
@@ -148,7 +153,7 @@ async function assignSummaries(
   summaries: TopicSummary[],
   run: TopicRun,
   coordinates: Map<string, [number, number]> = new Map(),
-  assignedAt = new Date().toISOString(),
+  createdAt = new Date().toISOString(),
 ) {
   return instrumentAsync(
     { name: "topics.assignment", traceScope: "topics" },
@@ -156,9 +161,10 @@ async function assignSummaries(
       span.setAttribute("langfuse.topics.summaries", summaries.length);
       return metrics.measure("assignment", async () => {
         let assignedCount = 0;
-        // Keep classification and readback scratch bounded independently of cohort size.
-        for (let start = 0; start < summaries.length; start += 1000) {
-          const batch = summaries.slice(start, start + 1000);
+        const sources = new Set<string>();
+        // Keep classification scratch bounded; one insert per batch keeps parts large.
+        for (let start = 0; start < summaries.length; start += 10_000) {
+          const batch = summaries.slice(start, start + 10_000);
           const rows: ReturnType<typeof topicAssignmentRows> = [];
           for (let offset = 0; offset < batch.length; offset += 64) {
             rows.push(
@@ -170,7 +176,7 @@ async function assignSummaries(
                 run,
                 ruleId: run.ruleId ?? null,
                 origin: "initial",
-                assignedAt,
+                createdAt,
                 coordinates,
               }),
             );
@@ -181,33 +187,32 @@ async function assignSummaries(
             () => writeTopicAssignments(rows),
             "storage",
           );
-          const visible = await readTopicAssignments(
-            scope.projectId,
-            { facetId: facet.facetId, version: facet.version },
-            batch,
-            run.id,
-            summaryTimeRange(batch),
-          );
-          const visibleByTrace = new Map(
-            visible.map((row) => [row.traceId, row]),
-          );
-          if (
-            rows.some((row) => {
-              const persisted = visibleByTrace.get(row.traceId);
-              return (
-                !persisted ||
-                persisted.topicId !== row.topicId ||
-                persisted.topicVersionId !== row.topicVersionId ||
-                persisted.summaryProcessedAt !== row.summaryProcessedAt
-              );
-            })
-          )
-            throw new Error(
-              "Topic assignments are not fully visible; map publication is deferred.",
-            );
+          for (const row of rows)
+            sources.add(JSON.stringify([row.traceId, row.sessionId]));
           assignedCount += rows.filter((row) => row.topicId !== null).length;
           await yieldToEventLoop();
         }
+        // Publish once nearly every source is readable; the rest appear as the replica catches up.
+        const required = Math.ceil(ASSIGNMENT_COVERAGE * sources.size);
+        const visible =
+          required === 0
+            ? 0
+            : await readUntilVisible(
+                "assignments",
+                { projectId: scope.projectId, runId: run.id },
+                () =>
+                  countTopicAssignmentSources(
+                    scope.projectId,
+                    { facetId: facet.facetId, version: facet.version },
+                    run.id,
+                    summaryTimeRange(summaries),
+                  ),
+                (count) => count >= required,
+              );
+        if (visible < required)
+          throw new TopicAssignmentVisibilityError(
+            `Topic assignments are not fully visible (${visible} of ${sources.size} sources); map publication is deferred.`,
+          );
         progress.counts.assigned = assignedCount;
         progress.counts.outlier = summaries.length - assignedCount;
         metrics.result("assignment", "assigned", progress.counts.assigned);
@@ -845,7 +850,6 @@ export async function processTopicUpdateExecution({
   projectId: string;
   executionId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
   if (metadata.input.operation !== "update")
@@ -1007,7 +1011,6 @@ export async function processTopicRuleRefit({
   projectId: string;
   runId: string;
 }): Promise<void> {
-  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const run = await getTopicRun(projectId, runId);
   if (!run?.ruleId) throw new Error("Topics rule refit run not found.");
   if (run.status === "running") {

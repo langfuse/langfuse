@@ -1,15 +1,17 @@
+// Pins that the dedup pass reads only the latest version per key.
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
   substituteNamedParams,
-} from "../repositories/goldenHarness";
+} from "../repositories/__tests__/goldenHarness";
 import type { ClickhouseCompilable } from "./compile";
 import { DedupLoweringPlugin } from "./dedup";
 import { getClickhouseKysely } from "./dialect";
 import { count, limitBy } from "./extensions";
-import { applyPassOnly, renderPassOutput } from "./passHarness";
+import { applyPassOnly, renderPassOutput } from "./__tests__/passHarness";
 import { DEDUP_SPECS } from "./schema";
 
 // The dedup pass alone, on a table that declares `limitBy` dedup: every read

@@ -16,6 +16,7 @@ const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 /**
  * Exponential backoff delay function for observation-not-found retries
  * Returns: 30s, 1m (60s), 2m (120s), 4m (240s)
+ * @internal
  */
 export const observationRetryDelayInMs = (attempt: number): number => {
   // Exponential backoff with 30s base: 30s * 2^(attempt-1)

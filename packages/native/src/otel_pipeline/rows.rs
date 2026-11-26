@@ -11,6 +11,7 @@ use std::sync::Arc;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 
+use crate::native_memory::retained_size;
 use crate::native_task::NativeResult;
 use crate::otel::types::{SkillAvailableInput, SkillResourceInput};
 use crate::otel::{value::Value, OwnedEvent};
@@ -18,8 +19,8 @@ use crate::otel_enrichment;
 use crate::PreparedEvent;
 
 use super::{
-    failure, BatchRows, EnrichedStorageRow, FinalizedOtelBatch, FinalizedOtelEvent, OtelCompletion,
-    OtelLookupRequest, OtelOverflowRequest, Pipeline,
+    failure, BatchRows, EnrichedStorageRow, EvaluationRequest, EvaluationRows, FinalizedOtelBatch,
+    FinalizedOtelEvent, OtelCompletion, OtelLookupRequest, OtelOverflowRequest, Pipeline,
 };
 
 /// Everything the worker reads from a lookup request to resolve it. Events whose keys are
@@ -121,7 +122,14 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeRes
         }
         let enrichment = otel_enrichment::enrich(&event, lookup, &mut regexes);
         let start_time_iso = event.start_time.clone();
-        let evaluation_fields = event.evaluation_fields.take();
+        let mut evaluation_fields = event.evaluation_fields.take();
+        // Evaluation parses stored model parameters back into a value. Parameters that are
+        // text before storage stay text, including text that holds JSON.
+        if let Some(text @ Value::String(_)) = &event.model_parameters {
+            evaluation_fields
+                .get_or_insert_with(Default::default)
+                .insert("model_parameters".into(), text.clone());
+        }
         let mut row = event.into_storage(enrichment, &state.context);
         if !state.source.media.is_empty() {
             row.restore_media(&mut |text| {
@@ -143,7 +151,7 @@ pub(super) fn enrich_inner(state: &mut Pipeline, lookups: &[Value]) -> NativeRes
 pub(super) fn finalize_or_request_overflow(
     state: &mut Pipeline,
     overflow_limit_bytes: Option<f64>,
-    include_evaluation_rows: bool,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<OtelCompletion> {
     let overflow_requests = overflow_limit_bytes
@@ -154,7 +162,7 @@ pub(super) fn finalize_or_request_overflow(
         Some(finalize_inner(
             state,
             Vec::new(),
-            include_evaluation_rows,
+            evaluation,
             trace_activity_ids,
         )?)
     } else {
@@ -221,7 +229,7 @@ pub(super) fn overflow_text<'a>(
 pub(super) fn finalize_inner(
     state: &mut Pipeline,
     overflow: Vec<super::OtelMediaResolution>,
-    include_evaluation_rows: bool,
+    evaluation: Option<EvaluationRequest>,
     trace_activity_ids: Option<Vec<String>>,
 ) -> NativeResult<FinalizedOtelBatch> {
     super::validate_results(
@@ -230,11 +238,16 @@ pub(super) fn finalize_inner(
         "incomplete overflow results",
     )?;
     let rows = state.rows.ready()?;
-    let evaluation_rows = if include_evaluation_rows {
-        evaluation_rows(rows)?
-    } else {
-        Vec::new()
+    let evaluation = match evaluation {
+        Some((store, filter_columns)) => Some((store, filter_columns, evaluation_rows(rows)?)),
+        None => None,
     };
+    let evaluation_filter_rows = evaluation
+        .as_ref()
+        .map(|(_, filter_columns, rows)| {
+            evaluation_filter_rows(rows, filter_columns, EVALUATION_FILTER_TEXT_BYTES)
+        })
+        .transpose()?;
     let BatchRows::Ready(mut rows) = std::mem::replace(&mut state.rows, BatchRows::Finalized)
     else {
         unreachable!("ready rows checked")
@@ -282,16 +295,77 @@ pub(super) fn finalize_inner(
             })
         })
         .collect::<NativeResult<Vec<_>>>()?;
+    let retained = evaluation
+        .iter()
+        .flat_map(|(_, _, rows)| rows)
+        .map(retained_size)
+        .sum::<usize>();
     state.memory.resize(
         events
             .iter()
             .map(|event| event.event.row.retained_bytes())
-            .sum(),
+            .sum::<usize>()
+            + retained,
     );
+    if let Some((store, filter_columns, rows)) = evaluation {
+        *store
+            .lock()
+            .map_err(|_| failure("OTEL processing lock poisoned"))? = EvaluationRows {
+            rows,
+            filter_columns,
+            retained,
+            memory: Some(state.memory.clone()),
+        };
+    }
     Ok(FinalizedOtelBatch {
         events,
-        evaluation_rows,
+        evaluation_filter_rows,
     })
+}
+
+/// The filter columns of one evaluation row.
+struct EvaluationFilterRow<'a> {
+    row: &'a serde_json::Value,
+    columns: &'a [String],
+}
+
+impl serde::Serialize for EvaluationFilterRow<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(
+            self.columns
+                .iter()
+                .filter_map(|column| Some((column, self.row.get(column)?))),
+        )
+    }
+}
+
+/// Longest filter-row text handed to Node. JavaScript cannot hold a string much longer than
+/// 512 MiB, and the filter columns of a large batch can add up to more than that.
+const EVALUATION_FILTER_TEXT_BYTES: usize = 64 * 1024 * 1024;
+
+/// Serialize `columns` of each row as JSON arrays of consecutive rows. A new array starts when
+/// the next row would take the current one past `text_bytes`.
+fn evaluation_filter_rows(
+    rows: &[serde_json::Value],
+    columns: &[String],
+    text_bytes: usize,
+) -> NativeResult<Vec<String>> {
+    let mut texts: Vec<String> = Vec::new();
+    for row in rows {
+        let row = serde_json::to_string(&EvaluationFilterRow { row, columns }).map_err(failure)?;
+        match texts.last_mut() {
+            // Count the separating comma and the closing bracket.
+            Some(text) if text.len() + row.len() + 2 <= text_bytes => {
+                text.push(',');
+                text.push_str(&row);
+            }
+            _ => texts.push(format!("[{row}")),
+        }
+    }
+    for text in &mut texts {
+        text.push(']');
+    }
+    Ok(texts)
 }
 
 fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serde_json::Value>> {
@@ -299,10 +373,11 @@ fn evaluation_rows(rows: &[Option<EnrichedStorageRow>]) -> NativeResult<Vec<serd
         .flatten()
         .map(|row| {
             let mut value = row.row.evaluation_value().map_err(failure)?;
-            // Evaluation snapshots carry model parameters as parsed JSON values.
+            // Evaluation snapshots carry model parameters as JavaScript parses them, so
+            // integers beyond its exact range are doubles.
             if let Some(text) = value["model_parameters"].as_str() {
-                if let Ok(parsed) = serde_json::from_str(text) {
-                    value["model_parameters"] = parsed;
+                if let Ok(parsed) = Value::parse(text) {
+                    value["model_parameters"] = parsed.into_serde_lossy();
                 }
             }
             if let Some(fields) = &row.evaluation_fields {
@@ -329,4 +404,37 @@ pub(super) fn needs_lookup(event: &OwnedEvent) -> bool {
                 .is_some_and(|version| version != 0.0 && !version.is_nan()))
         || !event.skills_available.is_empty()
         || !event.skills_resource_loaded.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::evaluation_filter_rows;
+
+    #[test]
+    fn filter_rows_span_several_texts_within_the_size_limit() {
+        let rows: Vec<Value> = (0..5)
+            .map(|index| json!({ "span_id": format!("span-{index}"), "input": "payload" }))
+            .collect();
+        let expected: Vec<Value> = (0..5)
+            .map(|index| json!({ "span_id": format!("span-{index}") }))
+            .collect();
+
+        let columns = ["span_id".to_owned()];
+        let one = evaluation_filter_rows(&rows, &columns, usize::MAX).unwrap();
+        assert_eq!(one.len(), 1);
+
+        // One row takes 20 bytes, so 45 bytes hold two rows with brackets and a comma.
+        let texts = evaluation_filter_rows(&rows, &columns, 45).unwrap();
+        assert_eq!(texts.len(), 3);
+        assert!(texts.iter().all(|text| text.len() <= 45));
+        for texts in [one, texts] {
+            let parsed: Vec<Value> = texts
+                .iter()
+                .flat_map(|text| serde_json::from_str::<Vec<Value>>(text).unwrap())
+                .collect();
+            assert_eq!(parsed, expected);
+        }
+    }
 }

@@ -27,6 +27,12 @@ import {
 
 const MEDIA_PAGE_SIZE = 4_096;
 
+/** The durable media writes: the stored object with its record, and its link to a trace or observation. */
+export type MediaWrites = {
+  uploadMedia: typeof uploadMediaForTrace;
+  linkMedia: typeof linkMediaToTraceOrObservation;
+};
+
 export type CachedMediaUpload = {
   mediaId: string;
   outcome: "uploaded" | "reused";
@@ -94,6 +100,7 @@ export async function uploadExtractedMediaOnce(params: {
   contentType: MediaContentType;
   byteLengthUpperBound: number;
   loadBody: () => Promise<Buffer>;
+  writes: MediaWrites;
 }): Promise<CachedMediaUpload> {
   const {
     batch,
@@ -106,6 +113,7 @@ export async function uploadExtractedMediaOnce(params: {
     sha256Hash,
     contentType,
     loadBody,
+    writes,
   } = params;
   const key = [
     projectId,
@@ -122,7 +130,7 @@ export async function uploadExtractedMediaOnce(params: {
   const cached = cache.get(key);
   if (cached) {
     const result = await cached;
-    await linkMediaToTraceOrObservation({
+    await writes.linkMedia({
       projectId,
       traceId,
       observationId,
@@ -138,7 +146,7 @@ export async function uploadExtractedMediaOnce(params: {
     async (): Promise<CachedMediaUpload> => {
       const contentBytes = await loadBody();
       return {
-        ...(await uploadMediaForTrace({
+        ...(await writes.uploadMedia({
           projectId,
           traceId,
           observationId,
@@ -239,6 +247,10 @@ export async function resolveExtractedMedia(params: {
         // Native retains encoded source spelling, which bounds the decoded body.
         byteLengthUpperBound: entry.originalByteLength,
         loadBody: () => batch.mediaBody(entry.index),
+        writes: {
+          uploadMedia: uploadMediaForTrace,
+          linkMedia: linkMediaToTraceOrObservation,
+        },
       });
       const replacement = entry.reference.replace(
         /\|id=[^|@]+/,

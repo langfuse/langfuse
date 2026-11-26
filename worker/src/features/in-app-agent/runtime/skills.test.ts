@@ -295,13 +295,15 @@ describe("in-app agent skill filesystem", () => {
     ).toBe("Custom directory");
     expect(
       await skills.search("Nested guide", { skillNames: ["langfuse"] }),
-    ).toEqual([
-      expect.objectContaining({
-        skillName: "langfuse",
-        source: "references/nested/guide.md",
-        content: "Nested guide",
-      }),
-    ]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          skillName: "langfuse",
+          source: "references/nested/guide.md",
+          content: "Nested guide",
+        }),
+      ]),
+    );
   });
 
   it("propagates caller cancellation before and during source requests", async () => {

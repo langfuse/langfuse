@@ -6,7 +6,7 @@ import {
   documentedPromptFixtures,
   vercelAiSdkMixedToolMessagesFixture,
   vercelAiSdkOutputToolCallFixture,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("AI SDK normalized I/O", () => {
   it.each([

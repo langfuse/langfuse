@@ -4,11 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
-  buildWidgetOrderBy,
-  getResultUnit,
-  isV2BreakdownChart,
   resolveWidgetRenderVersion,
-  toQueryChartConfig,
   validateQuery,
   type QueryType,
   type metricAggregations,
@@ -20,7 +16,12 @@ import {
   type DataPoint,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { buildWidgetQuery } from "@/src/features/widgets/fns/buildWidgetQuery";
+import {
+  getWidgetRowLimit,
+  toWidgetChartDataPoints,
+  toWidgetRenderChartConfig,
+} from "@/src/features/widgets/fns/widgetChartProps";
 import {
   PencilIcon,
   TrashIcon,
@@ -57,7 +58,6 @@ import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDi
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { WidgetChartCard } from "./WidgetChartCard";
 import { getWidgetChartQueryState } from "../fns/getWidgetChartQueryState";
-import { toWidgetChartDataPoint } from "../fns/toWidgetChartDataPoint";
 
 export interface WidgetPlacement {
   id: string;
@@ -181,63 +181,29 @@ export function DashboardWidget({
       ? dateRange.from
       : new Date(new Date().getTime() - 1000);
     const toTimestamp = dateRange ? dateRange.to : new Date();
-
-    const isTimeSeries = isTimeSeriesChart(
-      widget.data?.chartType ?? "LINE_TIME_SERIES",
-    );
-    const hasDimension = (widget.data?.dimensions ?? []).length > 0;
-    const chartType = widget.data?.chartConfig.type ?? "LINE_TIME_SERIES";
-    const needsTopN = isV2BreakdownChart({
-      version: metricsVersion,
-      hasDimension,
-      isTimeSeries,
-      chartType,
-    });
-
-    const firstMetric = widget.data?.metrics[0];
-    const orderBy = buildWidgetOrderBy({
-      chartType,
-      sortState,
-      needsTopN,
-      firstMetric: firstMetric
-        ? { aggregation: firstMetric.agg, measure: firstMetric.measure }
-        : undefined,
-    });
-
-    // Only query-engine fields — rendering fields (defaultSort, show_value_labels)
-    // stay on widget.data.chartConfig for the Chart component
-    const chartConfig = widget.data?.chartConfig
-      ? toQueryChartConfig(widget.data.chartConfig, {
-          defaultRowLimit: needsTopN ? 100 : undefined,
-        })
-      : { type: chartType };
-
     const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
 
-    // A widget's own environment filter overrides the dashboard's global
-    // environment selector; other dashboard-global filters still merge in.
-    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
-    const mergedFilters = mergeWidgetAndDashboardFilters({
-      view,
-      widgetFilters: widget.data?.filters ?? [],
-      dashboardFilters: filterState,
+    return buildWidgetQuery({
+      widget: {
+        view,
+        chartType: widget.data?.chartType ?? "LINE_TIME_SERIES",
+        chartConfig: widget.data?.chartConfig ?? { type: "LINE_TIME_SERIES" },
+        metrics: widget.data?.metrics ?? [],
+        dimensions: widget.data?.dimensions ?? [],
+      },
+      // A widget's own environment filter overrides the dashboard's global
+      // environment selector; other dashboard-global filters still merge in
+      // (see mergeWidgetAndDashboardFilters).
+      filters: mergeWidgetAndDashboardFilters({
+        view,
+        widgetFilters: widget.data?.filters ?? [],
+        dashboardFilters: filterState,
+      }),
+      fromTimestamp,
+      toTimestamp,
+      sortState,
+      version: metricsVersion,
     });
-
-    return {
-      view,
-      dimensions: widget.data?.dimensions ?? [],
-      metrics:
-        widget.data?.metrics.map((metric) => ({
-          measure: metric.measure,
-          aggregation: metric.agg as z.infer<typeof metricAggregations>,
-        })) ?? [],
-      filters: mergedFilters,
-      timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
-      fromTimestamp: fromTimestamp.toISOString(),
-      toTimestamp: toTimestamp.toISOString(),
-      orderBy,
-      chartConfig,
-    };
   }, [widget.data, filterState, dateRange, sortState, metricsVersion]);
 
   const queryValidation = useMemo(
@@ -300,51 +266,13 @@ export function DashboardWidget({
     setRetryCount((current) => current + 1);
   }, []);
 
-  const transformedData = useMemo<DataPoint[]>(() => {
-    if (!widget.data || !queryResult.data) {
-      return [];
-    }
-    return queryResult.data.map((item) => {
-      const timeDimension =
-        typeof item.time_dimension === "string"
-          ? item.time_dimension
-          : undefined;
-      if (widget.data.chartType === "PIVOT_TABLE") {
-        // For pivot tables, preserve all raw data fields without any transformation
-        // The PivotTable component will extract the appropriate metric fields
-        // using the metric field names passed via chartConfig
-        return {
-          dimension:
-            widget.data.dimensions.length > 0
-              ? (widget.data.dimensions[0]?.field ?? "dimension")
-              : "dimension", // Fallback for compatibility
-          metric: 0, // Placeholder - not used for pivot tables
-          time_dimension: timeDimension,
-          // Include all original query fields for pivot table processing
-          ...item,
-        };
-      }
-
-      // Regular chart processing for non-pivot tables
-      const metric = widget.data.metrics.slice().shift() ?? {
-        measure: "count",
-        agg: "count",
-      };
-      const metricField = `${metric.agg}_${metric.measure}`;
-      const dimensionField =
-        widget.data.dimensions.slice().shift()?.field ?? "none";
-      return toWidgetChartDataPoint({
-        metricValue: item[metricField],
-        metricField,
-        aggregation: metric.agg,
-        dimensionValue: item[dimensionField],
-        timeDimension,
-        isTimeSeries: isTimeSeriesChart(widget.data.chartType),
-        dimensionLabelMap: undefined,
-        normalizeHistogram: true,
-      });
-    });
-  }, [queryResult.data, widget.data]);
+  const transformedData = useMemo<DataPoint[]>(
+    () =>
+      widget.data && queryResult.data
+        ? toWidgetChartDataPoints(widget.data, queryResult.data)
+        : [],
+    [queryResult.data, widget.data],
+  );
 
   const chartPresentation = useMemo(() => {
     if (!widget.data) {
@@ -370,32 +298,16 @@ export function DashboardWidget({
   // Memoize the Chart's config/chartConfig objects so the scheduler's page
   // re-renders don't hand Chart fresh literals every tick (transformedData is
   // already memoized) — letting Chart's React.memo bail. (LFE-10549)
-  const chartConfigForRender = useMemo(() => {
-    const data = widget.data;
-    if (!data) return undefined;
-    return {
-      ...data.chartConfig,
-      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-      ...(data.chartType === "PIVOT_TABLE" && {
-        dimensions: data.dimensions.map((dim) => dim.field),
-        metrics: data.metrics.map(
-          (metric) => `${metric.agg}_${metric.measure}`,
-        ),
-        units: data.metrics.map((metric) =>
-          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
-        ),
-        defaultSort,
-      }),
-      ...(data.chartType !== "PIVOT_TABLE" && {
-        unit: getResultUnit(
-          data.view,
-          data.metrics[0]?.measure ?? "",
-          data.metrics[0]?.agg,
-          metricsVersion,
-        ),
-      }),
-    };
-  }, [widget.data, metricsVersion, defaultSort]);
+  const chartConfigForRender = useMemo(
+    () =>
+      widget.data
+        ? toWidgetRenderChartConfig(widget.data, {
+            version: metricsVersion,
+            defaultSort,
+          })
+        : undefined,
+    [widget.data, metricsVersion, defaultSort],
+  );
 
   const chartMetricConfig = useMemo(
     () =>
@@ -729,13 +641,7 @@ export function DashboardWidget({
         syncId={dashboardId}
         sync={chartSync}
         config={chartMetricConfig}
-        rowLimit={
-          widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-          widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
-          widget.data.chartConfig.type === "AREA_TIME_SERIES"
-            ? 100
-            : (widget.data.chartConfig.row_limit ?? 100)
-        }
+        rowLimit={getWidgetRowLimit(widget.data.chartConfig)}
         chartConfig={chartConfigForRender}
         sortState={
           widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined

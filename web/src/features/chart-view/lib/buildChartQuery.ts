@@ -1,3 +1,6 @@
+// Builds the observations query for a chart view config and maps result rows
+// to chart data points.
+
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
@@ -14,6 +17,7 @@ const VIEW = "observations" as const;
 // `toChartFilters` before handing it here.
 
 /** The executeQuery column name for a metric, e.g. `p95_latency`, `count_count`. */
+/** @internal */
 export const metricField = (config: ChartViewConfig): string =>
   `${config.aggregation}_${getMetric(config.metric).measure}`;
 

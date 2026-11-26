@@ -17,6 +17,7 @@ import {
   finishTopicCostEstimate,
   listTopicFacets,
   markTopicCostEstimateStarted,
+  priceTopicCostEstimate,
   readTopicCostEstimate,
   topicMatchingTraceIdsQuery,
 } from "@langfuse/shared/topics/server";
@@ -28,7 +29,7 @@ import {
 import { env } from "../../env";
 import { toTraceEventObservation } from "../eventsDispatch/traceEvents";
 import { recordTopicCostEstimate } from "./metrics";
-import { buildTopicSummaryRequest, charsPerToken } from "./models";
+import { buildTopicSummaryRequest, charsPerToken } from "./llm/models";
 import { keyTopicTraceFacets } from "./summarizeAssembledTrace";
 
 const DAY_MS = 86_400_000;
@@ -97,6 +98,13 @@ export async function runTopicCostEstimate(
   };
   if (!(await markTopicCostEstimateStarted(projectId, record))) return;
   const deadline = Date.now() + DEADLINE_MS;
+  const tenant = {
+    projectId,
+    orgId: await prisma.project
+      .findUnique({ where: { id: projectId }, select: { orgId: true } })
+      .then((project) => project?.orgId)
+      .catch(() => undefined),
+  };
 
   try {
     const { filter, facets: refs, summaryModel } = record.inputs;
@@ -184,7 +192,7 @@ export async function runTopicCostEstimate(
         record.skipped.tooLarge++;
         return;
       }
-      const text = renderStoredTopicText(
+      const { text } = renderStoredTopicText(
         context.transcript,
         context.executionIssues,
       );
@@ -233,7 +241,16 @@ export async function runTopicCostEstimate(
     record.finishedAt = Date.now();
     // Not written when the record expired or a newer run replaced it.
     const written = await finishTopicCostEstimate(projectId, record);
-    recordTopicCostEstimate(written ? "done" : "superseded", record.startedAt);
+    // Priced like the UI; a pricing failure must not fail a finished estimate.
+    const prices = written
+      ? await priceTopicCostEstimate(projectId, record).catch(() => null)
+      : null;
+    recordTopicCostEstimate(
+      written ? "done" : "superseded",
+      record.startedAt,
+      tenant,
+      prices?.perTraceUsd != null ? prices.perTraceUsd * 1000 : undefined,
+    );
   } catch (error) {
     logger.error("Topics cost estimate failed", { projectId, error });
     record.status = "failed";
@@ -243,6 +260,6 @@ export async function runTopicCostEstimate(
         ? error.message
         : "The estimate failed. Try again.";
     await finishTopicCostEstimate(projectId, record);
-    recordTopicCostEstimate("failed", record.startedAt);
+    recordTopicCostEstimate("failed", record.startedAt, tenant);
   }
 }

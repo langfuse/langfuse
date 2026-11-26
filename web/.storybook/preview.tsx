@@ -16,6 +16,7 @@ import { TooltipProvider } from "../src/components/ui/tooltip";
 import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { fontVariables } from "../src/styles/fonts";
+import { cn } from "../src/utils/tailwind";
 import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
@@ -61,7 +62,7 @@ function StorybookThemeProvider({
     >
       <div
         id="__next"
-        className="bg-background text-foreground"
+        className={cn(fontVariables, "bg-background text-foreground")}
         style={{ height: fullHeight ? "100vh" : "auto" }}
       >
         <div>{children}</div>

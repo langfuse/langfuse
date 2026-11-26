@@ -19,6 +19,7 @@ export type TopicResult =
   | "applicable"
   | "not_applicable"
   | "insufficient_input"
+  | "empty_input"
   | "invalid_output"
   | "input_too_large"
   | "topics_found"
@@ -36,9 +37,10 @@ type TopicErrorReason =
   | "numerical"
   | "input_too_large"
   | "definition_readback"
+  | "assignment_visibility"
   | "unknown";
 
-/** Who has to act on a failure. Topics builds the request and sets the size limits, so rejected or oversized input is ours. */
+/** Who has to act on a failure. Topics builds the request, so rejected input is ours; a trace over the size limit is the customer's. */
 export function topicFailureOwner(
   reason: string,
 ): "platform" | "upstream" | "customer" {
@@ -48,6 +50,7 @@ export function topicFailureOwner(
       "configuration",
       "rate_limit",
       "content_filter",
+      "input_too_large",
     ].includes(reason)
   )
     return "customer";
@@ -103,15 +106,28 @@ export function recordTopicRequestBytes(
 }
 
 /** One cost estimate from the user's click to its end, queue wait included; the count per outcome is the success rate. */
+/** Estimates are rare, so per-project and per-org tags stay low-cardinality. */
 export function recordTopicCostEstimate(
   outcome: "done" | "failed" | "superseded",
   startedAt: number,
+  tenant: { projectId: string; orgId: string | undefined },
+  per1000TracesUsd?: number,
 ): void {
+  const tags = {
+    projectId: tenant.projectId,
+    ...(tenant.orgId && { orgId: tenant.orgId }),
+  };
   recordDistribution(
     "langfuse.topics.cost_estimate_duration_ms",
     Date.now() - startedAt,
-    { outcome, unit: "milliseconds" },
+    { ...tags, outcome, unit: "milliseconds" },
   );
+  if (per1000TracesUsd !== undefined)
+    recordDistribution(
+      "langfuse.topics.cost_estimate_per_1000_traces_usd",
+      per1000TracesUsd,
+      tags,
+    );
 }
 
 /** One instance per execution attempt prevents nested catches counting an error twice. */
@@ -144,10 +160,15 @@ export class TopicMetrics {
   }
 
   /** Summary input size per format: the rendered text sent, and the JSON projection it replaced. */
-  summaryInputCharacters(format: "text" | "json", characters: number): void {
+  summaryInputCharacters(
+    format: "text" | "json",
+    characters: number,
+    overLimit?: boolean,
+  ): void {
     recordDistribution("langfuse.topics.summary_input_characters", characters, {
       ...this.tags,
       format,
+      ...(overLimit !== undefined && { over_limit: String(overLimit) }),
     });
   }
 
@@ -242,6 +263,8 @@ export class TopicMetrics {
       if (error.name === "TopicInputTooLarge") reason = "input_too_large";
       if (error.name === "TopicDefinitionReadbackError")
         reason = "definition_readback";
+      if (error.name === "TopicAssignmentVisibilityError")
+        reason = "assignment_visibility";
       if (
         [
           "PrismaClientKnownRequestError",
@@ -260,8 +283,9 @@ export class TopicMetrics {
       stage,
       reason,
       owner:
-        error instanceof TopicsProviderUnavailable
-          ? topicFailureOwner(error.reason)
+        error instanceof TopicsProviderUnavailable ||
+        reason === "input_too_large"
+          ? topicFailureOwner(reason)
           : "platform",
     });
   }

@@ -47,5 +47,5 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
           return toMcpEvaluationRule(rule);
         },
       }),
-    destructiveHint: true,
+    annotations: { destructiveHint: true },
   });

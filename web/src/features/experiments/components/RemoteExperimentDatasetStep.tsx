@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CheckIcon } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -149,12 +150,9 @@ export const RemoteExperimentDatasetStep = ({
             </Popover>
           </div>
         ) : (
-          <div className="rounded-md border p-4 text-sm">
-            <div className="font-bold">No datasets found</div>
-            <p className="text-muted-foreground mt-1">
-              Create a dataset before setting up a remote experiment trigger.
-            </p>
-          </div>
+          <Banner title="No datasets found">
+            Create a dataset before setting up a remote experiment trigger.
+          </Banner>
         )}
       </DialogBody>
 

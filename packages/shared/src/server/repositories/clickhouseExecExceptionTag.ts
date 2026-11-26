@@ -1,17 +1,13 @@
-// Replicates @clickhouse/client's mid-stream exception detection for the
-// `exec()` binary export path (LFE-10463 Parquet): exec() returns the raw body
-// with no scan, so a query failing after a 200 would truncate silently. On CH
-// >= 25.11 a failure appends `\r\n__exception__\r\n<tag>` … to the body. We scan
-// for marker+tag (not the bare marker): the literal prefix can occur in a
-// successful Parquet footer's uncompressed min/max stats (raw user strings), so
-// scanning the prefix alone lets an adversarial trace value false-positive every
-// export of a window — a per-window DoS. The per-query tag is unguessable.
-// Caveat (like rawPassthrough): pre-25.11 the tag header is absent → detection off.
+// Fails a raw `exec()` Parquet stream when ClickHouse appends a mid-stream
+// exception after HTTP 200, so an export never commits a truncated file.
+// Matches the marker plus the unguessable per-query tag (ClickHouse >= 25.11;
+// off before), since user strings in Parquet stats can contain the marker.
 
 import { Transform } from "stream";
 import { extractErrorAtTheEndOfChunk } from "@clickhouse/client";
 
 // Literal prefix of the error trailer; the per-query tag is appended at runtime.
+/** @internal */
 export const EXCEPTION_TRAILER_MARKER = Buffer.from("\r\n__exception__\r\n");
 
 export interface ClickhouseExecExceptionTagTransformOptions {
