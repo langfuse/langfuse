@@ -106,7 +106,8 @@
         "design-components-tabs--switches-tab",
         "design-components-tabs--selects-hidden-tab-from-overflow-menu",
         "design-components-tabs--focuses-tab-selected-from-overflow-menu",
-        "design-components-tabs--tracks-trigger-resize"
+        "design-components-tabs--tracks-trigger-resize",
+        "design-components-tabs--explains-disabled-tab"
       ]
     },
     "ControlledHoverCard": {
