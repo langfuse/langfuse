@@ -16,6 +16,7 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
+  TracePresentationProvider,
   useTracePresentation,
   type TracePresentation,
 } from "@/src/features/traces/contexts/TracePresentationProvider";
@@ -256,7 +257,7 @@ export function Trace(props: TraceProps | TraceLoadingProps) {
 
   return (
     <ViewPreferencesProvider traceContext={traceContext}>
-      {/* A new presentation starts a fresh view, including the embedded tab choice. */}
+      {/* A new presentation starts a fresh view. */}
       <SelectionProvider
         key={presentation ?? "page"}
         defaultObservationId={defaultObservationId}
@@ -578,12 +579,15 @@ function TraceContent({
   function renderTracePeek(entries: TraceDetailPageListEntry[]) {
     if (!showMessagesTab || isSessionTracePeek || !tracePeek) return null;
     return (
-      <SessionTracePeek
-        projectId={projectId}
-        search={tracePeek}
-        onClose={closeTracePeek}
-        traceEntries={entries}
-      />
+      // A peek is never embedded, even when an embed opens it.
+      <TracePresentationProvider presentation={null}>
+        <SessionTracePeek
+          projectId={projectId}
+          search={tracePeek}
+          onClose={closeTracePeek}
+          traceEntries={entries}
+        />
+      </TracePresentationProvider>
     );
   }
 
