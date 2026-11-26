@@ -1244,7 +1244,7 @@ describe("qualifiers in a SELECT with one relation", () => {
     ],
   ])("rejects a relation the query did not join in %s", (_, build) => {
     expect(() => compileClickhouseQuery(build(), projectId)).toThrow(
-      /Qualifier "(zz|e)" names no relation, column/,
+      /Qualifier "(zz|e)" names no relation, registry column/,
     );
   });
 

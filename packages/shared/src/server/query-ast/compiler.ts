@@ -531,8 +531,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * The qualifier of `q.x` must name a relation in scope, a lambda parameter
    * or an output alias. Otherwise `q` is a bare column and `.x` its subcolumn
    * or tuple element (`metadata.keys`, `tags.1`). A SELECT with one relation
-   * reads that from its relation, so `q` must be one of its columns; with
-   * several, ClickHouse reads it from the left-most relation that has `q`.
+   * reads that from its relation, so `q` must be one of its registry columns;
+   * with several, ClickHouse reads it from the left-most relation that has `q`.
    */
   private assertQualifierResolves(qualifier: string): void {
     const scope = this.selectScopes.at(-1);
@@ -540,9 +540,9 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     if (this.selectScopes.some((s) => s.relations.has(qualifier))) return;
     if (this.resolvesToLambdaOrAlias(qualifier, scope)) return;
     if (scope.relationCount === 1) {
-      if (this.relationMayHaveColumn(scope, qualifier)) return;
+      if (this.relationHasColumn(scope, qualifier)) return;
       throw new QueryCompileError(
-        `Qualifier "${qualifier}" names no relation, column, lambda parameter or output alias of its SELECT; ClickHouse would reject the query. Qualify the column with an alias the query declares, or join the relation it reads.`,
+        `Qualifier "${qualifier}" names no relation, registry column, lambda parameter or output alias of its SELECT. Qualify the column with an alias the query declares, join the relation it reads, or add the column to the registry in schema.ts.`,
       );
     }
     throw new QueryCompileError(
@@ -550,11 +550,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     );
   }
 
-  /** Whether a relation of `scope` has `column`, or may: its columns are unknown. */
-  private relationMayHaveColumn(scope: SelectScope, column: string): boolean {
+  /** An opaque relation counts as lacking the column, so the check fails closed. */
+  private relationHasColumn(scope: SelectScope, column: string): boolean {
     return [...scope.relations.values()].some(
       (columns) =>
-        columns instanceof OpaqueRelation || Object.hasOwn(columns, column),
+        !(columns instanceof OpaqueRelation) && Object.hasOwn(columns, column),
     );
   }
 

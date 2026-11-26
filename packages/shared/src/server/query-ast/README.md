@@ -142,9 +142,10 @@ must carry the `.golden.test.ts` suffix to run there.
   `expressionBuilder<ObservationsDb, "e" | "scores">()` for the observations
   view's `countScores` measure. It type-checks a ref to a relation the query
   did not join. The compiler rejects that ref in any clause. In a query over
-  one relation, `q.x` also compiles when `q` is a column of that relation
-  (`metadata.keys`). The compiler does not check the column: `scores.nope`
-  compiles, and only ClickHouse rejects the query.
+  one relation, `q.x` also compiles when `q` is a registry column of that
+  relation (`metadata.keys`); a column the registry does not model must be
+  added to it first. The compiler does not check `x`: `scores.nope` compiles,
+  and only ClickHouse rejects the query.
 - **Helpers take columns as expressions.** A helper parameter that names a
   column is an `Expression<T>` the caller builds (`eb.ref("e.col")`), never a
   column-name string, so the calling query's builder checks the column. Don't
