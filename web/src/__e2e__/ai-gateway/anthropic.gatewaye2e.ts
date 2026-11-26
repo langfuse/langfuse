@@ -53,7 +53,7 @@ describe.skipIf(skip)("AI gateway Anthropic end-to-end", () => {
         path: "/anthropic/v1/messages",
         body: {
           model: MODEL,
-          max_tokens: 64,
+          max_tokens: 512,
           messages: [{ role: "user", content: REDACT_STREAM_PROMPT }],
           stream: true,
         },

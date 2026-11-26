@@ -36,7 +36,7 @@ pub use outbound::OutboundPolicy;
 /// Largest provider response body buffered for output guardrail evaluation.
 const MAX_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;
 
-/// Failures that can end [`ProviderTransport::forward_route_with_guardrails`]
+/// Failures that can end [`ProviderTransport::forward_route`]
 /// before returning a provider response to the caller.
 #[derive(Debug)]
 pub(crate) enum ForwardError {
@@ -49,6 +49,16 @@ impl From<ProviderError> for ForwardError {
     fn from(error: ProviderError) -> Self {
         Self::Provider(error)
     }
+}
+
+/// Resolved request inputs forwarded to an upstream provider.
+pub(crate) struct ForwardRequest<'a> {
+    pub(crate) permit: RequestPermit,
+    pub(crate) context: ResolvedRequestContext,
+    pub(crate) headers: &'a HeaderMap,
+    pub(crate) request: RequestBody,
+    pub(crate) route: Route,
+    pub(crate) guardrails: Option<&'a Guardrails>,
 }
 
 #[derive(Clone, Copy)]
@@ -235,21 +245,28 @@ impl ProviderTransport {
         let model_range = model_range(&body)?;
         let stream_options = StreamOptions::from_body(&body);
         self.forward_route(
-            permit,
-            context,
-            headers,
-            RequestBody {
-                bytes: body,
-                stream_options,
-                model_range,
-                streaming: true,
-                reservation: None,
-                parse_growth: None,
+            ForwardRequest {
+                permit,
+                context,
+                headers,
+                request: RequestBody {
+                    bytes: body,
+                    stream_options,
+                    model_range,
+                    streaming: true,
+                    reservation: None,
+                    parse_growth: None,
+                },
+                route: Route::OpenAiResponses,
+                guardrails: None,
             },
-            Route::OpenAiResponses,
             &mut RequestCorrelation::from_headers(headers),
         )
         .await
+        .map_err(|error| match error {
+            ForwardError::Provider(provider) => provider,
+            ForwardError::GuardrailBlocked(_) | ForwardError::Busy => ProviderError::Configuration,
+        })
     }
 
     #[expect(
@@ -303,66 +320,19 @@ impl ProviderTransport {
         Ok((capture, reservation))
     }
 
-    #[cfg(test)]
     pub(crate) async fn forward_route(
         &self,
-        permit: RequestPermit,
-        context: ResolvedRequestContext,
-        headers: &HeaderMap,
-        request: RequestBody,
-        route: Route,
-        correlation: &mut RequestCorrelation,
-    ) -> Result<Response<Body>, ProviderError> {
-        self.forward_route_inner(permit, context, headers, request, route, None, correlation)
-            .await
-            .map_err(|error| match error {
-                ForwardError::Provider(provider) => provider,
-                ForwardError::GuardrailBlocked(_) | ForwardError::Busy => {
-                    ProviderError::Configuration
-                }
-            })
-    }
-
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "forwards request execution context, response guardrails, and correlation"
-    )]
-    pub(crate) async fn forward_route_with_guardrails(
-        &self,
-        permit: RequestPermit,
-        context: ResolvedRequestContext,
-        headers: &HeaderMap,
-        request: RequestBody,
-        route: Route,
-        guardrails: &Guardrails,
+        input: ForwardRequest<'_>,
         correlation: &mut RequestCorrelation,
     ) -> Result<Response<Body>, ForwardError> {
-        self.forward_route_inner(
-            permit,
+        let ForwardRequest {
+            mut permit,
             context,
             headers,
             request,
             route,
-            Some(guardrails),
-            correlation,
-        )
-        .await
-    }
-
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "forwards request execution context, optional response guardrails, and correlation"
-    )]
-    async fn forward_route_inner(
-        &self,
-        mut permit: RequestPermit,
-        context: ResolvedRequestContext,
-        headers: &HeaderMap,
-        request: RequestBody,
-        route: Route,
-        guardrails: Option<&Guardrails>,
-        correlation: &mut RequestCorrelation,
-    ) -> Result<Response<Body>, ForwardError> {
+            guardrails,
+        } = input;
         let RequestBody {
             bytes: body,
             model_range,
@@ -438,33 +408,22 @@ impl ProviderTransport {
         let status = response.status();
         capture.record_response(status.as_u16(), response.headers());
         record_provider_status(observation, status);
+        let run = ResponseGuardrailRun {
+            status,
+            headers: transport::response_headers(response.headers(), api_format),
+            api_format,
+            permit,
+            context,
+            reservation,
+            capture,
+            stall_timeout: self.limits.execution.stall_timeout,
+        };
         if let Some(guardrails) =
-            guardrails.filter(|_| has_active_response_guardrails(status, route, &context))
+            guardrails.filter(|_| has_active_response_guardrails(status, route, &run.context))
         {
-            let run = ResponseGuardrailRun {
-                status,
-                headers: transport::response_headers(response.headers(), api_format),
-                api_format,
-                permit,
-                context,
-                reservation,
-                capture,
-                stall_timeout: self.limits.execution.stall_timeout,
-            };
             return Box::pin(run.execute(response, guardrails)).await;
         }
-        Ok(build_downstream_response(
-            status,
-            transport::response_headers(response.headers(), api_format),
-            transport::relay(
-                response,
-                api_format.provider().as_str(),
-                permit.deadline,
-                self.limits.execution.stall_timeout,
-                (permit, context, reservation),
-                capture,
-            ),
-        ))
+        Ok(run.relay_passthrough(response))
     }
 
     /// Relay a gateway-built response body under the execution deadlines, holding
@@ -631,6 +590,22 @@ enum UnreadableSource {
 }
 
 impl ResponseGuardrailRun {
+    fn relay_passthrough(self, response: reqwest::Response) -> Response<Body> {
+        let provider = self.api_format.provider().as_str();
+        build_downstream_response(
+            self.status,
+            self.headers,
+            transport::relay(
+                response,
+                provider,
+                self.permit.deadline,
+                self.stall_timeout,
+                (self.permit, self.context, self.reservation),
+                self.capture,
+            ),
+        )
+    }
+
     async fn execute(
         mut self,
         response: reqwest::Response,

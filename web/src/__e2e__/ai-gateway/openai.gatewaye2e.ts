@@ -277,7 +277,7 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
       body: {
         model: "gpt-6-sol",
         input: REDACT_STREAM_PROMPT,
-        max_output_tokens: 64,
+        max_output_tokens: 256,
         stream: true,
       },
     },
@@ -287,7 +287,7 @@ describe.skipIf(skip)("AI gateway OpenAI end-to-end", () => {
       body: {
         model: "gpt-6-sol",
         messages: [{ role: "user", content: REDACT_STREAM_PROMPT }],
-        max_completion_tokens: 64,
+        max_completion_tokens: 256,
         stream: true,
       },
     },
