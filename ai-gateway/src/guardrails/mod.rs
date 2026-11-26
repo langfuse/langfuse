@@ -86,6 +86,15 @@ impl Guardrails {
                 })
                 .await
                 .ok_or(ResolutionError::Busy)?;
+            #[cfg(feature = "bench-harness")]
+            let turn = if crate::bench_metrics::max_scan_bytes()
+                .is_some_and(|cap| turn.as_ref().is_ok_and(|t| t.bytes() > cap))
+            {
+                crate::bench_metrics::record_cap_rejection();
+                Err(Unreadable)
+            } else {
+                turn
+            };
             let bytes = turn.as_ref().map_or(0, LastTurn::bytes);
             let has_external = guardrails.iter().any(Guardrail::is_external);
             let mut turn_text_reservation = (has_external && bytes > 0)
@@ -124,7 +133,18 @@ impl Guardrails {
                 drop(turn_text_reservation);
                 None
             };
+            #[cfg(feature = "bench-harness")]
+            if let Some(ext) = external_duration {
+                crate::bench_metrics::record(crate::bench_metrics::Phase::ExternalWait, ext);
+            }
+            #[cfg(feature = "bench-harness")]
+            let finalize_started = std::time::Instant::now();
             let outcome = eval.finalize(&guardrails, Some(&self.memory_budget))?;
+            #[cfg(feature = "bench-harness")]
+            crate::bench_metrics::record(
+                crate::bench_metrics::Phase::FinalizeCpu,
+                finalize_started.elapsed(),
+            );
             crate::observability::guardrails_checked(
                 &organization_id,
                 crate::observability::GuardrailTimings {

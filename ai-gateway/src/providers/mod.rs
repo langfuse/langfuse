@@ -246,14 +246,22 @@ impl ProviderTransport {
             let capture_body = if redactions.is_empty() {
                 body.clone()
             } else {
+                #[cfg(feature = "bench-harness")]
+                let splice_started = std::time::Instant::now();
                 let mut edits: Vec<(Range<usize>, &[u8])> = redactions
                     .iter()
                     .map(|edit| (edit.range.clone(), edit.replacement.as_slice()))
                     .collect();
-                Bytes::from(
+                let spliced = Bytes::from(
                     crate::guardrails::redact::splice_bytes(body, &mut edits)
                         .ok_or(ProviderError::Configuration)?,
-                )
+                );
+                #[cfg(feature = "bench-harness")]
+                crate::bench_metrics::record(
+                    crate::bench_metrics::Phase::CaptureSpliceCpu,
+                    splice_started.elapsed(),
+                );
+                spliced
             };
             RequestInput::parse_on_cpu(&self.cpu, capture_body, reservation)
                 .await
@@ -494,10 +502,18 @@ fn upstream_body(
     provider_model: &str,
     redactions: Vec<crate::guardrails::redact::BodyEdit>,
 ) -> Result<Bytes, ProviderError> {
+    #[cfg(feature = "bench-harness")]
+    let started = std::time::Instant::now();
     let usage = (matches!(route, Route::OpenAiChatCompletions) && streaming)
         .then(|| chat_completions::stream_usage_edit(&body, stream_options))
         .flatten();
-    rewrite_body(body, model_range, provider_model, usage, redactions)
+    let result = rewrite_body(body, model_range, provider_model, usage, redactions);
+    #[cfg(feature = "bench-harness")]
+    crate::bench_metrics::record(
+        crate::bench_metrics::Phase::RewriteBodyCpu,
+        started.elapsed(),
+    );
+    result
 }
 
 /// Replaces the model bytes, applies `extra` and any guardrail `redactions` in

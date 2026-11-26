@@ -54,7 +54,7 @@ pub(crate) struct ExternalGuardrailClient {
     pub(super) http: ClientWithMiddleware,
     pub(super) policy: Arc<OutboundPolicy>,
     pub(super) timeout: Duration,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "bench-harness"))]
     pub(super) origin_override: Option<String>,
 }
 
@@ -78,7 +78,11 @@ impl ExternalGuardrailClient {
             http: crate::observability::instrument_client(client, "guardrail.external"),
             policy: Arc::new(policy),
             timeout,
-            #[cfg(test)]
+            #[cfg(feature = "bench-harness")]
+            origin_override: std::env::var("BENCH_BEDROCK_ORIGIN")
+                .ok()
+                .filter(|origin| !origin.is_empty()),
+            #[cfg(all(test, not(feature = "bench-harness")))]
             origin_override: None,
         })
     }

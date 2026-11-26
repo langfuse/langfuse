@@ -1,3 +1,5 @@
+#[cfg(feature = "bench-harness")]
+pub(crate) mod bench_metrics;
 mod capture;
 pub mod config;
 mod correlation;

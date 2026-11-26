@@ -10,6 +10,7 @@ use ai_gateway::{
 };
 use tokio::net::TcpListener;
 
+#[cfg(not(all(feature = "bench-harness", tokio_unstable)))]
 #[tokio::main]
 #[expect(
     clippy::print_stderr,
@@ -17,6 +18,39 @@ use tokio::net::TcpListener;
 )]
 async fn main() -> ExitCode {
     match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("gateway startup or shutdown failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(all(feature = "bench-harness", tokio_unstable))]
+#[expect(
+    clippy::print_stderr,
+    reason = "the tracing subscriber may not exist or may already be shut down"
+)]
+fn main() -> ExitCode {
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .enable_metrics_poll_time_histogram()
+        .metrics_poll_time_histogram_configuration(tokio::runtime::HistogramConfiguration::log(
+            tokio::runtime::LogHistogram::default(),
+        ))
+        .enable_metrics_schedule_latency_histogram()
+        .metrics_schedule_latency_histogram_configuration(
+            tokio::runtime::HistogramConfiguration::log(tokio::runtime::LogHistogram::default()),
+        )
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("failed to build tokio runtime: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match runtime.block_on(run()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("gateway startup or shutdown failed: {error}");

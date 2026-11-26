@@ -60,14 +60,47 @@ impl CpuWork {
         input_bytes: usize,
         work: impl FnOnce() -> T + Send + 'static,
     ) -> Option<T> {
+        #[cfg(feature = "bench-harness")]
+        let (wait_phase, cpu_phase) = match job {
+            CpuJob::ParseRequest => (
+                crate::bench_metrics::Phase::ParseQueueWait,
+                crate::bench_metrics::Phase::ParseCpu,
+            ),
+            CpuJob::FindLastTurn => (
+                crate::bench_metrics::Phase::FindTurnQueueWait,
+                crate::bench_metrics::Phase::FindTurnCpu,
+            ),
+            CpuJob::ScanGuardrails => (
+                crate::bench_metrics::Phase::ScanQueueWait,
+                crate::bench_metrics::Phase::ScanCpu,
+            ),
+        };
         if input_bytes <= job.inline_bytes() {
-            return Some(work());
+            #[cfg(feature = "bench-harness")]
+            let started = std::time::Instant::now();
+            let result = work();
+            #[cfg(feature = "bench-harness")]
+            {
+                crate::bench_metrics::record(wait_phase, std::time::Duration::ZERO);
+                crate::bench_metrics::record(cpu_phase, started.elapsed());
+            }
+            return Some(result);
         }
+        #[cfg(feature = "bench-harness")]
+        let queued = std::time::Instant::now();
         let permit = Arc::clone(&self.permits).acquire_owned().await.ok()?;
         let span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            span.in_scope(work)
+            #[cfg(feature = "bench-harness")]
+            let started = {
+                crate::bench_metrics::record(wait_phase, queued.elapsed());
+                std::time::Instant::now()
+            };
+            let result = span.in_scope(work);
+            #[cfg(feature = "bench-harness")]
+            crate::bench_metrics::record(cpu_phase, started.elapsed());
+            result
         })
         .await
         .ok()

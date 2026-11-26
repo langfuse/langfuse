@@ -5,6 +5,9 @@ edition = "2024"
 publish = false
 license = "MIT"
 
+[features]
+bench-harness = ["tokio/schedule-latency"]
+
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
 base64 = "0.23"
@@ -49,6 +52,7 @@ tower = { version = "0.5", features = ["util"] }
 
 [lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
 unreachable_pub = "warn"
 unused_qualifications = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }

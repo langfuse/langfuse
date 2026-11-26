@@ -231,9 +231,12 @@ async fn relay(
         reservation,
     )
     .await;
+    let read_elapsed = started.elapsed();
     correlation
         .observation()
-        .record_wait(Wait::RequestBody, started.elapsed());
+        .record_wait(Wait::RequestBody, read_elapsed);
+    #[cfg(feature = "bench-harness")]
+    crate::bench_metrics::record(crate::bench_metrics::Phase::BodyRead, read_elapsed);
     let (bytes, reservation) = read?;
     let request_bytes = bytes.len();
     correlation

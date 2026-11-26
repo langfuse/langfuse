@@ -67,12 +67,12 @@ pub(crate) async fn evaluate_one(
     payload: Bytes,
     organization_id: &str,
 ) -> ExternalOutcome {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "bench-harness"))]
     let origin = client
         .origin_override
         .clone()
         .unwrap_or_else(|| bedrock_runtime_origin(&config.region));
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "bench-harness")))]
     let origin = bedrock_runtime_origin(&config.region);
     let Ok(url) = apply_url(&origin, config) else {
         tracing::warn!(
