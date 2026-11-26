@@ -32,45 +32,44 @@ export function SessionTraceNavigationBar({
   const progress = buildSessionTraceProgress(timeline, currentTraceId);
 
   return (
-    <div
-      ref={rootRef}
-      className="bg-muted/40 @container/sessionnav sticky top-0 z-1 flex h-8 shrink-0 items-center gap-2 border-b px-2 @min-[520px]/sessionnav:gap-5"
-    >
-      <Link
-        href={sessionHref}
-        className="text-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm"
-      >
-        <Clock size="sm" color="muted" aria-hidden />
-        <span className="shrink-0">Session</span>
-        <span className="text-muted-foreground shrink-0" aria-hidden>
-          ›
-        </span>
-        <span className="shrink-0 whitespace-nowrap tabular-nums">
-          Trace {position} of {total}
-        </span>
-      </Link>
-      {progress ? (
-        <SessionTraceProgress
-          progress={progress}
-          total={total}
-          onSelectTrace={onSelectTrace}
-        />
-      ) : null}
-      <div className="flex shrink-0 items-center gap-0.5">
-        <HeaderActionButton
-          label="Previous trace in session"
-          shortcut={["Shift", "K"]}
-          icon={<ArrowUp size="base" />}
-          disabled={!onPrevious}
-          onClick={onPrevious}
-        />
-        <HeaderActionButton
-          label="Next trace in session"
-          shortcut={["Shift", "J"]}
-          icon={<ArrowDown size="base" />}
-          disabled={!onNext}
-          onClick={onNext}
-        />
+    <div ref={rootRef} className="@container/sessionnav sticky top-0 z-1">
+      <div className="bg-muted/40 flex h-8 shrink-0 items-center gap-2 border-b px-2 @min-[520px]/sessionnav:gap-5">
+        <Link
+          href={sessionHref}
+          className="text-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm"
+        >
+          <Clock size="sm" color="muted" aria-hidden />
+          <span className="shrink-0">Session</span>
+          <span className="text-muted-foreground shrink-0" aria-hidden>
+            ›
+          </span>
+          <span className="shrink-0 whitespace-nowrap tabular-nums">
+            Trace {position} of {total}
+          </span>
+        </Link>
+        {progress ? (
+          <SessionTraceProgress
+            progress={progress}
+            total={total}
+            onSelectTrace={onSelectTrace}
+          />
+        ) : null}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <HeaderActionButton
+            label="Previous trace in session"
+            shortcut={["Shift", "K"]}
+            icon={<ArrowUp size="base" />}
+            disabled={!onPrevious}
+            onClick={onPrevious}
+          />
+          <HeaderActionButton
+            label="Next trace in session"
+            shortcut={["Shift", "J"]}
+            icon={<ArrowDown size="base" />}
+            disabled={!onNext}
+            onClick={onNext}
+          />
+        </div>
       </div>
     </div>
   );
@@ -87,7 +86,7 @@ function SessionTraceProgress({
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 @min-[520px]/sessionnav:gap-4">
-      <span className="text-accent-dark-blue ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+      <span className="text-accent-dark-blue ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[520px]/sessionnav:inline">
         {progress.label}
       </span>
       <SessionTraceTrack
@@ -95,7 +94,7 @@ function SessionTraceProgress({
         total={total}
         onSelectTrace={onSelectTrace}
       />
-      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[460px]/sessionnav:inline">
+      <span className="text-muted-foreground ph-no-capture hidden shrink-0 text-xs tabular-nums @min-[520px]/sessionnav:inline">
         {progress.valueText}
       </span>
     </div>
