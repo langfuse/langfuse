@@ -5,7 +5,6 @@ export function TextLink({
   path,
   value,
   icon,
-  trailingIcon,
   onClick,
   title,
   external = false,
@@ -13,14 +12,12 @@ export function TextLink({
   path: string;
   value: string;
   icon?: IconComponent;
-  trailingIcon?: IconComponent;
   onClick?: (event: React.MouseEvent) => void;
   title?: string;
   /** Opens in a new tab. */
   external?: boolean;
 }) {
   const Icon = icon;
-  const TrailingIcon = trailingIcon;
   const handleClick = (event: React.MouseEvent) => {
     if (!onClick) return;
     // Preserve native new-tab gestures when the link has a real destination.
@@ -41,13 +38,12 @@ export function TextLink({
       {...(external && { target: "_blank", rel: "noopener noreferrer" })}
     >
       <span className="inline-block max-w-full overflow-hidden align-middle leading-normal text-nowrap text-ellipsis">
-        {Icon || TrailingIcon ? (
+        {Icon ? (
           <span className="inline-flex max-w-full items-center gap-1">
-            {Icon && <Icon size="base" />}
+            <Icon size="base" />
             <span className="truncate" title={title ?? value}>
               {value}
             </span>
-            {TrailingIcon && <TrailingIcon size="sm" aria-hidden />}
           </span>
         ) : (
           value

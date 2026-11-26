@@ -1,20 +1,11 @@
-import { useMemo } from "react";
-import {
-  ArrowUpRight,
-  Globe,
-  KeyRound,
-  Pencil,
-  Trash2,
-  User,
-} from "@langfuse/icons";
+import { Globe, KeyRound, Pencil, Trash2, User } from "@langfuse/icons";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
-import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import type { TableProps } from "@/src/components/design-system/table/Table";
 import type { MultiSelect } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
@@ -27,7 +18,10 @@ import {
   GATEWAY_GUARDRAIL_SCOPE_LABELS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
-import { buildGatewayTracesHref } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
+import {
+  buildGatewayTracesHref,
+  type GatewayTracesTarget,
+} from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
 import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";
@@ -40,6 +34,8 @@ export type GatewayGuardrailsTableProps = Pick<
   canManage: boolean;
   /** Configured ingestion project the user can open; renders plain counts when absent. */
   ingestionProjectId?: string | null;
+  /** Tracing route supporting observation metadata filters for the viewer's read path. */
+  tracesTarget?: GatewayTracesTarget;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
   selectColumn: LangfuseColumnDef<GatewayGuardrailRow>;
@@ -56,8 +52,6 @@ const guardrailCellSkeleton = (
     <Skeleton className="h-3.5 w-32" />
   </div>
 );
-
-const flaggedCellSkeleton = <Skeleton className="h-4 w-1/2" />;
 
 const guardrailColumn = createTableColumn<
   GatewayGuardrailRow,
@@ -154,6 +148,7 @@ const STATIC_DATA_COLUMNS: LangfuseColumnDef<GatewayGuardrailRow>[] = [
 export function GatewayGuardrailsTable({
   canManage,
   ingestionProjectId,
+  tracesTarget,
   data,
   onRowClick,
   pagination,
@@ -164,19 +159,15 @@ export function GatewayGuardrailsTable({
   onDeleteGuardrail,
 }: GatewayGuardrailsTableProps) {
   const isFiltered = search.value.trim().length > 0;
-  const columns = useMemo(
-    () => [
-      selectColumn,
-      ...STATIC_DATA_COLUMNS,
-      createFlaggedColumn(ingestionProjectId),
-    ],
-    [selectColumn, ingestionProjectId],
-  );
 
   return (
     <TableCard
       tableName="gateway-guardrails"
-      columns={columns}
+      columns={[
+        selectColumn,
+        ...STATIC_DATA_COLUMNS,
+        createFlaggedColumn({ ingestionProjectId, tracesTarget }),
+      ]}
       data={data}
       onRowClick={onRowClick}
       actions={
@@ -212,8 +203,14 @@ export function GatewayGuardrailsTable({
   );
 }
 
-function createFlaggedColumn(ingestionProjectId?: string | null) {
-  return createTableColumn<
+function createFlaggedColumn({
+  ingestionProjectId,
+  tracesTarget,
+}: {
+  ingestionProjectId?: string | null;
+  tracesTarget?: GatewayTracesTarget;
+}) {
+  return createLinkTableColumn<
     GatewayGuardrailRow,
     GatewayGuardrailRow["flaggedCount7d"]
   >({
@@ -222,26 +219,26 @@ function createFlaggedColumn(ingestionProjectId?: string | null) {
     header: "Flagged 7d",
     size: 120,
     enableResizing: false,
-    loadingCell: flaggedCellSkeleton,
-    renderCell: (count, { row }) => {
-      if (count === null || count === undefined) return <EmptyValue />;
+    getCell: (count, { row }) => {
+      if (count === null || count === undefined) return { type: "empty" };
       const formatted = numberFormatter(count, 0);
       if (count <= 0 || !ingestionProjectId) {
-        return <span>{formatted}</span>;
+        return { type: "text", value: formatted };
       }
-      return (
-        <TextLink
-          path={buildGatewayTracesHref({
+      return {
+        type: "link",
+        props: {
+          path: buildGatewayTracesHref({
             projectId: ingestionProjectId,
             subject: "guardrail",
             subjectId: row.original.id,
             dateRange: GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE,
-          })}
-          value={formatted}
-          trailingIcon={ArrowUpRight}
-          title="View flagged traces (last 7 days)"
-        />
-      );
+            target: tracesTarget,
+          }),
+          value: formatted,
+          title: "View flagged traces (last 7 days)",
+        },
+      };
     },
   });
 }

@@ -9,18 +9,21 @@ import {
 } from "@langfuse/shared";
 
 type GatewayTracesSubject = "user" | "key" | "guardrail";
+export type GatewayTracesTarget = "traces" | "observations";
 
-/** Link to the ingestion project's traces view filtered to one gateway user, API key, or guardrail. */
+/** Link to the ingestion project's traces or observations view filtered to one gateway user, API key, or guardrail. */
 export function buildGatewayTracesHref({
   projectId,
   subject,
   subjectId,
   dateRange,
+  target = "traces",
 }: {
   projectId: string;
   subject: GatewayTracesSubject;
   subjectId: string;
   dateRange?: TimeRange;
+  target?: GatewayTracesTarget;
 }) {
   const filter: FilterState = [buildSubjectFilter(subject, subjectId)];
   const queryParts = [
@@ -32,7 +35,7 @@ export function buildGatewayTracesHref({
     );
   }
 
-  return `/project/${encodeURIComponent(projectId)}/traces?${queryParts.join("&")}`;
+  return `/project/${encodeURIComponent(projectId)}/${target}?${queryParts.join("&")}`;
 }
 
 function buildSubjectFilter(

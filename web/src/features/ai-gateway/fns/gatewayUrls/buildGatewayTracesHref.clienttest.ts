@@ -67,4 +67,18 @@ describe("buildGatewayTracesHref", () => {
       },
     ]);
   });
+
+  it("targets observations when requested for legacy read paths", () => {
+    const href = buildGatewayTracesHref({
+      projectId: "proj-1",
+      subject: "guardrail",
+      subjectId: "gr-123",
+      dateRange: GATEWAY_GUARDRAIL_FLAGGED_DATE_RANGE,
+      target: "observations",
+    });
+    const url = new URL(href, "http://localhost");
+
+    expect(url.pathname).toBe("/project/proj-1/observations");
+    expect(url.searchParams.get("dateRange")).toBe("7d");
+  });
 });
