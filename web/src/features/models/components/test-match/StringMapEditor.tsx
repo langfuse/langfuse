@@ -1,4 +1,4 @@
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 
@@ -61,7 +61,7 @@ export function StringMapEditor({
                   updateRows(entries.filter((_, i) => i !== index))
                 }
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 size="base" color="default" />
               </Button>
             </div>
           ))}
@@ -74,7 +74,7 @@ export function StringMapEditor({
         onClick={() => updateRows([...entries, ["new_key", ""]])}
         className="w-full"
       >
-        <PlusCircle className="mr-2 h-4 w-4" />
+        <PlusCircle size="base" color="default" __rawClassName="mr-2" />
         Add Attribute
       </Button>
     </div>

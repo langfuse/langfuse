@@ -46,6 +46,7 @@ export function DecisionModelQuestionsEditor({
       onExpandedChange={state.actions.setExpandedQuestionId}
       onChange={state.actions.setQuestion}
       onAdd={() => state.actions.addQuestion(createEmptyQuestion())}
+      examples={QUESTION_EXAMPLES}
       onAddExample={(type) =>
         state.actions.addQuestion({
           id: safeRandomUUID(),

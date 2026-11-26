@@ -1,13 +1,17 @@
-import type { LucideIcon } from "lucide-react";
 import type {
   DecisionModelQuestions,
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   EvaluatorPromptMessage,
+  experimentTargetEvalVariableColumns,
   PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+
+/** Observation column a managed template variable maps to by default. */
+type ObservationColumnId =
+  (typeof experimentTargetEvalVariableColumns)[number]["id"];
 
 export type EvaluatorSetupDraft = {
   name: string;
@@ -22,13 +26,15 @@ export type ManagedTemplate = {
   icon: string;
   description: string;
   maintainer: string;
+  /** Sample scores shown on the gallery card, as `name: value` chips. */
+  previewScores: Array<{ name: string; value: string }>;
   evaluator:
     | {
         type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
         promptMessages: EvaluatorPromptMessage[];
         variables: Array<{
           name: string;
-          defaultMapping: { field: string };
+          defaultMapping: { field: ObservationColumnId };
         }>;
         outputDefinition: PersistedEvalOutputDefinition;
       }
@@ -40,7 +46,10 @@ export type ManagedTemplate = {
     | {
         type: Extract<EvalTemplateType, "DECISION_MODEL">;
         questions: DecisionModelQuestions;
-        state: Array<{ key: string; defaultMapping: { field: string } }>;
+        state: Array<{
+          key: string;
+          defaultMapping: { field: ObservationColumnId };
+        }>;
       };
 };
 
@@ -69,7 +78,6 @@ export type GalleryTemplate =
 export type GalleryNavigationItem = {
   key: string;
   label: string;
-  icon?: LucideIcon;
   count?: number;
 };
 

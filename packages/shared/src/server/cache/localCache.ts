@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LRUCache } from "lru-cache";
 import { logger } from "../logger";
 import { recordGauge, recordIncrement } from "../instrumentation";

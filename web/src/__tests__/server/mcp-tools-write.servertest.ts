@@ -1,8 +1,15 @@
+const queueMocks = vi.hoisted(() => ({
+  batchActionQueueAdd: vi.fn(),
+}));
+
 // Mock queue operations to avoid Redis dependency in tests
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    BatchActionQueue: {
+      getInstance: () => ({ add: queueMocks.batchActionQueueAdd }),
+    },
     // Mock queue getInstance to return a no-op queue
     EventPropagationQueue: {
       getInstance: () => ({
@@ -41,9 +48,16 @@ vi.mock(
   }),
 );
 
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { EvaluatorBlockReason, prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { LLMAdapter, SkillVersionSchema } from "@langfuse/shared";
+import { handleUpdateSkillLabels } from "@/src/features/mcp/server/skills/tools/updateSkillLabels";
+import { handleUpdateSkillTags } from "@/src/features/mcp/server/skills/tools/updateSkillTags";
+import { handleGetSkill } from "@/src/features/mcp/server/skills/tools/getSkill";
+import { handleCreateSkillVersion } from "@/src/features/mcp/server/skills/tools/createSkillVersion";
+import { handleLoadSkill } from "@/src/features/mcp/server/skills/tools/loadSkill";
+import { handleLoadSkillResource } from "@/src/features/mcp/server/skills/tools/loadSkillResource";
 import {
   createInAppAgentMcpContext,
   createMcpTestSetup,
@@ -63,7 +77,7 @@ import {
 import { handleCreateTextPrompt } from "@/src/features/mcp/server/prompts/tools/createTextPrompt";
 import { handleCreateChatPrompt } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
 import { handleUpdatePromptLabels } from "@/src/features/mcp/server/prompts/tools/updatePromptLabels";
-import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools/createAnnotationQueue";
 import {
   createEvaluatorTool,
   handleCreateEvaluator,
@@ -73,38 +87,62 @@ import {
   handleUpdateEvaluator,
 } from "@/src/features/mcp/server/evals/tools/updateEvaluator";
 import {
+  McpEvaluatorInput,
+  McpUpdateEvaluatorInput,
+} from "@/src/features/mcp/server/evals/tools/evaluatorInput";
+import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
 } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
-import {
-  updateEvaluationRuleTool,
-  handleUpdateEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
-import {
-  deleteEvaluationRuleTool,
-  handleDeleteEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
-import {
-  deleteEvaluatorTool,
-  handleDeleteEvaluator,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
+import { handleUpdateEvaluationRule } from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
+import { handleDeleteEvaluationRule } from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
+import { handleDeleteEvaluator } from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
 import {
   handleTestEvaluator,
   testEvaluatorTool,
 } from "@/src/features/mcp/server/evals/tools/testEvaluator";
+import {
+  deleteExternalMediaStorageTool,
+  handleConfigureExternalMediaStorage,
+  handleDeleteExternalMediaStorage,
+  handleGetExternalMediaStorage,
+} from "@/src/ee/features/external-media-storage/server/mcp/tools";
+import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
+import { handleRunBatchEvaluation } from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
+import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { encrypt } from "@langfuse/shared/encryption";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import {
+  createApiKey,
+  createBasicAuthHeader,
+} from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
+import { authenticator } from "@/src/features/apiKey/authenticator";
+import {
+  deleteDefaultEvaluationModelTool,
+  getDefaultEvaluationModelTool,
+  handleDeleteDefaultEvaluationModel,
+  handleGetDefaultEvaluationModel,
+  handleSetDefaultEvaluationModel,
+  setDefaultEvaluationModelTool,
+} from "@/src/features/mcp/server/evals/tools/defaultEvaluationModel";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
-  attachEvaluatorToEvaluationRuleTool,
-  detachEvaluatorFromEvaluationRuleTool,
   handleAttachEvaluatorToEvaluationRule,
   handleDetachEvaluatorFromEvaluationRule,
 } from "@/src/features/mcp/server/evals/tools/manageEvaluationRuleEvaluators";
-import {
-  createDashboardWidgetTool,
-  handleCreateDashboardWidget,
-} from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   handleAddDashboardPlacement,
   handleCreateDashboard,
@@ -180,6 +218,263 @@ const createLlmEvaluationRuleForMcpWriteTest = async (
 };
 
 describe("MCP Write Tools", () => {
+  describe("skill metadata", () => {
+    const createVersion = async (
+      setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+      name: string,
+    ) =>
+      SkillVersionSchema.parse(
+        await handleCreateSkillVersion(
+          {
+            files: [
+              {
+                path: "SKILL.md",
+                content: `---\nname: ${name}\ndescription: Metadata test\n---\nInstructions.`,
+              },
+            ],
+          },
+          setup.context,
+        ),
+      );
+
+    it("replaces tags across versions with audit logging and project isolation", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `tags-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 1, labels: ["production"] },
+        setup.context,
+      );
+      const second = await createVersion(setup, name);
+
+      await expect(
+        handleUpdateSkillTags(
+          { name, tags: [" support ", "support"] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: second.id,
+        version: 2,
+        tags: ["support"],
+        labels: ["latest"],
+      });
+      await expect(
+        handleGetSkill({ name, version: 1 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"], labels: ["production"] });
+      expect(
+        await prisma.auditLog.findFirst({
+          where: {
+            projectId: setup.projectId,
+            apiKeyId: setup.apiKeyId,
+            resourceType: "skill",
+            resourceId: name,
+            action: "setTag",
+            after: JSON.stringify(["support"]),
+          },
+        }),
+      ).not.toBeNull();
+
+      const otherProject = await createMcpTestSetup();
+      await expect(
+        handleUpdateSkillTags({ name, tags: ["other"] }, otherProject.context),
+      ).rejects.toThrow("Skill not found");
+      await expect(
+        handleUpdateSkillTags({ name, tags: [" "] }, setup.context),
+      ).rejects.toThrow();
+      await expect(
+        handleGetSkill({ name, version: 2 }, setup.context),
+      ).resolves.toMatchObject({ tags: ["support"] });
+
+      await handleUpdateSkillTags({ name, tags: [] }, setup.context);
+      for (const version of [1, 2]) {
+        await expect(
+          handleGetSkill({ name, version }, setup.context),
+        ).resolves.toMatchObject({ tags: [] });
+      }
+      expect(
+        await prisma.skill.count({
+          where: { projectId: setup.projectId, name },
+        }),
+      ).toBe(2);
+    });
+
+    it("moves production, replaces user labels, preserves latest, and audits changes", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `labels-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      const first = await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 1, labels: ["production"] },
+        setup.context,
+      );
+      const second = await createVersion(setup, name);
+      await handleUpdateSkillLabels(
+        { name, version: 2, labels: ["staging"] },
+        setup.context,
+      );
+
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["production"] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: second.id,
+        labels: ["production", "latest"],
+      });
+      await expect(
+        handleGetSkill({ name, label: "production" }, setup.context),
+      ).resolves.toMatchObject({ version: 2 });
+      await expect(
+        handleGetSkill({ name, version: 1 }, setup.context),
+      ).resolves.toMatchObject({ labels: [] });
+      for (const [id, before, after] of [
+        [first.id, ["production"], []],
+        [second.id, ["staging", "latest"], ["production", "latest"]],
+      ] as const) {
+        expect(
+          await prisma.auditLog.findFirst({
+            where: {
+              projectId: setup.projectId,
+              apiKeyId: setup.apiKeyId,
+              resourceId: id,
+              resourceType: "skill",
+              action: "setLabel",
+              before: JSON.stringify(before),
+              after: JSON.stringify(after),
+            },
+          }),
+        ).not.toBeNull();
+      }
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: [] },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ labels: ["latest"] });
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["latest"] },
+          setup.context,
+        ),
+      ).rejects.toThrow("managed by Langfuse");
+
+      const otherProject = await createMcpTestSetup();
+      await expect(
+        handleUpdateSkillLabels(
+          { name, version: 2, labels: ["production"] },
+          otherProject.context,
+        ),
+      ).rejects.toThrow("Skill version not found");
+    });
+
+    it.each([Role.MEMBER, Role.ADMIN])(
+      "respects protected production labels for Halo role %s",
+      async (role) => {
+        const setup = await createMcpTestSetup();
+        const name = `protected-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+        await createVersion(setup, name);
+        await protectPromptLabel({
+          projectId: setup.projectId,
+          label: "production",
+        });
+        const { userId } = await createUserWithOrgRole({
+          orgId: setup.orgId,
+          role,
+        });
+        const { context } = await createInAppAgentMcpContext({
+          projectId: setup.projectId,
+          orgId: setup.orgId,
+          createdByUserId: userId,
+        });
+        const update = handleUpdateSkillLabels(
+          { name, version: 1, labels: ["production"] },
+          context,
+        );
+        if (role === Role.MEMBER) {
+          await expect(update).rejects.toThrow(
+            "permission to mutate protected skill labels",
+          );
+          await expect(
+            handleGetSkill({ name, version: 1 }, setup.context),
+          ).resolves.toMatchObject({ labels: ["latest"] });
+        } else {
+          await expect(update).resolves.toMatchObject({
+            labels: ["production", "latest"],
+          });
+        }
+      },
+    );
+  });
+
+  describe("skill creation", () => {
+    it("persists audited skill versions and preserves earlier file contents", async () => {
+      const setup = await createMcpTestSetup();
+      const name = `mcp-skill-${nanoid().toLowerCase().replace(/[_-]/g, "a")}`;
+      const markdown = `---\nname: ${name}\ndescription: A test skill\n---\nUse the reference.`;
+      const input = {
+        files: [
+          { path: "SKILL.md", content: markdown },
+          { path: "references/example.md", content: "First reference" },
+        ],
+        commitMessage: "Initial version",
+      };
+
+      const first = SkillVersionSchema.parse(
+        await handleCreateSkillVersion(input, setup.context),
+      );
+      expect(first).toMatchObject({
+        name,
+        description: "A test skill",
+        projectId: setup.projectId,
+        version: 1,
+        labels: ["latest"],
+        commitMessage: input.commitMessage,
+      });
+      await verifyAuditLog({
+        projectId: setup.projectId,
+        apiKeyId: setup.apiKeyId,
+        resourceType: "skill",
+        resourceId: first.id,
+        action: "create",
+      });
+
+      const second = SkillVersionSchema.parse(
+        await handleCreateSkillVersion(
+          { files: [{ path: "SKILL.md", content: `${markdown}\nUpdated.` }] },
+          setup.context,
+        ),
+      );
+      expect(second).toMatchObject({ name, version: 2, labels: ["latest"] });
+      await expect(
+        handleLoadSkill({ name, version: 1 }, setup.context),
+      ).resolves.toBe(markdown);
+      await expect(
+        handleLoadSkill({ name, version: 2 }, setup.context),
+      ).resolves.toBe(`${markdown}\nUpdated.`);
+      await expect(
+        handleLoadSkillResource(
+          { name, version: 1, path: "references/example.md" },
+          setup.context,
+        ),
+      ).resolves.toBe("First reference");
+    });
+
+    it("rejects invalid skill files before persisting a version", async () => {
+      const setup = await createMcpTestSetup();
+      await expect(
+        handleCreateSkillVersion(
+          { files: [{ path: "reference.md", content: "Missing root file" }] },
+          setup.context,
+        ),
+      ).rejects.toThrow(
+        "Every skill version must contain a root SKILL.md file",
+      );
+      expect(
+        await prisma.skill.count({ where: { projectId: setup.projectId } }),
+      ).toBe(0);
+    });
+  });
+
   describe("dataset tool schemas", () => {
     it("uses dataset IDs for existing dataset write addressing", () => {
       for (const schema of [
@@ -233,10 +528,12 @@ describe("MCP Write Tools", () => {
       };
       const testEvaluatorSpy = vi
         .spyOn(EvaluatorService.prototype, "testEvaluator")
-        .mockResolvedValue(unifiedResult);
+        .mockResolvedValue({
+          ...unifiedResult,
+          variables: [{ var: "input", value: "sample input" }],
+        });
 
       try {
-        verifyToolAnnotations(testEvaluatorTool, { expensiveHint: true });
         expect(testEvaluatorTool.annotations?.readOnlyHint).not.toBe(true);
         expect(testEvaluatorTool.annotations?.destructiveHint).not.toBe(true);
         expect(testEvaluatorTool.inputSchema.properties).toEqual(
@@ -402,6 +699,25 @@ describe("MCP Write Tools", () => {
       }
     });
 
+    it("documents required evaluator inputs with an example that validates", () => {
+      for (const [tool, schema] of [
+        [createEvaluatorTool, McpEvaluatorInput],
+        [updateEvaluatorTool, McpUpdateEvaluatorInput],
+      ] as const) {
+        const properties = tool.inputSchema.properties as Record<
+          string,
+          { description?: string }
+        >;
+        for (const field of tool.inputSchema.required ?? []) {
+          expect(properties[field]?.description, field).toBeTruthy();
+        }
+
+        const example = tool.description.match(/Example[^{]*(\{.*\})\.$/)?.[1];
+        expect(example, tool.name).toBeDefined();
+        expect(schema.safeParse(JSON.parse(example!)).error).toBeUndefined();
+      }
+    });
+
     it("creates and versions an evaluator by stable id", async () => {
       const setup = await createMcpTestSetup();
       verifyToolAnnotations(createEvaluatorTool, { destructiveHint: true });
@@ -476,12 +792,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("addresses project evaluators by stable id", () => {
       const properties = createEvaluationRuleTool.inputSchema.properties;
 
@@ -690,12 +1000,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("updateEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(updateEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should update an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -720,15 +1024,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("evaluation rule evaluator assignment tools", () => {
-    it("should have destructiveHint annotations", () => {
-      verifyToolAnnotations(attachEvaluatorToEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-      verifyToolAnnotations(detachEvaluatorFromEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("attaches and detaches a stable evaluator and audits both writes", async () => {
       const setup = await createMcpTestSetup();
       const { rule } = await createLlmEvaluationRuleForMcpWriteTest(setup);
@@ -778,12 +1073,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("deleteEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should delete an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -811,13 +1100,155 @@ describe("MCP Write Tools", () => {
     });
   });
 
-  describe("deleteEvaluator tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteEvaluatorTool, {
-        destructiveHint: true,
+  describe("runBatchEvaluation tool", () => {
+    const mutableEnv = env as unknown as {
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+    };
+    const originalPreviewOptIn =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    beforeEach(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      queueMocks.batchActionQueueAdd.mockReset();
+    });
+
+    afterAll(() => {
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("queues an evaluator v2 batch action attributed to the API key", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      const { id } = (await handleRunBatchEvaluation(
+        {
+          evaluatorIds: [evaluator.id],
+          filter: [{ column: "tags", operator: "all of", value: ["prod"] }],
+          sampling: 0.5,
+          rowLimit: 100,
+        } as never,
+        setup.context,
+      )) as { id: string };
+
+      const query = {
+        filter: [
+          {
+            column: "traceTags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["prod"],
+          },
+        ],
+        orderBy: null,
+      };
+      await expect(
+        prisma.batchAction.findUniqueOrThrow({ where: { id, projectId } }),
+      ).resolves.toMatchObject({
+        userId: apiKeyId,
+        actionType: "observation-run-batched-evaluation",
+        status: "QUEUED",
+        query,
+        config: {
+          evaluatorIds: [evaluator.id],
+          evalVersion: "v2",
+          sampling: 0.5,
+          rowLimit: 100,
+        },
+      });
+      expect(queueMocks.batchActionQueueAdd).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            batchActionId: id,
+            projectId,
+            query,
+            evaluatorIds: [evaluator.id],
+            evalVersion: "v2",
+          }),
+        }),
+        { jobId: id },
+      );
+      await expect(
+        prisma.auditLog.findFirst({
+          where: {
+            projectId,
+            apiKeyId,
+            resourceType: "batchAction",
+            resourceId: id,
+          },
+        }),
+      ).resolves.toMatchObject({
+        action: "observation-run-batched-evaluation",
       });
     });
 
+    it("bounds the selection by the time range and the plan's data-access window", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+      const fromStartTime = "2020-01-01T00:00:00.000Z";
+      const toStartTime = "2020-01-15T00:00:00.000Z";
+
+      const { id } = (await handleRunBatchEvaluation(
+        { evaluatorIds: [evaluator.id], fromStartTime, toStartTime } as never,
+        { ...setup.context, plan: "cloud:hobby" },
+      )) as { id: string };
+
+      const { query } = await prisma.batchAction.findUniqueOrThrow({
+        where: { id, projectId: setup.projectId },
+      });
+      const filter = (query as { filter: Array<Record<string, unknown>> })
+        .filter;
+      expect(filter.slice(0, 2)).toEqual([
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: ">=",
+          value: fromStartTime,
+        },
+        {
+          type: "datetime",
+          column: "startTime",
+          operator: "<",
+          value: toStartTime,
+        },
+      ]);
+      const accessFloor = filter[2];
+      expect(accessFloor).toMatchObject({
+        type: "datetime",
+        column: "startTime",
+        operator: ">=",
+      });
+      const floorAgeDays =
+        (Date.now() - new Date(accessFloor.value as string).getTime()) /
+        (24 * 60 * 60 * 1000);
+      expect(floorAgeDays).toBeCloseTo(30, 1);
+    });
+
+    it("rejects full-text filters, which batch queries cannot carry", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleRunBatchEvaluation(
+          {
+            evaluatorIds: [evaluator.id],
+            filter: [{ column: "input", operator: "matches", value: "refund" }],
+          } as never,
+          setup.context,
+        ),
+      ).rejects.toMatchObject({
+        name: "ZodError",
+        issues: expect.arrayContaining([
+          expect.objectContaining({ path: ["filter", 0, "operator"] }),
+        ]),
+      });
+      expect(queueMocks.batchActionQueueAdd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("deleteEvaluator tool", () => {
     it("should delete an evaluator and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -854,6 +1285,320 @@ describe("MCP Write Tools", () => {
       await expect(
         prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
       ).resolves.not.toBeNull();
+    });
+  });
+
+  describe("default evaluation model tools", () => {
+    const originalWhitelistedHosts =
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+    const originalWhitelistedIps =
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
+    const originalCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    let llmServer: ReturnType<typeof createServer>;
+    let llmServerUrl: string;
+    let llmServerRequests = 0;
+
+    beforeAll(async () => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
+      // Answers the test call that validates a model before it is saved.
+      llmServer = createServer((req, res) => {
+        llmServerRequests += 1;
+        req.resume();
+        req.on("end", () => {
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({
+              id: "chatcmpl-test",
+              object: "chat.completion",
+              created: 1,
+              model: "gpt-4o-mini",
+              choices: [
+                {
+                  index: 0,
+                  message: {
+                    role: "assistant",
+                    content: JSON.stringify({ score: "1", reasoning: "ok" }),
+                  },
+                  finish_reason: "stop",
+                },
+              ],
+            }),
+          );
+        });
+      });
+      await new Promise<void>((resolve) =>
+        llmServer.listen(0, "127.0.0.1", resolve),
+      );
+      llmServerUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}/v1`;
+    });
+
+    afterAll(async () => {
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST =
+        originalWhitelistedHosts;
+      sharedEnv.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS =
+        originalWhitelistedIps;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      await new Promise<void>((resolve, reject) =>
+        llmServer.close((err) => (err ? reject(err) : resolve())),
+      );
+    });
+
+    it("should mark read and write annotations", () => {
+      verifyToolAnnotations(getDefaultEvaluationModelTool, {
+        readOnlyHint: true,
+      });
+      verifyToolAnnotations(setDefaultEvaluationModelTool, {
+        destructiveHint: true,
+      });
+      verifyToolAnnotations(deleteDefaultEvaluationModelTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("should set, read, and delete the default model, pausing and resuming dependent evaluators", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const provider = `mcp-openai-${nanoid()}`;
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("test-secret"),
+          displaySecretKey: "...cret",
+          baseURL: llmServerUrl,
+          customModels: [],
+          withDefaultModels: true,
+          extraHeaderKeys: [],
+        },
+      });
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleGetDefaultEvaluationModel({}, setup.context),
+      ).resolves.toEqual({ defaultModel: null });
+
+      const created = (await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4o-mini", modelParams: { temperature: 0 } },
+        setup.context,
+      )) as { id: string };
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      await expect(
+        handleGetDefaultEvaluationModel({}, setup.context),
+      ).resolves.toMatchObject({
+        defaultModel: {
+          provider,
+          model: "gpt-4o-mini",
+          modelParams: { temperature: 0 },
+        },
+      });
+
+      await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4.1-mini" },
+        setup.context,
+      );
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "update",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      const replaced = await prisma.defaultLlmModel.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(replaced.model).toBe("gpt-4.1-mini");
+      expect(replaced.modelParams).toEqual({});
+
+      await expect(
+        handleDeleteDefaultEvaluationModel({}, setup.context),
+      ).resolves.toEqual({
+        message: "Default evaluation model successfully deleted",
+      });
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "defaultLlmModel",
+          resourceId: created.id,
+          action: "delete",
+        }),
+      ).resolves.toMatchObject({ resourceId: created.id });
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({
+        blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
+      });
+      await expect(
+        handleDeleteDefaultEvaluationModel({}, setup.context),
+      ).rejects.toThrow("Default evaluation model not found");
+
+      await handleSetDefaultEvaluationModel(
+        { provider, model: "gpt-4o-mini" },
+        setup.context,
+      );
+      await expect(
+        prisma.evaluator.findUniqueOrThrow({ where: { id: evaluator.id } }),
+      ).resolves.toMatchObject({ blockedAt: null, blockReason: null });
+    });
+
+    it("should reject invalid model params and providers without an LLM connection", async () => {
+      const setup = await createMcpTestSetup();
+      const provider = `missing-${nanoid()}`;
+
+      await expect(
+        handleSetDefaultEvaluationModel(
+          {
+            provider,
+            model: "gpt-4o-mini",
+            modelParams: {
+              providerOptions: { openai: { reasoningEffort: null } },
+            },
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow(/Invalid model params/);
+      await expect(
+        handleSetDefaultEvaluationModel(
+          { provider, model: "gpt-4o-mini" },
+          setup.context,
+        ),
+      ).rejects.toThrow(`API key for provider ${provider}`);
+      await expect(
+        prisma.defaultLlmModel.findUnique({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("should deny setting and deleting the default model to a key without evalDefaultModel:CUD", async () => {
+      const mutableEnv = env as unknown as {
+        LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
+        API_AUTH_MIGRATION: typeof env.API_AUTH_MIGRATION;
+      };
+      const originalPreviewOptIn =
+        mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+      const originalAuthMode = mutableEnv.API_AUTH_MIGRATION;
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      // Shadow and legacy modes report denials without enforcing them.
+      mutableEnv.API_AUTH_MIGRATION = "enforce";
+
+      const setup = await createMcpTestSetup();
+      const { projectId, orgId } = setup;
+      const provider = `mcp-openai-${nanoid()}`;
+      const llmApiKey = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("test-secret"),
+          displaySecretKey: "...cret",
+          baseURL: llmServerUrl,
+          customModels: [],
+          withDefaultModels: true,
+          extraHeaderKeys: [],
+        },
+      });
+      const existing = await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: llmApiKey.id,
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o-mini",
+        },
+      });
+
+      // VIEWER holds evalDefaultModel:read but not evalDefaultModel:CUD.
+      const keyCreator = await prisma.user.create({
+        data: { email: `mcp-default-model-viewer-${nanoid()}@example.com` },
+      });
+      const viewerKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId(keyCreator.id),
+      });
+      const authenticated = await authenticator.authenticate({
+        headers: {
+          authorization: createBasicAuthHeader(
+            viewerKey.publicKey,
+            viewerKey.secretKey,
+          ),
+        },
+      });
+      if (!authenticated.success) throw authenticated.error;
+      const { id: viewerKeyId } = await prisma.apiKey.findUniqueOrThrow({
+        where: { publicKey: viewerKey.publicKey },
+        select: { id: true },
+      });
+
+      const server = await createMcpServer({
+        ...setup.context,
+        apiKeyId: viewerKeyId,
+        publicKey: viewerKey.publicKey,
+        auth: authenticated.context,
+      });
+      const client = new Client({
+        name: "default-model-scope-test",
+        version: "1.0.0",
+      });
+      const [serverTransport, clientTransport] =
+        InMemoryTransport.createLinkedPair();
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const requestsBefore = llmServerRequests;
+
+      try {
+        const read = await client.callTool({
+          name: getDefaultEvaluationModelTool.name,
+          arguments: {},
+        });
+        expect(read.isError).not.toBe(true);
+        expect(JSON.stringify(read.content)).toContain(existing.id);
+
+        const denied =
+          'Access denied. The "evalDefaultModel:CUD" permission is required to access this resource.';
+        await expect(
+          client.callTool({
+            name: setDefaultEvaluationModelTool.name,
+            arguments: { provider, model: "gpt-4.1-mini" },
+          }),
+        ).rejects.toThrow(denied);
+        await expect(
+          client.callTool({
+            name: deleteDefaultEvaluationModelTool.name,
+            arguments: {},
+          }),
+        ).rejects.toThrow(denied);
+      } finally {
+        await client.close();
+        mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+          originalPreviewOptIn;
+        mutableEnv.API_AUTH_MIGRATION = originalAuthMode;
+      }
+
+      expect(llmServerRequests).toBe(requestsBefore);
+      await expect(
+        prisma.defaultLlmModel.findUniqueOrThrow({ where: { projectId } }),
+      ).resolves.toMatchObject({ id: existing.id, model: "gpt-4o-mini" });
+      await expect(
+        prisma.auditLog.count({
+          where: { projectId, resourceType: "defaultLlmModel" },
+        }),
+      ).resolves.toBe(0);
     });
   });
 
@@ -894,12 +1639,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createDashboardWidget tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createDashboardWidgetTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should create a dashboard widget and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -1628,10 +2367,13 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        code: -32602, // INVALID_PARAMS
-        message: expect.stringContaining(
-          "Chat prompts must have at least one message",
-        ),
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: ["prompt"],
+            code: "too_small",
+            message: "Chat prompts must have at least one message",
+          }),
+        ]),
       });
     });
 
@@ -1949,6 +2691,66 @@ describe("MCP Write Tools", () => {
       ).rejects.toThrow();
     });
 
+    it("should remove labels listed in removeLabels and keep the others", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `remove-labels-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId,
+        version: 1,
+        labels: ["latest", "candidate", "staging"],
+      });
+
+      const result = (await handleUpdatePromptLabels(
+        {
+          name: promptName,
+          version: 1,
+          newLabels: ["production"],
+          removeLabels: ["candidate"],
+        },
+        context,
+      )) as { labels: string[] };
+
+      expect(result.labels.sort()).toEqual(
+        ["latest", "production", "staging"].sort(),
+      );
+    });
+
+    it("should reject removing a label that another prompt depends on", async () => {
+      const { context } = await createMcpTestSetup();
+      const childName = `remove-labels-child-${nanoid()}`;
+      const parentName = `remove-labels-parent-${nanoid()}`;
+
+      const child = (await handleCreateTextPrompt(
+        { name: childName, prompt: "Child", labels: ["candidate"] },
+        context,
+      )) as { version: number };
+
+      await handleCreateTextPrompt(
+        {
+          name: parentName,
+          prompt: `Parent: @@@langfusePrompt:name=${childName}|label=candidate@@@`,
+        },
+        context,
+      );
+
+      await expect(
+        handleUpdatePromptLabels(
+          {
+            name: childName,
+            version: child.version,
+            removeLabels: ["candidate"],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        httpCode: 400,
+        message: expect.stringMatching(/depending on the prompt label/),
+      });
+    });
+
     it("should handle special characters in prompt name", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `special!@#$-${nanoid()}`;
@@ -1970,6 +2772,100 @@ describe("MCP Write Tools", () => {
       )) as { name: string };
 
       expect(result.name).toBe(promptName);
+    });
+  });
+
+  describe("external media storage tools", () => {
+    it("configures, reads, and deletes project storage with audit logs", async () => {
+      const setup = await createMcpTestSetup();
+
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(false);
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { cloudConfig: { plan: "Enterprise" } },
+      });
+      await expect(
+        externalMediaStorageFeature.isEnabled(setup.context),
+      ).resolves.toBe(true);
+
+      await expect(
+        handleConfigureExternalMediaStorage(
+          {
+            type: "S3",
+            bucketName: "media-bucket",
+            region: "us-east-1",
+            accessKeyId: "test-access-key",
+            secretAccessKey: "test-secret-key",
+            prefix: "media/",
+            forcePathStyle: false,
+          },
+          setup.context,
+        ),
+      ).resolves.toEqual({ success: true });
+
+      await expect(
+        handleGetExternalMediaStorage({}, setup.context),
+      ).resolves.toMatchObject({
+        bucketName: "media-bucket",
+        prefix: "media/",
+        secretAccessKeyDisplay: expect.not.stringContaining("test-secret-key"),
+      });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "externalMediaStorageIntegration",
+          resourceId: setup.projectId,
+          action: "update",
+        }),
+      ).resolves.toBeDefined();
+
+      verifyToolAnnotations(deleteExternalMediaStorageTool, {
+        destructiveHint: true,
+      });
+      await expect(
+        handleDeleteExternalMediaStorage({}, setup.context),
+      ).resolves.toEqual({ success: true });
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
+          resourceType: "externalMediaStorageIntegration",
+          resourceId: setup.projectId,
+          action: "delete",
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it("rejects a loopback endpoint without persisting it", async () => {
+      const setup = await createMcpTestSetup();
+      await prisma.organization.update({
+        where: { id: setup.context.orgId },
+        data: { cloudConfig: { plan: "Enterprise" } },
+      });
+      // HTTPS passes Cloud's protocol check, so this pins the loopback block
+      // in both deployment modes.
+      await expect(
+        handleConfigureExternalMediaStorage(
+          {
+            type: "S3_COMPATIBLE",
+            bucketName: "media-bucket",
+            endpoint: "https://127.0.0.1:9000",
+            region: "us-east-1",
+            accessKeyId: "test-access-key",
+            secretAccessKey: "test-secret-key",
+            forcePathStyle: true,
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow("Blocked IP address detected");
+      await expect(
+        prisma.externalMediaStorageIntegration.findUnique({
+          where: { projectId: setup.projectId },
+        }),
+      ).resolves.toBeNull();
     });
   });
 
@@ -2042,8 +2938,10 @@ describe("MCP Write Tools", () => {
 
       if (testCase.expectForbidden) {
         await expect(update).rejects.toMatchObject({
-          name: "McpError",
-          message: expect.stringContaining("Access forbidden"),
+          name: "ForbiddenError",
+          httpCode: 403,
+          message:
+            "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
         });
 
         const prompt = await prisma.prompt.findFirst({
@@ -2061,6 +2959,43 @@ describe("MCP Write Tools", () => {
           labels: expect.arrayContaining([...testCase.labels]),
         });
       }
+    });
+
+    it("rejects removing production with a MEMBER in-app-agent key", async () => {
+      const setup = await createMcpTestSetup();
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: "production",
+      });
+      const { userId } = await createUserWithOrgRole({
+        orgId: setup.orgId,
+        role: Role.MEMBER,
+      });
+      const { context } = await createInAppAgentMcpContext({
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+        createdByUserId: userId,
+      });
+      const promptName = `protected-remove-${nanoid()}`;
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId: setup.projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      await expect(
+        handleUpdatePromptLabels(
+          { name: promptName, version: 1, removeLabels: ["production"] },
+          context,
+        ),
+      ).rejects.toMatchObject({ name: "ForbiddenError", httpCode: 403 });
+
+      const prompt = await prisma.prompt.findFirst({
+        where: { projectId: setup.projectId, name: promptName, version: 1 },
+      });
+      expect(prompt?.labels).toContain("production");
     });
 
     it("rejects creating a prompt with a custom protected label using a MEMBER in-app-agent key", async () => {
@@ -2091,8 +3026,9 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        name: "ForbiddenError",
+        httpCode: 403,
+        message: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabel}`,
       });
 
       await expect(
@@ -2132,8 +3068,10 @@ describe("MCP Write Tools", () => {
           context,
         ),
       ).rejects.toMatchObject({
-        name: "McpError",
-        message: expect.stringContaining("Access forbidden"),
+        name: "ForbiddenError",
+        httpCode: 403,
+        message:
+          "You don't have permission to add/remove a protected label to/from a prompt. Please contact your project admin for assistance.\n\n Protected labels are: production",
       });
     });
   });

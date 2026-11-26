@@ -9,7 +9,7 @@ import { ChartContainer } from "@/src/components/design-system/internal/charts/C
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
-  chartColors,
+  chartFillColors,
   INACTIVE_CHART_COLOR_STRENGTH,
   CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
@@ -53,13 +53,29 @@ const percentageFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-export function PieChart({ ...props }: PieChartProps) {
+const EMPTY_PIE_DATA: PieChartDatum[] = [];
+
+export function PieChart(
+  props: (PieChartProps & { variant?: "default" }) | { variant: "loading" },
+) {
+  const loading = props.variant === "loading";
+  const content = loading
+    ? { data: EMPTY_PIE_DATA, centerLabel: "", valueFormatter: () => "" }
+    : props;
   return (
-    <ChartContainer>
-      {({ width, height }) => (
-        <PieChartContent {...props} availableSize={Math.min(width, height)} />
-      )}
-    </ChartContainer>
+    <div
+      aria-hidden={loading ? true : undefined}
+      className={clsx("size-full", loading && "motion-safe:animate-pulse")}
+    >
+      <ChartContainer>
+        {({ width, height }) => (
+          <PieChartContent
+            {...content}
+            availableSize={Math.min(width, height)}
+          />
+        )}
+      </ChartContainer>
+    </div>
   );
 }
 
@@ -115,7 +131,7 @@ function PieChartContent({
       2 * Math.PI - slicesNeedingMinimumAngle.length * MIN_SLICE_ANGLE;
     const colorScale = scaleOrdinal(
       chartData.map((datum) => datum.id),
-      chartColors,
+      chartFillColors,
     );
 
     return pie<(typeof chartData)[number]>()

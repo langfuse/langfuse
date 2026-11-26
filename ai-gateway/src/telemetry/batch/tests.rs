@@ -4,6 +4,7 @@ use std::{
 };
 
 use opentelemetry::trace::SpanContext;
+use secrecy::ExposeSecret;
 use serde_json::json;
 use tokio::{sync::Semaphore, time::Instant};
 
@@ -122,7 +123,7 @@ fn a_later_expiring_grant_replaces_the_batch_grant() {
     assert_eq!(batches.next_due(), Some(now + LINGER));
     batches.push_record(grant("a", "earlier", 5), item(1), now);
     let flush = batches.take_all().pop().unwrap();
-    assert_eq!(flush.grant.access_token, "later");
+    assert_eq!(flush.grant.access_token.expose_secret(), "later");
 }
 
 #[test]

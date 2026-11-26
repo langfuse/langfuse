@@ -20,7 +20,7 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
-    pub fn backoff(
+    pub(super) fn backoff(
         &self,
         attempt: u32,
         error: &ExportError,

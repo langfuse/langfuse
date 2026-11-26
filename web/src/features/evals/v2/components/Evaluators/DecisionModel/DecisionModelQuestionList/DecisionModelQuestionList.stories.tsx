@@ -61,7 +61,10 @@ function InteractiveQuestionList(args: StoryArgs) {
         args.onAdd();
       }}
       onAddExample={(type) => {
-        const question = { id: nextId(), ...QUESTION_EXAMPLES[type] };
+        const question = {
+          id: nextId(),
+          ...(args.examples ?? QUESTION_EXAMPLES)[type],
+        };
         setQuestions((current) => [...current, question]);
         setExpandedId(question.id);
         args.onAddExample(type);
@@ -97,6 +100,7 @@ export const Empty = meta.story({
     questions: [],
     expandedId: null,
     stateKeys: STATE_KEYS,
+    examples: QUESTION_EXAMPLES,
   },
   render: (args) => <InteractiveQuestionList {...args} />,
 });

@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { TestModelMatchDialog } from "./TestModelMatchDialog";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical } from "@langfuse/icons";
 import { type ButtonProps } from "@/src/components/ui/button";
+import { type ModelOwner } from "@/src/features/models/modelOwner";
 
 type TestModelMatchButtonProps = {
-  projectId: string;
+  owner: ModelOwner;
   variant?: ButtonProps["variant"];
 };
 
 export type { TestModelMatchButtonProps };
 
 export function TestModelMatchButton({
-  projectId,
+  owner,
   variant,
 }: TestModelMatchButtonProps) {
   const [open, setOpen] = useState(false);
@@ -21,18 +22,14 @@ export function TestModelMatchButton({
     <>
       <ActionButton
         variant={variant ?? "secondary"}
-        icon={<FlaskConical className="h-4 w-4" />}
+        icon={<FlaskConical size="base" />}
         onClick={() => setOpen(true)}
         data-testid="test-model-match-button"
       >
         Test Model Match
       </ActionButton>
 
-      <TestModelMatchDialog
-        projectId={projectId}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      <TestModelMatchDialog owner={owner} open={open} onOpenChange={setOpen} />
     </>
   );
 }

@@ -1,45 +1,50 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo } from "react";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
+import { systemRoleAccessRights } from "@langfuse/shared/rbac";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
-  SettingsTable,
-  type SettingsTableProps,
-} from "@/src/components/SettingsTable/SettingsTable";
+  TableCard,
+  type TableCardProps,
+} from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import type { FeaturePreviewFlag } from "@/src/features/feature-flags";
-import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
+import { RoleSelect } from "@/src/features/rbac/components/RoleSelect";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsControl";
 import type { RouterOutput } from "@/src/utils/types";
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardPortal,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 
-const formatRoleLabel = (role: Role) =>
-  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+const formatRoleLabel = (role: Role) => systemRoleAccessRights[role].name;
 
-const roleFilterOptions = (Object.keys(orderedRoles) as Role[])
-  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
-  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
+/** allRoles lists the membership roles in display order. */
+const allRoles: Role[] = [
+  "OWNER",
+  "ADMIN",
+  "MEMBER",
+  "VIEWER",
+  "AI_GATEWAY",
+  "NONE",
+];
+
+const allProjectRoles = allRoles.filter((role) => role !== "AI_GATEWAY");
+
+const ownerLockedLabel = "Requires owner access";
+
+const roleFilterOptions = allRoles.map((role) => ({
+  value: role,
+  label: formatRoleLabel(role),
+}));
 
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
@@ -64,6 +69,9 @@ type MembersSettingsTableProps = Pick<
   currentUserId?: string;
   hasOrgCudAccess: boolean;
   hasProjectCudAccess: boolean;
+  canManageOrgOwnership: boolean;
+  canManageProjectOwnership: boolean;
+  isAiGatewayEnabled: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
   updatingOrgRoleMembershipIds: ReadonlySet<string>;
@@ -79,7 +87,7 @@ type MembersSettingsTableProps = Pick<
     value: Role[];
     onChange: (roles: Role[]) => void;
   };
-  toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
+  toolbarActions: TableCardProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
 
@@ -89,6 +97,9 @@ export function MembersSettingsTable({
   currentUserId,
   hasOrgCudAccess,
   hasProjectCudAccess,
+  canManageOrgOwnership,
+  canManageProjectOwnership,
+  isAiGatewayEnabled,
   projectRolesEntitlement,
   showFeaturePreviews,
   updatingOrgRoleMembershipIds,
@@ -118,7 +129,6 @@ export function MembersSettingsTable({
         accessorKey: "providers",
         header: "SSO Provider",
         enableHiding: true,
-        nullValue: "-",
       }),
       {
         accessorKey: "orgRole",
@@ -130,27 +140,49 @@ export function MembersSettingsTable({
         },
         size: 160,
         cell: ({ row }) => {
+          const isOwnerLocked =
+            row.original.orgRole === "OWNER" && !canManageOrgOwnership;
           const select = (
             <RoleSelect
+              roles={allRoles.filter(
+                (role) => isAiGatewayEnabled || role !== "AI_GATEWAY",
+              )}
+              canManageOwnership={canManageOrgOwnership}
               value={row.original.orgRole}
+              size="compact"
               disabled={
                 !hasOrgCudAccess ||
                 Boolean(project) ||
+                isOwnerLocked ||
                 updatingOrgRoleMembershipIds.has(
                   row.original.meta.orgMembershipId,
                 )
               }
-              onChange={(role) => onUpdateOrgRole(row.original, role)}
+              onValueChange={(role) => onUpdateOrgRole(row.original, role)}
             />
           );
+
+          if (!project && hasOrgCudAccess && isOwnerLocked) {
+            return (
+              <Tooltip label={ownerLockedLabel}>
+                {({ getTriggerProps }) => (
+                  <span className="inline-flex" {...getTriggerProps()}>
+                    {select}
+                  </span>
+                )}
+              </Tooltip>
+            );
+          }
 
           if (!project || !hasOrgCudAccess) return select;
 
           return (
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>{select}</HoverCardTrigger>
-              <HoverCardPortal>
-                <HoverCardContent align="center" side="right">
+            <HoverCard
+              openDelay={0}
+              closeDelay={0}
+              placement="right"
+              content={
+                <div className="w-64 p-3">
                   <p className="text-xs">
                     The organization-level role can be edited in the{" "}
                     <Link
@@ -161,8 +193,14 @@ export function MembersSettingsTable({
                     </Link>
                     .
                   </p>
-                </HoverCardContent>
-              </HoverCardPortal>
+                </div>
+              }
+            >
+              {({ getTriggerProps }) => (
+                <span className="inline-flex" {...getTriggerProps()}>
+                  {select}
+                </span>
+              )}
             </HoverCard>
           );
         },
@@ -180,18 +218,39 @@ export function MembersSettingsTable({
               size: 160,
               cell: ({ row }) => {
                 if (!projectRolesEntitlement) return "N/A on plan";
-                return (
+                const hasRoleAccess = hasOrgCudAccess || hasProjectCudAccess;
+                const isOwnerLocked =
+                  (row.original.projectRole === "OWNER" &&
+                    !canManageProjectOwnership) ||
+                  (row.original.orgRole === "OWNER" && !canManageOrgOwnership);
+                const select = (
                   <RoleSelect
+                    roles={allProjectRoles}
+                    canManageOwnership={canManageProjectOwnership}
                     value={row.original.projectRole ?? "NONE"}
                     isProjectRole
+                    size="compact"
                     disabled={
-                      (!hasOrgCudAccess && !hasProjectCudAccess) ||
+                      !hasRoleAccess ||
+                      isOwnerLocked ||
                       updatingProjectRoleMembershipIds.has(
                         row.original.meta.orgMembershipId,
                       )
                     }
-                    onChange={(role) => onUpdateProjectRole(row.original, role)}
+                    onValueChange={(role) =>
+                      onUpdateProjectRole(row.original, role)
+                    }
                   />
+                );
+                if (!hasRoleAccess || !isOwnerLocked) return select;
+                return (
+                  <Tooltip label={ownerLockedLabel}>
+                    {({ getTriggerProps }) => (
+                      <span className="inline-flex" {...getTriggerProps()}>
+                        {select}
+                      </span>
+                    )}
+                  </Tooltip>
                 );
               },
             },
@@ -242,8 +301,11 @@ export function MembersSettingsTable({
       }),
     ],
     [
+      canManageOrgOwnership,
+      canManageProjectOwnership,
       hasOrgCudAccess,
       hasProjectCudAccess,
+      isAiGatewayEnabled,
       onUpdateOrgRole,
       onUpdateProjectRole,
       orgId,
@@ -278,7 +340,7 @@ export function MembersSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName={project ? "project members" : "organization members"}
       columns={columns}
       actions={actions}
@@ -314,38 +376,5 @@ export function MembersSettingsTable({
       pagination={pagination}
       {...tableProps}
     />
-  );
-}
-
-function RoleSelect({
-  value,
-  disabled,
-  isProjectRole = false,
-  onChange,
-}: {
-  value: Role;
-  disabled: boolean;
-  isProjectRole?: boolean;
-  onChange: (role: Role) => void;
-}) {
-  return (
-    <Select
-      disabled={disabled}
-      value={value}
-      onValueChange={(role) => onChange(role as Role)}
-    >
-      <SelectTrigger className="w-[120px]">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(orderedRoles) as Role[]).map((role) => (
-          <RoleSelectItem
-            role={role}
-            key={role}
-            isProjectRole={isProjectRole}
-          />
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

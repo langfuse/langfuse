@@ -1397,11 +1397,11 @@ export const DeepConnectorsStillMeet = meta.story({
     await expect(rows.length).toBeGreaterThan(8);
 
     // A chain, so the row above is the parent: where a row's own spine descends
-    // is exactly where its child's connector must rise to.
+    // is exactly where its child's elbow (its left border) must rise to.
     const spineOf = (row: HTMLElement) =>
       row.querySelector<HTMLElement>('div[class*="bottom-0"][class*="w-px"]');
     const stubOf = (row: HTMLElement) =>
-      row.querySelector<HTMLElement>('div[class*="top-0"][class*="w-px"]');
+      row.querySelector<HTMLElement>('div[class*="top-0"][class*="border-l"]');
 
     let checked = 0;
     for (let index = 1; index < rows.length; index++) {

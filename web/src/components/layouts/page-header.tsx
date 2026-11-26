@@ -1,30 +1,20 @@
-/* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
-import { useEnvLabel } from "@/src/hooks/useEnvLabel";
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import { EntityTitle } from "@/src/components/EntityTitle";
 import {
-  getItemTypeLabels,
-  type LangfuseItemType,
-} from "@/src/components/ItemBadge";
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { TopbarBrand } from "@/src/components/nav/topbar-brand";
-import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { SidebarTrigger } from "@/src/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
+import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import {
   PageTabs,
   type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+} from "@/src/components/layouts/PageTabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
@@ -37,9 +27,6 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
-  /** Rich title rendering (e.g. inline-editable); replaces the plain title
-   * span inside the heading. `title` stays the canonical string. */
-  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -62,22 +49,27 @@ export type PageHeaderProps = {
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: EntityTitleTabsProps;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
   /** Bottom border and bottom padding; pages whose own strip follows the
-   * header directly turn both off so title and strip read as one block. */
+   * header directly turn both off so title and strip read as one block.
+   * Page tabs draw their own divider, so the border is skipped when they render. */
   divider?: boolean;
   showSidebarTrigger?: boolean;
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
   breadcrumbBadges?: ReactNode;
+  /** hideTitleRow drops the title and actions row, keeping the breadcrumb bar. */
+  hideTitleRow?: boolean;
 };
 
 const PageHeader = ({
   title,
-  titleContent,
   itemType,
+  titleTabs,
   actionButtonsLeft,
   actionButtonsRight,
   actionButtonsRightClassName,
@@ -92,20 +84,21 @@ const PageHeader = ({
   leadingControl,
   titleBadges,
   breadcrumbBadges,
+  hideTitleRow = false,
 }: PageHeaderProps) => {
-  const hasAppSidebar = useHasAppSidebar();
-  const envLabel = useEnvLabel();
+  const appNavigation = useAppNavigation();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  // The sidebar trigger + brand mark only make sense where a real AppSidebar
+  // The sidebar control + brand mark only make sense where a real sidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
   // hamburger opening an empty sheet, no orphaned brand mark.
-  const showSidebarChrome = showSidebarTrigger && hasAppSidebar;
+  const SidebarControl =
+    showSidebarTrigger && appNavigation ? appNavigation.SidebarControl : null;
   return (
     <div
       className={cn([
         "top-banner-offset bg-background sticky z-30 w-full",
-        divider && "border-b",
+        divider && !tabsProps && !hideTitleRow && "border-b",
         className,
       ])}
       id="page-header"
@@ -129,10 +122,12 @@ const PageHeader = ({
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-3">
-              {showSidebarChrome ? (
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
+              {SidebarControl ? (
                 <>
-                  <SidebarTrigger />
+                  <div className="relative z-10 flex items-center">
+                    <SidebarControl />
+                  </div>
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}
@@ -143,15 +138,7 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              <div>
-                {envLabel.visible && (
-                  <EnvLabelBadge
-                    region={envLabel.region}
-                    onClick={envLabel.dismiss}
-                  />
-                )}
-              </div>
-              <div className="flex translate-y-px items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>
@@ -167,65 +154,31 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div>
+        <div className={cn(hideTitleRow && "hidden")}>
           <div
             className={cn(
-              "flex w-full flex-wrap items-center justify-between gap-1 px-3 md:flex-nowrap",
-              divider ? "min-h-11 py-1" : "min-h-0 pt-2 pb-0",
+              "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",
+              divider ? "min-h-11 py-1" : "min-h-0 pt-3 pb-0",
               container && containerLayoutClassName,
             )}
           >
             {/* Left side content */}
-            <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1.5">
-                {itemType && (
-                  <Badge text={getItemTypeLabels(itemType).displayLabel} />
+            <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
+              <div className="mr-2 flex min-w-0 items-center gap-2">
+                {titleTabs && (
+                  <div className="shrink-0">
+                    <EntityTitleTabs {...titleTabs} />
+                  </div>
                 )}
-                <div className="relative inline-block max-w-md md:max-w-none">
-                  {/* Explicit color: the SidebarProvider shell sets
-                      text-sidebar-foreground (60% grey in dark) on the whole
-                      app, so unstyled text here would inherit the dimmed
-                      sidebar tint. text-primary is the emphasis tier —
-                      brighter than body text-foreground in dark. */}
-                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
-                    {titleContent ? (
-                      titleContent
-                    ) : titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span
-                        className="wrap-break-word"
-                        title={title}
-                        data-testid="page-header-title"
-                      >
-                        {title}
-                      </span>
-                    )}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </h2>
+                <div className="max-w-md min-w-0 md:max-w-none">
+                  <EntityTitle
+                    as="h2"
+                    type={titleTabs ? undefined : itemType}
+                    title={title}
+                    tooltip={titleTooltip}
+                    help={help}
+                    data-testid="page-header-title"
+                  />
                 </div>
                 {titleBadges && (
                   <div className="ml-1 flex items-center gap-1">
@@ -252,12 +205,7 @@ const PageHeader = ({
             </div>
           </div>
 
-          {tabsProps && (
-            <PageTabs
-              {...tabsProps}
-              className={cn("ml-2", tabsProps.className)}
-            />
-          )}
+          {tabsProps && <PageTabs {...tabsProps} />}
         </div>
       </div>
     </div>

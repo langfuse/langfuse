@@ -17,7 +17,7 @@ enum EventState {
 }
 
 impl SseDecoder {
-    pub fn push(&mut self, bytes: &[u8], limit: usize, mut event: impl FnMut(&[u8])) {
+    pub(super) fn push(&mut self, bytes: &[u8], limit: usize, mut event: impl FnMut(&[u8])) {
         for &byte in bytes {
             if self.skip_lf {
                 self.skip_lf = false;
@@ -46,8 +46,10 @@ impl SseDecoder {
 
     fn end_line(&mut self, event: &mut impl FnMut(&[u8])) {
         if !self.line_nonempty {
-            if matches!(self.state, EventState::Collecting) && !self.data.is_empty() {
-                event(&self.data[..self.data.len() - 1]);
+            if matches!(self.state, EventState::Collecting)
+                && let Some((_, payload)) = self.data.split_last()
+            {
+                event(payload);
             }
             self.data.clear();
             self.state = EventState::Collecting;
@@ -67,7 +69,11 @@ impl SseDecoder {
         self.line_nonempty = false;
     }
 
-    pub fn finish(&self) -> bool {
+    pub(super) fn buffered_len(&self) -> usize {
+        self.line.len() + self.data.len()
+    }
+
+    pub(super) fn finish(&self) -> bool {
         !self.incomplete
             && !self.line_nonempty
             && self.data.is_empty()

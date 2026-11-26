@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 import { fn } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";

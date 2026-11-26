@@ -123,6 +123,7 @@ export function stripBasePath(path: string): string {
     return cleaned || "/";
   }
 
-  const stripped = cleaned.slice(basePath.length) || "/";
-  return stripped.startsWith("/") ? stripped : `/${stripped}`;
+  // A remainder starting with "//" or "/\" would be protocol-relative.
+  const stripped = cleaned.slice(basePath.length).replace(/^[/\\]+/, "");
+  return `/${stripped}`;
 }

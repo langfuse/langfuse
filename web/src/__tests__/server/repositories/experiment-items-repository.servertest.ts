@@ -4,6 +4,8 @@ import {
   createScoresCh,
   getExperimentItemsFromEvents,
   getExperimentItemsCountFromEvents,
+  getExperimentsStartTime,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS,
   getExperimentItemsBatchIO,
   getExperimentMetricsFromEvents,
   createTraceScore,
@@ -152,6 +154,90 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       // THEN: Item should be returned
       expect(result).toHaveLength(1);
       expect(result[0].itemId).toBe(item1Id);
+    });
+
+    it("should bound score filters by the experiment start minus the score lookback", async () => {
+      const baselineExpId = randomUUID();
+      const itemId = randomUUID();
+      const traceId = randomUUID();
+      const rootId = randomUUID();
+      const lookbackMs =
+        SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_HOURS * 60 * 60 * 1000;
+      const startTimeMs = Date.now() - 24 * 60 * 60 * 1000;
+      const scoreTimes = {
+        "too-old": startTimeMs - lookbackMs - 60 * 60 * 1000,
+        "in-lookback": startTimeMs - lookbackMs / 2,
+      };
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: rootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          itemId,
+          experimentItemRootSpanId: rootId,
+          start_time: startTimeMs * 1000,
+        }),
+      ]);
+      await createScoresCh(
+        Object.entries(scoreTimes).flatMap(([name, timeMs]) =>
+          [null, rootId].map((observationId) =>
+            createTraceScore({
+              project_id: projectId,
+              trace_id: traceId,
+              observation_id: observationId,
+              name,
+              value: 1,
+              data_type: "NUMERIC",
+              timestamp: timeMs,
+              created_at: timeMs,
+              updated_at: timeMs,
+              event_ts: timeMs,
+            }),
+          ),
+        ),
+      );
+
+      const experimentsStartTime = await getExperimentsStartTime({
+        projectId,
+        experimentIds: [baselineExpId],
+      });
+      expect(experimentsStartTime?.getTime()).toBe(startTimeMs);
+
+      const queryItems = (scoreName: string, columns: string[]) =>
+        getExperimentItemsFromEvents({
+          projectId,
+          baseExperimentId: baselineExpId,
+          compExperimentIds: [],
+          filterByExperiment: [
+            {
+              experimentId: baselineExpId,
+              filters: columns.map(
+                (column) =>
+                  ({
+                    column,
+                    type: "numberObject",
+                    key: scoreName,
+                    operator: ">",
+                    value: 0.5,
+                  }) as FilterCondition,
+              ),
+            },
+          ],
+          experimentsStartTime,
+          limit: 10,
+          offset: 0,
+        });
+
+      for (const column of ["trace_scores_avg", "obs_scores_avg"]) {
+        expect(await queryItems("too-old", [column]), column).toHaveLength(0);
+      }
+      // Both CTEs mounted at once must each keep the lookback.
+      expect(
+        await queryItems("in-lookback", ["trace_scores_avg", "obs_scores_avg"]),
+      ).toHaveLength(1);
     });
 
     it("should filter items by root observation numeric scores", async () => {
@@ -1626,6 +1712,68 @@ describe("Clickhouse Experiment Items Repository Test", () => {
           (o) => o.output === null || o.output.length <= 1000,
         ),
       ).toBe(true);
+    });
+
+    it("reads past the preview when an expanded char limit is requested", async () => {
+      // The default read stays on the pre-truncated table, which is not enough
+      // to fill a tall comparison row. An explicit limit has to come back from
+      // the full event text, capped at the requested length.
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+      const rootId = randomUUID();
+
+      const longInput = "A".repeat(2000);
+      const longExpectedOutput = "B".repeat(2000);
+      const longOutput = "C".repeat(2000);
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          span_id: rootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId,
+          experimentItemRootSpanId: rootId,
+          input: longInput,
+          experiment_item_expected_output: longExpectedOutput,
+          output: longOutput,
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const preview = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+      });
+      expect(preview[0].input!.length).toBeLessThan(2000);
+      expect(preview[0].outputs[0].output!.length).toBeLessThan(2000);
+
+      const expanded = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        ioCharLimit: 2000,
+      });
+      expect(expanded[0].input).toBe(longInput);
+      expect(expanded[0].expectedOutput).toBe(longExpectedOutput);
+      expect(expanded[0].outputs[0].output).toBe(longOutput);
+
+      const capped = await getExperimentItemsBatchIO({
+        projectId,
+        itemIds: [itemId],
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        ioCharLimit: 500,
+      });
+      expect(capped[0].input).toHaveLength(500);
+      expect(capped[0].expectedOutput).toHaveLength(500);
+      expect(capped[0].outputs[0].output).toHaveLength(500);
     });
 
     it("passes a payload of the four characters null through untouched", async () => {

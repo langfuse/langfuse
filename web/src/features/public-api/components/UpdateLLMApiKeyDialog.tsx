@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ComponentProps } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
@@ -5,17 +6,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { type RouterOutputs } from "@/src/utils/api";
-
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
+import {
+  CreateLLMApiKeyForm,
+  type LlmApiKeyListItem,
+  type LlmConnectionFormOwner,
+} from "./CreateLLMApiKeyForm";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 export function UpdateLLMApiKeyDialog({
-  projectId,
+  owner,
+  initialApiKey,
+  onAfterClose,
   children,
 }: {
-  projectId: string;
+  owner: LlmConnectionFormOwner;
+  /** Opens the dialog on mount for this connection. */
+  initialApiKey?: LlmApiKeyListItem;
+  /** Called after the dialog closed itself, dismissed or saved. */
+  onAfterClose?: () => void;
   children: ComponentProps<
     typeof DialogController<LlmApiKeyListItem>
   >["children"];
@@ -24,6 +32,8 @@ export function UpdateLLMApiKeyDialog({
 
   return (
     <DialogController<LlmApiKeyListItem>
+      initialState={() => initialApiKey}
+      onDismiss={onAfterClose}
       renderDialog={({ state: apiKey, closeDialog }) => (
         <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
           <DialogHeader>
@@ -31,8 +41,11 @@ export function UpdateLLMApiKeyDialog({
           </DialogHeader>
           <CreateLLMApiKeyForm
             key={apiKey.id}
-            projectId={projectId}
-            onSuccess={closeDialog}
+            owner={owner}
+            onSuccess={() => {
+              closeDialog();
+              onAfterClose?.();
+            }}
             customization={uiCustomization}
             mode="update"
             existingKey={apiKey}

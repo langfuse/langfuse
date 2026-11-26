@@ -1,10 +1,10 @@
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 
 const DynamicMobileRightDrawer = dynamic(
   () =>

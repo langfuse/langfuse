@@ -1,9 +1,7 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  updateScoreConfig,
-  PutScoreConfigBodyWithoutArchived,
-} from "@/src/features/public-api/server";
+import { updateScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
+import { PutScoreConfigBodyWithoutArchived } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
 import {
   McpScoreConfigCategoricalCategoriesSchema,
@@ -74,5 +72,5 @@ export const [updateScoreConfigTool, handleUpdateScoreConfig] = defineTool({
       },
     });
   },
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
 });

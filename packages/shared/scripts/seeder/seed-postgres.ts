@@ -16,12 +16,17 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
+import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
 import {
-  createAndAddApiKeysToDb,
-  getDisplaySecretKey,
-  hashSecretKey,
-  logger,
-} from "../../src/server";
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "../../src/features/rbac/types";
+import {
+  findOrCreateOrgMembership,
+  findOrCreateProjectMembership,
+} from "../../src/features/memberships";
 import { redis } from "../../src/server/redis/redis";
 import {
   DEFAULT_SEED_API_KEY,
@@ -135,52 +140,25 @@ async function main() {
   // Realistic support chat scenario
   await createSupportChatSession(project1);
 
-  const orgMembership = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user.id,
-      orgId: seedOrgId,
-      role: "OWNER",
-    },
-    update: {},
+  // API keys bound to a user are authorized by the user's role assignments, not the membership row alone.
+  const orgMembership = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user.id,
+    role: "OWNER",
   });
 
-  const orgMembership2 = await prisma.organizationMembership.upsert({
-    where: {
-      orgId_userId: {
-        userId: user2.id,
-        orgId: seedOrgId,
-      },
-    },
-    create: {
-      userId: user2.id,
-      orgId: seedOrgId,
-      role: "MEMBER",
-    },
-    update: {},
+  const orgMembership2 = await findOrCreateOrgMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    role: "MEMBER",
   });
 
-  await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        projectId: project1.id,
-        userId: user2.id,
-      },
-    },
-    create: {
-      userId: user2.id,
-      projectId: project1.id,
-      role: "ADMIN",
-      orgMembershipId: orgMembership2.id,
-    },
-    update: {
-      orgMembershipId: orgMembership2.id,
-    },
+  await findOrCreateProjectMembership(prisma, {
+    orgId: seedOrgId,
+    userId: user2.id,
+    projectId: project1.id,
+    role: "ADMIN",
+    orgMembershipId: orgMembership2.id,
   });
 
   await seedAiGateway({
@@ -220,20 +198,20 @@ async function main() {
     secret: process.env.SEED_SECRET_KEY ?? DEFAULT_SEED_API_KEY.secret, // eslint-disable-line turbo/no-undeclared-env-vars
   };
 
-  if (!(await prisma.apiKey.findUnique({ where: { id: seedApiKey.id } }))) {
-    await prisma.apiKey.create({
-      data: {
-        note: seedApiKey.note,
-        id: seedApiKey.id,
+  if (
+    !(await prisma.apiKey.findUnique({
+      where: { publicKey: seedApiKey.public },
+    }))
+  ) {
+    await createApiKey(prisma, {
+      tenant: OrganizationId(seedOrgId),
+      scope: ProjectId(project1.id),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(user.id),
+      name: seedApiKey.note,
+      predefinedKeys: {
         publicKey: seedApiKey.public,
-        hashedSecretKey: await hashSecretKey(seedApiKey.secret),
-        displaySecretKey: getDisplaySecretKey(seedApiKey.secret),
-        scope: "PROJECT",
-        project: {
-          connect: {
-            id: project1.id,
-          },
-        },
+        secretKey: seedApiKey.secret,
       },
     });
   }
@@ -261,42 +239,32 @@ async function main() {
       },
       update: { orgId: seedOrgIdOrg2 },
     });
-    await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: {
-          userId: user.id,
-          orgId: seedOrgIdOrg2,
-        },
-      },
-      create: {
-        userId: user.id,
-        orgId: seedOrgIdOrg2,
-        role: "VIEWER",
-      },
-      update: {},
+    await findOrCreateOrgMembership(prisma, {
+      orgId: seedOrgIdOrg2,
+      userId: user.id,
+      role: "VIEWER",
     });
     await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
-      id: "seed-api-key-2",
       secret: process.env.SEED_SECRET_KEY ?? "sk-lf-asdfghjkl", // eslint-disable-line turbo/no-undeclared-env-vars
       public: "pk-lf-asdfghjkl",
       note: "seeded key 2",
     };
-    if (!(await prisma.apiKey.findUnique({ where: { id: secondKey.id } }))) {
-      await prisma.apiKey.create({
-        data: {
-          note: secondKey.note,
-          id: secondKey.id,
+    if (
+      !(await prisma.apiKey.findUnique({
+        where: { publicKey: secondKey.public },
+      }))
+    ) {
+      await createApiKey(prisma, {
+        tenant: OrganizationId(seedOrgIdOrg2),
+        scope: ProjectId(project2.id),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(user.id),
+        name: secondKey.note,
+        predefinedKeys: {
           publicKey: secondKey.public,
-          hashedSecretKey: await hashSecretKey(secondKey.secret),
-          displaySecretKey: getDisplaySecretKey(secondKey.secret),
-          scope: "PROJECT",
-          project: {
-            connect: {
-              id: project2.id,
-            },
-          },
+          secretKey: secondKey.secret,
         },
       });
     }
@@ -537,20 +505,12 @@ async function seedAiGateway(params: {
   });
   // Mirrors what the control plane writes when it creates the project: the
   // creator keeps an explicit role so the project stays reachable in the UI.
-  await prisma.projectMembership.upsert({
-    where: {
-      projectId_userId: {
-        projectId: ingestionProjectId,
-        userId: params.userId,
-      },
-    },
-    create: {
-      projectId: ingestionProjectId,
-      userId: params.userId,
-      orgMembershipId: params.orgMembershipId,
-      role: "OWNER",
-    },
-    update: { orgMembershipId: params.orgMembershipId },
+  await findOrCreateProjectMembership(prisma, {
+    orgId: params.organizationId,
+    projectId: ingestionProjectId,
+    userId: params.userId,
+    orgMembershipId: params.orgMembershipId,
+    role: "OWNER",
   });
   await prisma.gatewayConfig.upsert({
     where: { organizationId: params.organizationId },
@@ -579,7 +539,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-seed-openai-not-valid"),
           displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
           createdById: params.userId,
-          routingPriority: 0,
           status: "ENABLED",
         },
         {
@@ -590,7 +549,6 @@ async function seedAiGateway(params: {
           encryptedCredential: encrypt("sk-ant-seed-not-valid"),
           displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
           createdById: params.userId,
-          routingPriority: 1,
           status: "ENABLED",
         },
       ],
@@ -604,12 +562,12 @@ async function seedAiGateway(params: {
   });
   const key =
     existingKey ??
-    (await createAndAddApiKeysToDb({
-      prisma,
-      entityId: params.organizationId,
-      scope: "ORGANIZATION",
-      note: "Seeded gateway key",
-      createdByUserId: params.userId,
+    (await createApiKey(prisma, {
+      tenant: OrganizationId(params.organizationId),
+      scope: UserId(params.userId),
+      role: SystemRoleId("AI_GATEWAY_INFERENCE"),
+      createdBy: UserId(params.userId),
+      name: "Seeded gateway key",
       predefinedKeys: {
         publicKey,
         secretKey: "sk-lf-gateway-seed",

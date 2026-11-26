@@ -8,9 +8,12 @@ import {
   type InAppAgentWindowExecutionUi,
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
+import { InAppAgentInternalSessionMenu } from "./InAppAgentInternalSessionMenu";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,
@@ -48,6 +51,7 @@ export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
   const router = useRouter();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const {
     activityByConversationId,
     conversations,
@@ -56,6 +60,7 @@ export function ControlledInAppAgentWindow(
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
+    isSelectedConversationPersisted,
     execution,
     isSubmitting,
     invalidateConversations,
@@ -65,6 +70,7 @@ export function ControlledInAppAgentWindow(
     pendingToolApprovals,
     approveToolCall,
     alwaysAllowToolCall,
+    answerQuestionnaire,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -133,10 +139,18 @@ export function ControlledInAppAgentWindow(
     execution.run?.status === InAppAgentRunStatus.AWAITING_APPROVAL &&
     (pendingToolApprovals.length > 0 ||
       displayedPendingToolApprovals.length > 0);
-  const screenContextDescription = useMemo(
-    () => getInAppAgentScreenContextDescription(router.asPath),
-    [router.asPath],
-  );
+  const projectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const canViewTopics = useCanViewTopics(projectId ?? null);
+  const screenContextDescription = useMemo(() => {
+    const description = getInAppAgentScreenContextDescription(router.asPath);
+    // Without Topics access the page is "Not found" and Halo has no topic tools.
+    return description.type === "topics" && !canViewTopics
+      ? { type: "page" as const }
+      : description;
+  }, [router.asPath, canViewTopics]);
   const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
   const focusedQuickActions = getInAppAgentFocusedQuickActions(
     screenContextDescription.type,
@@ -164,6 +178,17 @@ export function ControlledInAppAgentWindow(
     ],
   );
 
+  const titleActions =
+    internalFeaturesEnabled &&
+    projectId &&
+    selectedConversationId &&
+    isSelectedConversationPersisted ? (
+      <InAppAgentInternalSessionMenu
+        projectId={projectId}
+        conversationId={selectedConversationId}
+      />
+    ) : null;
+
   const closeButtonProps =
     props.showCloseButton === false
       ? ({ showCloseButton: false } as const)
@@ -190,6 +215,7 @@ export function ControlledInAppAgentWindow(
       isLoadingMoreConversations={isLoadingMoreConversations}
       selectedConversationId={selectedConversationId}
       selectedConversationTitle={selectedConversationTitle}
+      titleActions={titleActions}
       onLoadMoreConversations={loadMoreConversations}
       onOpenConversationHistory={invalidateConversations}
       onDeleteConversation={props.onDeleteConversation}
@@ -202,6 +228,7 @@ export function ControlledInAppAgentWindow(
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}
+      onAnswerQuestionnaire={answerQuestionnaire}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

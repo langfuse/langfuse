@@ -1,0 +1,227 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { DEFAULT_TOPIC_FACETS } from "../../topics";
+
+const mocks = vi.hoisted(() => ({
+  prepareModels: vi.fn(),
+  writeModels: vi.fn(),
+  ensureFacets: vi.fn(),
+  saveRule: vi.fn(),
+  listRules: vi.fn(),
+  writeReadiness: vi.fn(),
+  cacheReadiness: vi.fn(),
+  invalidate: vi.fn(),
+}));
+
+vi.mock("../evalJobConfigCache", () => ({
+  invalidateProjectEvalConfigCaches: mocks.invalidate,
+}));
+
+vi.mock("./model-config", () => ({
+  prepareTopicsModelSettings: mocks.prepareModels,
+  writeTopicsModelSettings: mocks.writeModels,
+}));
+vi.mock("./postgres", () => ({
+  ensureDefaultTopicFacets: mocks.ensureFacets,
+  writeTopicRule: mocks.saveRule,
+  listTopicRules: mocks.listRules,
+}));
+vi.mock("../tracingReadinessSettings", () => ({
+  writeTracingReadinessSettings: mocks.writeReadiness,
+  cacheTracingReadinessSettings: mocks.cacheReadiness,
+}));
+vi.mock("../../db", () => ({
+  prisma: {
+    $transaction: (callback: (tx: string) => Promise<unknown>) =>
+      callback("tx"),
+  },
+}));
+
+import { saveTopicsSetup } from "./setup";
+
+const projectId = "project-a";
+const facets = DEFAULT_TOPIC_FACETS.map((facet, index) => ({
+  id: facet.name.toLowerCase(),
+  projectId,
+  name: facet.name,
+  description: facet.description,
+  isBuiltIn: true,
+  versions: [],
+  enabled: index !== 1,
+}));
+
+const setup = {
+  summary: { provider: "key", model: "gpt" },
+  embedding: { provider: "key", model: "embed" },
+  embeddingDimensions: 1024,
+  clustering: { provider: "key", model: "cluster" },
+  facets: facets.map((facet) => ({
+    name: facet.name,
+    enabled: facet.enabled,
+  })),
+  filter: [{ column: "name", type: "string", operator: "=", value: "billing" }],
+  traceIdleMs: 120_000,
+} satisfies Parameters<typeof saveTopicsSetup>[1];
+
+describe("Topics setup", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.ensureFacets.mockResolvedValue(facets);
+    mocks.saveRule.mockResolvedValue({ id: "rule-a" });
+    mocks.listRules.mockResolvedValue([]);
+    mocks.prepareModels.mockResolvedValue({ summaryModel: "gpt" });
+  });
+
+  it("creates the built-in facets and one rule for the enabled ones", async () => {
+    await saveTopicsSetup(projectId, setup, "user-a");
+
+    expect(mocks.prepareModels).toHaveBeenCalledWith(projectId, {
+      summary: setup.summary,
+      embedding: setup.embedding,
+      embeddingDimensions: 1024,
+      clustering: setup.clustering,
+    });
+    expect(mocks.ensureFacets).toHaveBeenCalledWith(projectId);
+    expect(mocks.saveRule).toHaveBeenCalledWith("tx", {
+      firstRule: true,
+      projectId,
+      filter: setup.filter,
+      facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
+      userId: "user-a",
+    });
+    expect(mocks.writeModels).toHaveBeenCalledWith(
+      projectId,
+      { summaryModel: "gpt" },
+      { userId: "user-a", tx: "tx" },
+    );
+    expect(mocks.writeReadiness).toHaveBeenCalledWith(
+      "tx",
+      projectId,
+      { traceIdleMs: 120_000 },
+      "user-a",
+    );
+    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(projectId);
+    expect(mocks.cacheReadiness).toHaveBeenCalledWith(projectId, {
+      traceIdleMs: 120_000,
+    });
+  });
+
+  it("enables the models only after the rule is saved", async () => {
+    mocks.saveRule.mockRejectedValue(
+      new InvalidRequestError("Topic rule not found in this project."),
+    );
+
+    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
+      "Topic rule not found",
+    );
+    expect(mocks.prepareModels).toHaveBeenCalledOnce();
+    expect(mocks.writeModels).not.toHaveBeenCalled();
+    expect(mocks.writeReadiness).not.toHaveBeenCalled();
+    expect(mocks.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a rule filter ingestion cannot match on one observation", async () => {
+    await expect(
+      saveTopicsSetup(projectId, {
+        ...setup,
+        filter: [
+          { column: "totalCost", type: "number", operator: ">", value: 1 },
+        ],
+      }),
+    ).rejects.toThrow(/totalCost.*is not supported/);
+    expect(mocks.saveRule).not.toHaveBeenCalled();
+    expect(mocks.writeModels).not.toHaveBeenCalled();
+  });
+
+  it("creates another rule without a rule id once the project has rules", async () => {
+    mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
+    await saveTopicsSetup(projectId, { ...setup, name: "Support" });
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
+      expect.objectContaining({
+        id: undefined,
+        firstRule: false,
+        name: "Support",
+      }),
+    );
+  });
+
+  it.each([
+    { label: "before setup", rules: [] },
+    { label: "with rules", rules: [{ id: "rule-setup" }, { id: "rule-b" }] },
+  ])(
+    "never writes a rule on a settings-only save $label",
+    async ({ rules }) => {
+      mocks.listRules.mockResolvedValue(rules);
+      const { facets: _, filter: __, ...settingsOnly } = setup;
+      await expect(
+        saveTopicsSetup(projectId, settingsOnly),
+      ).resolves.toBeNull();
+      expect(mocks.saveRule).not.toHaveBeenCalled();
+      expect(mocks.writeModels).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("keeps the named rule's filter when the save sends none", async () => {
+    mocks.listRules.mockResolvedValue([
+      { id: "rule-setup", filter: setup.filter },
+      { id: "rule-b", filter: [] },
+    ]);
+    const { filter: _, ...withoutFilter } = setup;
+    await saveTopicsSetup(projectId, {
+      ...withoutFilter,
+      ruleId: "rule-setup",
+    });
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
+      expect.objectContaining({ id: "rule-setup", filter: setup.filter }),
+    );
+  });
+
+  it("keeps enabled custom facets assigned to the rule", async () => {
+    await saveTopicsSetup(projectId, {
+      ...setup,
+      customFacetIds: ["custom-language"],
+    });
+
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
+      expect.objectContaining({
+        facetIds: expect.arrayContaining(["intent", "custom-language"]),
+      }),
+    );
+  });
+
+  it("rejects a setup with every facet turned off", async () => {
+    await expect(
+      saveTopicsSetup(projectId, {
+        ...setup,
+        facets: setup.facets.map((facet) => ({ ...facet, enabled: false })),
+      }),
+    ).rejects.toThrow(/at least one facet/);
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
+  });
+
+  it("rejects a setup that leaves out a built-in facet", async () => {
+    await expect(
+      saveTopicsSetup(projectId, {
+        ...setup,
+        facets: setup.facets.slice(1),
+      }),
+    ).rejects.toThrow(/each built-in facet/);
+    expect(mocks.prepareModels).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [59_000, /at least 60 seconds/],
+    [3_601_000, /at most 3,600 seconds/],
+  ])(
+    "rejects an idle time of %i ms before testing models",
+    async (traceIdleMs, message) => {
+      await expect(
+        saveTopicsSetup(projectId, { ...setup, traceIdleMs }),
+      ).rejects.toThrow(message);
+      expect(mocks.prepareModels).not.toHaveBeenCalled();
+    },
+  );
+});

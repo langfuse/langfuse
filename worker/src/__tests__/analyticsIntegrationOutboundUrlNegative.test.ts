@@ -162,7 +162,11 @@ const CREDENTIALED_URL = "http://exporter:hunter2@127.0.0.1/";
 
 describe("negative-suite premise", () => {
   it("runs with a genuinely empty allowlist", () => {
-    expect(whitelistFromEnv()).toEqual({ hosts: [], ips: [], ip_ranges: [] });
+    expect(whitelistFromEnv()).toEqual({
+      hosts: [],
+      ips: [],
+      ip_ranges: [],
+    });
   });
 });
 
@@ -187,7 +191,9 @@ describe("PostHog export — blocked outbound destinations are rejected", () => 
       ).resolves.toBeUndefined();
 
       expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { enabled: false } }),
+        expect.objectContaining({
+          data: expect.objectContaining({ enabled: false }),
+        }),
       );
       expect(h.posthogIntegrationUpdate).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -205,11 +211,17 @@ describe("PostHog export — blocked outbound destinations are rejected", () => 
     ).resolves.toBeUndefined();
 
     expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { enabled: false } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ enabled: false }),
+      }),
     );
-    const persisted = h.posthogIntegrationUpdate.mock.calls.flatMap((call) =>
-      JSON.stringify(call),
-    );
+    // Only the written `data` is persisted; the disable predicate's `where`
+    // carries the configured host and is never stored or shown.
+    const persisted = [
+      ...h.posthogIntegrationUpdate.mock.calls,
+      ...h.posthogIntegrationUpdateMany.mock.calls,
+    ].map((call) => JSON.stringify((call[0] as { data?: unknown })?.data));
+    expect(persisted.join("\n")).toContain("lastError");
     expect(persisted.join("\n")).not.toContain("hunter2");
   });
 });

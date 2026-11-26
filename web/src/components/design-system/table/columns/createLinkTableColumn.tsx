@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -13,7 +13,7 @@ type LinkTableColumnProps = Pick<
   React.ComponentProps<typeof TextLink>,
   "path" | "value" | "title" | "onClick"
 > & {
-  icon?: LucideIcon;
+  icon?: IconComponent;
 };
 
 export function createLinkTableColumn<TData extends RowData, TValue = string>({

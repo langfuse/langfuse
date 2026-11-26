@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -10,10 +11,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  AutomationForm,
-  WebhookSecretRender,
-} from "@/src/features/automations";
+import { ConnectedAutomationForm } from "@/src/features/automations/components/ConnectedAutomationForm";
+import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
 import { ProjectNotificationChannelsList } from "@/src/features/notifications/components/ProjectNotificationChannelsList";
 import { useProjectNotificationChannels } from "@/src/features/notifications/hooks/useProjectNotificationChannels";
 import { cn } from "@/src/utils/tailwind";
@@ -24,8 +23,12 @@ import {
   type ProjectNotificationEventType,
 } from "@langfuse/shared";
 
-/** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
-const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
+/** Project notifications route to webhooks, Slack or PagerDuty; GitHub dispatch is not wired for this event source. */
+const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = [
+  "WEBHOOK",
+  "SLACK",
+  "PAGERDUTY",
+];
 
 const NOTIFIED_EVENT_COPY: Record<
   ProjectNotificationEventType,
@@ -48,6 +51,7 @@ const NOTIFIED_EVENT_COPY: Record<
 };
 
 /** NOTIFIED_EVENTS lists the toggleable project-notification events, in schema order. */
+/** @internal */
 export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
   (value) => ({ value, ...NOTIFIED_EVENT_COPY[value] }),
 );
@@ -55,7 +59,7 @@ export const NOTIFIED_EVENTS = ProjectNotificationEventTypeSchema.options.map(
 /**
  * ProjectNotificationChannels is the admin-only "Project Notifications"
  * settings section. It lists configured channels and delegates create/edit to
- * the shared <AutomationForm> scoped to the project-notification event source.
+ * the shared <ConnectedAutomationForm> scoped to the project-notification event source.
  */
 export function ProjectNotificationChannels({
   projectId,
@@ -134,7 +138,7 @@ export function ProjectNotificationChannels({
           </div>
         </div>
       ) : (
-        <AutomationForm
+        <ConnectedAutomationForm
           key={editingChannel?.id ?? "create"}
           projectId={projectId}
           isEditing

@@ -1,18 +1,13 @@
 //! Rust-only encoding for prepared v4 `events_full` rows.
 //!
-//! Encoding receives typed, owned fields from the direct JS adapter in `native_js`.
+//! Encoding receives typed, owned fields finalized by the Rust ingestion pipeline.
 
-use std::error::Error as StdError;
 use std::sync::Arc;
 
-use bytes::Bytes;
-use chrono::{DateTime, NaiveDateTime, Utc};
-use clickhouse::native::builder::BlockBuilder;
-use clickhouse::native::encode::{Encode, ValueWriter};
-use clickhouse::native::DataTypeNode;
-use clickhouse_types::data_types::{DateTimePrecision, DecimalType};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use rust_decimal::{Decimal, RoundingStrategy};
 
+use crate::native_columns::NativeColumnError;
 use crate::native_schema::PreparedEventRow;
 
 const DECIMAL_SCALE: u32 = 12;
@@ -20,38 +15,32 @@ const DECIMAL_LIMIT: i128 = 1_000_000_000_000_000_000;
 const DECIMAL_CLAMPED_MAX: i64 = 999_999_999_999_000_000;
 const DECIMAL_CLAMPED_MIN: i64 = -DECIMAL_CLAMPED_MAX;
 const DECIMAL_OVERFLOW_LIMIT: f64 = 1_000_000.0;
-type EncodeError = Box<dyn StdError + Send + Sync>;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct DateTime64Micros(pub(crate) i64);
-
-impl Encode for DateTime64Micros {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::DateTime64(DateTimePrecision::Precision6, None)
-    }
-
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // clickhouse-rs has no DateTime64 Encode implementation. Keep the DateTime64(6) type tag
-        // while writing ClickHouse's signed microsecond representation as a fixed-width value.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Decimal64(pub(crate) i64);
 
-impl Encode for Decimal64 {
-    fn produces() -> DataTypeNode {
-        DataTypeNode::Decimal(18, 12, DecimalType::Decimal64)
-    }
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillReference {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub langfuse_skill_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_version: Option<u32>,
+    pub skill_name: String,
+}
 
-    fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
-        // rust_decimal supplies the policy and coefficient; clickhouse-rs has no Decimal Encode
-        // implementation, so retain the Decimal(18,12) type tag and write its Int64 coefficient.
-        writer.write_fixed(&self.0.to_le_bytes())?;
-        Ok(())
-    }
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillResourceLoaded {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub langfuse_skill_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_version: Option<u32>,
+    pub skill_name: String,
+    pub file_path: String,
 }
 
 /// An owned ClickHouse Native-format block and its row count.
@@ -60,7 +49,7 @@ impl Encode for Decimal64 {
 /// block after the encoder and source rows have gone out of scope.
 #[derive(Debug)]
 pub struct EncodedBlock {
-    pub bytes: Bytes,
+    pub bytes: Vec<u8>,
     pub row_count: usize,
 }
 
@@ -71,8 +60,9 @@ pub struct EncodedBlock {
 /// Prepared rows already contain the defaults that production-prepared rows rely on when every
 /// insertable column is listed in a Native block. Decimal values use the existing
 /// Decimal(18,12) overflow policy and truncate toward zero at twelve fractional digits.
-/// Encoding preserves the prepared row's `event_bytes`. The NAPI adapter receives that value
-/// from TypeScript after overflow handling; it does not recompute accounting in Rust.
+/// The block omits `event_bytes` so ClickHouse computes its DEFAULT from the final typed row.
+/// A block can still split when ch-core's signed String offsets would overflow; a single row that
+/// exceeds that limit remains an error.
 pub(crate) fn encode_v4_native_blocks(
     rows: &[Arc<PreparedEventRow>],
     max_rows_per_block: usize,
@@ -81,32 +71,58 @@ pub(crate) fn encode_v4_native_blocks(
         return Err("max_rows_per_block must be greater than zero".to_owned());
     }
 
-    rows.chunks(max_rows_per_block)
-        .map(|chunk| {
-            let bytes = encode_block(chunk)?;
-            Ok(EncodedBlock {
-                bytes,
-                row_count: chunk.len(),
-            })
-        })
-        .collect()
+    let mut blocks = Vec::new();
+    let mut encode = encode_block;
+    for chunk in rows.chunks(max_rows_per_block) {
+        encode_with_bisection(chunk, &mut encode, &mut blocks)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(blocks)
 }
 
-fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Bytes, String> {
-    let mut builder = BlockBuilder::new();
-    PreparedEventRow::encode_arcs(&mut builder, rows)?;
+fn encode_block(rows: &[Arc<PreparedEventRow>]) -> Result<Vec<u8>, NativeColumnError> {
+    let schema = PreparedEventRow::schema();
+    let columns = PreparedEventRow::build_columns(rows)?;
+    let batch = ch_core_rs::batch::ColBatch::new(schema, columns, rows.len());
+    ch_core_rs::native::encode::encode_block(
+        &batch,
+        &ch_core_rs::native::encode::EncodeOptions::default(),
+    )
+    .map_err(|error| NativeColumnError::Message(error.to_string()))
+}
 
-    builder
-        .build()
-        .map_err(|error| error.to_string())?
-        .encode()
-        .map_err(|error| error.to_string())
+fn encode_with_bisection<T>(
+    rows: &[T],
+    encode: &mut impl FnMut(&[T]) -> Result<Vec<u8>, NativeColumnError>,
+    blocks: &mut Vec<EncodedBlock>,
+) -> Result<(), NativeColumnError> {
+    match encode(rows) {
+        Ok(bytes) => blocks.push(EncodedBlock {
+            bytes,
+            row_count: rows.len(),
+        }),
+        Err(NativeColumnError::StringColumnTooLarge) if rows.len() > 1 => {
+            let midpoint = rows.len() / 2;
+            let (left, right) = rows.split_at(midpoint);
+            encode_with_bisection(left, encode, blocks)?;
+            encode_with_bisection(right, encode, blocks)?;
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(())
 }
 
 /// Parse the UTC-only datetime values produced by the ingestion pipeline. A ClickHouse datetime
 /// string without an offset is a UTC calendar value; an RFC3339 offset is normalized to that same
 /// UTC instant. The project never interprets these values in the host's local timezone.
 pub(crate) fn parse_datetime_text(value: &str, key: &str) -> Result<i64, String> {
+    match clickhouse_datetime_micros(value) {
+        Some(micros) => Ok(micros),
+        None => parse_any_datetime_text(value, key),
+    }
+}
+
+fn parse_any_datetime_text(value: &str, key: &str) -> Result<i64, String> {
     let normalized = if value.contains(' ') && !value.contains('T') {
         value.replacen(' ', "T", 1)
     } else {
@@ -118,6 +134,52 @@ pub(crate) fn parse_datetime_text(value: &str, key: &str) -> Result<i64, String>
     let naive = NaiveDateTime::parse_from_str(&normalized, "%Y-%m-%dT%H:%M:%S%.f")
         .map_err(|error| format!("{key} has invalid DateTime64 value {value:?}: {error}"))?;
     Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).timestamp_micros())
+}
+
+/// Calendar fields of `YYYY-MM-DD?HH:MM:SS` at the start of `bytes`, where `?` is `separator`.
+/// Returns `None` unless every field is zero-padded digits naming a real date and time, so the
+/// caller can fall back to the general parser for anything else, including a leap second.
+pub(crate) fn fixed_width_datetime(bytes: &[u8], separator: u8) -> Option<NaiveDateTime> {
+    if bytes.len() < 19
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != separator
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+    {
+        return None;
+    }
+    let number = |start: usize, end: usize| {
+        bytes[start..end].iter().try_fold(0_u32, |value, byte| {
+            byte.is_ascii_digit()
+                .then(|| value * 10 + u32::from(byte - b'0'))
+        })
+    };
+    NaiveDate::from_ymd_opt(number(0, 4)? as i32, number(5, 7)?, number(8, 10)?)?.and_hms_opt(
+        number(11, 13)?,
+        number(14, 16)?,
+        number(17, 19)?,
+    )
+}
+
+/// Microseconds of `YYYY-MM-DD HH:MM:SS[.fraction]`, the shape the pipeline writes for every
+/// timestamp, read without building an intermediate string. Other shapes return `None`.
+fn clickhouse_datetime_micros(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    let seconds = fixed_width_datetime(bytes, b' ')?;
+    let nanoseconds = match &bytes[19..] {
+        [] => 0,
+        [b'.', digits @ ..]
+            if (1..=9).contains(&digits.len()) && digits.iter().all(u8::is_ascii_digit) =>
+        {
+            digits
+                .iter()
+                .fold(0_u32, |value, digit| value * 10 + u32::from(digit - b'0'))
+                * 10_u32.pow(9 - digits.len() as u32)
+        }
+        _ => return None,
+    };
+    Some(seconds.and_utc().timestamp_micros() + i64::from(nanoseconds / 1_000))
 }
 
 pub(crate) fn parse_decimal(value: &str, key: &str) -> Result<i64, String> {

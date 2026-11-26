@@ -1,7 +1,7 @@
-import { useState, type ComponentProps, type ReactNode } from "react";
-import { useStore } from "zustand";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { type CommentObjectType } from "@langfuse/shared";
 import {
   Drawer,
@@ -21,33 +21,12 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { CommentList } from "../CommentList";
 import { CommentComposer } from "./CommentComposer";
-import { type SelectionData } from "../contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "../contexts/InlineCommentSelectionProvider";
 import {
   type CommentOverlay,
   type CommentOverlayStore,
-  type CommentTarget,
 } from "../state/commentOverlayStore";
 import { refreshCommentQueries } from "../actions/refreshCommentQueries";
-
-export function CommentOverlayState({
-  store,
-  initialState,
-  children,
-}: {
-  store: CommentOverlayStore;
-  initialState?: () => CommentTarget | undefined;
-  children: (overlay: CommentOverlay) => ReactNode;
-}) {
-  const [initialOverlay] = useState<CommentOverlay | undefined>(() => {
-    const target = initialState?.();
-    return target
-      ? { id: 0, target, presentation: "thread", isOpen: true }
-      : undefined;
-  });
-  const selectedOverlay = useStore(store, (state) => state.overlay);
-  const overlay = selectedOverlay ?? initialOverlay;
-  return overlay ? children(overlay) : null;
-}
 
 export function CommentOverlayHost({
   store,
@@ -187,7 +166,7 @@ function CommentDrawerContent({
         <DrawerTitle>Comments</DrawerTitle>
         <DrawerClose asChild>
           <Button variant="ghost" size="icon" title="Close comments">
-            <X className="size-4" />
+            <X size="base" color="default" />
           </Button>
         </DrawerClose>
       </DrawerHeader>

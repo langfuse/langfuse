@@ -1,6 +1,12 @@
 import { registeredProviders } from "../../../conventions";
 import type { JsonValue, NormalizedMessagePart } from "../../../types";
-import { optionalString, parseArray, toJsonValue } from "../../utils/json";
+import {
+  omitKeys,
+  optionalString,
+  parseArray,
+  toJsonValue,
+  toProviderMetadata,
+} from "../../utils/json";
 import { reasoningPart } from "./reasoning";
 
 /** Citation carriers are provider vocabulary (`citationKeys`); the first
@@ -23,12 +29,34 @@ export function extractCitations(
 export function normalizeTextPart(
   value: Record<string, unknown>,
 ): NormalizedMessagePart {
-  const text = optionalString(value.text ?? value.content) ?? "";
+  const content = value.text ?? value.content;
+  const text = optionalString(content) ?? "";
   if (value.thought === true) {
     return reasoningPart(
       text,
       optionalString(value.thoughtSignature ?? value.thought_signature),
     );
+  }
+  // LiteLLM+OpenAI Instrumentation may store parsed JSON in a text block's payload.
+  if (
+    content !== undefined &&
+    content !== null &&
+    typeof content !== "string"
+  ) {
+    const providerMetadata = toProviderMetadata(
+      omitKeys(value, [
+        "type",
+        "text",
+        "content",
+        "providerMetadata",
+        "providerOptions",
+      ]),
+    );
+    return {
+      type: "data",
+      value: toJsonValue(content),
+      ...(providerMetadata ? { providerMetadata } : {}),
+    };
   }
   const citations = extractCitations(value);
   return {

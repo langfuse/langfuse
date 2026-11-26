@@ -4,7 +4,7 @@ import {
   type WindowCoordinationReturn,
   PLAYGROUND_EVENTS,
 } from "../types";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 /**
  * Playground window registry for coordinating actions across multiple playground windows
@@ -143,6 +143,11 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
         showErrorToast(
           "No content to execute",
           "Please add at least one message with content to any window.",
+          {
+            operation: "playground.execute",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         setIsExecutingAll(false);
       } else {

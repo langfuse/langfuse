@@ -1,10 +1,11 @@
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function PersonalNotificationSettings() {
   const router = useRouter();
@@ -88,10 +89,10 @@ export function PersonalNotificationSettings() {
       </div>
 
       {updatePreference.isError && (
-        <div className="border-destructive bg-destructive/10 mt-4 rounded-lg border p-4">
-          <p className="text-destructive text-sm">
+        <div className="mt-4">
+          <Banner variant="error">
             Failed to update notification preference. Please try again.
-          </p>
+          </Banner>
         </div>
       )}
     </div>

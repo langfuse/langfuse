@@ -1,6 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -8,39 +9,41 @@ import {
   BotMessageSquare,
   Check,
   ChevronRight,
+  CircleCheck,
   Copy,
   Info,
-} from "lucide-react";
+  TriangleAlert,
+} from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardPortal,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   formatSdkUpgradeRequirement,
   formatSdkVersion,
+  getAvailableSdkMajorUpgrade,
   getCustomInstrumentationSectionState,
   getDetectedInstrumentationSeries,
+  getMigratedKeySeries,
+  getMigratedSeriesByKey,
   getOtelSectionState,
   getSdkSectionState,
   isActionableSdkSeries,
   type V4MigrationSdkState,
+  type MigratedKeySeries,
   type V4MigrationSdkUsageSeries,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -51,17 +54,20 @@ import {
   type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
+  type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
-import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
@@ -76,10 +82,10 @@ import {
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
-// Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Consumed by the status page and the legacy UI strip. Cloud removal date.
+export const V4_MIGRATION_DEADLINE = "November 19, 2026";
 // Headline form of the deadline; the year is noise in a title.
-const V4_MIGRATION_DEADLINE_SHORT = "November 16";
+const V4_MIGRATION_DEADLINE_SHORT = "November 19";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -130,6 +136,7 @@ export function useCopyMigrationPrompt() {
     await copyTextToClipboard(V4_CODING_AGENT_PROMPT);
     capture("v4_migration:coding_agent_prompt_copied");
     showSuccessToast({
+      operation: "prompt.copy",
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
     });
@@ -190,7 +197,11 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-foreground-tertiary size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight
+          size="base"
+          color="tertiary"
+          __rawClassName="transition-transform group-data-[state=open]:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -332,12 +343,51 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="h-3.5 w-3.5" />
+          <Check size="base" color="default" />
         ) : (
-          <Copy className="h-3.5 w-3.5" />
+          <Copy size="base" color="default" />
         )}
       </Button>
     </div>
+  );
+}
+
+function truncatePublicKey(publicKey: string): string {
+  if (publicKey.length > 18) {
+    return `${publicKey.slice(0, 9)}…${publicKey.slice(-6)}`;
+  }
+  return publicKey;
+}
+
+function ingestionModeLabel(deliveryMode: "realtime" | "delayed"): string {
+  return deliveryMode === "realtime" ? "real-time" : "delayed";
+}
+
+// True when the only checklist rows still inside the lookback are keys that
+// already send on the new ingestion API. Readiness and the banner stay as
+// they are; this only changes the panel copy.
+export function allRemainingActionsAreMigratedKeys(
+  status: ProjectMigrationStatus,
+): boolean {
+  if (getMigratedKeySeries(status.sdk).length === 0) return false;
+  if (
+    status.sdk.status === "checking" ||
+    status.sdk.status === "error" ||
+    getSdkSectionState(status.sdk).actionableCount > 0 ||
+    getOtelSectionState(status.sdk).pendingCount > 0 ||
+    getCustomInstrumentationSectionState(status.sdk).actionableCount > 0
+  ) {
+    return false;
+  }
+  return (
+    status.evals.status === "loaded" &&
+    status.evals.count === 0 &&
+    status.experiments.status === "loaded" &&
+    status.experiments.result === "not_required" &&
+    status.apis.status === "loaded" &&
+    status.apis.count === 0 &&
+    status.exports.status === "loaded" &&
+    status.exports.count === 0
   );
 }
 
@@ -345,15 +395,18 @@ function SdkUsageSeriesRows({
   series,
   needsAction,
   suffix,
+  migratedByKey,
   unknownSeriesLabel = "Custom instrumentation",
   hideMissingApiKey = false,
   projectId,
   analyticsSection,
 }: {
   series: V4MigrationSdkUsageSeries[];
-  /** Drives the per-row status emoji; the suffix carries the text meaning. */
+  /** Drives the per-row status icon; the suffix carries the text meaning. */
   needsAction: (series: V4MigrationSdkUsageSeries) => boolean;
   suffix: (series: V4MigrationSdkUsageSeries) => ReactNode;
+  /** Required rows whose key later sent on the new ingestion API. */
+  migratedByKey?: Map<string, MigratedKeySeries>;
   /** Row label when the series carries no usable SDK name. */
   unknownSeriesLabel?: string;
   /** Omits the empty-key fallback when it is not useful to the user. */
@@ -367,7 +420,7 @@ function SdkUsageSeriesRows({
   if (series.length === 0) return null;
 
   return (
-    <ul className="mt-2 flex flex-col gap-2">
+    <ul className="mt-2 divide-y">
       {series.map((usage) => {
         const sdkLabel =
           usage.canonicalSdkName === null && usage.sdkName === "unknown"
@@ -378,10 +431,7 @@ function SdkUsageSeriesRows({
               });
         const publicKey = (() => {
           if (usage.publicKey) {
-            if (usage.publicKey.length > 18) {
-              return `${usage.publicKey.slice(0, 9)}…${usage.publicKey.slice(-6)}`;
-            }
-            return usage.publicKey;
+            return truncatePublicKey(usage.publicKey);
           }
           if (hideMissingApiKey) {
             return null;
@@ -395,20 +445,55 @@ function SdkUsageSeriesRows({
               )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`
             : null;
 
+        const seriesKey = `${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`;
+        const migrated = migratedByKey?.get(seriesKey);
+        if (migrated) {
+          return (
+            <li key={seriesKey} className="py-2 text-sm">
+              <div className="text-muted-foreground flex items-start gap-1.5">
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="mt-0.5 text-green-600"
+                  aria-hidden="true"
+                />
+                <span>
+                  <span title={usage.publicKey}>
+                    {truncatePublicKey(usage.publicKey)}
+                  </span>{" "}
+                  now uses the new ingestion API (
+                  {ingestionModeLabel(migrated.successor.deliveryMode)}) · last
+                  legacy event{" "}
+                  {formatCompactRelativeTime(new Date(usage.lastSeen))}
+                </span>
+              </div>
+            </li>
+          );
+        }
+
         return (
-          <li
-            key={`${usage.source}:${usage.sdkName}:${usage.sdkVersion}:${usage.publicKey}`}
-            // Message-box style: soft fill + a thicker left edge to group the
-            // two lines of one item.
-            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
-          >
+          <li key={seriesKey} className="py-2 text-sm">
             {/* Action line: what it is and what to do about it. */}
             <div className="text-muted-foreground flex items-center gap-1.5">
-              <span aria-hidden="true">{needsAction(usage) ? "⚠️" : "✅"}</span>
+              {needsAction(usage) ? (
+                <TriangleAlert
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-amber-500"
+                  aria-hidden="true"
+                />
+              ) : (
+                <CircleCheck
+                  size="sm"
+                  color="inherit"
+                  __rawClassName="text-green-600"
+                  aria-hidden="true"
+                />
+              )}
               <MonoValue>{sdkLabel}</MonoValue>
               {suffix(usage)}
             </div>
-            {/* Metadata line, indented under the label (emoji + gap). */}
+            {/* Metadata line, indented under the label (icon + gap). */}
             <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
               {publicKey ? (
                 <span title={usage.publicKey || undefined}>{publicKey}</span>
@@ -471,15 +556,24 @@ export function V4MigrationSdkSection({
   projectId?: string;
 }) {
   const section = getSdkSectionState(sdk);
-  if (section.status === "latest" || section.status === "no_data") return null;
+  if (
+    section.series.length === 0 &&
+    section.status !== "checking" &&
+    section.status !== "error"
+  ) {
+    return null;
+  }
+  if (section.status === "no_data") return null;
 
   const isTransient =
     section.status === "checking" || section.status === "error";
+  const allMigrated = !isTransient && section.actionableCount === 0;
 
   return (
     <Section
       title="Update SDK"
       analyticsSection="sdk"
+      statusVariant={allMigrated ? "done" : "action"}
       count={
         isTransient || section.actionableCount === 0
           ? undefined
@@ -494,39 +588,40 @@ export function V4MigrationSdkSection({
       }
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {section.status === "checking" ? (
-          "Checking the latest traces for this project…"
-        ) : section.status === "error" ? (
-          "We could not check the latest traces for this project. Try again later."
-        ) : (
-          <>
-            {section.actionableCount} detected SDK{" "}
-            {section.actionableCount === 1
-              ? "configuration needs"
-              : "configurations need"}{" "}
-            an update, based on ingestion seen in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
-            <ExternalLink
-              href={SDK_UPGRADE_URL}
-              analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
-            >
-              upgrade path
-            </ExternalLink>
-            .
-          </>
-        )}
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {section.status === "checking" ? (
+            "Checking the latest traces for this project…"
+          ) : section.status === "error" ? (
+            "We could not check the latest traces for this project. Try again later."
+          ) : (
+            <>
+              {section.actionableCount} detected SDK{" "}
+              {section.actionableCount === 1
+                ? "configuration needs"
+                : "configurations need"}{" "}
+              an update, based on ingestion seen in the last{" "}
+              {V4_MIGRATION_LOOKBACK_DAYS} days. See{" "}
+              <ExternalLink
+                href={SDK_UPGRADE_URL}
+                analytics={{ section: "sdk", link: "sdk_upgrade_docs" }}
+              >
+                upgrade path
+              </ExternalLink>
+              .
+            </>
+          )}
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="sdk"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={isActionableSdkSeries}
         suffix={(usage) => {
           if (usage.v4MigrationStatus === "upgrade_required") {
-            return (
-              <span>· {formatSdkUpgradeRequirement(usage.latestSdkMajor)}</span>
-            );
+            return <span>· {formatSdkUpgradeRequirement(usage)}</span>;
           }
           if (usage.v4MigrationStatus === "unknown") {
             return <span>· version not recognized</span>;
@@ -554,34 +649,40 @@ export function V4MigrationOtelSection({
   if (
     sdk.status === "checking" ||
     sdk.status === "error" ||
-    section.delayedCount === 0
+    section.series.length === 0
   )
     return null;
+
+  const allMigrated = section.pendingCount === 0;
 
   return (
     <Section
       title="Update OTel Instrumentation"
       analyticsSection="otel"
-      count={section.delayedCount}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.pendingCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Your OpenTelemetry data is using delayed ingestion. For real-time
-        ingestion, upgrade your integration or, if you use OpenTelemetry
-        directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue> on
-        your OTLP exporter.{" "}
-        <ExternalLink
-          href={OTEL_V4_MIGRATION_URL}
-          analytics={{ section: "otel", link: "otel_migration_docs" }}
-        >
-          Migration guide
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Your OpenTelemetry data is using delayed ingestion. For real-time
+          ingestion, upgrade your integration or, if you use OpenTelemetry
+          directly, set <MonoValue>x-langfuse-ingestion-version: 4</MonoValue>{" "}
+          on your OTLP exporter.{" "}
+          <ExternalLink
+            href={OTEL_V4_MIGRATION_URL}
+            analytics={{ section: "otel", link: "otel_migration_docs" }}
+          >
+            Migration guide
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         analyticsSection="otel"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={(usage) => usage.actionLevel === "required"}
         suffix={(usage) =>
           usage.deliveryMode === "delayed" ? (
@@ -615,44 +716,50 @@ export function V4MigrationCustomInstrumentationSection({
   )
     return null;
 
+  const allMigrated = section.actionableCount === 0;
+
   return (
     <Section
       title="Upgrade Instrumentation"
       analyticsSection="custom_instrumentation"
-      count={section.series.length}
+      statusVariant={allMigrated ? "done" : "action"}
+      count={allMigrated ? undefined : section.actionableCount}
       defaultOpen={defaultOpen}
     >
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        Data is arriving through the ingestion API without a Langfuse SDK
-        header, so this looks like custom instrumentation or a very old SDK
-        version. Please upgrade to the latest version of{" "}
-        <ExternalLink
-          href={SDK_OVERVIEW_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "sdk_overview_docs",
-          }}
-        >
-          any Langfuse SDK
-        </ExternalLink>
-        , or use the{" "}
-        <ExternalLink
-          href={OTEL_INTEGRATION_URL}
-          analytics={{
-            section: "custom_instrumentation",
-            link: "otel_integration_docs",
-          }}
-        >
-          OpenTelemetry endpoint
-        </ExternalLink>
-        .
-      </p>
+      {allMigrated ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Data is arriving through the ingestion API without a Langfuse SDK
+          header, so this looks like custom instrumentation or a very old SDK
+          version. Please upgrade to the latest version of{" "}
+          <ExternalLink
+            href={SDK_OVERVIEW_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "sdk_overview_docs",
+            }}
+          >
+            any Langfuse SDK
+          </ExternalLink>
+          , or use the{" "}
+          <ExternalLink
+            href={OTEL_INTEGRATION_URL}
+            analytics={{
+              section: "custom_instrumentation",
+              link: "otel_integration_docs",
+            }}
+          >
+            OpenTelemetry endpoint
+          </ExternalLink>
+          .
+        </p>
+      )}
       <SdkUsageSeriesRows
         series={section.series}
         projectId={projectId}
         unknownSeriesLabel="Custom instrumentation"
         hideMissingApiKey
         analyticsSection="custom_instrumentation"
+        migratedByKey={getMigratedSeriesByKey(sdk)}
         needsAction={() => true}
         suffix={() => null}
       />
@@ -679,21 +786,35 @@ export function V4MigrationDetectedInstrumentationSection({
       tone="muted"
     >
       <p className="text-muted-foreground text-sm leading-relaxed">
-        These configurations are already on the latest SDK major or use
-        real-time OTel ingestion.
+        These configurations are on a V4-compatible SDK major or use real-time
+        OTel ingestion.
       </p>
       <SdkUsageSeriesRows
         series={series}
         projectId={projectId}
         analyticsSection="detected_instrumentation"
         needsAction={() => false}
-        suffix={(usage) =>
-          usage.remediationType === "update_sdk" ? (
-            <span>· up to date</span>
-          ) : (
-            <span>· real-time</span>
-          )
-        }
+        suffix={(usage) => {
+          if (usage.remediationType !== "update_sdk") {
+            return <span>· real-time</span>;
+          }
+          const majorUpgrade = getAvailableSdkMajorUpgrade(usage);
+          if (!majorUpgrade) return <span>· up to date</span>;
+          return (
+            <span>
+              · {majorUpgrade.label} is available ·{" "}
+              <ExternalLink
+                href={majorUpgrade.upgradeGuideUrl}
+                analytics={{
+                  section: "detected_instrumentation",
+                  link: "sdk_major_upgrade_docs",
+                }}
+              >
+                Upgrade guide
+              </ExternalLink>
+            </span>
+          );
+        }}
       />
     </Section>
   );
@@ -774,8 +895,12 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                  Use Assistant
+                  <BotMessageSquare
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1.5"
+                  />
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -935,7 +1060,7 @@ export function V4MigrationApisSection({
               migration guide
             </ExternalLink>
           </p>
-          <div className="flex flex-col gap-3">
+          <div className="divide-y">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
               const callers = row.callers ?? [];
@@ -949,7 +1074,7 @@ export function V4MigrationApisSection({
                   : publicApiPrefixStart + publicApiPrefix.length;
 
               return (
-                <div key={row.endpoint} className="rounded-md border p-3">
+                <div key={row.endpoint} className="py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <ExternalLink
                       href={DEPRECATED_API_MIGRATION_URL}
@@ -977,7 +1102,7 @@ export function V4MigrationApisSection({
                     ) : null}
                   </div>
                   {hasKnownCallers ? (
-                    <ul className="mt-2 flex flex-col gap-2">
+                    <ul className="mt-1 divide-y">
                       {callers.map((caller, index) => {
                         const codingAgent = getCodingAgentName(
                           caller.userAgent,
@@ -1007,11 +1132,16 @@ export function V4MigrationApisSection({
                         return (
                           <li
                             key={`${callerName}-${index}`}
-                            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+                            className="py-2 text-sm"
                           >
                             <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                               <div className="text-muted-foreground flex items-center gap-1.5">
-                                <span aria-hidden="true">⚠️</span>
+                                <TriangleAlert
+                                  size="sm"
+                                  color="inherit"
+                                  __rawClassName="text-amber-500"
+                                  aria-hidden="true"
+                                />
                                 <MonoValue>{callerName}</MonoValue>
                               </div>
                               <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
@@ -1044,19 +1174,54 @@ export function V4MigrationApisSection({
                             ) : guidance.currentMethod &&
                               guidance.replacementMethod ? (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Replace{" "}
-                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
-                                with{" "}
-                                <MonoValue>
-                                  {guidance.replacementMethod}
-                                </MonoValue>
-                                {guidance.requiresUpgrade &&
-                                guidance.minimumVersion ? (
+                                {guidance.currentMethod ===
+                                guidance.replacementMethod ? (
                                   <>
-                                    . First upgrade to SDK version{" "}
+                                    Upgrade to SDK v{guidance.latestMajor},
+                                    where{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>{" "}
+                                    calls the new API
+                                  </>
+                                ) : (
+                                  <>
+                                    Replace{" "}
+                                    <MonoValue>
+                                      {guidance.currentMethod}
+                                    </MonoValue>{" "}
+                                    with{" "}
+                                    <MonoValue>
+                                      {guidance.replacementMethod}
+                                    </MonoValue>
+                                    {guidance.previousMajorReplacementMethod
+                                      ? ` (SDK v${guidance.latestMajor})`
+                                      : null}
+                                  </>
+                                )}
+                                {guidance.previousMajorReplacementMethod &&
+                                guidance.minimumVersion &&
+                                guidance.latestMajor ? (
+                                  <>
+                                    . On{" "}
+                                    <MonoValue>
+                                      {guidance.minimumVersion}–
+                                      {guidance.latestMajor - 1}.x
+                                    </MonoValue>
+                                    , use{" "}
+                                    <MonoValue>
+                                      {guidance.previousMajorReplacementMethod}
+                                    </MonoValue>
+                                  </>
+                                ) : guidance.requiresUpgrade &&
+                                  guidance.minimumVersion ? (
+                                  <>
+                                    . First upgrade to SDK v
+                                    {guidance.latestMajor} (
                                     <MonoValue>
                                       {guidance.minimumVersion} or newer
-                                    </MonoValue>
+                                    </MonoValue>{" "}
+                                    also works)
                                   </>
                                 ) : null}
                                 .{" "}
@@ -1265,6 +1430,7 @@ export function V4MigrationDeadlineNote() {
 export function V4MigrationHeaderContent({
   titleRowClassName,
   readiness,
+  remainingActionsAreMigrated = false,
 }: {
   /** Extra classes on the title row. The modal host passes a right gutter:
    *  its dialog floats a fallback close button over the body's top-right
@@ -1273,8 +1439,11 @@ export function V4MigrationHeaderContent({
   titleRowClassName?: string;
   /** Known readiness from the organization status page or an action-only entry point. */
   readiness?: ProjectMigrationReadiness;
+  /** Keys already on the new API are the only rows left in the lookback. */
+  remainingActionsAreMigrated?: boolean;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const showActionPrompt = actionNeeded && !remainingActionsAreMigrated;
   const title = useV4MigrationTitle();
 
   return (
@@ -1324,15 +1493,21 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
-          {actionNeeded
+          {showActionPrompt
             ? " Complete the action items below to avoid disruption."
             : ""}{" "}
           <V4MigrationDocsLink />
         </p>
-        {actionNeeded && <V4MigrationDeadlineNote />}
+        {remainingActionsAreMigrated ? (
+          <Banner variant="success">
+            Migration complete. This banner disappears after{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days without legacy traffic.
+          </Banner>
+        ) : null}
+        {showActionPrompt && <V4MigrationDeadlineNote />}
       </div>
     </>
   );
@@ -1343,6 +1518,7 @@ export function V4MigrationHeaderContent({
 // Project API keys are NOT created as a side effect: credentials only exist
 // after an explicit click on the separate "Create keys for project access"
 // action, and secrets never enter the agent prompt.
+/** @internal */
 export function V4MigrationAgentUpgradeSection({
   projectId,
 }: {
@@ -1382,7 +1558,7 @@ export function V4MigrationAgentUpgradeSection({
     mutCreateProjectApiKey
       .mutateAsync({
         projectId,
-        note: "v4-migration-key",
+        name: "v4-migration-key",
       })
       .then(({ secretKey, publicKey }) => {
         setGeneratedKeys({
@@ -1397,6 +1573,7 @@ export function V4MigrationAgentUpgradeSection({
         showErrorToast(
           "Could not create API keys",
           "Something went wrong. Please try again.",
+          classifyTrpcToastError(error, "project_api_key.create"),
         );
       });
   };
@@ -1434,7 +1611,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="mr-1.5 h-4 w-4 shrink-0" />
+          <Copy size="base" __rawClassName="mr-1.5" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1456,16 +1633,24 @@ export function V4MigrationAgentUpgradeSection({
                 (missingApiKeyAccess ? (
                   // Disabled buttons swallow pointer events, so the hover
                   // reason needs a span trigger, same pattern as ActionButton.
-                  <HoverCard openDelay={200}>
-                    <HoverCardTrigger asChild>
-                      <span className="shrink-0">{createKeysButton}</span>
-                    </HoverCardTrigger>
-                    <HoverCardPortal>
-                      <HoverCardContent className="w-80 text-sm">
+                  <HoverCard
+                    openDelay={200}
+                    content={
+                      <div className="w-80 p-3 text-sm">
                         Only users with admin access can create project API
                         keys. Please contact your admins.
-                      </HoverCardContent>
-                    </HoverCardPortal>
+                      </div>
+                    }
+                  >
+                    {({ getTriggerProps }) => (
+                      <span
+                        className="shrink-0"
+                        tabIndex={0}
+                        {...getTriggerProps()}
+                      >
+                        {createKeysButton}
+                      </span>
+                    )}
                   </HoverCard>
                 ) : (
                   createKeysButton
@@ -1543,8 +1728,8 @@ export function V4MigrationDetailsContent({
       readiness,
       sdkStatus: migrationData.sdk.status,
       sdkActionableCount: sdkSection.actionableCount,
-      delayedOtelCount: otelSection.delayedCount,
-      customInstrumentationCount: customSection.series.length,
+      delayedOtelCount: otelSection.pendingCount,
+      customInstrumentationCount: customSection.actionableCount,
       evalsCount:
         migrationData.evals.status === "loaded"
           ? migrationData.evals.count
@@ -1650,7 +1835,6 @@ export function V4MigrationDetailsContent({
             sdk={migrationData.sdk}
             projectId={evidenceProjectId}
           />
-
           {!evalsClean && (
             <V4MigrationEvalsSection
               state={migrationData.evals}
@@ -1711,18 +1895,10 @@ export function V4MigrationDetailsContent({
               <V4MigrationStatusDot variant="neutral" />
               <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-sm">
                 Compare traces while you upgrade
-                <HoverCard openDelay={200}>
-                  <HoverCardTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Why compare traces?"
-                      className="shrink-0"
-                    >
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </HoverCardTrigger>
-                  <HoverCardPortal>
-                    <HoverCardContent className="w-80 text-sm">
+                <HoverCard
+                  openDelay={200}
+                  content={
+                    <div className="w-80 p-3 text-sm">
                       The latest SDK no longer sets trace input and output;{" "}
                       <ExternalLink
                         href={OBSERVATIONS_DATA_MODEL_URL}
@@ -1734,8 +1910,19 @@ export function V4MigrationDetailsContent({
                         v4 infers them from observations
                       </ExternalLink>
                       .
-                    </HoverCardContent>
-                  </HoverCardPortal>
+                    </div>
+                  }
+                >
+                  {({ getTriggerProps }) => (
+                    <button
+                      type="button"
+                      aria-label="Why compare traces?"
+                      className="shrink-0"
+                      {...getTriggerProps()}
+                    >
+                      <Info size="base" />
+                    </button>
+                  )}
                 </HoverCard>
               </span>
               <span className="flex-1" />

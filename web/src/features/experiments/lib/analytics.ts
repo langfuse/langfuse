@@ -32,6 +32,7 @@ function experimentAnalyticsDimensions(
 }
 
 /** Unique non-empty dataset ids — missing ids are ignored, not treated as distinct. */
+/** @internal */
 export function isSameDataset(
   datasetIds: Array<string | null | undefined>,
 ): boolean {
@@ -40,12 +41,14 @@ export function isSameDataset(
   return known.every((id) => id === known[0]);
 }
 
+/** @internal */
 export function uniqueDatasetCount(
   datasetIds: Array<string | null | undefined>,
 ): number {
   return new Set(datasetIds.filter((id): id is string => Boolean(id))).size;
 }
 
+/** @internal */
 export function chartMetricGroup(metricId: string): ExperimentChartMetricGroup {
   return metricId.startsWith("base:") ? "base" : "score";
 }
@@ -58,6 +61,7 @@ const SCORE_COLUMN_GROUP_SCOPE: Record<string, ExperimentScoreScope> = {
   experimentScores: "experiment",
 };
 
+/** @internal */
 export function scoreColumnGroupScope(
   groupId: string,
 ): ExperimentScoreScope | null {
@@ -116,16 +120,7 @@ export function baselineChangedProps({
   };
 }
 
-/**
- * `chart_metric_changed` — the metric behind the list's compact metric strip.
- * Inherited from the four-slot chart grid this replaced, so the event name and
- * its history carry over; `chartIndex`/`slotCount` are gone with the slots.
- *
- * The score's NAME is user content and never leaves the client — only which
- * family of metric it is, at which score level, of which type. The level is the
- * interesting half: trace-level is where an LLM-as-judge on a dataset run
- * writes, and it only became selectable here at all in this change.
- */
+/** Metric selection metadata: score names never leave the client. */
 export function chartMetricChangedProps({
   tableName,
   metricId,

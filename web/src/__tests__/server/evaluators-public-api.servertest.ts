@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { encrypt } from "@langfuse/shared/encryption";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -11,15 +16,15 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService, RuleService } from "@/src/features/evals/server";
+import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import {
   DeleteEvaluatorResponse,
   Evaluator,
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
-  PublicApiError,
-} from "@/src/features/public-api";
-import { toApiReadMappings } from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/evaluation/evaluators";
+import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -229,6 +234,144 @@ describe("stable evaluators public API", () => {
     expect(nestedDefinition.status).toBe(400);
   });
 
+  it("creates and manages decision-model evaluators", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "typesafe",
+        adapter: LLMAdapter.TypeSafe,
+        secretKey: encrypt("sk-typesafe"),
+        displaySecretKey: "...safe",
+      },
+    });
+    const questions = [
+      {
+        id: "tone",
+        type: "choice",
+        scoreName: "tone",
+        instructions: "Classify the tone of the answer",
+        criteria: [
+          { value: "friendly", description: "Warm and polite" },
+          { value: "rude" },
+        ],
+      },
+      {
+        id: "helpful",
+        type: "boolean",
+        scoreName: "helpful",
+        instructions: { goal: "Does the answer resolve the question?" },
+        criteria: {
+          true: { description: "The answer resolves the question." },
+          false: { description: { reason: "unresolved" } },
+        },
+      },
+    ];
+
+    const created = await makeZodVerifiedAPICall(
+      Evaluator,
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "decision evaluator",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [
+          { variable: "answer", source: "output" },
+          { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+        ],
+      },
+      auth,
+      201,
+    );
+    expect(created.body).toMatchObject({
+      type: "decision_model",
+      version: 1,
+      questions,
+      variables: ["answer", "user_id"],
+      variableMapping: [
+        { variable: "answer", source: "output" },
+        { variable: "user_id", source: "metadata", jsonPath: "$.userId" },
+      ],
+      modelConfig: { provider: "typesafe", model: "jev-1" },
+    });
+    const stored = await prisma.evaluatorVersion.findFirstOrThrow({
+      where: { evaluatorId: created.body.id },
+      select: { questions: true },
+    });
+    expect(stored.questions).toMatchObject([
+      { id: "tone", type: "choice", options: questions[0].criteria },
+      {
+        id: "helpful",
+        type: "noul",
+        criteria: {
+          true: "The answer resolves the question.",
+          false: { reason: "unresolved" },
+        },
+      },
+    ]);
+
+    const replaced = await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${created.body.id}`,
+      {
+        type: "decision_model",
+        questions: [
+          {
+            id: "quality",
+            type: "score",
+            scoreName: "quality",
+            instructions: "Rate the answer quality",
+            criteria: [{ description: "Poor" }, { description: "Great" }],
+          },
+        ],
+        modelConfig: { provider: "typesafe", model: "jev-2" },
+        variableMapping: [{ variable: "answer", source: "output" }],
+      },
+      auth,
+    );
+    expect(replaced.body).toMatchObject({
+      version: 2,
+      questions: [
+        {
+          id: "quality",
+          type: "score",
+          criteria: [{ description: "Poor" }, { description: "Great" }],
+        },
+      ],
+      variables: ["answer"],
+      modelConfig: { provider: "typesafe", model: "jev-2" },
+    });
+
+    const listed = await makeZodVerifiedAPICall(
+      ListEvaluatorsResponse,
+      "GET",
+      "/api/public/v2/evaluators",
+      undefined,
+      auth,
+    );
+    expect(listed.body.data.map(({ id }) => id)).toContain(created.body.id);
+
+    const invalidStateKey = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "invalid state key",
+        type: "decision_model",
+        questions,
+        modelConfig: { provider: "typesafe", model: "jev-1" },
+        variableMapping: [{ variable: "user-id", source: "metadata" }],
+      },
+      auth,
+    );
+    expect(invalidStateKey.status).toBe(400);
+    expect(PublicApiError.parse(invalidStateKey.body)).toMatchObject({
+      code: "invalid_body",
+    });
+  });
+
   it("gets an evaluator", async () => {
     const { auth, projectId } = await createOrgProjectAndApiKey();
     const user = await prisma.user.create({
@@ -388,32 +531,6 @@ describe("stable evaluators public API", () => {
         dataType: "NUMERIC",
       },
     });
-  });
-
-  it("reads snake-case tool call mappings", () => {
-    expect(
-      toApiReadMappings([
-        {
-          templateVariable: "input",
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "output",
-          selectedColumnId: "output",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "tool_calls",
-          selectedColumnId: "tool_calls",
-          jsonSelector: null,
-        },
-      ]),
-    ).toEqual([
-      { variable: "input", source: "input" },
-      { variable: "output", source: "output" },
-      { variable: "tool_calls", source: "tool_calls" },
-    ]);
   });
 
   it("returns 404 when getting an invalid evaluator ID", async () => {
@@ -715,5 +832,78 @@ describe("stable evaluators public API", () => {
       auth,
     );
     expect(response.status).toBe(404);
+  });
+
+  it("rejects patching and deleting a built-in evaluator", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const evaluator = await createCodeEvaluator("built-in evaluator", auth);
+    await prisma.evaluator.update({
+      where: { id: evaluator.body.id },
+      data: { isBuiltIn: true },
+    });
+
+    for (const [method, body] of [
+      [
+        "PATCH",
+        {
+          name: "renamed built-in evaluator",
+          ...codeDefinition("function evaluate() { return { scores: [1] }; }"),
+        },
+      ],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${evaluator.body.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(400);
+      expect(PublicApiError.parse(response.body)).toMatchObject({
+        message: "Built-in evaluators cannot be edited",
+      });
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: evaluator.body.id },
+        select: { name: true, _count: { select: { versions: true } } },
+      }),
+    ).resolves.toEqual({
+      name: "built-in evaluator",
+      _count: { versions: 1 },
+    });
+  });
+
+  it("returns 404 when patching or deleting a FACET evaluator", async () => {
+    const { auth, project } = await createOrgProjectAndApiKey();
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId: project.id,
+        name: "internal facet",
+        type: EvalTemplateType.FACET,
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    for (const [method, body] of [
+      ["PATCH", { name: "renamed facet" }],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${facet.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(404);
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: { name: true },
+      }),
+    ).resolves.toEqual({ name: "internal facet" });
   });
 });

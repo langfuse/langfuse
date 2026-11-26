@@ -5,7 +5,7 @@ import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTru
 
 const { mockUseTraceData } = vi.hoisted(() => ({ mockUseTraceData: vi.fn() }));
 
-vi.mock("@/src/features/traces/contexts/TraceDataContext", () => ({
+vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
   useTraceData: () => mockUseTraceData(),
 }));
 

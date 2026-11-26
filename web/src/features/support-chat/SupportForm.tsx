@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,7 +35,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { useEffect, useState } from "react";
 
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
@@ -50,6 +50,7 @@ export type SupportFormProps = {
   canSelectHighSeverity: boolean;
   initialTopic: Topic | "";
   initialMessage?: string;
+  initialMessageType?: MessageType;
   showV4MigrationTopic: boolean;
   onCancel: () => void;
   onSuccess: () => void;
@@ -177,6 +178,7 @@ export function SupportForm({
   canSelectHighSeverity,
   initialTopic,
   initialMessage = "",
+  initialMessageType = "Question",
   showV4MigrationTopic,
   onCancel,
   onSuccess,
@@ -199,7 +201,7 @@ export function SupportForm({
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
-      messageType: "Question" as MessageType,
+      messageType: initialMessageType,
       severity: SEVERITY_3,
       topic: initialTopic,
       message: initialMessage,
@@ -531,7 +533,7 @@ export function SupportForm({
                             className="p-0"
                           >
                             <span className="sr-only">Remove file</span>
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 size="sm" color="default" />
                           </Button>
                           {file.name}
                         </div>

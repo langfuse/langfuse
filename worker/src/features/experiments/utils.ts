@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import {
   ChatMessage,
   ChatMessageRole,
@@ -24,6 +25,7 @@ import {
   ExperimentMetadataSchema,
   LLMApiKeySchema,
   PromptContentSchema,
+  resolveLlmApiKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod";
@@ -123,7 +125,7 @@ export const replaceVariablesInPrompt = (
       }
     }
     if (!Array.isArray(actualValue)) {
-      throw new Error(
+      throw new TypeError(
         `Placeholder '${placeholderName}' must be an array of messages`,
       );
     }
@@ -218,9 +220,7 @@ export async function validateAndSetupExperiment(
   }
 
   // Fetch and validate API key
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: { projectId, provider },
-  });
+  const apiKey = await resolveLlmApiKey({ projectId, provider });
   if (!apiKey) {
     throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { TableViewPresetTableName } from "../domain/table-view-presets";
 import { type FilterState } from "../types";
 import { encodeFiltersGeneric } from "../features/filters/filterQueryEncoding";
@@ -238,11 +239,13 @@ export const buildTracePath = (params: {
   traceId: string;
   observationId?: string | null;
   timestamp?: Date | string | null;
+  aggregation?: "trace" | "session";
 }) =>
   appendProductPathQuery(
     `${buildProjectPath(params)}/traces/${encodeURIComponent(params.traceId)}`,
     {
       observation: params.observationId,
+      aggregation: params.aggregation === "session" ? "session" : undefined,
       timestamp:
         params.timestamp instanceof Date
           ? params.timestamp.toISOString()

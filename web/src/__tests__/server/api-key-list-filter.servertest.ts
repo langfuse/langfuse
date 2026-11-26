@@ -1,8 +1,15 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { handleGetApiKeys as handleGetProjectApiKeys } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys";
 import { handleDeleteApiKey as handleDeleteProjectApiKey } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
 import { handleGetApiKeys as handleGetOrganizationApiKeys } from "@/src/ee/features/admin-api/server/organizations/apiKeys";
@@ -34,20 +41,25 @@ function createMockResponse() {
 
 describe("public API key list filters", () => {
   it("filters in-app agent keys from project API key responses", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
 
-    const visibleKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "Visible project key",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const visibleKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Visible project key",
     });
 
-    const inAppAgentKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
-      note: "Hidden project in-app agent key",
+    const inAppAgentKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Hidden project in-app agent key",
       isInAppAgentKey: true,
     });
 
@@ -67,18 +79,23 @@ describe("public API key list filters", () => {
   it("filters in-app agent keys from organization API key responses", async () => {
     const { orgId } = await createOrgProjectAndApiKey();
 
-    const visibleKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
-      note: "Visible org key",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const visibleKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Visible org key",
     });
 
-    const inAppAgentKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
-      note: "Hidden org in-app agent key",
+    const inAppAgentKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Hidden org in-app agent key",
       isInAppAgentKey: true,
     });
 
@@ -97,10 +114,20 @@ describe("public API key list filters", () => {
 
   it("does not delete project in-app agent keys via admin API handler", async () => {
     const { projectId, orgId } = await createOrgProjectAndApiKey();
-    const inAppAgentKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: projectId,
-      scope: "PROJECT",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const callerKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+    });
+    const inAppAgentKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 
@@ -111,6 +138,7 @@ describe("public API key list filters", () => {
       projectId,
       inAppAgentKey.id,
       orgId,
+      callerKey.id,
     );
 
     expect(response.statusCode).toBe(404);
@@ -121,10 +149,14 @@ describe("public API key list filters", () => {
 
   it("does not delete organization in-app agent keys via admin API handler", async () => {
     const { orgId } = await createOrgProjectAndApiKey();
-    const inAppAgentKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: orgId,
-      scope: "ORGANIZATION",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const inAppAgentKey = await createApiKey(prisma, {
+      tenant: OrganizationId(orgId),
+      scope: OrganizationId(orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       isInAppAgentKey: true,
     });
 

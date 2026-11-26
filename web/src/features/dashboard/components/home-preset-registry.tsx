@@ -1,20 +1,17 @@
 import { type ReactNode } from "react";
-import {
-  HOME_DASHBOARD_PRESET_IDS,
-  type FilterState,
-  type HomeDashboardPresetId,
-} from "@langfuse/shared";
+import { type DataCardActions } from "@/src/components/design-system/DataCard/DataCard";
+import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
-import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
-import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { LatencyTable } from "@/src/features/dashboard/components/LatencyTables";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
+import { TracesBarListCard } from "@/src/features/dashboard/components/TracesBarListCard";
+import { ModelCostTableCard } from "@/src/features/dashboard/components/ModelCostTableCard";
+import { ScoresTableCard } from "@/src/features/dashboard/components/ScoresTableCard";
+import { TracesAndObservationsTimeSeriesCard } from "@/src/features/dashboard/components/TracesAndObservationsTimeSeriesCard";
+import { ModelUsageCard } from "@/src/features/dashboard/components/ModelUsageCard";
+import { UserConsumptionCard } from "@/src/features/dashboard/components/UserConsumptionCard";
+import { ScoresCard } from "@/src/features/dashboard/components/ScoresCard";
+import { LatencyTableCard } from "@/src/features/dashboard/components/LatencyTableCard";
+import { GenerationLatencyCard } from "@/src/features/dashboard/components/GenerationLatencyCard";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 
 /**
@@ -24,6 +21,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
  * bespoke Home page used to pass them.
  */
 export interface PresetWidgetContext {
+  actions?: DataCardActions;
   projectId: string;
   /** Page-level filters WITHOUT the time window (time arrives as timestamps). */
   globalFilterState: FilterState;
@@ -55,7 +53,8 @@ const HOME_PRESETS: Record<
   (ctx: PresetWidgetContext) => ReactNode
 > = {
   "home-traces": (ctx) => (
-    <TracesBarListChart
+    <TracesBarListCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -67,7 +66,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-model-costs": (ctx) => (
-    <ModelCostTable
+    <ModelCostTableCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -79,7 +79,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-scores-table": (ctx) => (
-    <ScoresTable
+    <ScoresTableCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -88,7 +89,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-traces-obs-time-series": (ctx) => (
-    <TracesAndObservationsTimeSeriesChart
+    <TracesAndObservationsTimeSeriesCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -103,7 +105,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-model-usage": (ctx) => (
-    <ModelUsageChart
+    <ModelUsageCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -119,7 +122,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-users": (ctx) => (
-    <UserChart
+    <UserConsumptionCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -131,8 +135,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-chart-scores": (ctx) => (
-    <ChartScores
-      className={ctx.className}
+    <ScoresCard
+      actions={ctx.actions}
+      fillHeight={ctx.className === "h-full"}
       agg={ctx.agg}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -146,8 +151,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-traces": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="traces"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -159,8 +165,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-generations": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="generations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -172,8 +179,9 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-latency-table-observations": (ctx) => (
-    <LatencyTable
+    <LatencyTableCard
       kind="observations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -185,7 +193,8 @@ const HOME_PRESETS: Record<
     />
   ),
   "home-generation-latency": (ctx) => (
-    <GenerationLatencyChart
+    <GenerationLatencyCard
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       agg={ctx.agg}
@@ -201,6 +210,7 @@ const HOME_PRESETS: Record<
   ),
   "home-score-analytics": (ctx) => (
     <ScoreAnalytics
+      actions={ctx.actions}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}
@@ -216,20 +226,21 @@ const HOME_PRESETS: Record<
   ),
 };
 
+type HomePresetMetadata = {
+  name: string;
+  description: string;
+  illustration: string;
+};
+
 /**
  * Display metadata for the preset picker (Add Widget dialog). `illustration`
- * keys into ChartTypeIllustration. `queriesTracesView` marks a preset whose
- * query still targets the legacy `traces` view under v2, so it is not
- * suggested to v4 users (LFE-14444) — every other card branches to the events
- * model on its own.
+ * keys into ChartTypeIllustration. `v2` overrides the label for a card that
+ * measures something else on the v2 read path.
  */
-export const HOME_PRESET_METADATA: Record<
+const HOME_PRESET_METADATA: Record<
   HomeDashboardPresetId,
-  {
-    name: string;
-    description: string;
-    illustration: string;
-    queriesTracesView?: true;
+  HomePresetMetadata & {
+    v2?: Pick<HomePresetMetadata, "name" | "description">;
   }
 > = {
   "home-traces": {
@@ -271,8 +282,10 @@ export const HOME_PRESET_METADATA: Record<
     name: "Trace Latency Percentiles",
     description: "p50–p99 latencies per trace name",
     illustration: "PIVOT_TABLE",
-    // LatencyTable kind="traces" has no v2 branch: always `view: "traces"`.
-    queriesTracesView: true,
+    v2: {
+      name: "Root Observation Latency Percentiles",
+      description: "p50–p99 root observation latencies per trace name",
+    },
   },
   "home-latency-table-generations": {
     name: "Generation Latency Percentiles",
@@ -296,14 +309,12 @@ export const HOME_PRESET_METADATA: Record<
   },
 };
 
-/** Home cards offered in the Add Widget dialog for a metrics version. */
-export function getSuggestedHomePresetIds(
+export function getHomePresetMetadata(
+  presetId: HomeDashboardPresetId,
   version: ViewVersion,
-): HomeDashboardPresetId[] {
-  return HOME_DASHBOARD_PRESET_IDS.filter(
-    (presetId) =>
-      version !== "v2" || !HOME_PRESET_METADATA[presetId].queriesTracesView,
-  );
+): HomePresetMetadata {
+  const { v2, ...metadata } = HOME_PRESET_METADATA[presetId];
+  return version === "v2" && v2 ? { ...metadata, ...v2 } : metadata;
 }
 
 export function getHomePreset(

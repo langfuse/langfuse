@@ -12,6 +12,18 @@ const addToQueue = async ({
   objectType: AnnotationQueueObjectType;
   targetId: string;
 }) => {
+  const queue = await prisma.annotationQueue.findUnique({
+    where: { id: targetId, projectId },
+    select: { id: true },
+  });
+
+  if (!queue) {
+    logger.warn(
+      `Annotation queue ${targetId} not found in project ${projectId}, skipping`,
+    );
+    return;
+  }
+
   // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
   // conflict must be handled on query level by reading existing items and filtering out traces that already exist
 

@@ -421,6 +421,11 @@ describe("stripBasePath", () => {
       expect(stripBasePath("/apps/apps/dashboard")).toBe("/apps/dashboard");
     });
 
+    it("never returns a protocol-relative path", () => {
+      expect(stripBasePath("/apps//evil.example/x")).toBe("/evil.example/x");
+      expect(stripBasePath("/apps/\\evil.example/x")).toBe("/evil.example/x");
+    });
+
     it("strips ASCII control characters from the path", () => {
       // Newline (header-injection vector)
       expect(stripBasePath("/apps\n/dashboard")).toBe("/dashboard");

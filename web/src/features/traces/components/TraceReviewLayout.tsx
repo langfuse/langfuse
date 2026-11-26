@@ -20,10 +20,12 @@ function readNavigationPreference(): boolean | null {
 export function TraceReviewLayout({
   open,
   review,
+  collapseNavigationOnEntry,
   children,
 }: {
   open: boolean;
   review: ReactNode;
+  collapseNavigationOnEntry?: boolean;
   children: (navigation: {
     collapsed: boolean;
     toggle: () => void;
@@ -37,8 +39,15 @@ export function TraceReviewLayout({
     isPeek: false,
   });
   const [navigationPreference, setNavigationPreference] = useState(
-    readNavigationPreference,
+    () => collapseNavigationOnEntry ?? readNavigationPreference(),
   );
+  const [previousEntryCollapse, setPreviousEntryCollapse] = useState(
+    collapseNavigationOnEntry,
+  );
+  if (previousEntryCollapse !== collapseNavigationOnEntry) {
+    setPreviousEntryCollapse(collapseNavigationOnEntry);
+    if (collapseNavigationOnEntry) setNavigationPreference(true);
+  }
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -136,8 +145,10 @@ export function TraceReviewLayout({
           disabled={!open}
           aria-label="Resize review panel"
           className={cn(
-            "bg-border",
-            vertical ? "h-px" : "w-px",
+            "border-border relative self-stretch",
+            vertical
+              ? "h-px min-h-px w-full border-t"
+              : "h-full w-px min-w-px border-l",
             !open && "hidden",
           )}
         />

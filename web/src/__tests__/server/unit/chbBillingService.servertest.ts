@@ -1,25 +1,30 @@
 import type { CloudConfigSchema } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   env: { NEXTAUTH_URL: "https://cloud.langfuse.com" },
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   auditLog: vi.fn(),
+  billableUnitCounts: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: mocks.auditLog,
 }));
 
-// Only the logger is stubbed: getBillingCycleStart/End are the real cached-cycle
-// fallback this service shares with the Stripe path.
+// The logger and the ClickHouse unit counts are stubbed: getBillingCycleStart/End
+// are the real cached-cycle fallback this service shares with the Stripe path.
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
-  return { ...actual, logger: mocks.logger };
+  return {
+    ...actual,
+    logger: mocks.logger,
+    getBillableUnitCountsByProjectAndBucket: mocks.billableUnitCounts,
+  };
 });
 
 import {
@@ -29,6 +34,7 @@ import {
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const ORG_ID = "org-1";
 const CH_ORG_ID = "6dd6ab1d-9e8d-4c1a-8b4f-9a3d1e2c4b5a";
@@ -48,6 +54,7 @@ const update = vi.fn();
 // Checkout claims the CH organization id with a guarded UPDATE rather than a
 // read-then-write, so the claim is a raw statement returning a row count.
 const executeRaw = vi.fn();
+const projectFindMany = vi.fn();
 
 const clientMock = {
   createCheckoutSession: vi.fn(),
@@ -59,11 +66,17 @@ const clientMock = {
 };
 
 const ctx = {
-  prisma: { organization: { findUnique, update }, $executeRaw: executeRaw },
+  prisma: {
+    organization: { findUnique, update },
+    project: { findMany: projectFindMany },
+    $executeRaw: executeRaw,
+  },
   session: {
+    ...createSession({
+      user: { id: "user-1", email: "user@example.com" },
+      organizations: [{ id: ORG_ID, role: "OWNER" }],
+    }),
     orgId: ORG_ID,
-    orgRole: "OWNER",
-    user: { id: "user-1", email: "user@example.com" },
   },
 } as unknown as OrgAuthedContext;
 
@@ -680,6 +693,24 @@ describe("chbBillingService", () => {
       expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
       expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ["cancel", (s: ChbBillingService) => s.cancel(ORG_ID)],
+      ["reactivate", (s: ChbBillingService) => s.reactivate(ORG_ID)],
+      [
+        "clearPlanSwitchSchedule",
+        (s: ChbBillingService) => s.clearPlanSwitchSchedule(ORG_ID),
+      ],
+    ])(
+      "maps %s without an attached plan onto PRECONDITION_FAILED",
+      async (_label, call) => {
+        withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+
+        expect(await trpcCode(call(service()))).toBe("PRECONDITION_FAILED");
+        expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
+        expect(clientMock.clearScheduledChange).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("getInvoices", () => {
@@ -752,6 +783,96 @@ describe("chbBillingService", () => {
     });
   });
 
+  describe("getUsage", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("counts live projects' ingested units over CHB's billing period", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-06T12:00:00Z"));
+      withOrg(chbConfig());
+      clientMock.getAttachedPlan.mockResolvedValue({
+        id: ATTACHED_PLAN_ID,
+        period: {
+          startDate: "2026-10-01T00:00:00Z",
+          endDate: "2026-11-01T00:00:00Z",
+        },
+      });
+      projectFindMany.mockResolvedValue([
+        { id: "project-1" },
+        { id: "project-2" },
+      ]);
+      const day = (date: string) => new Date(`2026-10-${date}T00:00:00Z`);
+      mocks.billableUnitCounts.mockResolvedValue([
+        {
+          bucket: day("01"),
+          projectId: "project-1",
+          eventType: "trace",
+          count: 10,
+        },
+        {
+          bucket: day("01"),
+          projectId: "project-1",
+          eventType: "observation",
+          count: 60,
+        },
+        {
+          bucket: day("05"),
+          projectId: "project-1",
+          eventType: "observation",
+          count: 40,
+        },
+        {
+          bucket: day("05"),
+          projectId: "project-2",
+          eventType: "observation",
+          count: 50,
+        },
+        {
+          bucket: day("06"),
+          projectId: "project-2",
+          eventType: "score",
+          count: 5,
+        },
+      ]);
+
+      const usage = await service().getUsage(ORG_ID);
+
+      // CHB's calendar month, not the org's cycle anchored on the 15th or its
+      // cached counter
+      expect(usage).toEqual({
+        usageCount: 165,
+        usageType: "units",
+        billingPeriod: {
+          start: new Date("2026-10-01T00:00:00Z"),
+          end: new Date("2026-11-01T00:00:00Z"),
+        },
+      });
+      expect(projectFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { orgId: ORG_ID, deletedAt: null } }),
+      );
+      expect(mocks.billableUnitCounts).toHaveBeenCalledWith({
+        projectIds: ["project-1", "project-2"],
+        from: new Date("2026-10-01T00:00:00Z"),
+        to: new Date("2026-10-06T12:00:00Z"),
+        granularity: "day",
+      });
+    });
+
+    it("falls back to the cached cycle counter without an attached plan", async () => {
+      withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
+
+      const usage = await service().getUsage(ORG_ID);
+
+      expect(clientMock.getAttachedPlan).not.toHaveBeenCalled();
+      expect(mocks.billableUnitCounts).not.toHaveBeenCalled();
+      expect(usage.usageCount).toBe(4_200);
+      expect(usage.usageType).toBe("units");
+      expect(usage.billingPeriod.start.getUTCDate()).toBe(15);
+    });
+  });
+
   describe("remaining surface", () => {
     it("builds a portal session against the org's CH id", async () => {
       withOrg(chbConfig());
@@ -774,16 +895,6 @@ describe("chbBillingService", () => {
       expect(await trpcCode(service().getCustomerPortalUrl(ORG_ID))).toBe(
         "INTERNAL_SERVER_ERROR",
       );
-    });
-
-    it("reports usage from the cached cycle counter", async () => {
-      withOrg(chbConfig());
-
-      const usage = await service().getUsage(ORG_ID);
-
-      expect(usage.usageCount).toBe(4_200);
-      expect(usage.usageType).toBe("units");
-      expect(usage.billingPeriod.start.getUTCDate()).toBe(15);
     });
 
     it("rejects promotion codes, which CHB has no API for", async () => {

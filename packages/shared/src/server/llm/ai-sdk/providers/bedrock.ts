@@ -1,6 +1,6 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
-import type { LanguageModel } from "ai";
+import { type EmbeddingModel, type LanguageModel } from "ai";
 
 import { env } from "../../../../env";
 import {
@@ -8,7 +8,14 @@ import {
   BedrockConfigSchema,
   BedrockCredentialSchema,
   type LLMConnectionConfig,
+  parseBedrockIamRole,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
+import { createBedrockRoleCredentialProvider } from "../../../ee/bedrockRoleAuth/bedrockRoleCredentials";
+import { parseOutboundUrl } from "../../../outbound-url/validation";
+import {
+  assertLlmProviderHostAllowed,
+  llmBaseUrlWhitelistFromEnv,
+} from "../../baseUrlValidation";
 import type { LLMCredentialSource, TranslatedProviderOptions } from "./types";
 import { isPlainObject } from "./utils";
 
@@ -19,6 +26,17 @@ import { isPlainObject } from "./utils";
 // could reshape that host. The AWS SDK applies equivalent host-label
 // validation, but this provider builds its own endpoint.
 const AWS_REGION_PATTERN = /^[a-z0-9-]+$/;
+
+// Same order as @ai-sdk/amazon-bedrock resolveAmazonBedrockBaseURL. An earlier
+// prefix wins, including where a longer prefix also matches.
+const BEDROCK_PARTITION_DNS_SUFFIXES = [
+  { regionPrefix: "cn-", dnsSuffix: "amazonaws.com.cn" },
+  { regionPrefix: "us-iso-", dnsSuffix: "c2s.ic.gov" },
+  { regionPrefix: "us-isob-", dnsSuffix: "sc2s.sgov.gov" },
+  { regionPrefix: "eu-isoe-", dnsSuffix: "cloud.adc-e.uk" },
+  { regionPrefix: "us-isof-", dnsSuffix: "csp.hci.ic.gov" },
+  { regionPrefix: "eusc-", dnsSuffix: "amazonaws.eu" },
+] as const;
 
 export function assertValidBedrockRegion(region: string | undefined): void {
   if (region !== undefined && !AWS_REGION_PATTERN.test(region)) {
@@ -34,6 +52,15 @@ export function assertValidBedrockRegion(region: string | undefined): void {
  */
 export function getLangfuseAIBedrockRegion(): string | undefined {
   return env.LANGFUSE_AI_AWS_BEDROCK_REGION;
+}
+
+/** Local profile shared by Langfuse AI features, with the ambient AWS profile taking precedence. */
+export function getLangfuseAIAwsProfile(): string | undefined {
+  return (
+    env.AWS_PROFILE ??
+    env.LANGFUSE_AI_FEATURES_AWS_PROFILE ??
+    env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE
+  );
 }
 
 /**
@@ -98,27 +125,40 @@ const SUPPRESS_BEARER_TOKEN_ENV_FALLBACK = { apiKey: "" };
  */
 export function createDefaultBedrockProviderAuth(params?: {
   profile?: string;
-}): Pick<
-  Parameters<typeof createAmazonBedrock>[0] & object,
-  "apiKey" | "credentialProvider"
-> {
+}) {
+  const profile = params?.profile;
   return {
-    credentialProvider: fromNodeProviderChain(
-      params?.profile ? { profile: params.profile } : {},
-    ),
+    credentialProvider: fromNodeProviderChain(profile ? { profile } : {}),
     ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
   };
 }
 
+/** Cloud uses the existing project allowlist for runtime credentials. */
+export function canUseBedrockDefaultCredentials(projectId?: string): boolean {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  const allowedProjects =
+    env.LANGFUSE_BEDROCK_LLM_CONNECTION_RUNTIME_CREDENTIALS_ALLOWED_PROJECT_IDS;
+  return Boolean(
+    projectId &&
+    Array.isArray(allowedProjects) &&
+    allowedProjects.includes(projectId),
+  );
+}
+
 /**
- * Resolves the persisted Bedrock credential contract: the decrypted secret is
- * either the default-credentials sentinel (allowed only self-hosted or for
- * Langfuse-internal AI features), AWS access key JSON, or a Bedrock API key
- * used as a bearer token.
+ * Resolves a default-credential sentinel, an IAM role, AWS access key JSON, or
+ * a Bedrock API key. An IAM role needs the project that runs the model, or
+ * the organization when an organization connection is tested outside a
+ * project, and the connection's external ID, which the role trusts.
  */
 export function resolveBedrockProviderAuth(params: {
   secretKey: string;
   allowDefaultCredentials: boolean;
+  projectId?: string | null;
+  organizationId?: string | null;
+  /** Encrypted, from the connection row. */
+  externalId?: string | null;
+  profile?: string;
 }): Pick<
   Parameters<typeof createAmazonBedrock>[0] & object,
   "accessKeyId" | "secretAccessKey" | "apiKey" | "credentialProvider"
@@ -131,7 +171,32 @@ export function resolveBedrockProviderAuth(params: {
   ) {
     // Unlike the AI SDK's built-in env-only fallback, the node provider chain
     // includes env, profile, IMDS, IRSA, and the remaining AWS defaults.
-    return createDefaultBedrockProviderAuth();
+    return createDefaultBedrockProviderAuth({ profile: params.profile });
+  }
+
+  const iamRole = parseBedrockIamRole(secretKey);
+  if (iamRole) {
+    if (!params.projectId && !params.organizationId) {
+      throw new Error(
+        "Bedrock IAM role auth needs the project or organization that uses the connection.",
+      );
+    }
+    const caller = params.projectId
+      ? { projectId: params.projectId }
+      : { organizationId: params.organizationId! };
+    if (!params.externalId) {
+      throw new Error(
+        "Bedrock IAM role auth: the LLM connection has no external ID.",
+      );
+    }
+    return {
+      credentialProvider: createBedrockRoleCredentialProvider({
+        caller,
+        roleArn: iamRole.roleArn,
+        externalId: params.externalId,
+      }),
+      ...SUPPRESS_BEARER_TOKEN_ENV_FALLBACK,
+    };
   }
 
   try {
@@ -158,36 +223,117 @@ export function resolveBedrockProviderAuth(params: {
   }
 }
 
+/** bedrockPartitionDnsSuffix returns the AWS partition suffix for a region. */
+function bedrockPartitionDnsSuffix(region: string): string {
+  return (
+    BEDROCK_PARTITION_DNS_SUFFIXES.find(({ regionPrefix }) =>
+      region.startsWith(regionPrefix),
+    )?.dnsSuffix ?? "amazonaws.com"
+  );
+}
+
+/** readProcessEnv reads one variable at call time, matching the Bedrock SDK. */
+function readProcessEnv(name: string): string | undefined {
+  const value = process.env[name];
+  return typeof value === "string" ? value : undefined;
+}
+
+/** bedrockRuntimeHostname returns the host the Bedrock runtime transport calls. */
+function bedrockRuntimeHostname(region: string | undefined): string {
+  const endpoint =
+    readProcessEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME") ??
+    readProcessEnv("AWS_ENDPOINT_URL");
+  if (endpoint != null) {
+    return parseOutboundUrl(endpoint).hostname;
+  }
+
+  const resolvedRegion = region ?? readProcessEnv("AWS_REGION");
+  if (!resolvedRegion) {
+    throw new Error(
+      "Bedrock region is required when an LLM host allowlist is configured.",
+    );
+  }
+  assertValidBedrockRegion(resolvedRegion);
+  return `bedrock-runtime.${resolvedRegion}.${bedrockPartitionDnsSuffix(resolvedRegion)}`;
+}
+
+/** assertBedrockHostAllowed rejects a Bedrock host outside a configured LLM allowlist. */
+function assertBedrockHostAllowed(region: string | undefined): void {
+  // Without an allowlist the region may stay unresolved for the AWS SDK.
+  if (!llmBaseUrlWhitelistFromEnv().allowedHosts?.length) return;
+  assertLlmProviderHostAllowed(bedrockRuntimeHostname(region));
+}
+
 /**
  * No custom fetch is used: Bedrock has no user-controlled base URL (the host
  * is derived from the region), and self-hosted deployments commonly reach
  * Bedrock through VPC endpoints resolving to private IPs, which the secure
  * LLM fetch would block. Requests therefore use the provider's AWS transport.
+ * A configured LLM host allowlist is still applied to that transport's host.
  */
-export function buildBedrockModel(params: {
-  modelId: string;
+function createBedrockProvider(params: {
+  projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;
-}): LanguageModel {
-  const { modelId, apiKey, config, credentialSource } = params;
+}) {
+  const { apiKey, config, credentialSource } = params;
   const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
   const { region } = shouldUseLangfuseAPIKey
     ? { region: getLangfuseAIBedrockRegion() }
     : BedrockConfigSchema.parse(config);
   assertValidBedrockRegion(region);
+  assertBedrockHostAllowed(region);
 
-  const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const auth = resolveBedrockProviderAuth({
     secretKey: apiKey,
-    allowDefaultCredentials: isSelfHosted || shouldUseLangfuseAPIKey,
+    allowDefaultCredentials:
+      shouldUseLangfuseAPIKey ||
+      canUseBedrockDefaultCredentials(params.projectId),
+    projectId: shouldUseLangfuseAPIKey ? undefined : params.projectId,
+    organizationId: shouldUseLangfuseAPIKey ? undefined : params.organizationId,
+    externalId: shouldUseLangfuseAPIKey ? undefined : params.externalId,
+    profile: shouldUseLangfuseAPIKey ? getLangfuseAIAwsProfile() : undefined,
   });
 
-  const provider = createAmazonBedrock({
+  return createAmazonBedrock({
     region,
     ...auth,
   });
+}
 
-  return provider(modelId);
+export function buildBedrockModel(params: {
+  projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): LanguageModel {
+  const provider = createBedrockProvider(params);
+  const modelFamily =
+    params.credentialSource !== "langfuse"
+      ? BedrockConfigSchema.parse(params.config).customModelConfig?.[
+          params.modelId
+        ]?.modelFamily
+      : undefined;
+  return modelFamily
+    ? provider(params.modelId, { modelFamily })
+    : provider(params.modelId);
+}
+
+export function buildBedrockEmbeddingModel(params: {
+  projectId?: string;
+  organizationId?: string;
+  externalId?: string | null;
+  modelId: string;
+  apiKey: string;
+  config?: LLMConnectionConfig | null;
+  credentialSource: LLMCredentialSource;
+}): EmbeddingModel {
+  return createBedrockProvider(params).embeddingModel(params.modelId);
 }

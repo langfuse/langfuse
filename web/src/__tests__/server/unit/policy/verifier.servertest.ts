@@ -2,14 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 
 import { InternalServerError } from "@langfuse/shared";
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { hashSecretKey } from "@langfuse/shared/src/server";
+import { hashSecretKey, verifySecretKey } from "@langfuse/shared/src/server";
 
-import { Verifier } from "@/src/features/apiKey/verifier";
+import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
   type FindApiKeyResult,
   type ApiKeyRepository,
 } from "@/src/features/apiKey/apiKeyRepository";
 import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+
+vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, verifySecretKey: vi.fn(actual.verifySecretKey) };
+});
 
 const SALT = "salt";
 const ADMIN = "admin-secret";
@@ -104,6 +109,24 @@ describe("Basic authenticates the secret as privateKey", () => {
     );
     expect(result.success).toBe(false);
   });
+  it("rejects a fast-hash mismatch without bcrypt or backfill", async () => {
+    const key = apiKey();
+    const store = stubStore({
+      findByPublicKey: vi.fn(async () => lookup(key)),
+    });
+    vi.mocked(verifySecretKey).mockClear();
+
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "wrong-secret")),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+    expect(verifySecretKey).not.toHaveBeenCalled();
+    expect(store.backfillFastHash).not.toHaveBeenCalled();
+  });
 });
 
 describe("Bearer chains admin then private then public", () => {
@@ -166,6 +189,46 @@ describe("Bearer chains admin then private then public", () => {
   });
 });
 
+describe("an expired key is rejected like an unknown key", () => {
+  const expired = () => apiKey({ expiresAt: new Date(Date.now() - 60_000) });
+
+  it("401s an expired secret over Basic", async () => {
+    const store = stubStore({
+      findByFastHash: vi.fn(async () => lookup(expired())),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+  });
+  it("401s an expired public-key bearer", async () => {
+    const store = stubStore({
+      findByPublicKey: vi.fn(async () => lookup(expired())),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader("Bearer pk-lf-1"),
+    );
+    expect(result).toMatchObject({
+      success: false,
+      error: { message: invalidCredentials },
+    });
+  });
+  it("accepts a key expiring in the future", async () => {
+    const store = stubStore({
+      findByFastHash: vi.fn(async () =>
+        lookup(apiKey({ expiresAt: new Date(Date.now() + 60_000) })),
+      ),
+    });
+    const result = await verifier(store).verify(
+      parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),
+    );
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("admin key needs a set, non-empty configured key", () => {
   it("is ignored when the configured key is unset", async () => {
     const noKey = new Verifier(stubStore(), SALT, undefined);
@@ -184,12 +247,10 @@ describe("admin key needs a set, non-empty configured key", () => {
 describe("infra failures surface as typed errors, not throws", () => {
   it("propagates an api key repo failure as an InternalServerError result", async () => {
     const store = stubStore({
-      findByFastHash: vi.fn(
-        async (): Promise<FindApiKeyResult> => ({
-          success: false,
-          error: new InternalServerError("db down"),
-        }),
-      ),
+      findByFastHash: vi.fn(async (): Promise<FindApiKeyResult> => ({
+        success: false,
+        error: new InternalServerError("db down"),
+      })),
     });
     const result = await verifier(store).verify(
       parseAuthorizationHeader(basicHeader("pk-lf-1", "sk")),

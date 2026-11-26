@@ -17,8 +17,11 @@ import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
@@ -36,6 +39,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 import type * as SharedServerModule from "@langfuse/shared/src/server";
 import type * as PersistenceModule from "@langfuse/shared/in-app-agent/server/persistence";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const enqueuedJobs: Array<{ name: string; payload: unknown; jobId?: string }> =
   [];
@@ -154,6 +158,7 @@ describe("in-app agent background runs", () => {
   const createCaller = async (
     userId = `user-${randomUUID()}`,
     plan: Plan = "cloud:hobby",
+    flags: Parameters<typeof testFeatureFlags>[0] = {},
   ) => {
     const setup = await createOrgProjectAndApiKey();
 
@@ -166,41 +171,24 @@ describe("in-app agent background runs", () => {
       data: { id: userId, email: `${userId}@example.com` },
     });
 
-    const session: Session = {
-      expires: "1",
+    const session: Session = createSession({
       user: {
         id: userId,
         name: "Agent User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: setup.orgId,
-            role: "OWNER",
-            plan,
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: setup.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
+        featureFlags: testFeatureFlags({ templateFlag: false, ...flags }),
       },
-      environment: {} as any,
-    };
+      organizations: [
+        {
+          id: setup.orgId,
+          role: "OWNER",
+          plan,
+          aiFeaturesEnabled: true,
+          projects: [
+            { id: setup.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
 
@@ -343,6 +331,9 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: unknown;
+    topicsAvailable?: boolean;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -357,6 +348,7 @@ describe("in-app agent background runs", () => {
         request: {
           kind: "userMessage",
           context: params.context ?? [],
+          ...(params.topicsAvailable ? { topicsAvailable: true } : {}),
         },
       },
     });
@@ -374,8 +366,8 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: params.args ?? { name: "from-persisted-event" },
             runId,
           },
         },
@@ -764,6 +756,75 @@ describe("in-app agent background runs", () => {
     });
   });
 
+  it("stores Topics availability and keeps it across approvals", async () => {
+    const setup = await createCaller();
+    const start = async ({
+      caller,
+      projectId,
+      userId,
+    }: Awaited<ReturnType<typeof createCaller>>) => {
+      const conversation = await createConversation({ projectId, userId });
+      const { runId } = await caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Which topics do these traces have?",
+      });
+      return {
+        conversationId: conversation.id,
+        run: await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: runId, projectId },
+        }),
+      };
+    };
+
+    const { projectId, caller } = setup;
+    const { conversationId, run } = await start(setup);
+    expect(run.request).toMatchObject({ topicsAvailable: true });
+
+    // Park the router-created run like the worker does, then approve.
+    await prisma.inAppAgentRun.update({
+      where: { id_projectId: { id: run.id, projectId } },
+      data: {
+        status: InAppAgentRunStatus.AWAITING_APPROVAL,
+        finishedAt: new Date(),
+      },
+    });
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId,
+        runId: run.id,
+        sequenceNumber: 1,
+        type: EventType.CUSTOM,
+        event: {
+          type: EventType.CUSTOM,
+          name: "on_interrupt",
+          value: {
+            type: "mastra_suspend",
+            toolCallId: "tool-call-topics",
+            toolName: "langfuse_createTextPrompt",
+            args: { name: "prompt" },
+            runId: run.id,
+          },
+        },
+      },
+    });
+    const { runId: continuationRunId } = await caller.decideToolApproval({
+      projectId,
+      conversationId,
+      runId: run.id,
+      toolCallId: "tool-call-topics",
+      approved: true,
+    });
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      topicsAvailable: true,
+    });
+  });
+
   it("decides an approval exactly once and reads the tool args server-side", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-08-14T10:01:00.000Z"));
@@ -784,6 +845,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       context,
       parkedAt,
+      topicsAvailable: true,
     });
 
     const { runId: continuationRunId } = await caller.decideToolApproval({
@@ -815,6 +877,7 @@ describe("in-app agent background runs", () => {
       toolCallId: "tool-call-1",
       approved: true,
       context,
+      topicsAvailable: true,
     });
 
     const decisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
@@ -849,6 +912,98 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("validates questionnaire answers against the persisted questions", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: {
+        questions: [
+          {
+            question: "Which evaluator type?",
+            options: [
+              {
+                label: "LLM-as-a-judge",
+                description: "Model-graded",
+                recommended: true,
+              },
+              {
+                label: "Code",
+                description: "Deterministic",
+                recommended: false,
+              },
+            ],
+            allowMultiple: false,
+          },
+        ],
+      },
+    });
+    const decide = (toolInputs?: InAppAgentToolInputs) =>
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs,
+      });
+    const withAnswers = (answers: InAppAgentQuestionnaireAnswers) => ({
+      [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+    });
+
+    await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(
+      (
+        await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: parkedRunId, projectId },
+        })
+      ).status,
+    ).toBe(InAppAgentRunStatus.AWAITING_APPROVAL);
+
+    const toolInputs = withAnswers([
+      { selectedOptionIndexes: [1], otherText: null },
+    ]);
+    const { runId: continuationRunId } = await decide(toolInputs);
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+      toolInputs,
+    });
+  });
+
+  it("rejects tool inputs for a tool that does not take input", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs: { [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers: [] } },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
@@ -1342,41 +1497,23 @@ describe("in-app agent background runs", () => {
       data: { id: intruderId, email: `${intruderId}@example.com` },
     });
 
-    const intruderSession: Session = {
-      expires: "1",
+    const intruderSession: Session = createSession({
       user: {
         id: intruderId,
         name: "Intruder",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: owner.orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: true,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: owner.projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
         featureFlags: testFeatureFlags({ templateFlag: false }),
-        admin: false,
       },
-      environment: {} as any,
-    };
+      organizations: [
+        {
+          id: owner.orgId,
+          role: "OWNER",
+          aiFeaturesEnabled: true,
+          projects: [
+            { id: owner.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        },
+      ],
+    });
 
     const intruder = inAppAgentRouter.createCaller({
       ...createInnerTRPCContext({ session: intruderSession, headers: {} }),

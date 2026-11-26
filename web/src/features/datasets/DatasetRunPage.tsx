@@ -2,13 +2,13 @@ import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { Columns3, MoreVertical, Trash } from "lucide-react";
+import { Columns3, MoreVertical, Trash } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   SidePanel,
@@ -18,10 +18,8 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import {
-  useExperimentAccess,
-  singleRunToExperimentsUrl,
-} from "@/src/features/experiments";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 function DatasetRunLegacy() {
@@ -70,7 +68,7 @@ function DatasetRunLegacy() {
               }}
             >
               <Button>
-                <Columns3 className="mr-2 h-4 w-4" />
+                <Columns3 size="base" color="default" __rawClassName="mr-2" />
                 <span>Compare</span>
               </Button>
             </Link>
@@ -108,7 +106,7 @@ function DatasetRunLegacy() {
                       size="icon"
                       {...getTriggerProps()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical size="base" color="default" />
                     </Button>
                   )}
                 </DropdownMenu>

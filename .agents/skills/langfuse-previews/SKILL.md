@@ -78,11 +78,15 @@ Pushing updates it; closing the PR tears it down.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
   **fresh** environment, not the old one.
 - **Forks can't preview.** External / fork PRs never build or deploy.
+- **AI gateway.** Changes under `web/src/features/ai-gateway/`,
+  `web/src/pages/api/internal/ai-gateway/`, or `ai-gateway/` auto-apply
+  `ai-gateway-preview`. That label is what deploys the gateway into the preview.
 
 ## Add or improve data in a preview
 
-Previews start pre-seeded with the demo project and some synthetic traces. To
-add the specific shape you're testing — a very deep trace, a huge session, bulk
+Previews start pre-seeded with the demo project and some synthetic traces, seeded once on first deploy with the newest trace at that moment; on a preview older than a day, widen the time filter to see them.
+
+To add the specific shape you're testing — a very deep trace, a huge session, bulk
 traces for list performance, v4 events, malformed payloads — run the
 deterministic **seed CLI from your local checkout**, pointed at the preview's
 datastores over a `port-forward`. The CLI has no LLM/agent loop; you (or your

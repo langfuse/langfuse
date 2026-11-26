@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 
@@ -9,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { InlineFilterBuilder } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 
 export type ModernSessionFilterDialogViewActions =
   | { type: "none" }

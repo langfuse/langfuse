@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -36,7 +42,11 @@ const savedConfig: Partial<BlobStorageIntegration> = {
 const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
-  onSubmit: (values: unknown) => void = () => {},
+  onSubmit: (
+    values: unknown,
+    onSaved: (saved: { enabled: boolean }) => void,
+  ) => void = () => {},
+  roleAuthRequiresUpgrade = false,
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
@@ -44,11 +54,25 @@ const ui = (
       initialValues={initialValues}
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
+      crossAccountRoleArn={null}
+      roleAuthRequiresUpgrade={roleAuthRequiresUpgrade}
+      externalId={{
+        isSet: false,
+        value: undefined,
+        isLoading: false,
+        reveal: () => {},
+      }}
       isSaving={false}
       onSubmit={onSubmit}
-    />
+    >
+      {({ isDirty }) => (
+        <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
+      )}
+    </BlobStorageIntegrationForm>
   </TooltipProvider>
 );
+
+const dirtyState = () => screen.getByTestId("dirty-state").textContent;
 
 const bucketInput = () =>
   screen.getByLabelText("Bucket Name") as HTMLInputElement;
@@ -147,6 +171,45 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     expect(bucketInput()).toHaveValue("mid-save-typing");
   });
 
+  it("switching from GCS to S3 drops a typed GCS service account key", async () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(
+          { type: BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE },
+          exportSourceCtx,
+        ),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("GCP Service Account Key (JSON)"), {
+      target: { value: '{"type":"service_account"}' },
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Storage Provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Amazon S3" }));
+
+    expect(await screen.findByLabelText(/Secret Access Key/)).toHaveValue("");
+  });
+
+  it("a plan without IAM role auth sees the option disabled", async () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        undefined,
+        true,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Authentication" }));
+    const roleOption = await screen.findByRole("option", { name: /IAM role/ });
+
+    expect(roleOption).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getAllByText(/IAM role auth is not part of your plan/).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("submit passes the draft values through unchanged", async () => {
     const onSubmit = vi.fn();
     render(
@@ -167,9 +230,66 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         region: "auto",
         exportFrequency: "daily",
         fileType: BlobStorageIntegrationFileType.PARQUET,
-        enabled: false,
+        enabled: true,
       }),
-      expect.anything(),
+      expect.any(Function),
     );
+  });
+
+  it("dirty state: cleared only by a successful save", async () => {
+    // Same-entity saves do not remount (key stays "configured"), so the
+    // form itself must rebase dirty tracking once the save is confirmed.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    expect(dirtyState()).toBe("clean");
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+
+    // Failed save: the container never calls onSaved.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(dirtyState()).toBe("dirty");
+
+    // Successful save: the submitted values become the clean baseline.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    act(() => onSubmit.mock.calls[1][1]({ enabled: true }));
+    await waitFor(() => expect(dirtyState()).toBe("clean"));
+    expect(bucketInput()).toHaveValue("edited-bucket");
+
+    // Later edits are dirty again against the new baseline.
+    fireEvent.change(bucketInput(), { target: { value: "edited-again" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+  });
+
+  it("a save stored disabled turns the export switch off and stays clean", async () => {
+    // Switching to IAM role auth mints an external ID, so the server stores
+    // the export disabled even though the draft enabled it.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    // "Export enabled" is the form's last switch; its label targets a wrapper.
+    const exportSwitch = screen.getAllByRole("switch").at(-1)!;
+    expect(exportSwitch).toBeChecked();
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    act(() => onSubmit.mock.calls[0][1]({ enabled: false }));
+
+    await waitFor(() => expect(exportSwitch).not.toBeChecked());
+    expect(dirtyState()).toBe("clean");
   });
 });

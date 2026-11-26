@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   type AgUiMessage,
@@ -713,6 +714,7 @@ const meta = preview.meta({
     onApproveToolCall: fn(),
     onAlwaysAllowToolCall: fn(),
     onRejectToolCall: fn(),
+    onAnswerQuestionnaire: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),
@@ -773,6 +775,155 @@ export const ToolApprovalRequired = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Waiting for your approval…" }),
     ).toBeVisible();
+  },
+});
+
+export const PendingQuestionnaire = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isAwaitingApproval: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Set up a hallucination evaluator." },
+      },
+      {
+        id: "assistant-intro",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "A few quick questions before I set it up.",
+        },
+      },
+      {
+        id: "assistant-questionnaire",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+              status: "running",
+              args: JSON.stringify({
+                questions: [
+                  {
+                    question: "Which environment should it run on?",
+                    options: [
+                      {
+                        label: "Production",
+                        description: "Score live traffic as it arrives.",
+                        recommended: true,
+                      },
+                      {
+                        label: "Staging",
+                        description: "Try it on pre-release traces first.",
+                        recommended: false,
+                      },
+                    ],
+                    allowMultiple: false,
+                  },
+                  {
+                    question: "Which signals count as a failure?",
+                    options: [
+                      {
+                        label: "Unsupported claims",
+                        description: "Statements the context does not back.",
+                        recommended: true,
+                      },
+                      {
+                        label: "Made-up citations",
+                        description: "Sources that do not exist.",
+                        recommended: false,
+                      },
+                    ],
+                    allowMultiple: true,
+                  },
+                ],
+              }),
+              approval: { id: "approval-questionnaire-1", status: "pending" },
+            },
+          ],
+        },
+      },
+    ],
+  },
+});
+
+export const AnsweredQuestionnaire = meta.story({
+  name: "(Test) Answered questionnaire",
+  args: {
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Set up a hallucination evaluator." },
+      },
+      {
+        id: "assistant-intro",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "A few quick questions before I set it up.",
+        },
+      },
+      {
+        id: "assistant-questionnaire",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+              status: "succeeded",
+              args: "{}",
+              result: JSON.stringify({
+                type: "questionnaireAnswers",
+                answers: [
+                  {
+                    question: "Which environment should it run on?",
+                    answer: ["Staging"],
+                    skipped: false,
+                  },
+                  {
+                    question: "Which signals count as a failure?",
+                    answer: ["Unsupported claims", "Made-up citations"],
+                    skipped: false,
+                  },
+                ],
+              }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-answer",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The evaluator now runs on staging and flags unsupported claims and made-up citations.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByText("A few quick questions before I set it up."),
+    ).toBeVisible();
+    await expect(
+      canvas.getByText("Which environment should it run on?"),
+    ).toBeVisible();
+    await expect(canvas.getByText("Staging")).toBeVisible();
+    // Only the reply after the questionnaire is the turn's answer.
+    await expect(
+      canvas.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(1);
   },
 });
 
@@ -1436,7 +1587,7 @@ export const Error = meta.story({
       "Internal sandbox bridge timeout",
     );
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeEnabled();
     await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
   },
@@ -1546,7 +1697,7 @@ export const StepLimit = meta.story({
       canvas.getByRole("button", { name: "Stopped after 51s" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeEnabled();
   },
 });
@@ -1611,7 +1762,7 @@ export const Failed = meta.story({
       canvas.getByRole("button", { name: "Failed after 51s" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeEnabled();
   },
 });
@@ -1674,9 +1825,7 @@ export const FailedBeforeFirstToken = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("status")).toHaveTextContent(
-      "The assistant failed.",
-    );
+    await expect(canvas.getByRole("status")).toHaveTextContent("Halo failed.");
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",
     );
@@ -1697,7 +1846,7 @@ const failedWorkerLostRun = {
 };
 
 export const FailedWorkerLost = meta.story({
-  name: "(Test) Assistant failed",
+  name: "(Test) Halo failed",
   args: {
     selectedConversationId: "conversation-1",
     executionUi: {
@@ -1729,14 +1878,12 @@ export const FailedWorkerLost = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("status")).toHaveTextContent(
-      "The assistant failed.",
-    );
+    await expect(canvas.getByRole("status")).toHaveTextContent("Halo failed.");
     await expect(canvas.getByRole("status")).toHaveTextContent(
       "Send another message",
     );
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeEnabled();
   },
 });
@@ -1804,7 +1951,7 @@ export const ApprovalExpired = meta.story({
       canvas.queryByRole("button", { name: "Waiting for your approval…" }),
     ).not.toBeInTheDocument();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeEnabled();
   },
 });
@@ -1896,7 +2043,7 @@ export const BackgroundHint = meta.story({
     const canvas = within(canvasElement);
 
     await userEvent.type(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
       "Compare cost against last week",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
@@ -2064,7 +2211,7 @@ export const LoadingConversation = meta.story({
     const canvas = within(canvasElement);
 
     await expect(
-      canvas.queryByText("Welcome to the Langfuse Assistant"),
+      canvas.queryByText("Hi I'm Halo, your Langfuse assistant"),
     ).not.toBeInTheDocument();
     await expect(
       canvas.queryByRole("button", { name: /^Create a prompt/ }),
@@ -2076,7 +2223,7 @@ export const LoadingConversation = meta.story({
       canvas.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
     await expect(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
     ).toBeDisabled();
   },
 });
@@ -2123,11 +2270,11 @@ export const RateLimited = meta.story({
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
     const textarea = canvas.getByRole("textbox", {
-      name: "Message the assistant",
+      name: "Message Halo",
     });
 
     await expect(alert).toHaveTextContent(
-      "You've reached the assistant request limit",
+      "You've reached the Halo request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
     await expect(textarea).toBeEnabled();
@@ -2234,12 +2381,12 @@ export const RefocusAfterSubmit = meta.story({
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
-    const textarea = canvas.getByLabelText("Message the assistant");
+    const textarea = canvas.getByLabelText("Message Halo");
     const answer = "Answer for: Check the latest latency regression";
     const previousAnswerCount = canvas.queryAllByText(answer).length;
 
     await expect(
-      canvas.queryByText("Welcome to the Langfuse Assistant"),
+      canvas.queryByText("Hi I'm Halo, your Langfuse assistant"),
     ).not.toBeInTheDocument();
     await userEvent.clear(textarea);
     await userEvent.type(textarea, "Check the latest latency regression");
@@ -2862,7 +3009,7 @@ export const SendingReattachesAutoFollow = meta.story({
     );
 
     await userEvent.type(
-      canvas.getByRole("textbox", { name: "Message the assistant" }),
+      canvas.getByRole("textbox", { name: "Message Halo" }),
       "And the error rate?",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));

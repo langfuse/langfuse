@@ -1,5 +1,8 @@
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -21,6 +24,7 @@ import {
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
 import { EvaluatorService } from "./evaluatorService";
+import { throwIfTraceTranscriptEvalsUnavailable } from "@/src/features/evals/server/traceTranscriptEvalsAccess";
 import { ruleRouter } from "../rules/ruleRouter";
 import { getActivationCostEstimates } from "./activationCostService";
 
@@ -28,7 +32,8 @@ const TestEvaluatorSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),
   definition: EvaluatorDefinitionInputSchema,
-  observationId: z.string(),
+  /** Absent when the test evaluates the trace transcript instead of one observation. */
+  observationId: z.string().optional(),
   traceId: z.string(),
   startTime: z.coerce.date(),
 });
@@ -65,6 +70,7 @@ export const evaluatorRouter = createTRPCRouter({
       return serviceForContext(ctx).list({
         ...input,
         projectId: ctx.session.projectId,
+        includeTraceTranscriptAssignments: true,
       });
     }),
 
@@ -179,12 +185,23 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
+        scope: "evalJobExecution:read",
+      });
+      const canRunMissingCostTest = hasProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
         scope: "evaluationRule:CUD",
       });
+      const { shouldRunMissingTest, ...estimateInput } = input;
+      let missingCostMode: "probe" | "wait" | "skip" = "skip";
+      if (canRunMissingCostTest) {
+        missingCostMode = shouldRunMissingTest ? "probe" : "wait";
+      }
       return getActivationCostEstimates({
-        ...input,
+        ...estimateInput,
         projectId: ctx.session.projectId,
         orgId: ctx.session.orgId,
+        missingCostMode,
         shouldReadFromObservationsTable:
           ctx.session.user.v4BetaEnabled !== true,
       });
@@ -271,6 +288,20 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
       });
+      if (input.observationId === undefined) {
+        throwIfTraceTranscriptEvalsUnavailable(
+          ctx.session,
+          ctx.session.projectId,
+        );
+        return serviceForContext(ctx).testEvaluatorOnTrace({
+          orgId: ctx.session.orgId,
+          projectId: ctx.session.projectId,
+          evaluatorId: input.evaluatorId,
+          definition: input.definition,
+          traceId: input.traceId,
+          timestamp: input.startTime,
+        });
+      }
       return serviceForContext(ctx).testEvaluator({
         orgId: ctx.session.orgId,
         projectId: ctx.session.projectId,

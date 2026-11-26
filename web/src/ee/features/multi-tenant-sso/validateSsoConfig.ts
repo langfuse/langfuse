@@ -7,6 +7,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { type SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import {
+  getDiscoveryUrl,
+  resolveOneLoginIssuer,
+  stripTrailingSlash,
+} from "@/src/ee/features/multi-tenant-sso/oidcDiscovery";
 
 const discoveryTimeoutMs = 5000;
 
@@ -18,8 +23,36 @@ const DiscoveryDocSchema = z.object({
   userinfo_endpoint: z.string().optional(),
 });
 
-/** validateSsoConfig checks at save time that the IdP's OIDC discovery doc is reachable, well formed, and reports the configured issuer. */
+/** validateSsoConfig rejects SSO configs whose sign-in would fail or fetch internal addresses. */
 export async function validateSsoConfig(
+  payload: SsoProviderSchema,
+): Promise<void> {
+  if (payload.authProvider === "github-enterprise")
+    return validateGithubEnterpriseBaseUrl(payload);
+  return validateOidcDiscoveryDocument(payload);
+}
+
+/** validateGithubEnterpriseBaseUrl rejects base URLs that target internal addresses. */
+async function validateGithubEnterpriseBaseUrl(
+  payload: GithubEnterprisePayload,
+): Promise<void> {
+  if (!payload.authConfig) return;
+  const { baseUrl } = payload.authConfig.enterprise;
+  try {
+    // token, user and emails endpoints all derive from this host
+    await validateWebhookURL(baseUrl, discoveryWhitelistFromEnv(), {
+      allowedPorts: "any",
+    });
+  } catch {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `GitHub Enterprise base URL "${baseUrl}" must be reachable from the public internet.`,
+    });
+  }
+}
+
+/** validateOidcDiscoveryDocument checks the IdP's discovery doc is reachable, well formed, public, and reports the configured issuer. */
+async function validateOidcDiscoveryDocument(
   payload: SsoProviderSchema,
 ): Promise<void> {
   const issuer = getDiscoveryIssuer(payload);
@@ -39,7 +72,7 @@ export async function validateSsoConfig(
   }
 }
 
-/** getDiscoveryIssuer returns the provider's configured issuer URL, or null when the provider has no OIDC discovery (GitHub family is OAuth2-only). */
+/** getDiscoveryIssuer returns the provider's OIDC issuer URL (for OneLogin, resolved the same way as at sign-in), or null when the provider has no OIDC discovery (GitHub family is OAuth2-only). */
 function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
   switch (payload.authProvider) {
     case "github":
@@ -56,21 +89,17 @@ function getDiscoveryIssuer(payload: SsoProviderSchema): string | null {
     case "auth0":
     case "okta":
     case "authentik":
-    case "onelogin":
     case "cognito":
     case "keycloak":
     case "jumpcloud":
     case "custom":
       return payload.authConfig?.issuer ?? null;
+    case "onelogin":
+      return payload.authConfig
+        ? resolveOneLoginIssuer(payload.authConfig.issuer)
+        : null;
   }
 }
-
-/** getDiscoveryUrl builds the discovery-document URL for issuer. */
-function getDiscoveryUrl(issuer: string): string {
-  return `${stripTrailingSlash(issuer)}/.well-known/openid-configuration`;
-}
-
-const stripTrailingSlash = (url: string) => url.replace(/\/$/, "");
 
 /** fetchWithSsrfDefense fetches url with internal-address blocking and the operator whitelist applied. */
 async function fetchWithSsrfDefense(url: string): Promise<Response> {
@@ -99,7 +128,7 @@ async function fetchWithSsrfDefense(url: string): Promise<Response> {
   }
 }
 
-/** discoveryWhitelistFromEnv builds the operator-configured exemptions to the internal-address blocklist. */
+/** discoveryWhitelistFromEnv builds the operator exemptions from the internal-address block. */
 function discoveryWhitelistFromEnv() {
   return {
     hosts: env.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST || [],
@@ -205,3 +234,8 @@ function prefixError(prefix: string, error: TRPCError): TRPCError {
 
 /** DiscoveryDoc is the slice of the OIDC discovery document the validators inspect. */
 type DiscoveryDoc = z.infer<typeof DiscoveryDocSchema>;
+
+type GithubEnterprisePayload = Extract<
+  SsoProviderSchema,
+  { authProvider: "github-enterprise" }
+>;

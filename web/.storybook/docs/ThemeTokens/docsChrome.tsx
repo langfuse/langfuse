@@ -1,3 +1,4 @@
+/* eslint-disable @repo/component-file-structure */
 /**
  * Shared presentational chrome for the Design reference pages (Color,
  * Typography, Layout, Charts).
@@ -74,7 +75,7 @@ export function DocsSection({
   title: ReactNode;
   blurb?: ReactNode;
   aside?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-4 border-t pt-6">

@@ -1,12 +1,12 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
   deriveEvaluatorDisplayStateFromExecutionCounts,
@@ -22,6 +22,7 @@ import {
   orderBy,
   EvalTargetObject,
   EvalTargetObjectSchema,
+  evalVariableMappingListSchema,
   validateEvaluatorFiltersForTarget,
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -79,7 +80,6 @@ import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/serve
 import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
 import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
-export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
 // `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
@@ -242,7 +242,7 @@ const validateVariableMappingForTarget = ({
       targetObject === EvalTargetObject.EVENT ||
       targetObject === EvalTargetObject.EXPERIMENT
     ) {
-      return z.array(observationVariableMapping).safeParse(mapping);
+      return evalVariableMappingListSchema(targetObject).safeParse(mapping);
     }
     if (
       targetObject === EvalTargetObject.TRACE ||
@@ -254,9 +254,14 @@ const validateVariableMappingForTarget = ({
   })();
 
   if (!result?.success) {
+    const unknownColumnIssue = result?.error.issues.find(
+      ({ code }) => code === "custom",
+    );
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Variable mapping does not match evaluator target.",
+      message:
+        unknownColumnIssue?.message ??
+        "Variable mapping does not match evaluator target.",
     });
   }
 
@@ -1270,7 +1275,12 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await getScoresByIds(input.projectId, scoreIds)
+          ? await getScoresByIds(
+              input.projectId,
+              scoreIds,
+              undefined,
+              "ReadOnly",
+            )
           : [];
 
       return {

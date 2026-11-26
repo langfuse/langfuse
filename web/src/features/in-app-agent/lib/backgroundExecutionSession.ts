@@ -3,6 +3,7 @@ import type { AgentSubscriber } from "@ag-ui/client";
 import {
   type AgUiContext,
   type AgUiMessage,
+  type InAppAgentToolInputs,
   type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
@@ -28,6 +29,7 @@ export type ApprovalDecision = {
   toolCallId: string;
   approved: boolean;
   approvalScope?: "once" | "conversation";
+  toolInputs?: InAppAgentToolInputs;
 };
 
 export type BackgroundExecutionRunView = {
@@ -80,8 +82,8 @@ export type BackgroundExecutionSession = {
 type BackgroundExecutionAgent = {
   threadId: string;
   messages: readonly unknown[];
-  addMessage(message: AgUiMessage): void;
-  setMessages(messages: AgUiMessage[]): void;
+  addMessage(message: { id: string; role: "user"; content: string }): void;
+  setPersistedMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
   runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
@@ -106,6 +108,12 @@ type BackgroundExecutionHydration = Omit<
 type BackgroundExecutionAgentSubscriber = Pick<
   AgentSubscriber,
   | "onRunStartedEvent"
+  | "onRunFinishedEvent"
+  | "onTextMessageStartEvent"
+  | "onTextMessageEndEvent"
+  | "onReasoningMessageStartEvent"
+  | "onReasoningMessageEndEvent"
+  | "onToolCallStartEvent"
   | "onEvent"
   | "onMessagesChanged"
   | "onStateChanged"
@@ -496,7 +504,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
 
     this.isReplacingMessages = true;
     try {
-      this.agent.setMessages(hydrated.messages);
+      this.agent.setPersistedMessages(hydrated.messages);
     } finally {
       this.isReplacingMessages = false;
     }
@@ -566,9 +574,9 @@ export function isCancellableBackgroundRun(
 }
 
 const ASSISTANT_FAILED_CONTINUE =
-  "The assistant failed. Send another message to continue.";
+  "Halo failed. Send another message to continue.";
 const ASSISTANT_FAILED_TRY_AGAIN =
-  "The assistant failed. Send another message to try again.";
+  "Halo failed. Send another message to try again.";
 
 const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.WORKER_LOST]: ASSISTANT_FAILED_CONTINUE,
@@ -583,7 +591,7 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.RUN_TIMEOUT]:
     "The run hit the time limit. Send another message to continue.",
   [InAppAgentRunErrorCode.AGENT_ERROR]:
-    "The assistant hit an error before finishing. Send another message to continue.",
+    "Halo hit an error before finishing. Send another message to continue.",
   [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
   [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
@@ -604,9 +612,9 @@ export type BackgroundRunNotice = {
 };
 
 const STEP_LIMIT_NOTICE =
-  "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+  "Halo had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
 const OUTPUT_LIMIT_NOTICE =
-  "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
+  "Halo had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
 
 /** Notices for SUCCEEDED runs cut short before a final answer, by error code. */
 const TRUNCATION_NOTICES: Readonly<Record<string, string>> = {

@@ -51,6 +51,7 @@ const sharedArgs: EvaluatorBackfillSettingsProps = {
   maxItems: 5_000,
   maxAllowedItems: 25_000,
   matchingObservations: 4_400,
+  sampling: 1,
   isEstimating: false,
   onEnabledChange: fn(),
   onWindowChange: fn(),

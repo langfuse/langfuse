@@ -45,6 +45,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     name: "Traces Count",
     id: "countTraces",
     type: "number",
+    step: 1,
     internal: 't."countTraces"',
   },
   {
@@ -69,24 +70,28 @@ export const sessionsViewCols: ColumnDefinition[] = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal: 'o."promptTokens"',
   },
   {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal: 'o."completionTokens"',
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal: 'o."totalTokens"',
   },
   {
     name: "Usage",
     id: "usage",
     type: "number",
+    step: 1,
     internal: 'o."totalTokens"',
   },
   {
@@ -121,6 +126,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {
@@ -151,6 +157,7 @@ export const sessionsEventsViewCols: ColumnDefinition[] =
       name: "Tool Calls",
       id: "toolCalls",
       type: "number",
+      step: 1,
       internal: "st.tool_calls_count",
     },
     {

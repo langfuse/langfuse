@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LangfuseMediaView } from "./LangfuseMediaView";
 
 vi.mock("@/src/hooks/useProjectIdFromURL", () => ({
-  default: () => "project-id",
+  default: () => "project-1",
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -18,7 +18,11 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 vi.mock("./media/useResolvedMedia", () => ({
-  useResolvedMedia: () => ({ status: "idle", url: undefined }),
+  useResolvedMedia: () => ({
+    status: "idle",
+    url: undefined,
+    refreshIfNeeded: async () => undefined,
+  }),
 }));
 
 describe("LangfuseMediaView", () => {

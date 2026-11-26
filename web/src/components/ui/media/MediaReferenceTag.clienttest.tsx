@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MediaReferenceTag } from "./MediaReferenceTag";
 import { classifyMediaValue } from "./mediaUtils";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 vi.mock("./useResolvedMedia", () => ({
   useResolvedMedia: () => ({
     status: "ready",
     url: "data:text/plain,original%20oversized%20field",
     contentLength: 2.5 * 1024 * 1024,
+    refreshIfNeeded: async () => undefined,
   }),
 }));
 
@@ -19,7 +21,9 @@ describe("MediaReferenceTag", () => {
     );
 
     expect(descriptor).not.toBeNull();
-    render(<MediaReferenceTag descriptor={descriptor!} />);
+    render(<MediaReferenceTag descriptor={descriptor!} />, {
+      wrapper: LayerProvider,
+    });
 
     const trigger = screen.getByRole("button", { name: "PNG media" });
     trigger.focus();
@@ -34,7 +38,9 @@ describe("MediaReferenceTag", () => {
     );
 
     expect(descriptor).not.toBeNull();
-    render(<MediaReferenceTag descriptor={descriptor!} />);
+    render(<MediaReferenceTag descriptor={descriptor!} />, {
+      wrapper: LayerProvider,
+    });
 
     const attachment = screen.getByRole("button", {
       name: "Full value attached media",

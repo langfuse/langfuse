@@ -4,6 +4,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import {
   buildClickHouseLogComment,
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
+  CLICKHOUSE_ROUTE_CONTEXT_KEY,
 } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
@@ -11,18 +12,17 @@ describe("ClickHouse query tags", () => {
     context.setGlobalContextManager(
       new AsyncLocalStorageContextManager().enable(),
     );
-    const entrypoint = propagation.setBaggage(
-      context.active(),
-      propagation.createBaggage({
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface]: { value: "worker" },
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route]: {
-          value: "langfuse.queue.trace_batch",
-        },
-        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId]: {
-          value: "producer-project",
-        },
-      }),
-    );
+    const entrypoint = propagation
+      .setBaggage(
+        context.active(),
+        propagation.createBaggage({
+          [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface]: { value: "worker" },
+          [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId]: {
+            value: "producer-project",
+          },
+        }),
+      )
+      .setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, "langfuse.queue.events_dispatch");
     try {
       const tags = context.with(entrypoint, () =>
         JSON.parse(
@@ -35,8 +35,10 @@ describe("ClickHouse query tags", () => {
       expect(tags).toEqual({
         tag_schema_version: "1",
         surface: "worker",
-        route: "langfuse.queue.trace_batch",
+        route: "langfuse.queue.events_dispatch",
         projectId: "MULTI_PROJECT",
+        projectSize: "unknown",
+        queryWindow: "none",
         experimentId: "arm-b",
       });
     } finally {
@@ -49,6 +51,7 @@ describe("ClickHouse query tags", () => {
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
       projectId: "project-1",
+      queryWindow: "30d",
     });
 
     expect(JSON.parse(logComment)).toEqual({
@@ -57,6 +60,8 @@ describe("ClickHouse query tags", () => {
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
       projectId: "project-1",
+      projectSize: "unknown",
+      queryWindow: "30d",
     });
   });
 
@@ -66,6 +71,8 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "unknown",
+      projectSize: "unknown",
+      queryWindow: "none",
     });
   });
 
@@ -77,6 +84,8 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "publicapi",
+      projectSize: "unknown",
+      queryWindow: "none",
     });
   });
 });

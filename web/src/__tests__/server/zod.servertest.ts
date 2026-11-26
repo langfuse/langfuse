@@ -1,14 +1,56 @@
 import {
   commaSeparatedEnumArray,
   isJsonNumberLiteral,
+  isoDateTime,
   optionalCommaSeparatedStringArray,
   paginationZod,
   parseJsonPrioritised,
   publicApiPaginationLimitZod,
   sanitizeEmailSubject,
   StringNoHTML,
+  stringDateTime,
 } from "@langfuse/shared";
+import { stringDateTime as ingestionDateTime } from "@langfuse/shared/src/server";
 import { ZodError } from "zod";
+
+describe("ISO datetime compatibility", () => {
+  it("keeps UTC-only validation unless offsets are enabled", () => {
+    const schema = isoDateTime();
+    expect(schema.parse("2024-02-29T06:15Z")).toBe("2024-02-29T06:15Z");
+    expect(schema.parse("2024-02-29T06:15:00.123Z")).toBe(
+      "2024-02-29T06:15:00.123Z",
+    );
+    expect(schema.safeParse("2024-02-29T06:15+02:30").success).toBe(false);
+    expect(schema.safeParse("2024-02-29T06:15:00+02:30").success).toBe(false);
+  });
+
+  it.each([
+    ["2024-02-29T06:15Z", true],
+    ["2024-02-29T06:15+02:30", true],
+    ["2024-02-29T06:15-02:30", true],
+    ["2024-02-29T06:15:00Z", true],
+    ["2024-02-29T06:15:00.123456+02:30", true],
+    ["2023-02-29T06:15Z", false],
+    ["2024-02-30T06:15Z", false],
+    ["2024-02-29T24:00Z", false],
+    ["2024-02-29T06:60Z", false],
+    ["2024-02-29T06:15:60Z", false],
+    ["2024-02-29T06:15+24:00", false],
+    ["2024-02-29T06:15+02:60", false],
+    ["2024-02-29T06:15", false],
+    ["2024-02-29", false],
+    ["prefix2024-02-29T06:15Z", false],
+    ["2024-02-29T06:15Zsuffix", false],
+    [null, true],
+    [undefined, true],
+  ])("validates %s without changing the input", (input, valid) => {
+    for (const schema of [stringDateTime, ingestionDateTime]) {
+      const result = schema.safeParse(input);
+      expect(result.success).toBe(valid);
+      if (result.success) expect(result.data).toBe(input);
+    }
+  });
+});
 
 // Create test cases
 describe("Pagination Zod Schema", () => {

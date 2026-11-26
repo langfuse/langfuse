@@ -36,6 +36,7 @@ const DEFAULT_CHUNK_SIZE = 1000;
  * @param updates - Array of org update data
  * @param chunkSize - Optional chunk size (default: 1000)
  * @returns Summary of successful/failed updates
+ * @internal
  */
 export async function bulkUpdateOrganizations(
   updates: OrgUpdateData[],

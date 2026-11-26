@@ -19,12 +19,17 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
-      evalsV2: { rules: { list: { invalidate: apiMocks.invalidateRules } } },
+      evalsV2: {
+        rules: {
+          list: { invalidate: apiMocks.invalidateRules },
+          listForExperimentDataset: { invalidate: apiMocks.invalidateRules },
+        },
+      },
     }),
     evalsV2: {
       options: { useQuery: apiMocks.evaluatorOptionsQuery },
       rules: {
-        list: { useQuery: apiMocks.rulesQuery },
+        listForExperimentDataset: { useQuery: apiMocks.rulesQuery },
         create: { useMutation: apiMocks.createRuleMutation },
         update: { useMutation: apiMocks.updateRuleMutation },
       },
@@ -46,7 +51,7 @@ describe("useExperimentV2EvaluatorSelection", () => {
       isPending: false,
     });
     apiMocks.rulesQuery.mockReturnValue({
-      data: { rules: [] },
+      data: [],
       isPending: false,
     });
     apiMocks.createRuleMutation.mockReturnValue({

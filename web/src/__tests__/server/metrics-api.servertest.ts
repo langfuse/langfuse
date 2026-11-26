@@ -4,7 +4,11 @@ import {
   makeZodVerifiedAPICallSilent,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
+import {
+  GetMetricsV1Query,
+  GetMetricsV2Query,
+  GetMetricsV1Response,
+} from "@/src/features/public-api/types/metrics";
 import {
   createBasicAuthHeader,
   createTrace,
@@ -12,7 +16,25 @@ import {
   createTracesCh,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "@langfuse/shared/query";
+import { query as querySchema, type QueryType } from "@langfuse/shared/query";
+
+describe("metrics timestamp compatibility", () => {
+  it.each(["2024-02-29T06:15Z", "2024-02-29T06:15:00.123+02:30"])(
+    "preserves %s through API and query-engine validation",
+    (fromTimestamp) => {
+      const input = {
+        view: "observations",
+        metrics: [],
+        fromTimestamp,
+        toTimestamp: "2024-03-01T00:00Z",
+      };
+      for (const schema of [GetMetricsV1Query, GetMetricsV2Query]) {
+        const parsed = schema.parse({ query: JSON.stringify(input) }).query;
+        expect(querySchema.parse(parsed)).toMatchObject(input);
+      }
+    },
+  );
+});
 
 describe("/api/public/metrics API Endpoint", () => {
   // Test setup variables

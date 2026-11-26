@@ -1,10 +1,10 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
 import { cn } from "@/src/utils/tailwind";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Command as CommandPrimitive } from "cmdk";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type TagInputProps = React.ComponentPropsWithoutRef<
   typeof CommandPrimitive.Input
@@ -58,7 +58,7 @@ export const TagInput = React.forwardRef<
                 onClick={allowTagRemoval ? () => removeTag(tag) : undefined}
               >
                 {tag}
-                {allowTagRemoval && <X className="ml-1 h-3 w-3" />}
+                {allowTagRemoval && <X size="base" __rawClassName="ml-1" />}
               </Button>
             ))}
           </div>

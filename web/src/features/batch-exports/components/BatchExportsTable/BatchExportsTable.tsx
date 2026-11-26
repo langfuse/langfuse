@@ -1,4 +1,5 @@
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+/* eslint-disable react/no-unstable-nested-components */
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -7,7 +8,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { ActionButton } from "@/src/components/ActionButton";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon } from "@langfuse/icons";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { useMemo } from "react";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -90,7 +91,7 @@ export function BatchExportsTable({
           if (isDownloadable) {
             return (
               <ActionButton
-                icon={<DownloadIcon size={16} />}
+                icon={<DownloadIcon size="base" />}
                 size="sm"
                 loading={downloadingIds.has(id)}
                 onClick={() => onDownload(id)}
@@ -150,7 +151,7 @@ export function BatchExportsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="batchExports"
       columns={columns}
       data={data}

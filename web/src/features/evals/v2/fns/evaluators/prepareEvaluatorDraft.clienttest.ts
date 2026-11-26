@@ -201,6 +201,28 @@ describe("prepareEvaluatorDraft", () => {
       ],
     });
 
+    // OpenAI and Gemini decisions receive the same keyed state as TypeSafe.
+    for (const selectedModel of [
+      { provider: "openai", model: "gpt-6-luna" },
+      { provider: "google", model: "gemini-decision-1" },
+    ]) {
+      expect(
+        prepareEvaluatorDraft({ ...base, selectedModel }).definition
+          ?.variableMapping,
+      ).toEqual([
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: "$.answer",
+        },
+      ]);
+    }
+
     // An unmapped state key blocks saving; the model would never see it.
     expect(
       prepareEvaluatorDraft({

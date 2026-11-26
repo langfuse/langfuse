@@ -83,40 +83,38 @@ export const WithJudgeModel = meta.story({
           onValueChange={setEvaluatorType}
         />
         {evaluatorType === EvalTemplateTypeEnum.LLM_AS_JUDGE ? (
-          <>
-            <JudgeModelPicker
-              open={modelPickerOpen}
-              onOpenChange={setModelPickerOpen}
-              mode={judgeModelMode}
-              defaultModel={{ provider: "OpenAI", model: "gpt-4.1-mini" }}
-              providerGroups={[
-                ["OpenAI", ["gpt-4.1-mini", "gpt-4.1"]],
-                ["Anthropic", ["claude-sonnet-4"]],
-              ]}
-              selectedModel={selectedModel}
-              onModeChange={setJudgeModelMode}
-              onSelectCustom={(model) => {
-                setSelectedModel(model);
-                setJudgeModelMode("custom");
-              }}
-              onConfigureProviders={fn()}
-              onConfigureModel={fn()}
-              canSetProjectDefault
-              onSetProjectDefault={fn()}
-            >
-              <PopoverTrigger asChild>
-                <JudgeModelPickerTrigger
-                  mode={judgeModelMode}
-                  defaultModel={{
-                    provider: "OpenAI",
-                    model: "gpt-4.1-mini",
-                  }}
-                  selectedModel={selectedModel}
-                  disabled={false}
-                />
-              </PopoverTrigger>
-            </JudgeModelPicker>
-          </>
+          <JudgeModelPicker
+            open={modelPickerOpen}
+            onOpenChange={setModelPickerOpen}
+            mode={judgeModelMode}
+            defaultModel={{ provider: "OpenAI", model: "gpt-4.1-mini" }}
+            providerGroups={[
+              ["OpenAI", ["gpt-4.1-mini", "gpt-4.1"]],
+              ["Anthropic", ["claude-sonnet-4"]],
+            ]}
+            selectedModel={selectedModel}
+            onModeChange={setJudgeModelMode}
+            onSelectCustom={(model) => {
+              setSelectedModel(model);
+              setJudgeModelMode("custom");
+            }}
+            onConfigureProviders={fn()}
+            onConfigureModel={fn()}
+            canSetProjectDefault
+            onSetProjectDefault={fn()}
+          >
+            <PopoverTrigger asChild>
+              <JudgeModelPickerTrigger
+                mode={judgeModelMode}
+                defaultModel={{
+                  provider: "OpenAI",
+                  model: "gpt-4.1-mini",
+                }}
+                selectedModel={selectedModel}
+                disabled={false}
+              />
+            </PopoverTrigger>
+          </JudgeModelPicker>
         ) : null}
       </div>
     );

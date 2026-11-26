@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -17,19 +16,22 @@ import { env } from "@/src/env.mjs";
 import {
   filterAndValidateDbLegacyTraceScoreList,
   LangfuseNotFoundError,
+  toAuditLogResourceRef,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getObservationsForTrace,
   getScoresForTraces,
   getTraceById,
-  traceException,
+  logger,
   traceDeletionProcessor,
+  visibleModelsWhere,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { recordPublicApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 
 export default withMiddlewares(
   {
@@ -42,7 +44,7 @@ export default withMiddlewares(
       responseSchema: GetTraceV1Response,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.traceGet,
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth }) => {
+      fn: async ({ query, auth, req }) => {
         const { traceId } = query;
 
         let effectiveFields: readonly TraceFieldGroup[] =
@@ -113,10 +115,7 @@ export default withMiddlewares(
                   id: {
                     in: uniqueModels,
                   },
-                  OR: [
-                    { projectId: auth.scope.projectId },
-                    { projectId: null },
-                  ],
+                  ...visibleModelsWhere(auth.scope.projectId),
                 },
                 include: {
                   Price: {
@@ -152,7 +151,8 @@ export default withMiddlewares(
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
         const validatedScores = filterAndValidateDbLegacyTraceScoreList({
           scores,
-          onParseError: traceException,
+          onParseError: (error) =>
+            logger.warn("Invalid score omitted from response", { error }),
         });
 
         const obsStartTimes = observations
@@ -181,16 +181,46 @@ export default withMiddlewares(
           }
           return undefined;
         })();
+
+        await recordPublicApiAccess(
+          { scope: auth.scope, req },
+          {
+            route: "GET /api/public/traces/{traceId}",
+            resourceType: "trace",
+            resourceId: traceId,
+            action: "read",
+            resourceRefs: [toAuditLogResourceRef("trace", traceId)]
+              .concat(
+                trace.sessionId
+                  ? [toAuditLogResourceRef("session", trace.sessionId)]
+                  : [],
+              )
+              .concat(
+                includeObservations
+                  ? outObservations.map((o) =>
+                      toAuditLogResourceRef("observation", o.id),
+                    )
+                  : [],
+              )
+              .concat(
+                includeScores
+                  ? validatedScores.map((s) =>
+                      toAuditLogResourceRef("score", s.id),
+                    )
+                  : [],
+              ),
+            params: query,
+          },
+        );
+
+        const latencySeconds = latencyMs !== undefined ? latencyMs / 1000 : 0;
+
         return {
           ...trace,
           externalId: null,
           metadata: includeIO ? trace.metadata : {},
           scores: includeScores ? validatedScores : [],
-          latency: includeMetrics
-            ? latencyMs !== undefined
-              ? latencyMs / 1000
-              : 0
-            : -1,
+          latency: includeMetrics ? latencySeconds : -1,
           observations: includeObservations ? outObservations : [],
           htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
           totalCost: includeMetrics
@@ -224,7 +254,13 @@ export default withMiddlewares(
           orgId: auth.scope.orgId,
         });
 
-        await traceDeletionProcessor(auth.scope.projectId, [traceId]);
+        await traceDeletionProcessor(auth.scope.projectId, [traceId], {
+          actor: {
+            type: "API_KEY",
+            apiKeyId: auth.scope.apiKeyId,
+            publicKey: auth.scope.publicKey,
+          },
+        });
 
         return { message: "Trace deleted successfully" };
       },

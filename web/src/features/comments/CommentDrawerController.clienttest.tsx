@@ -12,7 +12,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import {
   CommentDrawerController,
   type CommentDrawerControllerProps,
@@ -31,7 +31,9 @@ const { fetchComments, invalidateComments, router } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
@@ -111,6 +113,7 @@ describe("CommentDrawerController", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open comments" }));
     expect(screen.getByRole("status")).toHaveTextContent(target.objectId);
     expect(fetchComments).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(renderView).toHaveBeenCalledTimes(initialRenders);
     fireEvent.click(screen.getByRole("button", { name: "Close review" }));

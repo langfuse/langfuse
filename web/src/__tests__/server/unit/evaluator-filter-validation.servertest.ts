@@ -1,5 +1,6 @@
 import {
   EvalTargetObject,
+  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
@@ -72,6 +73,35 @@ describe("validateEvaluatorFiltersForTarget", () => {
         },
       ] satisfies FilterState,
     },
+    {
+      targetObject: TopicsTargetObject,
+      filter: [
+        {
+          type: "string",
+          column: "providedModelName",
+          operator: "=",
+          value: "gpt-4o",
+        },
+        {
+          type: "string",
+          column: "Prompt Name",
+          operator: "starts with",
+          value: "support",
+        },
+        {
+          type: "string",
+          column: "statusMessage",
+          operator: "contains",
+          value: "rate limit",
+        },
+        {
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
+        },
+      ] satisfies FilterState,
+    },
   ])(
     "accepts supported filters for $targetObject",
     ({ targetObject, filter }) => {
@@ -127,5 +157,24 @@ describe("validateEvaluatorFiltersForTarget", () => {
       column: "environment",
       expectedColumnType: "stringOptions",
     });
+  });
+
+  it("rejects unsupported trace transcript filters", () => {
+    const result = validateEvaluatorFiltersForTarget({
+      targetObject: TopicsTargetObject,
+      filter: [
+        { type: "number", column: "promptVersion", operator: ">", value: 1 },
+        {
+          type: "string",
+          column: "promptName",
+          operator: "does not contain",
+          value: "support",
+        },
+        { type: "null", column: "sessionId", operator: "is null", value: "" },
+      ] satisfies FilterState,
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.issues.map((issue) => issue.index)).toEqual([0, 1, 2]);
   });
 });

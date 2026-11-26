@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -10,14 +10,12 @@ export function ExperimentInputCell({
   itemId,
   input,
   isLoading,
-  singleLine,
 }: {
   projectId: string;
   datasetId: string | null;
   itemId: string;
   input: string | null | undefined;
   isLoading: boolean;
-  singleLine: boolean;
 }) {
   const router = useRouter();
   const href = datasetId
@@ -25,8 +23,11 @@ export function ExperimentInputCell({
     : null;
 
   return (
+    // `min-h-0 overflow-hidden` keeps this wrapper bounded to the row so the
+    // IO cell's own scrollport can move. Without it the wrapper grows with the
+    // JSON and the row clips the rest.
     <div
-      className={`group relative h-full w-full ${href ? "cursor-pointer pr-6" : ""}`}
+      className={`group relative h-full min-h-0 w-full overflow-hidden ${href ? "cursor-pointer pr-6" : ""}`}
       onClick={(event) => {
         event.stopPropagation();
         if (!href || shouldIgnoreRowClickTarget(event.target)) return;
@@ -44,13 +45,22 @@ export function ExperimentInputCell({
           className="text-muted-foreground hover:text-primary absolute top-1 right-1 rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
           onClick={(event) => event.stopPropagation()}
         >
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+          <ArrowUpRight size="base" aria-hidden />
         </Link>
       ) : null}
+      {/* JSON tree. Row height does not collapse this cell to one line. */}
       {isLoading ? (
-        <ConnectedIOTableCell isLoading singleLine={singleLine} />
+        <ConnectedIOTableCell
+          isLoading
+          followRowHeight={false}
+          singleLine={false}
+        />
       ) : (
-        <ConnectedIOTableCell data={input ?? null} singleLine={singleLine} />
+        <ConnectedIOTableCell
+          data={input ?? null}
+          followRowHeight={false}
+          singleLine={false}
+        />
       )}
     </div>
   );

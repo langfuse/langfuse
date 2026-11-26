@@ -45,6 +45,7 @@ export function prepareDenseSeries(
  * @returns per-dimension sets of isolated row indices; dimensions without any
  *   isolated point are absent, so the common dense case costs the renderer
  *   nothing.
+ * @internal
  */
 export function prepareIsolatedPoints(
   rows: TimeSeriesGroupedRow[],

@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   type FieldRegistry,
   fieldRegistryFromColumns,
-} from "@/src/features/search-bar";
-import type { FilterConfig } from "@/src/features/filters";
+} from "@/src/features/search-bar/lib/fields";
+
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 
 import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
 

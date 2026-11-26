@@ -1,4 +1,4 @@
-import { ListTree } from "lucide-react";
+import { ListTree } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -30,7 +30,7 @@ export function RuleRelationshipButton({
       }
       onClick={onClick}
     >
-      <ListTree className="mr-2 h-4 w-4" />
+      <ListTree size="base" color="default" __rawClassName="mr-2" />
       Rules
       {shouldCallAttention ? (
         <span

@@ -1,3 +1,4 @@
+import { isoDateTime } from "../../utils/zod";
 import { z } from "zod";
 import { singleFilterList } from "../../interfaces/filters";
 
@@ -118,7 +119,7 @@ export const viewDeclaration = z.object({
     .optional(),
 });
 
-const stringDateTime = z.iso.datetime({ offset: true });
+const stringDateTime = isoDateTime({ offset: true });
 
 export const views = z.enum([
   "traces",

@@ -3,8 +3,10 @@ import {
   isSessionScore,
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { showErrorToast } from "@/src/features/notifications";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+import { scoreWriteErrorDescription } from "@/src/utils/trpcValidationError";
 
 export function useScoreMutations() {
   const {
@@ -55,7 +57,12 @@ export function useScoreMutations() {
       if (!variables.id) return;
       // Rollback failed create from cache
       cacheRollbackSet(variables.id);
-      showErrorToast("Failed to create score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to create score",
+        scoreWriteErrorDescription(err),
+        classifyTrpcToastError(err, "score.create"),
+        "WARNING",
+      );
     },
   });
 
@@ -105,7 +112,12 @@ export function useScoreMutations() {
         // No cache entry → was DB-persisted → rollback optimistic update
         cacheRollbackSet(variables.id);
       }
-      showErrorToast("Failed to update score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to update score",
+        scoreWriteErrorDescription(err),
+        classifyTrpcToastError(err, "score.update"),
+        "WARNING",
+      );
     },
   });
 
@@ -122,7 +134,12 @@ export function useScoreMutations() {
     onError: (err, variables, context) => {
       // Rollback
       cacheRollbackDelete(variables.id, context?.previousCacheValue);
-      showErrorToast("Failed to delete score", err.message, "WARNING");
+      showErrorToast(
+        "Failed to delete score",
+        scoreWriteErrorDescription(err),
+        classifyTrpcToastError(err, "score.delete"),
+        "WARNING",
+      );
     },
   });
 

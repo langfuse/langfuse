@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure -- Legacy UI usage retained during migration to design-system components. */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,
@@ -6,10 +6,9 @@ import {
   Copy,
   GripVertical,
   MoreVertical,
-  Plus,
   Trash2,
   TriangleAlert,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   closestCenter,
   DndContext,
@@ -32,13 +31,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import {
@@ -51,14 +47,15 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import { variableFieldsForTarget } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
 } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+import { useEvaluatorPromptSample } from "@/src/features/evals/v2/hooks/useEvaluatorPromptSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
@@ -77,7 +74,7 @@ export function PromptEditor({
   projectId: string;
   store: EvaluatorSetupStore;
 }) {
-  const sampleObject = useEvaluatorSetupSample({ projectId, store });
+  const sampleObject = useEvaluatorPromptSample({ projectId, store });
   return <PromptEditorContent store={store} sampleObject={sampleObject} />;
 }
 
@@ -95,16 +92,21 @@ export function PromptEditorContent({
       promptMessages: state.promptMessages,
       promptMessageIds: state.promptMessageIds,
       variableFields: state.variableFields,
+      targetObject: state.targetObject,
       promptPreviewEnabled: state.promptPreviewEnabled,
       actions: state.actions,
     })),
+  );
+  const variableFields = variableFieldsForTarget(
+    state.targetObject,
+    state.variableFields,
   );
   const combinedPrompt = state.promptMessages
     .map(({ content }) => content)
     .join("\n\n");
   const combinedPrepared = preparePromptEditorState({
     prompt: combinedPrompt,
-    variableFields: state.variableFields,
+    variableFields,
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
@@ -161,7 +163,7 @@ export function PromptEditorContent({
               combinedPrepared={combinedPrepared}
               prepared={preparePromptEditorState({
                 prompt: message.content,
-                variableFields: state.variableFields,
+                variableFields,
                 promptPreviewEnabled: state.promptPreviewEnabled,
                 sampleObject,
               })}
@@ -189,11 +191,9 @@ export function PromptEditorContent({
             />
           ))}
         </SortableContext>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:text-foreground h-6 w-full justify-start gap-1.5 px-0 py-0 text-xs leading-none underline-offset-4 hover:bg-transparent hover:underline"
+        <TextActionButton
+          text="Add message"
+          width="fill"
           onClick={() => {
             state.actions.setPromptPreviewEnabled(false);
             state.actions.addPromptMessage();
@@ -201,10 +201,7 @@ export function PromptEditorContent({
               modification: "message_added",
             });
           }}
-        >
-          <Plus className="h-3.5 w-3.5 shrink-0" />
-          Add message
-        </Button>
+        />
       </div>
       <DragOverlay dropAnimation={null}>
         {activeMessage ? (
@@ -213,9 +210,14 @@ export function PromptEditorContent({
             aria-hidden="true"
             className="bg-secondary text-secondary-foreground flex h-9 w-full items-center gap-2 rounded-md border px-2 shadow-lg"
           >
-            <Badge variant="tertiary" className="h-5 shrink-0">
-              {ROLES.find((role) => role.value === activeMessage.role)?.label}
-            </Badge>
+            <Badge
+              color="filled"
+              size="md"
+              text={
+                ROLES.find((role) => role.value === activeMessage.role)
+                  ?.label ?? ""
+              }
+            />
             <span
               className="min-w-0 truncate text-xs"
               title={activeMessage.content || "Empty message"}
@@ -263,10 +265,11 @@ function SortablePromptMessage({
     .filter(Boolean)
     .join(" ");
   const roleBadge = (
-    <Badge variant="tertiary" className="h-5 shrink-0 gap-1 leading-none">
+    <BadgeShell color="filled" size="md">
       {warningReason ? (
         <TriangleAlert
-          className="text-dark-yellow h-3.5 w-3.5"
+          size="sm"
+          __rawClassName="text-dark-yellow"
           aria-label={
             hasEmptyContent
               ? "Empty prompt message"
@@ -275,7 +278,7 @@ function SortablePromptMessage({
         />
       ) : null}
       {ROLES.find((role) => role.value === message.role)?.label}
-    </Badge>
+    </BadgeShell>
   );
   const {
     attributes,
@@ -308,7 +311,7 @@ function SortablePromptMessage({
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <GripVertical size="base" />
         </button>
       ) : null}
       <PromptVariableEditor
@@ -336,21 +339,26 @@ function SortablePromptMessage({
               onClick={() => setExpanded((current) => !current)}
             >
               <ChevronDown
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0 transition-transform",
+                size="sm"
+                color="default"
+                __rawClassName={cn(
+                  "transition-transform",
                   !expanded && "-translate-x-0.5 -rotate-90",
                 )}
               />
             </Button>
             {messageCount > 1 || message.role !== "user" || warningReason ? (
               warningReason ? (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex" tabIndex={0}>
+                <Tooltip label={warningReason} delay={0}>
+                  {({ getTriggerProps }) => (
+                    <span
+                      {...getTriggerProps()}
+                      className="inline-flex"
+                      tabIndex={0}
+                    >
                       {roleBadge}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{warningReason}</TooltipContent>
+                  )}
                 </Tooltip>
               ) : (
                 roleBadge
@@ -377,7 +385,7 @@ function SortablePromptMessage({
                 aria-label="Prompt message settings"
                 title="Prompt message settings"
               >
-                <MoreVertical className="h-3.5 w-3.5" />
+                <MoreVertical size="sm" color="default" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
@@ -399,7 +407,7 @@ function SortablePromptMessage({
                   >
                     <span className="flex-1">{role.label}</span>
                     {message.role === role.value ? (
-                      <Check className="h-3.5 w-3.5" />
+                      <Check size="base" color="default" />
                     ) : null}
                   </DropdownMenuItem>
                 );
@@ -410,7 +418,7 @@ function SortablePromptMessage({
                   copy(message.content).catch(() => undefined);
                 }}
               >
-                <Copy className="mr-2 h-3.5 w-3.5" />
+                <Copy size="base" color="default" __rawClassName="mr-2" />
                 Copy prompt
               </DropdownMenuItem>
               {messageCount > 1 ? (
@@ -418,7 +426,7 @@ function SortablePromptMessage({
                   className="text-destructive focus:text-destructive"
                   onSelect={onRemove}
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  <Trash2 size="base" __rawClassName="mr-2" />
                   Delete message
                 </DropdownMenuItem>
               ) : null}

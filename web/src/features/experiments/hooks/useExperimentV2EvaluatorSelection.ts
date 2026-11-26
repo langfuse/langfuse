@@ -14,16 +14,24 @@ import {
   isExperimentEvaluationRule,
   observationVariableMappingList,
   stripExperimentRootFilter,
+  TopicsTargetObject,
 } from "@langfuse/shared";
 
 type EvaluationRule =
-  RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
+  RouterOutputs["evalsV2"]["rules"]["listForExperimentDataset"][number];
 
+/** @internal */
 export function getDatasetExperimentRules(
   rules: EvaluationRule[] | undefined,
   datasetId: string,
 ) {
   return (rules ?? []).filter((rule) => {
+    // A trace transcript rule may carry an isExperimentItemRootSpan filter
+    // without being an experiment rule, so it is never a dataset experiment rule.
+    if (rule.targetObject === TopicsTargetObject) {
+      return false;
+    }
+
     if (
       !isExperimentEvaluationRule({
         targetObject: rule.targetObject,
@@ -73,11 +81,10 @@ export function useExperimentV2EvaluatorSelection({
       placeholderData: (previousData) => previousData,
     },
   );
-  const rules = api.evalsV2.rules.list.useQuery(
+  const rules = api.evalsV2.rules.listForExperimentDataset.useQuery(
     {
       projectId,
-      page: 1,
-      limit: 100,
+      datasetId: datasetId ?? "",
     },
     { enabled: enabled && Boolean(datasetId) },
   );
@@ -96,10 +103,7 @@ export function useExperimentV2EvaluatorSelection({
       })),
     [evaluatorOptions.data],
   );
-  const datasetRules = getDatasetExperimentRules(
-    rules.data?.rules,
-    datasetId ?? "",
-  );
+  const datasetRules = getDatasetExperimentRules(rules.data, datasetId ?? "");
   const selectedEvaluatorNames = [
     ...new Set(
       datasetRules
@@ -140,10 +144,10 @@ export function useExperimentV2EvaluatorSelection({
   }, [datasetRules]);
 
   const createRule = api.evalsV2.rules.create.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.create"),
   });
   const updateRule = api.evalsV2.rules.update.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.update"),
   });
   const isUpdating = createRule.isPending || updateRule.isPending;
 
@@ -195,7 +199,10 @@ export function useExperimentV2EvaluatorSelection({
       });
     }
 
-    await utils.evalsV2.rules.list.invalidate();
+    await Promise.all([
+      utils.evalsV2.rules.list.invalidate(),
+      utils.evalsV2.rules.listForExperimentDataset.invalidate(),
+    ]);
   };
 
   return {

@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
-import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
+import { Check, ChevronDown, TriangleAlert, Unlink } from "@langfuse/icons";
 import {
+  TopicsTargetObject,
   type EvalTemplateType,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -15,6 +16,7 @@ import {
 } from "@/src/components/ui/collapsible";
 import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
+import { traceTranscriptMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import { useVariableMappingController } from "@/src/features/evals/v2/hooks/useVariableMappingController";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
@@ -58,9 +60,15 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
     store,
     (state) => state.actions.detachEvaluator,
   );
+  const isTraceTranscript = useStore(
+    store,
+    (state) => state.targetObject === TopicsTargetObject,
+  );
   const variableMapping = useVariableMappingController();
   const isCodeEvaluator = evaluatorType === "CODE";
-  const mapping = variableMappingOverride ?? defaultVariableMapping;
+  const mapping = isTraceTranscript
+    ? traceTranscriptMapping(variableMappingOverride ?? defaultVariableMapping)
+    : (variableMappingOverride ?? defaultVariableMapping);
   const mappings = mapping.map((entry) => ({
     variable: entry.templateVariable,
     fieldState: {
@@ -114,7 +122,8 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                 className="min-w-0 flex-1 justify-start gap-2 px-0 hover:bg-transparent"
               >
                 <ChevronDown
-                  className={`text-foreground-tertiary size-3.5 shrink-0 translate-y-px transition-transform ${open ? "" : "-rotate-90"}`}
+                  size="base"
+                  __rawClassName={`text-foreground-tertiary translate-y-px transition-transform ${open ? "" : "-rotate-90"}`}
                 />
                 <span className="flex min-w-0 items-baseline gap-2">
                   <span className="truncate" title={evaluatorName}>
@@ -126,15 +135,20 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
                       {allVariablesMapped ? (
                         <Check
                           aria-label="All variables mapped"
-                          className="text-dark-green h-3.5 w-3.5"
+                          size="base"
+                          __rawClassName="text-dark-green"
                         />
                       ) : hasInvalidMappings ? (
                         <span
                           aria-label="Some variables are not mapped correctly"
                           title="Some variables are not mapped correctly"
-                          className="text-dark-yellow h-3.5 w-3.5"
+                          className="text-dark-yellow inline-flex shrink-0"
                         >
-                          <TriangleAlert className="h-3.5 w-3.5" aria-hidden />
+                          <TriangleAlert
+                            size="base"
+                            color="default"
+                            aria-hidden
+                          />
                         </span>
                       ) : null}
                     </span>
@@ -152,7 +166,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
             disabled={disabled}
             onClick={() => detachEvaluator(evaluatorId)}
           >
-            <Unlink className="h-3.5 w-3.5" />
+            <Unlink size="base" color="default" />
             Disconnect
           </Button>
         </div>

@@ -2,6 +2,7 @@ import {
   CODE_EVAL_TEMPLATE_VARIABLES,
   EvalTargetObject,
   EvalTemplateType,
+  TopicsTargetObject,
   ForbiddenError,
   InvalidRequestError,
   getCodeEvalVariableMapping,
@@ -23,6 +24,7 @@ import type {
 import {
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { isEqual } from "lodash";
 import { isNotNullOrUndefined } from "@/src/utils/types";
@@ -63,6 +65,7 @@ const LEGACY_TARGET_OBJECTS = [
 
 const visibleRuleWhere = {
   assignments: { none: { evaluator: { type: EvalTemplateType.FACET } } },
+  targetObject: { not: TopicsTargetObject },
 } satisfies Prisma.EvaluationRuleWhereInput;
 
 async function assertNoBlockedBuiltInEvaluators(
@@ -658,6 +661,7 @@ const legacyConfigIdsQuery = (params: {
     JOIN "evaluators" e ON e."id" = a."evaluator_id"
     WHERE r."project_id" = ${params.projectId}
       AND e."type"::text <> ${EvalTemplateType.FACET}
+      AND r."target_object" <> ${TopicsTargetObject}
   ) jc
   WHERE TRUE
   ${params.targetCondition}
@@ -759,8 +763,9 @@ export class LegacyEvalCompatibilityService {
         )})`
       : Prisma.empty;
     const search = params.searchQuery?.trim();
-    const searchCondition = search
-      ? Prisma.sql`AND (jc."score_name" ILIKE ${`%${search}%`} OR jc."rule_name" ILIKE ${`%${search}%`})`
+    const searchPattern = search ? `%${escapeSqlLikePattern(search)}%` : null;
+    const searchCondition = searchPattern
+      ? Prisma.sql`AND (jc."score_name" ILIKE ${searchPattern} OR jc."rule_name" ILIKE ${searchPattern})`
       : Prisma.empty;
     const paginationCondition =
       params.limit !== undefined
@@ -893,7 +898,12 @@ export class LegacyEvalCompatibilityService {
         projectId: params.projectId,
         type: { not: EvalTemplateType.FACET },
         ...(search
-          ? { name: { contains: search, mode: "insensitive" as const } }
+          ? {
+              name: {
+                contains: escapeSqlLikePattern(search),
+                mode: "insensitive" as const,
+              },
+            }
           : {}),
       },
       include: {

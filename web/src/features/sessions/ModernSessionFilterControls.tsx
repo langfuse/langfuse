@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 import {
   type ColumnDefinition,
@@ -26,8 +27,8 @@ import type { useTableViewManager } from "@/src/components/table/table-view-pres
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ViewControllers = Pick<
   ReturnType<typeof useTableViewManager>,
@@ -175,7 +176,6 @@ export function ModernSessionFilterControls({
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,
       viewId: updateView.id,
-      name: updateView.name,
     });
 
     const viewWasApplied =
@@ -258,23 +258,20 @@ export function ModernSessionFilterControls({
     });
   };
 
-  let filterDialogViewActions: ModernSessionFilterDialogViewActions = {
-    type: "none",
-  };
-  if (hasWriteAccess && updateView) {
-    filterDialogViewActions = {
-      type: "update",
-      viewName: updateView.name,
-      isUpdating: updateConfigMutation.isPending,
-      onCreate: openSaveViewDialog,
-      onUpdate: updateCurrentView,
-    };
-  } else if (hasWriteAccess) {
-    filterDialogViewActions = {
-      type: "create",
-      onCreate: openSaveViewDialog,
-    };
-  }
+  const writableViewActions: ModernSessionFilterDialogViewActions = updateView
+    ? {
+        type: "update",
+        viewName: updateView.name,
+        isUpdating: updateConfigMutation.isPending,
+        onCreate: openSaveViewDialog,
+        onUpdate: updateCurrentView,
+      }
+    : {
+        type: "create",
+        onCreate: openSaveViewDialog,
+      };
+  const filterDialogViewActions: ModernSessionFilterDialogViewActions =
+    hasWriteAccess ? writableViewActions : { type: "none" };
 
   return (
     <>
@@ -310,14 +307,18 @@ export function ModernSessionFilterControls({
         ) : null}
       </Dialog>
 
-      <Dialog open={saveViewDialogOpen} onOpenChange={setSaveViewDialogOpen}>
+      <Dialog
+        open={saveViewDialogOpen}
+        onOpenChange={(open) => {
+          setSaveViewDialogOpen(open);
+          if (!open) setFilterDialogOpen(true);
+        }}
+      >
         {saveViewDialogOpen ? (
           <ModernSessionSaveViewDialogContent
+            allowedOwnerships={["PROJECT"]}
+            showOwnership={false}
             isSaving={createMutation.isPending}
-            onCancel={() => {
-              setSaveViewDialogOpen(false);
-              setFilterDialogOpen(true);
-            }}
             onSave={saveView}
           />
         ) : null}

@@ -8,6 +8,9 @@ use serde_json::Value;
 use tokio::{sync::OwnedSemaphorePermit, time::Instant};
 
 use super::Grant;
+use crate::resolution::ProjectId;
+
+pub(crate) const DEFAULT_BATCH_LINGER_MS: u64 = 5_000;
 
 #[derive(Clone, Copy)]
 pub(super) struct BatchPolicy {
@@ -23,7 +26,7 @@ impl Default for BatchPolicy {
         Self {
             max_records: 512,
             max_bytes: 4 * 1024 * 1024,
-            linger: Duration::from_secs(5),
+            linger: Duration::from_millis(DEFAULT_BATCH_LINGER_MS),
             expiry_margin: Duration::from_secs(30),
             max_open: 256,
         }
@@ -38,7 +41,7 @@ pub(super) struct Pending {
 }
 
 impl Pending {
-    pub fn new(
+    pub(super) fn new(
         span: Value,
         bytes: usize,
         link: SpanContext,
@@ -100,18 +103,18 @@ fn due_at(grant: &Grant, opened: Instant, now: Instant, policy: &BatchPolicy) ->
 
 pub(super) struct Batches {
     policy: BatchPolicy,
-    open: HashMap<String, Batch>,
+    open: HashMap<ProjectId, Batch>,
 }
 
 impl Batches {
-    pub fn new(policy: BatchPolicy) -> Self {
+    pub(super) fn new(policy: BatchPolicy) -> Self {
         Self {
             policy,
             open: HashMap::new(),
         }
     }
 
-    pub fn push_record(&mut self, grant: Grant, item: Pending, now: Instant) -> Vec<Flush> {
+    pub(super) fn push_record(&mut self, grant: Grant, item: Pending, now: Instant) -> Vec<Flush> {
         let mut ready = Vec::new();
         let project = grant.project_id.clone();
         if self
@@ -148,25 +151,25 @@ impl Batches {
         ready
     }
 
-    pub fn take_due(&mut self, now: Instant) -> Vec<Flush> {
+    pub(super) fn take_due(&mut self, now: Instant) -> Vec<Flush> {
         self.open
             .extract_if(|_, batch| batch.due <= now)
             .map(|(_, batch)| batch.into_flush())
             .collect()
     }
 
-    pub fn take_all(&mut self) -> Vec<Flush> {
+    pub(super) fn take_all(&mut self) -> Vec<Flush> {
         self.open
             .drain()
             .map(|(_, batch)| batch.into_flush())
             .collect()
     }
 
-    pub fn next_due(&self) -> Option<Instant> {
+    pub(super) fn next_due(&self) -> Option<Instant> {
         self.open.values().map(|batch| batch.due).min()
     }
 
-    fn take_project(&mut self, project: &str) -> Option<Flush> {
+    fn take_project(&mut self, project: &ProjectId) -> Option<Flush> {
         self.open.remove(project).map(Batch::into_flush)
     }
 }

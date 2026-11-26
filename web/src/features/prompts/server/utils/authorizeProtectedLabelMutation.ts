@@ -1,8 +1,13 @@
-import { type Prisma, Role } from "@langfuse/shared/src/db";
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
+import { type Prisma, type Role } from "@langfuse/shared/src/db";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";
-import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { shadowAuthorize } from "@/src/features/public-api/server";
+
+import { env } from "@/src/env.mjs";
+import {
+  type AuthorizationContext,
+  type Decision,
+} from "@/src/features/auth/policy/types";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { checkHasProtectedLabels } from "./checkHasProtectedLabels";
 
 export type ApiKeyProjectContext = {
@@ -14,9 +19,8 @@ export type ApiKeyProjectContext = {
 
 /**
  * Resolve the in-app-agent key creator's project role the same way the worker
- * run executor does: user.admin bypasses membership; otherwise org membership
- * is required and a project membership override wins. Fail closed on missing
- * user, missing org membership, or NONE.
+ * run executor does: org membership is required and a project membership
+ * override wins. Fail closed on missing user, missing org membership, or NONE.
  */
 async function resolveApiKeyCreatorProjectAccess(params: {
   prisma: Prisma.TransactionClient;
@@ -24,20 +28,15 @@ async function resolveApiKeyCreatorProjectAccess(params: {
   projectId: string;
   orgId: string;
 }): Promise<{
-  projectRole?: Role;
-  isAdmin: boolean;
+  projectRole: Role;
 } | null> {
   const user = await params.prisma.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, admin: true },
+    select: { id: true },
   });
 
   if (!user) {
     return null;
-  }
-
-  if (user.admin) {
-    return { isAdmin: true };
   }
 
   const orgMembership = await params.prisma.organizationMembership.findFirst({
@@ -58,14 +57,11 @@ async function resolveApiKeyCreatorProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) {
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" })) {
     return null;
   }
 
-  return {
-    projectRole,
-    isAdmin: false,
-  };
+  return { projectRole };
 }
 
 /**
@@ -103,8 +99,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
   const mayMutateProtectedLabels =
     access !== null &&
     hasProjectAccessByRole({
-      role: access.projectRole ?? Role.MEMBER,
-      admin: access.isAdmin,
+      role: access.projectRole,
       scope: "promptProtectedLabels:CUD",
     });
 
@@ -115,7 +110,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
   }
 }
 
-/** Authorize protected-label mutations for project API keys and their creators. */
+/** authorizeProtectedLabelMutation checks key and creator permissions for protected labels. */
 export async function authorizeProtectedLabelMutation(params: {
   prisma: Prisma.TransactionClient;
   context: ApiKeyProjectContext;
@@ -135,18 +130,55 @@ export async function authorizeProtectedLabelMutation(params: {
     return;
   }
 
-  const decision = shadowAuthorize({
-    ctx: params.ctx,
-    action: "promptProtectedLabels:CUD",
-    resource: { projectId: params.context.projectId },
-    accessLevel: params.context.accessLevel,
-  });
-  if (!decision.success) throw decision.error;
-
-  await assertInAppAgentMayMutateProtectedLabels({
+  const legacyParams = {
     prisma: params.prisma,
     context: params.context,
     protectedLabels,
     forbiddenErrorMessage: params.forbiddenErrorMessage,
+  };
+  const legacyDecision =
+    env.API_AUTH_MIGRATION === "shadow"
+      ? await protectedLabelLegacyDecision(legacyParams)
+      : { success: true as const };
+  assertProtectedLabelPolicy(params, legacyDecision);
+  await assertProtectedLabelLegacyDecision(legacyParams, legacyDecision);
+}
+
+function assertProtectedLabelPolicy(
+  params: Parameters<typeof authorizeProtectedLabelMutation>[0],
+  legacyDecision: Decision,
+): void {
+  const decision = shadowAuthorize({
+    ctx: params.ctx,
+    action: "promptProtectedLabels:CUD",
+    resource: { projectId: params.context.projectId },
+    legacyDecision: legacyDecision.success
+      ? { success: true, scope: { accessLevel: params.context.accessLevel } }
+      : legacyDecision,
   });
+  if (!decision.success) throw decision.error;
+}
+
+/** assertProtectedLabelLegacyDecision reuses the creator check captured for comparison. */
+async function assertProtectedLabelLegacyDecision(
+  params: Parameters<typeof assertInAppAgentMayMutateProtectedLabels>[0],
+  legacyDecision: Decision,
+): Promise<void> {
+  if (!legacyDecision.success) throw legacyDecision.error;
+  if (env.API_AUTH_MIGRATION !== "shadow") {
+    await assertInAppAgentMayMutateProtectedLabels(params);
+  }
+}
+
+/** protectedLabelLegacyDecision captures creator permission denials for shadow comparison. */
+async function protectedLabelLegacyDecision(
+  params: Parameters<typeof assertInAppAgentMayMutateProtectedLabels>[0],
+): Promise<Decision> {
+  try {
+    await assertInAppAgentMayMutateProtectedLabels(params);
+    return { success: true };
+  } catch (error) {
+    if (error instanceof ForbiddenError) return { success: false, error };
+    throw error;
+  }
 }

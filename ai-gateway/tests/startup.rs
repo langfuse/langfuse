@@ -3,15 +3,25 @@ use std::{net::TcpListener, process::Command};
 #[test]
 fn invalid_configuration_exits_without_disclosing_the_value() {
     // Occupy the listener so an ignored setting cannot leave a child server running.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "synchronous test has no Tokio runtime"
+    )]
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     for name in [
         "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT",
+        "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS",
         "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS",
         "LANGFUSE_LOG_LEVEL",
         "LANGFUSE_LOG_FORMAT",
         "LANGFUSE_AI_GATEWAY_WEB_URL",
-        "LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS",
-        "LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS",
+        "LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES",
+        "LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES",
+        "LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES",
+        "LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS",
+        "LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS",
+        "LANGFUSE_AI_GATEWAY_EXTERNAL_GUARDRAIL_TIMEOUT_SECONDS",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
             .env_clear()
@@ -32,6 +42,10 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
 
 #[test]
 fn occupied_listener_exits_unsuccessfully() {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "synchronous test has no Tokio runtime"
+    )]
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_ai-gateway"))
         .env_clear()
@@ -58,6 +72,10 @@ fn occupied_listener_uses_next_port_when_enabled() {
         time::Duration,
     };
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "synchronous test has no Tokio runtime"
+    )]
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let occupied_address = listener.local_addr().unwrap();
     assert_ne!(occupied_address.port(), u16::MAX);

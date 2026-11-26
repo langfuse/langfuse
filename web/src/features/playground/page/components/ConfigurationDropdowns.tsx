@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import { Wrench, Braces, Variable } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Wrench, Braces, Variable, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
 import {
   PlaygroundTools,
@@ -76,23 +76,23 @@ export const ConfigurationDropdowns: React.FC = () => {
   // Helper function to get responsive content (text or icon)
   const getResponsiveContent = (
     fullText: string,
-    IconComponent: React.ComponentType<{ className?: string }>,
+    Icon: IconComponent,
     abbreviation?: string,
   ) => {
     if (isVeryCompact) {
-      return <IconComponent className="h-3 w-3" />;
+      return <Icon size="base" />;
     }
     if (isCompact) {
       return (
         <>
-          <IconComponent className="h-3 w-3" />
+          <Icon size="base" />
           <span className="text-sm">{abbreviation ?? fullText}</span>
         </>
       );
     }
     return (
       <>
-        <IconComponent className="h-3 w-3" />
+        <Icon size="base" />
         <span className="text-sm">{fullText}</span>
       </>
     );
@@ -110,9 +110,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
               {toolsCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {toolsCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(toolsCount)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -168,9 +166,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Schema", Braces)}
               {hasSchema > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {hasSchema}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(hasSchema)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -221,9 +217,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Variables", Variable, "Vars")}
               {variablesCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {variablesCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(variablesCount)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>

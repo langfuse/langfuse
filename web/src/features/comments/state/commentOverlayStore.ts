@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { type CommentObjectType } from "@langfuse/shared";
-import { type SelectionData } from "../contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "../contexts/InlineCommentSelectionProvider";
 
 export type CommentTarget = {
   objectId: string;

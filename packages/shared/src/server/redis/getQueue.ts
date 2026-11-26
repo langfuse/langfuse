@@ -7,7 +7,8 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
-import { TraceBatchQueue } from "./traceBatch";
+import { TopicsSetupQueue, TopicsUpdateQueue } from "../topics/queue";
+import { EventsDispatchQueue } from "./eventsDispatchQueue";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -42,6 +43,7 @@ export function getQueue(
     | QueueName.EvaluationExecution
     | QueueName.EvaluationExecutionSecondaryQueue
     | QueueName.LLMAsJudgeExecution
+    | QueueName.TopicsTrace
     | QueueName.CodeEvalExecution
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
@@ -49,8 +51,12 @@ export function getQueue(
   >,
 ): Queue | null {
   switch (queueName) {
-    case QueueName.TraceBatch:
-      return TraceBatchQueue.getInstance();
+    case QueueName.TopicsUpdate:
+      return TopicsUpdateQueue.getInstance();
+    case QueueName.TopicsSetup:
+      return TopicsSetupQueue.getInstance();
+    case QueueName.EventsDispatch:
+      return EventsDispatchQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:

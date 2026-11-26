@@ -1,0 +1,31 @@
+import {
+  Ban,
+  BotMessageSquare,
+  Building2,
+  Eye,
+  FolderGit2,
+  Network,
+  Radio,
+  ShieldCheck,
+  Star,
+  User,
+  type IconComponent,
+} from "@langfuse/icons";
+
+import { type SystemRole } from "@langfuse/shared/src/db";
+
+/** roleIcons maps every system role to a lucide icon for role pickers and permission popups. */
+export const roleIcons: Record<SystemRole, IconComponent> = {
+  OWNER: ShieldCheck,
+  ADMIN: ShieldCheck,
+  MEMBER: User,
+  VIEWER: Eye,
+  NONE: Ban,
+  LEGACY_PROJECT_API_KEY: FolderGit2,
+  LEGACY_ORGANIZATION_API_KEY: Building2,
+  SCORES_INGEST: Star,
+  INGEST: Radio,
+  APPLICATION: BotMessageSquare,
+  AI_GATEWAY: Network,
+  AI_GATEWAY_INFERENCE: Network,
+};

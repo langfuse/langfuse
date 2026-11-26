@@ -1,11 +1,11 @@
 import { env } from "../../env";
 import {
   OutboundUrlValidationError,
-  type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
   resolveHost,
   validateOutboundUrlHost,
-} from "../outbound-url";
+  type OutboundUrlValidationWhitelist,
+} from "../outbound-url/validation";
 
 export type WebhookValidationWhitelist = OutboundUrlValidationWhitelist;
 export { resolveHost };
@@ -22,6 +22,14 @@ export function whitelistFromEnv(): WebhookValidationWhitelist {
     hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_WEBHOOK_WHITELISTED_IPS || [],
     ip_ranges: env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS || [],
+  };
+}
+
+/** webhookWhitelistFromEnv adds the webhook-only positive host list to the shared exemption list. */
+export function webhookWhitelistFromEnv(): WebhookValidationWhitelist {
+  return {
+    ...whitelistFromEnv(),
+    allowedHosts: env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
   };
 }
 

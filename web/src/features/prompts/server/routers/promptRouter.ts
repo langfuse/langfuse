@@ -1,10 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import {
-  hasEntitlementLimit,
-  throwIfNoEntitlement,
-} from "@/src/features/entitlements/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -48,8 +47,9 @@ import {
   getAggregatedScoresForPromptsFromEvents,
   postgresSearchCondition,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
+import { promptExportLimitMessage } from "@/src/features/prompts/fns/promptExportLimit";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
@@ -119,7 +119,7 @@ export const promptRouter = createTRPCRouter({
 
       const orderByCondition = orderByToPrismaSql(
         normalizeOrderByForTable({
-          orderBy: input.orderBy,
+          orderBy: input.orderBy ?? { column: "createdAt", order: "DESC" },
           expectedTimeColumn: "createdAt",
         }),
         promptsTableCols,
@@ -136,7 +136,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -229,7 +229,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -267,7 +267,8 @@ export const promptRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          promptNames: z.array(z.string()),
+          // Allow longer legacy names when fetching metrics; new names are limited to 255 characters.
+          promptNames: z.array(z.string().max(1500)).max(50),
           ...promptMetricsTimeWindow,
         })
         .refine(isValidPromptMetricsTimeWindow, {
@@ -637,7 +638,15 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        // The deletion has committed; a cache failure must not skip webhooks.
+        try {
+          await promptService.invalidateCache({ projectId });
+        } catch (error) {
+          logger.error(
+            `Failed to invalidate prompt cache after deleting prompts in project ${projectId}`,
+            error,
+          );
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
@@ -1545,10 +1554,11 @@ export const promptRouter = createTRPCRouter({
         where: { projectId: input.projectId },
       });
 
-      if (count > 10_000) {
+      const limitMessage = promptExportLimitMessage(count);
+      if (limitMessage !== null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Project has ${count} prompt versions which exceeds the export limit of 10,000. Please contact support for bulk exports of large projects.`,
+          message: limitMessage,
         });
       }
 

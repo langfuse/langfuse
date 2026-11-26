@@ -414,6 +414,34 @@ describe("V4MigrationDetailsContent", () => {
     ).toHaveTextContent(/1 call · last seen/);
   });
 
+  it("recommends the latest-major method and labels the previous-major fallback", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/scores/{id}",
+        count: 2,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "4.9.0",
+            userAgent: "langfuse-python/4.9.0",
+            count: 2,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    const guidance = screen.getByText(
+      "client.api.scores.get_by_id",
+    ).parentElement!;
+    expect(guidance).toHaveTextContent(
+      "Replace client.api.scores.get_by_id with client.api.scores.get_many(id=...) (SDK v5). On 4.8.1–4.x, use client.api.scores_v3.get_many_v3.",
+    );
+  });
+
   it("shows the caller and exact SDK migration action", () => {
     mocks.migrationData.apiUsage = [
       {
@@ -454,7 +482,8 @@ describe("V4MigrationDetailsContent", () => {
 
     for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
       const caller = screen.getByText(callerName).closest("li");
-      expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(caller).toHaveClass("py-2");
+      expect(caller).not.toHaveClass("border-l-4");
       expect(caller?.firstElementChild).toHaveTextContent(callerName);
       expect(caller?.firstElementChild).toHaveTextContent(/calls? · last seen/);
       expect(
@@ -633,8 +662,35 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.7.1")).toBeInTheDocument();
     expect(screen.getByText("otelcol 0.98.0")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Upgrade guide" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v4-to-v5",
+    );
+    expect(screen.queryByText("· up to date")).not.toBeInTheDocument();
     expect(screen.getByText("· real-time")).toBeInTheDocument();
+  });
+
+  it("shows SDK traffic on the latest major as up to date without an upgrade nudge", () => {
+    mocks.migrationData.sdk = {
+      ...cleanSdkState(),
+      sdkUsageSeries: [
+        makeSdkUsageSeries({ sdkVersion: "5.0.1" }),
+        makeSdkUsageSeries({
+          sdkName: "@langfuse/tracing",
+          sdkVersion: "6.0.0",
+          publicKey: "pk-lf-fedcba0987654321",
+        }),
+      ],
+    };
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getAllByText("· up to date")).toHaveLength(2);
+    expect(screen.queryByText(/is available/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Upgrade guide" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lists only required SDK series in Update SDK and shows compatible ones as detected", () => {
@@ -660,13 +716,15 @@ describe("V4MigrationDetailsContent", () => {
       within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    // Compatible current-major traffic lands in the detected section.
+    expect(
+      screen.getByText("· upgrade required to v5 (>= 4.0.0 also works)"),
+    ).toBeInTheDocument();
+    // Compatible previous-major traffic lands in the detected section.
     expect(
       screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
-    expect(screen.getByText("· up to date")).toBeInTheDocument();
+    expect(screen.getByText(/Python SDK v5 is available/)).toBeInTheDocument();
     expect(
       screen.queryByText("· recommended to upgrade to >= 4.7.0"),
     ).not.toBeInTheDocument();
@@ -719,10 +777,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Python 4.6.9")).toBeInTheDocument();
   });
 
-  it("keeps outdated SDK usage surfaced when a newer version later used the same key", () => {
-    // The check reports what it observed in the lookback window: a newer SDK
-    // ingesting later on the same public key is not evidence that the
-    // outdated usage is gone, so it must not retire the offender.
+  it("keeps a migrated key in Update SDK with a green ingestion note", () => {
     mocks.migrationData.sdk = {
       status: "legacy",
       sdkUsageSeries: [
@@ -742,13 +797,13 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
+    expect(screen.getByText("Update SDK")).toBeInTheDocument();
+    expect(screen.queryByText("Migrated")).not.toBeInTheDocument();
     expect(
-      within(screen.getByText("Update SDK").closest("button")!).getByText("1"),
+      screen.getByText(/now uses the new ingestion API/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Python 2.60.3")).toBeInTheDocument();
-    expect(screen.getByText(/upgrade required/)).toBeInTheDocument();
-    expect(screen.queryByText(/upgrade completed/)).not.toBeInTheDocument();
-    // Compatible series are listed under the detected section, not Update SDK.
+    expect(screen.getByText(/last legacy event/)).toBeInTheDocument();
+    expect(screen.queryByText(/Everything looks good/)).not.toBeInTheDocument();
     expect(
       screen.getByText("Detected V4-compatible instrumentation"),
     ).toBeInTheDocument();
@@ -1186,7 +1241,7 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Halo" }));
     // The panel entry point preselects the assistant: no choice screen.
     const migrationDialog = screen.getByRole("dialog");
     expect(
@@ -1196,7 +1251,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).queryByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
@@ -1222,7 +1277,7 @@ describe("V4MigrationDetailsContent", () => {
 
     // Without AI features the button drops the assistant branding …
     expect(
-      screen.queryByRole("button", { name: "Use Assistant" }),
+      screen.queryByRole("button", { name: "Use Halo" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Update evals" }));
 
@@ -1236,7 +1291,7 @@ describe("V4MigrationDetailsContent", () => {
     ).toBeInTheDocument();
     expect(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     ).toBeInTheDocument();
   });
@@ -1252,7 +1307,7 @@ describe("V4MigrationDetailsContent", () => {
     const migrationDialog = screen.getByRole("dialog");
     fireEvent.click(
       within(migrationDialog).getByRole("button", {
-        name: /^Use Assistant/,
+        name: /^Use Halo/,
       }),
     );
 
@@ -1298,12 +1353,12 @@ describe("V4MigrationHeaderContent", () => {
     // The title stays off the version number: the app shell already shows a v4
     // build, so a "upgrade to v4" headline read as a contradiction.
     expect(
-      screen.getByText("Ensure compatibility after November 16"),
+      screen.getByText("Ensure compatibility after November 19"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Upgrade to v4")).not.toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(screen.getByText(/Langfuse v4 is live/)).toHaveTextContent(
-      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to avoid disruption. See docs.",
+      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Halo. Complete the action items below to avoid disruption. See docs.",
     );
     expect(
       screen.getByRole("link", { name: "full-text search" }),
@@ -1327,9 +1382,10 @@ describe("V4MigrationHeaderContent", () => {
       "href",
       "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators",
     );
-    expect(
-      screen.getByRole("link", { name: "Langfuse Assistant" }),
-    ).toHaveAttribute("href", "https://langfuse.com/docs/langfuse-assistant");
+    expect(screen.getByRole("link", { name: "Langfuse Halo" })).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/langfuse-assistant",
+    );
     expect(screen.getByRole("link", { name: "See docs." })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
@@ -1337,10 +1393,10 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByText(/some features may stop working/),
     ).toHaveTextContent(
-      "After November 16, 2026 some features may stop working if you don't update integrations.",
+      "After November 19, 2026 some features may stop working if you don't update integrations.",
     );
     expect(
-      screen.getByRole("link", { name: "November 16, 2026" }),
+      screen.getByRole("link", { name: "November 19, 2026" }),
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
   });
 
@@ -1355,9 +1411,9 @@ describe("V4MigrationHeaderContent", () => {
     expect(screen.getByText(/features may stop working/)).toHaveTextContent(
       "Some features may stop working if you don't update integrations before your administrator disables the legacy mode.",
     );
-    expect(screen.queryByText(/November 16/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/November 19/)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "November 16, 2026" }),
+      screen.queryByRole("link", { name: "November 19, 2026" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1366,8 +1422,28 @@ describe("V4MigrationHeaderContent", () => {
     // body's top-right corner; without the gutter it overlaps the title.
     render(<V4MigrationHeaderContent titleRowClassName="pr-6" />);
     expect(
-      screen.getByText("Ensure compatibility after November 16").parentElement,
+      screen.getByText("Ensure compatibility after November 19").parentElement,
     ).toHaveClass("pr-6");
+  });
+
+  it("marks the all-clear note with the same check as a migrated row", () => {
+    render(
+      <V4MigrationHeaderContent
+        readiness="action-needed"
+        remainingActionsAreMigrated
+      />,
+    );
+
+    const note = screen.getByRole("alert");
+    expect(note).toHaveAttribute("data-variant", "success");
+    expect(note).toHaveTextContent(
+      "Migration complete. This banner disappears after 3 days without legacy traffic.",
+    );
+    expect(
+      screen.queryByText(/Complete the action items below/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Everything looks good/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Migration is done/)).not.toBeInTheDocument();
   });
 
   it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {
@@ -1436,7 +1512,7 @@ describe("V4MigrationHeaderContent", () => {
     fireEvent.click(createButton);
     expect(mocks.createProjectApiKey).toHaveBeenCalledWith({
       projectId: "project-1",
-      note: "v4-migration-key",
+      name: "v4-migration-key",
     });
 
     await waitFor(() =>
@@ -1502,7 +1578,7 @@ describe("V4MigrationHeaderContent", () => {
     );
     expect(mocks.createProjectApiKey).toHaveBeenLastCalledWith({
       projectId: "project-2",
-      note: "v4-migration-key",
+      name: "v4-migration-key",
     });
   });
 });

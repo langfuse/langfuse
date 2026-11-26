@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { CsvColumnsCard } from "./CsvColumnsCard";
 import { MappingCard } from "./MappingCard";
 import {
@@ -11,17 +11,13 @@ import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/design-system/Progress/Progress";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { InfoIcon, GripVertical } from "lucide-react";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { InfoIcon, GripVertical } from "@langfuse/icons";
 import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
 import { useCsvImport } from "@/src/features/datasets/hooks/useCsvImport";
@@ -201,7 +197,10 @@ export function PreviewCsvImport({
                     </div>
                   ) : (
                     <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
-                      <GripVertical className="text-muted-foreground/70 h-4 w-4 shrink-0" />
+                      <GripVertical
+                        size="base"
+                        __rawClassName="text-muted-foreground/70"
+                      />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                         <span
                           className="truncate text-sm"
@@ -248,15 +247,10 @@ export function PreviewCsvImport({
             >
               Force Objects
             </Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <InfoIcon className="text-muted-foreground h-3.5 w-3.5" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[300px]">
-                When a single csv column is mapped to a dataset item field, wrap
-                its value in an object instead of using the raw value. Example:{" "}
-                {`{"columnName": "value"}`} instead of {`"value"`}
-              </TooltipContent>
+            <Tooltip label='When a single csv column is mapped to a dataset item field, wrap its value in an object instead of using the raw value. Example: {"columnName": "value"} instead of "value"'>
+              {({ getTriggerProps }) => (
+                <InfoIcon size="base" color="muted" {...getTriggerProps()} />
+              )}
             </Tooltip>
           </div>
         )}

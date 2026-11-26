@@ -1,8 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -99,6 +100,7 @@ export const RemoteExperimentDatasetStep = ({
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
+                  // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
                   className="w-full justify-between gap-2 px-2 font-normal"
@@ -131,8 +133,9 @@ export const RemoteExperimentDatasetStep = ({
                         >
                           {dataset.name}
                           <CheckIcon
-                            className={cn(
-                              "ml-auto h-4 w-4",
+                            size="base"
+                            __rawClassName={cn(
+                              "ml-auto",
                               dataset.id === selectedDatasetId
                                 ? "opacity-100"
                                 : "opacity-0",
@@ -147,12 +150,9 @@ export const RemoteExperimentDatasetStep = ({
             </Popover>
           </div>
         ) : (
-          <div className="rounded-md border p-4 text-sm">
-            <div className="font-bold">No datasets found</div>
-            <p className="text-muted-foreground mt-1">
-              Create a dataset before setting up a remote experiment trigger.
-            </p>
-          </div>
+          <Banner title="No datasets found">
+            Create a dataset before setting up a remote experiment trigger.
+          </Banner>
         )}
       </DialogBody>
 

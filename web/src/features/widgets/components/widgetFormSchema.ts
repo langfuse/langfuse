@@ -16,7 +16,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard";
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
 import {
@@ -60,6 +60,7 @@ export function widgetChartTypeSupportsBreakdown(type: string): boolean {
  * (running the function again on its own output always returns null). This
  * prevents infinite React state-update loops when constraints conflict — e.g.
  * HISTOGRAM requires "histogram" aggregation but "count" measure forces "count".
+ * @internal
  */
 export function resolveAggregationAndChartType(params: {
   chartType: string;

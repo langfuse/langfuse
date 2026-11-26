@@ -1,4 +1,5 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import {
   Dialog,
   DialogBody,
@@ -14,7 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/src/components/ui/select";
-import type { CloudRegion } from "@/src/features/organizations";
+import type { CloudRegion } from "@/src/features/organizations/cloudRegions";
 
 export function CloudRegionPicker({
   regions,
@@ -28,7 +29,7 @@ export function CloudRegionPicker({
   isSignUpPage?: boolean;
 }) {
   return (
-    <div className="bg-card mt-8 -mb-10 rounded-lg px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+    <div className="bg-card mt-8 -mb-10 rounded-lg px-6 py-6 text-sm shadow-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:px-10">
       <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm leading-none font-bold">
@@ -63,19 +64,18 @@ export function CloudRegionPicker({
         </Select>
 
         {selectedRegion?.name === "HIPAA" && (
-          <div className="bg-muted/50 text-muted-foreground mt-2 rounded-md p-3 text-xs">
-            <p>
+          <div className="mt-2">
+            <Banner
+              actions={[
+                {
+                  text: "Learn more about HIPAA compliance",
+                  href: "https://langfuse.com/security/hipaa",
+                },
+              ]}
+            >
               The Business Associate Agreement (BAA) is only effective on the
-              Cloud Pro and Teams plans.{" "}
-              <a
-                href="https://langfuse.com/security/hipaa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-link hover:text-link-hover underline"
-              >
-                Learn more about HIPAA compliance →
-              </a>
-            </p>
+              Cloud Pro and Teams plans.
+            </Banner>
           </div>
         )}
       </div>

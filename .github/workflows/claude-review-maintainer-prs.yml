@@ -6,11 +6,16 @@ on:
       - opened
       - ready_for_review
 
+# Cancel superseded PR runs; keep other events independent with a unique group per run.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
+
 jobs:
   comment:
     # Only run on PRs that are not drafts and are from the same repository (i.e., not from forks)
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       issues: write
       pull-requests: write

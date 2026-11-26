@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Edit } from "lucide-react";
-import { AutomationForm } from "./automationForm";
+import { Edit } from "@langfuse/icons";
+import { ConnectedAutomationForm } from "./ConnectedAutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
@@ -11,14 +11,9 @@ import {
   TriggerEventSource,
   type FilterState,
 } from "@langfuse/shared";
-import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import Header from "@/src/components/layouts/header";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { TableCardContainer } from "@/src/components/layouts/TableCardContainer";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
@@ -116,7 +111,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
   return (
     <div className="flex flex-col gap-6">
       {isEditing ? (
-        <AutomationForm
+        <ConnectedAutomationForm
           projectId={projectId}
           onSuccess={handleSaveEdit}
           onCancel={handleCancelEdit}
@@ -135,7 +130,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             actionButtons={
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleEdit}>
-                  <Edit className="mr-2 h-4 w-4" />
+                  <Edit size="base" color="default" __rawClassName="mr-2" />
                   Edit
                 </Button>
                 <DeleteAutomationDialogController
@@ -147,7 +142,7 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                     <Button
                       type="button"
                       variant="outline"
-                      className="border-light-red flex items-center"
+                      className="border-dark-red/30 flex items-center"
                       disabled={disabled !== undefined}
                       onClick={openDialog}
                     >
@@ -169,43 +164,39 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             )}
 
           {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
-            <AutomationForm
+            <ConnectedAutomationForm
               projectId={projectId}
               automation={automationForForm}
               isEditing={false}
             />
           ) : (
-            <TabsBar
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsBarList>
-                <TabsBarTrigger value="executions">
-                  Execution History
-                </TabsBarTrigger>
-                <TabsBarTrigger value="configuration">
-                  Configuration
-                </TabsBarTrigger>
-              </TabsBarList>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <Tabs.List variant="underline">
+                <Tabs.Trigger value="executions" label="Execution History" />
+                <Tabs.Trigger value="configuration" label="Configuration" />
+              </Tabs.List>
 
-              <TabsBarContent value="executions" className="mt-6">
-                <SettingsTableCard>
-                  <AutomationExecutionsTable
+              <Tabs.Content value="executions">
+                <div className="mt-6 mb-4">
+                  <TableCardContainer>
+                    <AutomationExecutionsTable
+                      projectId={projectId}
+                      automationId={automationId}
+                    />
+                  </TableCardContainer>
+                </div>
+              </Tabs.Content>
+
+              <Tabs.Content value="configuration">
+                <div className="mt-6">
+                  <ConnectedAutomationForm
                     projectId={projectId}
-                    automationId={automationId}
+                    automation={automationForForm}
+                    isEditing={false}
                   />
-                </SettingsTableCard>
-              </TabsBarContent>
-
-              <TabsBarContent value="configuration" className="mt-6">
-                <AutomationForm
-                  projectId={projectId}
-                  automation={automationForForm}
-                  isEditing={false}
-                />
-              </TabsBarContent>
-            </TabsBar>
+                </div>
+              </Tabs.Content>
+            </Tabs>
           )}
         </>
       )}

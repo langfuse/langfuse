@@ -1,16 +1,18 @@
 import {
   createEvent,
   createEventsCh,
-  getTraceBatchEventStream,
+  getEventsDispatchEventStream,
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
   getTraceByIdFromEventsTable,
+  getTracesFromEventsTableForPublicApi,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
@@ -23,6 +25,9 @@ import {
   getTotalCostByRule,
   createScoresCh,
   createTraceScore,
+  getUsersFromEventsTable,
+  getUsersCountFromEventsTable,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -35,6 +40,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -64,7 +70,7 @@ const findFilterOption = (
 ) => rows.find((row) => row.column === column && row.value === value);
 
 describe("Clickhouse Events Repository Test", () => {
-  it("streams complete trace batches with full payloads and exact per-trace time bounds", async () => {
+  it("streams complete traces with full payloads and exact per-trace time bounds", async () => {
     const batchProjectId = randomUUID();
     const otherProjectId = randomUUID();
     const firstTraceId = randomUUID();
@@ -191,7 +197,7 @@ describe("Clickhouse Events Repository Test", () => {
     let repeatedIntervalRowCount = 0;
     const foundTraces = new Set<string>();
     const traceGroups: string[] = [];
-    for await (const event of getTraceBatchEventStream({
+    for await (const event of getEventsDispatchEventStream({
       traces: [
         {
           projectId: batchProjectId,
@@ -304,7 +310,7 @@ describe("Clickhouse Events Repository Test", () => {
     await createEventsCh(expectedRows);
 
     const foundSpanIds: string[] = [];
-    for await (const event of getTraceBatchEventStream({ traces })) {
+    for await (const event of getEventsDispatchEventStream({ traces })) {
       foundSpanIds.push(event.span_id);
     }
 
@@ -312,11 +318,6 @@ describe("Clickhouse Events Repository Test", () => {
       expectedRows.map(({ span_id }) => span_id).sort(),
     );
   }, 120_000);
-
-  it("should kill redis connection", () => {
-    // we need at least one test case to avoid hanging
-    // redis connection when everything else is skipped.
-  });
 
   maybe("evaluator execution metrics", () => {
     it("returns evaluator costs from the last seven days excluding test runs", async () => {
@@ -355,6 +356,37 @@ describe("Clickhouse Events Repository Test", () => {
       await expect(
         getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
       ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    });
+
+    it("adds the cost of trace events without the evaluator id", async () => {
+      const evaluatorId = randomUUID();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0.25 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          cost_details: { total: 0.75 },
+        }),
+        // Another trace in the same week, without the evaluator.
+        createEvent({
+          project_id: projectId,
+          type: "GENERATION",
+          cost_details: { total: 5 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1 }]);
     });
 
     it("returns the latest evaluator trace cost", async () => {
@@ -525,6 +557,51 @@ describe("Clickhouse Events Repository Test", () => {
         getEvaluatorExecutionSummaries(projectId, [randomUUID()]),
       ).resolves.toEqual([]);
     });
+
+    it("only counts each evaluator's most recent execution traces so recovered evaluators turn healthy", async () => {
+      const evaluatorId = randomUUID();
+      const busyEvaluatorId = randomUUID();
+      const hourInMicros = 60 * 60 * 1000 * 1000;
+      const now = Date.now() * 1000;
+      await createEventsCh([
+        ...Array.from({ length: 80 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: busyEvaluatorId,
+            level: "ERROR",
+            start_time: now - 30 * 60 * 1000 * 1000,
+          }),
+        ),
+        ...Array.from({ length: 60 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "ERROR",
+            start_time: now - 48 * hourInMicros,
+          }),
+        ),
+        ...Array.from({ length: 50 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "DEFAULT",
+            start_time: now - hourInMicros,
+          }),
+        ),
+      ]);
+
+      const summaries = await getEvaluatorExecutionSummaries(projectId, [
+        evaluatorId,
+        busyEvaluatorId,
+      ]);
+      expect(summaries).toHaveLength(2);
+      expect(summaries).toEqual(
+        expect.arrayContaining([
+          { evaluatorId, total: 50, failed: 0 },
+          { evaluatorId: busyEvaluatorId, total: 50, failed: 50 },
+        ]),
+      );
+    });
   });
 
   maybe("rule execution metrics", () => {
@@ -681,6 +758,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId,
           modelName: `gpt-4-${modelId}`,
           matchPattern: `(?i)^(gpt-?4-${modelId})$`,
@@ -1174,6 +1252,43 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("getAgentGraphDataFromEventsTable", () => {
+    it("bounds start_time by Date binds at millisecond precision", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const start = new Date(
+        Math.floor(Date.now() / 1000) * 1000 - 60_000 + 123,
+      );
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "AGENT",
+          start_time: start.getTime(),
+        }),
+      ]);
+
+      const atStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: start,
+        maxStartTime: start,
+      });
+      expect(atStart).toEqual([expect.objectContaining({ id: observationId })]);
+
+      const afterStart = await getAgentGraphDataFromEventsTable({
+        projectId,
+        traceId,
+        minStartTime: new Date(start.getTime() + 1),
+        maxStartTime: new Date(start.getTime() + 60_000),
+      });
+      expect(afterStart).toEqual([]);
     });
   });
 
@@ -4383,6 +4498,7 @@ describe("Clickhouse Events Repository Test", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          scope: "PROJECT",
           projectId: projectId,
           modelName: `test-model-${modelId}`,
           matchPattern: `(?i)^(test-model-${modelId})$`,
@@ -4578,6 +4694,42 @@ describe("Clickhouse Events Repository Test", () => {
           }),
         ]);
       });
+    });
+  });
+
+  maybe("Trace tags", () => {
+    it("should return the tags of all observations, not only the latest", async () => {
+      const traceId = randomUUID();
+      const sharedTag = `shared-${traceId}`;
+      const middleTag = `middle-${traceId}`;
+      const start = new Date("2026-01-01T00:00:00.000Z").getTime();
+
+      await createEventsCh(
+        [[sharedTag], [sharedTag, middleTag], [sharedTag]].map((tags, i) => {
+          const id = randomUUID();
+          const timestamp = new Date(start + i * 1000);
+          return createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            tags,
+            start_time: timestamp,
+            event_ts: timestamp,
+          });
+        }),
+      );
+
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.tags).toEqual([middleTag, sharedTag]);
+
+      const traces = await getTracesFromEventsTableForPublicApi({
+        projectId,
+        page: 1,
+        limit: 10,
+        tags: middleTag,
+      });
+      expect(traces.map((t) => t.id)).toEqual([traceId]);
     });
   });
 
@@ -5799,5 +5951,138 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("tracing counts by project on the events table", () => {
+  it("counts traces, observations and gateway requests created in the interval, excluding synthetic trace rows", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    const legacyTraceId = randomUUID();
+    const otelTraceId = randomUUID();
+    const start = new Date("2026-01-10T00:00:00.000Z");
+    const end = new Date("2026-01-10T12:00:00.000Z");
+    const inWindow = new Date("2026-01-10T06:00:00.000Z");
+
+    const event = (
+      overrides: Partial<Parameters<typeof createEvent>[0]> & {
+        project_id: string;
+        trace_id: string;
+      },
+    ) => {
+      const spanId = overrides.span_id ?? randomUUID();
+      return createEvent({
+        created_at: inWindow,
+        ...overrides,
+        span_id: spanId,
+        id: spanId,
+      });
+    };
+
+    await createEventsCh([
+      // Ingestion-API trace: synthetic `t-` root row plus two observations.
+      event({
+        project_id: projectA,
+        trace_id: legacyTraceId,
+        span_id: `t-${legacyTraceId}`,
+        type: "SPAN",
+      }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      // OTel-native trace: real root span plus one child, no synthetic row.
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      // Created on the interval bounds: start is inclusive, end is exclusive.
+      event({
+        project_id: projectA,
+        trace_id: randomUUID(),
+        created_at: start,
+      }),
+      event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
+      event({ project_id: projectB, trace_id: randomUUID() }),
+      // AI gateway generations carry the gateway service; outside the window they don't count.
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+        created_at: end,
+      }),
+    ]);
+
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+        projectIds: [projectA, projectB],
+      });
+
+    expect(
+      counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    ).toEqual(
+      [
+        { projectId: projectA, traces: 3, observations: 5, gatewayRequests: 0 },
+        { projectId: projectB, traces: 3, observations: 3, gatewayRequests: 2 },
+      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    );
+  });
+});
+
+describe("users search on the events table", () => {
+  it("matches LIKE wildcard characters in the search query literally", async () => {
+    const projectId = randomUUID();
+    const userIds = [
+      "gpt_4-user",
+      "gpt-4-user",
+      "save 100% user",
+      "save 1000 user",
+      "C:\\home",
+    ];
+    await createEventsCh(
+      userIds.map((userId) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: randomUUID(),
+          project_id: projectId,
+          user_id: userId,
+        }),
+      ),
+    );
+
+    const search = async (searchQuery: string) => {
+      const users = await getUsersFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+        50,
+        0,
+      );
+      const [count] = await getUsersCountFromEventsTable(
+        projectId,
+        [],
+        searchQuery,
+      );
+      return {
+        users: users.map((u) => u.user),
+        count: Number(count.totalCount),
+      };
+    };
+
+    expect(await search("gpt_4")).toEqual({ users: ["gpt_4-user"], count: 1 });
+    expect(await search("100%")).toEqual({
+      users: ["save 100% user"],
+      count: 1,
+    });
+    expect(await search("C:\\")).toEqual({ users: ["C:\\home"], count: 1 });
   });
 });

@@ -1,16 +1,8 @@
-import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { HelpCircle, AlertCircle } from "lucide-react";
+import { type ComponentProps } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { HelpCircle, AlertCircle } from "@langfuse/icons";
 import type { InterpretationResult } from "@/src/features/score-analytics/lib/statistics-utils";
 
 interface MetricCardProps {
@@ -45,21 +37,21 @@ export function MetricCard({
   const displayValue = isPlaceholder ? "--" : value;
 
   // Map interpretation color to badge variant
-  const getBadgeVariant = (color: string) => {
+  const getBadgeColor = (
+    color: string,
+  ): ComponentProps<typeof Badge>["color"] => {
     switch (color) {
       case "green":
-        return "default"; // Green is default in most badge systems
+        return "inverted";
       case "blue":
-        return "secondary";
-      case "yellow":
-        return "outline-solid";
-      case "orange":
-        return "outline-solid";
+        return "filled";
       case "red":
-        return "destructive";
+        return "error";
+      case "yellow":
+      case "orange":
       case "gray":
       default:
-        return "outline-solid";
+        return "outline";
     }
   };
 
@@ -69,16 +61,11 @@ export function MetricCard({
       <div className="flex items-center gap-1">
         <p className="text-muted-foreground text-xs">{label}</p>
         {helpText && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="text-muted-foreground h-3 w-3" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="text-xs">{helpText}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip label={helpText}>
+            {({ getTriggerProps }) => (
+              <HelpCircle size="sm" color="muted" {...getTriggerProps()} />
+            )}
+          </Tooltip>
         )}
       </div>
 
@@ -97,30 +84,29 @@ export function MetricCard({
           !isPlaceholder &&
           !isNA &&
           interpretation.strength !== "N/A" && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant={getBadgeVariant(interpretation.color)}
-                    className="px-1.5 py-0 text-[10px] font-normal opacity-70"
-                  >
-                    {interpretation.strength}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  <p className="text-xs">{interpretation.description}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip label={interpretation.description}>
+              {({ getTriggerProps }) => (
+                <Badge
+                  color={getBadgeColor(interpretation.color)}
+                  size="sm"
+                  text={interpretation.strength}
+                  {...getTriggerProps()}
+                />
+              )}
+            </Tooltip>
           )}
         {warning?.show && !isPlaceholder && !isNA && (
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <AlertCircle className="h-4 w-4 cursor-help text-amber-500" />
-            </HoverCardTrigger>
-            <HoverCardContent className="w-80">
-              {warning.content}
-            </HoverCardContent>
+          <HoverCard
+            content={<div className="w-80 p-3">{warning.content}</div>}
+          >
+            {({ getTriggerProps }) => (
+              <span tabIndex={0} {...getTriggerProps()}>
+                <AlertCircle
+                  size="base"
+                  __rawClassName="cursor-help text-amber-500"
+                />
+              </span>
+            )}
           </HoverCard>
         )}
       </div>

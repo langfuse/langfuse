@@ -10,8 +10,8 @@
  */
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { ChevronDown, ChevronUp } from "@langfuse/icons";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { cn } from "@/src/utils/tailwind";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
@@ -28,7 +28,9 @@ export function CollapsibleBadgeRow({
   // Desktop: unchanged full wrapped badge row.
   if (!isMobile) {
     return (
-      <div className={cn("flex flex-wrap items-center gap-4", className)}>
+      <div
+        className={cn("flex flex-wrap items-center gap-x-4 gap-y-0", className)}
+      >
         {children}
       </div>
     );
@@ -39,7 +41,7 @@ export function CollapsibleBadgeRow({
     <div className="flex items-start gap-1">
       <div
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-4",
+          "flex min-w-0 flex-1 items-center gap-x-4 gap-y-0",
           // Collapsed: one clipped line. `[&>*]:shrink-0` stops flex from
           // squeezing badges below their content width (which made long ones
           // like "Time to first token" wrap vertically into a multi-line row);
@@ -49,21 +51,17 @@ export function CollapsibleBadgeRow({
       >
         {children}
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={expanded ? "Show fewer details" : "Show more details"}
-        aria-expanded={expanded}
-        className="mt-0.5 shrink-0"
-        onClick={() => setExpanded((prev) => !prev)}
-      >
-        {expanded ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
-      </Button>
+      <div className="mt-0.5 flex shrink-0 items-center">
+        <IconButton
+          type="button"
+          variant="ghost"
+          size="xsTouch"
+          label={expanded ? "Show fewer details" : "Show more details"}
+          aria-expanded={expanded}
+          icon={expanded ? ChevronUp : ChevronDown}
+          onClick={() => setExpanded((prev) => !prev)}
+        />
+      </div>
     </div>
   );
 }

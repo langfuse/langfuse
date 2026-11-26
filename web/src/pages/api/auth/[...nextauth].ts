@@ -1,5 +1,7 @@
 import { getAuthOptions } from "@/src/server/auth";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { describeEmailCodeRequest } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { getTurnstileRemoteIp } from "@/src/features/auth/server/verifyTurnstile";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
@@ -167,11 +169,35 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Do whatever you want here, before the request is passed down to `NextAuth`
-  // Pass Google Ads click attribution from first-party cookies so that new
-  // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
-  const authOptions = await getAuthOptions({
-    adClickIds: getAdClickIdsFromRequest(req),
-  });
+  // Users are only created on callback/<provider>, whose segment is the
+  // sign-up's provider id.
+  // Password reset and email sign-up ask NextAuth's email provider for a
+  // code. The sign-in callback verifies this token before that email is sent.
+  //
+  // The Turnstile check itself lives in the `signIn` callback (auth.ts), which
+  // already limits it to the email provider's send request. Only POST
+  // /api/auth/signin/email reads the token, the client IP and the code's
+  // lifetime from the request; every other request gets no request context.
+  const isPasswordResetEmailRequest =
+    req.method === "POST" &&
+    nextAuthAction === "signin" &&
+    nextAuthProvider === "email";
+  const emailCodeRequest = isPasswordResetEmailRequest
+    ? await describeEmailCodeRequest({
+        email: req.body?.email,
+        callbackUrl: req.body?.callbackUrl,
+      })
+    : undefined;
+  const authOptions = await getAuthOptions(
+    getSignupAttributionFromRequest(req, nextAuthProvider),
+    isPasswordResetEmailRequest
+      ? {
+          turnstileToken: req.body?.turnstileToken,
+          turnstileRemoteIp: getTurnstileRemoteIp(req.headers),
+          emailCodeRequest,
+        }
+      : undefined,
+  );
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related

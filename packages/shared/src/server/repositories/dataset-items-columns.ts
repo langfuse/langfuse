@@ -1,5 +1,5 @@
 import { DatasetStatus } from "@prisma/client";
-import { ColumnDefinition } from "../../tableDefinitions";
+import { ColumnDefinition } from "../../tableDefinitions/types";
 
 export const datasetItemsFilterCols: ColumnDefinition[] = [
   {

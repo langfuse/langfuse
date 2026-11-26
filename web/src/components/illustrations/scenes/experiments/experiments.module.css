@@ -1,0 +1,92 @@
+/* Experiments: the chart's lines, guides, hatch and crosshair. Colours come from the --illustration-* tokens. */
+
+.guideSolid {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+}
+.guideDashed {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-dasharray: 7 5.8;
+  stroke-dashoffset: 3.65;
+}
+
+.hatchLine {
+  fill: none;
+  stroke: var(--illustration-line);
+  stroke-width: 1;
+  stroke-opacity: 0.4;
+}
+.area {
+  stroke: none;
+}
+
+.series {
+  fill: none;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.heroLine {
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1.1;
+}
+.otherLine {
+  stroke: var(--illustration-line);
+  stroke-width: 1.1;
+}
+
+.cross {
+  opacity: 0;
+}
+.crossLine {
+  fill: none;
+  stroke: var(--illustration-ink-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.crossDot {
+  fill: var(--illustration-ink);
+}
+.crossHalo {
+  fill: var(--illustration-ink);
+  opacity: 0.15;
+}
+
+/*
+ * The hero chip leads a first build (building) after the stage's lead, like the raised blocks elsewhere; replays
+ * leave it in place. It lifts with the hero (--illustration-lifted).
+ */
+.heroChip {
+  --hero-chip-at: var(--illustration-build-lead, 0ms);
+  transform: translateY(calc(var(--illustration-lifted, 0) * -4px));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .heroChip {
+    transition: transform var(--illustration-lift-for)
+      var(--illustration-lift-ease);
+  }
+  .heroChip.building {
+    animation: hero-chip-in 420ms var(--illustration-ease-out)
+      var(--hero-chip-at) backwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heroChip.building {
+    animation: hero-chip-fade 240ms ease-out var(--hero-chip-at) backwards;
+  }
+}
+@keyframes hero-chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+@keyframes hero-chip-fade {
+  from {
+    opacity: 0;
+  }
+}

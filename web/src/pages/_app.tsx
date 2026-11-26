@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // Must stay the first import: installs a `crypto.randomUUID` fallback for
 // non-secure (plain-HTTP) origins before any other module can call it
 // (LFE-10858).
@@ -17,12 +18,12 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import { plexMono } from "@/src/styles/fonts";
-import { AppLayout } from "@/src/components/layouts/app-layout";
+import { AppLayout } from "@/src/components/layouts/app-layout/AppLayout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -84,24 +85,24 @@ if (typeof window !== "undefined") {
 }
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
-import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { SupportDrawerProvider } from "@/src/features/support-chat";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitProvider";
+import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
-import { InAppAiAgentProvider } from "@/src/features/in-app-agent";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { ScoreCacheProvider } from "@/src/features/scores";
-import { CorrectionCacheProvider } from "@/src/features/corrections";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheProvider";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheProvider";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  V4_BETA_ENABLED_POSTHOG_PROPERTY,
   getPostHogClientConfig,
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
-} from "@/src/features/posthog-analytics";
+} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 
 // Session replay is a Langfuse Cloud feature, so self-hosted never records.
 // The product-analytics gate makes this redundant in HIPAA (PostHog is not
@@ -138,6 +139,7 @@ if (typeof window !== "undefined" && postHogClientConfig) {
       },
     },
     autocapture: false,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     enable_heatmaps: true,
     persistence: "cookie",
   });

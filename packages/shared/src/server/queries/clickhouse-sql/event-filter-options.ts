@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
 import {
   eventsTableCols,
@@ -12,7 +12,10 @@ import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
-import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
+import {
+  buildEventsObservationRowSelection,
+  withoutPositionInTrace,
+} from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
@@ -215,6 +218,16 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     kind: "boolean",
     expression: eventsTableHasParentObservationSql,
     sort: "booleanAsc",
+  },
+  skillNamesAvailable: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_available.skillName)",
+    sort: "countDesc",
+  },
+  skillsNamesLoaded: {
+    kind: "array",
+    expression: "arrayDistinct(e.skills_resource_loaded.skillName)",
+    sort: "countDesc",
   },
   toolNames: {
     kind: "array",
@@ -501,7 +514,7 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
-      filter: params.filter,
+      filter: withoutPositionInTrace(params.filter),
     });
 
   const includeApproxTotal = params.includeApproxCount === true;
@@ -685,7 +698,7 @@ export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
   const { queryBuilder: aggregatedOptionsBuilder } =
     buildEventsObservationRowSelection({
       projectId: params.projectId,
-      filter: params.filter,
+      filter: withoutPositionInTrace(params.filter),
     });
 
   const sampleRows = params.sampleRows ?? 0;

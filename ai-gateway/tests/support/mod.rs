@@ -9,7 +9,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-pub struct TestServer {
+pub(crate) struct TestServer {
     pub address: SocketAddr,
     pub state: GatewayLifecycleState,
     shutdown: Option<oneshot::Sender<()>>,
@@ -17,7 +17,11 @@ pub struct TestServer {
 }
 
 impl TestServer {
-    pub async fn start(app: Router, state: GatewayLifecycleState, budget: Duration) -> Self {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
+    pub(crate) async fn start(app: Router, state: GatewayLifecycleState, budget: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();
@@ -38,11 +42,20 @@ impl TestServer {
         }
     }
 
-    pub fn begin_shutdown(&mut self) {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
+    pub(crate) fn begin_shutdown(&mut self) {
         self.shutdown.take().unwrap().send(()).unwrap();
     }
 
-    pub async fn finish(mut self) -> io::Result<()> {
+    #[expect(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test helper outside #[test]; a panic fails the test"
+    )]
+    pub(crate) async fn finish(mut self) -> io::Result<()> {
         tokio::time::timeout(Duration::from_secs(5), self.task.take().unwrap())
             .await
             .expect("server did not stop")
@@ -57,7 +70,12 @@ impl Drop for TestServer {
     }
 }
 
-pub async fn get(address: SocketAddr, path: &str) -> String {
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test helper outside #[test]; a panic fails the test"
+)]
+pub(crate) async fn get(address: SocketAddr, path: &str) -> String {
     tokio::time::timeout(Duration::from_secs(5), async {
         let mut socket = TcpStream::connect(address).await.unwrap();
         socket

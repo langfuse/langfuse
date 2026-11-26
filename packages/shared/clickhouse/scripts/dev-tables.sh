@@ -183,6 +183,8 @@ clickhouse client \
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events_core;
   TRUNCATE events_full;
+  -- The inserts below fire the billing MVs, so reset their target as well.
+  TRUNCATE billable_events;
 
   -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
   INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,

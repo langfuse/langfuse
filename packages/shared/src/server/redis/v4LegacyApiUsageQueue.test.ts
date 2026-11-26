@@ -13,13 +13,15 @@ describe("V4LegacyApiUsageQueue schedule", () => {
   });
 
   it("removes the legacy repeatable schedules and upserts a job scheduler", async () => {
-    const removeRepeatable = vi.fn().mockResolvedValue(true);
+    const getRepeatableJobs = vi.fn();
+    const removeRepeatableByKey = vi.fn().mockResolvedValue(true);
     const upsertJobScheduler = vi.fn().mockResolvedValue({});
     const on = vi.fn();
 
     vi.doMock("bullmq", () => ({
       Queue: class {
-        removeRepeatable = removeRepeatable;
+        getRepeatableJobs = getRepeatableJobs;
+        removeRepeatableByKey = removeRepeatableByKey;
         upsertJobScheduler = upsertJobScheduler;
         on = on;
       },
@@ -43,6 +45,21 @@ describe("V4LegacyApiUsageQueue schedule", () => {
       await import("./v4LegacyApiUsageQueue.js");
     const { QueueJobs } = await import("../queues.js");
 
+    // Legacy repeatable entries are stored under a hash of their repeat
+    // options, one per pattern the job was ever scheduled with.
+    getRepeatableJobs.mockResolvedValue([
+      {
+        key: "legacy-current-pattern",
+        name: QueueJobs.V4LegacyApiUsageJob,
+        pattern: V4_LEGACY_API_USAGE_CRON_PATTERN,
+      },
+      {
+        key: "legacy-hourly-pattern",
+        name: QueueJobs.V4LegacyApiUsageJob,
+        pattern: "25 * * * *",
+      },
+    ]);
+
     V4LegacyApiUsageQueue.getInstance();
 
     // Scheduling is fire-and-forget from getInstance, so wait for the chain.
@@ -50,23 +67,20 @@ describe("V4LegacyApiUsageQueue schedule", () => {
       expect(upsertJobScheduler).toHaveBeenCalledTimes(1);
     });
 
-    // Legacy repeatable entries are keyed by md5(name + pattern), so both the
-    // current pattern and the pre-migration hourly pattern must be cleaned up.
-    expect(removeRepeatable).toHaveBeenCalledWith(
-      QueueJobs.V4LegacyApiUsageJob,
-      { pattern: V4_LEGACY_API_USAGE_CRON_PATTERN },
+    // Both the current pattern and the pre-migration hourly pattern must be
+    // cleaned up, by their stored keys.
+    expect(removeRepeatableByKey).toHaveBeenCalledTimes(2);
+    expect(removeRepeatableByKey).toHaveBeenCalledWith(
+      "legacy-current-pattern",
     );
-    expect(removeRepeatable).toHaveBeenCalledWith(
-      QueueJobs.V4LegacyApiUsageJob,
-      { pattern: "25 * * * *" },
-    );
+    expect(removeRepeatableByKey).toHaveBeenCalledWith("legacy-hourly-pattern");
     expect(upsertJobScheduler).toHaveBeenCalledWith(
       QueueJobs.V4LegacyApiUsageJob,
       { pattern: V4_LEGACY_API_USAGE_CRON_PATTERN },
       { name: QueueJobs.V4LegacyApiUsageJob, data: {} },
     );
     expect(V4_LEGACY_API_USAGE_CRON_PATTERN).toBe("*/15 * * * *");
-    for (const removeCall of removeRepeatable.mock.invocationCallOrder) {
+    for (const removeCall of removeRepeatableByKey.mock.invocationCallOrder) {
       expect(removeCall).toBeLessThan(
         upsertJobScheduler.mock.invocationCallOrder[0]!,
       );

@@ -49,7 +49,7 @@ export const GetLlmConnectionsV1Response = z
   })
   .strict();
 
-// Decision-model adapters are experimental and not part of the public contract.
+// Decision-model adapters are not part of the public contract.
 const PUBLIC_LLM_ADAPTERS = Object.values(LLMAdapter).filter(
   (adapter) => !isDecisionModelAdapter(adapter),
 ) as [LLMAdapter, ...LLMAdapter[]];
@@ -77,7 +77,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
         ctx.addIssue({
           code: "custom",
           message:
-            "Config is required for Bedrock adapter. Expected: { region: string }",
+            "Config is required for Bedrock adapter. Expected: { region: string, customModelConfig?: Record<string, { modelFamily: 'anthropic' }> }",
           path: ["config"],
         });
         return;
@@ -86,7 +86,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
       if (!configResult.success) {
         ctx.addIssue({
           code: "custom",
-          message: `Invalid Bedrock config: ${configResult.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string }`,
+          message: `Invalid Bedrock config: ${configResult.error.issues.map((e) => e.message).join(", ")}. Expected: { region: string, customModelConfig?: Record<string, { modelFamily: 'anthropic' }> }`,
           path: ["config"],
         });
       }

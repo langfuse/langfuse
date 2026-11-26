@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
-import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { DefinitionStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
 import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/components/NameStepContainer/NameStepContainer";
 import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";

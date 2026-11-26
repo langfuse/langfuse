@@ -1,4 +1,5 @@
-export {
-  default,
-  useAccountSettingsPages,
-} from "@/src/features/account/AccountSettingsPage";
+import { SettingsPage } from "@/src/features/settings/SettingsPage";
+
+export default function AccountSettingsRoute() {
+  return <SettingsPage scope="account" />;
+}

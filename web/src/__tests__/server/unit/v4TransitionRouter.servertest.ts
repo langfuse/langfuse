@@ -1,14 +1,24 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
+import { type Role } from "@langfuse/shared";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
+
+const v4MigrationTopBannerStateMock = vi.hoisted(() => vi.fn());
+vi.mock(
+  "@/src/features/v4-migration/server/v4MigrationTopBannerService",
+  () => ({
+    getV4MigrationTopBannerState: v4MigrationTopBannerStateMock,
+  }),
+);
 
 /**
  * In-memory Redis stand-in for cache tests. Avoids a real localhost:6379
@@ -369,89 +379,61 @@ const createCaller = (
     ...(prisma ? { prisma: prisma as unknown as PrismaClient } : {}),
   });
 
-type SessionUser = NonNullable<Session["user"]>;
-type OrganizationRole = SessionUser["organizations"][number]["role"];
-type ProjectRole =
-  SessionUser["organizations"][number]["projects"][number]["role"];
-
-const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      role,
-      projects:
-        role === "NONE"
-          ? organization.projects.filter((project) => project.id === projectId)
-          : organization.projects,
-    })),
-  },
-});
-
-const createSessionWithProjectRole = (role: ProjectRole): Session => ({
-  ...session,
-  user: {
-    ...session.user!,
-    organizations: session.user!.organizations.map((organization) => ({
-      ...organization,
-      projects: organization.projects.map((project) => ({
-        ...project,
-        role,
-      })),
-    })),
-  },
-});
-
-const session: Session = {
-  expires: "1",
-  user: {
-    id: "user-v4-transition",
-    name: "V4 Transition User",
-    email: "v4-transition@example.com",
-    canCreateOrganizations: true,
+const transitionSession = ({
+  orgRole = "OWNER",
+  projectRole = "ADMIN",
+  onlyFirstProject = false,
+}: {
+  orgRole?: Role;
+  projectRole?: Role;
+  onlyFirstProject?: boolean;
+} = {}): Session =>
+  createSession({
+    user: {
+      id: "user-v4-transition",
+      name: "V4 Transition User",
+      email: "v4-transition@example.com",
+      featureFlags: testFeatureFlags({ templateFlag: false }),
+    },
     organizations: [
       {
         id: orgId,
+        role: orgRole,
         name: "V4 Transition Org",
-        role: "OWNER",
-        plan: "cloud:hobby",
-        cloudConfig: undefined,
-        metadata: {},
         aiFeaturesEnabled: true,
         aiTelemetryEnabled: true,
         projects: [
           {
             id: projectId,
+            role: projectRole,
             name: "V4 Transition Project",
-            role: "ADMIN",
-            deletedAt: null,
             retentionDays: null,
-            hasTraces: false,
-            metadata: {},
             createdAt: new Date(0).toISOString(),
           },
-          {
-            id: secondProjectId,
-            name: "Second Project",
-            role: "ADMIN",
-            deletedAt: null,
-            retentionDays: null,
-            hasTraces: false,
-            metadata: {},
-            createdAt: new Date(0).toISOString(),
-          },
+          ...(onlyFirstProject
+            ? []
+            : [
+                {
+                  id: secondProjectId,
+                  role: projectRole,
+                  name: "Second Project",
+                  retentionDays: null,
+                  createdAt: new Date(0).toISOString(),
+                },
+              ]),
         ],
       },
     ],
-    featureFlags: testFeatureFlags({ templateFlag: false }),
-    admin: false,
-  },
-  environment: {
-    enableExperimentalFeatures: false,
-    selfHostedInstancePlan: "cloud:hobby",
-  },
-};
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
+
+const createSessionWithOrgRole = (role: Role): Session =>
+  transitionSession({ orgRole: role, onlyFirstProject: role === "NONE" });
+
+const createSessionWithProjectRole = (role: Role): Session =>
+  transitionSession({ projectRole: role });
+
+const session: Session = transitionSession();
 
 const accessibleProjectsFindManyArgs = {
   where: {
@@ -573,6 +555,20 @@ describe("v4TransitionRouter", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it("uses an authenticated account-wide migration banner procedure", async () => {
+    v4MigrationTopBannerStateMock.mockResolvedValue({
+      severity: "off",
+      message: null,
+      actionNeededCount: 0,
+    });
+
+    await createCaller().legacyApiBannerState();
+
+    expect(v4MigrationTopBannerStateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+      "orgId",
+    );
   });
 
   it("serves legacy public API usage from Redis without querying ClickHouse", async () => {

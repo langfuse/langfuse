@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../db";
 import { Prisma } from "../../db";
 import { filterOperators } from "../../interfaces/filters";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 
 /**
  * Supported object types for comment filtering
@@ -123,6 +124,7 @@ export async function getObjectIdsByCommentContent({
 
   // For other operators, use Prisma's query builder with ILIKE
   let whereCondition: Prisma.CommentWhereInput;
+  const escapedQuery = escapeSqlLikePattern(searchQuery);
 
   if (operator === "does not contain") {
     whereCondition = {
@@ -130,7 +132,7 @@ export async function getObjectIdsByCommentContent({
       objectType,
       NOT: {
         content: {
-          contains: searchQuery,
+          contains: escapedQuery,
           mode: "insensitive",
         },
       },
@@ -140,7 +142,7 @@ export async function getObjectIdsByCommentContent({
       projectId,
       objectType,
       content: {
-        startsWith: searchQuery,
+        startsWith: escapedQuery,
         mode: "insensitive",
       },
     };
@@ -149,17 +151,23 @@ export async function getObjectIdsByCommentContent({
       projectId,
       objectType,
       content: {
-        endsWith: searchQuery,
+        endsWith: escapedQuery,
         mode: "insensitive",
       },
     };
+  } else if (operator === "=") {
+    whereCondition = {
+      projectId,
+      objectType,
+      content: { equals: searchQuery },
+    };
   } else {
-    // Default to contains (for "=" operator which maps to exact match in string filters)
+    // "is not empty": an empty pattern matches any comment
     whereCondition = {
       projectId,
       objectType,
       content: {
-        contains: searchQuery,
+        contains: escapedQuery,
         mode: "insensitive",
       },
     };

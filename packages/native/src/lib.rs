@@ -5,11 +5,30 @@
 //! `metrics` and `tracing` facades set up in [`telemetry`]; it never hands
 //! values back for Node to record.
 
+mod command_paths;
+
 /// Rust-only encoder for prepared v4 `events_full` rows.
 pub mod native_codec;
-mod native_js;
-pub(crate) mod native_schema;
+mod native_columns;
+mod native_memory;
+mod native_owned;
+pub mod native_schema;
+mod native_task;
+pub mod otel;
+pub mod otel_enrichment;
+mod otel_input;
+pub mod otel_media;
+mod otel_media_task;
+mod otel_pipeline;
 mod telemetry;
+mod topics;
+
+pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
+
+pub use otel_input::{
+    extract_otel_media, has_otel_media_candidate, prepare_otel_json, validate_otel_json,
+    EarlyOtelBatch, ValidatedOtelJson,
+};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,20 +60,11 @@ pub struct PreparedEventIds {
 #[napi]
 pub struct PreparedEvent {
     row: Arc<native_schema::PreparedEventRow>,
+    memory: Arc<native_memory::NativeMemory>,
 }
 
 #[napi]
 impl PreparedEvent {
-    /// Read a storage-ready row into owned Rust fields. JSON-valued String columns such as
-    /// `model_parameters` must already be serialized by TypeScript; `event_bytes` must be supplied
-    /// after overflow handling and accounting. This constructor never serializes the JS row.
-    #[napi(constructor, ts_args_type = "row: object")]
-    pub fn new(row: Unknown<'_>) -> Result<Self> {
-        let row = native_schema::PreparedEventRow::from_js(row)
-            .map_err(|error| Error::from_reason(format!("prepared event: {error}")))?;
-        Ok(Self { row: Arc::new(row) })
-    }
-
     #[napi(getter)]
     pub fn ids(&self) -> PreparedEventIds {
         PreparedEventIds {
@@ -88,6 +98,7 @@ pub struct PreparedEventColumn {
 pub struct EncodeClickhouseEventsTask {
     rows: Vec<Arc<native_schema::PreparedEventRow>>,
     max_rows_per_block: usize,
+    _memory: Vec<Arc<native_memory::NativeMemory>>,
 }
 
 impl Task for EncodeClickhouseEventsTask {
@@ -95,8 +106,11 @@ impl Task for EncodeClickhouseEventsTask {
     type JsValue = Vec<NativeEventBlock>;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
-            .map_err(Error::from_reason)
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            native_codec::encode_v4_native_blocks(&self.rows, self.max_rows_per_block)
+        }))
+        .map_err(|_| Error::from_reason("native encoding task panicked"))?
+        .map_err(Error::from_reason)
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -105,13 +119,10 @@ impl Task for EncodeClickhouseEventsTask {
             .map(|block| {
                 let row_count = u32::try_from(block.row_count)
                     .map_err(|_| Error::from_reason("Native block row count exceeds UInt32"))?;
-                // The encoder returns a fresh, uniquely owned allocation. Vec takes it over,
-                // then napi wraps the same memory in a JS Buffer whose GC finalizer frees it.
-                // This handoff does not copy the payload. If the runtime forbids external
-                // buffers, napi-rs copies it into Node-owned memory instead. Shared or sliced
-                // Bytes would not have the same no-copy guarantee when converted to Vec.
+                // napi wraps the owned Vec in a JS Buffer whose GC finalizer frees it.
+                // If the runtime forbids external buffers, napi-rs copies it instead.
                 Ok(NativeEventBlock {
-                    bytes: Buffer::from(Vec::from(block.bytes)),
+                    bytes: Buffer::from(block.bytes),
                     row_count,
                 })
             })
@@ -149,6 +160,7 @@ pub fn encode_clickhouse_events(
 ) -> Result<AsyncTask<EncodeClickhouseEventsTask>> {
     let max_rows_per_block = checked_max_rows_per_block(max_rows_per_block)?;
     let mut prepared_rows = Vec::with_capacity(rows.len() as usize);
+    let mut memory = Vec::with_capacity(rows.len() as usize);
     // napi's Array is a JS handle with indexed access, not a Rust slice with an iterator.
     // Retain each immutable Rust row for the background task before leaving the JS thread:
     // Arc::clone increments a reference count without copying fields, and keeps the row alive
@@ -158,11 +170,13 @@ pub fn encode_clickhouse_events(
             .get::<ClassInstance<'_, PreparedEvent>>(index)?
             .ok_or_else(|| Error::from_reason(format!("missing row at index {index}")))?;
         prepared_rows.push(Arc::clone(&event.row));
+        memory.push(Arc::clone(&event.memory));
     }
 
     Ok(AsyncTask::new(EncodeClickhouseEventsTask {
         rows: prepared_rows,
         max_rows_per_block,
+        _memory: memory,
     }))
 }
 

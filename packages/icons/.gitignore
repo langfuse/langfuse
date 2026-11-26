@@ -1,0 +1,6 @@
+# Regenerated during setup and by the build task.
+/dist/
+/src/index.ts
+/src/si.ts
+/src/tb.ts
+/src/generated/

@@ -320,11 +320,33 @@ describe("getActivationCostEstimates", () => {
       filter: [],
       sampling: 1,
       shouldReadFromObservationsTable: false,
-      shouldRunMissingTest: false,
+      missingCostMode: "wait",
     });
 
     expect(mocks.testEvaluator).not.toHaveBeenCalled();
     expect(result[0]?.testRunCostUsd).toBe(0.02);
+  });
+
+  it("does not poll or probe when missing costs are skipped", async () => {
+    mocks.getLatestEvaluatorRunCost.mockResolvedValue(null);
+
+    const result = await getActivationCostEstimates({
+      orgId: "org-id",
+      projectId: "project-id",
+      evaluatorIds: ["evaluator-id"],
+      filter: [],
+      sampling: 1,
+      missingCostMode: "skip",
+      shouldReadFromObservationsTable: false,
+    });
+
+    expect(mocks.getLatestEvaluatorRunCost).toHaveBeenCalledOnce();
+    expect(
+      mocks.getObservationsWithModelDataFromEventsTable,
+    ).not.toHaveBeenCalled();
+    expect(mocks.testEvaluator).not.toHaveBeenCalled();
+    expect(result[0]?.testRunCostUsd).toBeNull();
+    expect(result[0]?.estimatedCostUsd).toBeNull();
   });
 
   it("uses a known test cost when no recent trace is indexed yet", async () => {
@@ -337,7 +359,7 @@ describe("getActivationCostEstimates", () => {
       filter: [],
       sampling: 0.5,
       knownTestRunCostUsd: 0.03,
-      shouldRunMissingTest: false,
+      missingCostMode: "wait",
       shouldReadFromObservationsTable: false,
     });
 

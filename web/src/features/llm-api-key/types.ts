@@ -4,10 +4,9 @@ import {
   BedrockConfigSchema,
   OpenAIConfigSchema,
   VertexAIConfigSchema,
-  LLMApiKeySchema,
 } from "@langfuse/shared";
 
-const LlmApiKeySchema = z.object({
+const LlmApiKeyInputSchema = z.object({
   projectId: z.string(),
   provider: z
     .string()
@@ -23,11 +22,15 @@ const LlmApiKeySchema = z.object({
   extraHeaders: z.record(z.string(), z.string()).optional(),
 });
 
-export const CreateLlmApiKey = LlmApiKeySchema.extend({
+// The form's nonce for a Bedrock IAM role external ID.
+const BedrockExternalIdNonce = z.uuid().optional();
+
+export const CreateLlmApiKey = LlmApiKeyInputSchema.extend({
   secretKey: z.string().min(1),
+  bedrockExternalIdNonce: BedrockExternalIdNonce,
 });
 
-export const UpdateLlmApiKey = LlmApiKeySchema.extend({
+export const UpdateLlmApiKey = LlmApiKeyInputSchema.extend({
   secretKey: z
     .string()
     .optional()
@@ -36,24 +39,33 @@ export const UpdateLlmApiKey = LlmApiKeySchema.extend({
       "Secret key must be at least 1 character long",
     ),
   id: z.string(),
+  bedrockExternalIdNonce: BedrockExternalIdNonce,
+});
+
+export const CreateOrganizationLlmApiKey = CreateLlmApiKey.omit({
+  projectId: true,
+}).extend({
+  orgId: z.string(),
+});
+
+export const UpdateOrganizationLlmApiKey = UpdateLlmApiKey.omit({
+  projectId: true,
+}).extend({
+  orgId: z.string(),
 });
 
 export const AuthMethod = {
   ApiKey: "api-key",
   AccessKeys: "access-keys",
   DefaultCredentials: "default-credentials",
+  IamRole: "iam-role",
 } as const;
 
 export const BedrockAuthMethodSchema = z.enum([
   AuthMethod.ApiKey,
   AuthMethod.AccessKeys,
   AuthMethod.DefaultCredentials,
+  AuthMethod.IamRole,
 ]);
 
 export type BedrockAuthMethod = z.infer<typeof BedrockAuthMethodSchema>;
-
-export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
-  secretKey: z.undefined(),
-  extraHeaders: z.undefined(),
-  authMethod: BedrockAuthMethodSchema.optional(),
-});

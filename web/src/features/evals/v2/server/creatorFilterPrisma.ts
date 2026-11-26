@@ -1,5 +1,8 @@
 import type { FilterState } from "@langfuse/shared";
-import { stringFilterToPrisma } from "@langfuse/shared/src/server";
+import {
+  escapeSqlLikePattern,
+  stringFilterToPrisma,
+} from "@langfuse/shared/src/server";
 
 type StringFilter = Extract<FilterState[number], { type: "string" }>;
 type StringOptionsFilter = Extract<
@@ -48,10 +51,18 @@ export function creatorOptionsWhere(filter: StringOptionsFilter) {
           createdByUser: {
             is: {
               OR: [
-                { name: { equals: value, mode: "insensitive" as const } },
+                {
+                  name: {
+                    equals: escapeSqlLikePattern(value),
+                    mode: "insensitive" as const,
+                  },
+                },
                 {
                   name: null,
-                  email: { equals: value, mode: "insensitive" as const },
+                  email: {
+                    equals: escapeSqlLikePattern(value),
+                    mode: "insensitive" as const,
+                  },
                 },
               ],
             },

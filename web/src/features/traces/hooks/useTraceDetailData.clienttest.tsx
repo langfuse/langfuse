@@ -30,6 +30,7 @@ vi.mock("@/src/features/events/hooks/useEventsTraceData", () => ({
 // The traces-table query hook always runs (it's a hook; enabled:false on the
 // beta path), so it only needs to return a query-shaped object.
 vi.mock("@/src/utils/api", () => ({
+  shouldRetryResourceQuery: vi.fn(),
   api: {
     public: {
       traceReadConfig: {

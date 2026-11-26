@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
+  session: vi.fn(),
   createOutput: vi.fn(),
   createToolSet: vi.fn(),
   findConnection: vi.fn(),
@@ -13,15 +14,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({
-  env: { LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map() },
+  env: {
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map(),
+  },
 }));
 
-vi.mock("@/src/features/playground/server/authorizeRequest", () => ({
-  authorizeRequestOrThrow: mocks.authorize,
-}));
-
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { llmApiKeys: { findFirst: mocks.findConnection } },
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSessionForRequest: mocks.session,
 }));
 
 vi.mock("@opentelemetry/api", () => ({
@@ -43,6 +42,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createLLMToolSet: mocks.createToolSet,
     generateLLMText: mocks.generate,
     mapLegacyLLMCompletionParams: mocks.mapLegacyParams,
+    resolveLlmApiKey: mocks.findConnection,
     streamLLMText: mocks.stream,
   };
 });
@@ -90,10 +90,18 @@ function createRequest(body: Record<string, unknown>) {
   });
 }
 
+function adminSession(projectId = baseBody.projectId) {
+  return createSession({
+    organizations: [
+      { id: "org-1", role: "ADMIN", projects: [{ id: projectId }] },
+    ],
+  });
+}
+
 describe("chatCompletionHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.authorize.mockResolvedValue({ userId: "user-1" });
+    mocks.session.mockResolvedValue(adminSession());
     mocks.findConnection.mockResolvedValue({
       id: "connection-1",
       secretKey: "encrypted-key",

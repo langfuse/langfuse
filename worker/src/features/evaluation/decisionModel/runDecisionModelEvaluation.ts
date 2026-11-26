@@ -18,12 +18,17 @@ import {
   EvaluatorBlockSource,
   executeDecisionModelEvaluator,
   instrumentAsync,
-  isDecisionModelAdapter,
+  isAllowedDecisionModel,
   logger,
+  unsupportedDecisionModelMessage,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
-import { createW3CTraceId } from "../../utils";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../evalFailureErrors";
+import { createW3CTraceId } from "../../utils/utilities";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 import {
@@ -113,8 +118,18 @@ export async function runDecisionModelEvaluation({
       let modelConfigError: string | null = null;
       if (!modelConfig.valid) {
         modelConfigError = modelConfig.error;
-      } else if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
-        modelConfigError = `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
+      } else if (
+        !isAllowedDecisionModel(
+          modelConfig.config.apiKey.adapter,
+          modelConfig.config.model,
+        )
+      ) {
+        modelConfigError =
+          unsupportedDecisionModelMessage(
+            modelConfig.config.apiKey.adapter,
+            modelConfig.config.model,
+          ) ??
+          `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
       }
       if (!modelConfig.valid || modelConfigError !== null) {
         const blockReason = getBlockReasonForInvalidModelConfig({
@@ -135,8 +150,9 @@ export async function runDecisionModelEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfigError}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfigError}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -170,7 +186,10 @@ export async function runDecisionModelEvaluation({
       } catch (e) {
         if (e instanceof DecisionModelEvaluatorError) {
           span.setAttribute("eval.execution.outcome", "invalid_model_output");
-          throw new UnrecoverableError(e.message);
+          throw new UnrecoverableEvalFailureError(
+            e.message,
+            EvalFailureReason.InvalidModelOutput,
+          );
         }
 
         const classification = classifyEvaluatorLlmError(e);

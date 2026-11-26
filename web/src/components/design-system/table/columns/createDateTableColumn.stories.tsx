@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import preview from "../../../../../.storybook/preview";
 
 import {
@@ -10,15 +12,22 @@ type Row = {
   timestamp: Date | null;
 };
 
-const columns = [
-  createDateTableColumn<Row>({
-    id: "timestamp",
-    accessorFn: (row) => row.timestamp,
-    header: "Date",
-  }),
-];
+function DateTableColumnStory({
+  data,
+  getPrefix,
+}: {
+  data: AsyncTableData<Row[]>;
+  getPrefix?: (value: Date) => ReactNode;
+}) {
+  const columns = [
+    createDateTableColumn<Row>({
+      id: "timestamp",
+      accessorFn: (row) => row.timestamp,
+      header: "Date",
+      getPrefix,
+    }),
+  ];
 
-function DateTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
   return (
     <DataTable
       tableName="date-column-story"
@@ -55,6 +64,18 @@ export const EmptyValue = meta.story({
       isError: false,
       data: [{ timestamp: null }],
     },
+  },
+});
+
+export const WithPrefix = meta.story({
+  name: "With Prefix",
+  args: {
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ timestamp: new Date("2026-01-15T10:30:00.000Z") }],
+    },
+    getPrefix: () => "Started on ",
   },
 });
 

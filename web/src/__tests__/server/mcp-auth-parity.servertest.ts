@@ -1,13 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
+import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 import mcpHandler from "@/src/pages/api/public/mcp";
 
@@ -17,10 +24,8 @@ import mcpHandler from "@/src/pages/api/public/mcp";
 // route resolves auth through shadowAuth before the transport, so a single POST
 // initialize exercises the connection seam. Value is status only.
 //
-// Auth only ever emits 401/403, so a cell reading past auth carries a transport
-// status instead: node-mocks-http cannot complete a streaming initialize, so an
-// authenticated request lands on 400 here. The signal is 400 (past auth) vs
-// 401/403 (denied); mcp-auth.servertest.ts covers the real 200 over fetch.
+// Auth only ever emits 401/403, so a cell reading past auth carries the
+// transport's status instead: an authenticated initialize completes with 200.
 
 type ApiKeyKind = "project" | "agent" | "org" | "admin";
 const apiKeyKinds: ApiKeyKind[] = ["project", "agent", "org", "admin"];
@@ -140,17 +145,25 @@ describe("MCP connection auth parity", () => {
     fixtureProjectId = base.projectId;
     keys.project = { publicKey: base.publicKey, secretKey: base.secretKey };
 
-    const org = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.orgId,
-      scope: "ORGANIZATION",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const org = await createApiKey(prisma, {
+      tenant: OrganizationId(base.orgId),
+      scope: OrganizationId(base.orgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(orgKeyCreator.id),
     });
     keys.org = { publicKey: org.publicKey, secretKey: org.secretKey };
 
-    const agent = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: base.projectId,
-      scope: "PROJECT",
+    const agentKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const agent = await createApiKey(prisma, {
+      tenant: OrganizationId(base.orgId),
+      scope: ProjectId(base.projectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(agentKeyCreator.id),
       isInAppAgentKey: true,
     });
     keys.agent = { publicKey: agent.publicKey, secretKey: agent.secretKey };

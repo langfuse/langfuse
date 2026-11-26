@@ -1,5 +1,6 @@
 import {
   logger,
+  buildSlackLinkSection,
   escapeSlackMrkdwn,
   type WebhookInput,
   type SlackMessage,
@@ -10,6 +11,11 @@ type WebhookInputPayload = WebhookInput["payload"];
 type PromptVersionPayload = Extract<
   WebhookInputPayload,
   { type: "prompt-version" }
+>;
+
+type SkillVersionPayload = Extract<
+  WebhookInputPayload,
+  { type: "skill-version" }
 >;
 
 const getProductBaseUrl = () => {
@@ -108,29 +114,46 @@ export class SlackMessageBuilder {
             },
           ]
         : []),
-      // Action buttons
       ...(promptUrl
-        ? [
-            {
-              type: "actions",
-              elements: [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "View Prompt",
-                    emoji: true,
-                  },
-                  url: promptUrl,
-                  style: "primary",
-                },
-              ],
-            },
-          ]
+        ? [buildSlackLinkSection([{ label: "View Prompt", url: promptUrl }])]
         : []),
     ];
 
     return blocks;
+  }
+
+  static buildSkillVersionMessage(
+    payload: SkillVersionPayload,
+  ): SlackMessage["blocks"] {
+    const { skill, action } = payload;
+    const baseUrl = getProductBaseUrl();
+    const url = baseUrl
+      ? new URL(
+          `project/${skill.projectId}/skills/${encodeURIComponent(skill.name)}`,
+          baseUrl,
+        )
+      : undefined;
+    url?.searchParams.set("version", String(skill.version));
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `Skill ${action}` },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${escapeSlackMrkdwn(skill.name)}* (version ${skill.version}) has been *${action}*`,
+        },
+      },
+      ...(url
+        ? [
+            buildSlackLinkSection([
+              { label: "View Skill", url: url.toString() },
+            ]),
+          ]
+        : []),
+    ];
   }
 
   /**
@@ -190,6 +213,8 @@ export class SlackMessageBuilder {
   static buildMessage(payload: WebhookInputPayload): SlackMessage {
     try {
       switch (payload.type) {
+        case "skill-version":
+          return { blocks: this.buildSkillVersionMessage(payload) };
         case "prompt-version":
           return { blocks: this.buildPromptVersionMessage(payload) };
         default: {

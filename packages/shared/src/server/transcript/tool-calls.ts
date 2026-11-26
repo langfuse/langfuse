@@ -1,40 +1,46 @@
+import { toolResultOutput } from "../../utils/normalized-io/core/normalize/message-parts/tool-results";
 import type {
   NormalizedMessage,
   ToolCallPart,
+  ToolResultContentPart,
 } from "../../utils/normalized-io";
 import type { ThreadMessage } from "./types";
 import {
   addContributor,
-  type AssembledTurn,
-  type KeyedMessage,
+  type ThreadState,
   type TranscriptObservation,
 } from "./threads";
 
 type Call = {
-  thread: AssembledTurn;
+  part: ToolCallPart;
+  thread: ThreadState;
   message: ThreadMessage;
   response?: ThreadMessage;
   fromTool?: boolean;
 };
+type Part = NormalizedMessage["parts"][number];
 const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
+
+export type ToolCallRegistry = ReturnType<typeof createToolCallRegistry>;
 
 export function createToolCallRegistry() {
   const calls = new Map<string, Call>();
-  const callsByThread = new WeakMap<AssembledTurn, Map<string, Call[]>>();
+  const callsByThread = new WeakMap<ThreadState, Map<string, Call[]>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
   const responseTails = new WeakMap<ThreadMessage, ThreadMessage>();
 
   function register(
     observation: TranscriptObservation,
     part: ToolCallPart,
-    thread: AssembledTurn,
+    thread: ThreadState,
     message: ThreadMessage,
   ) {
     const id = part.toolCallId
       ? key(observation.traceId, part.toolCallId)
       : undefined;
     if (id && calls.has(id)) return;
-    const call: Call = { thread, message };
+
+    const call: Call = { part, thread, message };
     if (id) calls.set(id, call);
     if (part.toolCallId) {
       if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
@@ -55,6 +61,7 @@ export function createToolCallRegistry() {
   ) {
     const fromTool = observation.type === "TOOL";
     if (call.response && (!fromTool || call.fromTool)) return;
+
     const response: ThreadMessage = {
       role: "tool",
       source: "output",
@@ -79,56 +86,103 @@ export function createToolCallRegistry() {
     addContributor(call.thread, observation);
   }
 
-  /** Register output calls or consume a result while its message is appended. */
-  function consumePart(
+  /**
+   * Resolve which tool results of one generation belong to registered calls
+   * before any of its messages is emitted.
+   */
+  function forGeneration(
+    thread: ThreadState,
     observation: TranscriptObservation,
-    part: NormalizedMessage["parts"][number],
-    thread: AssembledTurn,
-    message: ThreadMessage,
-    replayCalls: Map<string, number>,
-    replayTotals: Map<string, number>,
-  ): boolean {
-    if (
-      part.type === "tool-call" &&
-      message.source === "input" &&
-      part.toolCallId
-    )
-      replayCalls.set(
-        part.toolCallId,
-        (replayCalls.get(part.toolCallId) ?? 0) + 1,
-      );
-    if (part.type === "tool-call" && message.source === "output")
-      register(observation, part, thread, message);
-    if (part.type !== "tool-result" || !part.toolCallId) return false;
-    const matches = callsByThread.get(thread)?.get(part.toolCallId);
+    input: NormalizedMessage[],
+    output: NormalizedMessage[],
+  ) {
+    // Input results of a resolved call; output results resolve on attach.
+    const claimed = new Map<Part, Call | undefined>();
+
     // Reused IDs need complete, ordered call history to disambiguate results.
-    const occurrence = replayCalls.get(part.toolCallId) ?? 0;
-    let call: Call | undefined;
-    if (message.source === "output") {
-      call = calls.get(key(observation.traceId, part.toolCallId));
-    } else if (
-      matches?.length === 1 &&
-      (replayTotals.get(part.toolCallId) ?? 0) <= 1
-    ) {
-      call = matches[0];
-    } else if (
-      matches &&
-      replayTotals.get(part.toolCallId) === matches.length &&
-      occurrence > 0
-    ) {
-      call = matches[occurrence - 1];
+    const totals = new Map<string, number>();
+    for (const message of input) {
+      for (const part of message.parts) {
+        if (part.type === "tool-call" && part.toolCallId)
+          totals.set(part.toolCallId, (totals.get(part.toolCallId) ?? 0) + 1);
+      }
     }
-    if (!call) return false;
-    setResponse(call, observation, [part]);
-    return true;
+    const occurrences = new Map<string, number>();
+    const threadCalls = callsByThread.get(thread);
+    for (const message of input) {
+      for (const part of message.parts) {
+        if (part.type === "tool-call" && part.toolCallId)
+          occurrences.set(
+            part.toolCallId,
+            (occurrences.get(part.toolCallId) ?? 0) + 1,
+          );
+        if (part.type !== "tool-result" || !part.toolCallId) continue;
+
+        const matches = threadCalls?.get(part.toolCallId);
+        const total = totals.get(part.toolCallId) ?? 0;
+        const occurrence = occurrences.get(part.toolCallId) ?? 0;
+
+        let call: Call | undefined;
+        if (matches?.length === 1 && total <= 1) {
+          call = matches[0];
+        } else if (matches && total === matches.length && occurrence > 0) {
+          call = matches[occurrence - 1];
+        } else {
+          call = undefined;
+        }
+
+        if (call) claimed.set(part, call);
+      }
+    }
+
+    // Output results attach to calls registered earlier, including by a
+    // preceding part of the same generation's output.
+    const outputCallIds = new Set<string>();
+    for (const message of output) {
+      for (const part of message.parts) {
+        if (part.type === "tool-call" && part.toolCallId)
+          outputCallIds.add(part.toolCallId);
+        if (
+          part.type === "tool-result" &&
+          part.toolCallId &&
+          (outputCallIds.has(part.toolCallId) ||
+            calls.has(key(observation.traceId, part.toolCallId)))
+        )
+          claimed.set(part, undefined);
+      }
+    }
+
+    return {
+      claims: (part: Part) => claimed.has(part),
+      /** Register an emitted output's tool calls as anchors for their responses. */
+      register(message: ThreadMessage) {
+        if (message.source !== "output") return;
+
+        for (const part of message.parts) {
+          if (part.type === "tool-call")
+            register(observation, part, thread, message);
+        }
+      },
+      attach(results: Part[]) {
+        for (const part of results) {
+          if (part.type !== "tool-result" || !part.toolCallId) continue;
+
+          const call =
+            claimed.get(part) ??
+            calls.get(key(observation.traceId, part.toolCallId));
+          if (call) setResponse(call, observation, [part]);
+        }
+      },
+    };
   }
 
   function attachToolOutput(
     observation: TranscriptObservation,
-    output: KeyedMessage[],
+    output: NormalizedMessage[],
   ) {
-    const parts = output.flatMap(({ message }) => message.parts);
+    const parts = output.flatMap((message) => message.parts);
     if (!parts.length) return;
+
     let hasId = false;
     for (const part of parts) {
       if (part.type !== "tool-result" || !part.toolCallId) continue;
@@ -136,16 +190,44 @@ export function createToolCallRegistry() {
       const call = calls.get(key(observation.traceId, part.toolCallId));
       if (call) setResponse(call, observation, [part]);
     }
-    if (hasId || !observation.name) return;
+    if (hasId) return;
+    if (!observation.name) return;
+
     const queue = pending.get(key(observation.traceId, observation.name));
     if (!queue) return;
     while (queue.calls[queue.next]?.fromTool) queue.next++;
+    // Without result IDs, assume execution order matches same-name call order.
     const call = queue.calls[queue.next];
-    if (call) {
-      queue.next++;
+    if (!call) return;
+    queue.next++;
+    // Already-normalized results retain their output; ordinary content belongs
+    // to the matched execution. Mixed call/result siblings remain separate parts.
+    if (parts.length === 1 && parts[0]!.type === "tool-result") {
+      setResponse(call, observation, [
+        {
+          ...parts[0]!,
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+        },
+      ]);
+    } else if (
+      parts.every(
+        (part): part is ToolResultContentPart =>
+          part.type !== "tool-call" && part.type !== "tool-result",
+      )
+    ) {
+      setResponse(call, observation, [
+        {
+          type: "tool-result",
+          toolCallId: call.part.toolCallId,
+          toolName: call.part.toolName,
+          output: toolResultOutput(parts, parts),
+        },
+      ]);
+    } else {
       setResponse(call, observation, parts);
     }
   }
 
-  return { consumePart, attachToolOutput };
+  return { forGeneration, attachToolOutput };
 }

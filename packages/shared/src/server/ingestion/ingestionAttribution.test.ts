@@ -128,41 +128,41 @@ describe("ingestion attribution", () => {
   it.each([
     {
       sdkName: "python",
-      sdkVersion: "3.9.0",
+      sdkVersion: "4.14.0",
       expected: {
         canonicalSdkName: "python",
-        latestMajor: 4,
-        major: 3,
+        latestMajor: 5,
+        major: 4,
         status: "outdated_major",
       },
     },
     {
       sdkName: "langfuse-python",
-      sdkVersion: "4.0.0b1",
+      sdkVersion: "5.0.0b1",
       expected: {
         canonicalSdkName: "python",
-        latestMajor: 4,
-        major: 4,
+        latestMajor: 5,
+        major: 5,
         status: "current",
       },
     },
     {
       sdkName: "javascript",
-      sdkVersion: "4.6.0",
+      sdkVersion: "5.10.0",
       expected: {
         canonicalSdkName: "javascript",
-        latestMajor: 5,
-        major: 4,
+        latestMajor: 6,
+        major: 5,
         status: "outdated_major",
       },
     },
     {
       sdkName: "@langfuse/tracing",
-      sdkVersion: "5.1.2-rc.1",
+      sdkVersion: "6.1.2-rc.1",
       expected: {
         canonicalSdkName: "javascript",
-        latestMajor: 5,
-        major: 5,
+        latestMajor: 6,
+        major: 6,
         status: "current",
       },
     },
@@ -191,7 +191,7 @@ describe("ingestion attribution", () => {
       sdkVersion: "not-a-version",
       expected: {
         canonicalSdkName: "python",
-        latestMajor: 4,
+        latestMajor: 5,
         major: null,
         status: "invalid_version",
       },

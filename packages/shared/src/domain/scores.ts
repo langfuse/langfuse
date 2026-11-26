@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 import { MetadataDomain } from "./traces";
 
@@ -61,7 +62,7 @@ export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
 
 export const NumericData = z.object({
-  stringValue: z.union([z.null(), z.undefined()]),
+  stringValue: z.null().optional(),
   dataType: z.literal("NUMERIC"),
 });
 
@@ -165,6 +166,18 @@ export const LISTABLE_SCORE_TYPES = [
   "CATEGORICAL",
   "TEXT",
 ] as const satisfies readonly ScoreDataTypeType[];
+
+/**
+ * CORRECTION scores count as billable usage when `created_at` is at or after
+ * this instant. Each stored row counts. Earlier CORRECTION scores stay out
+ * of billing counts.
+ *
+ * 2026-11-23T00:00:00.000Z is 01:00 on that date in Europe/Zurich (CET, UTC+1),
+ * a UTC hour boundary and a UTC day boundary.
+ */
+export const CORRECTION_SCORES_BILLABLE_FROM = new Date(
+  "2026-11-23T00:00:00.000Z",
+);
 
 export type ListableScoreDataType = (typeof LISTABLE_SCORE_TYPES)[number];
 export type ListableScore = ScoresByDataTypes<typeof LISTABLE_SCORE_TYPES>;

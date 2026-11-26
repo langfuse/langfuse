@@ -1,4 +1,4 @@
-import { DecisionModelQuestionsSchema } from "@langfuse/shared";
+import { isoDateTime, DecisionModelQuestionsSchema } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -26,7 +26,7 @@ const TestEvaluatorInputBase = z
     ...DraftEvaluatorFields.shape,
     observationId: z.string().min(1),
     traceId: z.string().min(1),
-    startTime: z.iso.datetime({ offset: true }),
+    startTime: isoDateTime({ offset: true }),
   })
   .strict();
 
@@ -89,7 +89,7 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
         ...(input.evaluatorId ? { "mcp.evaluator_id": input.evaluatorId } : {}),
         "mcp.observation_id": input.observationId,
       },
-      fn: () => {
+      fn: async () => {
         const definition = input.evaluatorId
           ? undefined
           : toEvaluatorServiceInput(
@@ -99,16 +99,18 @@ export const [testEvaluatorTool, handleTestEvaluator] = defineTool({
               }),
             ).definition;
 
-        return createMcpEvaluatorService(context).testEvaluator({
-          orgId: context.orgId,
-          projectId: context.projectId,
-          evaluatorId: input.evaluatorId,
-          definition,
-          observationId: input.observationId,
-          traceId: input.traceId,
-          startTime: input.startTime,
-        });
+        // The resolved variable values repeat the observation the caller passed in.
+        const { variables: _variables, ...result } =
+          await createMcpEvaluatorService(context).testEvaluator({
+            orgId: context.orgId,
+            projectId: context.projectId,
+            evaluatorId: input.evaluatorId,
+            definition,
+            observationId: input.observationId,
+            traceId: input.traceId,
+            startTime: input.startTime,
+          });
+        return result;
       },
     }),
-  expensiveHint: true,
 });

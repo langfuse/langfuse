@@ -5,11 +5,9 @@ import {
   GRANULARITIES,
   isTimeSeriesChartType,
 } from "@/src/features/chart-view/vocab";
-import { type ChartWidgetInput } from "@/src/features/chart-view";
-import {
-  type DataPoint,
-  getWidgetMissingBucketValue,
-} from "@/src/features/widgets";
+import type { ChartWidgetInput } from "@/src/features/chart-view/lib/chartConfigToWidget";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
 import { getScoreDimensionsForDataset } from "@/src/features/scores-chart-view/constants/scoreDimensions";
 import {
   getScoreMetricsForDataset,
@@ -67,6 +65,7 @@ const getScoreDimension = (
 };
 
 /** The executeQuery column name for a metric, e.g. `avg_value`, `count_count`. */
+/** @internal */
 export const scoreMetricField = (config: ScoreChartViewConfig): string =>
   `${config.aggregation}_${getScoreMetric(config.metric, config.dataset).measure}`;
 

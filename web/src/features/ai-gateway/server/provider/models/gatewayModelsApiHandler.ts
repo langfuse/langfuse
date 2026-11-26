@@ -7,7 +7,8 @@ import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatew
 import {
   type GatewayApiFormat,
   GatewayModelsResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayModelsService } from "./gatewayModelsService";
 
 export async function gatewayModelsApiHandler({
@@ -23,7 +24,7 @@ export async function gatewayModelsApiHandler({
   try {
     const context = await new GatewayApiKeyAuthenticator(
       prisma,
-    ).authenticateRequest({ fastHashedSecretKey, apiFormat });
+    ).authenticateModelsRequest({ fastHashedSecretKey, apiFormat });
     const result = await new GatewayModelsService(prisma).list({
       context,
       apiFormat,

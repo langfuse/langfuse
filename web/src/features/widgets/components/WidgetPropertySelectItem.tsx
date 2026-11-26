@@ -1,11 +1,5 @@
-/* eslint-disable @repo/no-style-props */
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-  HoverCardPortal,
-} from "@/src/components/ui/hover-card";
-import { SelectItem } from "@/src/components/ui/select";
+/* eslint-disable @repo/component-file-structure */
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import * as React from "react";
 
 interface PropertyHoverCardProps {
@@ -13,7 +7,7 @@ interface PropertyHoverCardProps {
   description?: string;
   unit?: string;
   type?: string;
-  children: React.ReactNode;
+  children: React.ReactElement<React.HTMLProps<HTMLElement>>;
 }
 
 export const PropertyHoverCard = ({
@@ -24,10 +18,13 @@ export const PropertyHoverCard = ({
   children,
 }: PropertyHoverCardProps) => {
   return (
-    <HoverCard openDelay={0} closeDelay={0}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardPortal>
-        <HoverCardContent hideWhenDetached align="start" side="right">
+    <HoverCard
+      openDelay={0}
+      closeDelay={0}
+      hideWhenDetached
+      placement="right-start"
+      content={
+        <div className="w-64 p-3">
           <div className="mb-1 text-sm font-bold">{label}</div>
           {(unit || type) && (
             <div className="mb-2 flex flex-wrap gap-2 text-xs">
@@ -44,41 +41,13 @@ export const PropertyHoverCard = ({
             </div>
           )}
           {description && <p className="text-xs leading-snug">{description}</p>}
-        </HoverCardContent>
-      </HoverCardPortal>
-    </HoverCard>
-  );
-};
-
-/**
- * Generic SelectItem with a hover-card that shows documentation for a widget property
- * (view, metric, dimension).
- */
-export const WidgetPropertySelectItem = ({
-  value,
-  label,
-  description,
-  unit,
-  type,
-  className,
-}: {
-  value: string;
-  label: string;
-  description?: string;
-  unit?: string;
-  type?: string;
-  className?: string;
-}) => {
-  return (
-    <PropertyHoverCard
-      label={label}
-      description={description}
-      unit={unit}
-      type={type}
+        </div>
+      }
     >
-      <SelectItem value={value} className={className ?? "max-w-56"}>
-        {label}
-      </SelectItem>
-    </PropertyHoverCard>
+      {/* Anchors the card on the item itself, not a full-width wrapper. */}
+      {({ getTriggerProps }) =>
+        React.cloneElement(children, getTriggerProps(children.props))
+      }
+    </HoverCard>
   );
 };

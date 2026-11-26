@@ -37,7 +37,59 @@ fn datetime_strings_are_explicitly_utc() {
     assert_eq!(offset, utc);
 }
 
+#[test]
+fn string_column_overflow_bisects_rows_in_order() {
+    let rows = [0u8, 1, 2, 3, 4];
+    let mut attempts = 0;
+    let mut encode = |chunk: &[u8]| {
+        attempts += 1;
+        if chunk.len() > 1 {
+            Err(NativeColumnError::StringColumnTooLarge)
+        } else {
+            Ok(vec![chunk[0]])
+        }
+    };
+    let mut blocks = Vec::new();
+    encode_with_bisection(&rows, &mut encode, &mut blocks).unwrap();
+
+    assert_eq!(
+        blocks
+            .iter()
+            .map(|block| (block.row_count, block.bytes[0]))
+            .collect::<Vec<_>>(),
+        vec![(1, 0), (1, 1), (1, 2), (1, 3), (1, 4)]
+    );
+    assert_eq!(attempts, 9);
+
+    let mut encode = |_: &[u8]| -> Result<Vec<u8>, NativeColumnError> {
+        Err(NativeColumnError::StringColumnTooLarge)
+    };
+    let mut blocks = Vec::new();
+    let error = encode_with_bisection(&[0u8], &mut encode, &mut blocks).unwrap_err();
+    assert_eq!(error, NativeColumnError::StringColumnTooLarge);
+}
+
 proptest! {
+    #[test]
+    fn clickhouse_datetimes_match_the_general_parser(
+        year in 0_u16..10_000,
+        month in 0_u8..14,
+        day in 0_u8..33,
+        hour in 0_u8..25,
+        minute in 0_u8..61,
+        second in 0_u8..62,
+        fraction in "(\\.[0-9]{0,10})?",
+        separator in prop::sample::select(vec![" ", "T", "  "]),
+        zone in prop::sample::select(vec!["", "Z", "+02:00"]),
+    ) {
+        let value = format!(
+            "{year:04}-{month:02}-{day:02}{separator}{hour:02}:{minute:02}:{second:02}{fraction}{zone}"
+        );
+        if let Some(micros) = clickhouse_datetime_micros(&value) {
+            prop_assert_eq!(Ok(micros), parse_any_datetime_text(&value, "datetime"), "{}", value);
+        }
+    }
+
     #[test]
     fn decimal_inputs_with_extreme_exponents_are_handled(
         integer in -999_999i64..=999_999,

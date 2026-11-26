@@ -13,6 +13,8 @@ type DialogControllerProps<State = void> = {
   onDismiss?: () => void;
   renderDialog: (control: {
     state: State;
+    /** Visibility is separate from the payload retained during closing. */
+    isOpen: boolean;
     closeDialog: () => void;
   }) => React.ReactNode;
 };
@@ -43,7 +45,9 @@ function DialogController<State = void>({
     if (onBeforeClose?.() === false) return false;
 
     setControllerState((currentState) =>
-      currentState.status === "initialized"
+      currentState.status === "initialized" &&
+      controllerState.status === "initialized" &&
+      currentState.openCount === controllerState.openCount
         ? { ...currentState, isOpen: false }
         : currentState,
     );
@@ -76,7 +80,11 @@ function DialogController<State = void>({
         // Keep the closed content mounted for Radix's exit animation, but
         // start a fresh content instance whenever the dialog opens again.
         <React.Fragment key={controllerState.openCount}>
-          {renderDialog({ state: controllerState.state, closeDialog })}
+          {renderDialog({
+            state: controllerState.state,
+            isOpen: controllerState.isOpen,
+            closeDialog,
+          })}
         </React.Fragment>
       ) : null}
     </DialogPrimitive.Root>

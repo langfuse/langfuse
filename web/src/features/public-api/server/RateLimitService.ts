@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
@@ -9,6 +10,7 @@ import {
   type Plan,
 } from "@langfuse/shared";
 import {
+  ClickHouseResourceError,
   recordIncrement,
   type ApiAccessScopeWithOptionalApiKeyId,
   logger,
@@ -17,6 +19,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
+import { McpQueryCooldownError } from "@/src/features/mcp/core/errors";
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
@@ -24,6 +27,7 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
+/** @internal */
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 
 export type RateLimitResponseOptions = {
@@ -77,9 +81,11 @@ export class RateLimitService {
     RateLimitService.instance = null;
   }
 
+  /** `points` is what this request costs, e.g. its byte size for byte-based resources. */
   async rateLimitRequest(
     scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
+    points = 1,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -95,12 +101,15 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    return new RateLimitHelper(await this.checkRateLimit(scope, resource));
+    return new RateLimitHelper(
+      await this.checkRateLimit(scope, resource, points),
+    );
   }
 
   async checkRateLimit(
     scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
+    points = 1,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
 
@@ -135,7 +144,7 @@ export class RateLimitService {
     let res: RateLimitResult | undefined = undefined;
     try {
       // orgId used as key for different resources
-      const libRes = await rateLimiter.consume(scope.orgId);
+      const libRes = await rateLimiter.consume(scope.orgId, points);
       res = {
         resource,
         scope,
@@ -164,7 +173,8 @@ export class RateLimitService {
       }
     }
 
-    if (res.remainingPoints < 1) {
+    // Library floors remainingPoints at 0; reject only when consumedPoints > points.
+    if (res.consumedPoints > res.points) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
@@ -178,6 +188,45 @@ export class RateLimitService {
   rateLimitPrefix(resource: string) {
     return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
   }
+
+  async withMcpQueryCooldown<T>(projectId: string, query: () => Promise<T>) {
+    const redis = RateLimitService.redis;
+    if (
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+      env.LANGFUSE_RATE_LIMITS_ENABLED === "false" ||
+      !redis
+    ) {
+      return query();
+    }
+
+    const key = `${this.rateLimitPrefix("mcp-query-cooldown")}:${projectId}`;
+    const cooldownError = (seconds: number) =>
+      new McpQueryCooldownError(seconds);
+    const onRedisError = (error: unknown) => {
+      logger.warn("MCP query cooldown Redis operation failed", error);
+      return null;
+    };
+    if (redis.status === "wait") await redis.connect().catch(onRedisError);
+    if (redis.status !== "ready") return query();
+    const ttl = await redis.ttl(key).catch(onRedisError);
+    if (ttl !== null && ttl >= 0) throw cooldownError(ttl);
+
+    try {
+      return await query();
+    } catch (error) {
+      if (ClickHouseResourceError.is(error)) {
+        const blocked = await redis.set(key, "1", "EX", 30).catch(onRedisError);
+        if (blocked) {
+          logger.warn("MCP ClickHouse resource limit exceeded", {
+            errorType: error.errorType,
+            tags: error.tags,
+          });
+          throw cooldownError(30);
+        }
+      }
+      throw error;
+    }
+  }
 }
 
 class RateLimitHelper {
@@ -188,7 +237,7 @@ class RateLimitHelper {
   }
 
   isRateLimited() {
-    return this.res ? this.res.remainingPoints < 1 : false;
+    return this.res ? this.res.consumedPoints > this.res.points : false;
   }
 
   sendRestResponseIfLimited(
@@ -205,6 +254,7 @@ class RateLimitHelper {
   }
 }
 
+/** @internal */
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
@@ -223,12 +273,13 @@ export const sendRateLimitResponse = (
   );
 };
 
+/** @internal */
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
   return {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
     "X-RateLimit-Remaining": res.remainingPoints,
-    "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
+    "X-RateLimit-Reset": Math.ceil((Date.now() + res.msBeforeNext) / 1000),
   };
 };
 
@@ -244,6 +295,9 @@ const getRateLimitConfig = (
   return customConfig || planBasedConfig;
 };
 
+const MiB = 1024 * 1024;
+const GiB = 1024 * MiB;
+
 const getPlanBasedRateLimitConfig = (
   plan: Plan,
   resource: z.infer<typeof RateLimitResource>,
@@ -252,6 +306,7 @@ const getPlanBasedRateLimitConfig = (
     case "oss":
     case "self-hosted:pro":
     case "self-hosted:enterprise":
+    case "self-hosted:gov":
       return {
         resource,
         points: null,
@@ -292,8 +347,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 5,
-            durationInSec: 60,
+            points: 2,
+            durationInSec: 60, // 2 requests per minute (nominal 120/hour)
           };
         case "datasets":
           return {
@@ -349,6 +404,12 @@ const getPlanBasedRateLimitConfig = (
             points: 20,
             durationInSec: 86400, // 20 submissions per day
           };
+        case "ai-gateway-requests":
+          return { resource, points: 100, durationInSec: 60 };
+        case "ai-gateway-request-bytes":
+          return { resource, points: 64 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -393,8 +454,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 15,
-            durationInSec: 60,
+            points: 7,
+            durationInSec: 60, // 7 requests per minute (nominal 420/hour)
           };
         case "datasets":
           return {
@@ -453,6 +514,12 @@ const getPlanBasedRateLimitConfig = (
             points: 20,
             durationInSec: 86400, // 20 submissions per day
           };
+        case "ai-gateway-requests":
+          return { resource, points: 500, durationInSec: 60 };
+        case "ai-gateway-request-bytes":
+          return { resource, points: 256 * MiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -460,6 +527,7 @@ const getPlanBasedRateLimitConfig = (
     case "cloud:pro":
     case "cloud:team":
     case "cloud:enterprise":
+    case "cloud:enterprise-trial":
       switch (resource) {
         case "ingestion":
           return {
@@ -494,8 +562,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 40,
-            durationInSec: 60,
+            points: 20,
+            durationInSec: 60, // 20 requests per minute (nominal 1,200/hour)
           };
         case "datasets":
           return {
@@ -551,6 +619,12 @@ const getPlanBasedRateLimitConfig = (
             points: 20,
             durationInSec: 86400, // 20 submissions per day
           };
+        case "ai-gateway-requests":
+          return { resource, points: 10_000, durationInSec: 60 };
+        case "ai-gateway-request-bytes":
+          return { resource, points: 5 * GiB, durationInSec: 60 };
+        case "coupon-redemption":
+          return { resource, points: 5, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);

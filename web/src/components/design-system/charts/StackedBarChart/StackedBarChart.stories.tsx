@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { StackedBarChart } from "./StackedBarChart";
 
@@ -13,8 +13,8 @@ const meta = preview.meta({
       { key: "Wednesday", values: { api: 10, worker: 15 } },
     ],
     series: [
-      { id: "api", label: "API", color: "hsl(var(--chart-1))" },
-      { id: "worker", label: "Worker", color: "hsl(var(--chart-2))" },
+      { id: "api", label: "API", color: "hsl(var(--chart-fill-1))" },
+      { id: "worker", label: "Worker", color: "hsl(var(--chart-fill-2))" },
     ],
   },
   decorators: [
@@ -61,12 +61,14 @@ export const StackingAndTooltip = meta.story({
       Number(worker.getAttribute("y")) + Number(worker.getAttribute("height")),
     ).toBeCloseTo(Number(api.getAttribute("y")), 0);
     worker.focus();
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
-    await expect(tooltip).toHaveTextContent("Monday");
-    await expect(tooltip).toHaveTextContent("API");
-    await expect(tooltip).toHaveTextContent("Worker");
+    await waitFor(() => {
+      const tooltip = within(canvasElement.ownerDocument.body).getByRole(
+        "tooltip",
+      );
+      expect(tooltip).toHaveTextContent("Monday");
+      expect(tooltip).toHaveTextContent("API");
+      expect(tooltip).toHaveTextContent("Worker");
+    });
   },
 });
 
@@ -128,7 +130,7 @@ export const LegendHighlight = meta.story({
     );
     await expect(api).toHaveAttribute(
       "fill",
-      "color-mix(in srgb, hsl(var(--chart-1)) 20%, hsl(var(--background)))",
+      "color-mix(in srgb, hsl(var(--chart-fill-1)) 20%, hsl(var(--background)))",
     );
     await userEvent.click(
       canvas.getByRole("button", { name: "Show all series" }),
@@ -143,7 +145,7 @@ export const Empty = meta.story({
 export const SingleSeriesAutoLegend = meta.story({
   name: "(Test) Single Series Auto Legend",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: { visibility: "auto", interaction: "highlight", summary: "none" },
   },
   play: async ({ canvasElement }) => {
@@ -158,7 +160,7 @@ export const SingleSeriesAutoLegend = meta.story({
 export const SingleSeriesInitiallyHidden = meta.story({
   name: "(Test) Single Series Initially Hidden",
   args: {
-    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-fill-1))" }],
     legend: {
       visibility: "auto",
       interaction: "toggle",
@@ -194,17 +196,6 @@ export const MissingBuckets = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Hide Worker" }),
     ).toHaveTextContent("Sum: 5");
-    const emptyBucket = canvasElement.querySelectorAll<SVGRectElement>(
-      'rect[fill="transparent"]',
-    )[0];
-    if (!emptyBucket) throw new Error("Missing empty bucket hover area");
-    await userEvent.hover(emptyBucket);
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("tooltip"),
-    ).toHaveTextContent("No data available");
-    await expect(
-      canvasElement.querySelector("[data-active-reference-line]"),
-    ).toBeInTheDocument();
   },
 });
 

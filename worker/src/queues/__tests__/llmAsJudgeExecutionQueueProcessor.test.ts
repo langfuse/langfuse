@@ -8,7 +8,15 @@ import {
   type Mock,
 } from "vitest";
 import { Job } from "bullmq";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  UnrecoverableError,
+  isUnrecoverableError,
+} from "../../errors/UnrecoverableError";
+import {
+  EvalFailureError,
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../../features/evaluation/evalFailureErrors";
 
 const QueueName = {
   LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -45,10 +53,13 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-// Mock processObservationEval
-vi.mock("../../features/evaluation/observationEval", () => ({
-  processObservationEval: vi.fn(),
-}));
+// Mock processEval
+vi.mock(
+  "../../features/evaluation/observationEval/observationEvalProcessor",
+  () => ({
+    processEval: vi.fn(),
+  }),
+);
 
 // Mock logger and span
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -59,9 +70,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
     await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
   const { CodeEvalDispatcherErrorCodes } =
     await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
+  const { LLMConnectionCooldownError, getLLMRetryAfterMs } =
+    await import("../../../../packages/shared/src/server/llm/errors");
 
   return {
     CodeEvalDispatcherErrorCodes,
+    LLMConnectionCooldownError,
+    getLLMRetryAfterMs,
     CodeEvalExecutionError,
     QueueName: {
       LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
@@ -97,7 +112,11 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 // Mock retryLLMRateLimitError
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/utilities", () => ({
+  createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
+  retryLLMRateLimitError: vi.fn(),
+}));
+vi.mock("../../features/utils/retry-handler", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
   retryLLMRateLimitError: vi.fn(),
 }));
@@ -112,16 +131,17 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval";
+import { processEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   LLMAsJudgeExecutionQueue,
+  LLMConnectionCooldownError,
   classifyEvaluatorLlmError,
+  logger,
   recordDistribution,
   recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
-import { retryLLMRateLimitError } from "../../features/utils";
-import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+import { retryLLMRateLimitError } from "../../features/utils/retry-handler";
 
 function mockLlmError(error: Error, isRetryable: boolean): void {
   vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
@@ -189,7 +209,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     vi.clearAllMocks();
     vi.mocked(classifyEvaluatorLlmError).mockReturnValue(null);
     vi.mocked(isUnrecoverableError).mockReturnValue(false);
-    (processObservationEval as Mock).mockResolvedValue("completed");
+    (processEval as Mock).mockResolvedValue("completed");
   });
 
   describe("successful processing", () => {
@@ -198,7 +218,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const result = await llmAsJudgeExecutionQueueProcessor(job);
 
       expect(result).toBe(true);
-      expect(processObservationEval).toHaveBeenCalledWith({
+      expect(processEval).toHaveBeenCalledWith({
         event: {
           projectId,
           jobExecutionId,
@@ -268,7 +288,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
 
       vi.mocked(recordIncrement).mockClear();
-      (processObservationEval as Mock).mockResolvedValue("cancelled");
+      (processEval as Mock).mockResolvedValue("cancelled");
       await llmAsJudgeExecutionQueueProcessor(createMockJob());
       expect(recordIncrement).toHaveBeenCalledWith(
         "langfuse.evaluation.execution.terminal",
@@ -281,7 +301,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   describe("LLM rate limit errors (retryable)", () => {
     it("should schedule retry and set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      (processEval as Mock).mockRejectedValue(rateLimitError);
       mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
@@ -297,6 +317,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           idField: "jobExecutionId",
           queueName,
         }),
+        { providerDelayMs: undefined },
       );
       expect(LLMAsJudgeExecutionQueue.getInstance).toHaveBeenCalledWith({
         shardName: queueName,
@@ -319,9 +340,53 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
+    it("waits at least the remaining cooldown after a cooldown hit", async () => {
+      const cooldownError = new LLMConnectionCooldownError(30_000);
+      (processEval as Mock).mockRejectedValue(cooldownError);
+      mockLlmError(cooldownError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { providerDelayMs: 30_000 },
+      );
+    });
+
+    it("waits at least the cooldown its own provider 429 starts", async () => {
+      const rateLimitError = new Error("Rate limit exceeded");
+      (processEval as Mock).mockRejectedValue(rateLimitError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "provider",
+        message: rateLimitError.message,
+        statusCode: 429,
+        isRetryable: true,
+        error: rateLimitError,
+        blockReason: null,
+      });
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      // Without retry-after the cooldown lasts its 60 s default.
+      expect(retryLLMRateLimitError).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        { providerDelayMs: 60_000 },
+      );
+    });
+
     it("should not rethrow error after scheduling retry", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      (processEval as Mock).mockRejectedValue(rateLimitError);
       mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "scheduled",
@@ -337,7 +402,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should set ERROR when retryable LLM errors are not re-enqueued", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      (processEval as Mock).mockRejectedValue(rateLimitError);
       mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "skipped",
@@ -368,7 +433,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should set ERROR when the retry queue is unavailable", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      (processEval as Mock).mockRejectedValue(rateLimitError);
       mockLlmError(rateLimitError, true);
       (retryLLMRateLimitError as Mock).mockResolvedValue({
         outcome: "queue_unavailable",
@@ -393,9 +458,52 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("LLM completion errors (non-retryable)", () => {
+    it("retries media-not-found validation errors until the final attempt", async () => {
+      const mediaNotFoundError = new Error(
+        "Media asset image-1 was not found in this project",
+      );
+      (processEval as Mock).mockRejectedValue(mediaNotFoundError);
+      vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+        kind: "validation",
+        message: mediaNotFoundError.message,
+        statusCode: 400,
+        isRetryable: false,
+        error: mediaNotFoundError,
+        validationError: {
+          code: "media-not-found",
+        },
+        blockReason: null,
+      } as ReturnType<typeof classifyEvaluatorLlmError>);
+
+      const job = createMockJob();
+
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        mediaNotFoundError,
+      );
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+
+      vi.mocked(traceException).mockClear();
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: mediaNotFoundError.message,
+        }),
+      });
+      expect(traceException).not.toHaveBeenCalled();
+    });
+
     it("should set ERROR status for non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (processObservationEval as Mock).mockRejectedValue(llmError);
+      (processEval as Mock).mockRejectedValue(llmError);
       mockLlmError(llmError, false);
 
       const job = createMockJob();
@@ -417,7 +525,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not rethrow non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (processObservationEval as Mock).mockRejectedValue(llmError);
+      (processEval as Mock).mockRejectedValue(llmError);
       mockLlmError(llmError, false);
 
       const job = createMockJob();
@@ -434,7 +542,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const unrecoverableError = new UnrecoverableError(
         "Job configuration not found",
       );
-      (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
+      (processEval as Mock).mockRejectedValue(unrecoverableError);
       vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
@@ -456,7 +564,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not rethrow UnrecoverableError", async () => {
       const unrecoverableError = new UnrecoverableError("Config not found");
-      (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
+      (processEval as Mock).mockRejectedValue(unrecoverableError);
       vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
@@ -469,7 +577,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not call traceException for UnrecoverableError", async () => {
       const unrecoverableError = new UnrecoverableError("Config not found");
-      (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
+      (processEval as Mock).mockRejectedValue(unrecoverableError);
       vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
@@ -477,12 +585,51 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
       expect(traceException).not.toHaveBeenCalled();
     });
+
+    it.each([
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid model configuration",
+          EvalFailureReason.InvalidModelConfig,
+        ),
+        tags: { outcome: "customer_error" },
+      },
+      {
+        error: new UnrecoverableEvalFailureError(
+          "invalid JSON",
+          EvalFailureReason.InvalidObservationData,
+        ),
+        tags: { outcome: "platform_error", reason: "invalid_observation_data" },
+      },
+      {
+        error: new UnrecoverableError("Evaluator identity missing"),
+        tags: { outcome: "platform_error", reason: "unrecoverable" },
+      },
+    ])(
+      "records and warns terminal failures as $tags.outcome",
+      async ({ error, tags }) => {
+        (processEval as Mock).mockRejectedValue(error);
+        vi.mocked(isUnrecoverableError).mockReturnValue(true);
+
+        await llmAsJudgeExecutionQueueProcessor(createMockJob());
+
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          { evaluator_type: "llm_as_judge", ...tags },
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ projectId, errorName: error.name }),
+        );
+      },
+    );
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
     it("should rethrow unexpected errors without persisting ERROR while BullMQ retries remain", async () => {
       const unexpectedError = new Error("Database connection failed");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+      (processEval as Mock).mockRejectedValue(unexpectedError);
 
       const job = createMockJob();
 
@@ -501,7 +648,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should call traceException for unexpected errors", async () => {
       const unexpectedError = new Error("Unexpected failure");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+      (processEval as Mock).mockRejectedValue(unexpectedError);
 
       const job = createMockJob();
 
@@ -516,7 +663,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should rethrow unexpected errors for BullMQ retry", async () => {
       const unexpectedError = new Error("Network timeout");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+      (processEval as Mock).mockRejectedValue(unexpectedError);
 
       const job = createMockJob();
 
@@ -525,43 +672,59 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       );
     });
 
-    it("should persist ERROR on the final BullMQ attempt", async () => {
-      const unexpectedError = new Error("Database connection failed");
-      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
-
-      await expect(
-        llmAsJudgeExecutionQueueProcessor(
-          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+    it.each([
+      { error: new Error("Database connection failed"), reason: "unexpected" },
+      {
+        error: new EvalFailureError(
+          "Failed to write score",
+          EvalFailureReason.ScorePersistence,
         ),
-      ).rejects.toThrow(unexpectedError);
+        reason: "score_persistence",
+      },
+    ])(
+      "should persist ERROR on the final BullMQ attempt with reason $reason",
+      async ({ error, reason }) => {
+        (processEval as Mock).mockRejectedValue(error);
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: expect.any(Date),
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        },
-      });
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.evaluation.execution.terminal",
-        1,
-        { evaluator_type: "llm_as_judge", outcome: "platform_error" },
-      );
-    });
+        await expect(
+          llmAsJudgeExecutionQueueProcessor(
+            createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+          ),
+        ).rejects.toThrow(error);
+
+        expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+          where: {
+            id: jobExecutionId,
+            projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: expect.any(Date),
+            error: "An internal error occurred",
+            executionTraceId: "test-trace-id",
+          },
+        });
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.evaluation.execution.terminal",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "platform_error",
+            reason,
+          },
+        );
+      },
+    );
   });
 
   describe("execution trace ID", () => {
     it("should generate deterministic trace ID from job execution ID", async () => {
       const error = new UnrecoverableError("Test error");
-      (processObservationEval as Mock).mockRejectedValue(error);
+      (processEval as Mock).mockRejectedValue(error);
       vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
-      const { createW3CTraceId } = await import("../../features/utils");
+      const { createW3CTraceId } =
+        await import("../../features/utils/utilities");
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -612,7 +775,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       await expect(
         llmAsJudgeExecutionQueueProcessor(job),
       ).resolves.not.toThrow();
-      expect(processObservationEval).toHaveBeenCalled();
+      expect(processEval).toHaveBeenCalled();
     });
   });
 });

@@ -1,15 +1,17 @@
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { ConnectedCloneDashboardDialogController } from "@/src/features/dashboard/components/ConnectedCloneDashboardDialogController";
 import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/ui/dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
@@ -17,6 +19,7 @@ import { PaginationBar } from "@/src/components/design-system/PaginationBar/Pagi
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { assertUnreachable } from "@/src/utils/types";
 import { DashboardTable, type DashboardTableRow } from "./DashboardTable";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export function ConnectedDashboardTable() {
   const projectId = useProjectIdFromURL() as string;
@@ -31,25 +34,35 @@ export function ConnectedDashboardTable() {
     onSuccess: () => {
       utils.dashboard.invalidate();
       showSuccessToast({
+        operation: "dashboard.clone",
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to clone dashboard", error.message);
+      showErrorToast(
+        "Failed to clone dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard.clone"),
+      );
     },
   });
   const deleteDashboard = api.dashboard.delete.useMutation({
     onSuccess: () => {
       capture("dashboard:delete_dashboard_button_click");
       showSuccessToast({
+        operation: "dashboard.delete",
         title: "Dashboard deleted",
         description: "The dashboard has been deleted successfully",
       });
       utils.dashboard.invalidate();
     },
     onError: (error) => {
-      showErrorToast("Failed to delete dashboard", error.message);
+      showErrorToast(
+        "Failed to delete dashboard",
+        error.message,
+        classifyTrpcToastError(error, "dashboard.delete"),
+      );
     },
   });
 
@@ -122,11 +135,7 @@ export function ConnectedDashboardTable() {
   }, [dashboardData, dashboardError, dashboardStatus]);
 
   return (
-    <CloneFirstDialogController
-      projectId={projectId}
-      dashboardId={selectedDashboard?.id ?? ""}
-      dashboardName={selectedDashboard?.name ?? "Dashboard"}
-    >
+    <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => (
         <DialogController
           closeOnInteractionOutside={false}
@@ -163,6 +172,7 @@ export function ConnectedDashboardTable() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <DashboardTable
                     projectId={projectId}
+                    topBorder={false}
                     hasAccess={hasAccess}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}
                     onEdit={(dashboard) => {
@@ -177,7 +187,11 @@ export function ConnectedDashboardTable() {
                         attempt: "list_edit",
                         surface: "list",
                       });
-                      openCloneFirstDialog();
+                      openCloneFirstDialog({
+                        projectId,
+                        dashboardId: dashboard.id,
+                        dashboardName: dashboard.name,
+                      });
                     }}
                     onClone={(dashboard) => {
                       cloneDashboard.mutate(
@@ -222,6 +236,6 @@ export function ConnectedDashboardTable() {
           )}
         </DialogController>
       )}
-    </CloneFirstDialogController>
+    </ConnectedCloneDashboardDialogController>
   );
 }

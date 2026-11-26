@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { useEffect, useRef, useState } from "react";
 
 export type AnimatedBusy = {
@@ -34,7 +33,9 @@ export function useAnimatedBusy(
 
   useEffect(() => {
     if (busy) {
-      startedAt.current ??= Date.now();
+      if (startedAt.current === null) {
+        startedAt.current = Date.now();
+      }
       setState((prev) =>
         prev.active ? prev : { active: true, epoch: prev.epoch + 1 },
       );

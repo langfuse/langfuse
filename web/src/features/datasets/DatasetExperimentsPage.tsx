@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useState, useCallback } from "react";
-import { FlaskConical, MoreVertical } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { FlaskConical, MoreVertical } from "@langfuse/icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
   DialogContent,
@@ -12,32 +13,31 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  CreateExperimentsForm,
-  useEvaluatorDefaults,
-  useExperimentEvaluatorData,
-  useExperimentAccess,
-  singleRunToExperimentsUrl,
-} from "@/src/features/experiments";
-import { showSuccessToast } from "@/src/features/notifications";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
+import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { RESOURCE_METRICS } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
-import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
-import { TemplateSelector } from "@/src/features/evals/components/template-selector";
+import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/Page";
+import {
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
+import { TemplateSelector } from "@/src/features/evals/components/TemplateSelector";
 import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
-} from "@/src/features/evals/components/evaluator-form";
+} from "@/src/features/evals/components/EvaluatorForm";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import { ExperimentsTable } from "@/src/features/experiments/components/table";
+import { default as ExperimentsTable } from "@/src/features/experiments/components/table/ExperimentsTable";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetExperimentsPage() {
@@ -114,6 +114,7 @@ function DatasetExperimentsView({
     }
 
     showSuccessToast({
+      operation: "experiment.trigger",
       title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
@@ -205,34 +206,32 @@ function DatasetExperimentsView({
             activeTab: DATASET_TABS.EXPERIMENTS,
           },
           actionButtonsRight: (
-            <>
-              <Dialog
-                open={isCreateExperimentDialogOpen}
-                onOpenChange={setIsCreateExperimentDialogOpen}
-              >
-                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-                  <Button
-                    disabled={!hasExperimentWriteAccess}
-                    onClick={() => capture("dataset_run:new_form_open")}
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                    <span className="ml-2 hidden md:block">Run experiment</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-                  <CreateExperimentsForm
-                    key={`create-experiment-form-${datasetId}`}
-                    projectId={projectId as string}
-                    setFormOpen={setIsCreateExperimentDialogOpen}
-                    defaultValues={{
-                      datasetId,
-                    }}
-                    handleExperimentSuccess={handleExperimentSuccess}
-                    showSDKRunInfoPage
-                  />
-                </DialogContent>
-              </Dialog>
-            </>
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  disabled={!hasExperimentWriteAccess}
+                  onClick={() => capture("dataset_run:new_form_open")}
+                >
+                  <FlaskConical size="base" color="default" />
+                  <span className="ml-2 hidden md:block">Run experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSuccess={handleExperimentSuccess}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
           ),
         }}
       >
@@ -279,7 +278,7 @@ function DatasetExperimentsView({
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
@@ -347,7 +346,7 @@ function DatasetExperimentsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               )}
             </DatasetActionMenu>

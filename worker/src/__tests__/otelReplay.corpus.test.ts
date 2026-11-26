@@ -1,11 +1,18 @@
 import "./helpers/otelReplaySetup";
 import { describe, expect, it } from "vitest";
 import type { ResourceSpan } from "@langfuse/shared/src/server";
-import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/ai-sdk/fixtures";
-import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/fixtures";
-import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/fixtures";
-import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/fixtures";
-import { runOtelReplay } from "./helpers/otelReplayHarness";
+import {
+  createModelParametersBatch,
+  modelParametersFixtures,
+} from "../../../packages/shared/src/server/otel/__tests__/OtelIngestionProcessor.modelParameters.fixtures";
+import { vercelAiSdkMixedToolMessagesFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/ai-sdk/__tests__/fixtures";
+import { langgraphProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/langchain/__tests__/fixtures";
+import { pydanticAiProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/pydantic-ai/__tests__/fixtures";
+import { microsoftAgentProductionShapeFixture } from "../../../packages/shared/src/utils/normalized-io/conventions/providers/otel-genai/__tests__/fixtures";
+import {
+  expectRawNativeParity,
+  runOtelReplayComparison,
+} from "./helpers/otelReplayHarness";
 
 type ScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];
 type Span = NonNullable<ScopeSpan["spans"]>[number];
@@ -42,7 +49,44 @@ type ProviderCase = {
   expectedModelParameters?: Record<string, string | number>;
   stringRepairs?: Record<string, string>;
   numericRepairs: Record<string, string>;
+  sdkName?: string;
+  sdkVersion?: string;
 };
+
+const modelParameterCases: ProviderCase[] = modelParametersFixtures.map(
+  (modelParametersFixture) => {
+    const scopeSpan = createModelParametersBatch(modelParametersFixture)[0]
+      .scopeSpans?.[0];
+    if (!scopeSpan) {
+      throw new Error(
+        `Model parameter fixture has no scope span: ${modelParametersFixture.name}`,
+      );
+    }
+
+    return {
+      name: `Model parameters: ${modelParametersFixture.name}`,
+      fixture: {
+        name: modelParametersFixture.name,
+        otel: { scopeSpan, resourceAttributes: {} },
+        spanIO: { input: "", output: "" },
+      },
+      expectedObservationType: "GENERATION",
+      expectedModelName: modelParametersFixture.expectedModelName,
+      expectedUsageDetails:
+        modelParametersFixture.scopeName === "ai"
+          ? { input: 0, output: 0 }
+          : {},
+      expectedFinalUsageDetails:
+        modelParametersFixture.scopeName === "ai"
+          ? { input: 0, output: 0, total: 0 }
+          : {},
+      expectedModelParameters: modelParametersFixture.expectedModelParameters,
+      numericRepairs: {},
+      sdkName: modelParametersFixture.sdkName,
+      sdkVersion: modelParametersFixture.sdkVersion,
+    };
+  },
+);
 
 const providerCases: ProviderCase[] = [
   {
@@ -160,6 +204,7 @@ const providerCases: ProviderCase[] = [
       "gen_ai.request.choice.count": "1",
     },
   },
+  ...modelParameterCases,
 ];
 
 function cloneId(id: Span["traceId"]): Span["traceId"] {
@@ -350,6 +395,8 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
         stringRepairs,
         toolDefinitionsAttribute,
         addToolDefinitionsToInput,
+        sdkName,
+        sdkVersion,
       } = providerCase;
       const resourceSpans = buildResourceSpans(
         fixture,
@@ -361,66 +408,77 @@ describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
       const sourceSpan = resourceSpans[0].scopeSpans?.[0].spans?.[0];
       expect(sourceSpan).toBeDefined();
 
-      const { storedRows } = await runOtelReplay({
-        resourceSpans,
+      const comparison = await runOtelReplayComparison({
+        bytes: Buffer.from(JSON.stringify(resourceSpans)),
         projectId: `otel-replay-${name.toLowerCase().replaceAll(" ", "-")}`,
+        mediaUploadEnabled: true,
+        sdkName,
+        sdkVersion,
       });
 
-      expect(storedRows).toHaveLength(1);
-      const row = storedRows[0];
+      for (const result of [
+        comparison.originalTs,
+        comparison.earlyTs,
+        comparison.earlyRust,
+      ]) {
+        expect(result.storedRows, result.mode).toHaveLength(1);
+        const row = result.storedRows[0];
 
-      expect(row.trace_id).toBe(idToHex(sourceSpan!.traceId));
-      expect(row.span_id).toBe(idToHex(sourceSpan!.spanId));
-      if (expectedObservationType) {
-        expect(row.type).toBe(expectedObservationType);
-      }
-      expect(row.provided_model_name).toBe(expectedModelName);
+        expect(row.trace_id).toBe(idToHex(sourceSpan!.traceId));
+        expect(row.span_id).toBe(idToHex(sourceSpan!.spanId));
+        if (expectedObservationType) {
+          expect(row.type).toBe(expectedObservationType);
+        }
+        expect(row.provided_model_name).toBe(expectedModelName);
 
-      const spanIOInput = parseFixtureValue(fixture.spanIO.input);
-      const expectedOutput = parseFixtureValue(fixture.spanIO.output);
-      const storedInput = persistedJsonColumn(row, "input");
-      expect(persistedJsonColumn(row, "output")).toEqual(expectedOutput);
+        const spanIOInput = parseFixtureValue(fixture.spanIO.input);
+        const expectedOutput = parseFixtureValue(fixture.spanIO.output);
+        const storedInput = persistedJsonColumn(row, "input");
+        expect(persistedJsonColumn(row, "output")).toEqual(expectedOutput);
 
-      if (toolDefinitionsAttribute) {
-        const toolDefinitions = fixtureJsonAttribute(
-          fixture,
-          toolDefinitionsAttribute,
-        ) as unknown[];
-        const expectedInput = addToolDefinitionsToInput
-          ? {
-              ...(spanIOInput as Record<string, unknown>),
-              tools: toolDefinitions,
-            }
-          : spanIOInput;
-        expect(storedInput).toEqual(expectedInput);
-        expect(persistedJsonColumn(row, "tool_definitions")).toEqual(
-          expectedToolDefinitions(toolDefinitions),
+        if (toolDefinitionsAttribute) {
+          const toolDefinitions = fixtureJsonAttribute(
+            fixture,
+            toolDefinitionsAttribute,
+          ) as unknown[];
+          const expectedInput = addToolDefinitionsToInput
+            ? {
+                ...(spanIOInput as Record<string, unknown>),
+                tools: toolDefinitions,
+              }
+            : spanIOInput;
+          expect(storedInput).toEqual(expectedInput);
+          expect(persistedJsonColumn(row, "tool_definitions")).toEqual(
+            expectedToolDefinitions(toolDefinitions),
+          );
+        } else {
+          expect(storedInput).toEqual(spanIOInput);
+        }
+
+        expect(persistedJsonColumn(row, "provided_usage_details")).toEqual(
+          expectedUsageDetails,
         );
-      } else {
-        expect(storedInput).toEqual(spanIOInput);
+        expect(persistedJsonColumn(row, "usage_details")).toEqual(
+          expectedFinalUsageDetails,
+        );
+
+        if (expectedToolCalls) {
+          expect(row.tool_call_names).toEqual(
+            expectedToolCalls.map((call) => call.name),
+          );
+          expect(persistedToolCalls(row)).toEqual(
+            expectedToolCalls.map(({ name: _name, ...call }) => call),
+          );
+        }
+        if (expectedMetadata) assertMetadataValues(row, expectedMetadata);
+        if (expectedModelParameters) {
+          expect(persistedJsonColumn(row, "model_parameters")).toMatchObject(
+            expectedModelParameters,
+          );
+        }
       }
 
-      expect(persistedJsonColumn(row, "provided_usage_details")).toEqual(
-        expectedUsageDetails,
-      );
-      expect(persistedJsonColumn(row, "usage_details")).toEqual(
-        expectedFinalUsageDetails,
-      );
-
-      if (expectedToolCalls) {
-        expect(row.tool_call_names).toEqual(
-          expectedToolCalls.map((call) => call.name),
-        );
-        expect(persistedToolCalls(row)).toEqual(
-          expectedToolCalls.map(({ name: _name, ...call }) => call),
-        );
-      }
-      if (expectedMetadata) assertMetadataValues(row, expectedMetadata);
-      if (expectedModelParameters) {
-        expect(persistedJsonColumn(row, "model_parameters")).toMatchObject(
-          expectedModelParameters,
-        );
-      }
+      expectRawNativeParity(comparison);
     },
   );
 });

@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
 
 export const BillingDiscountView = ({
@@ -51,9 +51,7 @@ export const BillingDiscountView = ({
           else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
 
           return (
-            <Badge key={d.id} variant="secondary" className="font-normal">
-              {labelParts.join(" · ")}
-            </Badge>
+            <Badge key={d.id} color="filled" text={labelParts.join(" · ")} />
           );
         })}
         <BillingDiscountCodeButton orgId={orgId} />

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { TRPCError } from "@trpc/server";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { type Cluster, type Redis } from "ioredis";
@@ -12,6 +11,7 @@ import {
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 
+/** @internal */
 export const WEB_CALLOUT_RATE_LIMIT_REDIS_KEY_PREFIX =
   "rate-limit:web-callout-invoke";
 
@@ -75,6 +75,7 @@ export const recordWebCalloutInvokeMetric = (
   });
 };
 
+/** @internal */
 export class WebCalloutRateLimitService {
   private static instance: WebCalloutRateLimitService | null = null;
   private static redis: Redis | Cluster | null = null;
@@ -172,9 +173,11 @@ export class WebCalloutRateLimitService {
       return;
     }
 
-    this.redisConnectPromise ??= redis.connect().finally(() => {
-      this.redisConnectPromise = null;
-    });
+    if (this.redisConnectPromise === null) {
+      this.redisConnectPromise = redis.connect().finally(() => {
+        this.redisConnectPromise = null;
+      });
+    }
 
     await this.redisConnectPromise;
   }
@@ -241,6 +244,7 @@ export const enforceWebCalloutRateLimit = async (
 let activeWebCallouts = 0;
 const activeWebCalloutsByEndpoint = new Map<string, number>();
 
+/** @internal */
 export const resetWebCalloutInFlightLimitsForTests = () => {
   activeWebCallouts = 0;
   activeWebCalloutsByEndpoint.clear();

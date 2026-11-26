@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRef, type ReactNode } from "react";
 
 import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";

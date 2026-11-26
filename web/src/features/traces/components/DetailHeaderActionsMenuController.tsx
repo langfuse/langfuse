@@ -1,6 +1,6 @@
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Webhook } from "lucide-react";
+import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   DropdownMenu,
@@ -9,11 +9,12 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 type IdItem = {
   name: string;
@@ -22,7 +23,7 @@ type IdItem = {
 
 type DetailHeaderActionsProps = {
   idItems: IdItem[];
-  isAdmin: boolean;
+  internalFeaturesEnabled: boolean;
   observationType?: ObservationType;
   projectId: string;
   observation?: {
@@ -49,7 +50,7 @@ type DetailHeaderActionsMenuControllerProps = DetailHeaderActionsProps &
 
 type ConnectedDetailHeaderActionsMenuControllerProps = Omit<
   DetailHeaderActionsProps,
-  "isAdmin" | "webCalloutAction"
+  "internalFeaturesEnabled" | "webCalloutAction"
 > &
   MenuPresentation & {
     webCallout?: {
@@ -73,7 +74,7 @@ function buildObservationClickHouseQuery(
     .replace("T", " ");
 
   // Match the events_full primary-key prefix, without requiring microsecond
-  // precision from the browser's Date. The query runs in the admin's SQL client.
+  // precision from the browser's Date. The query runs in an internal SQL client.
   return `SELECT *
 FROM events_full
 WHERE project_id = ${quote(projectId)}
@@ -90,11 +91,15 @@ export function ConnectedDetailHeaderActionsMenuController({
   webCallout,
   ...props
 }: ConnectedDetailHeaderActionsMenuControllerProps) {
-  const session = useSession();
-  const isAdmin = session.data?.user?.admin === true;
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
 
   if (!webCallout) {
-    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
+    return (
+      <DetailHeaderActionsMenuController
+        {...props}
+        internalFeaturesEnabled={internalFeaturesEnabled}
+      />
+    );
   }
 
   return (
@@ -105,7 +110,7 @@ export function ConnectedDetailHeaderActionsMenuController({
       {(webCalloutAction) => (
         <DetailHeaderActionsMenuController
           {...props}
-          isAdmin={isAdmin}
+          internalFeaturesEnabled={internalFeaturesEnabled}
           webCalloutAction={webCalloutAction}
         />
       )}
@@ -139,7 +144,7 @@ function WebCalloutActionController({
 
 export function DetailHeaderActionsMenuController({
   idItems,
-  isAdmin,
+  internalFeaturesEnabled,
   observationType,
   projectId,
   observation,
@@ -152,7 +157,7 @@ export function DetailHeaderActionsMenuController({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const clickHouseQuery =
-    isAdmin && observation
+    internalFeaturesEnabled && observation
       ? buildObservationClickHouseQuery(projectId, observation)
       : null;
 
@@ -240,7 +245,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
-            badge: <InternalFeatureBadge />,
+            badge: <FeatureReleaseStatus status="internal" />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

@@ -1,30 +1,31 @@
 import { expect, fn, userEvent, within } from "storybook/test";
-import { type ComponentProps } from "react";
 
-import preview from "../../../../.storybook/preview";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import preview from "@/.storybook/preview";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
-import { DeleteOrganizationDialogContent } from "./DeleteOrganizationDialogContent";
+import {
+  DeleteOrganizationDialog,
+  type DeleteOrganizationDialogProps,
+} from "./DeleteOrganizationDialog";
 
 const defaultArgs = {
   confirmMessage: "acme",
-  hasProjects: false,
-  isPending: false,
+  isSubmitting: false,
   onConfirm: fn(),
-} satisfies ComponentProps<typeof DeleteOrganizationDialogContent>;
+  status: "confirm",
+} satisfies DeleteOrganizationDialogProps;
 
-const renderDialog = (
-  args: ComponentProps<typeof DeleteOrganizationDialogContent>,
-) => (
-  <Dialog open onOpenChange={fn()}>
-    <DialogContent className="sm:max-w-[425px]">
-      <DeleteOrganizationDialogContent {...args} />
-    </DialogContent>
-  </Dialog>
+const renderDialog = (args: DeleteOrganizationDialogProps) => (
+  <DialogController
+    initialState={() => true}
+    renderDialog={() => <DeleteOrganizationDialog {...args} />}
+  >
+    {() => null}
+  </DialogController>
 );
 
 const meta = preview.meta({
-  component: DeleteOrganizationDialogContent,
+  component: DeleteOrganizationDialog,
 });
 
 export default meta;
@@ -37,7 +38,23 @@ export const Default = meta.story({
 export const WithProjects = meta.story({
   args: {
     ...defaultArgs,
-    hasProjects: true,
+    status: "has-projects",
+  },
+  render: renderDialog,
+});
+
+export const ProjectsStillDeleting = meta.story({
+  args: {
+    ...defaultArgs,
+    status: "projects-deleting",
+  },
+  render: renderDialog,
+});
+
+export const CheckingDeletion = meta.story({
+  args: {
+    ...defaultArgs,
+    status: "loading",
   },
   render: renderDialog,
 });
@@ -45,7 +62,7 @@ export const WithProjects = meta.story({
 export const Loading = meta.story({
   args: {
     ...defaultArgs,
-    isPending: true,
+    isSubmitting: true,
   },
   render: renderDialog,
 });

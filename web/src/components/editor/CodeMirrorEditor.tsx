@@ -13,13 +13,14 @@ import {
   RangeSetBuilder,
   StateEffect,
   StateField,
+  Prec,
 } from "@codemirror/state";
 import { SearchQuery, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { useState, useCallback, useMemo, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type RefObject } from "react";
 import {
   LanguageSupport,
   StreamLanguage,
@@ -72,6 +73,7 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
+/** @internal */
 export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
 
@@ -148,6 +150,17 @@ const promptLinter = linter((view) =>
   getPromptVariableDiagnostics(view.state.doc.toString()),
 );
 
+// Skip diagnostics on an empty JSON document so a blank field is not flagged
+// as invalid. Keep the extension mounted so typing the first character does
+// not reconfigure the editor.
+const jsonParseDiagnostics = jsonParseLinter();
+const jsonLinter = linter((view) => {
+  if (view.state.doc.length === 0) {
+    return [];
+  }
+  return jsonParseDiagnostics(view);
+});
+
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
 
@@ -170,7 +183,7 @@ const bidiSupport = [
       build(view: EditorView) {
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to } of view.visibleRanges) {
-          for (let pos = from; pos <= to; ) {
+          for (let pos = from; pos <= to;) {
             const line = view.state.doc.lineAt(pos);
             builder.add(line.from, line.from, dirAutoDecoration);
             pos = line.to + 1;
@@ -343,6 +356,16 @@ const gutterHiddenTheme = EditorView.theme({
   ".cm-gutters": { display: "none" },
 });
 
+// Flat editors sit in a host box: no fill of their own, on any layer.
+const flatTheme = Prec.highest(
+  EditorView.theme({
+    "&": { backgroundColor: "transparent" },
+    ".cm-gutters": { backgroundColor: "transparent" },
+    ".cm-scroller": { backgroundColor: "transparent" },
+    ".cm-content": { backgroundColor: "transparent" },
+  }),
+);
+
 const gutterBorderTheme = EditorView.theme({
   ".cm-gutters": { borderRight: "1px solid" },
 });
@@ -424,6 +447,7 @@ export function CodeMirrorEditor({
   enableSearchKeymap = true,
   onEditorMount,
   extensions: additionalExtensions,
+  appearance = "bordered",
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -442,13 +466,13 @@ export function CodeMirrorEditor({
   // Caller-provided CodeMirror extensions appended after the built-ins, e.g. a
   // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
   extensions?: Extension[];
+  /** `flat`: no border or fill of its own, for editors inside a host box. */
+  appearance?: "bordered" | "flat";
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
-  // used to disable linter when field is empty
-  const [linterEnabled, setLinterEnabled] = useState<boolean>(
-    !!value && value !== "",
-  );
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
@@ -515,14 +539,14 @@ export function CodeMirrorEditor({
             }),
           ]
         : []),
-      ...(mode === "json" ? [json()] : []),
-      ...(mode === "json" && linterEnabled ? [linter(jsonParseLinter())] : []),
+      ...(mode === "json" ? [json(), jsonLinter] : []),
       // Magic paste: when editing JSON, escape pasted text inside a string (or
       // wrap a blob pasted into a blank field) so the JSON stays valid, with a
       // "Paste raw" escape hatch. Conservative — defers to normal paste otherwise.
       ...(editable && mode === "json" ? [createJsonMagicPasteExtension()] : []),
       ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      ...(appearance === "flat" ? [flatTheme] : []),
       ...(additionalExtensions ?? []),
     ],
     [
@@ -531,8 +555,8 @@ export function CodeMirrorEditor({
       minHeight,
       maxHeight,
       mode,
-      linterEnabled,
       lineWrapping,
+      appearance,
       additionalExtensions,
     ],
   );
@@ -549,14 +573,11 @@ export function CodeMirrorEditor({
   );
 
   // Stable identity so the reconfigure effect (which lists `onChange` in its
-  // deps) doesn't fire on every render.
-  const handleChange = useCallback(
-    (c: string) => {
-      if (onChange) onChange(c);
-      setLinterEnabled(c !== "");
-    },
-    [onChange],
-  );
+  // deps) doesn't fire on every render. Route the parent handler through a ref
+  // so form render-prop onChange identities cannot rebuild the editor config.
+  const handleChange = useCallback((c: string) => {
+    onChangeRef.current?.(c);
+  }, []);
 
   return (
     <CodeMirror
@@ -566,11 +587,11 @@ export function CodeMirrorEditor({
       basicSetup={basicSetup}
       lang={mode === "json" ? "json" : undefined}
       extensions={extensions}
-      defaultValue={value}
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md text-xs",
+        appearance === "flat" ? "border-0 bg-transparent" : "border",
         className,
       )}
       editable={editable}

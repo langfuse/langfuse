@@ -1,4 +1,5 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -38,6 +39,7 @@ import {
   executeLlmEvaluator,
   type CodeEvalScoreWithName,
   type EvaluatorLlmErrorClassification,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
   inMemoryFilterRequiresMetadata,
@@ -68,10 +70,15 @@ import {
   validateEvaluatorFiltersForTarget,
   type EvalExecutionContext,
 } from "@langfuse/shared";
+import { isV4CutoffActive } from "@langfuse/shared/src/server/v4Cutoff";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "./evalFailureErrors";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   completeEvalExecution,
@@ -85,7 +92,7 @@ import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { type ExtractedVariable } from "@langfuse/shared/src/server";
+
 import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
@@ -352,6 +359,8 @@ export const createEvalJobs = async ({
 
     return;
   }
+
+  if (isTraceDatasetEvalCutoff(event.projectId)) return;
 
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
@@ -1062,8 +1071,9 @@ export async function runLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -1196,8 +1206,9 @@ export async function runLLMAsJudgeEvaluation({
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+          EvalFailureReason.InvalidModelOutput,
         );
       }
 
@@ -1269,6 +1280,7 @@ function toNormalizedScores(params: {
   }));
 }
 
+/** @internal */
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
@@ -1307,9 +1319,11 @@ export async function executeLLMAsJudgeEvaluation(
   await completeEvalExecution({
     projectId: params.projectId,
     jobExecutionId: params.jobExecutionId,
+    scoreTimestamp: params.job.createdAt,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
+    executionType: EvalTemplateType.LLM_AS_JUDGE,
     deps,
     result,
   });
@@ -1407,6 +1421,23 @@ async function resolveTraceExecution(params: {
     evaluatorId: evaluator.id,
     evaluatorVersionId: version.id,
   };
+}
+
+/** isTraceDatasetEvalCutoff reports and skips trace and dataset evals while that switch is on. */
+function isTraceDatasetEvalCutoff(projectId: string): boolean {
+  if (
+    !isV4CutoffActive({
+      cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      enabled: env.LANGFUSE_V4_CUTOFF_EVALS,
+      exemptProjectIds: env.LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS,
+      projectId,
+    })
+  ) {
+    return false;
+  }
+  recordIncrement("langfuse.v4_cutoff", 1, { surface: "evals" });
+  logger.debug("Langfuse v3 cutoff", { surface: "evals", projectId });
+  return true;
 }
 
 async function cancelTraceExecution(
@@ -1562,6 +1593,7 @@ export const evaluate = async ({
   });
 };
 
+/** @internal */
 export async function extractVariablesFromTracingData({
   projectId,
   variables,

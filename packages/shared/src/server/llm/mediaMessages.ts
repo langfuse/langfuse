@@ -7,6 +7,7 @@ import {
   MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
 } from "../../utils/IORepresentation/chatML/types";
+import { getMediaDownloadUrl } from "../media/getMediaDownloadUrl";
 import { getS3MediaStorageClient } from "../s3";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { LLMValidationError } from "./errors";
@@ -54,6 +55,12 @@ const EVALUATOR_MEDIA_TYPES = new Set([
   "video/x-msvideo",
   "video/x-ms-wmv",
   "video/3gpp",
+]);
+
+const EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS = new Set<LLMAdapter>([
+  // Bedrock Converse accepts inline bytes and S3 locations, but not HTTP(S) URLs.
+  // https://github.com/aws-samples/amazon-bedrock-samples/issues/684
+  LLMAdapter.Bedrock,
 ]);
 
 export function normalizeEvaluatorMediaType(mediaType: string) {
@@ -110,11 +117,12 @@ export const resolveProjectMedia: EvaluatorMediaResolver = async ({
     });
   }
 
-  const url = await getS3MediaStorageClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
-    EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
-    false,
-  );
+  const url = await getMediaDownloadUrl({
+    storageService: getS3MediaStorageClient(media.bucketName),
+    bucketPath: media.bucketPath,
+    contentType: media.contentType,
+    ttlSeconds: EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
+  });
   return {
     url,
     mediaType: storedMediaType,
@@ -235,6 +243,15 @@ export async function compileLangfuseMediaMessages(params: {
           traceMessage: { ...message, content: traceContent },
         };
       }
+      if (
+        transport === "url" &&
+        EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS.has(params.adapter)
+      ) {
+        return {
+          providerMessage: message,
+          traceMessage: { ...message, content: traceContent },
+        };
+      }
 
       // Resolve and load independent media objects concurrently. Promise.all
       // keeps the results in source order even if downloads finish out of order.
@@ -247,7 +264,7 @@ export async function compileLangfuseMediaMessages(params: {
           });
           if (!resolved) {
             throw new LLMValidationError({
-              code: "invalid-request",
+              code: "media-not-found",
               message: `Media asset ${match.id} was not found in this project`,
             });
           }

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
+import { normalizedMessageSchema } from "../../../schema";
 import {
   anthropicMessagesRawServerToolsAndMediaFixture,
   anthropicMessagesRichContentFixture,
   capturedTraceFixtures,
   documentedToolResultFixtures,
-} from "./fixtures";
+} from "./__tests__/fixtures";
 
 describe("Anthropic normalized I/O", () => {
   it.each([
@@ -15,9 +16,13 @@ describe("Anthropic normalized I/O", () => {
     anthropicMessagesRawServerToolsAndMediaFixture,
     anthropicMessagesRichContentFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeSpanIO(spanIO)).toEqual({
+    const actual = normalizeSpanIO(spanIO);
+    expect(actual).toEqual({
       ...expected,
       span: spanIO,
     });
+    expect(normalizedMessageSchema.array().parse(actual.messages)).toEqual(
+      actual.messages,
+    );
   });
 });

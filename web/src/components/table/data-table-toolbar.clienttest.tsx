@@ -1,15 +1,31 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 import type { ColumnDefinition } from "@langfuse/shared";
-import { ExperimentDisplaySettings } from "@/src/features/experiments";
+import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import {
   DataTableToolbar,
   type MultiSelect,
 } from "@/src/components/table/data-table-toolbar";
+import { registerSelectAllBannerSlot } from "@/src/components/table/selectAllBannerSlot";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { useStore } from "zustand";
 
 const captureSpy = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({ capture: captureSpy }),
 }));
@@ -223,6 +239,62 @@ describe("DataTableToolbar select-all banner gate", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  it("renders the banner in a following table slot above the header", () => {
+    render(
+      <div>
+        <DataTableToolbar
+          columns={[]}
+          tableName="test-table"
+          multiSelect={baseMultiSelect({
+            totalCount: 500,
+            selectedRowIds: selectedIds(50),
+          })}
+        />
+        <div data-select-all-banner-slot />
+      </div>,
+    );
+
+    const slot = document.querySelector("[data-select-all-banner-slot]");
+    act(() => {
+      registerSelectAllBannerSlot(slot as HTMLElement);
+    });
+
+    const banner = screen.getByRole("button", {
+      name: "Select all 500 items across 10 pages",
+    });
+    expect(slot).toContainElement(banner);
+  });
+
+  it("returns the banner inline when its table slot unregisters", () => {
+    render(
+      <div>
+        <DataTableToolbar
+          columns={[]}
+          tableName="test-table"
+          multiSelect={baseMultiSelect({
+            totalCount: 500,
+            selectedRowIds: selectedIds(50),
+          })}
+        />
+        <div data-select-all-banner-slot />
+      </div>,
+    );
+
+    const slot = document.querySelector("[data-select-all-banner-slot]");
+    let unregister: () => void = () => undefined;
+    act(() => {
+      unregister = registerSelectAllBannerSlot(slot as HTMLElement);
+    });
+    act(() => {
+      unregister();
+    });
+
+    const banner = screen.getByRole("button", {
+      name: "Select all 500 items across 10 pages",
+    });
+    expect(slot).not.toContainElement(banner);
+  });
 });
 
 describe("DataTableToolbar presentation controls", () => {
@@ -247,7 +319,7 @@ describe("DataTableToolbar presentation controls", () => {
   });
 
   it("opens display settings independently of the column picker", () => {
-    const onIoRenderModeChange = vi.fn();
+    const onDiffModeChange = vi.fn();
     render(
       <DataTableToolbar
         {...settingsProps}
@@ -256,28 +328,124 @@ describe("DataTableToolbar presentation controls", () => {
             layout="grid"
             onLayoutChange={vi.fn()}
             diffMode="comparison"
-            onDiffModeChange={vi.fn()}
+            onDiffModeChange={onDiffModeChange}
             itemVisibility="all"
             onItemVisibilityChange={vi.fn()}
             hasComparisons
             hasBaseline
-            ioRenderMode="json"
-            onIoRenderModeChange={onIoRenderModeChange}
           />
         }
       />,
     );
 
-    expect(screen.queryByRole("menuitem", { name: "Formatted" })).toBeNull();
+    expect(
+      screen.queryByRole("menuitem", { name: "Off — values only" }),
+    ).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Display" }), {
       key: "Enter",
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Formatted" }));
-    expect(onIoRenderModeChange).toHaveBeenCalledExactlyOnceWith("text");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Off — values only" }),
+    );
+    expect(onDiffModeChange).toHaveBeenCalledExactlyOnceWith("off");
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Row height" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Display" })).toBeVisible();
+  });
+
+  function openRowHeightMenu() {
+    fireEvent.click(screen.getByRole("button", { name: /Row height/ }));
+  }
+
+  it("keeps the row-height menu to the presets unless a free height is enabled", () => {
+    render(<DataTableToolbar {...settingsProps} />);
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Small" }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Custom as its own row-height state and restores it from the menu", () => {
+    const setRowHeight = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="l"
+        setRowHeight={setRowHeight}
+        customRowHeight={{
+          active: true,
+          rememberedPx: 640,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Large" }),
+    ).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Small" }));
+    expect(setRowHeight).toHaveBeenCalledExactlyOnceWith("s");
+
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Custom (640px)" }),
+    );
+    // Already the active height, so choosing it again is a no-op.
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns to a remembered custom height from the menu", () => {
+    const onSelect = vi.fn();
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        rowHeight="m"
+        customRowHeight={{
+          active: false,
+          rememberedPx: 800,
+          onSelect,
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Medium" }),
+    ).toBeChecked();
+    const custom = screen.getByRole("menuitemcheckbox", {
+      name: "Custom (800px)",
+    });
+    expect(custom).not.toBeChecked();
+    fireEvent.click(custom);
+    expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("hides Custom until a row has been dragged", () => {
+    render(
+      <DataTableToolbar
+        {...settingsProps}
+        customRowHeight={{
+          active: false,
+          rememberedPx: null,
+          onSelect: vi.fn(),
+        }}
+      />,
+    );
+    openRowHeightMenu();
+
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /^Custom/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens legacy filters and search together in the mobile sheet", () => {

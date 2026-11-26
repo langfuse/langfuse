@@ -9,6 +9,7 @@ import {
 import {
   type DatasetItemMediaField,
   InternalServerError,
+  isBaseError,
   LangfuseNotFoundError,
   MediaAssociationOrigin,
 } from "@langfuse/shared";
@@ -16,6 +17,7 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   declarePendingDatasetItemMedia,
   getMediaBucketPath,
+  getMediaDownloadUrl,
   getMediaId,
   getCurrentSpan,
   linkMediaToTraceOrObservation,
@@ -79,7 +81,8 @@ export async function createMediaUploadUrl(params: {
 
     if (
       existingMedia &&
-      existingMedia.uploadHttpStatus === 200 &&
+      (existingMedia.uploadHttpStatus === 200 ||
+        existingMedia.uploadHttpStatus === 201) &&
       existingMedia.contentType === contentType
     ) {
       await linkUploadedMedia(mediaId);
@@ -128,11 +131,9 @@ export async function createMediaUploadUrl(params: {
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {
-    if (error instanceof InternalServerError) throw error;
+    if (isBaseError(error)) throw error;
 
-    logger.error(
-      `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
-    );
+    logger.error("Failed to get media upload URL", error);
     throw new InternalServerError("Failed to get media upload URL");
   }
 }
@@ -159,11 +160,12 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
   }
 
   const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
-  const url = await getMediaStorageServiceClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
+  const url = await getMediaDownloadUrl({
+    storageService: getMediaStorageServiceClient(media.bucketName),
+    bucketPath: media.bucketPath,
+    contentType: media.contentType,
     ttlSeconds,
-    false,
-  );
+  });
 
   return GetMediaResponseSchema.parse({
     mediaId,
@@ -194,7 +196,10 @@ export async function updateMediaUploadStatus(params: {
       data: {
         uploadedAt,
         uploadHttpStatus,
-        uploadHttpError: uploadHttpStatus === 200 ? null : uploadHttpError,
+        uploadHttpError:
+          uploadHttpStatus === 200 || uploadHttpStatus === 201
+            ? null
+            : uploadHttpError,
       },
     });
 

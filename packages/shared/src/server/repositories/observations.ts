@@ -1,4 +1,5 @@
-/* eslint-disable no-nested-ternary */
+import { visibleModelsWhere } from "../ingestion/modelVisibility";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -11,11 +12,9 @@ import {
 } from "./clickhouse";
 import { logger } from "../logger";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import {
-  InternalServerError,
-  LangfuseNotFoundError,
-  PayloadTooLargeError,
-} from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { PayloadTooLargeError } from "../../errors/PayloadTooLargeError";
 import { prisma } from "../../db";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
@@ -23,16 +22,16 @@ import {
   DateTimeFilter,
   FilterList,
   StringFilter,
-  FullObservations,
-  orderByToClickhouseSql,
-} from "../queries";
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FullObservations } from "../queries/createGenerationsQuery";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
-} from "../tableMappings";
+} from "../tableMappings/mapObservationsTable";
 import { OrderByState } from "../../interfaces/orderBy";
-import { matchesUiColumnMapping } from "../../tableDefinitions";
+import { matchesUiColumnMapping } from "../../tableDefinitions/types";
 import { getTracesByIds } from "./traces";
 import {
   convertDateToClickhouseDateTime,
@@ -52,7 +51,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
-import { ObservationType } from "../../domain";
+import { ObservationType } from "../../domain/observations";
 import {
   LEGACY_OBSERVATION_EXPORT_FIELDS,
   OBSERVATION_FIELD_GROUPS_FULL,
@@ -60,7 +59,10 @@ import {
 } from "../../domain/observation-field-groups";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../queries/clickhouse-sql/query-options";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -618,7 +620,7 @@ export const getObservationsTableWithModelData = async (
             id: {
               in: uniqueModels,
             },
-            OR: [{ projectId: opts.projectId }, { projectId: null }],
+            ...visibleModelsWhere(opts.projectId),
           },
           include: {
             Price: {
@@ -811,7 +813,7 @@ const getObservationsTableInternal = async <T>(
         data_type,
         comment
       FROM
-        scores FINAL
+        scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
       WHERE ${appliedScoresFilter.query}
       GROUP BY
         trace_id,
@@ -1477,6 +1479,7 @@ export const getObservationMetricsForPrompts = async (
         : {}),
     },
     tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((r) => ({
@@ -1635,10 +1638,12 @@ export const getObservationCountsByProjectInCreationInterval = async ({
   start,
   end,
   projectId,
+  projectIds,
 }: {
   start: Date;
   end: Date;
   projectId?: string;
+  projectIds?: string[];
 }) => {
   const query = `
     SELECT
@@ -1648,6 +1653,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
     ${projectId ? "AND project_id = {projectId: String}" : ""}
+    ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
     GROUP BY project_id
   `;
 
@@ -1657,6 +1663,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       ...(projectId ? { projectId } : {}),
+      ...(projectIds ? { projectIds } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout
@@ -1969,65 +1976,6 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       mixpanel_session_id: record.mixpanel_session_id ?? null,
     } satisfies AnalyticsGenerationEvent;
   }
-};
-
-/**
- * Get observation counts grouped by project and day within a date range.
- *
- * Returns one row per project per day with the count of observations started on that day.
- * Uses half-open interval [startDate, endDate) for filtering based on start_time.
- *
- * @param startDate - Start of date range (inclusive)
- * @param endDate - End of date range (exclusive)
- * @returns Array of { count, projectId, date } objects
- *
- * @example
- * // Get observation counts for March 1-2, 2024
- * const counts = await getObservationCountsByProjectAndDay({
- *   startDate: new Date('2024-03-01T00:00:00Z'),
- *   endDate: new Date('2024-03-03T00:00:00Z')
- * });
- *
- * Note: Skips using FINAL (double counting risk) for faster and cheaper
- * queries against clickhouse. Generous 4x overcompensation before blocking allows
- * for usage aggregation to be meaningful.
- */
-export const getObservationCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
-  startDate: Date;
-  endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(start_time) as date
-    FROM observations
-    WHERE start_time >= {startDate: DateTime64(3)}
-    AND start_time < {endDate: DateTime64(3)}
-    GROUP BY project_id, toDate(start_time)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
 };
 
 const evaluatorCostFields = {

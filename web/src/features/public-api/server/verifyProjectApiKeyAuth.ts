@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/throw-new-error -- baseline before rule enablement */
 import crypto from "node:crypto";
 import { type NextApiRequest } from "next";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -39,6 +40,7 @@ async function verifyApiKeyAuth(
   ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 401, message: regularAuth.error };
   }
 
@@ -47,6 +49,7 @@ async function verifyApiKeyAuth(
       regularAuth.scope.accessLevel,
     )
   ) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message: "Access denied - insufficient permissions for this endpoint",
@@ -54,6 +57,7 @@ async function verifyApiKeyAuth(
   }
 
   if (!regularAuth.scope.projectId) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message:
@@ -72,7 +76,7 @@ async function verifyApiKeyAuth(
  * This function checks if the request contains valid admin API key credentials:
  * 1. Authorization header must be Bearer token format with ADMIN_API_KEY value
  * 2. x-langfuse-admin-api-key header must match ADMIN_API_KEY env var exactly (for redundancy)
- * 3. x-langfuse-project-id header must be present and specify a valid project ID
+ * 3. x-langfuse-project-id or langfuse-project-id header must be present and specify a valid project ID
  * 4. NEXT_PUBLIC_LANGFUSE_CLOUD_REGION must NOT be set (self-hosted instances only)
  *
  * The ADMIN_API_KEY must be set as an environment variable on the server.
@@ -90,13 +94,15 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
 > {
   const authHeader = req.headers.authorization;
   const adminApiKeyHeader = req.headers["x-langfuse-admin-api-key"];
-  const projectIdHeader = req.headers["x-langfuse-project-id"];
+  const projectIdHeader =
+    req.headers["x-langfuse-project-id"] ?? req.headers["langfuse-project-id"];
 
   // If not attempting admin auth, return null to proceed with regular auth
   if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) return null;
 
   // Verify this is a self-hosted instance (not Langfuse Cloud)
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 403,
       message: "Admin API key auth is not available on Langfuse Cloud",
@@ -106,6 +112,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   // Verify ADMIN_API_KEY is configured
   const adminApiKey = env.ADMIN_API_KEY;
   if (!adminApiKey) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 500,
       message: "Admin API key is not configured on this instance",
@@ -132,15 +139,17 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
 
     if (!isEqual) throw Error();
   } catch {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 401, message: "Invalid admin API key" };
   }
 
   // Verify project ID header is present
   if (!projectIdHeader || typeof projectIdHeader !== "string") {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw {
       status: 400,
       message:
-        "x-langfuse-project-id header is required for admin API key authentication",
+        "langfuse-project-id header is required for admin API key authentication",
     };
   }
 
@@ -151,6 +160,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   });
 
   if (!project) {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error -- legacy auth shape; `runLegacyProjectAuth` in shadowAuth reads `status`
     throw { status: 404, message: "Project not found" };
   }
 
@@ -167,6 +177,8 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      // The admin key carries no org.
+      accessAuditLogEnabled: null,
     },
   };
 }

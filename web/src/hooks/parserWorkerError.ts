@@ -14,11 +14,12 @@ import { reportWorkerLoadError } from "@/src/utils/reportWorkerLoadError";
 export function reportParserWorkerError(
   hookName: string,
   event: ErrorEvent,
+  extra?: Record<string, unknown>,
 ): void {
   reportWorkerLoadError({
     area: "io-parse-worker",
     source: hookName,
     event,
-    extra: { workerHook: hookName },
+    extra: { ...extra, workerHook: hookName },
   });
 }

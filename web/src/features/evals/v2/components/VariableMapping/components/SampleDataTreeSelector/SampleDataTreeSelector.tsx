@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import {
   objectEntriesForPreview,
@@ -193,8 +193,10 @@ function TreeRow({
         >
           {expandable ? (
             <ChevronDown
-              className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0 self-center transition-transform",
+              size="base"
+              color="muted"
+              __rawClassName={cn(
+                "self-center transition-transform",
                 !isOpen && "-rotate-90",
               )}
             />

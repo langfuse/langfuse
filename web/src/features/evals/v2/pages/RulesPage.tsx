@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  EVALS_V2_TABS,
+  getEvalsV2Tabs,
+} from "@/src/features/navigation/utils/evals-v2-tabs";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export function RulesPage() {
@@ -39,7 +42,7 @@ export function RulesPage() {
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="mr-2 h-4 w-4" /> New rule
+            <Plus size="base" color="default" __rawClassName="mr-2" /> New rule
           </Button>
         ),
         tabsProps: {

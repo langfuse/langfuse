@@ -57,7 +57,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: null, status: "unauthenticated" }),
 }));
 
-import { WidgetForm } from "./WidgetForm";
+import { ConnectedWidgetForm } from "./ConnectedWidgetForm";
 
 describe("WidgetForm v1 observation-name options", () => {
   beforeAll(() => {
@@ -80,7 +80,7 @@ describe("WidgetForm v1 observation-name options", () => {
     // irrelevant to what input the query under test received.
     try {
       render(
-        <WidgetForm
+        <ConnectedWidgetForm
           projectId="p1"
           onSave={vi.fn()}
           initialValues={{

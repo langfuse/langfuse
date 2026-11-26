@@ -5,7 +5,7 @@ use std::fmt::Write;
 pub(crate) fn authorization(service_key: &str, credential: &str, timestamp: u64) -> String {
     let key_hash = lowercase_hex(&Sha256::digest(credential.as_bytes()));
     let payload = format!("gateway-web-v1\n{timestamp}\n{key_hash}");
-    // HMAC accepts keys of any length.
+    #[expect(clippy::expect_used, reason = "HMAC accepts keys of any length")]
     let mut mac = Hmac::<Sha256>::new_from_slice(service_key.as_bytes()).expect("valid HMAC key");
     mac.update(payload.as_bytes());
     let signature = lowercase_hex(&mac.finalize().into_bytes());
@@ -15,6 +15,7 @@ pub(crate) fn authorization(service_key: &str, credential: &str, timestamp: u64)
 fn lowercase_hex(bytes: &[u8]) -> String {
     let mut encoded = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
+        #[expect(clippy::expect_used, reason = "writing to a String cannot fail")]
         write!(encoded, "{byte:02x}").expect("writing to String cannot fail");
     }
     encoded

@@ -1,6 +1,6 @@
 import { InAppAgentRunErrorCode } from "../../features/inAppAgent/types";
 import { recordIncrement } from "../../server";
-import type { SettledInAppAgentRunStatus } from "../constants";
+import type { SettledInAppAgentRunStatus } from "../../features/inAppAgent/types";
 
 const RUN_COMPLETED_METRIC = "langfuse.in_app_agent.run.completed";
 

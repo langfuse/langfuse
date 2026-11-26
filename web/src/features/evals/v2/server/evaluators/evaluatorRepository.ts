@@ -1,3 +1,4 @@
+/* eslint-disable array-callback-return */
 import {
   EvalTemplateType,
   Prisma,
@@ -13,12 +14,14 @@ import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
 import {
   EvalTargetObject,
+  TopicsTargetObject,
   eventsEvalFilterColumns,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
 import {
   compilePrismaFilters,
+  escapeSqlLikePattern,
   stringFilterToPrisma,
   stringOptionsFilterToPrisma,
   type PrismaFilterColumnHandlers,
@@ -49,9 +52,13 @@ const visibleEvaluatorWhere = {
   type: { not: EvalTemplateType.FACET },
 } as const satisfies Prisma.EvaluatorWhereInput;
 
+/** Trace transcript rules map `threads`, which the public mapping contract cannot express. */
 const publicEvaluationRuleAssignments = (projectId: string) =>
   ({
-    where: { projectId },
+    where: {
+      projectId,
+      evaluationRule: { targetObject: { not: TopicsTargetObject } },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       variableMapping: true,
@@ -281,7 +288,12 @@ async function evaluatorWhere(params: {
     ...visibleEvaluatorWhere,
     ...(modelEvaluatorIds ? { id: { in: modelEvaluatorIds } } : {}),
     ...(params.search
-      ? { name: { contains: params.search, mode: "insensitive" as const } }
+      ? {
+          name: {
+            contains: escapeSqlLikePattern(params.search),
+            mode: "insensitive" as const,
+          },
+        }
       : {}),
     AND: compilePrismaFilters<Prisma.EvaluatorWhereInput>(
       otherFilters ?? [],
@@ -298,10 +310,18 @@ export async function listEvaluators(params: {
   orderBy?: EvaluatorListOrderBy;
   search?: string;
   filter?: FilterState;
+  /** Trace transcript rule assignments are left out unless the caller opts in. */
+  includeTraceTranscriptAssignments?: boolean;
 }) {
   const where = await evaluatorWhere(params);
   const orderColumn = params.orderBy?.column ?? "updatedAt";
   const orderDirection = params.orderBy?.order.toLowerCase() ?? "desc";
+  const assignmentWhere = {
+    projectId: params.projectId,
+    ...(params.includeTraceTranscriptAssignments
+      ? {}
+      : { evaluationRule: { targetObject: { not: TopicsTargetObject } } }),
+  } satisfies Prisma.EvaluationRuleEvaluatorAssignmentWhereInput;
   const [evaluators, totalItems, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
@@ -313,11 +333,11 @@ export async function listEvaluators(params: {
         createdByUser,
         _count: {
           select: {
-            assignments: { where: { projectId: params.projectId } },
+            assignments: { where: assignmentWhere },
           },
         },
         assignments: {
-          where: { projectId: params.projectId },
+          where: assignmentWhere,
           select: {
             evaluationRule: { select: { id: true, name: true, status: true } },
           },
@@ -507,7 +527,12 @@ export async function listEvaluatorOptions(params: {
       projectId: params.projectId,
       ...visibleEvaluatorWhere,
       ...(params.search
-        ? { name: { contains: params.search, mode: "insensitive" } }
+        ? {
+            name: {
+              contains: escapeSqlLikePattern(params.search),
+              mode: "insensitive",
+            },
+          }
         : {}),
       ...(params.excludeLegacyEvaluators ? batchEligibleEvaluatorWhere : {}),
     },

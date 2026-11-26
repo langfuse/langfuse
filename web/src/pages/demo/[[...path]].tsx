@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
-import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { isProjectMember } from "@/src/server/utils/checkProjectMembership";
 import { prisma } from "@langfuse/shared/src/db";
 
 const DemoRedirectPage = () => null;
@@ -36,7 +37,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   });
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
-  if (isProjectMemberOrAdmin(session?.user, demoProject.id)) {
+  if (isProjectMember(session?.user, demoProject.id)) {
     return redirect(demoProjectPath);
   }
 

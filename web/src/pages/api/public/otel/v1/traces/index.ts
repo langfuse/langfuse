@@ -15,7 +15,10 @@ import {
   OtelRequestBodyTooLargeError,
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
-import { processOtelIngestion } from "@/src/server/otel/processOtelIngestion";
+import {
+  OTEL_REQUEST_BODY_WARNING_BYTES,
+  processOtelIngestion,
+} from "@/src/server/otel/processOtelIngestion";
 
 export const config = {
   api: {
@@ -43,6 +46,14 @@ export default withMiddlewares({
       await markProjectAsOtelUser(auth.scope.projectId);
 
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
+      const declaredBodyBytes = Number(req.headers["content-length"]);
+      if (declaredBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES) {
+        logger.warn("Receiving large OTEL request body", {
+          projectId: auth.scope.projectId,
+          declaredBodyBytes,
+          contentEncoding: req.headers["content-encoding"],
+        });
+      }
       // Start reading before shadow work so a fast request cannot finish while
       // the stream is still unobserved.
       const bodyResultPromise = readOtelRequestBody(req, maxBodyBytes).then(

@@ -1,13 +1,13 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { DataTable } from "@/src/components/table/data-table";
-import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/data-table-pagination";
+import { TRACING_PAGE_SIZE_OPTIONS } from "@/src/components/table/DataTablePagination";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -18,10 +18,8 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  useColumnVisibility,
-  useColumnOrder,
-} from "@/src/features/column-visibility";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
@@ -38,12 +36,12 @@ import {
   formatAsLabel,
   LevelSymbols,
   getObservationLevelStatus,
-} from "@/src/components/level-colors";
+} from "@/src/components/ObservationLevelTag";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages";
-import { useOrderByState } from "@/src/features/orderBy";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
   type ObservationLevelType,
@@ -57,7 +55,11 @@ import {
   type TracingSearchType,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  isCompactRowHeight,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -65,45 +67,52 @@ import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import {
   isLiveTailTimeSort,
+  paginationWindowResetKey,
   usePaginationWindowPin,
 } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, Trash2 } from "lucide-react";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { InfoIcon, Trash2 } from "@langfuse/icons";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import type { TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
-  TableActionMenu,
-  useSelectAll,
-  TableSelectionManager,
-  type TableAction,
-} from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications";
+  markTraceQueryPendingDeletion,
+  markTracesPendingDeletion,
+} from "@/src/features/traces/pendingTraceDeletions";
+import { usePendingTraceDeletions } from "@/src/features/traces/usePendingTraceDeletions";
+import { traceDeleteCandidateFromTrace } from "@/src/features/traces/pendingTraceDeletionMatch";
 import {
   LevelCountsDisplay,
   type LevelCount,
-} from "@/src/components/level-counts-display";
+} from "@/src/components/LevelCountsDisplay";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+
+import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-  tracesFieldRegistry,
-} from "@/src/features/filters";
+} from "@/src/features/filters/config/traces-config";
 
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
+
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -111,12 +120,14 @@ import {
   REFRESH_INTERVALS,
   type RefreshInterval,
 } from "@/src/components/table/utils/refresh-intervals";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useEffectiveRefreshInterval } from "@/src/components/table/hooks/useEffectiveRefreshInterval";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
+import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { ConnectedAddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/ConnectedAddTracesToAnnotationQueueDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type TracesTableRow = {
@@ -225,6 +236,7 @@ function TracesTableInternal({
     },
     [allowedValues, setRawRefreshInterval],
   );
+  const effectiveRefreshInterval = useEffectiveRefreshInterval(refreshInterval);
 
   const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
@@ -248,10 +260,10 @@ function TracesTableInternal({
   }, [invalidateTableQueries]);
 
   useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(invalidateTableQueries, refreshInterval);
+    if (!effectiveRefreshInterval) return;
+    const id = setInterval(invalidateTableQueries, effectiveRefreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, manualRefreshTrigger, invalidateTableQueries]);
+  }, [effectiveRefreshInterval, manualRefreshTrigger, invalidateTableQueries]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
@@ -292,9 +304,9 @@ function TracesTableInternal({
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
-  // Facets describe the whole window; only the paged row/count queries need the
-  // upper bound pinned, so that offset paging does not repeat or skip rows while
-  // the window keeps taking in newly ingested ones.
+  // Facets describe the live window. Row and count queries freeze both bounds
+  // once the reader leaves page 1, so offset paging does not repeat, skip, or
+  // recount rows while the window keeps taking in newly ingested ones.
   const dateRangeFilter: FilterState = toTimestampFilter(dateRange);
   const {
     range: rowsDateRange,
@@ -303,7 +315,15 @@ function TracesTableInternal({
   } = usePaginationWindowPin(
     dateRange,
     limitRows ? 0 : paginationState.pageIndex,
-    { enabled: isLiveTailTimeSort(orderByState, "timestamp") },
+    {
+      enabled: isLiveTailTimeSort(orderByState, "timestamp"),
+      resetKey: paginationWindowResetKey({
+        orderBy: orderByState,
+        pageSize: paginationState.pageSize,
+        timeRange,
+        externalRange: externalDateRange,
+      }),
+    },
   );
   const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
@@ -404,8 +424,20 @@ function TracesTableInternal({
   const isSidebarFilterLoading =
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending;
 
-  const { viewControllersRef, onExplicitFilterStateChange } =
-    useTableViewFilterChange();
+  const {
+    viewControllersRef,
+    onExplicitFilterStateChange: onViewFilterStateChange,
+  } = useTableViewFilterChange();
+
+  const onExplicitFilterStateChange = useCallback<
+    typeof onViewFilterStateChange
+  >(
+    (change) => {
+      onViewFilterStateChange(change);
+      if (change.origin === "user") resetPin();
+    },
+    [onViewFilterStateChange, resetPin],
+  );
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
@@ -576,11 +608,18 @@ function TracesTableInternal({
   // traces.all should load first together with everything else.
   // This here happens in the background.
 
-  const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [storedRowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "traces",
     "s",
   );
   const rowHeight = hideControls ? "s" : storedRowHeight;
+  const compactRows =
+    hideControls ||
+    isCompactRowHeight(
+      storedRowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    );
 
   // Trace rows render trace-scoped aggregates: direct trace scores plus
   // observation scores that belong to the same trace.
@@ -602,13 +641,6 @@ function TracesTableInternal({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.traces.all.invalidate();
     },
@@ -628,6 +660,7 @@ function TracesTableInternal({
         });
       }
       showSuccessToast({
+        operation: "trace.add_to_annotation_queue",
         title: "Traces added to queue",
         description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
@@ -639,11 +672,12 @@ function TracesTableInternal({
   });
 
   const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    const pageTraceIds = traces.data?.traces.map((trace) => trace.id) ?? [];
     const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
-      traces.data?.traces.map((t) => t.id).includes(traceId),
+      pageTraceIds.includes(traceId),
     );
 
-    await traceDeleteMutation.mutateAsync({
+    const { cutoffCreatedAt } = await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
       query: {
@@ -654,6 +688,21 @@ function TracesTableInternal({
       },
       isBatchAction: selectAll,
     });
+    if (selectAll && cutoffCreatedAt) {
+      markTraceQueryPendingDeletion(projectId, {
+        source: "traces",
+        filter: filterState,
+        searchQuery: searchQuery || undefined,
+        searchType,
+        cutoffCreatedAt,
+      });
+    }
+    // The loaded page is hidden by id too, which covers queries that cannot
+    // be evaluated in the browser.
+    markTracesPendingDeletion(
+      projectId,
+      selectAll ? pageTraceIds : selectedTraceIds,
+    );
     setSelectedRows({});
   };
 
@@ -757,7 +806,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "gray",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -769,7 +818,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="input"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -782,7 +831,7 @@ function TracesTableInternal({
       size: 400,
       cellBackground: "green",
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -794,7 +843,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="output"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -885,7 +934,7 @@ function TracesTableInternal({
               ) : (
                 <EmptyValue />
               )}
-              <InfoIcon className="h-3 w-3" />
+              <InfoIcon size="sm" />
             </div>
           </BreakdownTooltip>
         ) : null;
@@ -893,7 +942,7 @@ function TracesTableInternal({
       enableHiding: true,
       enableSorting,
     },
-    createBadgeTableColumn<TracesTableRow>({
+    createTagTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,
@@ -921,7 +970,7 @@ function TracesTableInternal({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      shouldWrap: rowHeight !== "s",
+      shouldWrap: !compactRows,
       enableHiding: true,
     }),
     {
@@ -929,7 +978,7 @@ function TracesTableInternal({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
+        <ConnectedIOTableCell isLoading singleLine={compactRows} />
       ),
       headerTooltip: {
         description: (
@@ -960,7 +1009,7 @@ function TracesTableInternal({
             projectId={projectId}
             timestamp={new Date(traceTimestamp)}
             col="metadata"
-            singleLine={rowHeight === "s"}
+            singleLine={compactRows}
           />
         );
       },
@@ -1245,7 +1294,7 @@ function TracesTableInternal({
                   }
                   onSelect={() => openDeleteTraceDialog(traceId)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  <Trash2 size="base" color="default" __rawClassName="mr-2" />
                   Delete
                 </DropdownMenuItem>
               ) : null,
@@ -1361,50 +1410,62 @@ function TracesTableInternal({
     setColumnVisibility(next);
   };
 
+  const pendingTraceDeletions = usePendingTraceDeletions(projectId);
+  const pendingTraceIds = useMemo(
+    () =>
+      pendingTraceDeletions.hiddenTraceIds(
+        "traces",
+        (traceRowData?.rows ?? []).map(traceDeleteCandidateFromTrace),
+      ),
+    [pendingTraceDeletions, traceRowData?.rows],
+  );
+
   const rows = useMemo(() => {
     return traces.isSuccess
-      ? (traceRowData?.rows?.map((trace) => {
-          return {
-            id: trace.id,
-            timestamp: trace.timestamp,
-            name: trace.name ?? "",
-            level: trace.level,
-            observationCount: trace.observationCount,
-            release: trace.release ?? undefined,
-            version: trace.version ?? undefined,
-            userId: trace.userId ?? "",
-            sessionId: trace.sessionId ?? undefined,
-            environment: trace.environment ?? undefined,
-            latency: trace.latency === null ? undefined : trace.latency,
-            tags: trace.tags,
-            usage: {
-              inputUsage: trace.promptTokens,
-              outputUsage: trace.completionTokens,
-              totalUsage: trace.totalTokens,
-            },
-            tokens: {
-              inputUsage: trace.promptTokens,
-              outputUsage: trace.completionTokens,
-              totalUsage: trace.totalTokens,
-            },
-            levelCounts: {
-              errorCount: trace.errorCount,
-              warningCount: trace.warningCount,
-              defaultCount: trace.defaultCount,
-              debugCount: trace.debugCount,
-            },
-            tokenDetails: trace.usageDetails,
-            costDetails: trace.costDetails,
-            scores: trace.scores,
-            cost: {
-              inputCost: trace.calculatedInputCost ?? undefined,
-              outputCost: trace.calculatedOutputCost ?? undefined,
-            },
-            totalCost: trace.calculatedTotalCost ?? undefined,
-          };
-        }) ?? [])
+      ? (traceRowData?.rows
+          ?.filter((trace) => !pendingTraceIds.has(trace.id))
+          .map((trace) => {
+            return {
+              id: trace.id,
+              timestamp: trace.timestamp,
+              name: trace.name ?? "",
+              level: trace.level,
+              observationCount: trace.observationCount,
+              release: trace.release ?? undefined,
+              version: trace.version ?? undefined,
+              userId: trace.userId ?? "",
+              sessionId: trace.sessionId ?? undefined,
+              environment: trace.environment ?? undefined,
+              latency: trace.latency === null ? undefined : trace.latency,
+              tags: trace.tags,
+              usage: {
+                inputUsage: trace.promptTokens,
+                outputUsage: trace.completionTokens,
+                totalUsage: trace.totalTokens,
+              },
+              tokens: {
+                inputUsage: trace.promptTokens,
+                outputUsage: trace.completionTokens,
+                totalUsage: trace.totalTokens,
+              },
+              levelCounts: {
+                errorCount: trace.errorCount,
+                warningCount: trace.warningCount,
+                defaultCount: trace.defaultCount,
+                debugCount: trace.debugCount,
+              },
+              tokenDetails: trace.usageDetails,
+              costDetails: trace.costDetails,
+              scores: trace.scores,
+              cost: {
+                inputCost: trace.calculatedInputCost ?? undefined,
+                outputCost: trace.calculatedOutputCost ?? undefined,
+              },
+              totalCost: trace.calculatedTotalCost ?? undefined,
+            };
+          }) ?? [])
       : [];
-  }, [traces.isSuccess, traceRowData?.rows]);
+  }, [traces.isSuccess, traceRowData?.rows, pendingTraceIds]);
 
   const selectedTraceIds = useMemo(
     () =>
@@ -1440,11 +1501,15 @@ function TracesTableInternal({
           search={
             hideControls ? null : (
               <TableSearchBar
+                size={showControlsInPageHeader ? "large" : "default"}
                 key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
                 projectId={projectId}
                 tableName={tracesFilterConfig.tableName}
                 registry={searchRegistry}
                 filterState={queryFilter.searchBarFilterState}
+                managedEnvironmentPolicy={
+                  queryFilter.managedEnvironmentPolicyConfig
+                }
                 setFilterState={queryFilter.setFilterState}
                 observed={observedOptions}
                 isV4={false}
@@ -1476,7 +1541,7 @@ function TracesTableInternal({
                   columnsWithCustomSelect={["traceName", "traceTags"]}
                   actionButtons={[
                     selectedTraceIds.length > 0 || selectAll ? (
-                      <AddTracesToAnnotationQueueDialogController
+                      <ConnectedAddTracesToAnnotationQueueDialogController
                         key="traces-multi-select-actions"
                         projectId={projectId}
                         onSuccess={() => {
@@ -1506,7 +1571,7 @@ function TracesTableInternal({
                             }}
                           />
                         )}
-                      </AddTracesToAnnotationQueueDialogController>
+                      </ConnectedAddTracesToAnnotationQueueDialogController>
                     ) : null,
                     hasBatchExportAccess ? (
                       <BatchExportTableButton
@@ -1529,6 +1594,7 @@ function TracesTableInternal({
                   setColumnOrder={handleColumnOrderChange}
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
+                  customRowHeight={customRowHeightMenu(rowHeights)}
                   timeRange={showControlsInPageHeader ? undefined : timeRange}
                   setTimeRange={
                     showControlsInPageHeader ? undefined : setTimeRange
@@ -1588,9 +1654,9 @@ function TracesTableInternal({
                           typeof updater === "function"
                             ? updater(paginationState)
                             : updater;
-                        // Leaving page 1 freezes the paged set at the newest row
-                        // still on screen, so page 2 continues where this page
-                        // ends even if rows keep arriving.
+                        // Leaving page 1 freezes both bounds at the newest row
+                        // still on screen. Later pages pass their own top row;
+                        // the hook keeps the page-1 snapshot.
                         pinOnLeavingFirstPage(
                           next.pageIndex,
                           rows[0]?.timestamp,
@@ -1611,6 +1677,13 @@ function TracesTableInternal({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
+              customRowHeightPx={
+                hideControls ? undefined : rowHeights.activeHeightPx
+              }
+              onCustomRowHeightChange={
+                hideControls ? undefined : rowHeights.setCustomPx
+              }
+              onSelectRowHeight={hideControls ? undefined : setRowHeight}
               peekView={peekConfig}
               tableName="traces"
             />
@@ -1657,14 +1730,20 @@ const TracesDynamicCell = ({
   })();
 
   if (trace.isPending) {
-    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+    return (
+      <ConnectedIOTableCell
+        isLoading
+        singleLine={singleLine}
+        enableExpandOnHover
+      />
+    );
   }
 
   return (
     <ConnectedIOTableCell
       data={data}
       singleLine={singleLine}
-      enableExpandOnHover={singleLine}
+      enableExpandOnHover
     />
   );
 };
@@ -1676,11 +1755,6 @@ export default function TracesTable(props: TracesTableProps) {
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       capture("trace:delete", { source: "table-single-row" });
-      showSuccessToast({
-        title: "Trace deleted",
-        description:
-          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-      });
       utils.traces.all.invalidate();
     },
   });
@@ -1688,7 +1762,7 @@ export default function TracesTable(props: TracesTableProps) {
   return (
     <ConfirmationDialogController
       title="Please confirm"
-      text="This action cannot be undone. It removes all the data associated with this trace."
+      text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
       confirmLabel="Delete trace"
       variant="destructive"
       loading={traceMutation.isPending}
@@ -1699,6 +1773,7 @@ export default function TracesTable(props: TracesTableProps) {
           traceIds: [traceIdToDelete],
           projectId: props.projectId,
         });
+        markTracesPendingDeletion(props.projectId, [traceIdToDelete]);
       }}
     >
       {({ openDialog }) => (

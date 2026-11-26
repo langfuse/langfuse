@@ -1,5 +1,5 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
+import { defineOwnValue } from "../../utils/objects";
 
 const MAX_RECURSION_DEPTH = 10;
 const DATA_URI_PREFIX = "data:";
@@ -282,7 +282,9 @@ function findDataUris(value: string): DataUriOccurrence[] {
       const code = value.charCodeAt(headerCursor);
       if (code === 44) break;
       if (code === 59) {
-        contentTypeEnd ??= headerCursor;
+        if (contentTypeEnd === undefined) {
+          contentTypeEnd = headerCursor;
+        }
         if (value.startsWith(BASE64_MARKER, headerCursor)) {
           markerStart = headerCursor;
           break;
@@ -542,21 +544,6 @@ function setTraversalValue(node: TraversalNode, value: unknown): void {
   defineOwnValue(node.parent, node.key, value);
 }
 
-function defineOwnValue(
-  target: object,
-  property: PropertyKey,
-  value: unknown,
-): void {
-  // Avoid invoking user-controlled setters such as an own `__proto__` setter
-  // when replacing values inside parsed or SDK-provided payloads.
-  Object.defineProperty(target, property, {
-    configurable: true,
-    enumerable: true,
-    value,
-    writable: true,
-  });
-}
-
 function matchStructuredMedia(
   value: Record<string, unknown>,
 ): StructuredMedia | undefined {
@@ -738,9 +725,12 @@ function mayContainSerializedMedia(value: string): boolean {
 }
 
 function isMediaReference(value: string): boolean {
+  // Only one whole reference is opaque; mixed text can still contain inline media.
   return (
     value.startsWith(MEDIA_REFERENCE_PREFIX) &&
-    value.endsWith(MEDIA_REFERENCE_SUFFIX)
+    value.endsWith(MEDIA_REFERENCE_SUFFIX) &&
+    value.indexOf(MEDIA_REFERENCE_SUFFIX, MEDIA_REFERENCE_PREFIX.length) ===
+      value.length - MEDIA_REFERENCE_SUFFIX.length
   );
 }
 

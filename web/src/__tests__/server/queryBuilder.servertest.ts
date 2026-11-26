@@ -1,10 +1,16 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
   getValidAggregationsForMeasureType,
   metricAggregations,
   validateQuery,
+  MAX_TIME_SERIES_BREAKDOWN_VALUES,
   type QueryType,
 } from "@langfuse/shared/query";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -15,7 +21,6 @@ import {
   createScoresCh,
   createEvent,
   createEventsCh,
-  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -2425,7 +2430,7 @@ describe("queryBuilder", () => {
         await setupScores(projectId, scores);
 
         // Define query with filter using "scoreName" instead of "name"
-        // This tests the fallback handling in queryBuilder.ts that handles column names ending with "Name"
+        // This tests the fallback handling in sqlTextQuery.ts that handles column names ending with "Name"
         const query: QueryType = {
           view: "scores-numeric",
           dimensions: [{ field: "name" }],
@@ -4024,31 +4029,6 @@ describe("queryBuilder", () => {
   describe("pairExpand map expansion (v2)", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
-    let hasLegacyEventsTable = false;
-
-    const maybeItWithEventsTable = (
-      name: string,
-      testFn: () => Promise<void>,
-    ): void => {
-      isEventsTableV2Enabled(name, async () => {
-        if (!hasLegacyEventsTable) return;
-        await testFn();
-      });
-    };
-
-    beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
-
-      try {
-        const result = await clickhouseClient().query({
-          query: "EXISTS TABLE default.events",
-          format: "TabSeparated",
-        });
-        hasLegacyEventsTable = (await result.text()).trim() === "1";
-      } catch {
-        hasLegacyEventsTable = false;
-      }
-    });
 
     it("should emit ARRAY JOIN clause for pairExpand dimensions", async () => {
       const projectId = randomUUID();
@@ -4068,15 +4048,13 @@ describe("queryBuilder", () => {
         true,
       );
 
-      expect(sql).toContain("ARRAY JOIN");
-      expect(sql).toContain(
-        "mapKeys(events_observations.cost_details) AS costType",
-      );
-      expect(sql).toContain(
-        "mapValues(events_observations.cost_details) AS cost_value",
-      );
+      expect(sql).toMatch(/\barray join\b/i);
+      expect(sql).toMatch(/mapKeys\(\w+\.cost_details\) as costType\b/i);
+      expect(sql).toMatch(/mapValues\(\w+\.cost_details\) as cost_value\b/i);
       // ARRAY JOIN must appear before WHERE
-      expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
+      expect(sql.search(/\barray join\b/i)).toBeLessThan(
+        sql.search(/\bwhere\b/i),
+      );
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
       // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
@@ -4084,7 +4062,7 @@ describe("queryBuilder", () => {
       expect(sql).not.toMatch(/costType\s+as\s+costType/i);
     });
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate cost_details by type correctly",
       async () => {
         const projectId = randomUUID();
@@ -4134,7 +4112,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate usage_details by type correctly",
       async () => {
         const projectId = randomUUID();
@@ -4181,7 +4159,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should produce timeseries with costType dimension and WITH FILL",
       async () => {
         const projectId = randomUUID();
@@ -4213,11 +4191,10 @@ describe("queryBuilder", () => {
           true,
         );
 
-        expect(sql).toContain("WITH FILL");
+        expect(sql).toMatch(/\bwith fill\b/i);
         expect(sql).toContain("time_dimension");
         // GROUP BY parts may be newline-separated in the generated SQL
-        expect(sql).toContain("GROUP BY costType");
-        expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
+        expect(sql).toMatch(/\bgroup by costType[\s,]+time_dimension\b/i);
 
         const result = await executeQuery(
           projectId,
@@ -4242,7 +4219,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should respect type filter with pairExpand dimensions",
       async () => {
         const projectId = randomUUID();
@@ -4292,7 +4269,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should aggregate cost_details by type correctly via two-level query path",
       async () => {
         // Forces the two-level path by passing useSingleLevelOptimization=false.
@@ -4345,7 +4322,7 @@ describe("queryBuilder", () => {
       },
     );
 
-    maybeItWithEventsTable(
+    isEventsTableV2Enabled(
       "should auto-include costType dimension when only costByType measure is requested",
       async () => {
         // Verifies requiresDimension: the query builder must inject the costType
@@ -4441,6 +4418,106 @@ describe("queryBuilder", () => {
       ).rejects.toThrow("Only one pairExpand dimension is supported per query");
     });
   });
+
+  describe("AI gateway attribution (v2)", () => {
+    const itWithEventsTable =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    itWithEventsTable(
+      "attributes user-tied keys to their owner and leaves service keys out",
+      async () => {
+        const projectId = randomUUID();
+        const gatewayEvent = (params: {
+          keyId: string;
+          ownerUserId?: string;
+          userId?: string;
+        }) =>
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            service_name: AI_GATEWAY_SERVICE_NAME,
+            ingestion_api_key: params.keyId,
+            user_id: params.userId ?? null,
+            metadata_names: params.ownerUserId
+              ? [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY]
+              : [],
+            metadata_values: params.ownerUserId ? [params.ownerUserId] : [],
+          });
+        await createEventsCh([
+          gatewayEvent({ keyId: "key-a1", ownerUserId: "user-a" }),
+          // A second key of the same owner, e.g. one revoked since.
+          gatewayEvent({ keyId: "key-a2", ownerUserId: "user-a" }),
+          // A service key whose caller claims to be user-a.
+          gatewayEvent({ keyId: "service-key", userId: "user-a" }),
+          // SDK traffic into the same project.
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            user_id: "user-a",
+            ingestion_api_key: "pk-lf-sdk",
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyOwnerUserId",
+                operator: "is not null",
+                value: "",
+                type: "null",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+
+        expect(
+          Object.fromEntries(
+            result.map((row) => [
+              String(row["aiGatewayKeyOwnerUserId"]),
+              Number(row["count_count"]),
+            ]),
+          ),
+        ).toEqual({ "user-a": 2 });
+
+        const [keyFiltered] = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyId",
+                operator: "any of",
+                value: ["key-a1", "service-key"],
+                type: "stringOptions",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        expect(Number(keyFiltered["count_count"])).toBe(2);
+      },
+    );
+  });
 });
 
 describe("validateQuery", () => {
@@ -4508,6 +4585,32 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result).toEqual({ valid: true });
+  });
+
+  it("allows a high cardinality time series breakdown only while a same-field filter bounds it to few values", () => {
+    const breakdown = (count: number): QueryType => ({
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      timeDimension: { granularity: "day" },
+      filters: [
+        {
+          column: "traceId",
+          operator: "any of",
+          value: Array.from({ length: count }, (_, index) => `trace-${index}`),
+          type: "stringOptions",
+        },
+      ],
+    });
+
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES), "v2"),
+    ).toEqual({ valid: true });
+    expect(
+      validateQuery(breakdown(MAX_TIME_SERIES_BREAKDOWN_VALUES + 1), "v2"),
+    ).toMatchObject({
+      valid: false,
+      highCardinality: { code: "time_dimension", dimensions: ["traceId"] },
+    });
   });
 
   it("should return invalid when high cardinality entityDimension is unbounded", () => {
@@ -4836,9 +4939,9 @@ describe("query builder measure-aggregation validation", () => {
     const result = await queryBuilder.build(query, randomUUID());
 
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/\bgroup by entity_dimension\b/i);
     expect(result.query).not.toContain("time_dimension");
-    expect(result.query).not.toContain("WITH FILL");
+    expect(result.query).not.toMatch(/\bwith fill\b/i);
   });
 
   it("should include declared relation for relation-backed entity dimensions", async () => {
@@ -4857,12 +4960,10 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
 
-    expect(result.query).toContain(
-      "INNER JOIN events_core AS events_observations",
-    );
-    expect(result.query).toContain("events_observations.experiment_name");
+    expect(result.query).toMatch(/inner join events_core as e\b/i);
+    expect(result.query).toContain("e.experiment_name");
     expect(result.query).toContain("as entity_dimension");
-    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).toMatch(/group by entity_dimension/i);
   });
 
   it("should build run-level score entity queries without joining events", async () => {
@@ -4902,7 +5003,7 @@ describe("query builder measure-aggregation validation", () => {
 
     expect(result.query).toContain("scores.dataset_run_id");
     expect(result.query).toContain("entity_dimension");
-    expect(result.query).not.toContain("JOIN events_core");
+    expect(result.query).not.toMatch(/join events_core/i);
   });
 
   it("should reject queries with both timeDimension and entityDimension", async () => {
@@ -5015,27 +5116,10 @@ describe("query builder measure-aggregation validation", () => {
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
-    let hasLegacyEventsTable = false;
-
-    beforeAll(async () => {
-      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
-
-      try {
-        const result = await clickhouseClient().query({
-          query: "EXISTS TABLE default.events",
-          format: "TabSeparated",
-        });
-        hasLegacyEventsTable = (await result.text()).trim() === "1";
-      } catch {
-        hasLegacyEventsTable = false;
-      }
-    });
 
     isEventsTableV2Enabled(
       "should filter events_traces by traceName using aggregation logic",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5103,8 +5187,6 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by traceName column via resolveDimension fallback to name filterSql",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5161,8 +5243,6 @@ describe("query builder measure-aggregation validation", () => {
     isEventsTableV2Enabled(
       "should filter events_traces by name filterSql combined with a regular dimension filter",
       async () => {
-        if (!hasLegacyEventsTable) return;
-
         const projectId = randomUUID();
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
@@ -5284,7 +5364,7 @@ describe("query builder measure-aggregation validation", () => {
         randomUUID(),
       );
 
-      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).toMatch(/\bfrom events_full\b/i);
       expect(sql).not.toContain("events_core");
     });
 
@@ -5348,8 +5428,305 @@ describe("query builder measure-aggregation validation", () => {
     );
   });
 
+  describe("v2 score views read trace attributes across all spans", () => {
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    const span = (
+      projectId: string,
+      traceId: string,
+      overrides: Partial<Parameters<typeof createEvent>[0]> = {},
+    ) =>
+      createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        parent_span_id: "child-of-something",
+        start_time: Date.now(),
+        ...overrides,
+      });
+
+    const scoreOn = (projectId: string, traceId: string) =>
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "trace-attr-score",
+        value: 1,
+        data_type: "NUMERIC",
+        timestamp: Date.now(),
+      });
+
+    const scoreQuery = (
+      overrides: Pick<QueryType, "dimensions" | "filters">,
+    ): QueryType => ({
+      view: "scores-numeric",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+      ...overrides,
+    });
+
+    const tagFilter = (operator: "any of" | "none of", value: string[]) => ({
+      column: "tags",
+      operator,
+      value,
+      type: "arrayOptions" as const,
+    });
+
+    const count = (rows: Array<Record<string, unknown>>) =>
+      rows.reduce((sum, row) => sum + Number(row.count_count), 0);
+
+    isEventsTableV2Enabled(
+      "matches an app root whose parent span id is set",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, {
+            is_app_root: true,
+            trace_name: "app-root-trace",
+            tags: ["app-root-tag"],
+          }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["app-root-tag"])],
+          }),
+          "v2",
+        );
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "traceName" }], filters: [] }),
+          "v2",
+        );
+
+        expect(count(filtered)).toBe(1);
+        expect(grouped).toEqual([
+          expect.objectContaining({ traceName: "app-root-trace" }),
+        ]);
+        expect(count(grouped)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "matches tags that only a child span carries",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { is_app_root: true, tags: [] }),
+          span(projectId, traceId, { tags: ["child-tag"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["child-tag"])],
+          }),
+          "v2",
+        );
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "tags" }], filters: [] }),
+          "v2",
+        );
+
+        expect(count(filtered)).toBe(1);
+        expect(grouped).toEqual([
+          expect.objectContaining({ tags: ["child-tag"] }),
+        ]);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "groups two app roots into one trace with the union of their tags",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { is_app_root: true, tags: ["root-b"] }),
+          span(projectId, traceId, { is_app_root: true, tags: ["root-a"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const grouped = await executeQuery(
+          projectId,
+          scoreQuery({ dimensions: [{ field: "tags" }], filters: [] }),
+          "v2",
+        );
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [tagFilter("any of", ["root-b"])],
+          }),
+          "v2",
+        );
+
+        expect(grouped).toEqual([
+          expect.objectContaining({ tags: ["root-a", "root-b"] }),
+        ]);
+        expect(count(grouped)).toBe(1);
+        expect(count(filtered)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "matches traces from an exporter that marks no span as root",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, { trace_name: "exporter-trace" }),
+          span(projectId, traceId, { tags: ["exporter-tag"] }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const filtered = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceName" }],
+            filters: [tagFilter("any of", ["exporter-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(filtered).toEqual([
+          expect.objectContaining({ traceName: "exporter-trace" }),
+        ]);
+        expect(count(filtered)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "counts a score once when a synthetic trace row sits next to an app root",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        await createEventsCh([
+          span(projectId, traceId, {
+            parent_span_id: "",
+            trace_name: "dual-write-trace",
+            tags: [],
+          }),
+          span(projectId, traceId, {
+            is_app_root: true,
+            trace_name: "dual-write-trace",
+            tags: ["dual-tag"],
+          }),
+        ]);
+        await createScoresCh([scoreOn(projectId, traceId)]);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceName" }],
+            filters: [tagFilter("any of", ["dual-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({ traceName: "dual-write-trace" }),
+        ]);
+        expect(count(result)).toBe(1);
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "excludes a trace from a negative tag filter when any span has the tag",
+      async () => {
+        const projectId = randomUUID();
+        const taggedTraceId = randomUUID();
+        const untaggedTraceId = randomUUID();
+        await createEventsCh([
+          span(projectId, taggedTraceId, { is_app_root: true }),
+          span(projectId, taggedTraceId, { tags: ["excluded-tag"] }),
+          span(projectId, untaggedTraceId, { is_app_root: true }),
+          span(projectId, untaggedTraceId, { tags: ["other-tag"] }),
+        ]);
+        await createScoresCh([
+          scoreOn(projectId, taggedTraceId),
+          scoreOn(projectId, untaggedTraceId),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [{ field: "traceId" }],
+            filters: [tagFilter("none of", ["excluded-tag"])],
+          }),
+          "v2",
+        );
+
+        expect(result).toEqual([
+          expect.objectContaining({ traceId: untaggedTraceId }),
+        ]);
+      },
+    );
+
+    const seedSetAndEmpty = async (
+      projectId: string,
+      column: "tags" | "environment" | "observationName",
+    ) => {
+      const [setTraceId, emptyTraceId] = [randomUUID(), randomUUID()];
+      const [setScore, emptyScore] = [
+        scoreOn(projectId, setTraceId),
+        scoreOn(projectId, emptyTraceId),
+      ];
+      if (column === "tags") {
+        await createEventsCh([
+          span(projectId, setTraceId, { is_app_root: true, tags: ["x"] }),
+          span(projectId, emptyTraceId, { is_app_root: true, tags: [] }),
+        ]);
+      } else if (column === "environment") {
+        setScore.environment = "production";
+        emptyScore.environment = "";
+      } else {
+        const setSpan = span(projectId, setTraceId, { name: "gen" });
+        const emptySpan = span(projectId, emptyTraceId, { name: "" });
+        await createEventsCh([setSpan, emptySpan]);
+        setScore.observation_id = setSpan.span_id;
+        emptyScore.observation_id = emptySpan.span_id;
+      }
+      await createScoresCh([setScore, emptyScore]);
+    };
+
+    isEventsTableV2Enabled.each([
+      { column: "tags", operator: "is null" },
+      { column: "tags", operator: "is not null" },
+      { column: "environment", operator: "is null" },
+      { column: "environment", operator: "is not null" },
+      { column: "observationName", operator: "is null" },
+    ] as const)(
+      "matches only one of a set and an empty $column for $operator",
+      async ({ column, operator }) => {
+        const projectId = randomUUID();
+        await seedSetAndEmpty(projectId, column);
+
+        const result = await executeQuery(
+          projectId,
+          scoreQuery({
+            dimensions: [],
+            filters: [{ column, type: "null", operator, value: "" }],
+          }),
+          "v2",
+        );
+
+        expect(count(result)).toBe(1);
+      },
+    );
+  });
+
   describe("useFinal flag on events_core joins", () => {
-    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
+    it("should join aggregated trace attributes without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -5368,14 +5745,11 @@ describe("query builder measure-aggregation validation", () => {
         projectId,
       );
 
-      // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_traces FINAL",
-      );
-      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
-      // scores base CTE should still use FINAL
-      expect(compiledQuery).toContain("scores scores_numeric FINAL");
+      expect(compiledQuery).toContain("from events_core");
+      expect(compiledQuery).toMatch(/\) as events_traces on /i);
+      expect(compiledQuery).not.toMatch(/events_core( as \w+)? final/i);
+      // the scores base table still reads FINAL
+      expect(compiledQuery).toMatch(/from scores final\b/i);
     });
 
     it("should omit FINAL for events_observations join in v2 scores-categorical view", async () => {
@@ -5398,10 +5772,8 @@ describe("query builder measure-aggregation validation", () => {
       );
 
       // events_core should be joined without FINAL (useFinal: false)
-      expect(compiledQuery).toContain("JOIN events_core");
-      expect(compiledQuery).not.toContain(
-        "JOIN events_core AS events_observations FINAL",
-      );
+      expect(compiledQuery).toMatch(/join events_core as e\b/i);
+      expect(compiledQuery).not.toMatch(/join events_core as e final/i);
     });
 
     it("should keep FINAL for non-events_core joins in v1 scores view", async () => {

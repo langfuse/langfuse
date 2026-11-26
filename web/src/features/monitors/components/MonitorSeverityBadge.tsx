@@ -1,16 +1,34 @@
-/* eslint-disable @repo/no-style-props */
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
 
-/** severityVariant maps each MonitorSeverity to the underlying Badge variant. */
-const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
-  UNKNOWN: "outline",
-  NO_DATA: "secondary",
-  PAUSED: "default",
-  OK: "default",
-  WARNING: "default",
-  ALERT: "default",
+const monitorSeverityBadgeVariants = cva(
+  "inline-flex h-5.25 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      size: {
+        default: "w-20 justify-center py-1",
+        compact: "w-auto shrink-0 px-2 py-0.5 text-[10px]",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
+
+/** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
+const severityVariantClassName: Record<MonitorSeverity, string> = {
+  UNKNOWN: "border-transparent text-foreground-secondary",
+  NO_DATA:
+    "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  PAUSED:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  OK: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  WARNING:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  ALERT:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
 };
 
 /** severityClassName maps each MonitorSeverity to its badge tailwind classes. */
@@ -33,21 +51,21 @@ const severityLabel: Record<MonitorSeverity, string> = {
   ALERT: "ALERT",
 };
 
+type MonitorSeverityBadgeProps = {
+  severity: MonitorSeverity;
+} & VariantProps<typeof monitorSeverityBadgeVariants>;
+
 /** MonitorSeverityBadge displays the Monitor's severity, including loading states for pending monitors. */
 export function MonitorSeverityBadge({
   severity,
-  className,
-}: {
-  severity: MonitorSeverity;
-  className?: string;
-}) {
+  size,
+}: MonitorSeverityBadgeProps) {
   return (
-    <Badge
-      variant={severityVariant[severity]}
+    <div
       className={cn(
-        "w-20 justify-center py-1",
+        monitorSeverityBadgeVariants({ size }),
+        severityVariantClassName[severity],
         severityClassName[severity],
-        className,
       )}
     >
       {severity === "UNKNOWN" ? (
@@ -61,6 +79,6 @@ export function MonitorSeverityBadge({
       ) : (
         severityLabel[severity]
       )}
-    </Badge>
+    </div>
   );
 }

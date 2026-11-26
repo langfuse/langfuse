@@ -1,23 +1,21 @@
-/* eslint-disable no-nested-ternary */
-import { Badge } from "@/src/components/ui/badge";
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellProvider";
+import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsProvider";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { ClockIcon, ListTree } from "lucide-react";
+import { ClockIcon, ListTree } from "@langfuse/icons";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
-import {
-  type ScoreColumn,
-  ScoreRow,
-  useMergedAggregates,
-  useMergeScoreColumns,
-} from "@/src/features/scores";
+import type { ScoreColumn } from "@/src/features/scores/types";
+import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
+import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
+import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
@@ -26,7 +24,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -51,7 +49,7 @@ const DatasetAggregateCellContent = ({
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "scores:CUD",
+    scope: "scores:save",
   });
 
   // Merge server columns with cache-only columns
@@ -230,32 +228,31 @@ const DatasetAggregateCellContent = ({
           >
             {!!latency &&
               (latencyDiff ? (
-                <DiffLabel
-                  diff={latencyDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => formatIntervalSeconds(value)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={latencyDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => formatIntervalSeconds(value)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
-                  <span className="capitalize">
-                    {formatIntervalSeconds(latency)}
-                  </span>
-                </Badge>
+                <Badge
+                  color="filled"
+                  leadingIcon={ClockIcon}
+                  text={formatIntervalSeconds(latency)}
+                />
               ))}
             {totalCost &&
               (totalCostDiff ? (
-                <DiffLabel
-                  diff={totalCostDiff}
-                  preferNegativeDiff={true}
-                  formatValue={(value) => usdFormatter(value, 2, 4)}
-                  className="ml-1"
-                />
+                <span className="ml-1 inline-flex">
+                  <DiffLabel
+                    diff={totalCostDiff}
+                    preferNegativeDiff={true}
+                    formatValue={(value) => usdFormatter(value, 2, 4)}
+                  />
+                </span>
               ) : (
-                <Badge variant="tertiary" className="font-normal">
-                  <span className="mr-0.5">{usdFormatter(totalCost)}</span>
-                </Badge>
+                <Badge color="filled" text={usdFormatter(totalCost)} />
               ))}
           </div>
           {!(isSilentError || isLoading) && (
@@ -277,7 +274,7 @@ const DatasetAggregateCellContent = ({
                 title="View trace/observation"
                 onClick={handleOpenPeek}
               >
-                <ListTree className="h-3 w-3" />
+                <ListTree size="base" color="default" />
               </Button>
             </div>
           )}

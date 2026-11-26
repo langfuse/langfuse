@@ -6,9 +6,20 @@
  */
 
 import { z } from "zod";
-import { wrapErrorHandling } from "./error-formatting";
-import type { ApiAction } from "@/src/features/public-api/server";
+import {
+  collectAccessRead,
+  type AccessAuditMeta,
+  type AccessAuditRecorder,
+} from "@/src/features/audit-logs/server/auditedQuery";
+import { recordMcpAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+import type {
+  Tool,
+  ToolAnnotations,
+  ServerContext as McpRequestContext,
+} from "@modelcontextprotocol/server";
+import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
+import { toMcpAppToolMeta, type McpAppToolUi } from "./mcp-app";
 
 /**
  * Tool handler function type
@@ -16,7 +27,20 @@ import type { ServerContext } from "../types";
 export type ToolHandler<TInput> = (
   input: TInput,
   context: ServerContext,
+  /** The SDK's context of the tools/call request; absent in direct calls. */
+  mcpRequest?: McpRequestContext,
 ) => Promise<unknown>;
+
+type StringKeys<T> = {
+  [K in keyof T]-?: T[K] extends string ? K : never;
+}[keyof T] &
+  string;
+
+/** The read a tool performs, recorded as an audit access event. */
+type ToolAccessAudit<TInput> = Omit<AccessAuditMeta, "idKey"> & {
+  /** The input field that names the one resource a `read` opens. */
+  idKey?: StringKeys<TInput>;
+};
 
 /**
  * Tool definition options
@@ -40,14 +64,34 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Action the caller must hold to run this tool. */
   action: ApiAction;
 
-  /** Hint: This tool only reads data, does not modify anything */
-  readOnlyHint?: boolean;
+  /**
+   * MCP tool annotations (a display title and behavior hints such as
+   * `readOnlyHint`), published as given in `tools/list`.
+   */
+  annotations?: ToolAnnotations;
 
-  /** Hint: This tool has destructive effects (delete, overwrite) */
-  destructiveHint?: boolean;
+  /** Renders results with an MCP App UI resource in hosts that support it. */
+  ui?: McpAppToolUi;
+}
 
-  /** Hint: This tool is expensive to run (slow, rate-limited) */
-  expensiveHint?: boolean;
+/** Options of a tool whose reads are recorded as audit access events. */
+interface DefineAuditedToolOptions<
+  TInput,
+  TName extends string = string,
+> extends Omit<DefineToolOptions<TInput, TName>, "handler"> {
+  /**
+   * Records every successful call as an audit access event with
+   * `surface = mcp`, the tool name as route and the validated input as
+   * params, before the result is returned: a failed write fails the call.
+   */
+  accessAudit: ToolAccessAudit<TInput>;
+
+  /** Handler that reports what its response contains through `audit`. */
+  handler: (
+    input: TInput,
+    context: ServerContext,
+    audit: AccessAuditRecorder,
+  ) => Promise<unknown>;
 }
 
 /**
@@ -57,17 +101,16 @@ export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
   action: ApiAction;
-  inputSchema: Record<string, unknown>;
-  annotations?: {
-    readOnlyHint?: boolean;
-    destructiveHint?: boolean;
-    expensiveHint?: boolean;
-  };
+  inputSchema: Tool["inputSchema"];
+  annotations?: ToolAnnotations;
+  _meta?: ReturnType<typeof toMcpAppToolMeta>;
 }
 
 type JsonSchemaObject = Record<string, unknown>;
 
-function isObjectJsonSchema(schema: JsonSchemaObject): boolean {
+function isObjectJsonSchema(
+  schema: JsonSchemaObject,
+): schema is Tool["inputSchema"] {
   return schema.type === "object";
 }
 
@@ -115,7 +158,15 @@ function hasJsonSchemaUnion(value: unknown): boolean {
  * });
  */
 export function defineTool<TInput, const TName extends string>(
+  options: DefineAuditedToolOptions<TInput, TName>,
+): [ToolDefinition<TName>, ToolHandler<TInput>];
+export function defineTool<TInput, const TName extends string>(
   options: DefineToolOptions<TInput, TName>,
+): [ToolDefinition<TName>, ToolHandler<TInput>];
+export function defineTool<TInput, const TName extends string>(
+  options:
+    | DefineAuditedToolOptions<TInput, TName>
+    | DefineToolOptions<TInput, TName>,
 ): [ToolDefinition<TName>, ToolHandler<TInput>] {
   const {
     name,
@@ -123,10 +174,8 @@ export function defineTool<TInput, const TName extends string>(
     action,
     baseSchema,
     inputSchema,
-    handler,
-    readOnlyHint,
-    destructiveHint,
-    expensiveHint,
+    annotations,
+    ui,
   } = options;
 
   // Convert base Zod schema to JSON Schema using Zod v4's native method
@@ -162,25 +211,30 @@ export function defineTool<TInput, const TName extends string>(
     description,
     action,
     inputSchema: jsonSchemaObject,
+    ...(annotations ? { annotations } : {}),
+    ...(ui ? { _meta: toMcpAppToolMeta(ui) } : {}),
   };
 
-  // Add annotations if provided
-  if (readOnlyHint || destructiveHint || expensiveHint) {
-    toolDefinition.annotations = {
-      readOnlyHint,
-      destructiveHint,
-      expensiveHint,
-    };
-  }
+  const wrappedHandler: ToolHandler<TInput> = async (
+    rawInput: unknown,
+    context: ServerContext,
+    mcpRequest?: McpRequestContext,
+  ) => {
+    // Validate input with the full schema (including refinements)
+    const validatedInput = inputSchema.parse(rawInput);
 
-  // Wrap handler with validation and error handling
-  const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
-    async (rawInput: unknown, context: ServerContext) => {
-      // Validate input with the full schema (including refinements)
-      const validatedInput = inputSchema.parse(rawInput);
-      return await handler(validatedInput, context);
-    },
-  );
+    if (!("accessAudit" in options)) {
+      return await options.handler(validatedInput, context, mcpRequest);
+    }
+
+    const { audit, toRead } = collectAccessRead(options.accessAudit);
+    const result = await options.handler(validatedInput, context, audit);
+    await recordMcpAccess(
+      context,
+      toRead(name, validatedInput as Record<string, unknown>),
+    );
+    return result;
+  };
 
   return [toolDefinition, wrappedHandler];
 }

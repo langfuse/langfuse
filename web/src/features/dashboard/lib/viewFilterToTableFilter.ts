@@ -1,5 +1,5 @@
 import { type FilterState } from "@langfuse/shared";
-import { type views } from "@langfuse/shared/query";
+import { isNumericMetadataFilter, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 
 /**
@@ -241,13 +241,20 @@ export function classifyViewFiltersForTable(
   const columnMap =
     (tableVersion === "v4"
       ? VIEW_DIMENSION_TO_TABLE_COL_V4
-      : VIEW_DIMENSION_TO_TABLE_COL_V3)[view] ?? {};
+      : VIEW_DIMENSION_TO_TABLE_COL_V3
+    )[view] ?? {};
   const applicable: FilterState = [];
   const notApplicable = new Map<string, string>();
 
   for (const filter of filters) {
     const tableColId = columnMap[filter.column];
-    if (tableColId) {
+    // The v3 tables drop numeric metadata filters on load; report them here.
+    if (tableVersion === "v3" && isNumericMetadataFilter(filter)) {
+      notApplicable.set(
+        "metadata (numeric)",
+        "Numeric metadata filters are only available on the v4 events table.",
+      );
+    } else if (tableColId) {
       applicable.push({ ...filter, column: tableColId });
     } else if (!notApplicable.has(filter.column)) {
       notApplicable.set(

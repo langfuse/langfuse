@@ -9,6 +9,23 @@ vi.mock("@/src/features/evals/v2/hooks/useEvaluatorSetupSample", () => ({
   useEvaluatorSetupSample: () => ({ id: "sample" }),
 }));
 
+vi.mock("@/src/features/evals/v2/hooks/useEvaluatorTraceSample", () => ({
+  useEvaluatorTraceSample: () => ({
+    sourceObject: undefined,
+    hasNoMessages: false,
+  }),
+}));
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    llmApiKey: {
+      effective: {
+        useQuery: () => ({ data: undefined }),
+      },
+    },
+  },
+}));
+
 describe("useEvaluatorTestAvailability", () => {
   const store = createEvaluatorSetupStore({
     initialEvaluator: null,

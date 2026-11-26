@@ -10,7 +10,6 @@ export {
   type TableDateRangeAggregationOption,
   type AbsoluteTimeRange,
   type TimeRange,
-  getAbbreviatedTimeRange,
   rangeToString,
 } from "@langfuse/shared";
 import {
@@ -27,7 +26,6 @@ const ABBREVIATION_TO_KEY = new Map(
 );
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
-export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -49,18 +47,13 @@ export type TableDateRange = {
   to?: Date;
 };
 
-export type DashboardDateRange = {
-  from: Date;
-  to: Date;
-};
-
 type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
 export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
-  | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
+  | "custom";
 
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
@@ -378,6 +371,7 @@ export function getOptimalInterval(
  * - Handles both abbreviated ("7d") and full ("last7Days") named ranges
  * - Handles custom timestamp ranges ("1693872000000-1694131199999")
  * - Returns fallback if parsing fails or range is not in allowedRanges
+ * @internal
  */
 export function rangeFromString<T extends string>(
   abbreviatedRange: string,

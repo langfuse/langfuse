@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download } from "@langfuse/icons";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   BatchExportTableName,
@@ -9,8 +9,8 @@ import {
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { AuditLogsTable, type AuditLogRow } from "./AuditLogsTable";
@@ -52,6 +52,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
   const createExport = api.batchExport.create.useMutation({
     onSuccess: (_data, variables) => {
       showSuccessToast({
+        operation: "audit_log.export",
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
         duration: 10000,
@@ -69,7 +70,7 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
           {
             id: "export",
             label: "Export",
-            icon: <Download className="size-4" />,
+            icon: <Download size="base" />,
             variant: "outline" as const,
             loading: createExport.isPending,
             dropdown: {

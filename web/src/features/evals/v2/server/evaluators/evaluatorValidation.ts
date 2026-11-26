@@ -1,12 +1,17 @@
 import {
   EvalTemplateType,
   extractVariables,
+  evalVariableMappingListSchema,
   InvalidRequestError,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import {
+  DECISION_MODEL_CONNECTIONS_HINT,
   DefaultEvalModelService,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLLMErrorInfo,
+  isAllowedDecisionModel,
   isDecisionModelAdapter,
+  unsupportedDecisionModelMessage,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
@@ -47,15 +52,25 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
   }
 }
 
+/**
+ * Pass `targetObject` when the mapping runs against a known target (a rule or
+ * an observation); omit it for target-agnostic evaluator definitions.
+ */
 export function assertCompleteEvaluatorVariableMapping(params: {
   promptVariables: string[];
   variableMapping: unknown;
+  targetObject?: string;
 }) {
-  const parsed = observationVariableMappingList.safeParse(
+  const parsed = evalVariableMappingListSchema(params.targetObject).safeParse(
     params.variableMapping,
   );
   if (!parsed.success) {
-    throw new InvalidRequestError("Evaluator variable mapping is invalid");
+    const unknownColumnIssue = parsed.error.issues.find(
+      ({ code }) => code === "custom",
+    );
+    throw new InvalidRequestError(
+      unknownColumnIssue?.message ?? "Evaluator variable mapping is invalid",
+    );
   }
 
   for (const mapping of parsed.data) {
@@ -167,21 +182,42 @@ export async function assertEvaluatorConfigurationValid(params: {
     }
   }
 
-  const error = await getEvaluatorDefinitionPreflightError(
-    {
-      projectId: params.projectId,
-      template: {
-        name: params.name,
-        type: params.definition.type,
-        provider: params.definition.provider,
-        model: params.definition.model,
-        modelParams: params.definition.modelParams,
-        outputDefinition: params.definition.outputDefinition,
+  try {
+    const error = await getEvaluatorDefinitionPreflightError(
+      {
+        projectId: params.projectId,
+        template: {
+          name: params.name,
+          type: params.definition.type,
+          provider: params.definition.provider,
+          model: params.definition.model,
+          modelParams: params.definition.modelParams,
+          outputDefinition: params.definition.outputDefinition,
+        },
       },
-    },
-    { throwOnOperationalError: true },
-  );
-  if (error) throw new EvaluatorModelConfigurationError(error);
+      { throwOnOperationalError: true },
+    );
+    if (error) throw new EvaluatorModelConfigurationError(error);
+  } catch (error) {
+    const llmError = getLLMErrorInfo(error);
+    if (llmError?.kind === "timeout") {
+      const timeoutSeconds =
+        getClientInitiatedNonStreamingLlmTimeoutMs() / 1000;
+      throw new EvaluatorConfigurationError(
+        `The model did not respond within ${timeoutSeconds} seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.`,
+      );
+    }
+    if (llmError && (llmError.isRetryable || llmError.kind === "abort")) {
+      const message =
+        llmError.kind === "abort"
+          ? "The model request was aborted during evaluator validation."
+          : "The LLM provider could not complete the model request during evaluator validation.";
+      throw new EvaluatorConfigurationError(
+        `${message} The evaluator was not saved. Retry or check your LLM connection and model settings.`,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getDecisionModelConfigurationError(params: {
@@ -189,7 +225,7 @@ export async function getDecisionModelConfigurationError(params: {
   name: string;
   definition: Pick<
     Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
-    "provider" | "model"
+    "provider" | "model" | "questions"
   >;
 }): Promise<string | null> {
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
@@ -198,10 +234,21 @@ export async function getDecisionModelConfigurationError(params: {
     params.definition.model,
   );
   if (!modelConfig.valid) {
-    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add ${DECISION_MODEL_CONNECTIONS_HINT} under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
   }
-  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
-    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`;
+  if (
+    !isAllowedDecisionModel(
+      modelConfig.config.apiKey.adapter,
+      modelConfig.config.model,
+    )
+  ) {
+    return (
+      unsupportedDecisionModelMessage(
+        modelConfig.config.apiKey.adapter,
+        modelConfig.config.model,
+      ) ??
+      `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need ${DECISION_MODEL_CONNECTIONS_HINT}.`
+    );
   }
   return null;
 }

@@ -7,7 +7,8 @@
 //   orExpr    := andExpr (OR andExpr)*
 //   andExpr   := unary ((AND)? unary)*            -- implicit AND on adjacency
 //   unary     := NOT unary | '-'term | '(' expr ')' | term
-//   term      := key ':' valueExpr | freeText
+//   term      := (target '.')? key ':' valueExpr | freeText
+//   target    := quotedName | hostKeyword        -- registry capability only
 //   valueExpr := ('>'|'<'|'>='|'<=') scalar | '=' scalar | globValue | '(' value (OR value)* ')'
 //   globValue := value with optional leading/trailing '*' wildcards:
 //                'v*' starts-with, '*v' ends-with, '*v*' contains, 'v' default
@@ -18,6 +19,7 @@
 // Langfuse filter contract can represent (e.g. cross-field OR) — those forms
 // are rejected with targeted messages in validate.ts, not here.
 
+import { readTargetPrefix, serializeTarget } from "./targeting";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import {
   canonicalKey,
@@ -34,6 +36,7 @@ export type Diagnostic = {
   to: number;
   severity: "error" | "warning";
   message: string;
+  code?: "unknown-field";
 };
 
 export type ParseResult = {
@@ -51,6 +54,7 @@ export type LexToken =
   | { type: "term"; raw: string; span: Span };
 
 type Token = LexToken;
+export const MAX_QUERY_TOKENS = 1024;
 
 /**
  * The raw token stream for `input` (diagnostics discarded). The composer's
@@ -267,6 +271,48 @@ function parseTermNode(
   diagnostics: Diagnostic[],
   registry: FieldRegistry,
 ): FilterNode | TextNode {
+  const prefix = readTargetPrefix(raw, registry);
+  if (!prefix) return parseUnscopedTermNode(raw, span, diagnostics, registry);
+  const fieldRaw = raw.slice(prefix.length);
+  const fieldSpan = { from: span.from + prefix.length, to: span.to };
+  const node = parseUnscopedTermNode(
+    fieldRaw,
+    fieldSpan,
+    diagnostics,
+    registry,
+  );
+  if (node.kind !== "filter") {
+    diagnostics.push({
+      ...span,
+      severity: "error",
+      message: "Incomplete targeted filter — choose a field and value",
+    });
+    return {
+      kind: "filter",
+      key: fieldRaw,
+      rawKey: fieldRaw,
+      values: [],
+      op: "=",
+      target: {
+        ...prefix.target,
+        span: { from: span.from, to: fieldSpan.from },
+      },
+      span,
+    };
+  }
+  return {
+    ...node,
+    target: { ...prefix.target, span: { from: span.from, to: fieldSpan.from } },
+    span,
+  };
+}
+
+function parseUnscopedTermNode(
+  raw: string,
+  span: Span,
+  diagnostics: Diagnostic[],
+  registry: FieldRegistry,
+): FilterNode | TextNode {
   const reserved = reservedTokenIssue(raw);
   if (reserved !== null) {
     diagnostics.push({
@@ -295,6 +341,7 @@ function parseTermNode(
       to: span.from + Math.max(colon, 1),
       severity: "error",
       message: `Unknown field "${keyRaw}"`,
+      code: "unknown-field",
     });
   }
   // A dot-path key segment with grammar chars (`scores."Rouge Score"`,
@@ -565,24 +612,40 @@ function parseGroupedValues(
 
 // ---- parser ----
 
+const MAX_NESTING_DEPTH = 128;
+
 export function parse(
   input: string,
   registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
   const diagnostics: Diagnostic[] = [];
   const tokens = lex(input, diagnostics);
+  if (tokens.length > MAX_QUERY_TOKENS)
+    return {
+      ast: null,
+      valid: false,
+      diagnostics: [
+        {
+          from: 0,
+          to: input.length,
+          severity: "error",
+          message: `Query has too many terms (max ${MAX_QUERY_TOKENS})`,
+        },
+      ],
+    };
   let pos = 0;
+  let nestingError: Diagnostic | undefined;
 
   const peek = (): Token | null => tokens[pos] ?? null;
   const next = (): Token | null => tokens[pos++] ?? null;
 
-  function parseOr(): ASTNode | null {
-    let left = parseAnd();
+  function parseOr(depth = 0): ASTNode | null {
+    let left = parseAnd(depth);
     while (true) {
       const t = peek();
       if (t?.type === "term" && isKeyword(t.raw) === "or") {
         next();
-        const right = parseAnd();
+        const right = parseAnd(depth);
         if (right === null) {
           diagnostics.push({
             from: t.span.from,
@@ -613,7 +676,7 @@ export function parse(
     }
   }
 
-  function parseAnd(): ASTNode | null {
+  function parseAnd(depth: number): ASTNode | null {
     const children: ASTNode[] = [];
     while (true) {
       const t = peek();
@@ -652,7 +715,46 @@ export function parse(
           continue;
         }
       }
-      const node = parseUnary();
+      const node = parseUnary(depth);
+      const suffix = peek();
+      if (
+        registry.targeting &&
+        suffix?.type === "term" &&
+        suffix.raw.startsWith("@")
+      ) {
+        let filter: FilterNode | null = null;
+        if (node?.kind === "filter") {
+          filter = node;
+        } else if (node?.kind === "not" && node.child.kind === "filter") {
+          filter = node.child;
+        }
+
+        if (filter && !node?.parenSpan && !filter.parenSpan) {
+          next();
+          if (filter.target) {
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "A filter can only have one experiment target",
+            });
+          }
+          const raw = suffix.raw.slice(1);
+          const decoded = unquote(raw);
+          filter.target = {
+            kind: decoded.quoted ? "name" : "keyword",
+            value: decoded.value,
+            span: suffix.span,
+          };
+          if (!decoded.value)
+            diagnostics.push({
+              ...suffix.span,
+              severity: "error",
+              message: "Missing target after @",
+            });
+          if (filter.span) filter.span.to = suffix.span.to;
+          if (node?.kind === "not" && node.span) node.span.to = suffix.span.to;
+        }
+      }
       if (node !== null) children.push(node);
     }
     if (children.length === 0) return null;
@@ -660,9 +762,18 @@ export function parse(
     return { kind: "and", children };
   }
 
-  function parseUnary(): ASTNode | null {
+  function parseUnary(depth: number): ASTNode | null {
     const t = peek();
     if (t === null) return null;
+    if (depth > MAX_NESTING_DEPTH) {
+      nestingError = {
+        ...t.span,
+        severity: "error",
+        message: `Query nesting is too deep (max ${MAX_NESTING_DEPTH} levels)`,
+      };
+      pos = tokens.length;
+      return null;
+    }
 
     if (t.type === "rparen") {
       next();
@@ -677,7 +788,7 @@ export function parse(
 
     if (t.type === "lparen") {
       next();
-      const inner = parseOr();
+      const inner = parseOr(depth + 1);
       const close = peek();
       let closedTo: number | null = null;
       if (close?.type === "rparen") {
@@ -711,7 +822,7 @@ export function parse(
     const kw = isKeyword(t.raw);
     if (kw === "not") {
       next();
-      const child = parseUnary();
+      const child = parseUnary(depth + 1);
       if (child === null) {
         diagnostics.push({
           from: t.span.from,
@@ -785,6 +896,9 @@ export function parse(
       else ast = { kind: "and", children: [ast, more] };
     }
   }
+
+  if (nestingError !== undefined)
+    return { ast: null, diagnostics: [nestingError], valid: false };
 
   // Tolerant recovery can flag the same span from more than one path (e.g. an
   // unclosed "(" caught by both the lexer and parseTermNode). Drop exact
@@ -880,6 +994,11 @@ const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
 };
 
 function serializeFilter(node: FilterNode): string {
+  const text = serializeBareFilter(node);
+  return node.target ? `${serializeTarget(node.target)}${text}` : text;
+}
+
+function serializeBareFilter(node: FilterNode): string {
   // Prefer the user's typed key (alias/casing) — surgery fallbacks shouldn't
   // canonicalize untouched filters.
   const key = node.rawKey ?? node.key;
@@ -907,7 +1026,7 @@ function serializeFilter(node: FilterNode): string {
 function sameFieldOrGroup(node: ASTNode): FilterNode[] | null {
   if (node.kind !== "or") return null;
   const filters = node.children.filter(
-    (c): c is FilterNode => c.kind === "filter",
+    (c): c is FilterNode => c.kind === "filter" && !c.target,
   );
   if (filters.length !== node.children.length || filters.length < 2)
     return null;

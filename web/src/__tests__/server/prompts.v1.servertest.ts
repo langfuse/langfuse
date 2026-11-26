@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createMocks } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
 
@@ -15,7 +16,7 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
 } from "@langfuse/shared/src/server";
-import { createPromptForApi } from "@/src/features/prompts/server";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 import handler from "@/src/pages/api/public/prompts";
 
 describe("/api/public/prompts API Endpoint", () => {

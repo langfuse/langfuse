@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { useMemo, useState } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -6,6 +8,7 @@ import {
   type LineChartSeries,
   type LineChartThreshold,
 } from "./LineChart";
+import { chartColors } from "../constants";
 
 type LineChartStoryProps = {
   legend?: LineChartLegend;
@@ -14,6 +17,7 @@ type LineChartStoryProps = {
     | "default"
     | "empty"
     | "many-lines"
+    | "long-series-names"
     | "boundary-points"
     | "negative-values"
     | "intermittent"
@@ -26,15 +30,26 @@ type LineChartStoryProps = {
 };
 
 const LineChartDemo = (props: LineChartStoryProps) => {
+  const chartData = useMemo(() => {
+    if (props.variant === "many-lines") return manyLinesData;
+    if (props.variant === "boundary-points") return boundaryPointData;
+    if (props.variant === "negative-values") return negativeData;
+    if (props.variant === "intermittent") return intermittentData;
+    if (props.variant === "intraday") return intradayData;
+    if (props.variant === "year-boundary") return yearBoundaryData;
+    if (props.variant === "monthly") return monthlyData;
+    if (props.variant === "empty") return [];
+    return data;
+  }, [props.variant]);
   if (
     props.variant === "category-short-labels" ||
     props.variant === "category-long-labels" ||
     props.variant === "category-hidden-labels"
   ) {
-    let categoryChartData = categoryData;
-    if (props.variant === "category-short-labels") {
-      categoryChartData = shortCategoryData;
-    }
+    const categoryChartData =
+      props.variant === "category-short-labels"
+        ? shortCategoryData
+        : categoryData;
     return (
       <LineChart
         data={categoryChartData}
@@ -48,19 +63,11 @@ const LineChartDemo = (props: LineChartStoryProps) => {
     );
   }
 
-  let chartData: Array<{
-    x: Date;
-    values: Record<string, number | null>;
-  }> = data;
-  if (props.variant === "many-lines") chartData = manyLinesData;
-  if (props.variant === "boundary-points") chartData = boundaryPointData;
-  if (props.variant === "negative-values") chartData = negativeData;
-  if (props.variant === "intermittent") chartData = intermittentData;
-  if (props.variant === "intraday") chartData = intradayData;
-  if (props.variant === "year-boundary") chartData = yearBoundaryData;
-  if (props.variant === "monthly") chartData = monthlyData;
-  if (props.variant === "empty") chartData = [];
-  const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
+  const chartSeries = (() => {
+    if (props.variant === "many-lines") return manyLinesSeries;
+    if (props.variant === "long-series-names") return longNameSeries;
+    return series;
+  })();
 
   return (
     <LineChart
@@ -76,8 +83,21 @@ const LineChartDemo = (props: LineChartStoryProps) => {
 };
 
 const series = [
-  { id: "api", label: "API", color: "#3a3dee" },
-  { id: "worker", label: "Worker", color: "#07b9d5" },
+  { id: "api", label: "API", color: chartColors[0] },
+  { id: "worker", label: "Worker", color: chartColors[1] },
+];
+
+const longNameSeries = [
+  {
+    id: "api",
+    color: chartColors[0],
+    label: "sa-investigation:sa-evidence-verifier",
+  },
+  {
+    id: "worker",
+    color: chartColors[1],
+    label: "tool-bash-loghouse-querylog-reader",
+  },
 ];
 
 const data = Array.from({ length: 14 }, (_, index) => ({
@@ -124,7 +144,7 @@ const manyLinesSeries: LineChartSeries[] = Array.from(
   (_, index) => ({
     id: `series-${index + 1}`,
     label: `Series ${index + 1}`,
-    color: `hsl(${Math.round((index / 24) * 360)} 70% 50%)`,
+    color: chartColors[index % chartColors.length],
   }),
 );
 
@@ -152,7 +172,7 @@ const shortCategoryData = Array.from({ length: 6 }, (_, index) => ({
 }));
 
 const categorySeries: LineChartSeries[] = [
-  { id: "cost", label: "Cost", color: "#3a3dee" },
+  { id: "cost", label: "Cost", color: chartColors[0] },
 ];
 
 const meta = preview.meta({
@@ -239,7 +259,7 @@ export const BoundaryPoints = meta.story({
   args: { variant: "boundary-points" },
   play: async ({ canvasElement }) => {
     const points = canvasElement.querySelectorAll<SVGCircleElement>(
-      'circle[fill="#3a3dee"][r="4"]',
+      `circle[fill="${chartColors[0]}"][r="3"]`,
     );
     await expect(points).toHaveLength(2);
     for (const point of points) {
@@ -381,6 +401,119 @@ export const WithLegend = meta.story({
   },
 });
 
+export const LegendWithoutSummary = meta.story({
+  args: {
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+export const ManySeriesHighlight = meta.story({
+  args: {
+    variant: "many-lines",
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+export const TopFiveSeries = meta.story({
+  args: {
+    variant: "many-lines",
+    legend: {
+      visibility: "visible",
+      interaction: "toggle",
+      summary: "none",
+      maxVisibleSeries: 5,
+    },
+  },
+});
+
+export const SingleSeriesAutomaticLegend = meta.story({
+  render: () => (
+    <LineChart
+      data={shortCategoryData}
+      series={categorySeries}
+      xAxis={{ type: "category" }}
+      legend={{ visibility: "auto", interaction: "highlight", summary: "none" }}
+    />
+  ),
+});
+
+export const MultipleSeriesAutomaticLegend = meta.story({
+  args: {
+    legend: { visibility: "auto", interaction: "highlight", summary: "none" },
+  },
+});
+
+export const WithLongSeriesNames = meta.story({
+  args: {
+    variant: "long-series-names",
+    legend: {
+      visibility: "visible",
+      interaction: "highlight",
+      summary: "none",
+    },
+  },
+});
+
+function SyncedTimelineDemo() {
+  const [activeKey, setActiveKey] = useState<string>();
+  const sync = { activeKey, onActiveKeyChange: setActiveKey };
+  return (
+    <div className="flex w-[640px] flex-col gap-4 p-4">
+      <p className="text-muted-foreground text-xs">
+        Hover either chart to move the shared timeline across both.
+      </p>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChart
+          data={intradayData}
+          series={series}
+          xAxis={{ type: "time" }}
+          sync={sync}
+          showDataPointDots={false}
+        />
+      </div>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChart
+          data={intradayData.map(({ x, values }) => ({
+            x,
+            values: { api: values.api * 100, worker: values.worker * 200 },
+          }))}
+          series={series}
+          xAxis={{ type: "time" }}
+          sync={sync}
+          showDataPointDots={false}
+          valueFormatter={(value) => `${value} ms`}
+        />
+      </div>
+    </div>
+  );
+}
+
+export const SyncedTimeline = meta.story({
+  name: "(Test) Synced Timeline",
+  parameters: { controls: { disable: true } },
+  render: () => <SyncedTimelineDemo />,
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelector('rect[fill="transparent"]');
+    if (!hoverArea) throw new Error("Chart hover area not found");
+    await userEvent.hover(hoverArea);
+    await waitFor(() => {
+      const labels = canvasElement.querySelectorAll(
+        "[data-active-x-axis-label]",
+      );
+      expect(labels).toHaveLength(2);
+      expect(labels[0]?.textContent).toBe(labels[1]?.textContent);
+    });
+  },
+});
+
 export const WithThreshold = meta.story({
   args: {
     thresholds: [
@@ -463,19 +596,20 @@ export const KeyboardFocus = meta.story({
 
     firstPoint.focus();
 
-    const activeLabel = await waitFor(() => {
+    await waitFor(() => {
       const label = canvasElement.querySelector("[data-active-x-axis-label]");
       expect(label).toHaveTextContent("Sep 1");
-      return label;
+      expect(label).toHaveAttribute("font-weight", "700");
+      expect(
+        canvasElement.querySelector("[data-active-x-axis-label-background]"),
+      ).not.toBeInTheDocument();
     });
-    await expect(activeLabel).toHaveAttribute("font-weight", "700");
-    await expect(
-      canvasElement.querySelector("[data-active-x-axis-label-background]"),
-    ).not.toBeInTheDocument();
 
-    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
-      "tooltip",
-    );
+    const tooltipHeading = await within(
+      canvasElement.ownerDocument.body,
+    ).findByText("Sep 1, 2026");
+    const tooltip = tooltipHeading.closest('[role="tooltip"]');
+    if (!tooltip) throw new Error("Tooltip not found");
     await expect(tooltip).toHaveTextContent("API");
     await expect(tooltip).toHaveTextContent("$18.00");
 

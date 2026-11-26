@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 /**
  * Lazy UTF-8 JSON byte indexer (LFE-11082, spike LFE-11079).
  *
@@ -475,6 +474,7 @@ function significantDigitCount(text: string): number {
  *   - big integers    -> `bigint`   (lossy=true: JSON.parse would round it)
  *   - long fractions  -> raw string (lossy=true)
  *   - everything else -> `number`
+ * @internal
  */
 export function parseNumberPreservePrecision(text: string): {
   value: number | bigint | string;
@@ -729,7 +729,8 @@ export class ByteJsonIndexEngine {
     if (sliceEnd < node.valueEnd) {
       while (
         sliceEnd > node.valueStart &&
-        (this.bytes[sliceEnd]! & 0xc0) === 0x80
+        this.bytes[sliceEnd]! >= 0x80 &&
+        this.bytes[sliceEnd]! <= 0xbf
       ) {
         sliceEnd--;
       }
@@ -746,6 +747,7 @@ export class ByteJsonIndexEngine {
 }
 
 /** Convenience factory mirroring the worker `load(bytes)` entry point. */
+/** @internal */
 export function loadByteJsonIndex(bytes: Uint8Array): {
   engine: ByteJsonIndexEngine;
   root: NodeDescriptor;

@@ -1,6 +1,6 @@
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -8,20 +8,64 @@ import {
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
+  type AnnotationQueue,
   CreateQueueData,
+  InvalidRequestError,
   filterAndValidateDbScoreConfigList,
   isBaseError,
+  isPresent,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
+  SessionViewConfigSchema,
 } from "@langfuse/shared";
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
+  isPrismaRecordNotFoundError,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { type Session } from "next-auth";
+
+const queueOrderByColumns = {
+  name: Prisma.sql`aq.name`,
+  createdAt: Prisma.sql`aq.created_at`,
+} as const;
+
+const QueueOrderBy = z
+  .object({
+    column: z.enum(["name", "createdAt"]),
+    order: z.enum(["ASC", "DESC"]),
+  })
+  .nullish();
+
+const QueueData = CreateQueueData.extend({
+  scoreConfigIds: CreateQueueData.shape.scoreConfigIds.refine(
+    (ids) => new Set(ids).size === ids.length,
+    { message: "Score config IDs must be unique" },
+  ),
+});
+
+async function withSessionViewConfig(
+  prisma: Pick<Prisma.TransactionClient, "sessionView">,
+  queue: AnnotationQueue,
+) {
+  const view = queue.sessionViewId
+    ? await prisma.sessionView.findFirst({
+        where: {
+          projectId: queue.projectId,
+          id: queue.sessionViewId,
+          ownership: "PROJECT",
+        },
+      })
+    : null;
+  return {
+    ...queue,
+    sessionViewConfig: view ? SessionViewConfigSchema.parse(view) : null,
+  };
+}
 
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
@@ -51,6 +95,7 @@ export const queueRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        orderBy: QueueOrderBy,
         ...optionalPaginationZod,
       }),
     )
@@ -61,6 +106,14 @@ export const queueRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "annotationQueues:read",
         });
+
+        const orderBy = input.orderBy ?? {
+          column: "createdAt",
+          order: "DESC",
+        };
+        const orderByColumn = queueOrderByColumns[orderBy.column];
+        const orderByDirection =
+          orderBy.order === "ASC" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
 
         const [queues, totalCount, scoreConfigs] = await Promise.all([
           ctx.prisma.$queryRaw<
@@ -91,7 +144,7 @@ export const queueRouter = createTRPCRouter({
           GROUP BY
             aq.id, aq.name, aq.description, aq.created_at
           ORDER BY
-            aq.created_at DESC
+            ${orderByColumn} ${orderByDirection}, aq.id ${orderByDirection}
           ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
           ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
         `),
@@ -122,13 +175,17 @@ export const queueRouter = createTRPCRouter({
             },
           });
 
+        const scoreConfigsById = new Map(
+          scoreConfigs.map((config) => [config.id, config]),
+        );
+
         return {
           totalCount,
           queues: queues.map((queue) => ({
             ...queue,
-            scoreConfigs: scoreConfigs.filter((config) =>
-              queue.scoreConfigIds.includes(config.id),
-            ),
+            scoreConfigs: Array.from(new Set(queue.scoreConfigIds))
+              .map((id) => scoreConfigsById.get(id))
+              .filter(isPresent),
             isCurrentUserAssigned: userQueueAssignments.some(
               (assignment) => assignment.queueId === queue.id,
             ),
@@ -216,9 +273,23 @@ export const queueRouter = createTRPCRouter({
           },
         });
 
+        const scoreConfigsById = new Map(
+          filterAndValidateDbScoreConfigList(configs, (error) =>
+            logger.warn("Invalid score config omitted from response", {
+              error,
+            }),
+          ).map((config) => [config.id, config]),
+        );
+
         return {
           ...queue,
-          scoreConfigs: filterAndValidateDbScoreConfigList(configs),
+          sessionViewId: queue?.sessionViewId ?? null,
+          sessionViewConfig: queue
+            ? (await withSessionViewConfig(ctx.prisma, queue)).sessionViewConfig
+            : null,
+          scoreConfigs: Array.from(new Set(queue?.scoreConfigIds ?? []))
+            .map((id) => scoreConfigsById.get(id))
+            .filter(isPresent),
         };
       } catch (error) {
         logger.error(error);
@@ -256,6 +327,7 @@ export const queueRouter = createTRPCRouter({
             name: true,
             annotationQueueItem: {
               where: {
+                projectId: input.projectId,
                 objectId: input.objectId,
                 objectType: input.objectType,
               },
@@ -298,7 +370,7 @@ export const queueRouter = createTRPCRouter({
     }),
   create: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.extend({
         projectId: z.string(),
       }),
     )
@@ -322,6 +394,18 @@ export const queueRouter = createTRPCRouter({
         // unique index cannot prevent.
         const queue = await ctx.prisma.$transaction(
           async (tx) => {
+            await validateProjectScoreConfigs(
+              tx,
+              input.projectId,
+              input.scoreConfigIds,
+            );
+            await validateProjectSessionView(
+              tx,
+              input.projectId,
+              input.sessionViewId,
+              ctx.session,
+            );
+
             if (plan === "cloud:hobby") {
               const queueCount = await tx.annotationQueue.count({
                 where: { projectId: input.projectId },
@@ -353,6 +437,7 @@ export const queueRouter = createTRPCRouter({
                 projectId: input.projectId,
                 description: input.description,
                 scoreConfigIds: input.scoreConfigIds,
+                sessionViewId: input.sessionViewId,
               },
             });
           },
@@ -367,11 +452,20 @@ export const queueRouter = createTRPCRouter({
           after: queue,
         });
 
-        return queue;
+        return await withSessionViewConfig(ctx.prisma, queue);
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
+        }
+        logger.error(error);
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2003"
+        ) {
+          throw new InvalidRequestError(
+            "The selected session view no longer exists in this project.",
+          );
         }
 
         if (
@@ -402,7 +496,7 @@ export const queueRouter = createTRPCRouter({
     }),
   update: protectedProjectProcedure
     .input(
-      CreateQueueData.extend({
+      QueueData.partial().extend({
         projectId: z.string(),
         queueId: z.string(),
       }),
@@ -426,29 +520,46 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
-        const existingQueueWithName =
-          await ctx.prisma.annotationQueue.findFirst({
-            where: {
-              projectId: input.projectId,
-              name: input.name,
-              id: { not: input.queueId },
-            },
-            select: { id: true },
-          });
-
-        if (existingQueueWithName) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A queue with this name already exists in the project",
-          });
+        if (input.scoreConfigIds !== undefined) {
+          await validateProjectScoreConfigs(
+            ctx.prisma,
+            input.projectId,
+            input.scoreConfigIds,
+          );
         }
 
+        if (input.name !== undefined) {
+          const existingQueueWithName =
+            await ctx.prisma.annotationQueue.findFirst({
+              where: {
+                projectId: input.projectId,
+                name: input.name,
+                id: { not: input.queueId },
+              },
+              select: { id: true },
+            });
+
+          if (existingQueueWithName) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "A queue with this name already exists in the project",
+            });
+          }
+        }
+
+        await validateProjectSessionView(
+          ctx.prisma,
+          input.projectId,
+          input.sessionViewId,
+          ctx.session,
+        );
         const updatedQueue = await ctx.prisma.annotationQueue.update({
           where: { id: input.queueId, projectId: input.projectId },
           data: {
             name: input.name,
             description: input.description,
             scoreConfigIds: input.scoreConfigIds,
+            sessionViewId: input.sessionViewId,
           },
         });
 
@@ -461,10 +572,19 @@ export const queueRouter = createTRPCRouter({
           after: updatedQueue,
         });
 
-        return updatedQueue;
+        return await withSessionViewConfig(ctx.prisma, updatedQueue);
       } catch (error) {
         if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
+        }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2003"
+        ) {
+          throw new InvalidRequestError(
+            "The selected session view no longer exists in this project.",
+          );
         }
 
         if (
@@ -505,12 +625,17 @@ export const queueRouter = createTRPCRouter({
           before: queue,
         });
 
-        return queue;
+        return await withSessionViewConfig(ctx.prisma, queue);
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Queue not found in project");
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Deleting annotation queue failed.",
@@ -595,3 +720,38 @@ export const queueRouter = createTRPCRouter({
       return inflatedUpdatedItem;
     }),
 });
+
+async function validateProjectScoreConfigs(
+  prisma: Pick<Prisma.TransactionClient, "scoreConfig">,
+  projectId: string,
+  scoreConfigIds: string[],
+) {
+  const configCount = await prisma.scoreConfig.count({
+    where: { projectId, id: { in: scoreConfigIds } },
+  });
+  if (configCount !== scoreConfigIds.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "All score configs must belong to this project.",
+    });
+  }
+}
+
+async function validateProjectSessionView(
+  prisma: Pick<Prisma.TransactionClient, "sessionView">,
+  projectId: string,
+  sessionViewId: string | null | undefined,
+  session: Session,
+) {
+  if (sessionViewId == null) return;
+  throwIfNoProjectAccess({ session, projectId, scope: "SessionViews:read" });
+  const view = await prisma.sessionView.findFirst({
+    where: { projectId, id: sessionViewId, ownership: "PROJECT" },
+    select: { id: true },
+  });
+  if (!view) {
+    throw new InvalidRequestError(
+      "The selected session view must belong to this project and be a project view.",
+    );
+  }
+}

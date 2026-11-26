@@ -2,10 +2,8 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/components/ui/markdown-render-limits";
-import {
-  MarkdownRenderCharacterLimitProvider,
-  useMarkdownRenderCharacterLimit,
-} from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitProvider";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 
 // vi.hoisted so it exists before the hoisted vi.mock factories run.
 const { mockMarkdownRenderConfigQuery } = vi.hoisted(() => ({

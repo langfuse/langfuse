@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 

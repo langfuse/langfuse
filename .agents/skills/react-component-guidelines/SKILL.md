@@ -19,6 +19,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
   - **Presentation:** A component should own one concrete presentation. When an action needs different presentations across contexts (e.g. sometimes a button, sometimes an icon), keep them separate rather than selecting between them with mode props or flags.
   - **Behavior:** A component should own one cohesive workflow. When a prop selects fundamentally different workflows, split them into separate behavior-owning components. For example, prefer dedicated create, update, and delete dialog controllers over one action component whose `mode` changes the entire interaction.
 - Extract only what is shared across call sites. Reuse a presentational component when the presentation is shared; when only state or behavior is shared, encapsulate it in a wrapper/render-prop component and let each call site provide its own presentation.
+- Keep variants of one component close. A variant that changes the layout, the actions, or the interaction is a different component. Duplicate that small piece of markup, or share the chrome through a slot that styles the caller's element (`InputControl` with Radix `Slot`).
 
 ## Explicit States
 
@@ -37,9 +38,16 @@ Components are useful because they act as an encapsulated unit and therefore pro
 - Margin should be applied by the parent component, not contained in a component. The child component should only define the inner spacing of itself and its contents.
 - It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC.
 
+## Icons
+
+- Icon sizes come only from the scale: `icon-sm` (12px), `icon-base` (14px), `icon-lg` (20px), `icon-xl` (28px). `icon-lg` is for headers, toasts and illustrations; icons inside buttons and menu rows are `icon-base`. No raw `h-*`/`w-*`/`size-*` classes or `size` props on icons, and no `strokeWidth`; every icon uses the lucide default stroke.
+- Size and colour go on the icon element itself, never on a container through `[&_svg]:` selectors. Every icon carries an `icon-*` class; the lint rule reports icons without one. Components that take an `icon` prop (design-system Button, IconButton, DropdownMenu items) render it with the size and `text-icon-foreground` for their variant; icons written as children of legacy primitives set both at the call site.
+- An icon paired with a short single-line label is centre-aligned with that label, not baseline-aligned. Geometric centring is the start, not the end: some glyphs need a nudge of a pixel or two so the pair reads balanced. Icons beside multi-line text, such as a title with a subtitle, follow the layout of that block.
+- An icon paired with text is the same colour as the text or one step lighter, never darker; `text-icon-foreground` is the default, status colours are the only exception.
+
 ## Overlays
 
-- Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
+- Compose reusable overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`, and leave their trigger presentation in the caller. If a prop can be connected to behavior the component does not own, do not expose it. Own that behavior so the type cannot be wired to something else: a tab owns its menu, rather than taking an open flag a caller could attach to an external menu. If additional behavior is needed on a reusable overlay, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
 - When overlay content depends on the action that opened it, let the controller own that transient state. Pass the complete payload to `openDialog(payload)` or `openDrawer(payload)` and render content from the controller state instead of hoisting selection and open state into the parent.
 - Keep the controller components outside transient overlays that can trigger it. A popover or dialog opened from a dropdown item must not be owned by `DropdownMenuContent`, which unmounts when the dropdown closes.
 - Consume the controller's render-prop controls instead of duplicating their shape. Do not move the passed `Trigger` into components. Abstract trigger presentation through a ref-forwarding component with explicit variants, while keeping `<Trigger asChild>` at each call site.

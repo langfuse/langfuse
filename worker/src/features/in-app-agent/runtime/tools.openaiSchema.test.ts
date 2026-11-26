@@ -2,8 +2,11 @@ import { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import { describe, expect, it } from "vitest";
 
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
-import { createRedirectActionTool } from "./tools";
+import {
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "@langfuse/shared/in-app-agent";
+import { createQuestionnaireTool, createRedirectActionTool } from "./tools";
 
 type OpenAIResponsesModel = Extract<
   MastraModelConfig,
@@ -77,40 +80,46 @@ function maxOptionalNesting(node: unknown): number {
   );
 }
 
-describe("in-app agent redirect tool schema on OpenAI", () => {
+describe("in-app agent local tool schemas on OpenAI", () => {
   // Nesting 3 (~23 KB) makes OpenAI Responses return `incomplete` /
   // `max_output_tokens` with zero usage; nesting 2 (~12 KB) is accepted.
-  it("stays within the optional nesting OpenAI accepts", async () => {
-    const { model, calls } = createRecordingOpenAIModel();
-    const agent = new Agent({
-      id: "redirect-schema-probe",
-      name: "redirect-schema-probe",
-      instructions: "probe",
-      model,
-      tools: {
-        [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
-          projectId: "project-id",
-          isV4Enabled: true,
-        }),
-      },
-    });
+  it.each([
+    {
+      toolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      tool: createRedirectActionTool({
+        projectId: "project-id",
+        isV4Enabled: true,
+      }),
+    },
+    {
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      tool: createQuestionnaireTool(),
+    },
+  ])(
+    "keeps $toolName within the optional nesting OpenAI accepts",
+    async ({ toolName, tool }) => {
+      const { model, calls } = createRecordingOpenAIModel();
+      const agent = new Agent({
+        id: "tool-schema-probe",
+        name: "tool-schema-probe",
+        instructions: "probe",
+        model,
+        tools: { [toolName]: tool },
+      });
 
-    const result = await agent.stream("hi");
-    await result.text;
+      const result = await agent.stream("hi");
+      await result.text;
 
-    const redirectTool = calls
-      .flatMap((call) => call.tools ?? [])
-      .find(
-        (tool) =>
-          tool.type === "function" &&
-          tool.name === IN_APP_AGENT_REDIRECT_TOOL_NAME,
-      );
-    if (redirectTool?.type !== "function") {
-      throw new Error("redirect tool was not sent to the model");
-    }
+      const sentTool = calls
+        .flatMap((call) => call.tools ?? [])
+        .find((tool) => tool.type === "function" && tool.name === toolName);
+      if (sentTool?.type !== "function") {
+        throw new Error(`${toolName} was not sent to the model`);
+      }
 
-    const schema = redirectTool.inputSchema;
-    expect(maxOptionalNesting(schema)).toBeLessThanOrEqual(2);
-    expect(JSON.stringify(schema).length).toBeLessThan(16_000);
-  });
+      const schema = sentTool.inputSchema;
+      expect(maxOptionalNesting(schema)).toBeLessThanOrEqual(2);
+      expect(JSON.stringify(schema).length).toBeLessThan(16_000);
+    },
+  );
 });

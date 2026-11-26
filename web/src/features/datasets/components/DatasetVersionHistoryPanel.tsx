@@ -1,15 +1,15 @@
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
-import { Clock, MoreVertical, Copy, ExternalLink } from "lucide-react";
+import {
+  Clock,
+  MoreVertical,
+  Copy,
+  SquareArrowOutUpRight,
+} from "@langfuse/icons";
 import {
   format,
   isToday,
@@ -20,7 +20,7 @@ import {
   formatDistanceToNow,
 } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 type DatasetVersionHistoryPanelProps = {
   projectId: string;
@@ -78,6 +78,7 @@ export function DatasetVersionHistoryPanel({
     const isoTimestamp = version.toISOString();
     navigator.clipboard.writeText(isoTimestamp);
     showSuccessToast({
+      operation: "dataset_version_timestamp.copy",
       title: "Copied!",
       description: `Version timestamp: ${isoTimestamp}`,
     });
@@ -104,7 +105,7 @@ export function DatasetVersionHistoryPanel({
     return (
       <div className="flex h-full items-center justify-center p-4">
         <div className="text-muted-foreground text-center text-sm">
-          <Clock className="mx-auto mb-2 h-8 w-8" />
+          <Clock size="xl" __rawClassName="mx-auto mb-2" />
           <p>No versions found</p>
         </div>
       </div>
@@ -176,39 +177,39 @@ export function DatasetVersionHistoryPanel({
             {formatDistanceToNow(version, { addSuffix: true })}
           </span>
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">Version actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                copyVersionTimestamp(version);
-              }}
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy version timestamp (UTC)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                openDocumentation();
-              }}
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              How to use in experiments
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onClick={(event) => event.stopPropagation()}>
+          <DropdownMenu
+            placement="bottom-end"
+            items={[
+              {
+                type: "item",
+                id: "copy-timestamp",
+                title: "Copy version timestamp (UTC)",
+                icon: Copy,
+                onClick: () => copyVersionTimestamp(version),
+              },
+              {
+                type: "item",
+                id: "documentation",
+                title: "How to use in experiments",
+                icon: SquareArrowOutUpRight,
+                onClick: openDocumentation,
+              },
+            ]}
+          >
+            {({ getTriggerProps }) => (
+              <Button
+                {...getTriggerProps()}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <MoreVertical size="base" color="default" />
+                <span className="sr-only">Version actions</span>
+              </Button>
+            )}
+          </DropdownMenu>
+        </div>
       </div>
     );
   };

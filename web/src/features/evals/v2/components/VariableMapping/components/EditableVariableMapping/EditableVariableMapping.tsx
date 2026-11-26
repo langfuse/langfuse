@@ -1,8 +1,9 @@
 /* eslint-disable no-nested-ternary */
-import { useMemo, useState, type ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { useMemo, useState, type ReactNode } from "react";
+import { TriangleAlert } from "@langfuse/icons";
+
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
@@ -28,12 +29,10 @@ import {
   segmentsToJsonPath,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import {
-  deepParseJsonIterative,
-  experimentTargetEvalVariableColumns,
-} from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsContext";
+import { deepParseJsonIterative } from "@langfuse/shared";
+import { useEvalVariableSourceColumns } from "@/src/features/evals/v2/contexts/EvalVariableSourceColumnsProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useEvalOnboardingAnalytics } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
 
 const TOOL_CALLS_COLUMN_ID = "toolCalls";
 
@@ -61,16 +60,16 @@ function MappedValuePreview({ value }: { value: string }) {
   return (
     <div>
       {isJson ? (
-        <PrettyJsonView
-          json={parsed}
-          currentView="pretty"
-          isLoading={false}
-          showNullValues={true}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={false}
-          scrollable={true}
-          className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-        />
+        <div className="max-h-96 overflow-y-auto">
+          <PrettyJsonView
+            json={parsed}
+            currentView="pretty"
+            showNullValues
+            stickyTopLevelKey={false}
+            showObservationTypeBadge={false}
+            borderless
+          />
+        </div>
       ) : hasMedia ? (
         <div
           data-testid="mapped-media-preview"
@@ -166,13 +165,14 @@ function TreeSelectorBody({
 }) {
   const [pathEditing, setPathEditing] = useState(false);
   const { selectedColumnId } = fieldState;
+  const sourceColumns = useEvalVariableSourceColumns();
 
   // Both the tree and the path suggestions walk the whole sample, so they are
   // memoized against the sample and the selected field rather than the props
   // object the parent rebuilds on every render.
   const roots = useMemo(
     () =>
-      experimentTargetEvalVariableColumns.map((column) => ({
+      sourceColumns.map((column) => ({
         id: column.id,
         label: column.name,
         // Keep the top-level columns selectable without a sample so mappings
@@ -183,7 +183,7 @@ function TreeSelectorBody({
             : deepParseJsonIterative(sourceObject[column.id])
           : undefined,
       })),
-    [sourceObject],
+    [sourceColumns, sourceObject],
   );
   const suggestions = useMemo(
     () =>
@@ -382,7 +382,7 @@ function VariableMappingRow({
     >
       {unmapped ? (
         <div className="text-dark-yellow flex w-full items-start gap-1.5 p-3 text-left text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {`{{${variable}}} is not mapped yet — click to choose the data it pulls in.`}
         </div>
       ) : !sourceObject ? (
@@ -396,7 +396,7 @@ function VariableMappingRow({
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <TriangleAlert size="base" __rawClassName="mt-0.5" />
           {extracted.error}
         </div>
       ) : !extracted?.value ? (

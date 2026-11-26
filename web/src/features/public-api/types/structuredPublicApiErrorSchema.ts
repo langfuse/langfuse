@@ -52,6 +52,7 @@ export const StructuredPublicApiErrorDetails = z
   })
   .strict();
 
+/** @internal */
 export const StructuredPublicApiErrorResponse = z
   .object({
     message: z.string(),

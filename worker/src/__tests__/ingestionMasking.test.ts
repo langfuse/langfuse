@@ -6,14 +6,29 @@ import {
   beforeAll,
   afterAll,
   afterEach,
+  vi,
 } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse, delay } from "msw";
 import type { SharedEnv } from "@langfuse/shared/src/env";
+import { prepareOtelBatch } from "../features/otel-ingestion/prepareOtelBatch";
+import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
 import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
+
+vi.mock(
+  "@langfuse/shared/src/server/ee/ingestionMasking",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof masking>();
+    return {
+      ...actual,
+      applyIngestionMasking: vi.fn(actual.applyIngestionMasking),
+      isIngestionMaskingEnabled: vi.fn(actual.isIngestionMaskingEnabled),
+    };
+  },
+);
 
 // Sample OTEL span data for testing
 const sampleSpanData = [
@@ -232,6 +247,200 @@ describe("Ingestion Masking", () => {
   });
 
   describe("applyIngestionMasking", () => {
+    it.each([
+      "success",
+      "bom-success",
+      "double-bom-success",
+      "triple-bom-fail-open",
+      "fail-open",
+      "fail-closed",
+    ] as const)(
+      "compacts only the accepted raw masking input (%s)",
+      async (outcome) => {
+        const originalMediaBody = Buffer.alloc(4096, 0x6f);
+        const maskedMediaBody = Buffer.alloc(4096, 0x6d);
+        const original = {
+          input: `data:image/png;base64,${originalMediaBody.toString("base64")}`,
+        };
+        const originalBytes = Buffer.from(
+          JSON.stringify({ ...original, note: "🔥" }, null, 2),
+        );
+        const masked = {
+          input: `data:image/png;base64,${maskedMediaBody.toString("base64")}`,
+        };
+        const accepted =
+          outcome === "success" ||
+          outcome === "bom-success" ||
+          outcome === "double-bom-success";
+        const responseBody = accepted
+          ? (outcome === "bom-success"
+              ? "\uFEFF"
+              : outcome === "double-bom-success"
+                ? "\uFEFF\uFEFF"
+                : "") + JSON.stringify(masked)
+          : outcome === "triple-bom-fail-open"
+            ? "\uFEFF\uFEFF\uFEFF" + JSON.stringify(masked)
+            : "{";
+        const overrides = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/raw",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
+          LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED:
+            outcome === "fail-closed" ? "true" : "false",
+        });
+        const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+        const applyMasking = configuredMasking.getMockImplementation()!;
+        configuredMasking.mockImplementation((params, _env, transport) =>
+          applyMasking(params, overrides, transport),
+        );
+        const fetch = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(new Response(responseBody));
+        if (accepted) {
+          await expect(new Response(responseBody).json()).resolves.toEqual(
+            masked,
+          );
+        } else if (outcome === "triple-bom-fail-open") {
+          await expect(new Response(responseBody).json()).rejects.toThrow();
+        }
+        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
+        try {
+          vi.mocked(masking.isIngestionMaskingEnabled).mockReturnValueOnce(
+            true,
+          );
+          prepared = await prepareOtelBatch({
+            bytes: originalBytes,
+            projectId: "test-project",
+            extractMedia: true,
+          });
+          // Masking sees the original inline content, before reference substitution.
+          const body = fetch.mock.calls[0]?.[1]?.body;
+          expect(body).toBeInstanceOf(Uint8Array);
+          expect(Buffer.from(body as Uint8Array)).toEqual(originalBytes);
+          if (outcome === "fail-closed") {
+            expect(prepared).toEqual({ error: expect.any(String) });
+            return;
+          }
+          const batch = prepared?.batch;
+          expect(batch).toBeDefined();
+          expect(batch!.media).toHaveLength(1);
+          expect(await batch!.mediaBody(0)).toEqual(
+            accepted ? maskedMediaBody : originalMediaBody,
+          );
+          expect(
+            JSON.parse(batch!.takeJsonBuffer().toString("utf8")).input,
+          ).toBe(batch!.media[0].reference);
+        } finally {
+          await prepared?.batch?.dispose();
+          fetch.mockRestore();
+          configuredMasking.mockImplementation(applyMasking);
+        }
+      },
+    );
+
+    it.each(["request", "response"] as const)(
+      "sanitizes invalid UTF-8 in the masking %s before media discovery",
+      async (side) => {
+        const mediaBody = Buffer.alloc(4096, 0x68);
+        const mediaUri = `data:image/png;base64,${mediaBody.toString("base64")}`;
+        const malformed = Buffer.concat([
+          Buffer.from('[{"note":"'),
+          Buffer.from([0xff, 0xe2, 0x82]),
+          Buffer.from(`","input":"${mediaUri}"}]`),
+        ]);
+        const sanitized = Buffer.from(malformed.toString("utf8"));
+        const originalBytes = side === "request" ? malformed : sanitized;
+        const responseBytes = side === "response" ? malformed : sanitized;
+        const overrides = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/raw",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
+        });
+        const configuredMasking = vi.mocked(masking.applyIngestionMasking);
+        const applyMasking = configuredMasking.getMockImplementation()!;
+        configuredMasking.mockImplementation((params, _env, transport) =>
+          applyMasking(params, overrides, transport),
+        );
+        const fetch = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(new Response(new Uint8Array(responseBytes)));
+        let prepared: Awaited<ReturnType<typeof prepareOtelBatch>> | undefined;
+        try {
+          vi.mocked(masking.isIngestionMaskingEnabled).mockReturnValueOnce(
+            true,
+          );
+          prepared = await prepareOtelBatch({
+            bytes: originalBytes,
+            projectId: "test-project",
+            extractMedia: true,
+          });
+          const body = fetch.mock.calls[0]?.[1]?.body;
+          expect(body).toBeInstanceOf(Uint8Array);
+          expect(Buffer.from(body as Uint8Array)).toEqual(sanitized);
+          expect(fetch).toHaveBeenCalledTimes(1);
+          const batch = prepared.batch!;
+          expect(
+            JSON.parse(batch.takeJsonBuffer().toString("utf8"))[0].note,
+          ).toBe("��");
+          expect(batch.media).toHaveLength(1);
+          expect(await batch.mediaBody(0)).toEqual(mediaBody);
+        } finally {
+          await prepared?.batch?.dispose();
+          fetch.mockRestore();
+          configuredMasking.mockImplementation(applyMasking);
+        }
+      },
+    );
+
+    it.each(["retry-success", "fail-open", "fail-closed"] as const)(
+      "validates raw masking responses inside retries (%s)",
+      async (outcome) => {
+        const data = Buffer.from(JSON.stringify(sampleSpanData));
+        const testEnv = createTestEnv({
+          LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
+            "https://masking.example.com/success",
+          LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
+          LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 1,
+          LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED:
+            outcome === "fail-closed" ? "true" : "false",
+        });
+        let validations = 0;
+        const result = await applyIngestionMasking(
+          { data, projectId: "test-project" },
+          testEnv,
+          {
+            body: (bytes) => new Uint8Array(bytes),
+            read: async (response) => {
+              const bytes = Buffer.from(await response.arrayBuffer());
+              validations++;
+              if (outcome !== "retry-success" || validations === 1) {
+                throw new Error("invalid masked JSON");
+              }
+              return bytes;
+            },
+          },
+        );
+        expect(validations).toBe(2);
+        expect(maskingServer.getReceivedRequests()).toHaveLength(2);
+        for (const request of maskingServer.getReceivedRequests()) {
+          expect(request.headers["content-type"]).toBe("application/json");
+          expect(request.body).toEqual(sampleSpanData);
+        }
+        expect(result.success).toBe(outcome !== "fail-closed");
+        expect(result.masked).toBe(outcome === "retry-success");
+        if (outcome === "retry-success") {
+          expect(JSON.parse(result.data.toString())).toEqual(maskedSpanData);
+        } else {
+          expect(result.data).toBe(data);
+          if (outcome === "fail-closed") {
+            expect(result.error).toContain("invalid masked JSON");
+          }
+        }
+      },
+    );
+
     it("should return original data immediately when masking is not configured", async () => {
       const testEnv = createTestEnv();
 

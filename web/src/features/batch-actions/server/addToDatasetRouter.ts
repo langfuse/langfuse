@@ -1,6 +1,5 @@
-/* eslint-disable no-nested-ternary */
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -23,7 +22,7 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationAddToDatasetActionSchema } from "../validation";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
 const MAX_BATCH_ADD_TO_DATASET_ITEMS = 1000;
 
@@ -72,11 +71,15 @@ export const addToDatasetRouter = createTRPCRouter({
           limit: 1,
           offset: 0,
         };
-        const observationCount = commentFilterResult.hasNoMatches
-          ? 0
-          : useEventsTable
-            ? await getObservationsCountFromEventsTable(queryOpts)
-            : await getObservationsTableCount(queryOpts);
+        const observationCount = await (() => {
+          if (commentFilterResult.hasNoMatches) {
+            return 0;
+          }
+          if (useEventsTable) {
+            return getObservationsCountFromEventsTable(queryOpts);
+          }
+          return getObservationsTableCount(queryOpts);
+        })();
 
         if (observationCount > MAX_BATCH_ADD_TO_DATASET_ITEMS) {
           throw new TRPCError({

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import dns from "node:dns/promises";
-import { validateWebhookURL } from "../../../packages/shared/src/server/webhooks/validation";
+import { env } from "../../../packages/shared/src/env";
+import {
+  validateWebhookURL,
+  webhookWhitelistFromEnv,
+  whitelistFromEnv,
+} from "../../../packages/shared/src/server/webhooks/validation";
 
 const nonexistentDomain = "this-domain-definitely-does-not-exist-12345.com";
 
@@ -32,6 +37,23 @@ afterEach(() => {
 });
 
 describe("Webhook URL Validation", () => {
+  describe("webhook host allowlist", () => {
+    const original = env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS;
+
+    afterEach(() => {
+      env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = original;
+    });
+
+    it("keeps the positive list off the shared exemption builder", () => {
+      env.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = ["hooks.example.com"];
+
+      expect(whitelistFromEnv().allowedHosts).toBeUndefined();
+      expect(webhookWhitelistFromEnv().allowedHosts).toEqual([
+        "hooks.example.com",
+      ]);
+    });
+  });
+
   describe("validateWebhookURL", () => {
     it("should accept valid public HTTPS URLs", async () => {
       await expect(

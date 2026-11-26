@@ -2,7 +2,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 import { __test } from "./WidgetImporter";
 
@@ -78,6 +79,11 @@ describe("runImport", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Malformed input",
       expect.any(String),
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      },
       "WARNING",
     );
   });
@@ -106,6 +112,11 @@ describe("runImport", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Widget filters were adjusted",
       expect.any(String),
+      {
+        operation: "widget.import",
+        errorOrigin: "frontend",
+        errorCategory: "product_state",
+      },
       "WARNING",
     );
   });

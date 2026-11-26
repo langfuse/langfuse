@@ -1,4 +1,3 @@
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -7,65 +6,36 @@ import {
   createOrgProjectAndApiKey,
   EntityChangeQueue,
 } from "@langfuse/shared/src/server";
-import { PromptType } from "@langfuse/shared";
+import { PromptType, entitlementAccess } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
-import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 function createCaller({
   projectId,
   orgId,
   projectName = "Test project",
   orgName = "Test organization",
-  admin = true,
   projectRole = "ADMIN",
 }: {
   projectId: string;
   orgId: string;
   projectName?: string;
   orgName?: string;
-  admin?: boolean;
   projectRole?: "ADMIN" | "MEMBER";
 }) {
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      canCreateOrganizations: true,
-      name: "Demo User",
-      organizations: [
-        {
-          id: orgId,
-          name: orgName,
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          projects: [
-            {
-              id: projectId,
-              role: projectRole,
-              retentionDays: 30,
-              deletedAt: null,
-              hasTraces: false,
-              name: projectName,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
-      featureFlags: testFeatureFlags(),
-      admin,
-    },
-    environment: {
-      enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
-    },
-  };
+  const session: Session = createSession({
+    organizations: [
+      {
+        id: orgId,
+        role: "OWNER",
+        name: orgName,
+        projects: [{ id: projectId, role: projectRole, name: projectName }],
+      },
+    ],
+    environment: { selfHostedInstancePlan: "cloud:hobby" },
+  });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -148,7 +118,6 @@ describe("prompts trpc", () => {
         const { caller } = createCaller({
           projectId,
           orgId: v4(),
-          admin: false,
         });
 
         await expect(
@@ -178,6 +147,20 @@ describe("prompts trpc", () => {
         }),
       ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
     });
+
+    it("lists prompts when orderBy is null", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.all({
+          projectId: project.id,
+          page: 0,
+          limit: 10,
+          filter: [],
+          orderBy: null,
+        }),
+      ).resolves.toMatchObject({ prompts: [], totalCount: 0 });
+    });
   });
 
   describe("prompts.importBulk", () => {
@@ -200,7 +183,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
       });
       const previousLimit =
         entitlementAccess["cloud:hobby"].entitlementLimits[
@@ -249,7 +231,6 @@ describe("prompts trpc", () => {
         orgId: org.id,
         projectName: project.name,
         orgName: org.name,
-        admin: false,
         projectRole: "MEMBER",
       });
 
@@ -1427,6 +1408,45 @@ describe("prompts trpc", () => {
       expect(searchResults.prompts[0].name).toBe("evolving-prompt");
       // The returned prompt should be the latest version
       expect(searchResults.prompts[0].version).toBe(2);
+    });
+
+    it("should match LIKE wildcard characters in names and tags literally", async () => {
+      const { project, caller } = await prepare();
+
+      const createPrompt = (name: string, tags: string[]) =>
+        prisma.prompt.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            name,
+            version: 1,
+            type: "text",
+            prompt: { text: "unrelated" },
+            createdBy: "test-user",
+            tags,
+          },
+        });
+
+      await createPrompt("gpt_4-prompt", []);
+      await createPrompt("gpt-4-prompt", []);
+      await createPrompt("discount-literal", ["save 100%"]);
+      await createPrompt("discount-wildcard", ["save 1000"]);
+
+      const search = async (searchQuery: string) =>
+        (
+          await caller.prompts.all({
+            projectId: project.id,
+            page: 0,
+            limit: 10,
+            filter: [],
+            orderBy: { column: "createdAt", order: "DESC" },
+            searchQuery,
+            searchType: ["id"],
+          })
+        ).prompts.map((p) => p.name);
+
+      expect(await search("gpt_4")).toEqual(["gpt_4-prompt"]);
+      expect(await search("100%")).toEqual(["discount-literal"]);
     });
   });
 

@@ -37,6 +37,7 @@ const questions: DecisionModelQuestions = DecisionModelQuestionsSchema.parse([
     scoreName: "refund_requested",
     type: "noul",
     instructions: "Does `question` request a refund?",
+    criteria: { true: "Asks for money back", false: "Does not" },
   },
 ]);
 
@@ -91,19 +92,27 @@ describe("executeDecisionModelEvaluator", () => {
         readiness: {
           type: "choice",
           instructions: "Is `reply` ready to send as an answer to `question`?",
-          criteria: {
-            ready: "Answers and states the next step",
-            needs_revision: null,
-          },
+          choices: [
+            {
+              value: "ready",
+              description: "Answers and states the next step",
+            },
+            { value: "needs_revision" },
+          ],
         },
         frustration: {
           type: "score",
           instructions: "How frustrated is the customer in `question`?",
-          criteria: ["Calm", "Frustrated but civil", "Very angry"],
+          levels: [
+            { description: "Calm" },
+            { description: "Frustrated but civil" },
+            { description: "Very angry" },
+          ],
         },
         refund: {
-          type: "boolean",
+          type: "predicate",
           instructions: "Does `question` request a refund?",
+          criteria: { true: "Asks for money back", false: "Does not" },
         },
       },
     });
@@ -170,6 +179,28 @@ describe("executeDecisionModelEvaluator", () => {
         },
       },
     ]);
+  });
+
+  it.each([
+    ["gpt-6-luna", "openai"],
+    ["gemini-decision-1", "google-ai-studio"],
+  ])("writes %s score details under metadata.%s", async (model, key) => {
+    const { client } = createClient({ ...evaluation, model });
+
+    const { scores } = await executeDecisionModelEvaluator({
+      variables: [{ var: "question", value: "refund?" }],
+      questions,
+      client,
+    });
+
+    expect(scores.map((score) => Object.keys(score.metadata ?? {}))).toEqual([
+      [key],
+      [key],
+      [key],
+    ]);
+    expect(scores[1]?.metadata).toMatchObject({
+      [key]: { model, questionId: "frustration", type: "score" },
+    });
   });
 
   it("fails permanently when the state is empty", async () => {

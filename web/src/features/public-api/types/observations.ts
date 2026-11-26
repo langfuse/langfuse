@@ -168,6 +168,10 @@ export const transformDbToApiObservation = (
 
     toolCallNames,
 
+    // Exclude skill data from the legacy public API.
+    skillsAvailable,
+    skillsResourceLoaded,
+
     // Exclude publish/bookmark flags from V1 public observations API.
     // V2 observations already exposes these on the events-based contract.
     bookmarked,
@@ -430,6 +434,7 @@ export const GetObservationsV2Response = z
     data: z.array(APIObservationV2),
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
+      comment: z.string().optional(),
     }),
   })
   .strict();

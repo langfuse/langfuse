@@ -1,8 +1,8 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
   DialogContent,
@@ -16,21 +16,19 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { ChartTypeIllustration } from "@/src/features/widgets/components/ChartTypeIllustration";
-import { type HomeDashboardPresetId } from "@langfuse/shared";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
 import {
   isSuggestedWidgetView,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import {
-  getSuggestedHomePresetIds,
-  HOME_PRESET_METADATA,
-} from "@/src/features/dashboard/components/home-preset-registry";
-import { useReadPath } from "@/src/features/events";
+import { getHomePresetMetadata } from "@/src/features/dashboard/components/home-preset-registry";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import {
-  InAppAgentWidgetComposer,
-  useInAppAiAgent,
-} from "@/src/features/in-app-agent";
+import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 export type WidgetItem = {
   id: string;
@@ -145,7 +143,6 @@ export function SelectWidgetDialog({
     isSuggestedWidgetView(widget.view, suggestedVersion),
   );
   const hiddenWidgetCount = allProjectWidgets.length - projectWidgets.length;
-  const suggestedPresetIds = getSuggestedHomePresetIds(suggestedVersion);
   // Replaces the generic empty state when it hid every widget, so the two can
   // never contradict each other.
   const hiddenWidgetsNote =
@@ -224,7 +221,7 @@ export function SelectWidgetDialog({
                   capture("dashboard:add_widget_tab_switch", { tab })
                 }
               >
-                <Tabs.List>
+                <Tabs.List variant="inset" size="md">
                   <Tabs.Trigger
                     value="project"
                     label={`Your widgets (${projectWidgets.length})`}
@@ -232,7 +229,7 @@ export function SelectWidgetDialog({
                   {onSelectPreset && (
                     <Tabs.Trigger
                       value="home-cards"
-                      label={`Home cards (${suggestedPresetIds.length})`}
+                      label={`Home cards (${HOME_DASHBOARD_PRESET_IDS.length})`}
                     />
                   )}
                 </Tabs.List>
@@ -263,8 +260,11 @@ export function SelectWidgetDialog({
                   <div className="mt-2">
                     <Tabs.Content value="home-cards">
                       <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto p-1">
-                        {suggestedPresetIds.map((presetId) => {
-                          const meta = HOME_PRESET_METADATA[presetId];
+                        {HOME_DASHBOARD_PRESET_IDS.map((presetId) => {
+                          const meta = getHomePresetMetadata(
+                            presetId,
+                            suggestedVersion,
+                          );
                           return (
                             <button
                               key={presetId}

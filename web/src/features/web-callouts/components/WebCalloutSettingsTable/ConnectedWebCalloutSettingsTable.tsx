@@ -2,8 +2,10 @@ import { useMemo } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
   WebCalloutSettingsTable,
   type WebCalloutEndpoint,
@@ -24,12 +26,17 @@ export function ConnectedWebCalloutSettingsTable({
     onSuccess: async () => {
       await utils.webCallouts.invalidate();
       showSuccessToast({
+        operation: "web_callout_endpoint.delete",
         title: "Callout endpoint deleted",
         description: "The endpoint was removed from this project.",
       });
     },
     onError: (error) => {
-      showErrorToast("Failed to delete callout endpoint", error.message);
+      showErrorToast(
+        "Failed to delete callout endpoint",
+        error.message,
+        classifyTrpcToastError(error, "web_callout_endpoint.delete"),
+      );
     },
   });
 

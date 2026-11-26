@@ -17,12 +17,13 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKeyedSessionStorageState";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 /** How a saved view / preset apply was initiated — the `trigger` analytics
  * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
@@ -96,6 +97,8 @@ const hasQueryParam = (
 ) => {
   const value = query[key];
   if (Array.isArray(value)) return value.length > 0;
+  // An empty `filter` is an explicit "no filters", matching useSidebarFilterState.
+  if (key === "filter") return value !== undefined;
   return value !== undefined && value !== "";
 };
 
@@ -361,6 +364,11 @@ export function useTableViewManager({
         showErrorToast(
           "Outdated view",
           "This view is outdated. Some old filters or ordering may have been ignored. Please update your view.",
+          {
+            operation: "saved_view.apply",
+            errorOrigin: "frontend",
+            errorCategory: "product_state",
+          },
           "WARNING",
         );
       }
@@ -610,12 +618,14 @@ export function useTableViewManager({
       showErrorToast(
         "View no longer available",
         "This suggested view was retired — showing the default view instead.",
+        classifyTrpcToastError(selectedViewError, "saved_view.apply"),
         "WARNING",
       );
     } else {
       showErrorToast(
         "Error applying view",
         selectedViewError.message,
+        classifyTrpcToastError(selectedViewError, "saved_view.apply"),
         "WARNING",
       );
     }

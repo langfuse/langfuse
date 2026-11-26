@@ -5,14 +5,67 @@ import {
   queryClickhouseExecRaw,
   queryClickhouseWithProgress,
   ClickHouseResourceError,
+  ClickHouseQueryAbortedError,
+  isRow,
+  isProgressRow,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
 import { randomUUID } from "node:crypto";
+import { prepareExecuteQuery } from "@langfuse/shared/query/server";
 
 const QUERY_ID_PATTERN =
   /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
 
 describe("ClickHouse Resource Error Handling", () => {
+  it.each(["buffered", "streaming"] as const)(
+    "rejects an oversized analytics result through the %s adapter",
+    async (adapter) => {
+      const prepared = await prepareExecuteQuery({
+        projectId: "result-limit-test",
+        version: "v2",
+        query: {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2026-01-01T00:00:00Z",
+          toTimestamp: "2026-01-02T00:00:00Z",
+          orderBy: null,
+        },
+      });
+      const opts = {
+        // Vary each value so ClickHouse materializes the strings rather than
+        // keeping one shared constant column in memory.
+        query:
+          "SELECT concat(toString(number), repeat('x', 1000000)) AS payload FROM numbers(12)",
+        clickhouseSettings: {
+          ...prepared.clickhouseSettings,
+          max_block_size: "1",
+        },
+      };
+
+      const read = async () => {
+        if (adapter === "buffered") {
+          await queryClickhouse(opts);
+          return;
+        }
+        for await (const event of queryClickhouseWithProgress(opts)) {
+          if ("exception" in event) {
+            throw ClickHouseResourceError.wrapIfResourceError(
+              new Error(event.exception),
+            );
+          }
+        }
+      };
+
+      await expect(read()).rejects.toMatchObject({
+        name: "ClickHouseResourceError",
+        errorType: "RESULT_SIZE",
+      });
+    },
+  );
+
   describe("queryClickhouse", () => {
     describe("Error transformation with throwIf", () => {
       // It is enough to test different block sizes on one error type only
@@ -41,6 +94,8 @@ describe("ClickHouse Resource Error Handling", () => {
               surface: "trpc",
               route: "test.resource-error",
               projectId: "project-1",
+              projectSize: "unknown",
+              queryWindow: "none",
             });
           }
         });
@@ -203,6 +258,43 @@ describe("ClickHouse Resource Error Handling", () => {
   });
 
   describe("queryClickhouseWithProgress", () => {
+    it("streams the same rows and reports scan counters", async () => {
+      const query = "SELECT toUInt32(number) AS n FROM numbers(5)";
+      const rows: { n: number }[] = [];
+      let readRows = 0;
+      let readBytes = 0;
+      for await (const item of queryClickhouseWithProgress<{ n: number }>({
+        query,
+        clickhouseSettings: { interactive_delay: "0", max_block_size: "1" },
+      })) {
+        if (isRow(item)) rows.push(item.row);
+        if (isProgressRow(item)) {
+          readRows = Number(item.progress.read_rows);
+          readBytes = Number(item.progress.read_bytes);
+        }
+      }
+      expect(rows).toEqual(await queryClickhouse({ query }));
+      expect(readRows).toBeGreaterThanOrEqual(5);
+      expect(readBytes).toBeGreaterThan(0);
+    });
+
+    it.each(["before", "during"])(
+      "returns a typed cancellation error when aborted %s a query",
+      async (when) => {
+        const stream = queryClickhouseWithProgress({
+          query: "SELECT sleepEachRow(0.02) FROM numbers(100)",
+          abortSignal:
+            when === "before" ? AbortSignal.abort() : AbortSignal.timeout(50),
+          clickhouseSettings: {
+            cancel_http_readonly_queries_on_client_close: 1,
+          },
+        });
+        await expect(Array.fromAsync(stream)).rejects.toBeInstanceOf(
+          ClickHouseQueryAbortedError,
+        );
+      },
+    );
+
     it("should include query_id exactly once in errors thrown before streaming starts", async () => {
       const generator = queryClickhouseWithProgress({
         query: `SELECT * FROM non_existent_table_xyz123`,

@@ -17,20 +17,25 @@ const mocks = vi.hoisted(() => ({
   getSignedUrl: vi.fn(),
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {
+vi.mock("@langfuse/shared/src/db", () => {
+  const prisma = {
+    $executeRaw: vi.fn(),
+    $transaction: (fn: (tx: unknown) => unknown) => fn(prisma),
     batchExport: {
+      count: vi.fn().mockResolvedValue(0),
       findFirst: mocks.findBatchExport,
       update: mocks.updateBatchExport,
     },
-  },
-}));
+  };
+  return { prisma };
+});
 
 vi.mock("@langfuse/shared/src/server", () => ({
   applyCommentFilters: mocks.applyCommentFilters,
   getCurrentSpan: vi.fn(() => undefined),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   sendBatchExportSuccessEmail: vi.fn(),
+  storageKeys: () => undefined,
   StorageServiceFactory: {
     getInstance: () => ({
       uploadFileBuffered: mocks.uploadFileBuffered,

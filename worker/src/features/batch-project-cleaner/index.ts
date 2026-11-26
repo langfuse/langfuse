@@ -13,6 +13,10 @@ export const BATCH_DELETION_TABLES = [
   "events_full",
   "events_core",
   "dataset_run_items_rmt",
+  "topic_facet_summaries",
+  "topic_assignments",
+  "topic_assignments_by_trace",
+  "topics",
 ] as const;
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -20,8 +24,10 @@ import { RedisLock } from "../../utils/RedisLock";
 
 export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
 
+/** @internal */
 export const BATCH_PROJECT_CLEANER_LOCK_PREFIX =
   "langfuse:batch-project-cleaner";
+/** @internal */
 export const BATCH_PROJECT_CLEANER_COUNT_LOCK_KEY = `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:count-query`;
 
 // Safety net for an abandoned lock; successful count queries release it immediately.
@@ -41,7 +47,7 @@ interface DeleteAttempt {
 /**
  * BatchProjectCleaner handles bulk deletion of ClickHouse data for soft-deleted projects.
  *
- * Each instance processes one table (traces, observations, scores, events_full, events_core).
+ * Each instance processes one project-scoped table.
  * Multiple workers coordinate via Redis to ensure that only one cleaner runs
  * per table and only one ClickHouse count query runs across all tables.
  *

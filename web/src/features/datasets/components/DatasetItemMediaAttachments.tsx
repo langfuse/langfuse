@@ -1,17 +1,17 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
-import { Check, Copy, Loader2, Paperclip } from "lucide-react";
+import { Check, Copy, Loader2, Paperclip } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { createFileDropPasteExtension } from "@/src/components/editor";
+import { createFileDropPasteExtension } from "@/src/components/editor/fileDropPaste";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-} from "@/src/features/media";
+import type {
+  MediaContentType,
+  MediaReturnType,
+} from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -24,6 +24,7 @@ import {
  * Extracts media references from live dataset item fields, deduped by media id.
  * Valid JSON uses the backend-style collector; invalid mid-edit JSON falls back
  * to regex so previews do not disappear while typing.
+ * @internal
  */
 export function collectMediaReferenceStrings(
   jsonStrings: (string | undefined)[],
@@ -61,6 +62,7 @@ type SliceableDoc = {
   sliceString(from: number, to?: number): string;
 };
 
+/** @internal */
 export function getMediaReferenceInsertRange(
   doc: SliceableDoc,
   from: number,
@@ -203,9 +205,9 @@ function DatasetItemMediaUploadButton({
         onClick={() => inputRef.current?.click()}
       >
         {isUploading ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader2 size="sm" color="default" __rawClassName="animate-spin" />
         ) : (
-          <Paperclip className="h-3 w-3" />
+          <Paperclip size="sm" color="default" />
         )}
       </Button>
     </>
@@ -233,7 +235,11 @@ function CopyFieldValueButton({ value }: { value: string }) {
         setTimeout(() => setCopied(false), 1000);
       }}
     >
-      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? (
+        <Check size="sm" color="default" />
+      ) : (
+        <Copy size="sm" color="default" />
+      )}
     </Button>
   );
 }
@@ -273,7 +279,7 @@ export function DatasetItemFieldToolbar({
 function PendingMediaTile({ fileName }: { fileName: string }) {
   return (
     <div className="flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border px-2 text-center">
-      <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+      <Loader2 size="lg" color="muted" __rawClassName="animate-spin" />
       <span
         className="text-muted-foreground w-full truncate text-xs"
         title={fileName}

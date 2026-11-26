@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { context, propagation, trace, type Context } from "@opentelemetry/api";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod/v4";
 
@@ -7,22 +8,66 @@ import { env } from "@/src/env.mjs";
 import { verifyHmacSha256 } from "@/src/server/utils/hmac";
 import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
+import {
+  GatewayApiFormatSchema,
+  type GatewayApiFormat,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";
 const SIGNATURE_DOMAIN = "gateway-web-v1";
 const SIGNATURE_MAX_AGE_SECONDS = 5 * 60;
+const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
-    model: z.string().min(1).optional(),
+    model: z.string(),
+    requestBytes: z.number().int().nonnegative(),
+  })
+  .strict()
+  .refine(
+    ({ apiFormat, model }) =>
+      modelRoutingService.resolve(model, [], apiFormat) !== null,
+  );
+/** Bounds a report; a key has at most one limit per interval today. */
+const MAX_REPORTED_SPEND_LIMITS = 20;
+const spendLimitAlertBodySchema = z
+  .object({
+    limits: z
+      .array(
+        z
+          .object({
+            limitId: z.string().min(1),
+            // Unix milliseconds, as resolve returned them.
+            countingStartedAt: z.number().int().nonnegative(),
+            windowStart: z.number().int().nonnegative(),
+            // Omitted for 100% by older gateways and for rolling-deploy compatibility.
+            thresholdPercent: z.number().int().min(1).max(100).default(100),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_REPORTED_SPEND_LIMITS)
+      .refine(
+        (limits) =>
+          new Set(
+            limits.map(
+              ({ limitId, thresholdPercent }) =>
+                `${limitId}:${thresholdPercent}`,
+            ),
+          ).size === limits.length,
+        "Each limit threshold may be reported once",
+      ),
   })
   .strict();
 const modelsQuerySchema = z
   .object({ api_format: GatewayApiFormatSchema })
   .strict();
+const GATEWAY_REQUEST_ID_HEADER = "langfuse-gateway-request-id";
+const GATEWAY_REQUEST_ID_KEY = "langfuse.gateway.request.id";
 const gatewayAuthorizationSchema =
   /^HMAC timestamp=(\d+),signature=([0-9a-f]{64})$/;
 
@@ -35,7 +80,14 @@ type GatewayControlPlaneHandlerParams = {
 type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
+    model: string;
+    requestBytes: number;
   },
+) => Promise<unknown>;
+
+type GatewaySpendLimitAlertHandler = (
+  params: GatewayControlPlaneHandlerParams &
+    z.infer<typeof spendLimitAlertBodySchema>,
 ) => Promise<unknown>;
 
 type GatewayModelsHandler = (
@@ -70,18 +122,60 @@ function verifyGatewayRequestSignatureAndHashApiKey(input: {
       serviceKeys,
     )
   ) {
-    throw new GatewayControlPlaneError("Invalid gateway authorization", 401);
+    // Coded so the gateway can tell a service-key mismatch from a rejected caller key.
+    throw new GatewayControlPlaneError(
+      "Invalid gateway authorization",
+      401,
+      "invalid_gateway_authorization",
+    );
   }
 
   return createShaHash(input.virtualSecretKey, env.SALT);
+}
+
+/**
+ * Adds the gateway's request ID to the active span and to the baggage the logger
+ * copies onto every line, so Web resolution logs join the gateway's. Call it
+ * only after the gateway signature is verified; the header itself is unsigned,
+ * so only a single UUID is accepted.
+ * @internal
+ */
+export function contextWithGatewayRequestId(
+  req: Pick<NextApiRequest, "headers">,
+  parent: Context = context.active(),
+): Context {
+  const requestId = singleHeader(req.headers[GATEWAY_REQUEST_ID_HEADER]);
+  if (!requestId || !z.uuid().safeParse(requestId).success) return parent;
+
+  trace.getSpan(parent)?.setAttribute(GATEWAY_REQUEST_ID_KEY, requestId);
+  const baggage = (
+    propagation.getBaggage(parent) ?? propagation.createBaggage()
+  ).setEntry(GATEWAY_REQUEST_ID_KEY, { value: requestId });
+
+  return propagation.setBaggage(parent, baggage);
 }
 
 export function withGatewayResolveSignatureVerification(
   handler: GatewayResolveHandler,
 ) {
   return withGatewayControlPlaneAuth(
-    ({ body, ...params }) => handler({ ...params, apiFormat: body.apiFormat }),
+    ({ body, ...params }) =>
+      handler({
+        ...params,
+        apiFormat: body.apiFormat,
+        model: body.model,
+        requestBytes: body.requestBytes,
+      }),
     resolveBodySchema,
+  );
+}
+
+export function withGatewaySpendLimitAlertSignatureVerification(
+  handler: GatewaySpendLimitAlertHandler,
+) {
+  return withGatewayControlPlaneAuth(
+    ({ body, ...params }) => handler({ ...params, ...body }),
+    spendLimitAlertBodySchema,
   );
 }
 
@@ -122,6 +216,9 @@ export function withGatewayModelsSignatureVerification(
       });
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });
@@ -129,9 +226,7 @@ export function withGatewayModelsSignatureVerification(
   };
 }
 
-function withGatewayControlPlaneAuth<
-  Body extends { apiFormat: GatewayApiFormat },
->(
+function withGatewayControlPlaneAuth<Body>(
   handler: (
     params: GatewayControlPlaneHandlerParams & { body: Body },
   ) => Promise<unknown>,
@@ -170,14 +265,19 @@ function withGatewayControlPlaneAuth<
         ),
       });
 
-      return await handler({
-        req,
-        res,
-        fastHashedSecretKey,
-        body: body.data,
-      });
+      return await context.with(contextWithGatewayRequestId(req), () =>
+        handler({
+          req,
+          res,
+          fastHashedSecretKey,
+          body: body.data,
+        }),
+      );
     } catch (error) {
       if (error instanceof GatewayControlPlaneError) {
+        if (error.code) {
+          res.setHeader("langfuse-gateway-error-code", error.code);
+        }
         return res.status(error.status).json({ error: error.message });
       }
       return res.status(500).json({ error: "Internal server error" });

@@ -1,42 +1,44 @@
 import dns from "node:dns/promises";
 import { URL } from "node:url";
+import { env } from "../../env";
 import { logger } from "../logger";
 import {
   isHostnameBlocked,
   isIPBlocked,
   isIPAddress,
 } from "../webhooks/ipBlocking";
+import { OutboundUrlValidationError } from "./parse";
 
-export type OutboundUrlValidationErrorCode =
-  | "blocked-hostname"
-  | "blocked-ip"
-  | "dns-lookup-failed"
-  | "https-required"
-  | "invalid-encoding"
-  | "invalid-syntax"
-  | "port-not-allowed"
-  | "protocol-not-allowed"
-  | "url-credentials-not-allowed";
-
-export class OutboundUrlValidationError extends Error {
-  constructor(
-    readonly code: OutboundUrlValidationErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "OutboundUrlValidationError";
-  }
-}
+export {
+  OutboundUrlValidationError,
+  parseOutboundUrl,
+  type OutboundUrlValidationErrorCode,
+} from "./parse";
 
 // Prefix of the message thrown on DNS-resolution failure. Exported so consumers
 // can detect this failure by message when the typed `code` is lost — e.g. after
 // RedirectValidationError re-wraps the inner error by message text only.
 export const DNS_LOOKUP_FAILED_MESSAGE_PREFIX = "DNS lookup failed for";
+const HOST_NOT_IN_ALLOWLIST_MESSAGE =
+  "Host is not in the outbound URL allowlist";
+/** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
+const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+const IP_SHAPED_BUCKET_NAME = /(?:\d+\.){3}\d+/;
+const ADJACENT_DOTS = /\.\./;
 
 export interface OutboundUrlValidationWhitelist {
   hosts: string[];
   ips: string[];
   ip_ranges: string[];
+  // Positive host list. Empty or omitted keeps the default-allow behavior:
+  // any public host is accepted, and `hosts` only exempts private targets.
+  allowedHosts?: string[];
+  // Listed hosts whose S3 virtual-hosted names `{bucket}.{host}` also pass
+  // the positive list. Unlike exact entries, those names still get the
+  // private-address block: whoever controls the parent zone's DNS, or picks
+  // the bucket name, decides where they resolve. Only read when
+  // `allowedHosts` is non-empty.
+  allowedBucketHostParents?: string[];
 }
 
 export interface ValidateOutboundUrlHostOptions {
@@ -89,33 +91,6 @@ export async function resolveHost(hostname: string): Promise<string[]> {
   return [...ips];
 }
 
-export function parseOutboundUrl(urlString: string): URL {
-  const trimmedUrl = urlString.trim();
-  assertValidUrlEncoding(trimmedUrl);
-
-  let url: URL;
-  try {
-    // Parse the original URL string so validation uses the same WHATWG URL
-    // semantics as fetch. Decoding the whole URL first can turn encoded data
-    // into delimiters and make validation inspect a different hostname.
-    url = new URL(trimmedUrl);
-  } catch {
-    throw new OutboundUrlValidationError(
-      "invalid-syntax",
-      "Invalid URL syntax",
-    );
-  }
-
-  if (url.username !== "" || url.password !== "") {
-    throw new OutboundUrlValidationError(
-      "url-credentials-not-allowed",
-      "URL credentials are not allowed. Use authentication headers instead.",
-    );
-  }
-
-  return url;
-}
-
 export async function validateOutboundUrlHost({
   url,
   whitelist,
@@ -125,6 +100,10 @@ export async function validateOutboundUrlHost({
   // WHATWG URL parsing already lowercases and punycodes HTTP(S) hostnames, so
   // host safety checks stay tied to the parsed URL component.
   const hostname = url.hostname;
+
+  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
+    return;
+  }
 
   if (whitelist.hosts.includes(hostname)) {
     return;
@@ -170,11 +149,22 @@ export function validateOutboundResolvedIp({
   whitelist,
   logContext,
 }: ValidateOutboundResolvedIpOptions): void {
+  if (enforcePositiveAllowlist(hostname, whitelist) === "allowed") {
+    return;
+  }
+
   if (whitelist.hosts.includes(hostname)) {
     return;
   }
 
-  if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
+  if (
+    isIPBlocked(
+      ip,
+      whitelist.ips,
+      whitelist.ip_ranges,
+      env.LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS ?? [],
+    )
+  ) {
     logger.warn(
       `${logContext} validation blocked resolved IP address: ${ip} for hostname: ${hostname}`,
     );
@@ -185,16 +175,36 @@ export function validateOutboundResolvedIp({
   }
 }
 
-function assertValidUrlEncoding(urlString: string): void {
-  // This intentionally checks encoding validity only. Do not parse or validate
-  // the decoded result: decoding the whole URL can turn encoded data into URL
-  // delimiters and make validation inspect a different hostname than fetch.
-  try {
-    decodeURIComponent(urlString);
-  } catch {
-    throw new OutboundUrlValidationError(
-      "invalid-encoding",
-      "Invalid URL encoding",
-    );
-  }
+/** enforcePositiveAllowlist returns whether a configured positive host list allows this hostname. */
+export function enforcePositiveAllowlist(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): "allowed" | "bucket-host" | "not-configured" {
+  const allowedHosts = whitelist.allowedHosts ?? [];
+  if (allowedHosts.length === 0) return "not-configured";
+  if (allowedHosts.includes(hostname)) return "allowed";
+  if (isBucketHostOfAllowedParent(hostname, whitelist)) return "bucket-host";
+  throw new OutboundUrlValidationError(
+    "host-not-allowed",
+    HOST_NOT_IN_ALLOWLIST_MESSAGE,
+  );
+}
+
+function isBucketHostOfAllowedParent(
+  hostname: string,
+  whitelist: OutboundUrlValidationWhitelist,
+): boolean {
+  return (whitelist.allowedBucketHostParents ?? []).some(
+    (parent) =>
+      hostname.endsWith(`.${parent}`) &&
+      isDnsCompatibleBucketName(hostname.slice(0, -parent.length - 1)),
+  );
+}
+
+export function isDnsCompatibleBucketName(bucketName: string): boolean {
+  return (
+    DNS_COMPATIBLE_BUCKET_NAME.test(bucketName) &&
+    !IP_SHAPED_BUCKET_NAME.test(bucketName) &&
+    !ADJACENT_DOTS.test(bucketName)
+  );
 }

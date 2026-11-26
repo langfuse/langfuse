@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { AISDKError, APICallError, RetryError } from "ai";
 
 const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
@@ -8,7 +7,8 @@ const LLM_VALIDATION_ERROR_MARKER = Symbol.for(
 export type LLMValidationErrorCode =
   | "invalid-connection"
   | "invalid-request"
-  | "endpoint-unreachable";
+  | "endpoint-unreachable"
+  | "media-not-found";
 
 /**
  * A deterministic validation failure owned by Langfuse, before or around the
@@ -38,6 +38,50 @@ export class LLMValidationError extends Error {
       error[LLM_VALIDATION_ERROR_MARKER] === true
     );
   }
+}
+
+/**
+ * Stands in for a provider 429 while a model on an LLM connection cools down after one,
+ * so callers classify and reschedule it exactly like the provider's own.
+ */
+export class LLMConnectionCooldownError extends APICallError {
+  readonly remainingMs: number;
+
+  constructor(remainingMs: number) {
+    super({
+      message: `The provider rate limited this model on this LLM connection; requests are paused for another ${Math.ceil(remainingMs / 1000)}s.`,
+      url: "",
+      requestBodyValues: undefined,
+      statusCode: 429,
+      isRetryable: true,
+    });
+    this.name = "LLMConnectionCooldownError";
+    this.remainingMs = remainingMs;
+  }
+}
+
+/**
+ * How long to wait before calling the provider again: the remaining LLM
+ * connection cooldown, or the provider's `retry-after-ms` / `retry-after`
+ * (seconds or HTTP date). Undefined when neither says.
+ */
+export function getLLMRetryAfterMs(error: unknown): number | undefined {
+  const cooldownError = findInCauseChain(
+    error,
+    (e): e is LLMConnectionCooldownError =>
+      e instanceof LLMConnectionCooldownError,
+  );
+  if (cooldownError) return cooldownError.remainingMs;
+
+  const headers = getLLMErrorInfo(error)?.providerError?.responseHeaders;
+  const retryAfterMs = Number.parseFloat(headers?.["retry-after-ms"] ?? "");
+  if (Number.isFinite(retryAfterMs)) return retryAfterMs;
+  const retryAfterSeconds = Number.parseFloat(headers?.["retry-after"] ?? "");
+  if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
+  const retryAt = Date.parse(headers?.["retry-after"] ?? "");
+  return Number.isFinite(retryAt)
+    ? Math.max(0, retryAt - Date.now())
+    : undefined;
 }
 
 export type LLMErrorInfo = {
@@ -146,7 +190,9 @@ function unwrapRetryError(error: unknown): {
 
   while (RetryError.isInstance(resolvedError) && !visited.has(resolvedError)) {
     visited.add(resolvedError);
-    retryError ??= resolvedError;
+    if (retryError === undefined) {
+      retryError = resolvedError;
+    }
     resolvedError = resolvedError.lastError;
   }
 

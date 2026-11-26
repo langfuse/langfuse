@@ -5,7 +5,7 @@
  */
 
 import { Button } from "@/src/components/ui/button";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus } from "@langfuse/icons";
 
 interface InlineCommentBubbleProps {
   onAddComment: () => void;
@@ -37,7 +37,7 @@ export function InlineCommentBubble({
         onClick={handleClick}
         className="border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground border px-3 py-2.5 shadow-md"
       >
-        <MessageSquarePlus className="h-3 w-3" />
+        <MessageSquarePlus size="sm" />
         <span className="ml-1">Comment</span>
       </Button>
     </div>

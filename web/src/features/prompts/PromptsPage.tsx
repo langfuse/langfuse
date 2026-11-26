@@ -1,22 +1,19 @@
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
-import Page from "@/src/components/layouts/page";
-import { PromptTable } from "@/src/features/prompts/components/prompts-table";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { Download, UploadIcon, PlusIcon } from "lucide-react";
+import Page from "@/src/components/layouts/Page";
+import { PromptTable } from "@/src/features/prompts/components/PromptTable";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Download, UploadIcon, PlusIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
-import { useEntitlementLimit } from "@/src/features/entitlements";
-import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { PromptDetail } from "@/src/features/prompts/components/PromptDetail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
-import { useState } from "react";
-import { AutomationButton } from "@/src/features/automations";
+import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { ExportPromptsDialogController } from "@/src/features/prompts/components/ExportPromptsDialogController";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
-import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { toast } from "sonner";
 
 export default function PromptsPage() {
   const router = useRouter();
@@ -53,32 +50,6 @@ export default function PromptsPage() {
     scope: "prompts:read",
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
-  const utils = api.useUtils();
-  const [isExporting, setIsExporting] = useState(false);
-  const capture = usePostHogClientCapture();
-
-  const handleExport = async (mode: "latest" | "all") => {
-    setIsExporting(true);
-    try {
-      const data = await utils.prompts.exportAll.fetch({
-        projectId,
-        includeAllVersions: mode === "all",
-      });
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `langfuse-prompts-${mode}-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      capture("prompts:bulk_export", { mode });
-    } catch {
-      toast.error("Failed to export prompts. Please try again.");
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
@@ -127,36 +98,23 @@ export default function PromptsPage() {
         actionButtonsRight: (
           <>
             {projectId && <AutomationButton projectId={projectId} />}
-            {hasReadAccess && (
-              <DropdownMenu
-                disabled={isExporting}
-                placement="bottom-end"
-                items={[
-                  {
-                    type: "item",
-                    id: "latest",
-                    title: "Latest version per prompt",
-                    onClick: () => handleExport("latest"),
-                  },
-                  {
-                    type: "item",
-                    id: "all",
-                    title: "All versions",
-                    onClick: () => handleExport("all"),
-                  },
-                ]}
-              >
-                {({ getTriggerProps }) => (
+            {hasReadAccess && projectId && (
+              <ExportPromptsDialogController projectId={projectId}>
+                {({ isExporting, openDialog }) => (
                   <Button
                     variant="outline"
                     disabled={isExporting}
-                    {...getTriggerProps()}
+                    onClick={openDialog}
                   >
-                    <UploadIcon className="mr-1 h-4 w-4" />
+                    <UploadIcon
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
                 )}
-              </DropdownMenu>
+              </ExportPromptsDialogController>
             )}
             {projectId && (
               <ImportPromptsButtonDialogController projectId={projectId}>
@@ -167,14 +125,18 @@ export default function PromptsPage() {
                     title={disabled?.reason}
                     onClick={openDialog}
                   >
-                    <Download className="mr-1 h-4 w-4" />
+                    <Download
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-1"
+                    />
                     Import
                   </Button>
                 )}
               </ImportPromptsButtonDialogController>
             )}
             <ActionButton
-              icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+              icon={<PlusIcon size="base" color="default" aria-hidden="true" />}
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               trackingEventName="prompts:new_form_open"

@@ -1,5 +1,5 @@
 import { useId, useRef } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
@@ -11,7 +11,8 @@ import { cn } from "@/src/utils/tailwind";
  * The plain-text question. Instructions never contain templates: the model
  * receives the state as a JSON object and the question names the field it is
  * about in backticks, so the field chips insert `` `key` `` at the cursor and
- * a reference to a key that no longer exists is flagged.
+ * a reference to a key that no longer exists is flagged. The whole state is
+ * sent with every question; the chips never select which fields are sent.
  */
 export function QuestionInstructionsField({
   value,
@@ -74,33 +75,25 @@ export function QuestionInstructionsField({
         className={cn(error && "border-destructive")}
       />
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="text-muted-foreground">Fields:</span>
-        {stateKeys.map((key) => {
-          const used = referenced.includes(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => insertKey(key)}
-              title={`Insert \`${key}\` at the cursor`}
-              className={cn(
-                "rounded border px-1.5 py-0.5 font-mono transition-colors",
-                used
-                  ? "border-primary-accent/40 bg-primary-accent/10 text-primary-accent"
-                  : "text-muted-foreground hover:bg-muted border-dashed",
-              )}
-            >
-              {key}
-            </button>
-          );
-        })}
+        <span className="text-muted-foreground">Insert reference:</span>
+        {stateKeys.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => insertKey(key)}
+            title={`Insert \`${key}\` at the cursor`}
+            className="text-muted-foreground hover:bg-muted rounded border px-1.5 py-0.5 font-mono transition-colors"
+          >
+            {key}
+          </button>
+        ))}
         {unknown.map((key) => (
           <span
             key={key}
             className="text-dark-yellow flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 font-mono"
             title={`\`${key}\` is not a state field`}
           >
-            <TriangleAlert className="h-3 w-3" />
+            <TriangleAlert size="sm" />
             {key}
           </span>
         ))}

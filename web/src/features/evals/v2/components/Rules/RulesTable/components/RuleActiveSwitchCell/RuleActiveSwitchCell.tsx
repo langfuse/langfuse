@@ -1,6 +1,6 @@
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
@@ -19,7 +19,7 @@ export function RuleActiveSwitchCell({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const setEnabled = api.evalsV2.rules.setEnabled.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.status_update"),
     onSuccess: async (_result, variables) => {
       capture("evaluation_rules:status_change", {
         isEnabled: variables.enabled,

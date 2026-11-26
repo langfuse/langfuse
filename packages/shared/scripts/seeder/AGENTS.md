@@ -26,11 +26,24 @@ pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed
 pnpm run seed -- session-shapes --shape media      # messages carrying @@@langfuseMedia:...@@@ refs (needs MinIO)
 pnpm run seed -- session-variety --sessions 120 --days 14  # many sessions for the sessions TABLE + its filters/search bar (topic ids, multi user/tag, 4 envs, session metadata, numeric+categorical+boolean scores, comments)
 pnpm run seed -- many-traces --count 100000 --days 14
+pnpm run seed -- filter-variety --traces 1200 --names 240 --v4  # readable root names with common/rare counts, varied types/envs/tags/levels/models/users/sessions
 pnpm run seed -- outlier-traffic --days 90   # diurnal v4 traffic w/ cost/latency/token outliers (outlier chart strip)
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
+pnpm run seed -- score-distributions  # numeric distribution shapes: 0–1, 0.91–0.94, negative, near zero, span across zero
+pnpm run seed -- topics --batch all  # 12 discovery + 3 assignment traces for Topics; v4 on, no model calls
+pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42  # 100 diverse requests, tool failures and successful outcomes
+pnpm run seed -- topics-map  # 116 traces with PUBLISHED Intent/Issues maps on two rules (long names, tiny tiles, outliers); no model calls, for Topics results UI checks
 pnpm run seed -- custom-models --v4  # project-level model definitions (tiered + single-tier, one price at 0) + a trace whose generations link to them, plus one unpriced model
-pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items for the Formatted/JSON switch
+pnpm run seed -- custom-models --v4 --usage-states  # same model fixtures plus root/child inferred, empty, zero, and error usage/cost states
+pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON items
+pnpm run seed -- experiment-filters  # three v4 runs over 60 items, shifted numeric/categorical/boolean scores, status, metadata and missing results
+pnpm run seed -- experiment-io --compare  # same dataset plus a second run with a long chat output, for the comparison table
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
+pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
+pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
+pnpm run seed -- assistant-skills --demo-files 25  # adds local-many-files with SKILL.md and 24 references for scrolling checks
+pnpm run seed -- gateway-guardrails  # AI Gateway guardrails: org-wide email logging + SSN/card blocking on a seeded gateway key (printed)
+pnpm run seed -- annotation-queue --review-sources  # annotation + eval + API + off-queue annotation on the first trace, observation, and session items
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,
@@ -47,7 +60,10 @@ progress output. Full usage and the need→command table live in the
 - `scenarios/` — one file per scenario plus shared `rng.ts`, `payload.ts`,
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
-  `pnpm run dx` seed path (unchanged by the CLI)
+  `pnpm run dx` seed path; `seed-clickhouse.ts` also runs the
+  `gateway-budgets` scenario, so local dx gets AI Gateway spend (PR previews
+  seed only `many-traces`; run `gateway-budgets` there via the
+  `langfuse-previews` skill)
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes

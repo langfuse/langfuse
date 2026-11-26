@@ -1,8 +1,8 @@
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
-import { FileText, GitBranch, Zap, BarChart4 } from "lucide-react";
+} from "@/src/components/ui/SplashScreen";
+import { FileText, GitBranch, Zap, BarChart4 } from "@langfuse/icons";
 
 export function PromptsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [

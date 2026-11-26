@@ -8,7 +8,7 @@ export const showSuccessToast = ({
   duration = 5000,
   ...params
 }: Omit<SuccessNotificationProps, "onDismiss"> & { duration?: number }) => {
-  toast.custom(
+  return toast.custom(
     (t) => (
       <SuccessNotification {...params} onDismiss={() => toast.dismiss(t)} />
     ),

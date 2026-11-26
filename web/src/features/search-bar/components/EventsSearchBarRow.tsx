@@ -17,7 +17,7 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useQueryProject } from "@/src/features/projects";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
@@ -29,11 +29,14 @@ import {
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
+import { type QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
+import type { ManagedEnvironmentPolicyConfig } from "@/src/features/filters/lib/managedEnvironmentPolicy";
+import type { CompareOp } from "@/src/features/search-bar/lib/ast";
 
 type EventsSearchBarRowProps = Omit<
   React.ComponentProps<typeof EventsSearchBarRowContent>,
@@ -60,6 +63,7 @@ function ProjectSearchBarRow(props: EventsSearchBarRowProps) {
 }
 
 function EventsSearchBarRowContent({
+  inputId,
   aiFeaturesEnabled,
   projectId,
   tableName,
@@ -67,6 +71,7 @@ function EventsSearchBarRowContent({
   store,
   commit,
   observed,
+  managedEnvironmentPolicy,
   erroredColumns,
   fieldReason,
   freeTextReason,
@@ -78,8 +83,12 @@ function EventsSearchBarRowContent({
   aiScoreNames,
   className,
   registry = EVENTS_FIELD_REGISTRY,
+  size = "default",
+  spacing = "table",
 }: {
   aiFeaturesEnabled: boolean;
+  inputId?: string;
+  spacing?: "table" | "page" | "flush";
   projectId?: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
@@ -87,6 +96,7 @@ function EventsSearchBarRowContent({
   store: SearchBarStore;
   commit: SearchCommit;
   observed: ObservedOptions | undefined;
+  managedEnvironmentPolicy?: ManagedEnvironmentPolicyConfig;
   /** Columns whose lazy fetch terminally errored — value-stage loading settles to
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
@@ -94,7 +104,7 @@ function EventsSearchBarRowContent({
   /** Given a filter token's field, the reason it is not applied on the current
    *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
    *  Undefined leaves all filters active. */
-  fieldReason?: (field: string) => string | null;
+  fieldReason?: (field: string, op?: CompareOp) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
   /**
@@ -124,6 +134,8 @@ function EventsSearchBarRowContent({
   className?: string;
   /** The view-specific grammar and filter contract. */
   registry?: FieldRegistry;
+  /** `large` on full-page lists; embedded toolbars keep the default. */
+  size?: React.ComponentProps<typeof QueryInput>["size"];
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   // Mirror the legacy wand gate: org-level AI features. The server
@@ -154,9 +166,17 @@ function EventsSearchBarRowContent({
   }, [onRequestColumns, registry]);
 
   return (
-    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
+    <div
+      className={cn(
+        "min-w-0",
+        spacing === "table" && "px-2 pt-2 pb-1",
+        spacing === "page" && "px-3 pt-2 pb-1",
+        className,
+      )}
+    >
       {aiOpen && aiAvailable && aiRegistryId && projectId ? (
         <SearchBarAiPrompt
+          key={`${projectId}:${tableName}:${registry.id}`}
           projectId={projectId}
           tableName={tableName}
           isV4={isV4}
@@ -164,14 +184,18 @@ function EventsSearchBarRowContent({
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
           registryId={aiRegistryId}
+          registry={registry}
+          size={size}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
           <ComposerWithPreview
+            inputId={inputId}
             projectId={projectId}
             observed={observed}
+            managedEnvironmentPolicy={managedEnvironmentPolicy}
             erroredColumns={erroredColumns}
             fieldReason={fieldReason}
             freeTextReason={freeTextReason}
@@ -180,6 +204,7 @@ function EventsSearchBarRowContent({
             presetSections={presetSections}
             onQueryPresetPick={onQueryPresetPick}
             registry={registry}
+            size={size}
           />
         </SearchBarStoreProvider>
       )}

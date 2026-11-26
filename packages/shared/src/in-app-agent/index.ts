@@ -6,4 +6,6 @@ export * from "./approvalEvents";
 export * from "./constants";
 export * from "./interrupts";
 export * from "./messages";
+export * from "./questionnaire";
+export * from "./toolInputs";
 export * from "../features/inAppAgent/types";

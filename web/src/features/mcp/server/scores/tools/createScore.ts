@@ -2,11 +2,11 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   PublicApiCreateScoreSourceDomain,
-  PostScoresBodyV1,
+  PostScoreBodyV1,
   PostScoresResponseV1,
   UnauthorizedError,
 } from "@langfuse/shared";
-import { ScoresApiService } from "@/src/features/public-api/server";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import {
   createUnknownSdkIngestionAttribution,
   buildScoreTargetUrl,
@@ -40,7 +40,7 @@ const throwCreateScoreBatchError = (error: CreateScoreBatchError): never => {
   throw new ApiServerError("Failed to create score");
 };
 
-const CreateScoreBaseSchema = z
+export const CreateScoreBaseSchema = z
   .object({
     id: z.string().optional(),
     name: z.string().min(1),
@@ -76,13 +76,13 @@ const CreateScoreBaseSchema = z
 export const [createScoreTool, handleCreateScore] = defineTool({
   name: "createScore",
   description: [
-    "Create one score in the current Langfuse project.",
+    "Create one score in the current Langfuse project. To create several scores, use batchCreateScores.",
     "Score reads are eventually consistent: after creation, getScore and listScores may not return the new score immediately. Wait briefly and retry reads when confirming creation.",
   ].join("\n"),
-  action: "scores:create",
+  action: "scores:save",
   baseSchema: CreateScoreBaseSchema,
-  inputSchema: PostScoresBodyV1,
-  destructiveHint: true,
+  inputSchema: PostScoreBodyV1,
+  annotations: { destructiveHint: true },
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.scores.create",

@@ -7,7 +7,6 @@ import type {
   ManagedTemplate,
 } from "@/src/features/evals/v2/types/templateGallery";
 import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 export type GalleryTemplatePresentation = {
   description: string | undefined;
@@ -59,12 +58,4 @@ export function getGalleryTemplatePresentation(
 
 export function getGalleryTemplateId(template: GalleryTemplate) {
   return template.source === "managed" ? template.key : template.id;
-}
-
-export function getGalleryTemplateCategoryKey(template: GalleryTemplate) {
-  return template.source === "managed"
-    ? template.categories.find(
-        (category) => category !== EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-      )
-    : undefined;
 }

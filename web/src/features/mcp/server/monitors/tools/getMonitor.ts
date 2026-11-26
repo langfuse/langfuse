@@ -39,5 +39,5 @@ export const [getMonitorTool, handleGetMonitor] = defineTool({
         };
       },
     }),
-  readOnlyHint: true,
+  annotations: { readOnlyHint: true },
 });

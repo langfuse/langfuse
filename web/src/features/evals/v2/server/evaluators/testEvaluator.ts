@@ -1,31 +1,36 @@
 import {
+  EvalTargetObject,
+  extractTranscriptEvalVariables,
   getCodeEvalVariableMapping,
+  InvalidRequestError,
+  isTraceTranscriptEvalType,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
-  compileLangfuseMediaMessages,
-  createTypeSafeDecisionModelClient,
+  createDecisionModelClient,
   createW3CTraceId,
   decryptAndParseExtraHeaders,
   DefaultEvalModelService,
-  createLLMOutput,
   executeDecisionModelEvaluator,
   executeLlmEvaluator,
   extractObservationVariables,
   findModel,
-  generateLLMText,
-  isDecisionModelAdapter,
+  generateLlmEvaluatorOutput,
+  getTraceByIdFromEventsTable,
+  isAllowedDecisionModel,
   LangfuseInternalTraceEnvironment,
-  mapLegacyLLMCompletionParams,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  serializeTraceTranscriptInputs,
+  unsupportedDecisionModelMessage,
   type DecisionModelRequest,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
+import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
   assertCompleteEvaluatorVariableMapping,
@@ -51,30 +56,12 @@ export async function testEvaluator(params: {
     startTime: params.startTime,
     shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
   });
-  let variableMapping;
-  if (params.definition.type === "CODE") {
-    variableMapping = getCodeEvalVariableMapping();
-  } else if (params.definition.type === "DECISION_MODEL") {
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: params.definition.vars,
-      variableMapping: params.definition.variableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(
-      params.definition.variableMapping,
-    );
-  } else {
-    const llmVariableMapping = params.definition.variableMapping ?? [];
-    assertCompleteEvaluatorVariableMapping({
-      promptVariables: extractEvaluatorPromptVariables(
-        params.definition.promptMessages,
-      ),
-      variableMapping: llmVariableMapping,
-    });
-    variableMapping = observationVariableMappingList.parse(llmVariableMapping);
-  }
   const variables = extractObservationVariables({
     observation,
-    variableMapping,
+    variableMapping: resolveTestVariableMapping(
+      params.definition,
+      EvalTargetObject.EVENT,
+    ),
   });
   const executionData = buildEvalExecutionData({
     type: "TEST",
@@ -87,10 +74,130 @@ export async function testEvaluator(params: {
   const result = await runEvaluatorTest({
     ...params,
     variables,
+    hasExperimentContext: Boolean(observation.experiment_id),
     ...executionData,
   });
 
-  return { ...result, durationMs: Date.now() - startedAt };
+  return { ...result, durationMs: Date.now() - startedAt, variables };
+}
+
+/** Mirrors a trace transcript rule: every variable reads the assembled transcript's `threads`. */
+export async function testEvaluatorOnTrace(params: {
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  includeEvaluatorLink?: boolean;
+  definition: NormalizedEvaluatorDefinition;
+  traceId: string;
+  /** Any time inside the trace; the transcript is read from the trace start. */
+  timestamp: Date;
+}) {
+  const startedAt = Date.now();
+  if (!isTraceTranscriptEvalType(params.definition.type)) {
+    throw new InvalidRequestError(
+      "Trace evaluations support LLM-as-a-judge and decision-model evaluators.",
+    );
+  }
+  const variableMapping = resolveTestVariableMapping(params.definition);
+  const trace = await getTraceByIdFromEventsTable({
+    traceId: params.traceId,
+    projectId: params.projectId,
+    fromTimestamp: params.timestamp,
+    excludeInputOutput: true,
+    excludeMetadata: true,
+  });
+  const { transcript, cutoff } = await loadTraceTranscript({
+    projectId: params.projectId,
+    traceId: params.traceId,
+    timestamp: trace?.timestamp ?? params.timestamp,
+    context: "other",
+  });
+  if (!transcript) {
+    return {
+      success: false as const,
+      error: "This trace has no transcript to evaluate.",
+      durationMs: Date.now() - startedAt,
+      variables: [],
+    };
+  }
+  // The scheduled rule reads every observation, but the test loader caps them,
+  // so a cutoff transcript would score something the rule never evaluates.
+  if (cutoff) {
+    return {
+      success: false as const,
+      error:
+        "This trace has more observations than a transcript evaluation reads.",
+      durationMs: Date.now() - startedAt,
+      variables: [],
+    };
+  }
+  // Measure the stored envelope with the same serializer the scheduled path
+  // uses, so the test rejects exactly what the rule would skip as too large.
+  const { tooLarge } = serializeTraceTranscriptInputs({
+    transcript,
+    executionIssues: [],
+    traceContext: {
+      sessionId: trace?.sessionId ?? null,
+      traceTimestamp: (trace?.timestamp ?? params.timestamp).toISOString(),
+      environment: trace?.environment ?? "default",
+      traceName: trace?.name ?? null,
+    },
+  });
+  if (tooLarge) {
+    return {
+      success: false as const,
+      error: "This trace transcript is too large to evaluate.",
+      durationMs: Date.now() - startedAt,
+      variables: [],
+    };
+  }
+  const extracted = extractTranscriptEvalVariables(
+    transcript.threads,
+    variableMapping,
+  );
+  if (!extracted.ok) throw new InvalidRequestError(extracted.error);
+
+  const executionData = buildEvalExecutionData({
+    type: "TEST",
+    evaluatorId:
+      params.includeEvaluatorLink === false ? null : params.evaluatorId,
+    targetTraceId: params.traceId,
+    targetObservationId: null,
+  });
+  const result = await runEvaluatorTest({
+    ...params,
+    variables: extracted.variables,
+    hasExperimentContext: false,
+    ...executionData,
+  });
+
+  return {
+    ...result,
+    durationMs: Date.now() - startedAt,
+    variables: extracted.variables,
+  };
+}
+
+function resolveTestVariableMapping(
+  definition: NormalizedEvaluatorDefinition,
+  targetObject?: string,
+) {
+  if (definition.type === "CODE") return getCodeEvalVariableMapping();
+  if (definition.type === "DECISION_MODEL") {
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: definition.vars,
+      variableMapping: definition.variableMapping,
+      targetObject,
+    });
+    return observationVariableMappingList.parse(definition.variableMapping);
+  }
+  const llmVariableMapping = definition.variableMapping ?? [];
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: extractEvaluatorPromptVariables(definition.promptMessages),
+    variableMapping: llmVariableMapping,
+    targetObject,
+  });
+  return observationVariableMappingList.parse(llmVariableMapping);
 }
 
 async function runEvaluatorTest(params: {
@@ -99,6 +206,7 @@ async function runEvaluatorTest(params: {
   evaluatorId: string;
   definition: NormalizedEvaluatorDefinition;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -134,17 +242,28 @@ async function testDecisionModelEvaluator(params: {
   if (!modelConfig.valid) {
     return { success: false as const, error: modelConfig.error };
   }
-  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+  if (
+    !isAllowedDecisionModel(
+      modelConfig.config.apiKey.adapter,
+      modelConfig.config.model,
+    )
+  ) {
     return {
       success: false as const,
-      error: `Connection "${params.definition.provider}" is not a decision-model connection.`,
+      error:
+        unsupportedDecisionModelMessage(
+          modelConfig.config.apiKey.adapter,
+          modelConfig.config.model,
+        ) ??
+        `Connection "${params.definition.provider}" is not a decision-model connection.`,
     };
   }
 
   const executionTraceId = createW3CTraceId();
   let request: DecisionModelRequest | undefined;
   try {
-    const client = createTypeSafeDecisionModelClient({
+    const client = createDecisionModelClient({
+      adapter: modelConfig.config.apiKey.adapter,
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
       baseURL: modelConfig.config.apiKey.baseURL,
@@ -225,29 +344,17 @@ async function testLlmEvaluator(params: {
         interpolatedPrompt: prompt,
       }) => {
         interpolatedPrompt = prompt;
-        const modelParams = {
-          provider: modelConfig.config.provider,
-          model: modelConfig.config.model,
-          adapter: modelConfig.config.apiKey.adapter,
-          ...modelConfig.config.modelParams,
-        };
-        const llmParams = mapLegacyLLMCompletionParams({
+        const result = await generateLlmEvaluatorOutput({
+          projectId: params.projectId,
           connection: modelConfig.config.apiKey,
-          messages,
-          modelParams,
-        });
-        const { providerMessages, traceMessages } =
-          await compileLangfuseMediaMessages({
-            projectId: params.projectId,
-            messages,
+          modelParams: {
+            provider: modelConfig.config.provider,
+            model: modelConfig.config.model,
             adapter: modelConfig.config.apiKey.adapter,
-          });
-        const result = await generateLLMText({
-          ...llmParams,
-          messages: providerMessages,
-          traceInput: traceMessages,
-          output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
-          maxRetries: 1,
+            ...modelConfig.config.modelParams,
+          },
+          messages,
+          outputResultSchema: compiledOutputDefinition.outputResultSchema,
           trace: {
             targetProjectId: params.projectId,
             traceId: executionTraceId,
@@ -330,6 +437,7 @@ async function testCodeEvaluator(params: {
   evaluatorId: string;
   definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -353,6 +461,7 @@ async function testCodeEvaluator(params: {
     evaluator: { id: params.evaluatorId },
     version: params.definition,
     extractedVariables: params.variables,
+    hasExperimentContext: params.hasExperimentContext,
     traceName: "Test evaluator",
     metadata: params.executionMetadata,
     evaluationContext: params.evaluationContext,

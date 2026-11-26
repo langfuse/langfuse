@@ -4,11 +4,26 @@
 # Design system
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
+/web/.storybook/fixtures/**
 
-# ESLint
-/packages/config-eslint/ @bezbac
+# Linting
+/packages/config-oxlint/ @bezbac
 /packages/eslint-plugin/ @bezbac
-**/eslint.config.mjs @bezbac
+**/oxlint.config.mts @bezbac
 
 # Skills for langfuse assistant
 /packages/langfuse-skills/ @LysanderKie @bezbac
+
+# Code review policy
+/REVIEW.md @bezbac
+
+# Normalized I/O and transcripts
+/packages/shared/src/utils/normalized-io/ @marliessophie
+/packages/shared/src/server/transcript/ @marliessophie
+
+# Trace dispatch
+/worker/src/features/traceDispatch/ @LysanderKie
+/packages/shared/src/server/eventsDispatch/ @LysanderKie
+
+# Query AST
+/packages/shared/src/server/query-ast/ @niklassemmler

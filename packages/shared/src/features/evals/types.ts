@@ -120,6 +120,11 @@ export const EvalTargetObject = {
   EXPERIMENT: "experiment",
 } as const;
 
+export const TopicsTargetObject = "trace_transcript" as const;
+
+/** The only column trace transcript evaluators can map variables to. */
+export const TRACE_TRANSCRIPT_EVAL_VARIABLE_COLUMN_ID = "threads";
+
 export type EvalTargetObject =
   (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
 

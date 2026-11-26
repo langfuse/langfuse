@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 /**
  * JsonValue - Renders a JSON value with type-based styling
  *
@@ -13,11 +12,7 @@ import {
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
 import { TruncatedString } from "./TruncatedString";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
@@ -33,7 +28,6 @@ export function JsonValue({
   highlightEnd,
   commentRanges,
   valueOffset = 0,
-  className,
 }: JsonValueProps) {
   // Adjust comment ranges from row-relative to value-relative
   const adjustedCommentRanges = commentRanges
@@ -48,7 +42,6 @@ export function JsonValue({
     const preview = formatValuePreview(value);
     return (
       <span
-        className={className}
         style={{
           color: theme.punctuationColor,
           opacity: 0.4,
@@ -116,12 +109,11 @@ export function JsonValue({
     // text highlighter found no search/comment overlays to preserve.
     const mediaDescriptor = classifyMediaValue(str);
     if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
-      return <MediaReferenceTag descriptor={mediaDescriptor} />;
+      return <MediaReferenceTag descriptor={mediaDescriptor} size="sm" />;
     }
 
     return (
       <span
-        className={className}
         style={{
           color,
           fontFamily: "var(--font-mono)",
@@ -152,15 +144,16 @@ export function JsonValue({
 
           if (segment.type === "comment" && segment.preview) {
             return (
-              <Tooltip key={index}>
-                <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  align="start"
-                  className="max-w-xs px-2 py-1 text-xs"
-                >
-                  {segment.preview}
-                </TooltipContent>
+              <Tooltip
+                key={index}
+                label={segment.preview}
+                placement="top-start"
+              >
+                {({ getTriggerProps }) => (
+                  <span {...getTriggerProps()} style={{ backgroundColor }}>
+                    {segment.text}
+                  </span>
+                )}
               </Tooltip>
             );
           }
@@ -198,7 +191,6 @@ export function JsonValue({
 
   return (
     <span
-      className={className}
       style={{
         color,
         fontFamily: "var(--font-mono)",
@@ -223,15 +215,12 @@ export function JsonValue({
 
         if (segment.type === "comment" && segment.preview) {
           return (
-            <Tooltip key={index}>
-              <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="start"
-                className="max-w-xs px-2 py-1 text-xs"
-              >
-                {segment.preview}
-              </TooltipContent>
+            <Tooltip key={index} label={segment.preview} placement="top-start">
+              {({ getTriggerProps }) => (
+                <span {...getTriggerProps()} style={{ backgroundColor }}>
+                  {segment.text}
+                </span>
+              )}
             </Tooltip>
           );
         }

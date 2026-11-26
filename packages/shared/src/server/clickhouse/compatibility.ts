@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
@@ -102,6 +103,7 @@ const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
 let detectedClickHouseVersion: string | null = null;
 let initializationPromise: Promise<void> | null = null;
 
+/** @internal */
 export const parseClickHouseVersion = (
   rawVersion: string,
 ): ClickHouseVersion | null => {
@@ -143,6 +145,7 @@ const parseVersionBound = (version: string): ClickHouseVersion => {
   return parsed;
 };
 
+/** @internal */
 export const isClickHouseVersionInBand = (
   version: string | ClickHouseVersion,
   band: ClickHouseVersionBand,
@@ -176,6 +179,7 @@ type ResolvedClickHouseJsonBadUnicodeEscapeMode = Exclude<
   "auto"
 >;
 
+/** @internal */
 export const resolveClickHouseJsonBadUnicodeEscapeMode = ({
   version,
   configuredMode,
@@ -205,6 +209,7 @@ export const getClickHouseJsonBadUnicodeEscapeMode = () =>
     configuredMode: env.LANGFUSE_JSON_BAD_UNICODE_ESCAPE,
   });
 
+/** @internal */
 export const resolveClickHouseCompatibility = ({
   version,
   overrides,
@@ -249,6 +254,13 @@ export const resolveClickHouseCompatibility = ({
 export const getClickHouseCompatibilitySettings = (): ClickHouseSettings =>
   resolveClickHouseCompatibility({ version: detectedClickHouseVersion })
     .settings;
+
+/**
+ * ClickHouse server version detected at startup, or null when detection
+ * failed or has not run.
+ */
+export const getDetectedClickHouseVersion = (): string | null =>
+  detectedClickHouseVersion;
 
 export const initializeClickhouseCompatibility = async (): Promise<void> => {
   if (initializationPromise) return initializationPromise;
@@ -340,6 +352,7 @@ const getClickHouseVersionClientConfig =
     };
   };
 
+/** @internal */
 export const setClickHouseCompatibilityVersionForTests = (
   version: string | null,
 ): void => {

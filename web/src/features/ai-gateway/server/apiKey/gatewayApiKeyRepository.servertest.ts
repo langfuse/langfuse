@@ -15,43 +15,45 @@ function gatewayApiKey(id: string) {
       expiresAt: null,
       lastUsedAt: null,
       createdByUserId: null,
+      gatewaySpendLimits: [],
     },
   };
 }
 
 describe("GatewayApiKeyRepository pagination", () => {
-  it("bounds API key pages with stable cursors", async () => {
+  it("returns the requested offset page with the organization's total count", async () => {
     const findMany = vi
       .fn()
-      .mockResolvedValue([
-        gatewayApiKey("key-1"),
-        gatewayApiKey("key-2"),
-        gatewayApiKey("key-3"),
-      ]);
+      .mockResolvedValue([gatewayApiKey("key-3"), gatewayApiKey("key-4")]);
+    const count = vi.fn().mockResolvedValue(5);
     const repository = new GatewayApiKeyRepository({
-      gatewayApiKeyAssociation: { findMany },
+      gatewayApiKeyAssociation: { findMany, count },
     } as unknown as PrismaClient);
 
     await expect(
       repository.listGatewayApiKeys({
         organizationId: "org-1",
+        page: 1,
         limit: 2,
       }),
     ).resolves.toMatchObject({
-      data: [{ apiKey: { id: "key-1" } }, { apiKey: { id: "key-2" } }],
-      nextCursor: "key-2",
+      data: [
+        { apiKey: { id: "key-3" }, spendLimit: null },
+        { apiKey: { id: "key-4" }, spendLimit: null },
+      ],
+      totalCount: 5,
     });
+    const where = {
+      apiKey: { orgId: "org-1", scope: { in: ["ORGANIZATION", "USER"] } },
+    };
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ apiKey: { createdAt: "asc" } }, { apiKeyId: "asc" }],
-        take: 3,
-        where: {
-          apiKey: {
-            orgId: "org-1",
-            scope: "ORGANIZATION",
-          },
-        },
+        orderBy: [{ apiKey: { createdAt: "desc" } }, { apiKeyId: "desc" }],
+        take: 2,
+        skip: 2,
+        where,
       }),
     );
+    expect(count).toHaveBeenCalledWith({ where });
   });
 });

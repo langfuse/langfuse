@@ -4,6 +4,8 @@ import {
 } from "@langfuse/shared";
 import { type ViewVersion, type views } from "@langfuse/shared/query";
 
+import { viewLowersNumericMetadata } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+
 import { type z } from "zod";
 
 /** GetMetricsFilterColumnsParams is the option dictionary the metric filter column specs are built from. */
@@ -17,6 +19,8 @@ export type GetMetricsFilterColumnsParams = {
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
+  skillNamesAvailableOptions?: SingleValueOption[];
+  skillsNamesLoadedOptions?: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
@@ -46,6 +50,8 @@ const getMetricsFilterColumnSpecs = ({
   modelOptions,
   toolNamesOptions,
   calledToolNamesOptions,
+  skillNamesAvailableOptions = [],
+  skillsNamesLoadedOptions = [],
   observationLevelOptions,
   experimentNameOptions,
   experimentDatasetOptions,
@@ -88,6 +94,7 @@ const getMetricsFilterColumnSpecs = ({
   const aliasesTraceSpelling =
     viewVersion === "v2" && selectedView === "observations";
   const metadataSuggest = viewVersion === "v2";
+  const numericMetadata = viewLowersNumericMetadata(selectedView, viewVersion);
   const filterColumns: MetricsFilterColumnSpec[] = [
     {
       column: {
@@ -133,6 +140,7 @@ const getMetricsFilterColumnSpecs = ({
         type: "stringObject",
         internal: "internalValue",
         ...(metadataSuggest ? { keyOptions: metadataKeyOptions } : {}),
+        ...(numericMetadata ? { numericValues: true } : {}),
       },
       customSelect: metadataSuggest,
     },
@@ -232,9 +240,29 @@ const getMetricsFilterColumnSpecs = ({
 
   if (selectedView === "observations") {
     filterColumns.push(
-      // v2-only filter columns (experiment data only exists in events table)
+      // These filters require the v2 events view.
       ...(viewVersion === "v2"
         ? [
+            {
+              column: {
+                name: "Skill Names (Available)",
+                id: "skillNamesAvailable",
+                type: "arrayOptions",
+                options: skillNamesAvailableOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
+            {
+              column: {
+                name: "Skill Names (Loaded)",
+                id: "skillsNamesLoaded",
+                type: "arrayOptions",
+                options: skillsNamesLoadedOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",

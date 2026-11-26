@@ -10,13 +10,18 @@
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode } from "./ast";
-import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
+import {
+  effectiveSearchType,
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "./fields";
 import {
   astToFilterState,
   OR_NOT_SUPPORTED_MESSAGE,
   type ScoreTypeContext,
 } from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
+import { filterStateToQueryText } from "./filter-state-to-query";
 import { validateQuery } from "./validate";
 
 // The full Events default. Other hosts declare their own defaultSearchType
@@ -75,8 +80,11 @@ export function planCommit(
     status: "committed",
     filters,
     searchQuery,
-    searchType: searchType ?? [...registry.defaultSearchType],
-    canonical: serialize(res.ast, registry),
+    searchType: effectiveSearchType(searchType, registry),
+    canonical: registry.targeting
+      ? filterStateToQueryText(filters, { searchQuery, searchType }, registry)
+          .text
+      : serialize(res.ast, registry),
   };
 }
 

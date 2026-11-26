@@ -1,9 +1,7 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import {
-  createScoreConfig,
-  PostScoreConfigBody,
-} from "@/src/features/public-api/server";
+import { createScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
+import { PostScoreConfigBody } from "@/src/features/public-api/types/score-configs";
 import { z } from "zod";
 import {
   McpScoreConfigCategoricalCategoriesSchema,
@@ -38,7 +36,7 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   action: "scoreConfigs:CUD",
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
-  destructiveHint: true,
+  annotations: { destructiveHint: true },
   handler: async (input, context) => {
     return await runMcpTool({
       spanName: "mcp.score_configs.create",

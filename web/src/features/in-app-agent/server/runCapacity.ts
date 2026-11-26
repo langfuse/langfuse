@@ -84,13 +84,13 @@ export async function assertInAppAgentRunCapacity(params: {
     if (userActiveRuns >= perUser) {
       return {
         limit: "user" as const,
-        message: `You already have ${perUser} assistant runs in progress. Wait for one to finish.`,
+        message: `You already have ${perUser} Halo runs in progress. Wait for one to finish.`,
       };
     }
     if (orgActiveRuns >= perOrg) {
       return {
         limit: "org" as const,
-        message: `Your organization is at its limit of ${perOrg} assistant runs in progress. Try again shortly.`,
+        message: `Your organization is at its limit of ${perOrg} Halo runs in progress. Try again shortly.`,
       };
     }
     return null;

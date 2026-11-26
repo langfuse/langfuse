@@ -1,15 +1,16 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
 } from "@/src/features/evals/v2/types/rules";
 
-import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
+import type { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
-import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
 import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";
 
+/** Callers render `filterStep` because the scope control differs between create and edit. */
 export function RuleSetup({
+  filterStep,
   projectId,
   evaluatorOptions,
   evaluatorSearch,
@@ -18,6 +19,7 @@ export function RuleSetup({
   nameAIAssistance,
   onNameStepOpenChange,
 }: {
+  filterStep: ReactNode;
   projectId: string;
   evaluatorOptions: RuleEvaluatorOption[];
   evaluatorSearch: string;
@@ -28,7 +30,7 @@ export function RuleSetup({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <RuleFilterStep projectId={projectId} store={store} />
+      {filterStep}
       <RuleEvaluatorsStep
         projectId={projectId}
         evaluatorOptions={evaluatorOptions}

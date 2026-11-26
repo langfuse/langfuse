@@ -181,6 +181,37 @@ describe("IP Blocking Module", () => {
         );
       });
     });
+
+    describe("operator blocked IP segments", () => {
+      it("blocks a public CIDR and still honors exemptions inside it", () => {
+        expect(isIPBlocked("8.8.8.8", [], [], ["8.8.8.0/24"])).toBe(true);
+        expect(isIPBlocked("1.1.1.1", [], [], ["8.8.8.0/24"])).toBe(false);
+        expect(isIPBlocked("8.8.8.8", ["8.8.8.8"], [], ["8.8.8.0/24"])).toBe(
+          false,
+        );
+      });
+
+      it("ignores prefixes that are not plain decimal numbers", () => {
+        expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/0x10"])).toBe(
+          false,
+        );
+        expect(isIPBlocked("8.8.8.8", [], [], ["8.8.8.0/"])).toBe(false);
+        expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/1e1"])).toBe(false);
+      });
+
+      it("ignores short, zero-padded, and hex IPv4 addresses", () => {
+        expect(isIPBlocked("203.0.0.1", [], [], ["203.0.114/24"])).toBe(false);
+        expect(isIPBlocked("8.1.2.1", [], [], ["010.1.2.0/24"])).toBe(false);
+        expect(isIPBlocked("16.1.2.1", [], [], ["0x10.1.2.0/24"])).toBe(false);
+      });
+
+      it("blocks addresses inside a /0 prefix and a compressed IPv6 range", () => {
+        expect(isIPBlocked("1.1.1.1", [], [], ["203.0.113.0/0"])).toBe(true);
+        expect(
+          isIPBlocked("2001:4860:4860::8888", [], [], ["2001:4860:4860::/32"]),
+        ).toBe(true);
+      });
+    });
   });
 
   describe("isIPAddress", () => {

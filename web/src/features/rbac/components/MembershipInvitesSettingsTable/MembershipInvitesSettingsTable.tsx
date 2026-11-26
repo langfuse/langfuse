@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from "react";
-import { Trash } from "lucide-react";
+import { Trash } from "@langfuse/icons";
 import { type Role } from "@langfuse/shared";
 
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type TableProps } from "@/src/components/design-system/table/Table";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import { TableCard } from "@/src/components/TableCard/TableCard";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -90,7 +90,7 @@ export function MembershipInvitesSettingsTable({
   );
 
   return (
-    <SettingsTable
+    <TableCard
       tableName="membership invites"
       columns={columns}
       actions={actions}

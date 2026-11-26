@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import * as React from "react";
@@ -73,6 +73,17 @@ PopoverContent.displayName = PopoverPrimitive.Content.displayName;
  * Use the supplied Trigger to preserve Radix behavior.
  */
 type PopoverControllerProps = {
+  contentId?: string;
+  ariaLabel?: string;
+  onOpenAutoFocus?: React.ComponentProps<
+    typeof PopoverContent
+  >["onOpenAutoFocus"];
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof PopoverContent
+  >["onCloseAutoFocus"];
+  onEscapeKeyDown?: React.ComponentProps<
+    typeof PopoverContent
+  >["onEscapeKeyDown"];
   align: React.ComponentProps<typeof PopoverContent>["align"];
   children: (control: {
     disabled: boolean;
@@ -84,16 +95,24 @@ type PopoverControllerProps = {
   contentClassName: string;
   disabled: boolean;
   modal: boolean;
+  /** Keep nested overlays inside a modal's accessible subtree when needed. */
+  portalContainer?: HTMLElement | null;
   onOpenChange?: (isOpen: boolean) => void;
   renderContent: (control: { closePopover: () => void }) => React.ReactNode;
 };
 
 const PopoverController = ({
+  contentId,
+  ariaLabel,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+  onEscapeKeyDown,
   align,
   children,
   contentClassName,
   disabled,
   modal,
+  portalContainer,
   onOpenChange,
   renderContent,
 }: PopoverControllerProps) => {
@@ -115,8 +134,14 @@ const PopoverController = ({
         Trigger: PopoverTrigger,
       })}
       <PopoverContent
+        id={contentId}
+        aria-label={ariaLabel}
+        onOpenAutoFocus={onOpenAutoFocus}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onEscapeKeyDown={onEscapeKeyDown}
         align={align}
         className={contentClassName}
+        portalContainer={portalContainer}
         onClick={(event) => event.stopPropagation()}
       >
         {renderContent({ closePopover: () => setIsOpen(false) })}

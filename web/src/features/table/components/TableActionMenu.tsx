@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary -- Legacy UI usage retained during migration to design-system components. */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { X, Trash, Plus } from "lucide-react";
+import { X, Trash, Plus } from "@langfuse/icons";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import {
   type TableAction,
@@ -10,11 +10,7 @@ import {
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -31,9 +27,9 @@ type TableActionMenuProps = {
 
 const getDefaultIcon = (type: TableAction["type"]) => {
   if (type === "create") {
-    return <Plus className="h-4 w-4 sm:mr-2" />;
+    return <Plus size="base" __rawClassName="sm:mr-2" />;
   }
-  return <Trash className="h-4 w-4 sm:mr-2" />;
+  return <Trash size="base" __rawClassName="sm:mr-2" />;
 };
 
 export function TableActionMenu({
@@ -102,7 +98,7 @@ export function TableActionMenu({
             className="h-8 w-8"
             onClick={onClearSelection}
           >
-            <X className="h-4 w-4" />
+            <X size="base" color="default" />
           </Button>
           <div className="bg-border h-5 w-px" />
           <div className="flex items-center gap-2">
@@ -124,13 +120,14 @@ export function TableActionMenu({
 
               if (action.disabled && action.disabledReason) {
                 return (
-                  <Tooltip key={action.id}>
-                    <TooltipTrigger asChild>
-                      <span>{menuItem}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      {action.disabledReason}
-                    </TooltipContent>
+                  <Tooltip
+                    key={action.id}
+                    label={action.disabledReason}
+                    placement="left"
+                  >
+                    {({ getTriggerProps }) => (
+                      <span {...getTriggerProps()}>{menuItem}</span>
+                    )}
                   </Tooltip>
                 );
               }

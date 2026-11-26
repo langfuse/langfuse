@@ -9,9 +9,25 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+vi.mock(
+  "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+  async () => ({
+    ...(await vi.importActual(
+      "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials",
+    )),
+    getCrossAccountRoleArn: vi.fn().mockReturnValue(null),
+  }),
+);
+
+import { getCrossAccountRoleArn } from "@langfuse/shared/src/server/ee/storageRoleAuth/storageRoleCredentials";
+import { deriveBedrockExternalId } from "@langfuse/shared/src/server/ee/bedrockRoleAuth/bedrockRoleCredentials";
+import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
+import {
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
+  LangfuseConflictError,
+  LLMAdapter,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import {
@@ -23,11 +39,18 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
+import { LlmConnectionService } from "@/src/features/llm-api-key/server/llmConnectionService";
+import { LlmConnectionRepository } from "@/src/features/llm-api-key/server/llmConnectionRepository";
 import {
   createOrgProjectAndApiKey,
+  DefaultEvalModelService,
   EvaluatorBlockSource,
   generateLLMText,
 } from "@langfuse/shared/src/server";
+import {
+  createSession,
+  type TestOrganization,
+} from "@/src/__tests__/fixtures/session-factory";
 
 const mockGenerateLLMText = vi.mocked(generateLLMText);
 
@@ -40,25 +63,15 @@ describe("llmApiKey.all RPC", () => {
   const createCallerForProjectRole = (
     projectRole: "ADMIN" | "MEMBER" | "VIEWER",
   ) => {
-    const limitedSession: Session = {
-      ...session,
-      user: {
-        ...session.user!,
-        admin: false,
-        organizations: [
-          {
-            ...session.user!.organizations[0],
-            role: "MEMBER",
-            projects: [
-              {
-                ...session.user!.organizations[0].projects[0],
-                role: projectRole,
-              },
-            ],
-          },
-        ],
-      },
-    };
+    const limitedSession = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "MEMBER",
+          projects: [{ id: projectId, role: projectRole, retentionDays: null }],
+        },
+      ],
+    });
 
     const limitedCtx = createInnerTRPCContext({
       session: limitedSession,
@@ -75,81 +88,194 @@ describe("llmApiKey.all RPC", () => {
     mockFinalizeEvaluatorBlocks.mockReset().mockResolvedValue(undefined);
     mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
-    session = {
-      expires: "1",
-      user: {
-        id: "user-1",
-        name: "Demo User",
-        canCreateOrganizations: true,
-        organizations: [
-          {
-            id: orgId,
-            role: "OWNER",
-            plan: "cloud:hobby",
-            cloudConfig: undefined,
-            name: "Test Organization",
-            metadata: {},
-            aiFeaturesEnabled: false,
-            aiTelemetryEnabled: false,
-            projects: [
-              {
-                id: projectId,
-                role: "ADMIN",
-                name: "Test Project",
-                deletedAt: null,
-                retentionDays: null,
-                hasTraces: false,
-                metadata: {},
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        ],
-        featureFlags: testFeatureFlags(),
-        admin: true,
-      },
-      environment: {} as any,
-    };
+    session = createSession({
+      organizations: [
+        {
+          id: orgId,
+          role: "OWNER",
+          projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+        },
+      ],
+    });
 
     const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
   });
 
-  it("should create an llm api key", async () => {
-    const secret = "test-secret";
-    const provider = "openai";
-    const adapter = LLMAdapter.OpenAI;
-    const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://example.com/v1";
-    const withDefaultModels = false;
-
-    await caller.llmApiKey.create({
-      projectId,
-      secretKey: secret,
-      provider,
-      adapter,
-      baseURL,
-      customModels,
-      withDefaultModels,
+  it("resolves an organization connection for the project default model", async () => {
+    const provider = `organization-default-${randomUUID()}`;
+    const organizationConnection = await prisma.llmApiKeys.create({
+      data: {
+        organizationId: orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("organization-secret"),
+        displaySecretKey: "...cret",
+      },
     });
-
-    const llmApiKeys = await prisma.llmApiKeys.findMany({
-      where: {
+    await prisma.defaultLlmModel.create({
+      data: {
         projectId,
+        llmApiKeyId: organizationConnection.id,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
       },
     });
 
-    expect(llmApiKeys.length).toBe(1);
-    expect(llmApiKeys[0].projectId).toBe(projectId);
-    expect(llmApiKeys[0].secretKey).not.toBeNull();
-    expect(llmApiKeys[0].secretKey).not.toEqual(secret);
-    expect(llmApiKeys[0].provider).toBe(provider);
-    expect(llmApiKeys[0].adapter).toBe(adapter);
-    expect(llmApiKeys[0].baseURL).toBe(baseURL);
-    expect(llmApiKeys[0].customModels).toEqual(customModels);
-    expect(llmApiKeys[0].withDefaultModels).toBe(withDefaultModels);
-    // this has to be 3 dots and the last 4 characters of the secret
-    expect(llmApiKeys[0].displaySecretKey).toMatch(/^...[a-zA-Z0-9]{4}$/);
+    const result =
+      await DefaultEvalModelService.fetchValidModelConfig(projectId);
+
+    expect(result).toMatchObject({
+      valid: true,
+      config: {
+        apiKey: {
+          id: organizationConnection.id,
+          projectId,
+        },
+      },
+    });
+  });
+
+  it("returns CONFLICT when creating a key for an existing provider", async () => {
+    const provider = `duplicate-provider-${randomUUID()}`;
+    const input = {
+      projectId,
+      secretKey: "test-secret",
+      provider,
+      adapter: LLMAdapter.OpenAI,
+      customModels: [],
+      withDefaultModels: true,
+    };
+
+    await caller.llmApiKey.create(input);
+
+    await expect(caller.llmApiKey.create(input)).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "There already exists an API key for this provider.",
+    });
+
+    await expect(
+      prisma.llmApiKeys.count({ where: { projectId, provider } }),
+    ).resolves.toBe(1);
+  });
+
+  it("rejects an incompatible project override without blocking edits to an existing mismatch", async () => {
+    const provider = `incompatible-project-override-${randomUUID()}`;
+    await prisma.llmApiKeys.create({
+      data: {
+        organizationId: orgId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("organization-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "project-secret",
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider name must use the same adapter.",
+    );
+
+    const incompatibleProjectConnection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        secretKey: encrypt("project-secret"),
+        displaySecretKey: "...cret",
+      },
+    });
+    await expect(
+      caller.llmApiKey.update({
+        id: incompatibleProjectConnection.id,
+        projectId,
+        provider,
+        adapter: LLMAdapter.Anthropic,
+        customModels: ["claude-sonnet-4-5"],
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: incompatibleProjectConnection.id },
+        select: { customModels: true },
+      }),
+    ).resolves.toEqual({ customModels: ["claude-sonnet-4-5"] });
+
+    const service = new LlmConnectionService();
+    await expect(
+      service.upsert({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: orgId,
+        },
+        input: {
+          provider,
+          adapter: LLMAdapter.Anthropic,
+          secretKey: "rotated-project-secret",
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
+    ).resolves.toMatchObject({ created: false });
+    await expect(
+      service.upsert({
+        owner: {
+          type: "project",
+          projectId,
+          organizationId: orgId,
+        },
+        input: {
+          provider,
+          adapter: LLMAdapter.Azure,
+          secretKey: "azure-project-secret",
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
+    ).rejects.toThrow(
+      "Project and organization connections with the same provider name must use the same adapter.",
+    );
+  });
+
+  it("should rotate a secret without revalidating an unchanged stored base URL", async () => {
+    const provider = `operator-provisioned-${randomUUID()}`;
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: encrypt("old-secret"),
+        displaySecretKey: "...cret",
+        baseURL: "http://localhost:11434/v1",
+      },
+    });
+
+    const result = await new LlmConnectionService().upsert({
+      owner: {
+        type: "project",
+        projectId,
+        organizationId: orgId,
+      },
+      input: {
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "rotated-secret",
+        baseURL: connection.baseURL,
+      },
+      actor: { userId: session.user!.id, orgId, projectId },
+    });
+
+    expect(result.created).toBe(false);
+    const updatedConnection = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: connection.id },
+    });
+    expect(decrypt(updatedConnection.secretKey)).toBe("rotated-secret");
   });
 
   it("should create a Bedrock llm api key with a Bedrock API key", async () => {
@@ -179,6 +305,98 @@ describe("llmApiKey.all RPC", () => {
     );
     expect(llmApiKey.displaySecretKey).toBe("...1234");
     expect(llmApiKey.config).toEqual({ region: "us-east-1" });
+  });
+
+  it("rejects a models-only Bedrock update when the config changed after it was read", async () => {
+    const profileArn =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const otherModel = "us.anthropic.claude-sonnet-4-6";
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn, otherModel],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        customModelConfig: { [otherModel]: { modelFamily: "anthropic" } },
+      },
+    });
+    const { id } = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "bedrock" },
+    });
+
+    class ConcurrentlyChangedRepository extends LlmConnectionRepository {
+      override async findById(
+        params: Parameters<LlmConnectionRepository["findById"]>[0],
+      ) {
+        const connection = await super.findById(params);
+        await prisma.llmApiKeys.update({
+          where: { id },
+          data: { config: { region: "eu-west-1" } },
+        });
+        return connection;
+      }
+    }
+
+    await expect(
+      new LlmConnectionService(new ConcurrentlyChangedRepository()).update({
+        owner: { type: "project", projectId, organizationId: orgId },
+        input: {
+          id,
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          customModels: [profileArn],
+        },
+        actor: { userId: session.user!.id, orgId, projectId },
+      }),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+    await expect(
+      prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id },
+        select: { config: true },
+      }),
+    ).resolves.toEqual({ config: { region: "eu-west-1" } });
+  });
+
+  it("keeps Bedrock Anthropic model flags only for remaining custom models", async () => {
+    const profileArn =
+      "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/profile-id";
+    const otherModel = "us.anthropic.claude-sonnet-4-6";
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: JSON.stringify({ apiKey: "bedrock-api-key-1234" }),
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn, otherModel],
+      withDefaultModels: false,
+      config: {
+        region: "us-east-1",
+        customModelConfig: {
+          [profileArn]: { modelFamily: "anthropic" },
+          [otherModel]: { modelFamily: "anthropic" },
+        },
+      },
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "bedrock" },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      customModels: [profileArn],
+      withDefaultModels: false,
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({ projectId });
+    expect(llmApiKeys[0].config).toEqual({
+      region: "us-east-1",
+      customModelConfig: { [profileArn]: { modelFamily: "anthropic" } },
+    });
   });
 
   it("should reject creating a Bedrock key with invalid secret key JSON", async () => {
@@ -295,7 +513,7 @@ describe("llmApiKey.all RPC", () => {
       },
     });
 
-    await caller.llmApiKey.update({
+    const result = await caller.llmApiKey.update({
       id: existingKey.id,
       projectId,
       provider: "openai-responses",
@@ -305,6 +523,7 @@ describe("llmApiKey.all RPC", () => {
       withDefaultModels: false,
       config: { useResponsesApi: false },
     });
+    expect(result).toBeUndefined();
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,
@@ -375,6 +594,87 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
+  it("should treat a decision-model connection as working when the probe is answered", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: "jev-1.13.0",
+          answers: {
+            kind: {
+              type: "choice",
+              choice: "greeting",
+              confidence: 0.9,
+              probabilities: { greeting: 0.9, other: 0.1 },
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-typesafe",
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://example.com/typesafe/v1",
+        extraHeaders: { "x-team": "evals" },
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://example.com/typesafe/v1/systemone");
+      expect(new Headers(init.headers).get("authorization")).toBe(
+        "Bearer sk-typesafe",
+      );
+      expect(new Headers(init.headers).get("x-team")).toBe("evals");
+      expect(JSON.parse(init.body as string)).toEqual({
+        model: "jev-latest",
+        state: { message: "Hello, is anyone there?" },
+        questions: {
+          kind: {
+            type: "choice",
+            instructions: "What kind of message is `message`?",
+            criteria: { greeting: null, other: null },
+          },
+        },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("should report the upstream error when a decision-model connection test fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: "invalid api key" } }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const result = await caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-typesafe",
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://example.com/typesafe/v1",
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toEqual(expect.any(String));
+      expect(result.error!.length).toBeGreaterThan(0);
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("should block decision-model connections with an internal custom base URL", async () => {
     await expect(
       caller.llmApiKey.create({
@@ -394,7 +694,10 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.TypeSafe,
         baseURL: "http://localhost:8080/v1",
       }),
-    ).resolves.toMatchObject({ success: false });
+    ).resolves.toEqual({
+      success: false,
+      error: "Blocked hostname detected",
+    });
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,
@@ -734,6 +1037,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://api.openai.com/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-original");
+    expect(connection.projectId).toBe(existingKey.projectId);
     const encryptedExtraHeaders = connection.extraHeaders;
     expect(encryptedExtraHeaders).toBeTruthy();
     if (!encryptedExtraHeaders) {
@@ -742,6 +1046,331 @@ describe("llmApiKey.all RPC", () => {
     expect(JSON.parse(decrypt(encryptedExtraHeaders))).toEqual(
       existingExtraHeaders,
     );
+  });
+
+  it("should test an operator-provisioned Bedrock connection without revalidating its stored secret", async () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+    try {
+      const existingKey = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: "bedrock-runtime",
+          adapter: LLMAdapter.Bedrock,
+          secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          displaySecretKey: "Default AWS credentials",
+          customModels: ["us.anthropic.claude-3-5-sonnet-20240620-v1:0"],
+          withDefaultModels: false,
+          config: { region: "us-east-1" },
+        },
+      });
+
+      const result = await caller.llmApiKey.testUpdate({
+        id: existingKey.id,
+        projectId,
+        provider: existingKey.provider,
+        adapter: LLMAdapter.Bedrock,
+        customModels: existingKey.customModels,
+        config: { region: "us-east-1" },
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(mockGenerateLLMText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connection: expect.objectContaining({ projectId }),
+        }),
+      );
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+    }
+  });
+
+  describe("Bedrock IAM role auth", () => {
+    const roleSecret = JSON.stringify({
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+    });
+    const connectionInput = () => ({
+      projectId,
+      provider: "bedrock-role",
+      adapter: LLMAdapter.Bedrock,
+      secretKey: roleSecret,
+      customModels: ["eu.anthropic.claude-sonnet-4-6"],
+      config: { region: "eu-central-1" },
+    });
+    const callerWithPlan = (
+      plan: "cloud:hobby" | "cloud:enterprise",
+      organization: Partial<TestOrganization> = {},
+    ) => {
+      const planSession = createSession({
+        organizations: [
+          {
+            id: orgId,
+            role: "OWNER",
+            projects: [{ id: projectId, role: "ADMIN", retentionDays: null }],
+            ...organization,
+            plan,
+          },
+        ],
+      });
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: planSession, headers: {} }),
+        prisma,
+      });
+    };
+
+    beforeEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(
+        "arn:aws:iam::210987654321:role/langfuse-cross-account",
+      );
+    });
+    afterEach(() => {
+      vi.mocked(getCrossAccountRoleArn).mockReturnValue(null);
+    });
+
+    it("is offered to Enterprise plans only, and stores the external ID shown in the form on the connection", async () => {
+      const nonce = randomUUID();
+      const hobby = callerWithPlan("cloud:hobby");
+      await expect(
+        hobby.llmApiKey.bedrockIamRoleAuth({ projectId }),
+      ).resolves.toEqual({ crossAccountRoleArn: null });
+      await expect(
+        hobby.llmApiKey.bedrockExternalId({ projectId, nonce }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("not available"),
+      });
+      await expect(
+        hobby.llmApiKey.create({
+          ...connectionInput(),
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("Enterprise plan"),
+      });
+
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } = await enterprise.llmApiKey.bedrockExternalId({
+        projectId,
+        nonce,
+      });
+      expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+      await expect(
+        enterprise.llmApiKey.bedrockExternalId({ projectId, nonce }),
+      ).resolves.toEqual({ externalId });
+      expect(
+        deriveBedrockExternalId({
+          owner: { type: "project", projectId: "another-project" },
+          nonce,
+        }),
+      ).not.toBe(externalId);
+      await expect(
+        enterprise.llmApiKey.create(connectionInput()),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "external ID for IAM role auth is missing",
+        ),
+      });
+
+      await expect(
+        enterprise.llmApiKey.test({
+          ...connectionInput(),
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).resolves.toEqual({ success: true });
+      const testedConnection = mockGenerateLLMText.mock.calls.at(-1)?.[0]
+        .connection as { projectId?: string; externalId?: string };
+      expect(testedConnection.projectId).toBe(projectId);
+      expect(decrypt(testedConnection.externalId!)).toBe(externalId);
+
+      await enterprise.llmApiKey.create({
+        ...connectionInput(),
+        bedrockExternalIdNonce: nonce,
+      });
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "bedrock-role" },
+      });
+      expect(decrypt(stored.externalId!)).toBe(externalId);
+      const { data } = await enterprise.llmApiKey.all({ projectId });
+      expect(data).toEqual([
+        expect.objectContaining({
+          provider: "bedrock-role",
+          authMethod: AuthMethod.IamRole,
+          displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+        }),
+      ]);
+
+      // Editing in a new form session keeps the external ID the role trusts.
+      const editNonce = randomUUID();
+      await expect(
+        enterprise.llmApiKey.bedrockExternalId({
+          projectId,
+          nonce: editNonce,
+          connectionId: stored.id,
+        }),
+      ).resolves.toEqual({ externalId });
+      await enterprise.llmApiKey.update({
+        ...connectionInput(),
+        id: stored.id,
+        secretKey: JSON.stringify({
+          roleArn: "arn:aws:iam::123456789012:role/langfuse-bedrock-2",
+        }),
+        bedrockExternalIdNonce: editNonce,
+      });
+      const updated = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: stored.id },
+      });
+      expect(decrypt(updated.externalId!)).toBe(externalId);
+    });
+
+    it("stores the external ID shown in the form on organization connections", async () => {
+      const nonce = randomUUID();
+      const { projectId: _projectId, ...input } = connectionInput();
+      const enterprise = callerWithPlan("cloud:enterprise");
+      const { externalId } =
+        await enterprise.organizationLlmApiKey.bedrockExternalId({
+          orgId,
+          nonce,
+        });
+
+      await expect(
+        enterprise.organizationLlmApiKey.test({
+          ...input,
+          orgId,
+          bedrockExternalIdNonce: nonce,
+        }),
+      ).resolves.toEqual({ success: true });
+      const testedConnection = mockGenerateLLMText.mock.calls.at(-1)?.[0]
+        .connection as { organizationId?: string; externalId?: string };
+      expect(testedConnection.organizationId).toBe(orgId);
+      expect(decrypt(testedConnection.externalId!)).toBe(externalId);
+
+      await enterprise.organizationLlmApiKey.create({
+        ...input,
+        orgId,
+        bedrockExternalIdNonce: nonce,
+      });
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { organizationId: orgId, provider: "bedrock-role" },
+      });
+      expect(decrypt(stored.externalId!)).toBe(externalId);
+    });
+
+    describe("bedrockExternalId access", () => {
+      const storedExternalId = `lf-${"a".repeat(32)}`;
+      const createRoleConnection = (
+        owner: { projectId: string } | { organizationId: string },
+      ) =>
+        prisma.llmApiKeys.create({
+          data: {
+            ...owner,
+            provider: "bedrock-role",
+            adapter: LLMAdapter.Bedrock,
+            secretKey: encrypt(roleSecret),
+            displaySecretKey: "arn:aws:iam::123456789012:role/langfuse-bedrock",
+            externalId: encrypt(storedExternalId),
+          },
+        });
+
+      it("does not return another project's external ID", async () => {
+        const connection = await createRoleConnection({ projectId });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [
+            { id: tenantB.projectId, role: "ADMIN", retentionDays: null },
+          ],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId = await callerB.llmApiKey.bedrockExternalId({
+          projectId: tenantB.projectId,
+          nonce,
+        });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.llmApiKey.bedrockExternalId({
+            projectId: tenantB.projectId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires llmApiKeys:create within the project", async () => {
+        const member = callerWithPlan("cloud:enterprise", {
+          role: "MEMBER",
+          projects: [{ id: projectId, role: "MEMBER", retentionDays: null }],
+        });
+
+        await expect(
+          member.llmApiKey.bedrockExternalId({
+            projectId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message: "User does not have access to this resource or action",
+        });
+      });
+
+      it("does not return another organization's external ID", async () => {
+        const connection = await createRoleConnection({
+          organizationId: orgId,
+        });
+        const tenantB = await createOrgProjectAndApiKey();
+        const callerB = callerWithPlan("cloud:enterprise", {
+          id: tenantB.orgId,
+          projects: [],
+        });
+        const nonce = randomUUID();
+
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const ownExternalId =
+          await callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+          });
+        expect(ownExternalId.externalId).not.toBe(storedExternalId);
+        await expect(
+          callerB.organizationLlmApiKey.bedrockExternalId({
+            orgId: tenantB.orgId,
+            nonce,
+            connectionId: connection.id,
+          }),
+        ).resolves.toEqual(ownExternalId);
+      });
+
+      it("requires organizationLlmApiKeys:CUD within the organization", async () => {
+        const member = callerWithPlan("cloud:enterprise", { role: "MEMBER" });
+
+        await expect(
+          member.organizationLlmApiKey.bedrockExternalId({
+            orgId,
+            nonce: randomUUID(),
+          }),
+        ).rejects.toMatchObject({
+          code: "FORBIDDEN",
+          message:
+            "Forbidden, user does not have access to this resource or action",
+        });
+      });
+    });
   });
 
   it("should fill masked header values from the stored headers in testUpdate", async () => {
@@ -841,6 +1470,7 @@ describe("llmApiKey.all RPC", () => {
     const connection = mockGenerateLLMText.mock.calls[0][0].connection;
     expect(connection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(connection.secretKey)).toBe("sk-rotated");
+    expect(connection.projectId).toBeUndefined();
     expect(connection.extraHeaders).toBeUndefined();
   });
 
@@ -990,7 +1620,7 @@ describe("llmApiKey.all RPC", () => {
     const withDefaultModels = false;
 
     // Create initial key
-    await caller.llmApiKey.create({
+    const createResult = await caller.llmApiKey.create({
       projectId,
       secretKey: secret,
       provider,
@@ -999,6 +1629,7 @@ describe("llmApiKey.all RPC", () => {
       customModels,
       withDefaultModels,
     });
+    expect(createResult).toBeUndefined();
 
     // Verify initial key
     const initialKeys = await prisma.llmApiKeys.findMany({
@@ -1560,11 +2191,8 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(updatedKeys.length).toBe(1);
-    // Note: Current router logic doesn't actually clear headers when passing empty object
-    // because Prisma undefined means "don't update", not "set to null"
-    // The headers remain unchanged when an empty object is passed
-    expect(updatedKeys[0].extraHeaders).not.toBeNull();
-    expect(updatedKeys[0].extraHeaderKeys).not.toBeNull();
+    expect(updatedKeys[0].extraHeaders).toBeNull();
+    expect(updatedKeys[0].extraHeaderKeys).toEqual([]);
 
     // Other fields should remain unchanged
     expect(updatedKeys[0].secretKey).toEqual(initialKeys[0].secretKey);
@@ -1636,6 +2264,32 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].extraHeaderKeys).toContain("X-New-Header");
   });
 
+  it("rolls back connection deletion when audit logging fails", async () => {
+    const connection = await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        secretKey: encrypt("project-secret"),
+        displaySecretKey: "...cret",
+        provider: `audit-rollback-${randomUUID()}`,
+        adapter: LLMAdapter.OpenAI,
+      },
+    });
+    const auditLogSpy = vi
+      .spyOn(auditLogs, "auditLog")
+      .mockRejectedValueOnce(new Error("audit unavailable"));
+
+    try {
+      await expect(
+        caller.llmApiKey.delete({ projectId, id: connection.id }),
+      ).rejects.toThrow();
+      await expect(
+        prisma.llmApiKeys.findUniqueOrThrow({ where: { id: connection.id } }),
+      ).resolves.toBeDefined();
+    } finally {
+      auditLogSpy.mockRestore();
+    }
+  });
+
   describe("deleting a connection pauses the evaluators that ran on it", () => {
     const PROVIDER = "openai";
 
@@ -1690,8 +2344,8 @@ describe("llmApiKey.all RPC", () => {
         createV2Evaluator([{ provider: "anthropic", model: "claude" }]),
       ]);
 
-      // Point the project's default eval model at the connection too, so both
-      // block reasons fire from one deletion.
+      // Use this provider as the project's default too, so both block reasons
+      // fire when its last effective connection is deleted.
       await prisma.defaultLlmModel.create({
         data: {
           projectId,
@@ -1701,7 +2355,6 @@ describe("llmApiKey.all RPC", () => {
           model: "gpt-4o",
         },
       });
-
       await caller.llmApiKey.delete({ projectId, id: connection.id });
 
       expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledOnce();
@@ -1739,6 +2392,315 @@ describe("llmApiKey.all RPC", () => {
           reason: null,
         });
       }
+      expect(
+        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+      ).toBeNull();
+    });
+
+    it("keeps the default model when deleting an override with an organization fallback", async () => {
+      const organizationConnection = await prisma.llmApiKeys.create({
+        data: {
+          organizationId: orgId,
+          secretKey: encrypt("organization-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
+      });
+      const projectConnection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          secretKey: encrypt("project-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
+      });
+      const providerEvaluatorId = await createV2Evaluator([
+        { provider: PROVIDER, model: "gpt-4o" },
+      ]);
+      const defaultModelEvaluatorId = await createV2Evaluator([
+        { provider: null, model: null },
+      ]);
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: projectConnection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: projectConnection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: projectConnection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: projectConnection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({
+        projectId,
+        id: projectConnection.id,
+      });
+
+      expect(mockFinalizeEvaluatorBlocks).not.toHaveBeenCalled();
+      expect(
+        await prisma.evaluator.findUniqueOrThrow({
+          where: { id: providerEvaluatorId },
+          select: { blockedAt: true, blockReason: true },
+        }),
+      ).toEqual({ blockedAt: null, blockReason: null });
+      expect(
+        await prisma.evaluator.findUniqueOrThrow({
+          where: { id: defaultModelEvaluatorId },
+          select: { blockedAt: true, blockReason: true },
+        }),
+      ).toEqual({ blockedAt: null, blockReason: null });
+      expect(
+        await prisma.defaultLlmModel.findUniqueOrThrow({
+          where: { projectId },
+          select: {
+            llmApiKeyId: true,
+            provider: true,
+            adapter: true,
+            model: true,
+          },
+        }),
+      ).toEqual({
+        llmApiKeyId: organizationConnection.id,
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-4o",
+      });
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+          select: {
+            enabled: true,
+            summaryLlmApiKeyId: true,
+            embeddingLlmApiKeyId: true,
+            clusteringLlmApiKeyId: true,
+          },
+        }),
+      ).toEqual({
+        enabled: true,
+        summaryLlmApiKeyId: organizationConnection.id,
+        embeddingLlmApiKeyId: organizationConnection.id,
+        clusteringLlmApiKeyId: organizationConnection.id,
+      });
+    });
+
+    it("deletes the default model when the organization fallback uses a different adapter", async () => {
+      await prisma.llmApiKeys.createMany({
+        data: [
+          {
+            organizationId: orgId,
+            secretKey: encrypt("organization-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.Anthropic,
+          },
+          {
+            projectId,
+            secretKey: encrypt("project-secret"),
+            displaySecretKey: "...cret",
+            provider: PROVIDER,
+            adapter: LLMAdapter.OpenAI,
+          },
+        ],
+      });
+      const projectConnection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      const defaultModelEvaluatorId = await createV2Evaluator([
+        { provider: null, model: null },
+      ]);
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: projectConnection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+      await caller.llmApiKey.delete({
+        projectId,
+        id: projectConnection.id,
+      });
+
+      expect(mockFinalizeEvaluatorBlocks).toHaveBeenCalledWith({
+        projectId,
+        source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
+        evaluatorIdsByReason: {
+          [EvaluatorBlockReason.LLM_CONNECTION_MISSING]: [],
+          [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]: [
+            defaultModelEvaluatorId,
+          ],
+        },
+      });
+      expect(
+        await prisma.defaultLlmModel.findUnique({ where: { projectId } }),
+      ).toBeNull();
+    });
+
+    it("does not rebind organization-backed configuration to an incompatible project override", async () => {
+      const organizationConnection = await prisma.llmApiKeys.create({
+        data: {
+          organizationId: orgId,
+          secretKey: encrypt("organization-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+        },
+      });
+      await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          secretKey: encrypt("project-secret"),
+          displaySecretKey: "...cret",
+          provider: PROVIDER,
+          adapter: LLMAdapter.Anthropic,
+        },
+      });
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId,
+          llmApiKeyId: organizationConnection.id,
+          provider: PROVIDER,
+          adapter: LLMAdapter.OpenAI,
+          model: "gpt-4o",
+        },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: organizationConnection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: organizationConnection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: organizationConnection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.organizationLlmApiKey.delete({
+        orgId,
+        id: organizationConnection.id,
+      });
+
+      expect(
+        await prisma.defaultLlmModel.findUnique({
+          where: { projectId },
+        }),
+      ).toBeNull();
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+          select: {
+            enabled: true,
+            summaryLlmApiKeyId: true,
+            embeddingLlmApiKeyId: true,
+            clusteringLlmApiKeyId: true,
+          },
+        }),
+      ).toEqual({
+        enabled: false,
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+      });
+    });
+
+    it("turns Topics off and records why when its connection is deleted", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: true,
+          summaryLlmApiKeyId: connection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: connection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: connection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+        }),
+      ).toMatchObject({
+        enabled: false,
+        blockReason: "LLM_CONNECTION_MISSING",
+        blockMessage: expect.stringContaining(`"${PROVIDER}" was deleted`),
+        blockedAt: expect.any(Date),
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+      });
+    });
+
+    it("clears deleted Topics connections without marking an already disabled config as paused", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "test-secret",
+        provider: PROVIDER,
+        adapter: LLMAdapter.OpenAI,
+        customModels: [],
+        withDefaultModels: true,
+      });
+      const connection = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: PROVIDER },
+      });
+      await prisma.topicConfig.create({
+        data: {
+          projectId,
+          enabled: false,
+          summaryLlmApiKeyId: connection.id,
+          summaryModel: "gpt-6-luna",
+          embeddingLlmApiKeyId: connection.id,
+          embeddingModel: "text-embedding-3-small",
+          clusteringLlmApiKeyId: connection.id,
+          clusteringModel: "gpt-5.6-terra",
+        },
+      });
+
+      await caller.llmApiKey.delete({ projectId, id: connection.id });
+
+      expect(
+        await prisma.topicConfig.findUniqueOrThrow({
+          where: { projectId },
+        }),
+      ).toMatchObject({
+        enabled: false,
+        blockReason: null,
+        blockMessage: null,
+        blockedAt: null,
+        summaryLlmApiKeyId: null,
+        embeddingLlmApiKeyId: null,
+        clusteringLlmApiKeyId: null,
+      });
     });
   });
 });

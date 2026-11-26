@@ -1,4 +1,5 @@
-import { PlusIcon } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { PlusIcon } from "@langfuse/icons";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,7 @@ import {
 import { useRef, useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ActionButton } from "@/src/components/ActionButton";
 
 export const NewDatasetItemButton = (props: {
@@ -33,7 +34,7 @@ export const NewDatasetItemButton = (props: {
           variant="outline"
           hasAccess={hasAccess}
           trackingEventName="dataset_item:new_form_open"
-          icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
+          icon={<PlusIcon size="base" aria-hidden="true" />}
         >
           New item
         </ActionButton>

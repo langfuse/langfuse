@@ -3,7 +3,7 @@
  * for Docker builds.
  */
 await import("./src/env.mjs");
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { env } from "./src/env.mjs";
 import { renamedRouteRedirects } from "./redirects.mjs";
 
@@ -31,6 +31,12 @@ const localStorageConnectSrc =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
     ? "http://localhost:* "
     : "";
+// The self-hosted newsletter step after sign-up checks and subscribes on the
+// bare langfuse.com host, which `https://*.langfuse.com` does not match.
+const newsletterSignupConnectSrc =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
+    ? "https://langfuse.com "
+    : "";
 // When build output is served from a dedicated asset hostname, that origin has
 // to be allowed everywhere Next.js can emit an asset URL. A host under
 // langfuse.com would already be covered by the wildcards below, but the policy
@@ -42,19 +48,28 @@ const localStorageConnectSrc =
 const assetPrefixSrc = env.NEXT_PUBLIC_ASSET_PREFIX
   ? `${new URL(env.NEXT_PUBLIC_ASSET_PREFIX).origin} `
   : "";
+// ClickHouse's Marketo instance (MARKETO_ORIGIN in
+// src/ee/features/billing/utils/marketoCreditForm.ts) serves the coupon
+// credit-request form: its script and form definition, its stylesheets, and
+// the frame it submits through. Client-side navigation keeps the policy of the
+// first document, so the allowance cannot be scoped to the coupon page.
+const marketoCreditFormSrc =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
+    ? "https://discover.clickhouse.com "
+    : "";
 const cspHeader = `
   default-src 'self' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
-  style-src 'self' 'unsafe-inline' ${assetPrefixSrc}https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc}${marketoCreditFormSrc}https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  style-src 'self' 'unsafe-inline' ${assetPrefixSrc}${marketoCreditFormSrc}https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   img-src 'self' https: blob: data: http://localhost:* https://prod-uk-services-workspac-workspacefilespublicbuck-vs4gjqpqjkh6.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsbucket28b3ccf-uwfssb4vt2us.s3.eu-west-2.amazonaws.com https://i0.wp.com;
   font-src ${assetPrefixSrc}'self';
-  frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  frame-src 'self' ${marketoCreditFormSrc}https://challenges.cloudflare.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' ${localStorageConnectSrc}${mediaUploadConnectSrc}${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${localStorageConnectSrc}${newsletterSignupConnectSrc}${mediaUploadConnectSrc}${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -79,6 +94,10 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Every platform build of one image must share the same build ID. Otherwise
+  // replicas on different CPU architectures 404 on each other's /_next/static
+  // assets. Falls back to Next.js's random ID when no build ID is provided.
+  generateBuildId: async () => process.env.NEXT_PUBLIC_BUILD_ID || null,
   // Emit and serve browser source maps in production. Langfuse is open source,
   // so there is nothing to hide by shipping maps, and browser devtools then
   // de-minify client stacks automatically. NOTE: this alone does NOT make Sentry
@@ -87,8 +106,6 @@ const nextConfig = {
   // symbolication is handled separately by uploading maps with debug IDs (see
   // `sourcemaps` in withSentryConfig below).
   productionBrowserSourceMaps: true,
-  // Allow building to alternate directory for parallel build checks while dev server runs
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
     // CI test jobs run `pnpm run typecheck` separately and skip duplicate
     // Next.js type checks to keep test builds fast. Production/Docker builds
@@ -96,7 +113,13 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
   },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
-  allowedDevOrigins: ["127.0.0.1"],
+  // MCP App hosts load the widget page's dev assets from their sandbox
+  // origins (src/features/mcp/server/apps/resources.ts).
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "*.claudemcpcontent.com",
+    "**.oaiusercontent.com",
+  ],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
@@ -108,6 +131,7 @@ const nextConfig = {
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
     "piscina",
+    "@langfuse/ai-gateway-guardrail-rules",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
@@ -164,6 +188,11 @@ const nextConfig = {
     // imports have to stay same-origin. Empty string is a literal prefix, not
     // a fallback: it emits `/_next/...` on the page origin. Unset (undefined)
     // would inherit assetPrefix and break workers on Cloud.
+    //
+    // No worker is started from a bundler URL any more — same-origin is exactly
+    // what pins those chunks to a host that only serves the current build, so
+    // they 404 in a tab that outlives a deploy. This stays as the guard for
+    // anything that reintroduces one.
     turbopackWorkerAssetPrefix: "",
   },
 
@@ -185,6 +214,10 @@ const nextConfig = {
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
       "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
+    // elkjs's prebuilt layout worker, served verbatim so the trace graph's
+    // worker URL keeps resolving across a deploy. See
+    // pages/api/workers/elk-worker.ts.
+    "/api/workers/elk-worker": ["./node_modules/elkjs/lib/elk-worker.min.js"],
   },
 
   async redirects() {
@@ -381,13 +414,13 @@ const sentryConfig = withSentryConfig(nextConfig, {
     deleteSourcemapsAfterUpload: false,
   },
 
-  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-  // See the following for more information:
-  // https://docs.sentry.io/product/crons/
-  // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: false,
-
   webpack: {
+    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
+    // See the following for more information:
+    // https://docs.sentry.io/product/crons/
+    // https://vercel.com/docs/cron-jobs
+    automaticVercelMonitors: false,
+
     // Automatically annotate React components to show their full name in breadcrumbs and session replay.
     reactComponentAnnotation: {
       enabled: true,

@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import React from "react";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
@@ -8,7 +9,10 @@ import { createIOTableColumn } from "@/src/components/design-system/table/column
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { ActionExecutionStatus } from "@langfuse/shared";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 
@@ -44,7 +48,7 @@ export const AutomationExecutionsTable: React.FC<
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "automation-executions",
     "s",
   );
@@ -159,6 +163,7 @@ export const AutomationExecutionsTable: React.FC<
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
         tableName="automationExecutions"
@@ -174,6 +179,9 @@ export const AutomationExecutionsTable: React.FC<
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ActionButton } from "@/src/components/ActionButton";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";

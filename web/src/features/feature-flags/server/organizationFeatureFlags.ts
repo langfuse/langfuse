@@ -1,14 +1,16 @@
 import {
   LangfuseNotFoundError,
-  Prisma,
+  type Prisma,
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
+import { withSerializableRetry } from "@langfuse/shared/src/server";
 
 import {
-  filterFeaturePreviewFlags,
+  defaultOnFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
+  type UserFeaturePreviewFlag,
   type UserFeatureFlag,
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
@@ -26,8 +28,6 @@ type OrganizationFeaturePreviewStates = Record<FeaturePreviewFlag, boolean>;
 export const EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES = Object.fromEntries(
   featurePreviewFlags.map((flag) => [flag, false]),
 ) as OrganizationFeaturePreviewStates;
-
-const MAX_SERIALIZABLE_ATTEMPTS = 3;
 
 type FeaturePreviewOverrideState = "inherit" | "enabled" | "disabled";
 
@@ -67,7 +67,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
     where: { id: { in: userIds } },
     select: {
       id: true,
-      email: true,
       featureFlags: true,
       v4BetaEnabled: true,
     },
@@ -81,7 +80,6 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
           user.featureFlags,
           organizationDefaults,
           {
-            email: user.email,
             v4BetaEnabled: user.v4BetaEnabled,
           },
         ),
@@ -93,27 +91,15 @@ export async function getOrganizationFeaturePreviewStatesByUserId({
 export async function getUserFeaturePreviewManagementCapabilities({
   prisma,
   actorUserId,
-  actorIsPlatformAdmin,
   targetUserIds,
   demoOrgId,
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   actorUserId: string;
-  actorIsPlatformAdmin: boolean;
   targetUserIds: string[];
   demoOrgId?: string;
 }): Promise<Map<string, FeaturePreviewManagementCapability>> {
   const uniqueTargetUserIds = [...new Set(targetUserIds)];
-  if (actorIsPlatformAdmin) {
-    return new Map(
-      uniqueTargetUserIds.map((userId) => [
-        userId,
-        {
-          allowed: true,
-        } satisfies FeaturePreviewManagementCapability,
-      ]),
-    );
-  }
 
   const targetMemberships = await prisma.organizationMembership.findMany({
     where: {
@@ -188,11 +174,11 @@ async function setUserFeaturePreviewInTransaction({
   if (!user) throw new LangfuseNotFoundError("User not found");
 
   const affectedFlags: UserFeatureFlag[] = [flag];
-  if (flag === "sessionTimeline" && enabled) {
-    affectedFlags.push("modernSession");
+  if (flag === "sessionViewV2Timeline" && enabled) {
+    affectedFlags.push("sessionViewV2");
   }
-  if (flag === "modernSession" && !enabled) {
-    affectedFlags.push("sessionTimeline");
+  if (flag === "sessionViewV2" && !enabled) {
+    affectedFlags.push("sessionViewV2Timeline");
   }
   const nextFeatureFlags = user.featureFlags.filter(
     (currentFlag) =>
@@ -248,7 +234,6 @@ export async function setUserFeaturePreview({
 export async function setUserFeaturePreviewWithAuthorization({
   prisma,
   actorUserId,
-  actorIsPlatformAdmin,
   currentOrgId,
   targetUserId,
   flag,
@@ -257,10 +242,9 @@ export async function setUserFeaturePreviewWithAuthorization({
 }: {
   prisma: PrismaClient;
   actorUserId: string;
-  actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeaturePreviewFlag;
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<
@@ -281,7 +265,6 @@ export async function setUserFeaturePreviewWithAuthorization({
     const management = await getUserFeaturePreviewManagementCapabilities({
       prisma: tx,
       actorUserId,
-      actorIsPlatformAdmin,
       targetUserIds: [targetUserId],
       demoOrgId,
     });
@@ -311,8 +294,8 @@ export async function setOrganizationFeatureFlagDefault({
   flag: FeaturePreviewFlag;
   enabled: boolean;
 }): Promise<{
-  before: FeaturePreviewFlag[];
-  after: FeaturePreviewFlag[];
+  before: string[];
+  after: string[];
 }> {
   return withSerializableRetry(prisma, async (tx) => {
     const organization = await tx.organization.findUnique({
@@ -323,22 +306,39 @@ export async function setOrganizationFeatureFlagDefault({
       throw new LangfuseNotFoundError("Organization not found");
     }
 
-    const before = filterFeaturePreviewFlags(
-      organization.featureFlagOrgDefaults,
+    const storedPreviewFlags = [
+      ...featurePreviewFlags,
+      ...defaultOnFeaturePreviewFlags.map(getFeaturePreviewOptOutFlag),
+    ];
+    const before = organization.featureFlagOrgDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
     );
     const affectedFlags: FeaturePreviewFlag[] = [flag];
-    if (flag === "sessionTimeline" && enabled) {
-      affectedFlags.push("modernSession");
+    if (flag === "sessionViewV2Timeline" && enabled) {
+      affectedFlags.push("sessionViewV2");
     }
-    if (flag === "modernSession" && !enabled) {
-      affectedFlags.push("sessionTimeline");
+    if (flag === "sessionViewV2" && !enabled) {
+      affectedFlags.push("sessionViewV2Timeline");
     }
     const nextStoredDefaults = organization.featureFlagOrgDefaults.filter(
       (currentFlag) =>
-        !affectedFlags.some((affectedFlag) => currentFlag === affectedFlag),
+        !affectedFlags.some(
+          (affectedFlag) =>
+            currentFlag === affectedFlag ||
+            currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
+        ),
     );
     if (enabled) nextStoredDefaults.push(...affectedFlags);
-    const after = filterFeaturePreviewFlags(nextStoredDefaults);
+    else {
+      nextStoredDefaults.push(
+        ...defaultOnFeaturePreviewFlags
+          .filter((flag) => affectedFlags.includes(flag))
+          .map(getFeaturePreviewOptOutFlag),
+      );
+    }
+    const after = nextStoredDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
+    );
 
     await tx.organization.update({
       where: { id: orgId },
@@ -350,29 +350,4 @@ export async function setOrganizationFeatureFlagDefault({
       after,
     };
   });
-}
-
-async function withSerializableRetry<T>(
-  prisma: PrismaClient,
-  operation: (tx: Prisma.TransactionClient) => Promise<T>,
-): Promise<T> {
-  for (let attempt = 1; attempt <= MAX_SERIALIZABLE_ATTEMPTS; attempt += 1) {
-    try {
-      return await prisma.$transaction(operation, {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      });
-    } catch (error) {
-      if (
-        !(
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034" &&
-          attempt < MAX_SERIALIZABLE_ATTEMPTS
-        )
-      ) {
-        throw error;
-      }
-    }
-  }
-
-  throw new Error("Serializable transaction retry exhausted");
 }

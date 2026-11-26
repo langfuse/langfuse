@@ -1,12 +1,15 @@
 import { api } from "@/src/utils/api";
-import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
+import {
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
-import { History, MoreVertical } from "lucide-react";
-import Page from "@/src/components/layouts/page";
+import { History, MoreVertical } from "@langfuse/icons";
+import Page from "@/src/components/layouts/Page";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
@@ -14,10 +17,8 @@ import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
 export default function DatasetItemsPage() {
@@ -133,7 +134,7 @@ function DatasetItemsView({
                   aria-label="Dataset actions"
                   {...getTriggerProps()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <MoreVertical size="base" color="default" />
                 </Button>
               )}
             </DatasetActionMenu>
@@ -143,7 +144,7 @@ function DatasetItemsView({
               onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
               title="Version History"
             >
-              <History className="h-4 w-4" />
+              <History size="base" color="default" />
             </Button>
           </>
         ),

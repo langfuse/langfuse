@@ -1,8 +1,9 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db";
-import { type DatasetItemMediaField } from "../../domain";
-import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import type { DatasetItemMediaField } from "../../domain/dataset-items";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { findMediaReferences } from "../../utils/mediaReferences";
 import {
   addTagsToCurrentSpan,
@@ -135,8 +136,7 @@ export async function markDatasetMediaUploadComplete(props: {
     data: {
       uploadedAt: props.uploadedAt,
       uploadHttpStatus: props.uploadHttpStatus,
-      uploadHttpError:
-        props.uploadHttpStatus === 200 ? null : props.uploadHttpError,
+      uploadHttpError: isCompletingUpload ? null : props.uploadHttpError,
     },
   });
 

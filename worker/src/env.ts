@@ -43,9 +43,28 @@ const EnvSchema = z.object({
     .date()
     .optional()
     .transform((date) => (date ? new Date(date) : null)),
+  // Comma-separated Langfuse organization ids routed to CHB regardless of the
+  // cutoff; keep in sync with web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
 
-  LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
+  // CHB REST credentials, mirroring web/src/env.mjs. The worker needs them for
+  // one read: the spend-alert job asks for the open period's accrued usage.
+  CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+  CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+  CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+  // CHB's resource-server identifier. Defaulted because it is the same value
+  // in every CHB tenant, and overridable in case that stops being true.
+  CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
@@ -87,7 +106,6 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
   BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
-  BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
     .positive()
@@ -106,66 +124,64 @@ const EnvSchema = z.object({
   LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
+  LANGFUSE_OTEL_DIRECT_IMPLEMENTATION: z.enum(["ts", "rust"]).default("ts"),
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(1),
-  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
-  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
-    .number()
-    .int()
-    .positive()
-    .optional(),
-  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
+  LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS: z
     .string()
-    .min(1)
-    .max(64)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
-    .optional(),
-  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    )
+    .refine((ids) => !ids.includes("*") || ids.length === 1, {
+      message:
+        'Use "*" alone to select all projects, or a comma-separated list of project IDs',
+    }),
+  // Records trace activity at ingestion; the events-dispatch consumer host also runs the dispatcher.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("true"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // How long a trace's Redis bounds survive its latest activity; late spans merge within it.
+  LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS: z.coerce
     .number()
     .int()
     .positive()
-    .max(10_000)
-    .default(60),
-  LANGFUSE_TRACE_BATCH_STRATEGY: z
-    .enum(["project", "locality"])
-    .default("project"),
-  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
+    .max(2 * 24 * 60 * 60 * 1_000)
+    .default(12 * 60 * 60 * 1_000),
+  // Traces per events-dispatch job; the locality selector's tables grow with its square.
+  LANGFUSE_EVENTS_DISPATCH_MAX_BATCH_SIZE: z.coerce
     .number()
     .int()
     .positive()
-    .default(600_000),
-  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
+    .max(1_000)
+    .default(120),
+  QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Per-trace Topics jobs per worker and shard; each makes one summary and one embedding call.
+  LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .int()
     .positive()
-    .default(7_200_000),
-  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
+    .default(20),
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
+  // Rendered transcript characters per Topics summary request; ~135k-150k o200k tokens at typical density.
+  LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS: z.coerce
     .number()
     .int()
     .positive()
-    .default(30_000),
+    .default(500_000),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -178,6 +194,13 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
+  // Sends `date_time_input_format = best_effort` with the ClickHouse writer's
+  // JSONEachRow inserts. ClickHouse before 26.5 defaults to `basic`, which
+  // rejects a datetime string that carries a zone such as `Z` or `+02:00` and
+  // fails the whole insert. Set to "false" to keep the server's own setting.
+  LANGFUSE_CLICKHOUSE_BEST_EFFORT_DATETIME_PARSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -271,6 +294,11 @@ const EnvSchema = z.object({
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
+  // Stamps ECS task/cluster (aws.ecs.*, cloud.*) and container.id resource
+  // attributes onto every exported span.
+  OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
     .enum(["true", "false"])
@@ -302,18 +330,18 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Optional opt-outs for split-role workers. Unset follows
-  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
+  // Run execution follows LANGFUSE_IN_APP_AGENT_ENABLED unless opted out.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
-  // The ambient host profile takes precedence over the agent-specific default
-  // so local developer credentials win when both are configured.
-  AWS_PROFILE: z.string().optional(),
-  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_RETENTION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Opt in to the AI-features project's production skills with this tag.
+  LANGFUSE_IN_APP_AGENT_SKILLS_TAG: z.string().trim().min(1).optional(),
   LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
     .enum(["dangerous-docker", "lambda-microvm"])
     .optional(),
@@ -344,6 +372,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
@@ -430,12 +461,6 @@ const EnvSchema = z.object({
 
   // Comma-separated list of project IDs to exclude from experiment backfill processing
   LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
-
-  // Comma-separated list of project IDs to exclude from event propagation dual-write
-  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -604,11 +629,35 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
+  // Audit log relay: moves audit_log_staging rows into ClickHouse audit_logs.
+  // Runs on Langfuse Cloud and on self-hosted instances with an enterprise
+  // license, where it is on unless disabled here. While it is off, staged
+  // events wait in Postgres and are missing from the audit-log viewer.
+  LANGFUSE_AUDIT_LOG_RELAY_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_AUDIT_LOG_RELAY_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000),
+  // Tasks without the lease check it every half TTL, and a batch must finish
+  // within half of it.
+  LANGFUSE_AUDIT_LOG_RELAY_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60),
+
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
     .number()
     .positive()
     .default(10_000), // Max items (media files) to process per batch
+
+  // Deletes stored events-dispatch transcripts older than three days. Off until
+  // enabled so workers do not list the bucket by default.
+  LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Batch Trace Deletion Cleaner configuration
   LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
@@ -649,6 +698,23 @@ const EnvSchema = z.object({
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
     .default("direct"),
+  // Langfuse Cloud only, temporary. v3 cutoff switches, flipped by hand.
+  // Ignored on self-hosted deployments.
+  // EVALS: trace and dataset LLM-as-a-Judge evaluators. New jobs are not created.
+  LANGFUSE_V4_CUTOFF_EVALS: z.enum(["true", "false"]).default("false"),
+  // Comma-separated project ids that skip every cutoff.
+  // Keep in sync with web/src/env.mjs.
+  LANGFUSE_V4_CUTOFF_EXEMPT_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(",")
+            .map((projectId) => projectId.trim())
+            .filter(Boolean)
+        : [],
+    ),
   // Cloud-only rollout boundary for automatic direct OTel event writes.
   // Organizations created on or after this date are past the point where the v4
   // preview is force-enabled and cannot be switched off, so the events table is
@@ -752,12 +818,20 @@ const EnvSchema = z.object({
     .positive()
     .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
-  LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
-    .number()
-    .positive()
-    .default(2),
+  /** Interval at which one worker per queue set polls queue depth and DLQ age */
   LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
   LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
+  // Upper bound for a random delay before the worker registers its queues and
+  // starts its periodic runners. Spreads the Redis connection setup of tasks
+  // that boot together (e.g. an autoscaling step) over time. 0 disables it.
+  // Keep it below the container health check grace period: the HTTP server
+  // only starts listening after the delay.
+  LANGFUSE_WORKER_STARTUP_JITTER_MAX_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(120_000)
+    .default(0),
 });
 
 type ParsedEnv = z.infer<typeof EnvSchema>;
@@ -774,6 +848,17 @@ export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
 
 const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+
+const validateOtelDirectImplementationConfig = (parsed: ParsedEnv): void => {
+  if (
+    parsed.LANGFUSE_OTEL_DIRECT_IMPLEMENTATION === "rust" &&
+    parsed.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED !== "true"
+  ) {
+    throw new Error(
+      "Rust OTEL processing requires early media extraction to be enabled",
+    );
+  }
+};
 
 const validateV4Flags = (parsed: ParsedEnv): void => {
   const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
@@ -821,7 +906,9 @@ const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
 };
 
 const parseEnv = (): ParsedEnv => {
-  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  const source = { ...removeEmptyEnvVariables(process.env) };
+  const parsed = EnvSchema.parse(source);
+  validateOtelDirectImplementationConfig(parsed);
   validateV4Flags(parsed);
   validateInAppAgentSandboxConfig(parsed);
   return parsed;

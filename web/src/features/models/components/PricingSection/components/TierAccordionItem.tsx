@@ -1,9 +1,9 @@
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   FormControl,
   FormField,
@@ -55,7 +55,7 @@ export function TierAccordionItem({
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-bold">{name ?? tier.name}</span>
-              {isDefault && <Badge variant="secondary">Default</Badge>}
+              {isDefault && <Badge color="filled" text="Default" />}
               <span className="text-muted-foreground text-xs">
                 Priority: {priority}
               </span>
@@ -70,7 +70,7 @@ export function TierAccordionItem({
                   remove(index);
                 }}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 size="base" color="default" />
               </Button>
             )}
           </div>

@@ -5,9 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@langfuse/icons";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
@@ -137,9 +137,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {activeEvaluatorNames.map((name) => (
-                  <Badge key={name} variant="secondary" className="text-xs">
-                    {name}
-                  </Badge>
+                  <Badge key={name} color="filled" text={name} />
                 ))}
               </div>
             </CardContent>
@@ -164,10 +162,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
               <span className="font-bold">{formValues.runName}</span>
               <Tooltip label="This run name is auto-generated from the experiment name and can be used to fetch the resulting experiment run via the public API.">
                 {({ getTriggerProps }) => (
-                  <InfoIcon
-                    {...getTriggerProps()}
-                    className="text-muted-foreground h-3.5 w-3.5"
-                  />
+                  <InfoIcon {...getTriggerProps()} size="base" color="muted" />
                 )}
               </Tooltip>
             </div>

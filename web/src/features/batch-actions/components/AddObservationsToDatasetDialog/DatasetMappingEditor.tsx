@@ -1,13 +1,12 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useStore } from "zustand";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/combobox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
-import {
-  DatasetItemEditorLayout,
-  DatasetItemPreviewField,
-} from "@/src/features/datasets/components/DatasetItemEditorLayout";
+import { DatasetItemEditorLayout } from "@/src/features/datasets/components/DatasetItemEditorLayout";
+import { DatasetItemPreviewField } from "@/src/features/datasets/components/DatasetItemPreviewField";
 import { MappingStep } from "./MappingStep";
 import type { DatasetMappingStore } from "./datasetMappingStore";
 import { prepareDatasetMapping } from "./prepareDatasetMapping";
@@ -58,20 +57,20 @@ export function DatasetMappingEditor({
             <div className="flex items-end gap-3">
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <span className="text-sm font-bold">Target dataset</span>
-                <Combobox
-                  name="Target dataset"
+                <SelectInput
+                  aria-label="Target dataset"
                   options={options.map((option) => ({
                     value: option.id,
                     label: option.name,
                   }))}
-                  value={datasetId ?? undefined}
+                  value={datasetId ?? ""}
                   onValueChange={(id) => {
                     const selected = options.find((option) => option.id === id);
                     if (selected) actions.selectDataset(selected);
                   }}
                   placeholder="Select dataset"
-                  searchPlaceholder="Search datasets..."
-                  emptyText="No datasets found."
+                  search={{ placeholder: "Search datasets..." }}
+                  emptyMessage="No datasets found."
                   disabled={pending}
                 />
               </div>
@@ -80,7 +79,7 @@ export function DatasetMappingEditor({
                 onClick={() => actions.setScreen("create")}
                 disabled={pending}
               >
-                <Plus className="size-4" />
+                <Plus size="base" color="default" />
                 Create dataset
               </Button>
             </div>

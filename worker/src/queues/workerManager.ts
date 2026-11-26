@@ -6,6 +6,7 @@ import {
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  type TQueueJobTypes,
   recordDistribution,
   recordIncrement,
   traceException,
@@ -15,22 +16,26 @@ import {
   markQueueWorkerRegistered,
 } from "../features/health/queueConsumption";
 import { WORKER_HOST_ID } from "../utils/hostId";
+import { logRetryableJobFailure } from "./jobFailureLog";
 import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
+import { classifyJobFailure } from "./jobFailureReason";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
   private static extractProjectId(job: Job): string | undefined {
-    const data = job.data as {
-      payload?: {
-        projectId?: unknown;
-        authCheck?: { scope?: { projectId?: unknown } };
-      };
-    };
+    const data = job.data as
+      | {
+          payload?: {
+            projectId?: unknown;
+            authCheck?: { scope?: { projectId?: unknown } };
+          };
+        }
+      | undefined;
 
     const candidates = [
-      data.payload?.projectId,
-      data.payload?.authCheck?.scope?.projectId,
+      data?.payload?.projectId,
+      data?.payload?.authCheck?.scope?.projectId,
     ];
 
     return candidates.find((candidate): candidate is string => {
@@ -66,26 +71,62 @@ export class WorkerManager {
     return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
   }
 
-  private static metricWrapper(
-    processor: Processor,
-    queueName: QueueName,
-  ): Processor {
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+  /**
+   * Queue wait before the current pickup: first attempts measure from
+   * timestamp + opts.delay; retries and stall re-runs return undefined because
+   * BullMQ keeps no record of when they became ready again.
+   */
+  public static computeWaitTimeMs(
+    job: Pick<
+      Job,
+      | "timestamp"
+      | "opts"
+      | "attemptsMade"
+      | "attemptsStarted"
+      | "stalledCounter"
+    >,
+    nowMs: number,
+  ): { attempt: "first" | "retry"; waitMs: number | undefined } {
+    const isRetry =
+      (job.attemptsMade ?? 0) > 0 ||
+      (job.attemptsStarted ?? 0) > 1 ||
+      (job.stalledCounter ?? 0) > 0;
+    if (isRetry) {
+      return { attempt: "retry", waitMs: undefined };
+    }
+    const readyAt = job.timestamp + Math.max(0, job.opts?.delay ?? 0);
+    return { attempt: "first", waitMs: Math.max(0, nowMs - readyAt) };
+  }
 
-    return async (job: Job) => {
+  private static metricWrapper<Q extends QueueName>(
+    processor: Processor<JobData<Q>>,
+    queueName: Q,
+    getTags: TagGetter<Q>,
+  ): Processor<JobData<Q>> {
+    const { baseMetric } = WorkerManager.resolveMetricInfo(queueName);
+
+    return async (job: Job<JobData<Q>>) => {
+      const tags = getTags(job);
       const startTime = Date.now();
-      const waitTime = Date.now() - job.timestamp;
+      const { attempt, waitMs } = WorkerManager.computeWaitTimeMs(
+        job,
+        startTime,
+      );
 
       recordIncrement(baseMetric + ".rate", 1, {
         type: "request",
-        ...shardTag,
+        attempt,
+        ...tags,
       });
 
-      recordDistribution(baseMetric + ".time_distribution", waitTime, {
-        type: "wait",
-        unit: "milliseconds",
-        ...shardTag,
-      });
+      if (waitMs !== undefined) {
+        recordDistribution(baseMetric + ".time_distribution", waitMs, {
+          type: "wait",
+          attempt,
+          unit: "milliseconds",
+          ...tags,
+        });
+      }
 
       const clickHouseCtx = contextWithLangfuseProps({
         projectId: WorkerManager.extractProjectId(job),
@@ -102,7 +143,7 @@ export class WorkerManager {
       recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
-        ...shardTag,
+        ...tags,
       });
 
       return result;
@@ -124,11 +165,12 @@ export class WorkerManager {
     return Object.keys(WorkerManager.workers);
   }
 
-  public static register(
-    queueName: QueueName,
-    processor: Processor,
-    additionalOptions: Partial<WorkerOptions> = {},
+  public static register<Q extends QueueName>(
+    queueName: Q,
+    processor: Processor<JobData<Q>>,
+    options: RegisterOptions<Q> = {},
   ): void {
+    const { metricTags = () => ({}), ...additionalOptions } = options;
     if (WorkerManager.workers[queueName]) {
       logger.info(`Worker ${queueName} is already registered`);
       return;
@@ -141,10 +183,13 @@ export class WorkerManager {
       return;
     }
 
+    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    const getTags = newTagGetter(metricTags, shardTag);
+
     // Register worker
     const worker = new Worker(
       queueName,
-      WorkerManager.metricWrapper(processor, queueName),
+      WorkerManager.metricWrapper(processor, queueName, getTags),
       {
         ...workerOptionsWithRedis,
         ...additionalOptions,
@@ -154,33 +199,51 @@ export class WorkerManager {
     markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
-
     // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
     // "active" and "completed" prove this container's consumption loop is
     // alive; "failed" is excluded because the stalled-checker emits it for
     // jobs this container never picked up.
     worker.on("active", markQueueJobActivity);
     // No "active" counter: metricWrapper already records "request" on pickup.
-    worker.on("completed", () => {
+    worker.on("completed", (job: Job<JobData<Q>> | undefined) => {
       markQueueJobActivity();
       recordIncrement(baseMetric + ".rate", 1, {
         type: "completed",
-        ...shardTag,
+        ...getTags(job),
       });
     });
 
     // Add error handling
-    worker.on("failed", (job: Job | undefined, err: Error) => {
-      logger.error(
-        `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
-        err,
-      );
-      traceException(err);
+    worker.on("failed", (job: Job<JobData<Q>> | undefined, err: Error) => {
+      const reason = classifyJobFailure(err);
+      const tags = getTags(job);
+      logRetryableJobFailure({
+        message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
+        error: err,
+        job,
+        attemptsIncludeCurrentFailure: true,
+        fields: {
+          projectId: job ? WorkerManager.extractProjectId(job) : undefined,
+          jobId: job?.id,
+          failureReason: reason,
+          // true once BullMQ stops retrying: the job's events are dropped.
+          terminal: Boolean(job?.finishedOn),
+        },
+      });
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
-        ...shardTag,
+        reason,
+        ...tags,
       });
+      // BullMQ sets finishedOn only when it moves the job to the failed set
+      // instead of scheduling a retry.
+      if (job?.finishedOn) {
+        recordIncrement(baseMetric + ".rate", 1, {
+          type: "failed_terminal",
+          reason,
+          ...tags,
+        });
+      }
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(
@@ -190,7 +253,7 @@ export class WorkerManager {
       traceException(failedReason);
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
-        ...shardTag,
+        ...getTags(),
       });
     });
     // Counts intermediate re-enqueues (LFE-10063), not just the terminal
@@ -203,8 +266,39 @@ export class WorkerManager {
       );
       recordIncrement(baseMetric + ".rate", 1, {
         type: "stalled",
-        ...shardTag,
+        ...getTags(),
       });
     });
   }
 }
+
+/** newTagGetter returns the function that tags a queue's metrics with a job's metric tags and the queue's shard. */
+function newTagGetter<Q extends QueueName>(
+  metricTags: MetricTags<Q>,
+  shardTag: { shard: string } | undefined,
+): TagGetter<Q> {
+  return (job) => {
+    if (!job) return { ...shardTag };
+    return { ...metricTags(job.data), ...shardTag };
+  };
+}
+
+/** JobData is the data a queue's jobs carry; cron-only queues send an empty object. */
+type JobData<Q extends QueueName> = Q extends keyof TQueueJobTypes
+  ? TQueueJobTypes[Q]
+  : Record<string, never>;
+
+/** MetricTags derives extra queue-metric tags from a job's data. */
+type MetricTags<Q extends QueueName> = (
+  data: JobData<Q>,
+) => Record<string, string>;
+
+/** RegisterOptions are BullMQ worker options plus the queue's metric tags. */
+type RegisterOptions<Q extends QueueName> = Partial<WorkerOptions> & {
+  metricTags?: MetricTags<Q>;
+};
+
+/** TagGetter tags a queue metric for a job, or for the queue alone when the event has no job. */
+type TagGetter<Q extends QueueName> = (
+  job?: Job<JobData<Q>>,
+) => Record<string, string>;

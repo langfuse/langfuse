@@ -1,9 +1,17 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  createApiKey,
+  orgBoundApiKeyScopes,
+} from "@langfuse/shared/src/server/auth/apiKeys";
+import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
+import {
+  organizationApiKeyCreationSchema,
+  apiKeyToResponse,
+} from "@/src/ee/features/admin-api/server/apiKeys";
 
 export const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
@@ -24,7 +32,7 @@ export async function handleGetApiKeys(
   const apiKeys = await prisma.apiKey.findMany({
     where: {
       orgId: organizationId,
-      scope: "ORGANIZATION",
+      scope: { in: orgBoundApiKeyScopes },
       isInAppAgentKey: false,
     },
     select: {
@@ -35,26 +43,23 @@ export async function handleGetApiKeys(
       note: true,
       publicKey: true,
       displaySecretKey: true,
+      roleAssignments: { select: { systemRole: true } },
     },
     orderBy: {
       createdAt: "asc",
     },
   });
 
-  return res.status(200).json({ apiKeys });
+  return res.status(200).json({ apiKeys: apiKeys.map(apiKeyToResponse) });
 }
 
+/** handleCreateApiKey provisions an organization key and records its audit event. */
 export async function handleCreateApiKey(
   req: NextApiRequest,
   res: NextApiResponse,
   organizationId: string,
 ) {
-  // Validate the request body
-  const createApiKeySchema = z.object({
-    note: z.string().optional(),
-  });
-
-  const validationResult = createApiKeySchema.safeParse(req.body);
+  const validationResult = organizationApiKeyCreationSchema.safeParse(req.body);
 
   if (!validationResult.success) {
     return res.status(400).json({
@@ -63,14 +68,15 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { note } = validationResult.data;
+  const { name, expiresAt, role } = validationResult.data;
 
-  // Create the API key
-  const apiKeyMeta = await createAndAddApiKeysToDb({
-    prisma,
-    entityId: organizationId,
-    note,
-    scope: "ORGANIZATION",
+  const apiKeyMeta = await createApiKey(prisma, {
+    tenant: OrganizationId(organizationId),
+    scope: OrganizationId(organizationId),
+    role: SystemRoleId(role),
+    createdBy: "system",
+    name,
+    expiresAt,
   });
 
   // Log the API key creation
@@ -87,5 +93,10 @@ export async function handleCreateApiKey(
     `Created API key ${apiKeyMeta.id} for organization ${organizationId} via admin API`,
   );
 
-  return res.status(201).json(apiKeyMeta);
+  return res.status(201).json({
+    ...apiKeyMeta,
+    name: apiKeyMeta.note,
+    expiresAt: expiresAt ?? null,
+    role,
+  });
 }

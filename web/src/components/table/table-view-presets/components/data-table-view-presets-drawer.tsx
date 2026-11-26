@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
-import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { X, Plus, Link, MoreVertical, Pen, Lock } from "@langfuse/icons";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import {
   DrawerTrigger,
@@ -71,11 +71,12 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
 import { TableViewPresetsButton } from "./TableViewPresetsButton";
@@ -95,6 +96,7 @@ const copyPermalinkAndToast = (href: string) => {
   copyTextToClipboard(href)
     .then(() =>
       showSuccessToast({
+        operation: "saved_view.permalink_copy",
         title: "Permalink copied to clipboard",
         description: "You can now share the permalink with others",
       }),
@@ -103,6 +105,11 @@ const copyPermalinkAndToast = (href: string) => {
       showErrorToast(
         "Failed to copy permalink",
         "Could not write to the clipboard. Please copy the page URL manually.",
+        {
+          operation: "saved_view.permalink_copy",
+          errorOrigin: "frontend",
+          errorCategory: "permission",
+        },
         "WARNING",
       ),
     );
@@ -420,7 +427,6 @@ function TableViewPresetsDrawerContentBody({
   const handleCreateView = (createdView: { name: string }) => {
     capture("saved_views:create", {
       tableName,
-      name: createdView.name,
     });
 
     createMutation.mutate({
@@ -444,7 +450,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_config", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     // Column order/visibility are the visitor's per-table localStorage, which
@@ -488,7 +493,6 @@ function TableViewPresetsDrawerContentBody({
     capture("saved_views:update_name", {
       tableName,
       viewId: updatedView.id,
-      name: updatedView.name,
     });
 
     updateNameMutation.mutate({
@@ -575,6 +579,11 @@ function TableViewPresetsDrawerContentBody({
       showErrorToast(
         "Failed to generate permalink",
         "Please reach out to langfuse support and report this issue.",
+        {
+          operation: "saved_view.permalink_generate",
+          errorOrigin: "frontend",
+          errorCategory: "internal",
+        },
         "WARNING",
       );
     }
@@ -597,7 +606,7 @@ function TableViewPresetsDrawerContentBody({
             </DrawerTitle>
             <DrawerClose asChild>
               <Button variant="outline" size="icon">
-                <X className="h-4 w-4" />
+                <X size="base" color="default" />
               </Button>
             </DrawerClose>
           </DrawerHeader>
@@ -696,16 +705,8 @@ function TableViewPresetsDrawerContentBody({
                             {isSystemView && <LangfuseIcon size={14} />}
                             {view.name}
                           </span>
-                          {isUserDefault && (
-                            <Badge variant="secondary" className="text-xs">
-                              Your default
-                            </Badge>
-                          )}
-                          {isProjectDefault && (
-                            <Badge variant="outline" className="text-xs">
-                              Project default
-                            </Badge>
-                          )}
+                          {isUserDefault && <Badge text="Your default" />}
+                          {isProjectDefault && <Badge text="Project default" />}
                         </div>
                         {isSystemView ? (
                           view.description ? (
@@ -754,7 +755,7 @@ function TableViewPresetsDrawerContentBody({
                           }}
                           className="w-4 opacity-0 group-hover:opacity-100 peer-data-[state=open]:opacity-100"
                         >
-                          <Link className="h-4 w-4" />
+                          <Link size="base" color="default" />
                         </Button>
                         <DropdownMenu
                           open={dropdownId === view.id}
@@ -771,7 +772,7 @@ function TableViewPresetsDrawerContentBody({
                               }}
                               className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical size="base" color="default" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
@@ -806,9 +807,17 @@ function TableViewPresetsDrawerContentBody({
                                         disabled={!hasWriteAccess}
                                       >
                                         {hasWriteAccess ? (
-                                          <Pen className="mr-2 h-4 w-4" />
+                                          <Pen
+                                            size="base"
+                                            color="default"
+                                            __rawClassName="mr-2"
+                                          />
                                         ) : (
-                                          <Lock className="mr-2 h-4 w-4" />
+                                          <Lock
+                                            size="base"
+                                            color="default"
+                                            __rawClassName="mr-2"
+                                          />
                                         )}
                                         Rename
                                       </Button>
@@ -899,7 +908,11 @@ function TableViewPresetsDrawerContentBody({
                                 <>Set as project default</>
                               )}
                               {!hasWriteAccess && (
-                                <Lock className="ml-auto h-4 w-4" />
+                                <Lock
+                                  size="base"
+                                  color="default"
+                                  __rawClassName="ml-auto"
+                                />
                               )}
                             </DropdownMenuItem>
                             {!isSystemView && (
@@ -967,7 +980,7 @@ function TableViewPresetsDrawerContentBody({
                 variant="ghost"
                 className="w-full justify-start px-1"
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 Create Custom View
               </Button>
             </DrawerClose>
@@ -1041,7 +1054,9 @@ function TableViewPresetsDrawerContentBody({
                     !hasWriteAccess
                   }
                 >
-                  {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
+                  {!hasWriteAccess && (
+                    <Lock size="base" __rawClassName="mr-2" />
+                  )}
                   {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>

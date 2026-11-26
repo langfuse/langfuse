@@ -1,24 +1,25 @@
 /* eslint-disable no-nested-ternary */
-/* eslint-disable @repo/no-null-render */
 // Langfuse Cloud only
 
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
-import { BillingInvoiceTable } from "./BillingInvoiceTable";
+import { ConnectedBillingInvoiceTable } from "./ConnectedBillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
 import { api } from "@/src/utils/api";
+import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { ENTERPRISE_TRIAL_UNIT_LIMIT } from "@langfuse/shared";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -60,25 +61,12 @@ export const BillingSettings = () => {
     billingProvider !== "clickhouse",
   );
 
-  // Don't render billing settings if cloud billing is not available
-  if (!isCloudBillingAvailable) {
-    return null;
-  }
-
-  // Handle conditional rendering without early returns
-  if (!isCloudBillingEntitled) {
-    return null;
-  }
-
   if (!hasAccess) {
     return (
-      <Alert>
-        <Alert.Title>Access Denied</Alert.Title>
-        <Alert.Description>
-          You do not have permission to view the billing settings of this
-          organization.
-        </Alert.Description>
-      </Alert>
+      <Banner title="Access denied">
+        You do not have permission to view the billing settings of this
+        organization.
+      </Banner>
     );
   }
 
@@ -100,16 +88,31 @@ export const BillingSettings = () => {
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
+        {organization?.plan === "cloud:enterprise-trial" &&
+          organization.cloudConfig?.enterpriseTrial && (
+            <Banner variant="info" title="Enterprise trial">
+              {`Your enterprise trial ends on ${new Date(
+                organization.cloudConfig.enterpriseTrial.endsAt,
+              ).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}. Upgrade to a paid plan to keep Enterprise features and ingest without the trial limit.`}
+            </Banner>
+          )}
         {usage.data !== null && (
           <BillingUsageChart
             usage={usage.data}
-            hobbyPlanLimit={
-              organization?.cloudConfig?.monthlyObservationLimit ??
-              MAX_EVENTS_FREE_PLAN
+            planLimit={
+              organization?.plan === "cloud:enterprise-trial"
+                ? ENTERPRISE_TRIAL_UNIT_LIMIT
+                : (organization?.cloudConfig?.monthlyObservationLimit ??
+                  MAX_EVENTS_FREE_PLAN)
             }
             plan={organization?.plan ?? "cloud:hobby"}
           />
         )}
+        {organization && <OrganizationUsageBreakdown orgId={organization.id} />}
         <BillingPlanPeriodView />
         {showBillingDiscount && organization && (
           <BillingDiscountView
@@ -120,7 +123,12 @@ export const BillingSettings = () => {
           />
         )}
         <BillingActionButtons />
-        <BillingInvoiceTable />
+        {isCloudBillingAvailable &&
+          organization &&
+          Boolean(
+            organization.cloudConfig?.stripe?.customerId ??
+            organization.cloudConfig?.clickhouse?.organizationId,
+          ) && <ConnectedBillingInvoiceTable key={organization.id} />}
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (
           <SpendAlertsSection orgId={orgId} />
         )}

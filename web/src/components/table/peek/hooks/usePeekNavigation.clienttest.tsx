@@ -84,7 +84,9 @@ describe("usePeekNavigation expandPeek", () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
     const target = mockPush.mock.calls[0][0] as string;
     expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
-    expect(target).toContain("timestamp=2026-07-14T19:47:57.703Z");
+    expect(
+      new URL(target, window.location.origin).searchParams.get("timestamp"),
+    ).toBe("2026-07-14T19:47:57.703Z");
   });
 
   it("without a reader, expand forwards params verbatim (non-trace peeks unchanged)", () => {
@@ -109,6 +111,146 @@ describe("usePeekNavigation expandPeek", () => {
     expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
     expect(target).toContain("timestamp=");
   });
+
+  it("forwards stacked detail state as one query parameter", () => {
+    const search = "peek=trace-1&observation=observation-1&aggregation=trace";
+    const params = new URLSearchParams({
+      peek: "session-1",
+      traceView: "messages",
+      sessionPeek: search,
+      traceFilter: '[{"column":"name"}]',
+      tracesWithoutMatches: "hide",
+      sessionView: "list",
+    });
+    window.history.replaceState({}, "", `/project/p1/sessions?${params}`);
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        tableName: "sessions",
+        isV4: true,
+        queryParams: [
+          "traceView",
+          "sessionPeek",
+          "traceFilter",
+          "tracesWithoutMatches",
+          "sessionView",
+        ],
+        expandConfig: { basePath: "/project/p1/sessions" },
+      }),
+    );
+    result.current.expandPeek(false);
+    const target = new URL(
+      String(mockPush.mock.lastCall?.[0]),
+      window.location.origin,
+    );
+    expect(target.pathname).toBe("/project/p1/sessions/session-1");
+    expect(target.searchParams.get("sessionPeek")).toBe(search);
+    expect(target.searchParams.get("traceView")).toBe("messages");
+    expect(target.searchParams.get("traceFilter")).toBe('[{"column":"name"}]');
+    expect(target.searchParams.get("tracesWithoutMatches")).toBe("hide");
+    expect(target.searchParams.get("sessionView")).toBe("list");
+    expect(target.searchParams.has("observation")).toBe(false);
+  });
+
+  it.each([false, true])(
+    "encodes arbitrary session IDs when expanding (new tab: %s)",
+    (newTab) => {
+      const id = "chat/1?#50% space";
+      window.history.replaceState(
+        {},
+        "",
+        `/project/p1/sessions?${new URLSearchParams({ peek: id })}`,
+      );
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      try {
+        const { result } = renderHook(() =>
+          usePeekNavigation({
+            tableName: "sessions",
+            isV4: true,
+            expandConfig: { basePath: "/project/p1/sessions" },
+          }),
+        );
+        result.current.expandPeek(newTab);
+
+        const target = String(
+          newTab ? open.mock.lastCall?.[0] : mockPush.mock.lastCall?.[0],
+        );
+        expect(new URL(target, window.location.origin).pathname).toBe(
+          `/project/p1/sessions/${encodeURIComponent(id)}`,
+        );
+      } finally {
+        open.mockRestore();
+      }
+    },
+  );
+});
+
+describe("usePeekNavigation detail state cleanup", () => {
+  beforeEach(() => {
+    mockPush.mockReset();
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/sessions?peek=session-a&sessionPeek=peek%3Dtrace-a&observation=obs-a&filter=keep&traceView=messages&sessionView=list&traceFilter=working&tracesWithoutMatches=hide",
+    );
+  });
+
+  it.each([undefined, { observation: "obs-b" }])(
+    "clears old detail state before applying entry params: %j",
+    (params) => {
+      const { result } = renderHook(() =>
+        usePeekNavigation({
+          tableName: "sessions",
+          isV4: true,
+          queryParams: [
+            "observation",
+            "traceView",
+            "sessionView",
+            "traceFilter",
+            "tracesWithoutMatches",
+          ],
+          preserveOnDetailNavigation: [
+            "traceView",
+            "sessionView",
+            "traceFilter",
+            "tracesWithoutMatches",
+          ],
+        }),
+      );
+      const target = new URL(
+        result.current.resolveDetailNavigationPath({ id: "session-b", params }),
+        window.location.origin,
+      );
+
+      expect(Object.fromEntries(target.searchParams)).toEqual({
+        peek: "session-b",
+        filter: "keep",
+        traceView: "messages",
+        sessionView: "list",
+        traceFilter: "working",
+        tracesWithoutMatches: "hide",
+        ...(params ?? {}),
+      });
+    },
+  );
+
+  it.each(["close", "open", "toggle-close"] as const)(
+    "clears nested trace state on %s even without configured params",
+    (action) => {
+      const { result } = renderHook(() =>
+        usePeekNavigation({ tableName: "traces", isV4: true }),
+      );
+      if (action === "close") result.current.closePeek();
+      if (action === "open") result.current.openPeek("trace-b");
+      if (action === "toggle-close") result.current.openPeek();
+
+      const target = mockPush.mock.lastCall?.[0] as {
+        query: Record<string, string>;
+      };
+      expect(target.query.sessionPeek).toBeUndefined();
+      expect(target.query.peek).toBe(action === "open" ? "trace-b" : undefined);
+      expect(target.query.filter).toBe("keep");
+    },
+  );
 });
 
 describe("usePeekNavigation analytics", () => {
@@ -177,5 +319,107 @@ describe("usePeekNavigation analytics", () => {
     result.current.openPeek("item-1");
 
     expect(capture).not.toHaveBeenCalled();
+  });
+});
+
+describe("peek entry parameters", () => {
+  it.each(["closePeek", "openPeek"] as const)(
+    "%s clears session scope even without a reader",
+    (action) => {
+      mockPush.mockReset();
+      window.history.replaceState(
+        {},
+        "",
+        "/project/p1/observations?peek=obs&aggregation=session&display=timeline",
+      );
+      const { result } = renderHook(() =>
+        usePeekNavigation({
+          tableName: "events",
+          isV4: true,
+          expandConfig: {
+            basePath: "/project/p1/traces",
+            pathParam: "traceId",
+          },
+        }),
+      );
+      result.current[action]();
+      expect(mockPush.mock.lastCall?.[0].query).toEqual({
+        display: "timeline",
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "forwards session scope without a reader (new tab: %s)",
+    (newTab) => {
+      mockPush.mockReset();
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      window.history.replaceState(
+        {},
+        "",
+        "/project/p1/observations?peek=obs&traceId=trace&aggregation=session",
+      );
+      const { result } = renderHook(() =>
+        usePeekNavigation({
+          tableName: "events",
+          isV4: true,
+          expandConfig: {
+            basePath: "/project/p1/traces",
+            pathParam: "traceId",
+          },
+        }),
+      );
+      result.current.expandPeek(newTab);
+      if (newTab) {
+        expect(open).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "/project/p1/traces/trace?aggregation=session",
+          ),
+          "_blank",
+        );
+      } else {
+        expect(mockPush).toHaveBeenCalledWith(
+          "/project/p1/traces/trace?aggregation=session",
+        );
+      }
+      open.mockRestore();
+    },
+  );
+
+  it("sets explicit entry parameters and clears them on ordinary entry and close", () => {
+    mockPush.mockReset();
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=old&comments=open",
+    );
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        queryParams: ["annotation", "comments", "traceId"],
+        tableName: "experimentItems",
+        isV4: true,
+        extractParamsValuesFromRow: (row) => ({ traceId: row.traceId }),
+      }),
+    );
+    result.current.openPeek(
+      "item",
+      { traceId: "trace" },
+      { queryParams: { annotation: "open" } },
+    );
+    expect(mockPush.mock.lastCall?.[0].query).toMatchObject({
+      peek: "item",
+      traceId: "trace",
+      annotation: "open",
+    });
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("comments");
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=item&annotation=open",
+    );
+    result.current.openPeek("item", { traceId: "trace" });
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("annotation");
+    result.current.closePeek();
+    expect(mockPush.mock.lastCall?.[0].query).not.toHaveProperty("annotation");
   });
 });

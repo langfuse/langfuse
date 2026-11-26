@@ -7,8 +7,8 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
-import { showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import {
@@ -280,6 +280,7 @@ export function useEventsTableData({
         });
       }
       showSuccessToast({
+        operation: "observation.add_to_annotation_queue",
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
         link: {

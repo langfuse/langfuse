@@ -3,12 +3,12 @@ import {
   validateExportSource,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { useMemo } from "react";
 import { useWatch } from "react-hook-form";
 import { type z } from "zod";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { createForm } from "@/src/components/design-system/factories/createForm";
@@ -20,8 +20,9 @@ import {
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations";
+} from "@/src/features/analytics-integrations/exportSource";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;
 
@@ -47,6 +48,19 @@ type PostHogIntegrationFormProps = {
   resetError?: string;
 };
 
+function getApiKeyDescription(
+  configurationState: PostHogIntegrationFormProps["configurationState"],
+  isHostnameChanged: boolean,
+): string | undefined {
+  if (isHostnameChanged) {
+    return "Enter the API key again when changing the hostname.";
+  }
+  if (configurationState === "configured") {
+    return "Leave blank to keep the current API key.";
+  }
+  return undefined;
+}
+
 export function PostHogIntegrationForm({
   actionState,
   configurationState,
@@ -69,6 +83,21 @@ export function PostHogIntegrationForm({
             message: "PostHog Project API Key is required",
           });
         }
+        if (
+          configurationState === "configured" &&
+          !data.posthogProjectApiKey &&
+          !areDestinationUrlsEquivalent(
+            data.posthogHostname,
+            defaultValues.posthogHostname,
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["posthogProjectApiKey"],
+            message:
+              "PostHog Project API Key is required when changing the hostname",
+          });
+        }
         if (!isExportSourceSelectable(data.exportSource, exportSourceContext)) {
           ctx.addIssue({
             code: "custom",
@@ -78,7 +107,7 @@ export function PostHogIntegrationForm({
           });
         }
       }),
-    [configurationState, exportSourceContext],
+    [configurationState, defaultValues.posthogHostname, exportSourceContext],
   );
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -88,6 +117,20 @@ export function PostHogIntegrationForm({
     control: form.control,
     name: "exportSource",
   });
+  const posthogHostname = useWatch({
+    control: form.control,
+    name: "posthogHostname",
+  });
+  const isHostnameChanged =
+    configurationState === "configured" &&
+    !areDestinationUrlsEquivalent(
+      posthogHostname,
+      defaultValues.posthogHostname,
+    );
+  const apiKeyDescription = getApiKeyDescription(
+    configurationState,
+    isHostnameChanged,
+  );
   const exportSourceValidation = exportSource
     ? validateExportSource(exportSource, exportSourceContext)
     : ({ ok: true } as const);
@@ -146,11 +189,7 @@ export function PostHogIntegrationForm({
           <PostHogForm.Field
             name="posthogProjectApiKey"
             label="Posthog Project API Key"
-            description={
-              configurationState === "configured"
-                ? "Leave blank to keep the current API key."
-                : undefined
-            }
+            description={apiKeyDescription}
           >
             {(field) => (
               <PasswordInput
@@ -186,13 +225,13 @@ export function PostHogIntegrationForm({
                   ))}
                   <div className="border-t pt-2">
                     <a
-                      href="https://langfuse.com/docs/integrations/export-sources"
+                      href="https://langfuse.com/integrations/analytics/posthog#migrate-export-source"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                     >
                       For further information see
-                      <ExternalLink className="size-3" />
+                      <SquareArrowOutUpRight size="sm" />
                     </a>
                   </div>
                 </div>
@@ -233,16 +272,12 @@ export function PostHogIntegrationForm({
             </CustomTooltip>
           ) : null}
           {!exportSourceValidation.ok ? (
-            <Alert variant="destructive">
-              <Alert.Title>
-                Saved export source is no longer available
-              </Alert.Title>
-              <Alert.Description>
-                {getExportSourceUnavailableMessage(
-                  exportSourceValidation.reason,
-                )}
-              </Alert.Description>
-            </Alert>
+            <Banner
+              variant="error"
+              title="Saved export source is no longer available"
+            >
+              {getExportSourceUnavailableMessage(exportSourceValidation.reason)}
+            </Banner>
           ) : null}
           <PostHogForm.Field name="enabled" label="Enabled">
             {(field) => (

@@ -1,65 +1,14 @@
-/* eslint-disable no-nested-ternary */
-import {
-  Pencil,
-  TextCursorInput,
-  Trash2,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { Pencil, TextCursorInput, Trash2, X } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
+import {
+  VariableMappingCardHeaderContent,
+  type VariableDisplay,
+} from "./VariableMappingCardHeaderContent";
 import { StateKeyNameInput } from "./StateKeyNameInput/StateKeyNameInput";
 
-/**
- * How the mapped name is rendered: as a prompt template `{{variable}}`, or as
- * a state key for evaluators whose mapping builds a JSON object.
- */
-export type VariableDisplay = "template" | "stateKey";
-
-function VariableMappingCardHeaderContent({
-  variable,
-  variableDisplay = "template",
-  mapping,
-  isUnmapped,
-  warningMessage,
-}: {
-  variable: string;
-  variableDisplay?: VariableDisplay;
-  mapping: React.ReactNode;
-  isUnmapped: boolean;
-  warningMessage?: string | null;
-}) {
-  return (
-    <>
-      <span className="text-primary-accent shrink-0 font-mono font-bold">
-        {variableDisplay === "stateKey" ? variable : `{{${variable}}}`}
-      </span>
-      <span className="text-muted-foreground shrink-0">
-        {variableDisplay === "stateKey" ? "from" : "maps to"}
-      </span>
-      {isUnmapped ? (
-        <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
-          <TriangleAlert className="h-4 w-4 shrink-0" />
-          <span>nothing yet</span>
-        </span>
-      ) : (
-        <span className="@container flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="min-w-0">{mapping}</span>
-          {warningMessage ? (
-            <span
-              className="text-dark-yellow relative -top-px h-4 w-4 shrink-0 self-center"
-              aria-label={`Warning: ${warningMessage}`}
-              title={warningMessage}
-            >
-              <TriangleAlert className="h-4 w-4" aria-hidden="true" />
-            </span>
-          ) : null}
-        </span>
-      )}
-    </>
-  );
-}
+export type { VariableDisplay };
 
 /** Renaming a state key: the header swaps the name for an input. */
 export type VariableRenameControls = {
@@ -100,6 +49,15 @@ function VariableMappingCardShell({
   const isRenaming = rename?.isRenaming ?? false;
   const canToggle = !isEditing && !isRenaming;
   const bodyVisible = isExpanded || isEditing;
+  const triggerTitle = (() => {
+    if (isEditing) {
+      return "Finish editing before collapsing this mapping";
+    }
+    if (bodyVisible) {
+      return `Collapse {{${variable}}} mapping`;
+    }
+    return `Expand {{${variable}}} mapping`;
+  })();
 
   return (
     <CollapsibleCard
@@ -107,13 +65,7 @@ function VariableMappingCardShell({
       onOpenChange={onExpandedChange}
       disabled={!canToggle}
       headerInteractive={!isRenaming}
-      triggerTitle={
-        isEditing
-          ? "Finish editing before collapsing this mapping"
-          : bodyVisible
-            ? `Collapse {{${variable}}} mapping`
-            : `Expand {{${variable}}} mapping`
-      }
+      triggerTitle={triggerTitle}
       header={
         isRenaming && rename ? (
           <StateKeyNameInput
@@ -143,7 +95,7 @@ function VariableMappingCardShell({
               title={`Rename ${variable}`}
               onClick={() => rename.onRenamingChange(true)}
             >
-              <TextCursorInput className="h-3.5 w-3.5" />
+              <TextCursorInput size="sm" color="default" />
             </Button>
           ) : null}
           <Button
@@ -160,9 +112,9 @@ function VariableMappingCardShell({
             onClick={() => onEditingChange(!isEditing)}
           >
             {isEditing ? (
-              <X className="h-3.5 w-3.5" />
+              <X size="sm" color="default" />
             ) : (
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil size="sm" color="default" />
             )}
           </Button>
           {onDelete ? (
@@ -178,7 +130,7 @@ function VariableMappingCardShell({
               }
               onClick={onDelete}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 size="sm" />
             </Button>
           ) : null}
         </span>
@@ -189,28 +141,4 @@ function VariableMappingCardShell({
   );
 }
 
-/** Static card shell used when a saved mapping is displayed read-only. */
-function ReadOnlyVariableMappingCardShell({
-  variable,
-  variableDisplay,
-  mapping,
-}: {
-  variable: string;
-  variableDisplay?: VariableDisplay;
-  mapping: React.ReactNode;
-}) {
-  return (
-    <div className="bg-card text-card-foreground overflow-hidden rounded-md border">
-      <div className="bg-secondary text-secondary-foreground flex min-h-9 min-w-0 items-center gap-2 px-3 py-1.5 text-sm">
-        <VariableMappingCardHeaderContent
-          variable={variable}
-          variableDisplay={variableDisplay}
-          mapping={mapping}
-          isUnmapped={false}
-        />
-      </div>
-    </div>
-  );
-}
-
-export { ReadOnlyVariableMappingCardShell, VariableMappingCardShell };
+export { VariableMappingCardShell };

@@ -15,18 +15,29 @@
 // just-added filter on apply.
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "@langfuse/icons";
+import { type QueryInput } from "@/src/components/design-system/QueryInput/QueryInput";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
+  aiRefinementBudgetError,
+  AI_REFINEMENT_INCOMPLETE_MESSAGE,
+  AI_REFINEMENT_BUDGET_MESSAGE,
+  AI_REFINEMENT_FULL_TEXT_MESSAGE,
+} from "../lib/ai-refine-budget";
+import { TRPCClientError } from "@trpc/client";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { showErrorToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // "No such score X" note for score filters the server dropped because their
 // name matches no observed score (exactly or normalized).
@@ -45,10 +56,14 @@ export function SearchBarAiPrompt({
   dataContext,
   scoreNames,
   registryId = "events",
+  registry = EVENTS_FIELD_REGISTRY,
   onApply,
   onExit,
+  size = "default",
 }: {
   projectId: string;
+  /** Matches the composer's size so switching modes keeps the bar height. */
+  size?: React.ComponentProps<typeof QueryInput>["size"];
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
   isV4?: boolean;
@@ -61,6 +76,7 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
+  registry?: FieldRegistry;
   registryId?: Extract<
     FieldRegistry["id"],
     | "events"
@@ -80,6 +96,7 @@ export function SearchBarAiPrompt({
   const capture = usePostHogClientCapture();
   const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const errorId = React.useId();
   const inputRef = React.useRef<HTMLInputElement>(null);
   // Set on unmount (e.g. Back clicked mid-generation). `mutateAsync` keeps
   // running after unmount, so we check this before applying — otherwise a
@@ -100,6 +117,12 @@ export function SearchBarAiPrompt({
   // (sidebar/saved view) while AI mode is open. (`s.draft` is a stable ref until
   // it changes, so trimming outside the selector doesn't churn renders.)
   const refineContext = useStore(store, (s) => s.draft).trim();
+  const budgetError = aiRefinementBudgetError(
+    refineContext,
+    registry,
+    scoreNames,
+  );
+  const displayedError = budgetError ?? error;
   const refining = refineContext.length > 0;
   const placeholder = refining
     ? "Refine your filters — e.g. only errors, or drop the env filter"
@@ -127,6 +150,7 @@ export function SearchBarAiPrompt({
     // The sidebar/saved-view selector stay mounted and can change the filters
     // mid-request; the model returns the COMPLETE set based on this snapshot.
     const refine = store.getState().draft.trim();
+    if (aiRefinementBudgetError(refine, registry, scoreNames)) return;
     const refineMode = refine.length > 0;
     // Report prompt length, never prompt text. The host supplies its read path.
     capture("filters:ai_generate_requested", {
@@ -161,6 +185,20 @@ export function SearchBarAiPrompt({
         setError("Filters changed while generating — try again.");
         return;
       }
+      if (result.status === "incomplete") {
+        capture("filters:ai_generate_failed", {
+          tableName,
+          refineMode,
+          reason: "incomplete",
+          isV4,
+        });
+        setError(
+          result.unknownScoreNames.length > 0
+            ? `${unknownScoresMessage(result.unknownScoreNames)} Your existing filters were not changed.`
+            : AI_REFINEMENT_INCOMPLETE_MESSAGE,
+        );
+        return;
+      }
       if (result.filters.length === 0) {
         capture("filters:ai_generate_failed", {
           tableName,
@@ -190,23 +228,36 @@ export function SearchBarAiPrompt({
         showErrorToast(
           "Score filter skipped",
           unknownScoresMessage(result.unknownScoreNames),
+          {
+            operation: "filter_ai.generate",
+            errorOrigin: "backend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
       }
       onExit();
-    } catch {
+    } catch (error) {
       if (cancelledRef.current) return;
-      // Never surface raw server messages: a TRPCClientError is an Error, so its
-      // message could leak internal state, and the tRPC formatter masks 500s to
-      // an unhelpful "we have been notified" string anyway. The auth/precondition
-      // cases are unreachable behind the cloud + aiFeaturesEnabled gate. Show one
-      // generic, actionable message instead.
       capture("filters:ai_generate_failed", {
         tableName,
         refineMode,
         reason: "error",
         isV4,
       });
+      if (
+        error instanceof TRPCClientError &&
+        (error.message === AI_REFINEMENT_BUDGET_MESSAGE ||
+          error.message === AI_REFINEMENT_FULL_TEXT_MESSAGE)
+      ) {
+        setError(error.message);
+        return;
+      }
+      // Never surface raw server messages: a TRPCClientError is an Error, so its
+      // message could leak internal state, and the tRPC formatter masks 500s to
+      // an unhelpful "we have been notified" string anyway. The auth/precondition
+      // cases are unreachable behind the cloud + aiFeaturesEnabled gate. Show one
+      // generic, actionable message instead.
       setError("Couldn't reach the AI service. Please try again.");
     }
   };
@@ -215,9 +266,11 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-1.5",
+          "border-input bg-background rounded-md border px-2",
+          size === "large" ? "min-h-9 py-1.25" : "py-0.5",
           "focus-within:ring-ring focus-within:ring-1",
-          error && "border-destructive focus-within:ring-destructive/40",
+          displayedError &&
+            "border-destructive focus-within:ring-destructive/40",
         )}
       >
         {/* Refine context: the filters being refined are shown here AND sent to
@@ -249,7 +302,7 @@ export function SearchBarAiPrompt({
             onClick={onExit}
             className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft size="base" aria-hidden="true" />
           </button>
           <input
             ref={inputRef}
@@ -258,6 +311,8 @@ export function SearchBarAiPrompt({
             disabled={pending}
             placeholder={placeholder}
             aria-label="Ask AI to build filters"
+            aria-invalid={displayedError ? true : undefined}
+            aria-describedby={displayedError ? errorId : undefined}
             data-testid="search-bar-ai-input"
             spellCheck={false}
             autoComplete="off"
@@ -265,7 +320,7 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);
@@ -291,14 +346,15 @@ export function SearchBarAiPrompt({
           {pending ? (
             <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 pr-1 text-xs">
               <Loader2
-                className="h-3.5 w-3.5 animate-spin"
+                size="base"
+                __rawClassName="animate-spin"
                 aria-hidden="true"
               />
               Generating…
             </span>
           ) : (
             <div className="flex shrink-0 items-center gap-1.5">
-              {value.trim().length > 0 && (
+              {value.trim().length > 0 && budgetError === null && (
                 <span className="hidden md:inline-flex">
                   <KeyboardShortcut
                     title="Press Enter to generate"
@@ -314,7 +370,7 @@ export function SearchBarAiPrompt({
                 aria-label="Generate filters"
                 title="Generate filters (Enter)"
                 data-testid="search-bar-ai-submit"
-                disabled={value.trim().length === 0}
+                disabled={value.trim().length === 0 || budgetError !== null}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => submit()}
                 className={cn(
@@ -322,15 +378,19 @@ export function SearchBarAiPrompt({
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight size="base" aria-hidden="true" />
               </button>
             </div>
           )}
         </div>
       </div>
-      {error && (
-        <div className="text-destructive mt-1 px-1 font-sans text-xs">
-          {error}
+      {displayedError && (
+        <div
+          id={errorId}
+          role="status"
+          className="ph-no-capture text-destructive mt-1 px-1 font-sans text-xs"
+        >
+          {displayedError}
         </div>
       )}
     </div>

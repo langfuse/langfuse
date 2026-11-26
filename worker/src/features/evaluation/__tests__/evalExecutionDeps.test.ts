@@ -1,18 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { randomUUID } from "crypto";
 import { z } from "zod";
+import { classifyEvaluatorLlmError, redis } from "@langfuse/shared/src/server";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
 const {
-  mockCompileLangfuseMediaMessages,
-  mockCreateLLMOutput,
-  mockGenerateLLMText,
+  mockGenerateLlmEvaluatorOutput,
   mockRecordIncrement,
+  mockIngestionQueueAdd,
 } = vi.hoisted(() => ({
-  mockCompileLangfuseMediaMessages: vi.fn(),
-  mockCreateLLMOutput: vi.fn(),
-  mockGenerateLLMText: vi.fn(),
+  mockGenerateLlmEvaluatorOutput: vi.fn(),
   mockRecordIncrement: vi.fn(),
+  mockIngestionQueueAdd: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -20,10 +20,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...original,
-    compileLangfuseMediaMessages: mockCompileLangfuseMediaMessages,
-    createLLMOutput: mockCreateLLMOutput,
-    generateLLMText: mockGenerateLLMText,
+    generateLlmEvaluatorOutput: mockGenerateLlmEvaluatorOutput,
     recordIncrement: mockRecordIncrement,
+    IngestionQueue: {
+      getInstance: () => ({ add: mockIngestionQueueAdd }),
+    },
   };
 });
 
@@ -38,64 +39,52 @@ vi.mock("../../../env", async (importOriginal) => {
   };
 });
 
+const modelConfig = {
+  provider: "openai",
+  model: "gpt-4.1",
+  apiKey: { adapter: "openai", secretKey: "secret" },
+  adapter: "openai" as any,
+  modelParams: {},
+};
+
+const traceSinkParams = {
+  targetProjectId: "project-123",
+  traceId: "trace-123",
+  traceName: "Judge trace",
+  environment: "langfuse-llm-as-a-judge",
+  metadata: { score_id: "score-123" },
+};
+
+const structuredOutputSchema = z.object({
+  reasoning: z.string().describe("why this score was given"),
+  score: z.number().describe("score between 0 and 1"),
+});
+
 describe("createProductionEvalExecutionDeps", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCompileLangfuseMediaMessages.mockImplementation(
-      async ({ messages }) => {
-        const mapped = messages.map(({ role, content }: any) => ({
-          role,
-          content,
-        }));
-        return { providerMessages: mapped, traceMessages: mapped };
-      },
-    );
-    mockCreateLLMOutput.mockImplementation((schema) => ({ schema }));
-    mockGenerateLLMText.mockResolvedValue({ output: { completion: "ok" } });
+    mockGenerateLlmEvaluatorOutput.mockResolvedValue({
+      output: { score: 0.8, reasoning: "Good response" },
+      usage: {},
+      providerMessages: [],
+      modelFacingOutputSchema: structuredOutputSchema,
+    });
   });
 
-  it("enables internal direct event write for llm-as-a-judge traces", async () => {
+  it("calls the shared evaluator model call with direct event writes", async () => {
     const deps = createProductionEvalExecutionDeps();
 
-    await deps.callLLM({
-      messages: [
-        {
-          role: "user",
-          type: "user",
-          content: "Judge this answer",
-        },
-      ],
-      modelConfig: {
-        provider: "openai",
-        model: "gpt-4.1",
-        apiKey: {
-          adapter: "openai",
-          secretKey: "secret",
-        },
-        adapter: "openai" as any,
-        modelParams: {},
-      },
-      structuredOutputSchema: z.object({
-        reasoning: z.string(),
-        score: z.number(),
-      }),
-      traceSinkParams: {
-        targetProjectId: "project-123",
-        traceId: "trace-123",
-        traceName: "Judge trace",
-        environment: "langfuse-llm-as-a-judge",
-        metadata: {
-          score_id: "score-123",
-        },
-      },
-    });
+    const result = await deps.callLLM({
+      messages: [{ role: "user", type: "user", content: "Judge this answer" }],
+      modelConfig,
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any);
 
-    expect(mockCompileLangfuseMediaMessages).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "project-123" }),
-    );
-    expect(mockGenerateLLMText).toHaveBeenCalledWith(
+    expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledWith(
       expect.objectContaining({
-        maxRetries: 1,
+        projectId: "project-123",
+        outputResultSchema: structuredOutputSchema,
         trace: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",
@@ -105,73 +94,10 @@ describe("createProductionEvalExecutionDeps", () => {
         }),
       }),
     );
-  });
-
-  it("renames reasoning only for the model call and maps it back", async () => {
-    mockGenerateLLMText.mockResolvedValue({
-      output: { score: 0.8, scoreExplanation: "Good response" },
-    });
-    const deps = createProductionEvalExecutionDeps();
-    const structuredOutputSchema = z.object({
-      reasoning: z.string().describe("why this score was given"),
-      score: z.number().describe("score between 0 and 1"),
-    });
-
-    const result = await deps.callLLM({
-      messages: [
-        {
-          role: "user",
-          type: "user",
-          content: "Judge this answer",
-        },
-      ],
-      modelConfig: {
-        provider: "openai",
-        model: "gpt-4.1",
-        apiKey: { adapter: "openai", secretKey: "secret" },
-        adapter: "openai" as any,
-        modelParams: {},
-      },
-      structuredOutputSchema,
-      traceSinkParams: {
-        targetProjectId: "project-123",
-        traceId: "trace-123",
-        traceName: "Judge trace",
-        environment: "langfuse-llm-as-a-judge",
-        metadata: {},
-      },
-    });
-
-    const modelOutput = mockGenerateLLMText.mock.calls[0][0].output as {
-      schema: z.ZodType;
-    };
-    expect(z.toJSONSchema(modelOutput.schema)).toMatchObject({
-      description:
-        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
-      properties: {
-        scoreExplanation: { type: "string" },
-        score: { type: "number" },
-      },
-      required: ["scoreExplanation", "score"],
-    });
-    expect(z.toJSONSchema(modelOutput.schema).properties).not.toHaveProperty(
-      "reasoning",
-    );
-    expect(
-      structuredOutputSchema.safeParse({
-        score: 0.8,
-        reasoning: "Good response",
-      }).success,
-    ).toBe(true);
     expect(result).toEqual({ score: 0.8, reasoning: "Good response" });
   });
 
   it("records llmaj export volume using the schema's JSON Schema form", async () => {
-    const deps = createProductionEvalExecutionDeps();
-
-    const messages = [
-      { role: "user", type: "user", content: "Judge this answer" },
-    ];
     const providerMessages = [
       {
         role: "user",
@@ -185,34 +111,27 @@ describe("createProductionEvalExecutionDeps", () => {
         ],
       },
     ];
-    mockCompileLangfuseMediaMessages.mockResolvedValueOnce({
-      providerMessages,
-      traceMessages: messages,
-    });
     // Production passes a Zod schema, not a plain object.
-    const structuredOutputSchema = z.object({
-      reasoning: z.string().describe("why this score was given"),
-      score: z.number().describe("score between 0 and 1"),
+    const modelFacingSchema = z
+      .object({
+        scoreExplanation: structuredOutputSchema.shape.reasoning,
+        score: structuredOutputSchema.shape.score,
+      })
+      .describe("model-facing schema");
+    mockGenerateLlmEvaluatorOutput.mockResolvedValueOnce({
+      output: { score: 0.8, reasoning: "Good response" },
+      usage: {},
+      providerMessages,
+      modelFacingOutputSchema: modelFacingSchema,
     });
+    const deps = createProductionEvalExecutionDeps();
 
     await deps.callLLM({
-      messages: messages as any,
-      modelConfig: {
-        provider: "openai",
-        model: "gpt-4.1",
-        apiKey: { adapter: "openai", secretKey: "secret" },
-        adapter: "openai" as any,
-        modelParams: {},
-      },
-      structuredOutputSchema: structuredOutputSchema as any,
-      traceSinkParams: {
-        targetProjectId: "project-123",
-        traceId: "trace-123",
-        traceName: "Judge trace",
-        environment: "langfuse-llm-as-a-judge",
-        metadata: {},
-      },
-    });
+      messages: [{ role: "user", type: "user", content: "Judge this answer" }],
+      modelConfig,
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any);
 
     const serializedProviderMessages = JSON.stringify(
       providerMessages,
@@ -221,14 +140,6 @@ describe("createProductionEvalExecutionDeps", () => {
           ? Buffer.from(value).toString("base64")
           : value,
     );
-    const modelFacingSchema = z
-      .object({
-        scoreExplanation: structuredOutputSchema.shape.reasoning,
-        score: structuredOutputSchema.shape.score,
-      })
-      .describe(
-        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
-      );
     const expectedBytes =
       Buffer.byteLength(serializedProviderMessages, "utf8") +
       Buffer.byteLength(
@@ -236,19 +147,145 @@ describe("createProductionEvalExecutionDeps", () => {
         "utf8",
       );
 
-    expect(expectedBytes).toBeGreaterThan(0);
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       EXPORT_VOLUME_METRIC,
       expectedBytes,
       { integration: "llmaj" },
     );
     // Not the Zod _def form.
-    const zodDefBytes = Buffer.byteLength(
-      JSON.stringify(modelFacingSchema),
-      "utf8",
-    );
     expect(expectedBytes).not.toBe(
-      Buffer.byteLength(JSON.stringify(messages), "utf8") + zodDefBytes,
+      Buffer.byteLength(serializedProviderMessages, "utf8") +
+        Buffer.byteLength(JSON.stringify(modelFacingSchema), "utf8"),
+    );
+  });
+
+  it("does not record export volume when the model call fails", async () => {
+    mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(new Error("boom"));
+    const deps = createProductionEvalExecutionDeps();
+
+    await expect(
+      deps.callLLM({
+        messages: [
+          { role: "user", type: "user", content: "Judge this answer" },
+        ],
+        modelConfig,
+        structuredOutputSchema,
+        traceSinkParams,
+      } as any),
+    ).rejects.toThrow("boom");
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+  });
+
+  it("pauses a connection's model after a provider 429, leaving its other models running", async () => {
+    const llmApiKeyId = randomUUID();
+    const cooldownKey = `llm-connection-cooldown:${llmApiKeyId}:gpt-4.1`;
+    if (redis?.status !== "ready") {
+      await new Promise((resolve) => redis?.once("ready", resolve));
+    }
+    // The AI SDK identifies an APICallError by these markers.
+    const providerRateLimit = Object.assign(
+      new Error("per-key concurrency limit reached"),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 429,
+        isRetryable: true,
+        responseHeaders: { "retry-after": "7" },
+      },
+    );
+    mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(providerRateLimit);
+    const deps = createProductionEvalExecutionDeps();
+    const params = {
+      messages: [{ role: "user", type: "user", content: "Judge this answer" }],
+      modelConfig: {
+        ...modelConfig,
+        apiKey: { ...modelConfig.apiKey, id: llmApiKeyId },
+      },
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any;
+
+    try {
+      await expect(deps.callLLM(params)).rejects.toBe(providerRateLimit);
+      const cooldownError = await deps.callLLM(params).catch((e) => e);
+      await deps.callLLM({
+        ...params,
+        modelConfig: { ...params.modelConfig, model: "gpt-4.1-mini" },
+      });
+
+      expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledTimes(2);
+      expect(
+        mockGenerateLlmEvaluatorOutput.mock.calls[1][0].modelParams.model,
+      ).toBe("gpt-4.1-mini");
+      expect(classifyEvaluatorLlmError(cooldownError)).toMatchObject({
+        statusCode: 429,
+        isRetryable: true,
+        blockReason: null,
+      });
+      const cooldownMs = await redis?.pttl(cooldownKey);
+      expect(cooldownMs).toBeGreaterThan(5_000);
+      expect(cooldownMs).toBeLessThanOrEqual(7_000);
+    } finally {
+      await redis?.del(cooldownKey);
+    }
+  });
+
+  it("does not pause a model when one request exceeds its token limit", async () => {
+    const llmApiKeyId = randomUUID();
+    if (redis?.status !== "ready") {
+      await new Promise((resolve) => redis?.once("ready", resolve));
+    }
+    const requestTooLarge = Object.assign(
+      new Error(
+        "Request too large for gpt-4.1 on tokens per min (TPM): Limit 30000, Requested 50000.",
+      ),
+      {
+        [Symbol.for("vercel.ai.error")]: true,
+        [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+        name: "AI_APICallError",
+        statusCode: 429,
+        isRetryable: true,
+      },
+    );
+    mockGenerateLlmEvaluatorOutput.mockRejectedValueOnce(requestTooLarge);
+    const deps = createProductionEvalExecutionDeps();
+
+    await expect(
+      deps.callLLM({
+        messages: [{ role: "user", type: "user", content: "Judge this" }],
+        modelConfig: {
+          ...modelConfig,
+          apiKey: { ...modelConfig.apiKey, id: llmApiKeyId },
+        },
+        structuredOutputSchema,
+        traceSinkParams,
+      } as any),
+    ).rejects.toBe(requestTooLarge);
+
+    expect(
+      await redis?.exists(`llm-connection-cooldown:${llmApiKeyId}:gpt-4.1`),
+    ).toBe(0);
+  });
+
+  it("enqueues eval scores to read only their own S3 file", async () => {
+    const deps = createProductionEvalExecutionDeps();
+
+    await deps.enqueueScoreIngestion({
+      projectId: "project-123",
+      scoreId: "score-123",
+      eventId: "event-123",
+    });
+
+    expect(mockIngestionQueueAdd).toHaveBeenCalledTimes(1);
+    const [, job] = mockIngestionQueueAdd.mock.calls[0];
+    expect(job.payload.data).toEqual(
+      expect.objectContaining({
+        type: "score-create",
+        eventBodyId: "score-123",
+        fileKey: "event-123",
+        skipS3List: true,
+      }),
     );
   });
 });

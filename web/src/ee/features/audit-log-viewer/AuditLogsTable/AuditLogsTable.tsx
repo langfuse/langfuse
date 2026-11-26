@@ -10,14 +10,23 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import {
-  SettingsTable,
-  type SettingsTableToolbarAction,
-} from "@/src/components/SettingsTable/SettingsTable";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+  TableCard,
+  type TableCardToolbarAction,
+} from "@/src/components/TableCard/TableCard";
+import {
+  resolveRowHeightRendering,
+  type RowHeight,
+} from "@/src/components/table/data-table-row-height-switch";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type RouterOutputs } from "@/src/utils/api";
 
 export type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
+
+const outcomeBadgeVariants = {
+  success: "success",
+  denied: "warning",
+  error: "error",
+} as const;
 
 function formatAuditLogValue(value: string | null) {
   if (value === null) return "(none)";
@@ -42,7 +51,7 @@ export function AuditLogsTable({
   pagination: PaginationBarProps;
   rowHeight: RowHeight;
   onRowHeightChange: (height: RowHeight) => void;
-  toolbarActions?: SettingsTableToolbarAction[];
+  toolbarActions?: TableCardToolbarAction[];
 }) {
   return (
     <DialogController<AuditLogRow>
@@ -79,6 +88,30 @@ export function AuditLogsTable({
             },
           }),
           createBadgeTableColumn<AuditLogRow>({
+            accessorKey: "eventKind",
+            header: "Event",
+            headerTooltip: {
+              description:
+                "Change events record a mutation, access events a read.",
+            },
+          }),
+          createBadgeTableColumn<AuditLogRow>({
+            accessorKey: "outcome",
+            header: "Outcome",
+            range: "semantic",
+            getBadge: (value) => ({
+              value,
+              variant:
+                outcomeBadgeVariants[
+                  value as keyof typeof outcomeBadgeVariants
+                ] ?? "unknown",
+            }),
+            headerTooltip: {
+              description:
+                "Whether the action succeeded. A denied read returned no data.",
+            },
+          }),
+          createBadgeTableColumn<AuditLogRow>({
             accessorKey: "resourceType",
             header: "Resource Type",
           }),
@@ -95,14 +128,16 @@ export function AuditLogsTable({
             header: "Before",
             size: 300,
             getCell: (value) => value || undefined,
-            singleLine: rowHeight === "s",
+            singleLine: resolveRowHeightRendering({ preset: rowHeight })
+              .compact,
           }),
           createIOTableColumn<AuditLogRow>({
             accessorKey: "after",
             header: "After",
             size: 300,
             getCell: (value) => value || undefined,
-            singleLine: rowHeight === "s",
+            singleLine: resolveRowHeightRendering({ preset: rowHeight })
+              .compact,
           }),
           createButtonTableColumn<AuditLogRow, AuditLogRow["id"]>({
             accessorFn: (row) => row.id,
@@ -119,7 +154,7 @@ export function AuditLogsTable({
         ];
 
         return (
-          <SettingsTable
+          <TableCard
             tableName={tableName}
             columns={columns}
             columnVisibilityKey={`${tableName}ColumnVisibility`}

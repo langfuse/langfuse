@@ -8,12 +8,12 @@ import {
   LineChart,
   PieChart,
   Table,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 
 export const dashboardWidgetChartTypeIcons: Record<
   DashboardWidgetChartType,
-  LucideIcon
+  IconComponent
 > = {
   LINE_TIME_SERIES: LineChart,
   AREA_TIME_SERIES: AreaChart,

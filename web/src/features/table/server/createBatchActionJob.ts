@@ -1,22 +1,27 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
   ActionId,
   BatchActionStatus,
-  type Role,
   type BatchExportTableName,
   type BatchActionQuery,
   type BatchActionType,
   createTraceDeleteBatchActionConfig,
+  InvalidRequestError,
 } from "@langfuse/shared";
+import {
+  isTopicFilter,
+  TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE,
+} from "@langfuse/shared/topics";
 import {
   BatchActionQueue,
   logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 import { prisma } from "@langfuse/shared/src/db";
+import { type ProjectAuthedContext } from "@/src/server/api/trpc";
 
 type CreateBatchActionJob = {
   projectId: string;
@@ -28,22 +33,34 @@ type CreateBatchActionJob = {
   >;
   tableName: BatchExportTableName;
   actionType: BatchActionType;
-  session: {
-    user: {
-      id: string;
-      v4BetaEnabled?: boolean | null;
-    };
-    orgId: string;
-    orgRole: Role;
-    projectId?: string;
-    projectRole?: Role;
-  };
+  session: Pick<
+    ProjectAuthedContext["session"],
+    "user" | "policies" | "orgId" | "projectId"
+  >;
   query: BatchActionQuery;
   targetId?: string;
   // Call-site decision on whether this action reads from the events table
   // (see traces.deleteMany). When unset, it is inferred from the user's v4
   // beta flag below.
   useEventsTableOverride?: boolean;
+};
+
+const logBatchActionCreated = (params: {
+  batchActionId: string;
+  projectId: string;
+  actionId: string;
+  userId: string;
+}) => {
+  logger.info(
+    `Batch action ${params.actionId} created in project ${params.projectId} by user ${params.userId}`,
+    {
+      batchActionId: params.batchActionId,
+      projectId: params.projectId,
+      actionId: params.actionId,
+      actorType: "USER",
+      userId: params.userId,
+    },
+  );
 };
 
 const ACTIVE_BATCH_ACTION_STATUSES = [
@@ -63,10 +80,17 @@ export const createBatchActionJob = async ({
   query,
   targetId,
   useEventsTableOverride,
-}: CreateBatchActionJob) => {
+}: CreateBatchActionJob): Promise<{
+  /** Set for trace deletes: rows at or after it are not deleted. */
+  cutoffCreatedAt?: Date;
+}> => {
   // Whether the action reads from the events table is determined at the
   // call site (useEventsTableOverride) or inferred from the user's v4 beta
   // flag; the decision is snapshotted into the query at dispatch time.
+  // Select-all jobs re-read the query in the worker, which cannot resolve topic membership yet.
+  if ((query.filter ?? []).some(isTopicFilter))
+    throw new InvalidRequestError(TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE);
+
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable:
@@ -152,7 +176,14 @@ export const createBatchActionJob = async ({
       action: actionType as string,
     });
 
-    return;
+    logBatchActionCreated({
+      batchActionId,
+      projectId,
+      actionId,
+      userId: session.user.id,
+    });
+
+    return { cutoffCreatedAt };
   }
 
   const batchActionQueue = BatchActionQueue.getInstance();
@@ -188,6 +219,7 @@ export const createBatchActionJob = async ({
         query: queryWithSnapshot,
         targetId: targetId,
         type: actionType,
+        userId: session.user.id,
       },
     },
     {
@@ -195,5 +227,12 @@ export const createBatchActionJob = async ({
     },
   );
 
-  return;
+  logBatchActionCreated({
+    batchActionId,
+    projectId,
+    actionId,
+    userId: session.user.id,
+  });
+
+  return {};
 };

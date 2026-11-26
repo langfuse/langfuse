@@ -1,11 +1,26 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  EvalTemplateType,
+  TopicsTargetObject,
+} from "@langfuse/shared";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionPreflightError: vi.fn(),
+  getLLMErrorInfo: vi.fn(),
   isCodeEvalEnabled: vi.fn(),
   isCodeEvalSourceCodeLanguageSupported: vi.fn(),
 }));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedServer>();
+  return {
+    ...actual,
+    getLLMErrorInfo: (error: unknown) =>
+      mocks.getLLMErrorInfo(error) ?? actual.getLLMErrorInfo(error),
+  };
+});
 
 vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
   getEvaluatorDefinitionPreflightError:
@@ -18,7 +33,15 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  assertEvaluatorConfigurationValid,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import {
+  EvaluatorConfigurationError,
+  EvaluatorModelConfigurationError,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import { toStructuredPublicApiError } from "@/src/features/public-api/server/structuredPublicApiErrorContract";
 import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
@@ -139,8 +162,98 @@ describe("evaluator configuration validation", () => {
     expect(mocks.getEvaluatorDefinitionPreflightError).toHaveBeenCalledOnce();
   });
 
-  it("propagates transient model preflight failures", async () => {
-    const transientError = new Error("Provider rate limit");
+  it("returns a precondition error without blocking the evaluator when model validation times out", async () => {
+    mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
+      new DOMException(
+        "The operation was aborted due to timeout",
+        "TimeoutError",
+      ),
+    );
+
+    const error = await assertEvaluatorConfigurationValid({
+      projectId: "project-id",
+      name: "LLM evaluator",
+      definition: {
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: ["output"],
+        variableMapping: null,
+        outputDefinition: {
+          dataType: "NUMERIC",
+          score: { description: "Quality" },
+          reasoning: { description: "Reasoning" },
+        },
+      },
+    }).catch((error: unknown) => error);
+
+    expect(error).toBeInstanceOf(EvaluatorConfigurationError);
+    expect(error).not.toBeInstanceOf(EvaluatorModelConfigurationError);
+    expect(toStructuredPublicApiError(error)).toMatchObject({
+      httpCode: 412,
+      code: "invalid_request",
+      message:
+        "The model did not respond within 95 seconds during evaluator validation. The evaluator was not saved. Retry or check your LLM connection and model settings.",
+    });
+  });
+
+  it.each([
+    {
+      kind: "abort",
+      error: new DOMException("The operation was aborted", "AbortError"),
+      errorInfo: undefined,
+    },
+    {
+      kind: "provider rate limit",
+      error: new Error("Rate limit reached"),
+      errorInfo: { kind: "provider", statusCode: 429, isRetryable: true },
+    },
+    {
+      kind: "retryable provider server error",
+      error: new Error("Service unavailable"),
+      errorInfo: { kind: "provider", statusCode: 503, isRetryable: true },
+    },
+  ])(
+    "returns a precondition error without blocking the evaluator for $kind",
+    async ({ error: preflightError, errorInfo }) => {
+      mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
+        preflightError,
+      );
+      mocks.getLLMErrorInfo.mockReturnValue(errorInfo);
+
+      const error = await assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }).catch((error: unknown) => error);
+
+      expect(error).toBeInstanceOf(EvaluatorConfigurationError);
+      expect(error).not.toBeInstanceOf(EvaluatorModelConfigurationError);
+      expect(toStructuredPublicApiError(error)).toMatchObject({
+        httpCode: 412,
+        code: "invalid_request",
+        message: expect.stringContaining("The evaluator was not saved. Retry"),
+      });
+    },
+  );
+
+  it("keeps unknown preflight failures as internal errors without exposing their messages", async () => {
+    const transientError = new Error("sensitive internal detail");
     mocks.getEvaluatorDefinitionPreflightError.mockRejectedValue(
       transientError,
     );
@@ -165,6 +278,38 @@ describe("evaluator configuration validation", () => {
         },
       }),
     ).rejects.toBe(transientError);
+    expect(toStructuredPublicApiError(transientError)).toMatchObject({
+      httpCode: 500,
+      code: "internal_error",
+      message: "Internal Server Error",
+    });
+  });
+
+  it("preserves permanent model-configuration errors for blocked evaluator persistence", async () => {
+    mocks.getEvaluatorDefinitionPreflightError.mockResolvedValue(
+      "The configured model is unavailable",
+    );
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(EvaluatorModelConfigurationError);
   });
 
   // The schema is the only boundary that can see a caller-supplied mapping:
@@ -321,6 +466,70 @@ describe("evaluator configuration validation", () => {
     ).rejects.toThrow(
       "Mappings reference unknown evaluator variables: item_metadata",
     );
+  });
+
+  it("rejects mappings that reference unknown columns", async () => {
+    const definitionWithColumn = (selectedColumnId: string) => ({
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      promptMessages: [
+        { role: "user" as const, content: "Judge {{expected_output}}" },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["expected_output"],
+      variableMapping: [
+        { templateVariable: "expected_output", selectedColumnId },
+      ],
+      outputDefinition: {
+        dataType: "NUMERIC" as const,
+        score: { description: "Quality" },
+        reasoning: { description: "Reasoning" },
+      },
+    });
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: definitionWithColumn("expected_output"),
+      }),
+    ).rejects.toThrow(
+      'Variable "expected_output" maps to unknown column "expected_output"',
+    );
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: definitionWithColumn("threads"),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("only accepts the columns of the mapping target", () => {
+    const mapping = (selectedColumnId: string) => ({
+      promptVariables: ["conversation"],
+      variableMapping: [{ templateVariable: "conversation", selectedColumnId }],
+    });
+
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("threads"),
+        targetObject: EvalTargetObject.EVENT,
+      }),
+    ).toThrow('Variable "conversation" maps to unknown column "threads"');
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("input"),
+        targetObject: TopicsTargetObject,
+      }),
+    ).toThrow('Variable "conversation" maps to unknown column "input"');
+    expect(() =>
+      assertCompleteEvaluatorVariableMapping({
+        ...mapping("threads"),
+        targetObject: TopicsTargetObject,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects incomplete evaluator default mappings", async () => {

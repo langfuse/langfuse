@@ -4,7 +4,7 @@ const { getProjectV4MigrationData } = vi.hoisted(() => ({
   getProjectV4MigrationData: vi.fn(),
 }));
 
-vi.mock("@/src/features/v4/server", () => ({
+vi.mock("@/src/features/v4/server/v4TransitionService", () => ({
   getProjectV4MigrationData,
 }));
 
@@ -75,12 +75,11 @@ describe("getV4MigrationData MCP tool", () => {
     });
   });
 
-  it("is discoverable as a read-only, expensive tool without project input", () => {
+  it("is discoverable as a read-only tool without project input", () => {
     expect(getV4MigrationDataTool).toMatchObject({
       name: "getV4MigrationData",
       annotations: {
         readOnlyHint: true,
-        expensiveHint: true,
       },
       inputSchema: {
         type: "object",

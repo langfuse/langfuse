@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 const mocks = vi.hoisted(() => ({
   applyCommentFilters: vi.fn(),
   getObservationsCountFromEventsTable: vi.fn(),
@@ -20,11 +21,10 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/audit-logs/server", () => ({
+vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: vi.fn(),
 }));
 
-import type { Session } from "next-auth";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
@@ -32,11 +32,14 @@ import {
   BatchEvalSourceTable,
   InvalidRequestError,
   type BatchActionQuery,
+  type Plan,
 } from "@langfuse/shared";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { addToDatasetRouter } from "@/src/features/batch-actions/server/addToDatasetRouter";
 import { runEvaluationRouter } from "@/src/features/batch-actions/server/runEvaluationRouter";
+import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
 import { env } from "@/src/env.mjs";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const mutableEnv = env as unknown as {
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
@@ -72,30 +75,29 @@ const datasetConfig = {
   },
 };
 
-const session = {
-  expires: "1",
-  user: {
-    id: "user-id",
-    organizations: [
-      {
-        id: "org-id",
-        role: "OWNER",
-        projects: [
-          {
-            id: projectId,
-            role: "ADMIN",
-          },
-        ],
-      },
-    ],
-  },
-} as Session;
+const session = createSession({
+  user: { id: "user-id" },
+  organizations: [
+    {
+      id: "org-id",
+      role: "OWNER",
+      projects: [{ id: projectId, role: "ADMIN" }],
+    },
+  ],
+});
 
 function prepare({
   v4BetaEnabled = false,
   foundEvaluatorIds = [evaluatorId],
   missingPromptVariable = false,
   decisionModel = false,
+  plan,
+}: {
+  v4BetaEnabled?: boolean;
+  foundEvaluatorIds?: string[];
+  missingPromptVariable?: boolean;
+  decisionModel?: boolean;
+  plan?: Plan;
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -157,10 +159,17 @@ function prepare({
   } as unknown as PrismaClient;
   const ctx = {
     ...createInnerTRPCContext({
-      session: {
-        ...session,
-        user: { ...session.user, v4BetaEnabled },
-      } as Session,
+      session: createSession({
+        user: { id: "user-id", v4BetaEnabled },
+        organizations: [
+          {
+            id: "org-id",
+            role: "OWNER",
+            plan,
+            projects: [{ id: projectId, role: "ADMIN" }],
+          },
+        ],
+      }),
       headers: {},
     }),
     prisma,
@@ -355,6 +364,33 @@ describe("batched evaluation version selection", () => {
         }),
       }),
       expect.anything(),
+    );
+  });
+
+  it("limits the selection to the organization plan's data-access window", async () => {
+    const context = prepare({ plan: "cloud:hobby" });
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+    });
+
+    const accessFloorFilter = expect.objectContaining({
+      type: "datetime",
+      column: "startTime",
+      operator: ">=",
+      value: expect.any(Date),
+    });
+    expect(context.batchActionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          query: expect.objectContaining({
+            filter: [rawCommentFilter, accessFloorFilter],
+          }),
+        }),
+      }),
     );
   });
 
@@ -573,5 +609,69 @@ describe("batched evaluation version selection", () => {
     });
 
     expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
+
+  it("validates inherited mappings when no override is sent", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      missingPromptVariable: true,
+    });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining('Evaluator "Quality"'),
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("batch action history", () => {
+  it("keeps Topics processing records behind the Topics API", async () => {
+    const row = {
+      id: "evaluation",
+      projectId,
+      userId: "user-id",
+      actionType: "observation-run-batched-evaluation",
+    };
+    const batchAction = {
+      findMany: vi.fn().mockResolvedValue([row]),
+      count: vi.fn().mockResolvedValue(1),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValue(row),
+    };
+    const caller = batchActionRouter.createCaller({
+      ...createInnerTRPCContext({ session, headers: {} }),
+      prisma: {
+        batchAction,
+        user: { findMany: vi.fn(async () => []) },
+      } as unknown as PrismaClient,
+    });
+
+    const history = await caller.all({ projectId, limit: 10, page: 0 });
+    expect(history.batchActions.map((row) => row.id)).toEqual(["evaluation"]);
+    expect(history.totalCount).toBe(1);
+    const where = { projectId, actionType: { not: "topics" } };
+    for (const query of [batchAction.findMany, batchAction.count])
+      expect(query).toHaveBeenCalledWith(expect.objectContaining({ where }));
+    await expect(
+      caller.byId({ projectId, batchActionId: "topics" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "topics" } }),
+    );
+    await expect(
+      caller.byId({ projectId, batchActionId: "evaluation" }),
+    ).resolves.toMatchObject({ id: "evaluation" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "evaluation" } }),
+    );
   });
 });

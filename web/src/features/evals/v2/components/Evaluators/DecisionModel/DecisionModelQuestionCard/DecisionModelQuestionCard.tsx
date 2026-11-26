@@ -1,8 +1,8 @@
 import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -25,7 +25,6 @@ import { cn } from "@/src/utils/tailwind";
 
 export type DecisionModelQuestionCardProps = {
   question: DecisionModelQuestionDraft;
-  index: number;
   stateKeys: string[];
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -88,7 +87,6 @@ function CriteriaEditor({
  */
 export function DecisionModelQuestionCard({
   question,
-  index,
   stateKeys,
   expanded,
   onExpandedChange,
@@ -108,34 +106,21 @@ export function DecisionModelQuestionCard({
       disabled={false}
       triggerTitle={expanded ? "Collapse question" : "Expand question"}
       header={
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground shrink-0 font-mono text-xs">
-            {index + 1}
-          </span>
-          <copy.icon className="h-4 w-4 shrink-0" aria-label={copy.label} />
+        <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-1">
           <Badge
-            variant="secondary"
-            className={cn(
-              "shrink-0 font-mono",
-              !question.scoreName.trim() && "text-dark-yellow",
-            )}
-          >
-            {question.scoreName.trim() || "score name missing"}
-          </Badge>
+            color={question.scoreName.trim() ? "filled" : "warning"}
+            text={question.scoreName.trim() || "score name missing"}
+          />
           <span
             className={cn(
-              "truncate",
+              "truncate pl-1 leading-none",
               !question.instructions.trim() && "text-muted-foreground italic",
             )}
             title={summary}
           >
             {summary}
           </span>
-          {hasErrors ? (
-            <Badge variant="destructive" className="shrink-0">
-              Needs attention
-            </Badge>
-          ) : null}
+          {hasErrors ? <Badge color="error" text="Needs attention" /> : null}
         </span>
       }
       actions={
@@ -151,7 +136,7 @@ export function DecisionModelQuestionCard({
               onRemove ? "Remove question" : "At least one question is required"
             }
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 size="sm" color="default" />
           </Button>
         </span>
       }

@@ -1,4 +1,3 @@
-import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import {
   BedrockConfigSchema,
@@ -258,8 +257,63 @@ export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
 
+/**
+ * Decision models that text adapters serve, in default-preference order. These
+ * APIs receive the keyed state as one JSON text input with plain-text questions.
+ */
+export const TEXT_ADAPTER_DECISION_MODEL_IDS: Partial<
+  Record<LLMAdapter, readonly string[]>
+> = {
+  [LLMAdapter.OpenAI]: ["gpt-6-luna"],
+  [LLMAdapter.GoogleAIStudio]: ["gemini-decision-1"],
+};
+
+export const DECISION_MODEL_CONNECTIONS_HINT = `an OpenAI connection with ${TEXT_ADAPTER_DECISION_MODEL_IDS[LLMAdapter.OpenAI]?.join(", ")}, a Google AI Studio connection with ${TEXT_ADAPTER_DECISION_MODEL_IDS[LLMAdapter.GoogleAIStudio]?.join(", ")}, or a TypeSafe connection`;
+
+export function textAdapterForDecisionModel(
+  model: string,
+): LLMAdapter | undefined {
+  return Object.values(LLMAdapter).find((adapter) =>
+    TEXT_ADAPTER_DECISION_MODEL_IDS[adapter]?.includes(model),
+  );
+}
+
+export function isTextAdapterDecisionModel(model: string): boolean {
+  return textAdapterForDecisionModel(model) !== undefined;
+}
+
+export function isTextDecisionAdapter(adapter: string): boolean {
+  return TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter] !== undefined;
+}
+
 export function isDecisionModelAdapter(adapter: string): boolean {
   return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. Text adapters keep generating text too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || isTextDecisionAdapter(adapter);
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  return (
+    TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter]?.includes(model) ??
+    false
+  );
+}
+
+/** Null when the adapter has no decision-model allowlist to point at. */
+export function unsupportedDecisionModelMessage(
+  adapter: string,
+  model: string,
+): string | null {
+  const models = TEXT_ADAPTER_DECISION_MODEL_IDS[adapter as LLMAdapter];
+  if (models === undefined) return null;
+  return `Model "${model}" is not supported for decision models. Use ${models.join(", ")}.`;
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -327,11 +381,12 @@ export const openAIModels = [
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
-  "gpt-4.1-nano",
-  "gpt-4.1-nano-2025-04-14",
+  "gpt-6.2-astra",
+  "gpt-6.2-sol",
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",
+  "gpt-6.1-terra",
   "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
@@ -360,33 +415,11 @@ export const openAIModels = [
   "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
-  "o4-mini",
-  "o4-mini-2025-04-16",
   "gpt-4o",
   "gpt-4o-2024-08-06",
-  "gpt-4o-2024-05-13",
   "gpt-4o-mini",
   "gpt-4o-mini-2024-07-18",
-  "o3-mini",
-  "o3-mini-2025-01-31",
-  "o1-preview",
-  "o1-preview-2024-09-12",
-  "o1-mini",
-  "o1-mini-2024-09-12",
-  "gpt-4.5-preview",
-  "gpt-4.5-preview-2025-02-27",
-  "gpt-4-turbo-preview",
-  "gpt-4-1106-preview",
-  "gpt-4-0613",
-  "gpt-4-0125-preview",
-  "gpt-4",
-  "gpt-3.5-turbo-16k-0613",
   "gpt-3.5-turbo-16k",
-  "gpt-3.5-turbo-1106",
-  "gpt-3.5-turbo-0613",
-  "gpt-3.5-turbo-0301",
-  "gpt-3.5-turbo-0125",
-  "gpt-3.5-turbo",
 ] as const;
 
 export type OpenAIModel = (typeof openAIModels)[number];
@@ -394,67 +427,52 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
-  "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
   "claude-sonnet-5-5",
+  "claude-sonnet-4-5-20250929",
   "claude-fable-5",
   "claude-fable-5-1",
+  "claude-fable-5-2",
   "claude-mythos-5",
   "claude-mythos-5-1",
+  "claude-mythos-5-2",
   "claude-opus-5-5",
   "claude-opus-5",
+  "claude-haiku-5-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-opus-4-6",
   "claude-opus-4-5-20251101",
-  "claude-sonnet-4-20250514",
-  "claude-opus-4-1-20250805",
-  "claude-opus-4-20250514",
-  "claude-3-7-sonnet-20250219",
-  "claude-3-5-sonnet-20241022",
-  "claude-3-5-sonnet-20240620",
-  "claude-3-opus-20240229",
-  "claude-3-sonnet-20240229",
-  "claude-3-5-haiku-20241022",
-  "claude-3-haiku-20240307",
-  "claude-2.1",
-  "claude-2.0",
-  "claude-instant-1.2",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
+// Only models Vertex AI still serves. Gemini 3.x is served from the "global"
+// location only (the default for Vertex connections). Retired 1.0/1.5/2.0
+// models, superseded previews and the Live API audio model are not listed.
 export const vertexAIModels = [
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
-  "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-live-2.5-flash-native-audio",
-  "gemini-2.0-flash",
-  "gemini-2.0-pro-exp-02-05",
-  "gemini-2.0-flash-001",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.0-pro",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-4-carbon",
+  "gemini-4-neon",
+  "gemini-4-hydrogen",
+  "gemini-4-argon",
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
@@ -462,12 +480,8 @@ export const googleAIStudioModels = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-2.0-flash",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -550,6 +564,7 @@ export const LLMApiKeySchema = z
     provider: z.string(),
     displaySecretKey: z.string(),
     secretKey: z.string(),
+    externalId: z.string().nullish(),
     extraHeaders: z.string().nullish(),
     extraHeaderKeys: z.array(z.string()),
     baseURL: z.string().nullable(),
@@ -563,10 +578,7 @@ export const LLMApiKeySchema = z
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
   .strict();
 
-export type LLMApiKey =
-  z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
-    ? z.infer<typeof LLMApiKeySchema>
-    : never;
+export type LLMApiKey = z.infer<typeof LLMApiKeySchema>;
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
@@ -574,6 +586,7 @@ export enum LangfuseInternalTraceEnvironment {
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
   InAppAgent = "langfuse-in-app-agent",
+  Topics = "langfuse-topics",
 }
 
 export type ProcessedTraceEvent = {

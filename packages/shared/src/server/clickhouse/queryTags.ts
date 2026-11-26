@@ -1,4 +1,6 @@
-import { context, propagation } from "@opentelemetry/api";
+import { context, createContextKey, propagation } from "@opentelemetry/api";
+import { getProjectSize } from "../projectSize";
+import { queryWindowNone, type QueryWindow } from "./queryWindow";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
 const UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE = "unknown" as const;
@@ -9,6 +11,7 @@ export const clickHouseQuerySurfaces = [
   "publicapi",
   "mcp",
   "ssr",
+  "internalapi",
 ] as const;
 
 export type ClickHouseQuerySurface = (typeof clickHouseQuerySurfaces)[number];
@@ -18,6 +21,7 @@ export type ClickHouseQueryTags = {
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
+  queryWindow?: QueryWindow;
   sdkName?: "python" | "javascript";
   sdkVersion?: string;
   userAgent?: string;
@@ -29,6 +33,8 @@ export type NormalizedClickHouseQueryTags = {
   surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   route?: string;
   projectId?: string;
+  projectSize: ReturnType<typeof getProjectSize>;
+  queryWindow: QueryWindow;
   sdkName?: "python" | "javascript";
   sdkVersion?: string;
   userAgent?: string;
@@ -42,6 +48,17 @@ export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
   sdkVersion: "langfuse.clickhouse.sdk_version",
   userAgent: "langfuse.clickhouse.user_agent",
 } as const;
+
+/**
+ * Holds the route the entrypoint set. The route is mirrored into baggage for
+ * span attributes but never read back from it: inbound requests can carry
+ * `langfuse.clickhouse.*` baggage, and a caller-chosen route would make the
+ * outcome metric's `route` tag unbounded. Inbound headers cannot set a context
+ * key.
+ */
+export const CLICKHOUSE_ROUTE_CONTEXT_KEY = createContextKey(
+  "langfuse.clickhouse.route",
+);
 
 const surfaceSet = new Set<string>(clickHouseQuerySurfaces);
 
@@ -60,7 +77,7 @@ export function normalizeClickHouseQueryTags(
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value;
   const route =
     providedTags?.route ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value;
+    context.active().getValue(CLICKHOUSE_ROUTE_CONTEXT_KEY);
   const projectId =
     providedTags?.projectId ??
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId)?.value;
@@ -89,6 +106,8 @@ export function normalizeClickHouseQueryTags(
       : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
     ...(normalizedRoute ? { route: normalizedRoute } : {}),
     ...(projectId ? { projectId } : {}),
+    projectSize: taggedProjectSize(projectId),
+    queryWindow: providedTags?.queryWindow ?? queryWindowNone,
     ...(providedTags?.experimentId
       ? { experimentId: providedTags.experimentId }
       : {}),
@@ -104,4 +123,12 @@ export function normalizeClickHouseQueryTags(
 
 export function buildClickHouseLogComment(tags?: ClickHouseQueryTags): string {
   return JSON.stringify(normalizeClickHouseQueryTags(tags));
+}
+
+/** taggedProjectSize sizes the tagged project, or `unknown` when the query has none. */
+function taggedProjectSize(
+  projectId: string | undefined,
+): ReturnType<typeof getProjectSize> {
+  if (!projectId) return "unknown";
+  return getProjectSize(projectId);
 }
