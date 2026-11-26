@@ -1363,6 +1363,145 @@ describe("OTel Resource Span Mapping", () => {
         total: 1955,
       });
     });
+
+    // Genkit usage rides on `genkit:output` as a JSON string attribute. The
+    // spans below exercise only the usage extraction.
+    async function convertGenkitUsage(usage: Record<string, unknown>) {
+      const resourceSpan = {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: "genkit-tracer", version: "v1" },
+            spans: [
+              {
+                traceId: Buffer.from("abcdef1234567890abcdef1234567893", "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "genkit-model-call",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  { key: "genkit:type", value: { stringValue: "action" } },
+                  {
+                    key: "genkit:name",
+                    value: { stringValue: "googleai/gemini-2.5-flash" },
+                  },
+                  {
+                    key: "genkit:metadata:subtype",
+                    value: { stringValue: "model" },
+                  },
+                  {
+                    key: "genkit:input",
+                    value: { stringValue: JSON.stringify({ messages: [] }) },
+                  },
+                  {
+                    key: "genkit:output",
+                    value: { stringValue: JSON.stringify({ usage }) },
+                  },
+                ],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+      return langfuseEvents.find((event) => event.type === "generation-create");
+    }
+
+    it("keeps Gemini's split thoughts tokens out of the stored output", async () => {
+      // Google reports candidatesTokenCount (the visible answer) and
+      // thoughtsTokenCount separately, and totalTokenCount includes both, so
+      // outputTokens and thoughtsTokens never overlap (genkit-ai/genkit#6614).
+      // Subtracting thoughtsTokens from outputTokens clamped the visible
+      // answer to 0 (issue #20923).
+      const generationEvent = await convertGenkitUsage({
+        inputTokens: 100,
+        outputTokens: 200,
+        thoughtsTokens: 1500,
+        totalTokens: 1800,
+      });
+      expect(generationEvent?.body.usageDetails).toEqual({
+        input: 100,
+        output: 200,
+        total: 1800,
+        output_reasoning: 1500,
+      });
+    });
+
+    it("subtracts thoughtsTokens only when the total confirms the legacy inclusive shape", async () => {
+      // Go compat_oai before genkit-ai/genkit#6614 folded reasoning into
+      // outputTokens and reported total = input + output (1618 + 337 = 1955,
+      // the span above). That shape still subtracts.
+      const legacyInclusive = await convertGenkitUsage({
+        inputTokens: 1618,
+        outputTokens: 337,
+        thoughtsTokens: 320,
+        totalTokens: 1955,
+      });
+      expect(legacyInclusive?.body.usageDetails).toEqual({
+        input: 1618,
+        output: 17,
+        total: 1955,
+        output_reasoning: 320,
+      });
+
+      // A total that does not confirm the shape leaves outputTokens alone —
+      // input 0 still participates in the check.
+      const zeroInputMismatch = await convertGenkitUsage({
+        inputTokens: 0,
+        outputTokens: 200,
+        thoughtsTokens: 50,
+        totalTokens: 250,
+      });
+      expect(zeroInputMismatch?.body.usageDetails).toEqual({
+        output: 200,
+        total: 250,
+        output_reasoning: 50,
+      });
+    });
+
+    it("treats non-numeric usage fields as missing when deciding whether to subtract", async () => {
+      // Genkit usage fields are JSON numbers. A double-encoded string or a
+      // null carries no evidence of the legacy shape, so output stays as
+      // reported; the reported field values are stored as before.
+      const stringTotal = await convertGenkitUsage({
+        inputTokens: 100,
+        outputTokens: 200,
+        thoughtsTokens: 1500,
+        totalTokens: "1800",
+      });
+      expect(stringTotal?.body.usageDetails).toEqual({
+        input: 100,
+        output: 200,
+        total: "1800",
+        output_reasoning: 1500,
+      });
+
+      const nullInput = await convertGenkitUsage({
+        inputTokens: null,
+        outputTokens: 200,
+        thoughtsTokens: 50,
+        totalTokens: 1800,
+      });
+      expect(nullInput?.body.usageDetails).toEqual({
+        output: 200,
+        total: 1800,
+        output_reasoning: 50,
+      });
+    });
   });
 
   describe("Property Mapping", () => {

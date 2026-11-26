@@ -154,11 +154,39 @@ fn genkit_usage(attributes: &JsonObject, parse_cache: &mut JsonParseCache) -> Op
     let Some(value) = value.as_object() else {
         return Some(Usage::new());
     };
+    // Genkit unified GenerationUsage so outputTokens no longer includes
+    // thoughtsTokens (genkit-ai/genkit#6614, Oct 2026): Gemini reports
+    // candidatesTokenCount here and totalTokenCount covers input + output +
+    // thoughts, so subtracting again zeroes the visible output. Older plugins
+    // (pre-#6614 Go compat_oai) still fold reasoning into outputTokens with
+    // total = input + output; the total agreement identifies that legacy
+    // inclusive shape. Only JSON numbers take part (mirroring TypeScript's
+    // `typeof v === "number" && Number.isFinite(v)`), so string counts and
+    // nulls skip the subtraction. Read the raw fields: `read_usage` below
+    // drops zeros, which still need to participate in the total check.
+    let token_count = |key: &str| {
+        value
+            .get(key)
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite())
+    };
+    let subtract_reasoning = matches!(
+        (
+            token_count("inputTokens"),
+            token_count("outputTokens"),
+            token_count("totalTokens"),
+        ),
+        (Some(input), Some(output), Some(total)) if input + output == total
+    );
     let mut usage = read_usage(value, GENKIT_USAGE_RULES, |value| {
         (value != 0.0).then_some(value)
     });
     if let Some(output) = usage.get("output").copied() {
-        let reasoning = usage.get("output_reasoning").copied().unwrap_or(0.0);
+        let reasoning = if subtract_reasoning {
+            usage.get("output_reasoning").copied().unwrap_or(0.0)
+        } else {
+            0.0
+        };
         usage.insert("output".to_owned(), (output - reasoning).max(0.0));
     }
     Some(usage)
@@ -843,6 +871,64 @@ mod tests {
                 &mut JsonParseCache::default(),
             )
             .is_empty());
+        }
+    }
+
+    #[test]
+    fn genkit_subtracts_thoughts_only_for_the_legacy_inclusive_shape() {
+        // Gemini reports candidatesTokenCount and thoughtsTokenCount without
+        // overlap and totalTokenCount includes both (genkit-ai/genkit#6614).
+        for (counts, expected) in [
+            (
+                json!({
+                    "inputTokens": 100, "outputTokens": 200,
+                    "thoughtsTokens": 1500, "totalTokens": 1800,
+                }),
+                json!({"input": 100, "output": 200, "total": 1800, "output_reasoning": 1500}),
+            ),
+            // Input 0 still participates in the total check.
+            (
+                json!({
+                    "inputTokens": 0, "outputTokens": 200,
+                    "thoughtsTokens": 50, "totalTokens": 250,
+                }),
+                json!({"output": 200, "total": 250, "output_reasoning": 50}),
+            ),
+            // A total that is not a JSON number carries no evidence of the
+            // legacy shape. It is still read through the string coercion.
+            (
+                json!({
+                    "inputTokens": 100, "outputTokens": 200,
+                    "thoughtsTokens": 1500, "totalTokens": "1800",
+                }),
+                json!({"input": 100, "output": 200, "total": 1800, "output_reasoning": 1500}),
+            ),
+            // A null input likewise never subtracts.
+            (
+                json!({
+                    "inputTokens": null, "outputTokens": 200,
+                    "thoughtsTokens": 50, "totalTokens": 1800,
+                }),
+                json!({"output": 200, "total": 1800, "output_reasoning": 50}),
+            ),
+            // Go compat_oai before genkit-ai/genkit#6614 folded reasoning
+            // into outputTokens and reported total = input + output
+            // (1618 + 337 = 1955): that shape still subtracts.
+            (
+                json!({
+                    "inputTokens": 1618, "outputTokens": 337,
+                    "thoughtsTokens": 320, "totalTokens": 1955,
+                }),
+                json!({"input": 1618, "output": 17, "total": 1955, "output_reasoning": 320}),
+            ),
+        ] {
+            let attrs = json!({"genkit:output": {"usage": counts}});
+            let usage = extract_usage_details(
+                attrs.as_object().unwrap(),
+                "genkit-tracer",
+                &mut JsonParseCache::default(),
+            );
+            assert_eq!(json!(usage), expected, "{counts}");
         }
     }
 

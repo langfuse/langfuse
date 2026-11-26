@@ -1242,6 +1242,41 @@ describe(
               },
             ],
             [{ ...example, kind: "genkit", output: 0, thoughts: 7 }],
+            // Gemini reports candidates and thoughts without overlap
+            // (genkit-ai/genkit#6614): the visible output survives unchanged.
+            [
+              {
+                ...example,
+                kind: "genkit",
+                input: 100,
+                output: 200,
+                total: 1800,
+                thoughts: 1500,
+              },
+            ],
+            // Go compat_oai before genkit#6614 folded reasoning into output:
+            // the total (input + output) still confirms the subtraction.
+            [
+              {
+                ...example,
+                kind: "genkit",
+                input: 1618,
+                output: 337,
+                total: 1955,
+                thoughts: 320,
+              },
+            ],
+            // Zero input still participates in the total check.
+            [
+              {
+                ...example,
+                kind: "genkit",
+                input: 0,
+                output: 200,
+                total: 200,
+                thoughts: 50,
+              },
+            ],
             ...[undefined, 0].map((thoughts) => [
               { ...example, kind: "genkit", output: -1, thoughts },
             ]),
