@@ -112,6 +112,7 @@ function NewMapStory({
       }
       costEstimateField={
         <TopicCostEstimateView
+          showUsage
           estimate={costEstimateFixture()}
           samplingPercent={samplingPercent}
           dailyTraces={1_240}

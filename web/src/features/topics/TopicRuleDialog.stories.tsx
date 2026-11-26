@@ -119,6 +119,7 @@ function EditScanStory({
       dailyTraces={dailyTraces}
       costEstimateField={
         <TopicCostEstimateView
+          showUsage
           estimate={null}
           samplingPercent={samplingPercent}
           dailyTraces={dailyTraces}

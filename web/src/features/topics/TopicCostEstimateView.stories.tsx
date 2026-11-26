@@ -12,6 +12,7 @@ const meta = preview.meta({
     dailyTraces: 954,
     backfillTraces: 500,
     onAddModelPrice: fn(),
+    showUsage: true,
     starting: false,
     facetCount: 2,
     error: null,
@@ -46,6 +47,11 @@ export const Running = meta.story({
 });
 
 export const Done = meta.story({ args: { estimate: estimate() } });
+
+// Self-hosted and local dev have no billable units, so only model cost shows.
+export const WithoutUsage = meta.story({
+  args: { estimate: estimate(), showUsage: false },
+});
 
 // Sampling scales only the daily cost on read; the backfill part is hidden without a backfill.
 export const SampledWithoutBackfill = meta.story({

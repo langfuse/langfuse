@@ -99,12 +99,17 @@ export function TopicCostEstimateView({
   backfillTraces,
   newTraces,
   onAddModelPrice,
+  showUsage,
   starting,
   facetCount,
   error,
   onStart,
 }: TopicEstimateVolume &
-  TopicEstimateControls & { onAddModelPrice?: () => void }) {
+  TopicEstimateControls & {
+    onAddModelPrice?: () => void;
+    /** Billable units exist only on Langfuse Cloud. */
+    showUsage: boolean;
+  }) {
   const oversized = facetCount > TOPICS_COST_ESTIMATE_MAX_FACETS;
   const running = estimate?.status === "running";
   const done = estimate?.status === "done";
@@ -131,13 +136,15 @@ export function TopicCostEstimateView({
     ? ""
     : " You don't have permission to add one.";
 
-  const usage = usageSummary({
-    facetCount,
-    samplingPercent,
-    sampledDailyTraces,
-    backfillTraces,
-    newTraces,
-  });
+  const usage = !showUsage
+    ? null
+    : usageSummary({
+        facetCount,
+        samplingPercent,
+        sampledDailyTraces,
+        backfillTraces,
+        newTraces,
+      });
 
   return (
     <div className="flex flex-col gap-3 rounded-md border px-3.5 py-3">

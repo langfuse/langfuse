@@ -1,3 +1,4 @@
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 import {
   TopicCostEstimateView,
@@ -14,7 +15,10 @@ export function TopicCostEstimateCard({
   modelPrice,
   ...props
 }: TopicCostForecast & TopicEstimateVolume) {
-  if (!modelPrice) return <TopicCostEstimateView {...props} />;
+  const { region } = useLangfuseCloudRegion();
+  const showUsage = region !== undefined && region !== "DEV";
+  if (!modelPrice)
+    return <TopicCostEstimateView {...props} showUsage={showUsage} />;
   const { estimate } = props;
   const modelName =
     estimate && !estimate.prices.summaryPriced
@@ -28,7 +32,11 @@ export function TopicCostEstimateCard({
       onCreated={modelPrice.onCreated}
     >
       {({ openDialog }) => (
-        <TopicCostEstimateView {...props} onAddModelPrice={openDialog} />
+        <TopicCostEstimateView
+          {...props}
+          showUsage={showUsage}
+          onAddModelPrice={openDialog}
+        />
       )}
     </UpsertModelFormDialogController>
   );
