@@ -23,7 +23,6 @@ export const blobStorageIntegrationProcessor: Processor = async (job) => {
 
 export const blobStorageIntegrationProcessingProcessor: Processor = async (
   job,
-  token,
 ) => {
   if (job.name === QueueJobs.BlobStorageIntegrationProcessingJob) {
     return await instrumentAsync(
@@ -42,7 +41,9 @@ export const blobStorageIntegrationProcessingProcessor: Processor = async (
             logger.info(
               `[BLOB INTEGRATION] Re-queued blob storage export job ${job.id} on worker shutdown`,
             );
-            await job.moveToDelayed(Date.now(), token);
+            // job.token: WorkerManager.metricWrapper does not forward the
+            // processor's token argument.
+            await job.moveToDelayed(Date.now(), job.token);
             throw new DelayedError();
           }
           logger.error(

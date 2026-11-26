@@ -88,10 +88,13 @@ describe("blob export on worker shutdown", () => {
       name: QueueJobs.BlobStorageIntegrationProcessingJob,
       attemptsMade: 0,
       data: { id: "payload-1", payload: { projectId: "project-1" } },
+      token: "lock-token",
       moveToDelayed,
     } as unknown as Job;
 
-    const run = blobStorageIntegrationProcessingProcessor(job, "lock-token");
+    // No token argument: production calls the processor through
+    // WorkerManager.metricWrapper, which passes only the job.
+    const run = blobStorageIntegrationProcessingProcessor(job);
     await new Promise((resolve) => setTimeout(resolve, 50));
     abortBlobExportsForShutdown();
 
