@@ -1,3 +1,4 @@
+/* oxlint-disable radix -- baseline before rule enablement */
 import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
   getValidAggregationsForMeasureType,
