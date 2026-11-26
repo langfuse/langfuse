@@ -58,6 +58,12 @@ type DialogProps = {
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
   title: string;
+  /** Shown in a tile before the title, to name what the dialog is about. */
+  icon?: IconComponent;
+  /** One muted line under the title, e.g. who or what the dialog acts on. */
+  description?: string;
+  /** A muted note at the start of the footer, beside the buttons. */
+  footerHint?: string;
 } & (
   | { children?: React.ReactNode; text?: never }
   | { children?: never; text: string }
@@ -78,6 +84,9 @@ function DialogRoot({
   size,
   text,
   title,
+  icon: Icon,
+  description,
+  footerHint,
 }: DialogProps) {
   const container = useLayerContainer("modal");
   const [popoverContainer, setPopoverContainer] =
@@ -108,7 +117,8 @@ function DialogRoot({
         onClick={(event) => event.stopPropagation()}
       />
       <DialogPrimitive.Content
-        aria-describedby={undefined}
+        // Without a description, Radix would warn about the missing one.
+        {...(description === undefined && { "aria-describedby": undefined })}
         className={cn(
           motionStyles.content,
           dialogContentVariants({ size }),
@@ -170,19 +180,37 @@ function DialogRoot({
         }}
       >
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
-          <header className="bg-modal flex shrink-0 flex-col gap-1 rounded-t-lg p-4">
-            <div className="flex w-full items-center justify-between gap-4 text-left">
-              <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
-                {title}
-              </DialogPrimitive.Title>
-              {requireExplicitClose ? null : (
-                <DialogPrimitive.Close
-                  className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-                  tabIndex={-1}
+          <header className="bg-modal flex shrink-0 items-center gap-3 rounded-t-lg p-4">
+            {Icon && (
+              <span
+                className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md"
+                aria-hidden="true"
+              >
+                <Icon size="base" color="muted" aria-hidden="true" />
+              </span>
+            )}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex w-full items-center justify-between gap-4 text-left">
+                <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
+                  {title}
+                </DialogPrimitive.Title>
+                {requireExplicitClose ? null : (
+                  <DialogPrimitive.Close
+                    className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+                    tabIndex={-1}
+                  >
+                    <X size="base" />
+                    <span className="sr-only">Close</span>
+                  </DialogPrimitive.Close>
+                )}
+              </div>
+              {description !== undefined && (
+                <DialogPrimitive.Description
+                  className="text-muted-foreground truncate text-sm"
+                  title={description}
                 >
-                  <X size="base" />
-                  <span className="sr-only">Close</span>
-                </DialogPrimitive.Close>
+                  {description}
+                </DialogPrimitive.Description>
               )}
             </div>
           </header>
@@ -190,7 +218,7 @@ function DialogRoot({
             {text !== undefined ? <DialogBody>{text}</DialogBody> : children}
           </PopoverLayerProvider>
           {hasActions || isCloseOnly ? (
-            <DialogFooter>
+            <DialogFooter hint={footerHint}>
               {hideCloseButton ? null : (
                 <DialogPrimitive.Close asChild>
                   {isCloseOnly ? (
@@ -244,7 +272,7 @@ function DialogRoot({
                     <DisabledActionTooltip
                       key={label}
                       label={disabledReason}
-                      shouldFill
+                      width="fill"
                     >
                       {button}
                     </DisabledActionTooltip>
@@ -267,16 +295,20 @@ function DialogRoot({
 function DialogBody({
   children,
   separators = "none",
+  spacing = "default",
 }: {
   children: React.ReactNode;
   /** Separates the scrolling body from the header and footer with borders. */
   separators?: "none" | "both";
+  /** "compact" starts the body right under the header, for short forms. */
+  spacing?: "default" | "compact";
 }) {
   return (
     <div
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed",
         separators === "both" && "border-y",
+        spacing === "compact" && separators === "none" && "pt-0",
       )}
     >
       {children}
@@ -284,9 +316,20 @@ function DialogBody({
   );
 }
 
-function DialogFooter({ children }: { children: React.ReactNode }) {
+function DialogFooter({
+  children,
+  hint,
+}: {
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
-    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
+    <div className="bg-modal flex shrink-0 flex-col-reverse rounded-b-lg p-4 sm:flex-row sm:items-center sm:justify-end sm:space-x-2 [&>button]:w-full sm:[&>button]:w-auto">
+      {hint !== undefined && (
+        <p className="text-muted-foreground order-last mt-3 min-w-0 text-xs sm:order-none sm:mt-0 sm:mr-auto">
+          {hint}
+        </p>
+      )}
       {children}
     </div>
   );

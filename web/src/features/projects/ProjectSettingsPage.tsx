@@ -48,6 +48,8 @@ import { useBlobStorageIntegration } from "@/src/features/blobstorage-integratio
 import { useExternalMediaStorage } from "@/src/ee/features/external-media-storage/useExternalMediaStorage";
 import { ExternalMediaStorageIntegrationCard } from "@/src/ee/features/external-media-storage/components/ExternalMediaStorageIntegrationCard/ExternalMediaStorageIntegrationCard";
 import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
+import { ProjectGroupsSettings } from "@/src/features/groups/components/ProjectGroupsSettings";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -73,6 +75,12 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
     scope: "scoreConfigs:read",
   });
   const showV4Migration = useV4UpgradeUiFlag();
+  const isGroupsUiEnabled = useIsGroupsUiEnabled();
+  const canReadGroups = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectGroups:read",
+  });
+  const showGroups = isGroupsUiEnabled && canReadGroups;
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -87,6 +95,7 @@ export function useProjectSettingsPages(): ProjectSettingsPageEntry[] {
     showProjectNotificationChannels,
     showScoreConfigSettings,
     showV4Migration,
+    showGroups,
   });
 }
 
@@ -100,6 +109,7 @@ const getProjectSettingsPages = ({
   showProjectNotificationChannels,
   showScoreConfigSettings,
   showV4Migration,
+  showGroups,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -110,6 +120,7 @@ const getProjectSettingsPages = ({
   showProjectNotificationChannels: boolean;
   showScoreConfigSettings: boolean;
   showV4Migration: boolean;
+  showGroups: boolean;
 }): ProjectSettingsPageEntry[] => [
   {
     title: "General",
@@ -271,6 +282,13 @@ const getProjectSettingsPages = ({
         project={{ id: project.id, name: project.name }}
       />
     ),
+  },
+  {
+    title: "Groups",
+    slug: "groups",
+    cmdKKeywords: ["scim", "groups", "okta", "entra", "idp"],
+    content: <ProjectGroupsSettings projectId={project.id} />,
+    show: showGroups,
   },
   {
     title: "Integrations",

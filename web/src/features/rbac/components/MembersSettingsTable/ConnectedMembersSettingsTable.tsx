@@ -16,6 +16,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -60,6 +61,16 @@ export function ConnectedMembersSettingsTable({
     scope: "projectMembers:CUD",
   });
 
+  const canSeeProjectGroups = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "projectGroups:read",
+  });
+
+  const canSeeOrgGroups = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "groups:read",
+  });
+
   const canManageOrgOwnership = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organization:manageOwnership",
@@ -72,6 +83,7 @@ export function ConnectedMembersSettingsTable({
   const canManageProjectOwnership = canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
+  const isGroupsEnabled = useIsGroupsUiEnabled();
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
     useState<Set<string>>(() => new Set());
   const [
@@ -225,10 +237,13 @@ export function ConnectedMembersSettingsTable({
           project={project}
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
+          canSeeOrgGroups={canSeeOrgGroups}
+          canSeeProjectGroups={canSeeProjectGroups}
           hasProjectCudAccess={hasProjectCudAccess}
           canManageOrgOwnership={canManageOrgOwnership}
           canManageProjectOwnership={canManageProjectOwnership}
           isAiGatewayEnabled={isAiGatewayEnabled}
+          isGroupsEnabled={isGroupsEnabled}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
@@ -331,6 +346,16 @@ export function ConnectedMembersSettingsTable({
               icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
+            ...(isGroupsEnabled && project && hasOrgCudAccess
+              ? [
+                  {
+                    id: "org-members",
+                    label: "Organization members",
+                    variant: "outline" as const,
+                    href: `/organization/${orgId}/settings/members`,
+                  },
+                ]
+              : []),
           ]}
           pagination={{
             mode: "offset",
@@ -366,6 +391,7 @@ function convertToTableRow(
     createdAt: membership.createdAt,
     orgRole: membership.role,
     projectRole: membership.projectRole,
+    groupRoles: membership.groupRoles,
     featurePreviews,
     featurePreviewManagement,
   };

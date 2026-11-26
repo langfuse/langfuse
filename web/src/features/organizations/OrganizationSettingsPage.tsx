@@ -15,6 +15,8 @@ import { BillingSettings } from "@/src/ee/features/billing/components/BillingSet
 import { OrganizationUsageBreakdown } from "@/src/features/organization-usage/components/OrganizationUsageBreakdown";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { GroupsSettings } from "@/src/features/groups/components/GroupsSettings";
+import { useIsGroupsUiEnabled } from "@/src/features/groups/hooks/useIsGroupsUiEnabled";
 import { type CloudConfigSchema, isCloudPlan } from "@langfuse/shared";
 import { Building2 } from "@langfuse/icons";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -48,6 +50,12 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
+  const canReadGroups = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "groups:read",
+  });
+  const isGroupsUiEnabled = useIsGroupsUiEnabled();
+  const showGroups = isGroupsUiEnabled && canReadGroups;
   const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -86,6 +94,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     // covers deployments without one (self-hosted).
     showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
+    showGroups,
     showAuditLogs: hasAuditLogsEntitlement && canReadSettings,
     showSsoSettings: isLangfuseCloud && canReadSettings,
     showV4Migration: showV4Migration && canReadSettings,
@@ -104,6 +113,7 @@ const getOrganizationSettingsPages = ({
   showBillingSettings,
   showUsageSettings,
   showOrgApiKeySettings,
+  showGroups,
   showAuditLogs,
   showSsoSettings,
   showV4Migration,
@@ -128,6 +138,7 @@ const getOrganizationSettingsPages = ({
   showBillingSettings: boolean;
   showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
+  showGroups: boolean;
   showAuditLogs: boolean;
   showSsoSettings: boolean;
   showV4Migration: boolean;
@@ -269,6 +280,14 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["invite", "user", "rbac"],
     content: <OrganizationMembersSettings orgId={organization.id} />,
     show: showMembers,
+  },
+  {
+    title: "Groups",
+    slug: "groups",
+    section: "Organization",
+    cmdKKeywords: ["scim", "groups", "okta", "entra", "azure", "idp"],
+    content: <GroupsSettings orgId={organization.id} />,
+    show: showGroups,
   },
   {
     title: "Audit Logs",

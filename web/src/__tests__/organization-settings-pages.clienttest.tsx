@@ -179,6 +179,16 @@ describe("useOrganizationSettingsPages", () => {
     );
   });
 
+  it("shows Groups with the admin-api entitlement and groups:read, outside Internal view", () => {
+    grantScopesOf(Role.MEMBER);
+
+    expect(visibleSlugs()).toContain("groups");
+
+    vi.mocked(useHasEntitlement).mockImplementation(() => false);
+
+    expect(visibleSlugs()).not.toContain("groups");
+  });
+
   it("gates the v4 migration link on deployment availability", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "organizationSettings:read",

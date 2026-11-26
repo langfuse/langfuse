@@ -71,8 +71,8 @@ const entityLabels: Record<string, string> = {
 };
 
 /** RolePermissionList groups permissions by resource kind and entity. */
-export const RolePermissionList = ({ role }: { role: SystemRole }) => {
-  const { policies } = systemRoleAccessRights[role];
+export const RolePermissionList = ({ role }: { role: RoleOrRoles }) => {
+  const policies = rolePolicies(role);
 
   if (policies.length === 0)
     return (
@@ -177,17 +177,26 @@ const compareActions = (a: string, b: string): number => {
   return rankA - rankB;
 };
 
-export const rolePermissionCountLabel = (role: SystemRole): string =>
+export const rolePermissionCountLabel = (role: RoleOrRoles): string =>
   `${rolePermissionCount(role)} ${rolePermissionNoun(role)}`;
 
-export const rolePermissionNoun = (role: SystemRole): string =>
+export const rolePermissionNoun = (role: RoleOrRoles): string =>
   rolePermissionCount(role) === 1 ? "permission" : "permissions";
 
-export const rolePermissionCount = (role: SystemRole): number =>
-  systemRoleAccessRights[role].policies.reduce(
-    (total, policy) => total + policy.actions.length,
-    0,
-  );
+export const rolePermissionCount = (role: RoleOrRoles): number =>
+  new Set(
+    rolePolicies(role).flatMap((policy) =>
+      policy.actions.map((action) => `${policy.resourceKind}/${action}`),
+    ),
+  ).size;
+
+const rolePolicies = (role: RoleOrRoles): SystemRolePolicy[] =>
+  toRoles(role).flatMap((r) => systemRoleAccessRights[r].policies);
+
+export const toRoles = (role: RoleOrRoles): readonly SystemRole[] =>
+  typeof role === "string" ? [role] : role;
+
+export type RoleOrRoles = SystemRole | readonly SystemRole[];
 
 type ResourceKind = SystemRolePolicy["resourceKind"];
 
