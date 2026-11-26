@@ -309,12 +309,12 @@ export function resolveSupportedGuardrailAction<T extends GatewayGuardrailType>(
 
 export const GatewayGuardrailScopeSchema = z.enum(GATEWAY_GUARDRAIL_SCOPES);
 
-/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn. */
+/** Evaluation scopes permitted per guardrail action. Blocking only evaluates the last turn on input. */
 export const GATEWAY_GUARDRAIL_ACTION_SCOPES = {
-  BLOCK: ["LAST_TURN"],
-  LOG: ["LAST_TURN", "ENTIRE_INPUT"],
-  REDACT: ["LAST_TURN", "ENTIRE_INPUT"],
-  ENFORCE: ["LAST_TURN", "ENTIRE_INPUT"],
+  BLOCK: ["LAST_TURN", "OUTPUT", "LAST_TURN_AND_OUTPUT"],
+  LOG: GATEWAY_GUARDRAIL_SCOPES,
+  REDACT: GATEWAY_GUARDRAIL_SCOPES,
+  ENFORCE: GATEWAY_GUARDRAIL_SCOPES,
 } as const satisfies Record<
   GatewayGuardrailAction,
   readonly [GatewayGuardrailScope, ...GatewayGuardrailScope[]]
@@ -328,11 +328,24 @@ export function supportsEntireInputScope(
   ).includes("ENTIRE_INPUT");
 }
 
+export function guardrailScopeChecksOutput(
+  scope: GatewayGuardrailScope,
+): boolean {
+  return (
+    scope === "OUTPUT" ||
+    scope === "LAST_TURN_AND_OUTPUT" ||
+    scope === "ENTIRE_INPUT_AND_OUTPUT"
+  );
+}
+
 export function resolveSupportedGuardrailScope(
   action: GatewayGuardrailAction,
   scope: GatewayGuardrailScope,
 ): GatewayGuardrailScope {
-  return supportsEntireInputScope(action) ? scope : "LAST_TURN";
+  if (supportsEntireInputScope(action)) return scope;
+  if (scope === "ENTIRE_INPUT") return "LAST_TURN";
+  if (scope === "ENTIRE_INPUT_AND_OUTPUT") return "LAST_TURN_AND_OUTPUT";
+  return scope;
 }
 
 export const GatewayGuardrailRedactionLabelSchema = z

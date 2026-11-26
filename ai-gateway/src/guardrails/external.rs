@@ -9,7 +9,7 @@ use reqwest::Client;
 use reqwest_middleware::ClientWithMiddleware;
 
 use crate::{
-    guardrails::{Guardrail, GuardrailKind, bedrock},
+    guardrails::{Guardrail, GuardrailKind, GuardrailLocation, bedrock},
     providers::OutboundPolicy,
     resolution::ResolutionError,
 };
@@ -45,12 +45,16 @@ pub(crate) struct ExternalPayloads {
 }
 
 impl ExternalPayloads {
-    pub(crate) fn for_guardrails(guardrails: &[&Guardrail], blocks: &[&str]) -> Self {
+    pub(crate) fn for_guardrails(
+        guardrails: &[&Guardrail],
+        blocks: &[&str],
+        location: GuardrailLocation,
+    ) -> Self {
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
         let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_request_blocks(blocks))
+            .then(|| bedrock::serialize_blocks(blocks, location.bedrock_source()))
             .flatten();
         Self { bedrock }
     }
