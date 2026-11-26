@@ -13,7 +13,6 @@ import {
   getCurrentSpan,
   instrumentAsync,
   isInternalEvalEnvironment,
-  logger,
   prepareAssembledTopicTranscript,
   recordIncrement,
   renderStoredTopicText,
@@ -30,7 +29,6 @@ import {
   summarizeTopicTraceFacets,
   TopicInputTooLarge,
 } from "./llm/models";
-import { isTopicsSelfTraceTranscript } from "./llm/prompts";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -193,23 +191,6 @@ async function summarizeEnabledTrace(
       metadata: { input: "topics-text" },
     }),
   );
-  if (isTopicsSelfTraceTranscript(input.transcript)) {
-    logger.warn("Skipping Topics summary for self-originated Topics trace", {
-      projectId: input.projectId,
-      traceId: input.traceId,
-      environment: input.environment,
-    });
-    recordIncrement("langfuse.topics.self_trace_skipped", 1);
-    // Persist non-billable empty_input rows so setup/snapshot scans mark
-    // bounced self-traces as settled and do not re-select them.
-    return {
-      outcome: "summarized",
-      rows: bases.map((base) => ({
-        ...base,
-        metadata: { ...base.metadata, skippedReason: "self_trace" },
-      })),
-    };
-  }
   const callMetadata = (rows: TopicSummary[]) => ({
     source_trace_id: input.traceId,
     source_environment: input.environment,
