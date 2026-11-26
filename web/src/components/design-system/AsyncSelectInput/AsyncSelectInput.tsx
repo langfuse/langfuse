@@ -53,7 +53,10 @@ export function AsyncSelectInput<V extends string>({
   | "onBlur"
 > & {
   prefix?: React.ComponentProps<typeof InputControl>["prefix"];
-  /** Shown in place of the caret when `value` is set. */
+  /**
+   * Shown in place of the caret. Pass it whenever clearing is allowed,
+   * including when the selected id is not in `options` and `value` is null.
+   */
   clearAction?: { label: string; onClear: () => void };
   value: SelectedOption<V> | null;
   onValueChange: (option: SelectedOption<V>) => void;
@@ -184,7 +187,7 @@ export function AsyncSelectInput<V extends string>({
           disabled={triggerProps.disabled}
           prefix={prefix}
           clear={
-            value && clearAction
+            clearAction
               ? { label: clearAction.label, onClear: clearAction.onClear }
               : undefined
           }

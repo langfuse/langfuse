@@ -298,6 +298,68 @@ export const TestClearReplacesCaret = meta.story({
   },
 });
 
+export const TestCaretOpensMenu = meta.story({
+  name: "(Test) Caret opens the menu",
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: modelOptions,
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("combobox");
+    const caret = canvasElement.querySelector(
+      "[data-select-indicator='caret']",
+    );
+    if (!caret) throw new Error("Expected a caret indicator");
+    const caretBox = caret.getBoundingClientRect();
+    const hit = caret.ownerDocument.elementFromPoint(
+      caretBox.left + caretBox.width / 2,
+      caretBox.top + caretBox.height / 2,
+    );
+    await expect(hit && trigger.contains(hit)).toBe(true);
+    if (!hit) throw new Error("Expected the caret to hit the trigger");
+    await userEvent.click(hit);
+    await waitFor(() =>
+      expect(
+        canvasElement.ownerDocument.body.querySelector("[role='listbox']"),
+      ).not.toBeNull(),
+    );
+  },
+});
+
+export const TestClearWithoutMatchingOption = meta.story({
+  name: "(Test) Clear stays when the option is missing",
+  args: {
+    value: "missing-baseline",
+    placeholder: "Baseline name",
+    options: modelOptions,
+    onValueChange: fn(),
+    search: { placeholder: "Search experiments..." },
+    clearAction: { label: "Clear baseline", onClear: fn() },
+  },
+  render: (args) => (
+    <div className="w-72">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Clear baseline" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("combobox")).toHaveTextContent(
+      "Baseline name",
+    );
+  },
+});
+
 export const Empty = meta.story({
   name: "(Test) Empty",
   args: {

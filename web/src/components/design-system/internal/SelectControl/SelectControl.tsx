@@ -18,14 +18,13 @@ const triggerPadding = {
   compact: "pl-1.5 pr-6",
 } as const;
 
-type SelectControlProps = {
+type SelectControlProps = Omit<
+  ComponentProps<typeof InputControl>,
+  "contentLayout" | "trailingAction" | "children" | "focusTarget"
+> & {
   children: ReactNode;
-  error?: boolean;
-  disabled?: boolean;
-  height?: ComponentProps<typeof InputControl>["height"];
   /** `compact` matches tag inputs, whose content sits closer to the border. */
   inset?: keyof typeof indicatorPosition;
-  prefix?: ComponentProps<typeof InputControl>["prefix"];
   /**
    * Replaces the caret. Pass this only when a value is set and clearing is
    * allowed; the caret and the clear button never render together.
@@ -49,6 +48,7 @@ export function SelectControl({
   inset = "field",
   prefix,
   clear,
+  ...props
 }: SelectControlProps) {
   return (
     <InputControl
@@ -58,8 +58,9 @@ export function SelectControl({
       error={error}
       disabled={disabled}
       prefix={prefix}
+      {...props}
     >
-      <div className="relative flex h-full w-full min-w-0 items-center">
+      <div className="relative flex w-full min-w-0 items-center">
         <Slot
           className={cn(
             "flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-hidden focus:ring-0",
@@ -71,7 +72,7 @@ export function SelectControl({
         <span
           data-select-indicator={clear ? "clear" : "caret"}
           className={cn(
-            "pointer-events-none absolute top-1/2 flex size-3.5 -translate-y-1/2 items-center justify-center",
+            "pointer-events-none absolute top-1/2 flex size-3.5 -translate-y-1/2 items-center justify-center [&_svg]:pointer-events-none",
             indicatorPosition[inset],
           )}
         >
