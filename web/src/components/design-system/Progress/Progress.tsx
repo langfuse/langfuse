@@ -88,9 +88,9 @@ function clampPercent(value: number) {
 }
 
 function segmentWidth(start: number, end: number) {
-  const width = clampPercent(end) - clampPercent(start);
-  if (width <= 0) return 0.8;
-  return Math.min(width, 100 - clampPercent(start));
+  const left = clampPercent(start);
+  const right = clampPercent(end);
+  return Math.max(0, right - left);
 }
 
 export { Progress };

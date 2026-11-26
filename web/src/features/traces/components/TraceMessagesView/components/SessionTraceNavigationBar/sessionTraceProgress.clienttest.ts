@@ -44,4 +44,23 @@ describe("buildSessionTraceProgress", () => {
     expect(others).toHaveLength(2);
     expect(progress.segments.at(-1)?.tone).toBe("fill");
   });
+
+  it("keeps a zero-duration trace at the session end inside the track", () => {
+    const progress = buildSessionTraceProgress(
+      [
+        { id: "first", startMs: start, endMs: start + 10 * minute },
+        {
+          id: "current",
+          startMs: start + 75 * minute,
+          endMs: start + 75 * minute,
+        },
+      ],
+      "current",
+    );
+    const current = progress?.segments.find(
+      (segment) => segment.tone === "fill",
+    );
+    expect(current?.end).toBe(100);
+    expect(current?.start).toBeCloseTo(100 - 0.8, 5);
+  });
 });

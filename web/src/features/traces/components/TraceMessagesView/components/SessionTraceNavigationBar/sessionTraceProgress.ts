@@ -73,8 +73,9 @@ function spanSegment(
 ): SessionTraceProgressSegment {
   const start = toPercent(span.startMs);
   const end = toPercent(Math.max(span.endMs, span.startMs));
-  const width = Math.max(end - start, MIN_SEGMENT_PERCENT);
-  return { start, end: Math.min(100, start + width), tone };
+  const width = Math.min(100, Math.max(end - start, MIN_SEGMENT_PERCENT));
+  const left = Math.max(0, Math.min(start, 100 - width));
+  return { start: left, end: left + width, tone };
 }
 
 /** Hour and minute units from formatIntervalSeconds, without trailing zero seconds. */
