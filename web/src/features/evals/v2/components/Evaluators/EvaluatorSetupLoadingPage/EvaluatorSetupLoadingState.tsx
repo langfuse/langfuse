@@ -22,7 +22,7 @@ export function EvaluatorSetupLoadingState({
               1
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-bold">Evaluation method</h2>
+              <h2 className="text-base font-bold">Method</h2>
               <Skeleton className="mt-6 h-64 w-full" />
             </div>
           </div>

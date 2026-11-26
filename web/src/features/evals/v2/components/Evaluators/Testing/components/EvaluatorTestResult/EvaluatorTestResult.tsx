@@ -103,7 +103,9 @@ export function EvaluatorTestResult({
     >
       <div className="min-w-20">
         <p className="text-muted-foreground text-xs">Score</p>
-        <p className="mt-2 text-lg font-bold break-words">{scoreText(state)}</p>
+        <p className="mt-2 text-lg font-bold break-words">
+          {scoreText(state) || "—"}
+        </p>
       </div>
       {reasoning ? (
         <div className="min-w-0">
