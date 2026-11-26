@@ -9,7 +9,7 @@ type SessionTracePiece = ReturnType<
 >["pieces"][number];
 
 const idleClassName =
-  "bg-muted bg-[repeating-linear-gradient(135deg,hsl(var(--foreground)/0.45)_0_2px,transparent_2px_5px)]";
+  "bg-muted/40 bg-[repeating-linear-gradient(135deg,hsl(var(--foreground)/0.18)_0_1px,transparent_1px_7px)]";
 
 const pieceClassName = {
   fill: "bg-observation-trace-line",
