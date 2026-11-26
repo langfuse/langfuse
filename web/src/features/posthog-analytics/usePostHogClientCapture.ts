@@ -514,6 +514,9 @@ const events = {
   // Who asks for help from the billing page. Props are the plan, the billing
   // provider and which control was used.
   billing_page: ["contact_support_clicked"],
+  // How many open the confirm of a plan change and back out. Props are plan
+  // enums and the direction only.
+  billing_plan_change: ["confirm_opened"],
   // Launch surfaces answer "which entry point and state lead people into
   // gateway setup or key creation?" Props are state enums and counts only.
   ai_gateway_launch: [
