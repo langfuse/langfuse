@@ -21,6 +21,7 @@ import { astViewsByDeclaration, type BuildContext } from "./astViewQuery";
 /**
  * The builder of each declaration that compiles through the query AST;
  * `QueryBuilder.build` assembles every other one as SQL text.
+ * @internal
  */
 export const AST_VIEWS = astViewsByDeclaration([
   eventsObservationsAstView,
