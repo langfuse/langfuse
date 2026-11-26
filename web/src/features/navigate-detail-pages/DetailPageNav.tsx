@@ -213,7 +213,7 @@ export const DetailPageNav = (props: {
             }}
           />
           {showPosition ? (
-            <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+            <span className="text-muted-foreground font-mono text-xs whitespace-nowrap tabular-nums">
               {currentIndex + 1}/{positionTotal ?? entries.length}
             </span>
           ) : null}
