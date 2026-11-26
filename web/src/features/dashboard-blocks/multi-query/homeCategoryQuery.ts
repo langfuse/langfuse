@@ -1,4 +1,8 @@
-import { dashboardColumnDefinitions, type FilterState } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  dashboardColumnDefinitions,
+  type FilterState,
+} from "@langfuse/shared";
 import { type QueryType } from "@langfuse/shared/query";
 import { mapViewFilterToUiTableFilter } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type RouterInputs } from "@/src/utils/api";
@@ -20,7 +24,7 @@ export function homeCategoryQuery(query: QueryType) {
     query.timeDimension?.granularity !== "auto" ||
     query.orderBy?.length
   ) {
-    throw new Error(
+    throw new InvalidRequestError(
       "A Home category query on v3 needs a time chart, automatic intervals, and the sum grouped by its category.",
     );
   }
@@ -39,7 +43,7 @@ export function homeCategoryQuery(query: QueryType) {
       column.clickhouseTableName === "scores" ||
       filter.type === "datetime"
     )
-      throw new Error(
+      throw new InvalidRequestError(
         "This filter is unavailable for Home categories on v3: " +
           filter.column,
       );

@@ -1,4 +1,3 @@
-import { dashboardBlockContentSchema } from "@langfuse/shared";
 import { type z } from "zod";
 import { type metricAggregations } from "@langfuse/shared/query";
 import {
@@ -19,7 +18,7 @@ import {
   CopyIcon,
   FileJsonIcon,
 } from "@langfuse/icons";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 import { DashboardBlocksContext } from "@/src/features/dashboard-blocks/dashboard-block-context";
 import { MultiQueryChart } from "@/src/features/dashboard-blocks/multi-query/MultiQueryChart";
 import { DashboardMarkdown } from "@/src/features/dashboard-blocks/DashboardMarkdown";
@@ -40,7 +39,6 @@ export function SavedWidgetCard({
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const utils = api.useUtils();
   const context = useContext(DashboardBlocksContext);
   const authoring = useIsFeatureEnabled("dashboardBlockAuthoring");
   const permission = useHasProjectAccess({
@@ -48,14 +46,6 @@ export function SavedWidgetCard({
     scope: "dashboards:CUD",
   });
   const [selectedTabId, setSelectedTabId] = useState<string>();
-  const duplicate = api.dashboardWidgets.saveDefinition.useMutation({
-    onSuccess: async () => {
-      await Promise.all([
-        utils.dashboard.invalidate(),
-        utils.dashboardWidgets.invalidate(),
-      ]);
-    },
-  });
   const definition = widget.definition;
 
   const editable =
@@ -122,25 +112,17 @@ export function SavedWidgetCard({
     buttons: editable
       ? [
           { id: "edit", label: "Edit widget", icon: Pencil, onClick: edit },
-          {
-            id: "duplicate",
-            label: "Duplicate widget",
-            icon: CopyPlusIcon,
-            disabled: duplicate.isPending,
-            onClick: () =>
-              duplicate.mutate({
-                projectId: props.projectId,
-                dashboardId: props.dashboardId,
-                beforePlacementId: props.placement.id,
-                definition: dashboardBlockContentSchema.parse({
-                  ...definition,
-                  config: {
-                    ...definition.config,
-                    title: `${definition.config.title.slice(0, 190)} (Copy)`,
-                  },
-                }),
-              }),
-          },
+          ...(props.onDuplicateWidget
+            ? [
+                {
+                  id: "duplicate",
+                  label: "Duplicate widget",
+                  icon: CopyPlusIcon,
+                  onClick: () =>
+                    props.onDuplicateWidget?.(props.placement, exportSource),
+                },
+              ]
+            : []),
         ]
       : [],
     menu: [
@@ -181,6 +163,7 @@ export function SavedWidgetCard({
   };
   return definition.kind === "markdown" ? (
     <DashboardMarkdown
+      fillContainer
       title={definition.config.title}
       content={definition.config.content}
       actions={actions}

@@ -15,8 +15,67 @@ import {
   handleUpdateDashboardWidget,
 } from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 import { mockServerContext } from "./mcp-helpers";
+import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
+import { ProtocolErrorCode } from "@modelcontextprotocol/server";
 
 describe("renderWidget", () => {
+  it("returns actionable invalid-request errors for unsupported chart plans", async () => {
+    for (const homeScoreAggregate of [false, true]) {
+      const error = await handleRenderWidget(
+        {
+          definition: {
+            kind: "multiQuery",
+            config: {
+              version: 2,
+              title: "Scores",
+              description: "",
+              tabs: [
+                {
+                  id: "scores",
+                  label: "Scores",
+                  queries: [
+                    {
+                      id: "a",
+                      label: "Scores",
+                      view: "scores-numeric",
+                      metrics: [
+                        { id: "count", measure: "count", aggregation: "count" },
+                      ],
+                      dimensions: homeScoreAggregate
+                        ? []
+                        : [{ field: "sessionId" }],
+                      filters: [],
+                      homeScoreAggregate,
+                    },
+                  ],
+                  display: { chartType: "LINE_TIME_SERIES" },
+                },
+              ],
+            },
+          },
+        },
+        mockServerContext({ projectId: uuidv4() }),
+      ).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(formatErrorForUser(error)).toEqual({
+        code: ProtocolErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          homeScoreAggregate
+            ? "Home score records support counts and numeric means"
+            : "cannot be used with timeDimension unless an 'any of' filter",
+        ),
+      });
+    }
+    expect(
+      formatErrorForUser(new Error("private implementation detail")),
+    ).toEqual({
+      code: ProtocolErrorCode.InternalError,
+      message: "An unexpected error occurred. Please try again later.",
+    });
+  });
+
   it("renders saved Markdown without querying its classic projection", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const { widget } = await DashboardService.saveWidgetDefinition(projectId, {

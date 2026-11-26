@@ -121,7 +121,7 @@ export default function DashboardDetailPage() {
   if (!route.ready) {
     return <RouteParamsPendingFallback />;
   }
-  const { projectId } = route.params;
+  const { projectId, dashboardId } = route.params;
   if (readPath === "unknown") {
     return (
       <Page
@@ -140,20 +140,40 @@ export default function DashboardDetailPage() {
       </Page>
     );
   }
-  return <DashboardDetailView readPath={readPath} />;
+  return (
+    <DashboardDetailView
+      key={`${projectId}:${dashboardId}`}
+      projectId={projectId}
+      dashboardId={dashboardId}
+      readPath={readPath}
+    />
+  );
 }
 
-function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
+function DashboardDetailView({
+  projectId,
+  dashboardId,
+  readPath,
+}: {
+  projectId: string;
+  dashboardId: string;
+  readPath: ResolvedReadPath;
+}) {
   const router = useRouter();
   const utils = api.useUtils();
   const authoringEnabled = useIsFeatureEnabled("dashboardBlockAuthoring");
   const capture = usePostHogClientCapture();
 
-  const { projectId, dashboardId, addWidgetId } = router.query as {
-    projectId: string;
-    dashboardId: string;
-    addWidgetId?: string;
-  };
+  const { addWidgetId } = router.query as { addWidgetId?: string };
+  const mounted = useRef(true);
+  // In-flight widget creation may finish after navigation. Its caller must
+  // delete the new row rather than attach it to an abandoned dashboard draft.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
   const isV4 = readPath === "v4";
@@ -306,13 +326,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     });
 
   const saveDashboardChanges = useDebounce(
-    (definition: { widgets: DashboardPlacement[] }) => {
-      if (!hasCUDAccess) return;
-      updateDashboardDefinition.mutate({
-        projectId,
-        dashboardId,
-        definition,
-      });
+    (input: {
+      projectId: string;
+      dashboardId: string;
+      definition: { widgets: DashboardPlacement[] };
+    }) => {
+      updateDashboardDefinition.mutate(input);
     },
     600,
     false,
@@ -323,10 +342,12 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   // the debounced save.
   const applyDashboardDefinition = useCallback(
     (updated: { widgets: DashboardPlacement[] }) => {
+      if (!hasCUDAccess || !mounted.current) return;
       applyDraft(updated);
-      saveDashboardChanges(updated);
+      // Pending layout saves retain their destination after route changes.
+      saveDashboardChanges({ projectId, dashboardId, definition: updated });
     },
-    [applyDraft, saveDashboardChanges],
+    [applyDraft, saveDashboardChanges, projectId, dashboardId, hasCUDAccess],
   );
 
   // Function to save current filters
@@ -356,7 +377,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // Read through the ref: async callers (paste/duplicate) reach here
       // after a network round-trip.
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!mounted.current || !currentDefinition) return false;
 
       // Find the maximum y position to place the new widget at the bottom
       const maxY =
@@ -392,6 +413,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           .querySelector(`[data-placement-id="${newWidgetPlacement.id}"]`)
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      return true;
     },
     [applyDashboardDefinition, dashboardDefinitionRef],
   );
@@ -513,10 +535,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const { mutateAsync: saveDefinitionAsync } =
     api.dashboardWidgets.saveDefinition.useMutation({
       onSuccess: async () => {
-        await Promise.all([
-          utils.dashboard.invalidate(),
-          utils.dashboardWidgets.invalidate(),
-        ]);
+        await utils.dashboardWidgets.invalidate();
       },
     });
   const { mutateAsync: createWidgetAsync } =
@@ -532,27 +551,37 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       widget: WidgetExportSource,
       surface: WidgetDuplicateSurface,
     ) => {
+      if (!dashboardDefinitionRef.current) return;
       try {
-        if (widget.definition) {
-          await saveDefinitionAsync({
-            projectId,
-            dashboardId,
-            beforePlacementId: anchor.id,
-            definition: dashboardBlockContentSchema.parse({
-              ...widget.definition,
-              config: {
-                ...widget.definition.config,
-                title: `${widget.name.slice(0, 190)} (Copy)`,
-              },
-            }),
-          });
+        const result = widget.definition
+          ? await saveDefinitionAsync({
+              projectId,
+              definition: dashboardBlockContentSchema.parse({
+                ...widget.definition,
+                config: {
+                  ...widget.definition.config,
+                  title: `${widget.name.slice(0, 190)} (Copy)`,
+                },
+              }),
+            })
+          : await createWidgetAsync({
+              projectId,
+              ...toWidgetCreateFields(widget),
+              name: `${widget.name} (Copy)`,
+            });
+        const currentAnchor =
+          dashboardDefinitionRef.current?.widgets.find(
+            (placement) => placement.id === anchor.id,
+          ) ?? anchor;
+        if (
+          !insertWidgetPlacement(
+            result.widget.id,
+            placementNextTo(currentAnchor),
+          )
+        ) {
+          await deleteWidgetAsync({ projectId, widgetId: result.widget.id });
           return;
         }
-        const result = await createWidgetAsync({
-          projectId,
-          ...toWidgetCreateFields(widget),
-          name: `${widget.name} (Copy)`,
-        });
         capture("dashboard:widget_duplicated", {
           surface,
           isV4,
@@ -561,7 +590,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           chart_type: widget.chartType,
           view: widget.view,
         });
-        insertWidgetPlacement(result.widget.id, placementNextTo(anchor));
       } catch (e) {
         showErrorToast(
           "Failed to duplicate widget",
@@ -573,6 +601,8 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
     [
       createWidgetAsync,
       saveDefinitionAsync,
+      dashboardDefinitionRef,
+      deleteWidgetAsync,
       projectId,
       dashboardId,
       capture,
@@ -612,19 +642,33 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       // otherwise leave an orphan widget in the library.
       if (!dashboardDefinitionRef.current) return;
       try {
-        if (parsed.widget.definition) {
-          await saveDefinitionAsync({
-            projectId,
-            dashboardId,
-            beforePlacementId: anchor?.id,
-            definition: parsed.widget.definition,
-          });
+        const result = parsed.widget.definition
+          ? await saveDefinitionAsync({
+              projectId,
+              definition: parsed.widget.definition,
+            })
+          : await createWidgetAsync({
+              projectId,
+              ...toWidgetCreateFields(parsed.widget),
+            });
+        const currentAnchor = anchor
+          ? (dashboardDefinitionRef.current?.widgets.find(
+              (placement) => placement.id === anchor.id,
+            ) ?? anchor)
+          : undefined;
+        const defaultPosition =
+          parsed.widget.definition?.kind === "markdown"
+            ? { x_size: 12, y_size: 2 }
+            : undefined;
+        if (
+          !insertWidgetPlacement(
+            result.widget.id,
+            currentAnchor ? placementNextTo(currentAnchor) : defaultPosition,
+          )
+        ) {
+          await deleteWidgetAsync({ projectId, widgetId: result.widget.id });
           return;
         }
-        const result = await createWidgetAsync({
-          projectId,
-          ...toWidgetCreateFields(parsed.widget),
-        });
         capture("dashboard:widget_pasted", {
           source,
           kind: "widget",
@@ -632,10 +676,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           chart_type: parsed.widget.chartType,
           view: parsed.widget.view,
         });
-        insertWidgetPlacement(
-          result.widget.id,
-          anchor ? placementNextTo(anchor) : undefined,
-        );
         if (parsed.removedFilters) {
           showErrorToast(
             "Widget filters were adjusted",
@@ -660,6 +700,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
       capture,
       createWidgetAsync,
       saveDefinitionAsync,
+      deleteWidgetAsync,
       dashboardDefinitionRef,
       dashboardId,
       insertWidgetPlacement,
@@ -854,7 +895,14 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
         // Re-read the definition after the awaits: a drag/delete/paste may
         // have landed while the widgets were being created.
         const currentDefinition = dashboardDefinitionRef.current;
-        if (!currentDefinition) return;
+        if (!mounted.current || !currentDefinition) {
+          await Promise.allSettled(
+            createdWidgets.map((created) =>
+              deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
+            ),
+          );
+          return;
+        }
         const maxY =
           currentDefinition.widgets.length > 0
             ? Math.max(...currentDefinition.widgets.map((w) => w.y + w.y_size))

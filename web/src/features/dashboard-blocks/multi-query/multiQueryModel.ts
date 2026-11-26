@@ -1,4 +1,4 @@
-import { type FilterState } from "@langfuse/shared";
+import { InvalidRequestError, type FilterState } from "@langfuse/shared";
 import { homeCategoryQuery } from "./homeCategoryQuery";
 import { homeScoreAggregate } from "./homeScoreAggregate";
 import {
@@ -150,11 +150,11 @@ export function buildMultiQueryPlan(
     })),
   });
   if (!parsed.success)
-    throw new Error(
+    throw new InvalidRequestError(
       parsed.error.issues[0]?.message ?? "Invalid chart configuration",
     );
   if (!(context.dateRange.from < context.dateRange.to))
-    throw new Error("Choose a valid time range");
+    throw new InvalidRequestError("Choose a valid time range");
   const warnings: string[] = [];
   const queries = config.queries
     .filter(
@@ -179,7 +179,7 @@ export function buildMultiQueryPlan(
         source.filters,
       );
       if (localFilters.length !== source.filters.length)
-        throw new Error(
+        throw new InvalidRequestError(
           `${source.label}: remove filters that are not supported by this data source`,
         );
       const mappedGlobal = mapLegacyUiTableFilterToView(
@@ -190,7 +190,7 @@ export function buildMultiQueryPlan(
         source.homeScoreAggregate &&
         mappedGlobal.length !== context.filterState.length
       ) {
-        throw new Error(
+        throw new InvalidRequestError(
           `${source.label}: a dashboard filter is unavailable for Home score records`,
         );
       }
@@ -291,7 +291,7 @@ export function buildMultiQueryPlan(
       };
       const validation = validateQuery(query, version);
       if (!validation.valid)
-        throw new Error(`${source.label}: ${validation.reason}`);
+        throw new InvalidRequestError(`${source.label}: ${validation.reason}`);
       const homeCategory =
         context.readPath === "v3" && source.homeCategoryFallback
           ? homeCategoryQuery(query)

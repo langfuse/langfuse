@@ -1,4 +1,8 @@
-import { dashboardColumnDefinitions, type FilterState } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  dashboardColumnDefinitions,
+  type FilterState,
+} from "@langfuse/shared";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapViewFilterToUiTableFilter } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type RouterInputs } from "@/src/utils/api";
@@ -20,7 +24,7 @@ export function homeScoreAggregate(query: QueryType) {
     query.dimensions.some((d) => !definitionFields.has(d.field)) ||
     metrics.some((m) => !["sum_count", "count_count", "avg_value"].includes(m))
   ) {
-    throw new Error(
+    throw new InvalidRequestError(
       "Home score records support counts and numeric means, grouped by name, source or data type over the full time range.",
     );
   }
@@ -31,7 +35,7 @@ export function homeScoreAggregate(query: QueryType) {
         !query.dimensions.some((d) => d.field === o.field),
     )
   ) {
-    throw new Error(
+    throw new InvalidRequestError(
       "Order the Home score records by a selected measure or breakdown.",
     );
   }
@@ -49,7 +53,7 @@ export function homeScoreAggregate(query: QueryType) {
         !["scores", "traces"].includes(column.clickhouseTableName ?? "") ||
         filter.type === "datetime"
       ) {
-        throw new Error(
+        throw new InvalidRequestError(
           `This filter is unavailable for Home score records: ${filter.column}`,
         );
       }

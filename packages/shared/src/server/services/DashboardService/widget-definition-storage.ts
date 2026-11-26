@@ -211,17 +211,24 @@ function addPlacement(
     y_size: existing?.y_size ?? height,
   };
   if (existing)
-    layout.widgets = layout.widgets.map((item) =>
-      item.id === existing.id ? placement : item,
-    );
-  else {
-    if (before)
-      layout.widgets = layout.widgets.map((item) =>
+    return {
+      layout: {
+        ...layout,
+        widgets: layout.widgets.map((item) =>
+          item.id === existing.id ? placement : item,
+        ),
+      },
+      placement,
+    };
+  const widgets = before
+    ? layout.widgets.map((item) =>
         item.y >= y ? { ...item, y: item.y + placement.y_size } : item,
-      );
-    layout.widgets.push(placement);
-  }
-  return placement;
+      )
+    : layout.widgets;
+  return {
+    layout: { ...layout, widgets: widgets.concat(placement) },
+    placement,
+  };
 }
 
 export async function saveWidgetDefinition(
@@ -304,7 +311,7 @@ export async function saveWidgetDefinition(
             "The Home card has already been replaced.",
           );
       }
-      const placement = addPlacement(
+      const { placement, layout } = addPlacement(
         dashboard.layout,
         widget.id,
         replaceId,
@@ -316,7 +323,7 @@ export async function saveWidgetDefinition(
         tx,
         projectId,
         parsed.dashboardId,
-        dashboard.layout,
+        layout,
         remaining
           .filter((entry) => entry !== source)
           .map((entry) => entry.ordinal),
@@ -337,7 +344,12 @@ export async function migrateInlineWidgets(
   userId?: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const { raw, layout } = await lockDashboard(tx, projectId, dashboardId);
+    const { raw, layout: initialLayout } = await lockDashboard(
+      tx,
+      projectId,
+      dashboardId,
+    );
+    let layout = initialLayout;
     const entries = inlineEntries(raw);
     const parsed = entries.map((entry) => {
       const block = storedInlineDashboardWidgetSchema.safeParse(entry.value);
@@ -377,13 +389,13 @@ export async function migrateInlineWidgets(
             "The original Home card placement changed.",
           );
       }
-      addPlacement(
+      layout = addPlacement(
         layout,
         widget.id,
         replaceId,
         block.beforePlacementId ?? undefined,
         definition.kind === "markdown" ? 2 : 5,
-      );
+      ).layout;
     }
     if (entries.length)
       await writeLayout(tx, projectId, dashboardId, layout, [], userId);
