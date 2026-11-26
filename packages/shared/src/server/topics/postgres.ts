@@ -376,19 +376,15 @@ function runResult(
   };
 }
 
-/** A published run's definitions; one that cannot be read is skipped and reported instead of failing the map. */
+/** A run's definitions; a missing one is reported and fails the read, so no caller caches or classifies against a partial map. */
 function servedDefinitions(
   row: RunRow,
   definitions: Map<string, TopicDefinition>,
 ): TopicDefinition[] {
-  const missing: string[] = [];
-  const topics = row.topicVersionIds.flatMap((id) => {
-    const topic = definitions.get(id);
-    if (topic?.projectId === row.projectId) return [topic];
-    missing.push(id);
-    return [];
-  });
-  if (missing.length) {
+  const missing = row.topicVersionIds.filter(
+    (id) => definitions.get(id)?.projectId !== row.projectId,
+  );
+  if (missing.length > 0) {
     recordIncrement("langfuse.topics.definitions_missing", missing.length);
     logger.error("Topics run references definitions that cannot be read", {
       projectId: row.projectId,
@@ -397,8 +393,9 @@ function servedDefinitions(
       missingTopicVersionIds: missing,
       expected: row.topicVersionIds.length,
     });
+    throw new Error("Topic run references a missing definition.");
   }
-  return topics;
+  return row.topicVersionIds.map((id) => definitions.get(id)!);
 }
 
 async function hydrateRuns(
@@ -749,7 +746,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
     const invisible = ids.filter((id) => !saved.has(id));
-    if (invisible.length)
+    if (invisible.length > 0)
       throw new TopicDefinitionReadbackError(
         `Topic definitions are not visible for ${invisible.length} of ${ids.length} new definitions.`,
       );

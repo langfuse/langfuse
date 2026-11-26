@@ -427,7 +427,7 @@ describe("Topics immutable definitions and run membership", () => {
     expect(mocks.runUpdate).toHaveBeenCalled();
   });
 
-  it("serves the definitions that remain and reports the one it cannot read", async () => {
+  it("fails hydration on a definition it cannot read and reports which one", async () => {
     mocks.runFind.mockResolvedValue(
       runRow({
         id: "run-b",
@@ -436,7 +436,9 @@ describe("Topics immutable definitions and run membership", () => {
     );
     mocks.topicFind.mockResolvedValue([topic]);
     const error = vi.spyOn(logger, "error").mockImplementation(() => logger);
-    expect((await getTopicRun("project-a", "run-b"))?.topics).toEqual([topic]);
+    await expect(getTopicRun("project-a", "run-b")).rejects.toThrow(
+      "missing definition",
+    );
     expect(error).toHaveBeenCalledWith(
       "Topics run references definitions that cannot be read",
       expect.objectContaining({

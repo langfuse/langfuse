@@ -194,20 +194,21 @@ async function assignSummaries(
         }
         // Publish once nearly every source is readable; the rest appear as the replica catches up.
         const required = Math.ceil(ASSIGNMENT_COVERAGE * sources.size);
-        const visible = !required
-          ? 0
-          : await readUntilVisible(
-              "assignments",
-              { projectId: scope.projectId, runId: run.id },
-              () =>
-                countTopicAssignmentSources(
-                  scope.projectId,
-                  { facetId: facet.facetId, version: facet.version },
-                  run.id,
-                  summaryTimeRange(summaries),
-                ),
-              (count) => count >= required,
-            );
+        const visible =
+          required === 0
+            ? 0
+            : await readUntilVisible(
+                "assignments",
+                { projectId: scope.projectId, runId: run.id },
+                () =>
+                  countTopicAssignmentSources(
+                    scope.projectId,
+                    { facetId: facet.facetId, version: facet.version },
+                    run.id,
+                    summaryTimeRange(summaries),
+                  ),
+                (count) => count >= required,
+              );
         if (visible < required)
           throw new TopicAssignmentVisibilityError(
             `Topic assignments are not fully visible (${visible} of ${sources.size} sources); map publication is deferred.`,
