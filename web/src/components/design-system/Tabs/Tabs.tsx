@@ -80,9 +80,39 @@ const tabsTriggerVariants = cva(
         sm: "px-2 text-xs",
         md: "px-4 text-sm",
       },
+      emphasis: {
+        default: "",
+        strong:
+          "group/tab data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground",
+      },
+    },
+    defaultVariants: {
+      emphasis: "default",
     },
   },
 );
+
+const tabsIndicatorVariants = cva(
+  "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
+  {
+    variants: {
+      emphasis: {
+        default:
+          "bg-background dark:bg-control-track shadow-sm dark:shadow-none",
+        strong: "bg-primary",
+      },
+    },
+  },
+);
+
+type TabsEmphasis = "default" | "strong";
+
+/**
+ * The strong fill is the opposite of the theme. In light mode the Internal
+ * chip gets a page-coloured backing; in dark mode it swaps fill and text hues.
+ */
+const internalBadgeOnStrongFill =
+  "group-data-[state=active]/tab:bg-background dark:group-data-[state=active]/tab:bg-transparent dark:group-data-[state=active]/tab:*:border-category-amber-foreground/25 dark:group-data-[state=active]/tab:*:bg-category-amber-foreground/30 dark:group-data-[state=active]/tab:*:text-category-amber-highlight";
 
 type TabsRootProps = {
   /** `manual`: arrow keys only move focus; Enter/Space selects. For form inputs where a focus must not commit a value. */
@@ -140,7 +170,7 @@ type TabsListProps = {
       overflow?: never;
       divider?: never;
       /** `strong`: the selected tab takes the primary fill, for a choice that changes the whole view. */
-      emphasis?: "strong";
+      emphasis?: TabsEmphasis;
     }
   | {
       variant: "underline";
@@ -161,7 +191,7 @@ type TabsListProps = {
 const TabsListContext = React.createContext<{
   look: TabsVariant;
   size?: TabsInsetSize;
-  emphasis?: "strong";
+  emphasis?: TabsEmphasis;
 } | null>(null);
 
 /** Outside a `Tabs` root the list is page navigation: a `<nav>` of link triggers, not a tablist. */
@@ -174,7 +204,7 @@ function TabsList({
   divider,
   size,
   variant,
-  emphasis,
+  emphasis = "default",
 }: TabsListProps) {
   const inRoot = React.use(TabsRootContext) !== null;
   const look = variant;
@@ -303,12 +333,7 @@ function TabsList({
             ref={indicatorRef}
             data-tabs-indicator=""
             aria-hidden="true"
-            className={cn(
-              "pointer-events-none absolute inset-y-0.5 left-0 z-0 rounded-sm opacity-0 data-[ready=true]:transition-[width,transform] data-[ready=true]:duration-200 data-[ready=true]:ease-out motion-reduce:transition-none",
-              emphasis === "strong"
-                ? "bg-primary"
-                : "bg-background dark:bg-control-track shadow-sm dark:shadow-none",
-            )}
+            className={tabsIndicatorVariants({ emphasis })}
           />
         ) : null}
         {children}
@@ -364,11 +389,11 @@ function TabsTrigger(props: TabsTriggerProps) {
   const list = React.use(TabsListContext) ?? { look: "underline" as const };
   const { children, count, disabled, icon, internal, label, title, tooltip } =
     props;
-  const className = cn(
-    tabsTriggerVariants({ look: list.look, size: list.size }),
-    list.emphasis === "strong" &&
-      "group/tab data-[state=active]:text-primary-foreground dark:data-[state=active]:text-primary-foreground",
-  );
+  const className = tabsTriggerVariants({
+    look: list.look,
+    size: list.size,
+    emphasis: list.emphasis,
+  });
   const nativeTitle = tooltip ? undefined : (labelText(label, count) ?? title);
   const disabledReason = getDisabledReason(disabled);
   const content = (
@@ -449,7 +474,12 @@ function TabsTriggerContent({
       )}
       {/* In a tight row the badge gives way before the label. */}
       {internal ? (
-        <span className="group-data-[state=active]/tab:bg-background flex min-w-0 shrink-100 overflow-hidden rounded-sm">
+        <span
+          className={cn(
+            "flex min-w-0 shrink-100 overflow-hidden rounded-sm",
+            internalBadgeOnStrongFill,
+          )}
+        >
           <TabsInternalBadge />
         </span>
       ) : null}
