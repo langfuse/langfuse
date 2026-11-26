@@ -1,4 +1,4 @@
-import { Pencil } from "@langfuse/icons";
+import { MessageSquare, Pencil } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type TopicsActions } from "./prepare-topics-actions";
@@ -53,6 +53,16 @@ export function TopicsActionsMenu({
         aria-pressed={display.checked}
         onClick={() => display.onCheckedChange(!display.checked)}
       />
+      {actions.giveFeedback && (
+        <HeaderActionMenuRow
+          label="Give feedback"
+          icon={<MessageSquare size="base" color="default" />}
+          onClick={() => {
+            closeMenu();
+            actions.giveFeedback?.();
+          }}
+        />
+      )}
     </>
   );
 }

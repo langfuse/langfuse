@@ -1,6 +1,6 @@
 use super::{
-    MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest, bounded_string, error_detail,
-    facts::ProviderFacts, parse_request, response::ResponseBody,
+    InputOmission, MAX_FACT_STRING, MAX_ITEMS, MAX_OUTPUT_CAPTURE_BYTES, RawRequest,
+    bounded_string, error_detail, facts::ProviderFacts, response::ResponseBody,
 };
 use crate::resolution::IngestionMode;
 use axum::http::HeaderMap;
@@ -28,7 +28,7 @@ const STRUCTURED_PARAMETERS: [&str; 5] = [
 pub(super) struct AnthropicMessagesCapture {
     pub(super) facts: ProviderFacts,
     mode: IngestionMode,
-    body: ResponseBody,
+    pub(super) body: ResponseBody,
     usage: Option<Map<String, Value>>,
     /// Present only in full mode; usage mode never records output.
     output: Option<AssistantMessage>,
@@ -205,7 +205,7 @@ fn block_index(event: &Map<String, Value>) -> Option<u64> {
 }
 
 impl AnthropicMessagesCapture {
-    pub(super) fn new(headers: &HeaderMap, body: &[u8], mode: IngestionMode) -> Self {
+    pub(super) fn new(request: Result<RawRequest, InputOmission>, mode: IngestionMode) -> Self {
         let mut capture = Self {
             facts: ProviderFacts::default(),
             mode,
@@ -216,7 +216,7 @@ impl AnthropicMessagesCapture {
             request_complete: false,
             response_valid: true,
         };
-        match parse_request(headers, body) {
+        match request {
             Ok(request) => {
                 capture.capture_request(request);
                 capture.request_complete = true;
@@ -236,10 +236,10 @@ impl AnthropicMessagesCapture {
         }
     }
 
-    pub(super) fn push_bytes(&mut self, bytes: &[u8]) -> bool {
+    pub(super) fn push_bytes(&mut self, bytes: &[u8], parse_limit: usize) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
-        if !body.push(bytes, |event| {
+        if !body.push(bytes, parse_limit, |event| {
             completion_started |= self.handle_event(event);
         }) {
             self.response_valid = false;
@@ -458,6 +458,32 @@ impl AnthropicMessagesCapture {
             self.facts.error_message = Some(detail);
         }
     }
+}
+
+/// Anthropic Messages keeps the conversation in `messages` and the system prompt in
+/// `system`. The last turn is the user's message after the model last answered; tool
+/// results arrive as `tool_result` blocks of one user message. The system prompt
+/// counts only on the first turn.
+/// The top-level members guardrails scan.
+pub(super) const GUARDRAIL_MEMBERS: &[&str] = &["messages", "system"];
+
+pub(super) fn guardrail_turn<'a>(
+    member: impl Fn(&str) -> Option<&'a str>,
+) -> Result<crate::guardrails::text::LastTurn, crate::guardrails::text::Unreadable> {
+    let mut turn = crate::guardrails::text::LastTurn::default();
+    let had_model_turn = match member("messages") {
+        Some(messages) => turn.push_items(
+            "messages",
+            messages,
+            crate::guardrails::text::classify_role_message,
+            crate::guardrails::text::read_role_message,
+        )?,
+        None => false,
+    };
+    if !had_model_turn && let Some(system) = member("system") {
+        turn.push_member("system", system);
+    }
+    Ok(turn)
 }
 
 #[cfg(test)]

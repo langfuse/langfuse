@@ -18,6 +18,8 @@ import type {
   GatewayProviderName,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
+import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -35,6 +37,7 @@ import {
   redis,
   UsageDetails,
 } from "@langfuse/shared/src/server";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const BASE_URL = (
   process.env.LANGFUSE_AI_GATEWAY_E2E_BASE_URL ?? "http://localhost:3000"
@@ -46,11 +49,20 @@ const DEFAULT_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const RESOLVE_PATH = "/api/internal/ai-gateway/v1/resolve";
 export const TEST_TIMEOUT_MS = 120_000;
 export const COMPLETION_TIMEOUT_MS = 180_000;
+export const POLL_INTERVAL_MS = 200;
 
 // Chat completions has no separate models route; the OpenAI route lists the
 // responses catalog.
 const OPENAI_MODELS_PATH = "/openai/v1/models";
 const ANTHROPIC_MODELS_PATH = "/anthropic/v1/models";
+
+// Live provider model listings intermittently stall or fail; retry those
+// outcomes so one slow listing does not fail a whole provider suite.
+const TRANSIENT_RETRY_DELAYS_MS = [2_000, 5_000];
+const TRANSIENT_DISCOVERY_ERRORS = new Set<ModelDiscoveryError>([
+  "provider_error",
+  "timeout",
+]);
 
 const openAiModelListSchema = z
   .object({
@@ -90,10 +102,27 @@ const anthropicModelListSchema = z
   })
   .strict();
 
+// The Anthropic route reports the gateway's `gateway_unavailable` 503 as
+// Anthropic's `overloaded_error` type, without a code.
+const gatewayUnavailableSchema = z.object({
+  error: z.union([
+    z.object({ code: z.literal("gateway_unavailable") }),
+    z.object({ type: z.literal("overloaded_error") }),
+  ]),
+});
+
 type Admin = Awaited<ReturnType<typeof createGatewayAdmin>>;
 type CreateConnectionInput = Parameters<
   Admin["caller"]["aiGateway"]["createConnection"]
 >[0];
+type GatewayKeySpendLimit = Parameters<
+  Admin["caller"]["aiGateway"]["createApiKey"]
+>[0]["spendLimit"];
+
+type GatewayKeyGuardrail = {
+  action: "BLOCK" | "LOG";
+  presets: GatewayGuardrailPreset[];
+};
 
 type ConnectionSpec = Omit<CreateConnectionInput, "orgId" | "name"> & {
   /** Provider model ids the suite calls. Connections whose key may not list models get them as custom models. */
@@ -141,6 +170,7 @@ let gatewayConfigPrepared = false;
 let connectionSnapshots: ConnectionSnapshot[] = [];
 let createdConnectionId: string | null = null;
 const apiKeyIds = new Set<string>();
+const guardrailIds = new Set<string>();
 const originalAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
@@ -229,7 +259,7 @@ export function setUpGatewayE2e(
     const gateway = await startGatewayProcess();
     suite.gatewayBaseUrl = gateway.url;
     stopGateway = gateway.stop;
-  }, 60_000);
+  }, TEST_TIMEOUT_MS);
 
   afterAll(async () => {
     try {
@@ -273,7 +303,17 @@ export function requiredEnv(name: string) {
 
 export async function withGatewayApiKey(
   apiFormat: GatewayApiFormat,
-  run: (key: { secretKey: string; id: string }) => Promise<void>,
+  run: (key: {
+    secretKey: string;
+    id: string;
+    /** Ids of `options.guardrails`, in order. */
+    guardrailIds: string[];
+  }) => Promise<void>,
+  options: {
+    spendLimit?: GatewayKeySpendLimit;
+    /** Assigned to the key only; there are no guardrail routes yet, so rows are written directly. */
+    guardrails?: GatewayKeyGuardrail[];
+  } = {},
 ) {
   const { provider } = suite.connection;
   const gatewayKey = await suite.admin.caller.aiGateway.createApiKey({
@@ -284,10 +324,32 @@ export async function withGatewayApiKey(
       provider,
       apiFormat,
     },
+    spendLimit: options.spendLimit,
   });
   apiKeyIds.add(gatewayKey.id);
+  const keyGuardrailIds: string[] = [];
 
   try {
+    for (const guardrail of options.guardrails ?? []) {
+      const { id } = await prisma.gatewayGuardrail.create({
+        data: {
+          organizationId: ORGANIZATION_ID,
+          name: `e2e-${guardrail.action.toLowerCase()}-${randomBytes(3).toString("hex")}`,
+          action: guardrail.action,
+          config: { presets: guardrail.presets },
+          assignments: {
+            create: {
+              organizationId: ORGANIZATION_ID,
+              scope: "API_KEY",
+              apiKeyId: gatewayKey.id,
+            },
+          },
+        },
+        select: { id: true },
+      });
+      guardrailIds.add(id);
+      keyGuardrailIds.push(id);
+    }
     const listedKeys = await suite.admin.caller.aiGateway.listApiKeys({
       orgId: ORGANIZATION_ID,
     });
@@ -295,8 +357,18 @@ export async function withGatewayApiKey(
       listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
     ).toBe(true);
 
-    await run({ secretKey: gatewayKey.secretKey, id: gatewayKey.id });
+    await run({
+      secretKey: gatewayKey.secretKey,
+      id: gatewayKey.id,
+      guardrailIds: keyGuardrailIds,
+    });
   } finally {
+    if (keyGuardrailIds.length > 0) {
+      await prisma.gatewayGuardrail.deleteMany({
+        where: { id: { in: keyGuardrailIds } },
+      });
+      keyGuardrailIds.forEach((id) => guardrailIds.delete(id));
+    }
     await suite.admin.caller.aiGateway.revokeApiKey({
       orgId: ORGANIZATION_ID,
       id: gatewayKey.id,
@@ -314,9 +386,13 @@ export async function listGatewayModelIds(
     apiFormat === "anthropic.messages"
       ? ANTHROPIC_MODELS_PATH
       : OPENAI_MODELS_PATH;
-  const response = await fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
-  });
+  const response = await retryTransient(
+    () =>
+      fetch(`${suite.gatewayBaseUrl}${requestPath}`, {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      }),
+    isGatewayUnavailable,
+  );
   const body = await readJsonResponse(response, 200, requestPath);
   if (requestPath === OPENAI_MODELS_PATH) {
     return openAiModelListSchema.parse(body).data.map(({ id }) => id);
@@ -418,8 +494,9 @@ export async function completeAndExpectIngested(input: CompletionRequest) {
       });
     },
     90_000,
-    1_000,
+    POLL_INTERVAL_MS,
   );
+  return { traceId: traceId!, observationId: observationId! };
 }
 
 export async function gatewayControlPlaneRequest(input: {
@@ -578,7 +655,7 @@ export async function ingestTrace(
       ]);
     },
     40_000,
-    1_000,
+    POLL_INTERVAL_MS,
   );
 
   return { traceId, observationId };
@@ -596,10 +673,14 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 
   // Azure validates the key on a route it may list, then discovers
   // deployments on one it may not, so check the catalog as well.
-  const catalog = await suite.admin.caller.aiGateway.getConnectionModels({
-    orgId: ORGANIZATION_ID,
-    id: created.id,
-  });
+  const catalog = await retryTransient(
+    () =>
+      suite.admin.caller.aiGateway.getConnectionModels({
+        orgId: ORGANIZATION_ID,
+        id: created.id,
+      }),
+    (result) => !result.success && TRANSIENT_DISCOVERY_ERRORS.has(result.error),
+  );
   expect(catalog.success, JSON.stringify(catalog)).toBe(true);
   let { updatedAt } = created;
   if (
@@ -621,6 +702,11 @@ async function addProviderConnection({ models, ...spec }: ConnectionSpec) {
 }
 
 async function cleanUpTestArtifacts() {
+  if (guardrailIds.size > 0) {
+    await prisma.gatewayGuardrail.deleteMany({
+      where: { id: { in: [...guardrailIds] } },
+    });
+  }
   if (apiKeyIds.size > 0) {
     await prisma.apiKey.deleteMany({
       where: { id: { in: [...apiKeyIds] } },
@@ -685,29 +771,22 @@ async function createGatewayAdmin() {
       select: { id: true, name: true, email: true },
     }),
   ]);
-  const session: Session = {
-    expires: "1",
+  const session: Session = createSession({
     user: {
       id: user.id,
       name: user.name,
-      canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
-      organizations: [
-        {
-          id: organization.id,
-          name: organization.name,
-          role: Role.OWNER,
-          cloudConfig: undefined,
-          plan: "oss",
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: true,
-          projects: [],
-        },
-      ],
     },
-    environment: {} as Session["environment"],
-  };
+    organizations: [
+      {
+        id: organization.id,
+        role: Role.OWNER,
+        name: organization.name,
+        plan: "oss",
+        aiTelemetryEnabled: true,
+      },
+    ],
+  });
   const context = createInnerTRPCContext({ session, headers: {} });
   return {
     caller: appRouter.createCaller({ ...context, prisma }),
@@ -771,6 +850,28 @@ function gatewayIngestionAuthorization(token: string) {
     canonicalMessage,
     env.LANGFUSE_AI_GATEWAY_SERVICE_KEY!,
   )}`;
+}
+
+/** Repeats `attempt` while `isTransient` holds, then returns the last result for the caller to assert on. */
+async function retryTransient<T>(
+  attempt: () => Promise<T>,
+  isTransient: (result: T) => boolean | Promise<boolean>,
+) {
+  for (const delayMs of TRANSIENT_RETRY_DELAYS_MS) {
+    const result = await attempt();
+    if (!(await isTransient(result))) return result;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return attempt();
+}
+
+async function isGatewayUnavailable(response: Response) {
+  if (response.status !== 503) return false;
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null);
+  return gatewayUnavailableSchema.safeParse(body).success;
 }
 
 async function readJsonResponse<T = unknown>(
@@ -922,6 +1023,18 @@ function resolveGatewayBinary() {
   );
 }
 
+/** The gateway keeps spend counters in the stack's Redis unless told otherwise. */
+function gatewayRedisUrl() {
+  const configured =
+    process.env.LANGFUSE_AI_GATEWAY_REDIS_URL ??
+    process.env.REDIS_CONNECTION_STRING;
+  if (configured) return configured;
+  const auth = process.env.REDIS_AUTH
+    ? `:${encodeURIComponent(process.env.REDIS_AUTH)}@`
+    : "";
+  return `redis://${auth}${process.env.REDIS_HOST ?? "127.0.0.1"}:${process.env.REDIS_PORT ?? "6379"}`;
+}
+
 function reserveLoopbackPort() {
   return new Promise<number>((resolve, reject) => {
     const server = createServer();
@@ -966,6 +1079,8 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
       LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_TELEMETRY_BATCH_LINGER_MS: "10",
+      LANGFUSE_AI_GATEWAY_REDIS_URL: gatewayRedisUrl(),
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },

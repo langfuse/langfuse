@@ -1,7 +1,7 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type IconComponent } from "@langfuse/icons";
-import { type ComponentPropsWithoutRef } from "react";
+import { type ComponentPropsWithoutRef, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const inputContentVariants = cva("", {
@@ -18,7 +18,7 @@ const inputSlotVariants = cva(
   "placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed",
   {
     variants: {
-      prefixed: {
+      segmented: {
         true: "h-full min-w-0 flex-1 border-0 bg-transparent py-0 shadow-none outline-hidden focus:ring-0",
         false: null,
       },
@@ -39,12 +39,12 @@ const inputControlVariants = cva(
         within:
           "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
       },
-      prefixed: {
-        true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+      focused: {
+        true: "ring-ring ring-2 ring-offset-2",
         false: null,
       },
-      trailingAction: {
-        true: "pr-10",
+      segmented: {
+        true: "flex min-w-0 items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         false: null,
       },
       error: {
@@ -63,7 +63,7 @@ const inputControlVariants = cva(
     },
     compoundVariants: [
       {
-        prefixed: true,
+        segmented: true,
         error: true,
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
@@ -74,6 +74,11 @@ const inputControlVariants = cva(
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
       },
+      {
+        focused: true,
+        error: true,
+        className: "ring-destructive/40 ring-offset-0",
+      },
     ],
   },
 );
@@ -82,8 +87,12 @@ type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className" | "prefix"
 > &
-  Pick<VariantProps<typeof inputControlVariants>, "height" | "focusTarget"> & {
+  Pick<
+    VariantProps<typeof inputControlVariants>,
+    "height" | "focusTarget" | "focused"
+  > & {
     contentLayout: "none" | "text" | "spread";
+    ref?: Ref<HTMLDivElement>;
     error?: boolean;
     disabled?: boolean;
     prefix?:
@@ -92,50 +101,51 @@ type InputControlProps = Omit<
     trailingAction?: {
       label: string;
       icon: IconComponent;
+      appearance?: "inline" | "segmented";
       disabled?: boolean;
       pressed?: boolean;
+      tabIndex?: number;
       onClick: () => void;
     };
   };
 
-/**
- * Owns shared form-control styling and optional prefix and action layout.
- * Specialized inputs own the interactive child's behavior.
- */
 export function InputControl({
   contentLayout,
   height,
   focusTarget,
+  focused,
   error,
   disabled,
   trailingAction,
   prefix,
+  ref,
   ...props
 }: InputControlProps) {
+  const segmented = prefix !== undefined || trailingAction !== undefined;
   const controlClassName = inputControlVariants({
     height,
     focusTarget,
-    prefixed: prefix !== undefined,
+    focused,
+    segmented,
     error,
     disabled,
-    trailingAction: Boolean(trailingAction),
   });
   const PrefixIcon = prefix?.icon;
   const slotClassName = cn(
     inputContentVariants({ contentLayout }),
-    inputSlotVariants({ prefixed: prefix !== undefined }),
-    !prefix && controlClassName,
+    inputSlotVariants({ segmented }),
+    !segmented && controlClassName,
   );
 
-  if (!prefix && !trailingAction) {
-    return <Slot className={slotClassName} {...props} />;
+  if (!segmented) {
+    return <Slot ref={ref} className={slotClassName} {...props} />;
   }
 
   const TrailingActionIcon = trailingAction?.icon;
-
   return (
     <div
-      className={cn("relative", prefix && controlClassName)}
+      ref={ref}
+      className={cn("relative", controlClassName)}
       onMouseDown={(event) => {
         if (!prefix) return;
         const input = event.currentTarget.querySelector("input");
@@ -161,10 +171,14 @@ export function InputControl({
           type="button"
           aria-label={trailingAction.label}
           aria-pressed={trailingAction.pressed}
-          disabled={trailingAction.disabled}
-          // Keep the action out of the tab order so Tab moves between inputs.
-          tabIndex={-1}
-          className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center disabled:cursor-not-allowed"
+          disabled={disabled || trailingAction.disabled}
+          tabIndex={trailingAction.tabIndex}
+          className={cn(
+            "focus-visible:ring-ring flex h-full shrink-0 cursor-pointer items-center justify-center px-2.5 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset disabled:cursor-not-allowed",
+            trailingAction.appearance === "inline"
+              ? "rounded-sm enabled:hover:bg-accent"
+              : "bg-muted border-input border-l enabled:hover:bg-accent",
+          )}
           onClick={trailingAction.onClick}
         >
           <TrailingActionIcon

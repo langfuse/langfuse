@@ -1,3 +1,4 @@
+import { type ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -21,6 +22,7 @@ const meta = preview.meta({
       {
         id: "one",
         name: "Generations",
+        ownership: "PRIVATE",
         createdBy: "me",
         canEdit: true,
         createdByUser: {
@@ -32,6 +34,7 @@ const meta = preview.meta({
       {
         id: "two",
         name: "Errors",
+        ownership: "PROJECT",
         createdBy: "other",
         canEdit: false,
         createdByUser: {
@@ -41,8 +44,7 @@ const meta = preview.meta({
         },
       },
       { id: "three", name: "Tools", createdBy: "other", canEdit: false },
-    ],
-    currentUserId: "me",
+    ] satisfies ComponentProps<typeof SessionManageViewsDialog>["views"],
     pinnedViewIds: ["messages", "one", "two", "three"],
     canEdit: true,
     isLoading: false,
@@ -119,17 +121,25 @@ export const OptInPinning = meta.story({
   },
 });
 
-export const CreatorFilters = meta.story({
-  name: "(Test) Creator filters",
-  play: async () => {
+export const OwnershipFilters = meta.story({
+  name: "(Test) Ownership filters",
+  args: { onSetDefaultPin: fn() },
+  play: async ({ args }) => {
     const body = within(document.body);
     await expect(body.getByText("Ben")).toBeInTheDocument();
     await expect(body.getByText("Alex")).toBeInTheDocument();
-    await userEvent.click(body.getByRole("tab", { name: "My views" }));
+    await userEvent.click(body.getByRole("tab", { name: "Private views" }));
     await expect(body.getByText("Generations")).toBeInTheDocument();
+    await expect(
+      body.getByRole("button", { name: "Pin Generations by default" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Pin Generations by default" }),
+    );
+    await expect(args.onSetDefaultPin).toHaveBeenCalledWith("one", true);
     await expect(body.queryByText("Messages")).not.toBeInTheDocument();
     await expect(body.queryByText("Errors")).not.toBeInTheDocument();
-    await userEvent.click(body.getByRole("tab", { name: "Others’ views" }));
+    await userEvent.click(body.getByRole("tab", { name: "Project views" }));
     await expect(body.getByText("Errors")).toBeInTheDocument();
     await expect(body.queryByText("Generations")).not.toBeInTheDocument();
     await userEvent.click(body.getByRole("tab", { name: "All views" }));
@@ -160,7 +170,7 @@ export const PinningAndOrdering = meta.story({
       body.getByRole("button", { name: "Unpin Generations" }),
     );
     await expect(args.onUnpin).toHaveBeenCalledWith("one");
-    await userEvent.click(body.getByRole("tab", { name: "My views" }));
+    await userEvent.click(body.getByRole("tab", { name: "Private views" }));
     await userEvent.click(
       body.getByRole("button", { name: "Move Generations up" }),
     );
@@ -226,7 +236,13 @@ export const EditableOrphan = meta.story({
   name: "(Test) Editable orphan",
   args: {
     views: [
-      { id: "orphan", name: "Recovered", createdBy: null, canEdit: true },
+      {
+        id: "orphan",
+        name: "Recovered",
+        ownership: "PROJECT",
+        createdBy: null,
+        canEdit: true,
+      },
     ],
   },
   play: async ({ args }) => {

@@ -8,9 +8,16 @@ import {
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
 
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
+  ModelScope,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { clearModelCacheForProject } from "@langfuse/shared/src/server";
+import {
+  clearModelCacheForProject,
+  visibleModelsWhere,
+} from "@langfuse/shared/src/server";
 import type { z } from "zod";
 
 const modelPricingInclude = {
@@ -59,10 +66,6 @@ type UpsertModelInput = z.infer<typeof GetModelV1Query> & {
 };
 
 type DeleteModelInput = z.infer<typeof DeleteModelV1Query> & ModelAuditScope;
-
-const visibleModelsWhere = (projectId: string) => ({
-  OR: [{ projectId }, { projectId: null }],
-});
 
 const createModelPricing = async ({
   tx,
@@ -225,6 +228,7 @@ export const createModelForApi = async ({
       data: {
         ...rest,
         tokenizerConfig: tokenizerConfig ?? undefined,
+        scope: ModelScope.PROJECT,
         projectId,
       },
     });
@@ -313,6 +317,7 @@ export const upsertModelForApi = async ({
       where: { id: modelId },
       create: {
         id: modelId,
+        scope: ModelScope.PROJECT,
         projectId,
         ...modelData,
       },

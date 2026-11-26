@@ -42,7 +42,10 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import {
+  partitionWidgetQueryFiltersToView,
+  UNSUPPORTED_NUMERIC_METADATA_REASON,
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   resolveMonitorNameForSave,
@@ -68,7 +71,7 @@ import {
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
 import { type FilterState } from "@langfuse/shared";
-import { getMetricUnit } from "@langfuse/shared/query";
+import { getMetricUnit, isNumericMetadataFilter } from "@langfuse/shared/query";
 
 import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
@@ -343,10 +346,11 @@ export const MonitorForm = ({
       const normalizedValues = {
         ...values,
         name: nameResolution.name,
-        filters: partitionWidgetUiTableFiltersToView(
+        filters: partitionWidgetQueryFiltersToView(
           values.view as Parameters<
-            typeof partitionWidgetUiTableFiltersToView
+            typeof partitionWidgetQueryFiltersToView
           >[0],
+          "v2",
           (values.filters ?? []) as FilterState,
         ).mappedFilters,
       } as typeof values;
@@ -411,17 +415,22 @@ export const MonitorForm = ({
 
   namePlaceholderRef.current = namePlaceholder;
 
-  /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
-  const previewFilters = useMemo<FilterState>(
+  /** previewFilters (mappedFilters) holds the picked view's runnable filters for the preview query. */
+  const { mappedFilters: previewFilters, unsupportedFilters } = useMemo(
     () =>
-      partitionWidgetUiTableFiltersToView(
+      partitionWidgetQueryFiltersToView(
         (watched.view ?? "observations") as Parameters<
-          typeof partitionWidgetUiTableFiltersToView
+          typeof partitionWidgetQueryFiltersToView
         >[0],
+        "v2",
         (watched.filters ?? []) as FilterState,
-      ).mappedFilters,
+      ),
     [watched.view, watched.filters],
   );
+  /** saveBlockedReason blocks Save while a numeric metadata filter is hidden by the view, matching the widget editor. */
+  const saveBlockedReason = unsupportedFilters.some(isNumericMetadataFilter)
+    ? `${UNSUPPORTED_NUMERIC_METADATA_REASON} Remove them or switch to the observations view before saving this alert.`
+    : null;
 
   /** formError is a typed view onto react-hook-form's flat error map. */
   const formError = form.formState.errors as Record<
@@ -782,7 +791,12 @@ export const MonitorForm = ({
                 className="from-background pointer-events-none sticky bottom-0 z-20 -mt-3 h-3 bg-linear-to-t to-transparent"
               />
             </CardContent>
-            <CardFooter className="mt-auto">
+            <CardFooter className="mt-auto flex-col items-stretch gap-2">
+              {saveBlockedReason && (
+                <p role="alert" className="text-destructive pt-4 text-xs">
+                  {saveBlockedReason}
+                </p>
+              )}
               <div className="flex w-full items-center justify-end gap-2 pt-4">
                 {!isEdit && (
                   <ConfirmationDialogController
@@ -814,7 +828,7 @@ export const MonitorForm = ({
                       "hover:bg-primary cursor-not-allowed opacity-50",
                   )}
                   aria-disabled={isIncomplete || undefined}
-                  disabled={!hasAccess || submitting}
+                  disabled={!hasAccess || submitting || !!saveBlockedReason}
                 >
                   {isEdit ? "Save Alert" : "Create Alert"}
                 </Button>
@@ -1089,7 +1103,7 @@ const RenotifyField = ({
   </div>
 );
 
-/** __test exposes private helpers to co-located tests without widening the module API. */
+/** @internal */
 export const __test = {
   createDefaults,
   monitorToDefaults,

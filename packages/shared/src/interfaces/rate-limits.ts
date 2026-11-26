@@ -20,6 +20,8 @@ export const RateLimitResource = z.enum([
   "ai-gateway-requests",
   // Points are request body bytes, not requests.
   "ai-gateway-request-bytes",
+  // Coupon code checks on the self-serve redemption page, per organization.
+  "coupon-redemption",
 ]);
 
 // result of the rate limit check.

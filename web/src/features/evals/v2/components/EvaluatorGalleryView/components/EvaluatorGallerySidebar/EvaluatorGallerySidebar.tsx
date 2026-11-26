@@ -46,7 +46,7 @@ export function EvaluatorGallerySidebar({
               type="button"
               variant={isActive ? "secondary" : "ghost"}
               className={cn(
-                "font-regular h-8 justify-start px-3",
+                "font-normal h-8 justify-start px-3",
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent"
                   : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",

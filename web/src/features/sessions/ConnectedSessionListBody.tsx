@@ -1,4 +1,3 @@
-import React from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
@@ -24,6 +23,7 @@ export function ConnectedSessionListBody({
   sessionMinTimestamp,
   sessionMaxTimestamp,
   openPeek,
+  peekTraceId,
   traceCommentCounts,
   filterState,
   filterMeasurementKey,
@@ -41,6 +41,7 @@ export function ConnectedSessionListBody({
   sessionId: string;
   sessionMinTimestamp: Date;
   sessionMaxTimestamp: Date;
+  peekTraceId?: string;
   openPeek: (id: string, row: EventSessionTrace) => void;
   traceCommentCounts: Map<string, number> | undefined;
   filterState: FilterState;
@@ -48,9 +49,9 @@ export function ConnectedSessionListBody({
   viewLabel: string | null;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
-  onCustomizeView?: () => void;
+  onCustomizeView?: (() => void) | null;
   activeFilterCount: number;
-  onFilterObservationByName: (
+  onFilterObservationByName?: (
     name: string,
     operator: "any of" | "none of",
   ) => void;
@@ -146,6 +147,7 @@ export function ConnectedSessionListBody({
         state="loaded"
         traces={isSearchPending ? [] : sidebarTraces}
         activeTraceId={activeTraceId}
+        peekTraceId={peekTraceId}
         activeFilterCount={activeFilterCount}
         observationLayout="flat"
         search={search}
@@ -216,6 +218,7 @@ export function ConnectedSessionListBody({
   );
   return (
     <SessionViewLayout
+      sidebarMode="fixed"
       search={search}
       isLoading={tracesState.type === "loading"}
       renderSidebar={sidebar}

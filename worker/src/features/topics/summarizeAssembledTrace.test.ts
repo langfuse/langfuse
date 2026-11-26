@@ -29,14 +29,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
     }) => Promise<unknown>,
   ) => action({ setAttributes: vi.fn(), setAttribute: state.setAttribute }),
 }));
-vi.mock("./models", () => ({
+vi.mock("./llm/models", () => ({
   TopicInputTooLarge: class extends Error {},
+  charsPerToken: () => 4,
   summarizeTopicTraceFacets: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummaries: (...args: unknown[]) => state.embed(...args),
 }));
 
 import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { TopicsProviderUnavailable } from "./provider-error";
+import { MAX_TOPIC_SUMMARY_CHARACTERS } from "./summaryResult";
 
 const transcript: Transcript = {
   threads: [
@@ -107,9 +109,17 @@ const usage = {
 let summaries: TopicSummary[] = [];
 // Keeps the returned rows for assertions and rethrows a partial failure, as the batch job reports it.
 const summarize = async (
-  input: Omit<Parameters<typeof summarizeAssembledTrace>[0], "executionIssues">,
+  input: Omit<
+    Parameters<typeof summarizeAssembledTrace>[0],
+    "executionIssues" | "rules" | "revision"
+  > & {
+    rules?: Parameters<typeof summarizeAssembledTrace>[0]["rules"];
+    revision?: string;
+  },
 ) => {
   const result = await summarizeAssembledTrace({
+    rules: [],
+    revision: "revision",
     ...input,
     executionIssues: [],
   });
@@ -161,7 +171,7 @@ describe("summarizeAssembledTrace", () => {
     expect(summaries).toEqual([]);
   });
 
-  it("summarizes a trace into a priced row", async () => {
+  it("summarizes a snapshot trace into a priced row and attributes both model calls to the snapshot", async () => {
     await summarize({
       projectId: "project-a",
       traceId: "trace-1",
@@ -172,6 +182,9 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      revision: "revision-1",
+      executionId: "snapshot",
+      rules: [{ id: "rule-a", facetIds: [facet.id] }],
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
     const submitted = state.summarize.mock.calls[0];
@@ -181,10 +194,13 @@ describe("summarizeAssembledTrace", () => {
     ]);
     expect(submitted[2]).toContain("Export monthly sales");
     expect(submitted[2]).not.toContain("observation");
-    expect(submitted[4]).toEqual({
+    const snapshotMetadata = {
       source_trace_id: "trace-1",
       source_environment: "default",
-    });
+      execution_id: "snapshot",
+    };
+    expect(submitted[4]).toEqual(snapshotMetadata);
+    expect(state.embed.mock.calls[0][4]).toEqual(snapshotMetadata);
     const written = summaries[0];
     expect(written).toMatchObject({
       projectId: "project-a",
@@ -198,6 +214,7 @@ describe("summarizeAssembledTrace", () => {
       embeddingModel: "eu.cohere.embed-v4:0",
       environment: "default",
       traceName: "agent-turn",
+      transcriptId: "revision-1",
       providedUsageDetails: {
         summary_input: 20,
         embedding_input: 4,
@@ -217,15 +234,38 @@ describe("summarizeAssembledTrace", () => {
       { stage: "trace", outcome: "success", unit: "milliseconds" },
     );
     const submittedText = state.summarize.mock.calls[0][2] as string;
-    for (const [format, characters] of [
-      ["text", submittedText.length],
-      ["json", expect.any(Number)],
+    for (const [characters, tags] of [
+      [submittedText.length, { format: "text", over_limit: "false" }],
+      [expect.any(Number), { format: "json" }],
     ] as const)
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.topics.summary_input_characters",
         characters,
-        { format },
+        tags,
       );
+  });
+
+  it("records the rendered text's UTF-8 bytes, not its characters, on the row", async () => {
+    const accented = structuredClone(transcript);
+    accented.threads[0]!.currentTurn.messages[0]!.parts = [
+      { type: "text", text: "Exportiere die Umsätze für März 📈" },
+    ];
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript: accented,
+      models,
+      facets: state.facets(),
+    });
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries[0]?.transcriptBytes).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
+    expect(summaries[0]?.transcriptBytes).toBeGreaterThan(submittedText.length);
   });
 
   it("summarizes and embeds all pending facets in one call each and splits their usage across the rows", async () => {
@@ -249,6 +289,7 @@ describe("summarizeAssembledTrace", () => {
         outcome_3: { summary: "Export completed.", status: "applicable" },
       },
       ...usage,
+      costDetails: { ...usage.costDetails, total: 0.000006 },
     });
     await summarize({
       projectId: "project-a",
@@ -260,17 +301,21 @@ describe("summarizeAssembledTrace", () => {
       transcript,
       models,
       facets: state.facets(),
+      rules: [{ id: "rule-a", facetIds: ["facet-1", "facet-3"] }],
     });
     expect(state.summarize).toHaveBeenCalledOnce();
     const [intent, issue] = summaries;
     expect(intent).toMatchObject({
       facetId: "facet-1",
       state: "complete",
-      triggerType: "automatic",
+      triggerType: "rule",
+      ruleIds: ["rule-a"],
+      executionId: null,
     });
     expect(issue).toMatchObject({
       facetId: "facet-2",
       state: "not_applicable",
+      ruleIds: [],
     });
     // Integer token shares and cost shares still add up to the call's usage.
     expect(summaries.map((row) => row.usageDetails.summary_input)).toEqual([
@@ -279,11 +324,24 @@ describe("summarizeAssembledTrace", () => {
     expect(
       summaries.reduce((sum, row) => sum + row.costDetails.summary_output, 0),
     ).toBeCloseTo(0.00001, 12);
+    expect(summaries.map((row) => row.costDetails.embedding_input)).toEqual([
+      0.00000024,
+      undefined,
+      0.00000024,
+    ]);
+    expect(summaries.map((row) => row.costDetails.total)).toEqual([
+      0.00000224, 0.000002, 0.00000224,
+    ]);
     // Each row's total stays the sum of its own shares.
     for (const { usageDetails } of summaries) {
       const { total, ...parts } = usageDetails;
       expect(total).toBe(Object.values(parts).reduce((a, b) => a + b, 0));
     }
+    // Transcript bytes split the same way, so they add up to the text the call read.
+    const submittedText = state.summarize.mock.calls[0][2] as string;
+    expect(summaries.reduce((sum, row) => sum + row.transcriptBytes, 0)).toBe(
+      Buffer.byteLength(submittedText, "utf8"),
+    );
   });
 
   it("stores a not-applicable result that carries stray text instead of failing the trace", async () => {
@@ -310,6 +368,44 @@ describe("summarizeAssembledTrace", () => {
     expect(state.embed).not.toHaveBeenCalled();
   });
 
+  it("stores an applicable result without a summary as insufficient input instead of failing the trace", async () => {
+    state.summarize.mockResolvedValue({
+      output: { intent_1: { summary: " ", status: "applicable" } },
+      ...usage,
+    });
+    await summarize({
+      projectId: "project-a",
+      traceId: "trace-1",
+      sessionId: null,
+      traceTimestamp: "2026-09-22T12:00:00.000Z",
+      environment: "default",
+      traceName: "agent-turn",
+      transcript,
+      models,
+      facets: state.facets(),
+    });
+    const [written] = summaries;
+    expect(written).toMatchObject({ state: "insufficient_input", summary: "" });
+    expect(state.embed).not.toHaveBeenCalled();
+    // Counted as our rule's decision, so the rate stays visible.
+    expect(
+      vi
+        .mocked(recordIncrement)
+        .mock.calls.filter(([name]) => name === "langfuse.topics.results"),
+    ).toEqual([
+      [
+        "langfuse.topics.results",
+        1,
+        {
+          stage: "summary",
+          result: "insufficient_input",
+          source: "rule",
+          facet: "intent",
+        },
+      ],
+    ]);
+  });
+
   it("keeps the other facets when one facet's output is invalid", async () => {
     const issues: TopicFacet = {
       ...facet,
@@ -320,7 +416,10 @@ describe("summarizeAssembledTrace", () => {
     state.facets.mockReturnValue([facet, issues]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -343,7 +442,7 @@ describe("summarizeAssembledTrace", () => {
     const written = summaries;
     expect(written).toHaveLength(1);
     expect(written[0]).toMatchObject({ facetId: "facet-2", state: "complete" });
-    // The shared call's usage moves to the first row that is written.
+    // The provider produced only one valid summary for this call.
     expect(written[0].usageDetails.summary_input).toBe(20);
     expect(written[0]).not.toHaveProperty("output");
     expect(recordDistribution).toHaveBeenCalledWith(
@@ -359,7 +458,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output" },
+        { stage: "summary", reason: "invalid_output", owner: "platform" },
       ],
     ]);
     // Rejected output is a local rule's decision; accepted output is the model's.
@@ -465,7 +564,7 @@ describe("summarizeAssembledTrace", () => {
       expect.objectContaining({
         facetId: "facet-2",
         state: "not_applicable",
-        usageDetails: usage.usageDetails,
+        usageDetails: { summary_input: 10, summary_output: 4, total: 14 },
       }),
     ]);
     expect(
@@ -473,7 +572,11 @@ describe("summarizeAssembledTrace", () => {
         .mocked(recordIncrement)
         .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
     ).toEqual([
-      ["langfuse.topics.errors", 1, { stage: "embedding", reason: "unknown" }],
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "embedding", reason: "unknown", owner: "platform" },
+      ],
     ]);
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.topics.stage_duration_ms",
@@ -495,10 +598,20 @@ describe("summarizeAssembledTrace", () => {
         name: "Issues",
         versions: [{ ...facet.versions[0], facetId: "facet-2", version: 1 }],
       },
+      {
+        ...facet,
+        id: "facet-3",
+        name: "Tone",
+        versions: [{ ...facet.versions[0], facetId: "facet-3", version: 1 }],
+      },
     ]);
     state.summarize.mockResolvedValue({
       output: {
-        intent_1: { summary: "", status: "applicable" },
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
+        tone_3: { summary: "", status: "not_applicable" },
         issues_2: { summary: "Retried a failed export.", status: "applicable" },
       },
       ...usage,
@@ -516,9 +629,33 @@ describe("summarizeAssembledTrace", () => {
         transcript,
         models,
         facets: state.facets(),
+        rules: [
+          { id: "both", facetIds: ["facet-1", "facet-2"] },
+          { id: "intent", facetIds: ["facet-1"] },
+          { id: "issues", facetIds: ["facet-2"] },
+          { id: "tone", facetIds: ["facet-3"] },
+        ],
       }),
     ).rejects.toBe(error);
-    expect(summaries).toEqual([]);
+    expect(summaries).toEqual([
+      expect.objectContaining({
+        facetId: "facet-3",
+        state: "not_applicable",
+        costDetails: {
+          summary_input: 0.000002,
+          summary_output: 0.000005,
+          total: 0.000007,
+        },
+      }),
+    ]);
+    expect(state.summarize.mock.calls[0][4]).toMatchObject({
+      source_trace_id: "trace-1",
+      rule_ids: ["both", "intent", "issues", "tone"],
+    });
+    expect(state.embed.mock.calls[0][4]).toMatchObject({
+      source_trace_id: "trace-1",
+      rule_ids: ["both", "issues"],
+    });
   });
 
   it("counts an unusable response as a rule rejection of every facet", async () => {
@@ -587,13 +724,22 @@ describe("summarizeAssembledTrace", () => {
         .mocked(recordIncrement)
         .mock.calls.filter(([name]) => name === "langfuse.topics.errors"),
     ).toEqual([
-      ["langfuse.topics.errors", 1, { stage: "summary", reason: "unknown" }],
+      [
+        "langfuse.topics.errors",
+        1,
+        { stage: "summary", reason: "unknown", owner: "platform" },
+      ],
     ]);
   });
 
   it("attributes invalid summary output to the failed summary stage", async () => {
     state.summarize.mockResolvedValue({
-      output: { intent_1: { summary: "  ", status: "applicable" } },
+      output: {
+        intent_1: {
+          summary: "x".repeat(MAX_TOPIC_SUMMARY_CHARACTERS + 1),
+          status: "applicable",
+        },
+      },
       ...usage,
     });
     await expect(
@@ -624,7 +770,7 @@ describe("summarizeAssembledTrace", () => {
       [
         "langfuse.topics.errors",
         1,
-        { stage: "summary", reason: "invalid_output" },
+        { stage: "summary", reason: "invalid_output", owner: "platform" },
       ],
     ]);
     expect(state.setAttribute).toHaveBeenCalledWith(

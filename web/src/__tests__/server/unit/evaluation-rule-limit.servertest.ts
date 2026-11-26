@@ -17,7 +17,7 @@ function prismaWithActiveCount(activeCount: number) {
 }
 
 describe("active evaluation rule limit", () => {
-  it("counts only active rules on the writable targets", async () => {
+  it("counts active writable rules, including trace transcript but not facet", async () => {
     const { prisma, count } = prismaWithActiveCount(7);
 
     await expect(
@@ -26,8 +26,14 @@ describe("active evaluation rule limit", () => {
     expect(count).toHaveBeenCalledWith({
       where: {
         projectId: "project",
-        targetObject: { in: ["event", "experiment"] },
         status: "ACTIVE",
+        OR: [
+          { targetObject: { in: ["event", "experiment"] } },
+          {
+            targetObject: "trace_transcript",
+            assignments: { none: { evaluator: { type: "FACET" } } },
+          },
+        ],
       },
     });
   });

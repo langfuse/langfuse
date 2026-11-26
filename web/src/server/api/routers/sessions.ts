@@ -1228,7 +1228,7 @@ export const sessionRouter = createTRPCRouter({
   ),
   /**
    * Full raw I/O for one observation, for the session card's download
-   * fallback (LFE-10958). Session-authorized (public sessions included); the
+   * fallback. Session-authorized (public sessions included); the
    * repository query scopes by sessionId so a session grant cannot read
    * observations outside that session. Returns raw strings — the client
    * saves them to a file and never renders them.

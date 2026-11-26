@@ -559,7 +559,7 @@ export const traceRouter = createTRPCRouter({
           }
         }
 
-        await createBatchActionJob({
+        const { cutoffCreatedAt } = await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,
           actionType: BatchActionType.Delete,
@@ -568,24 +568,26 @@ export const traceRouter = createTRPCRouter({
           query: input.query,
           useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
-      } else {
-        for (const traceIds of chunk(
-          input.traceIds,
-          AUDIT_LOG_RESOURCE_REFS_MAX,
-        )) {
-          await auditLog({
-            resourceType: "project",
-            resourceId: input.projectId,
-            action: "deleteTraces",
-            before: { traceIds },
-            session: ctx.session,
-          });
-        }
+        return { cutoffCreatedAt: cutoffCreatedAt?.toISOString() ?? null };
+      }
 
-        await traceDeletionProcessor(input.projectId, input.traceIds, {
-          actor: { type: "USER", userId: ctx.session.user.id },
+      for (const traceIds of chunk(
+        input.traceIds,
+        AUDIT_LOG_RESOURCE_REFS_MAX,
+      )) {
+        await auditLog({
+          resourceType: "project",
+          resourceId: input.projectId,
+          action: "deleteTraces",
+          before: { traceIds },
+          session: ctx.session,
         });
       }
+
+      await traceDeletionProcessor(input.projectId, input.traceIds, {
+        actor: { type: "USER", userId: ctx.session.user.id },
+      });
+      return { cutoffCreatedAt: null };
     }),
   bookmark: protectedProjectProcedure
     .input(

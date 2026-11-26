@@ -13,14 +13,17 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, withSerializableRetry } from "@langfuse/shared/src/server";
-import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
+import {
+  isBaseError,
+  LangfuseConflictError,
+  hasEntitlementBasedOnPlan,
+} from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { assertValidOrgOwnershipChange } from "@/src/features/rbac/server/ownershipChange";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeScimError } from "@/src/features/public-api/server/writeError";
 
@@ -92,7 +95,7 @@ async function provisionMembership({
         if (current.role === targetRole) {
           return { t: "unchanged" as const, role: current.role };
         }
-        await assertValidOwnershipChange({
+        await assertValidOrgOwnershipChange({
           tx,
           context: ctx,
           orgId,
@@ -170,7 +173,7 @@ async function provisionMembership({
 
   // Missing → create with the explicit role when provided, otherwise NONE.
   const roleToCreate: Role = role ?? "NONE";
-  await assertValidOwnershipChange({
+  await assertValidOrgOwnershipChange({
     tx: prisma,
     context: ctx,
     orgId,
@@ -273,7 +276,7 @@ async function deprovisionOrReject(
       if (!membership) {
         return { result: "noop" as const };
       }
-      await assertValidOwnershipChange({
+      await assertValidOrgOwnershipChange({
         tx,
         context: ctx,
         orgId,

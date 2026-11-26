@@ -3,7 +3,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { ConnectedGatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/ConnectedGatewayNotSetUpNotice";
 import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
 import { ConnectedGatewayCreateFirstKeyPlaceholder } from "@/src/features/ai-gateway/components/GatewayCreateFirstKeyPlaceholder/ConnectedGatewayCreateFirstKeyPlaceholder";
 import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
@@ -34,15 +34,6 @@ export function GatewayApiKeysPage({
       />
     </p>
   );
-  if (canManageGateway) {
-    return (
-      <ConnectedGatewayApiKeysTable
-        key={organizationId}
-        organizationId={organizationId}
-        description={description}
-      />
-    );
-  }
   // Above the table, so the new key's dialog stays open when the placeholder gives way.
   return (
     <CreateGatewayApiKeyDialogController organizationId={organizationId}>
@@ -51,11 +42,14 @@ export function GatewayApiKeysPage({
           key={organizationId}
           organizationId={organizationId}
           description={description}
+          onCreateKey={openDialog}
           emptyState={
-            <ConnectedGatewayCreateFirstKeyPlaceholder
-              organizationId={organizationId}
-              onCreateKey={openDialog}
-            />
+            canManageGateway ? undefined : (
+              <ConnectedGatewayCreateFirstKeyPlaceholder
+                organizationId={organizationId}
+                onCreateKey={openDialog}
+              />
+            )
           }
         />
       )}

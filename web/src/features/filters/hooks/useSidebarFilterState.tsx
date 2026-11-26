@@ -26,6 +26,7 @@ import {
   buildSidebarFilterQueryStorageKey,
   createPersistedSidebarFilterQueryState,
   getPersistedSidebarFilterQueryForContext,
+  writePersistedSidebarFilterQuery,
   type PersistedSidebarFilterQueryState,
 } from "../lib/persistedSidebarFilterQuery";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
@@ -46,9 +47,9 @@ import {
   applyNumericRange,
   applyStringContains,
   buildOnlySelection,
+  categoricalFilterEditingReason,
   clearCategoricalColumn,
   deriveOperatorChange,
-  hasMultipleFilterTargets,
   hasEmptyCheckboxSelection,
   isStringKeyValueTextEntry,
   removeColumnFiltersOfType,
@@ -62,8 +63,6 @@ import {
   type StringKeyValueFilterEntry,
 } from "../lib/sidebar-filter-actions";
 
-// Re-exported so existing consumers (tests, session view) keep their path.
-export { resolveCheckboxOperator } from "../lib/sidebar-filter-actions";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -169,8 +168,11 @@ export type TextFilterEntry = {
   value: string;
 };
 
+/** @internal */
 export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
+  /** Conditions that must be edited individually in the filter bar. */
+  conditionCount?: number;
   value: string[];
   options: string[];
   counts: Map<string, number>;
@@ -234,6 +236,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   unit?: string;
 }
 
+/** @internal */
 export interface StringUIFilter extends BaseUIFilter {
   type: "string";
   value: string;
@@ -286,6 +289,7 @@ interface BooleanKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
 }
 
+/** @internal */
 export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows
@@ -607,6 +611,11 @@ export function useSidebarFilterStateCore(
   });
   const setStoredFiltersQuery = useCallback(
     (query: string) => {
+      writePersistedSidebarFilterQuery({
+        storageKey: FILTER_QUERY_SESSION_STORAGE_KEY,
+        contextId: normalizedSessionFilterContextId,
+        query,
+      });
       setStoredFilterQueryState(
         createPersistedSidebarFilterQueryState(
           normalizedSessionFilterContextId,
@@ -614,7 +623,11 @@ export function useSidebarFilterStateCore(
         ),
       );
     },
-    [setStoredFilterQueryState, normalizedSessionFilterContextId],
+    [
+      setStoredFilterQueryState,
+      normalizedSessionFilterContextId,
+      FILTER_QUERY_SESSION_STORAGE_KEY,
+    ],
   );
   const [urlFiltersQuery, setUrlFiltersQuery] = useQueryParam(
     "filter",
@@ -1383,14 +1396,14 @@ export function useSidebarFilterPresentation(
         };
       }
 
-      if (
-        facet.type === "categorical" &&
-        hasMultipleFilterTargets(filterState, facet.column)
-      ) {
+      const editingReason =
+        facet.type === "categorical"
+          ? categoricalFilterEditingReason(filterState, facet.column)
+          : undefined;
+      if (editingReason) {
         return {
           isDisabled: true,
-          reason:
-            "Edit filters for different targets individually in the filter bar.",
+          reason: editingReason,
         };
       }
 
@@ -1951,24 +1964,31 @@ export function useSidebarFilterPresentation(
         // - Managed environment facet: active whenever the user authored an
         //   explicit env filter (the implicit hidden-env default lives only in
         //   effective state, so it never surfaces a "Clear" badge).
-        // - Other facets: active when text filters exist or checkbox selections differ from unfiltered.
-        //   Special case: "all of" with all values selected is still active.
-        //   Special case: a "none of" filter renders as its complement, so
-        //   when every exclusion sits outside the current option list the
-        //   checkboxes all show checked — the live filter must still surface
-        //   its "Clear" affordance.
+        // - Other facets: an explicit membership or text filter is active even
+        //   when every loaded option is checked. Loaded options are partial;
+        //   a finite positive set and unlisted exclusions still constrain rows.
         const isActive =
           hasTextFilters ||
           hasEmptyPositiveSelection ||
           (isManagedEnvironmentFacet
             ? hasExplicitManagedEnvironmentFilter
-            : (currentOperator === "all of" &&
-                (selectedValues.length === availableValues.length ||
-                  hasExplicitCheckboxFilterWhileLoading)) ||
-              (currentOperator === "none of" && hasExplicitCheckboxFilter) ||
+            : hasExplicitCheckboxFilter ||
               hasCheckboxSelections ||
               hasExplicitCheckboxFilterWhileLoading);
         const disableState = getFacetDisabledState(facet);
+        const editingReason = categoricalFilterEditingReason(
+          filterState,
+          facet.column,
+        );
+        const resetCategoricalFilter = () => {
+          const next = editingReason
+            ? filterState.filter((filter) => filter.column !== facet.column)
+            : clearCategoricalColumn(filterState, facet.column);
+          setFilterState(next);
+          if (next.length < filterState.length) {
+            emitFacetCleared(facet.column, filterState.length - next.length);
+          }
+        };
 
         return {
           type: "categorical",
@@ -1978,12 +1998,16 @@ export function useSidebarFilterPresentation(
           help: facet.help,
 
           value: selectedValues,
+          conditionCount: editingReason
+            ? filterState.filter((filter) => filter.column === facet.column)
+                .length
+            : undefined,
           options: availableValues,
           counts,
           displayByValue,
           loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
-          isActive,
+          isActive: isActive || Boolean(editingReason),
           isDisabled: disableState.isDisabled,
           disabledReason: disableState.reason,
           renderIcon:
@@ -1994,7 +2018,15 @@ export function useSidebarFilterPresentation(
             facet.type === "categorical" ? facet.getOptionTitle : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
+            if (editingReason) return;
             if (selectedValues.length === 1 && selectedValues.includes(value)) {
+              if (
+                !isManagedEnvironmentFacet &&
+                (currentOperator === "any of" || currentOperator === "all of")
+              ) {
+                resetCategoricalFilter();
+                return;
+              }
               // The label reads "All" in this state: re-select every option.
               // Passing the full option list (not []) matters for an active
               // "none of" filter — empty values there would re-derive to
@@ -2004,14 +2036,7 @@ export function useSidebarFilterPresentation(
               updateFilterOnly(facet.column, value);
             }
           },
-          onReset: () => {
-            // Reset both checkboxes AND text filters
-            const next = clearCategoricalColumn(filterState, facet.column);
-            setFilterState(next);
-            if (next.length < filterState.length) {
-              emitFacetCleared(facet.column, filterState.length - next.length);
-            }
-          },
+          onReset: resetCategoricalFilter,
           // The operator is exposed for every checkbox facet so the "none of"
           // display logic (pinning excluded rows) works on stringOptions too;
           // the SOME/ALL/NONE toggle itself is gated on onOperatorChange below.
@@ -2068,6 +2093,7 @@ export function useSidebarFilterPresentation(
     explicitFilterState,
     searchBarFilterState,
     projectFiltersForSearchBar,
+    managedEnvironmentPolicyConfig,
     setFilterState,
     updateFilter,
     updateFilterOnly,

@@ -1,3 +1,4 @@
+import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -19,11 +20,14 @@ const meta = preview.meta({
   args: {
     view: { id: "saved", name: "Generations" },
     canEdit: true,
+    allowedOwnerships: ["PRIVATE"],
     isPending: false,
     error: undefined,
     onSubmit:
-      fn<(name: string) => Promise<void>>().mockResolvedValue(undefined),
-  },
+      fn<
+        ComponentProps<typeof SessionDuplicateViewDialog>["onSubmit"]
+      >().mockResolvedValue(undefined),
+  } satisfies ComponentProps<typeof SessionDuplicateViewDialog>,
 });
 export default meta;
 
@@ -39,7 +43,7 @@ export const Duplicate = meta.story({
     ).toBeDisabled();
     await userEvent.type(input, "  New view  ");
     await userEvent.click(body.getByRole("button", { name: "Save view" }));
-    await expect(args.onSubmit).toHaveBeenCalledWith("New view");
+    await expect(args.onSubmit).toHaveBeenCalledWith("New view", "PRIVATE");
   },
 });
 export const ReadOnly = meta.story({

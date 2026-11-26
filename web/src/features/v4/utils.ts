@@ -14,6 +14,7 @@ export const isActionableLegacyApiUsage = (row: {
       !NON_ACTIONABLE_API_CALLER_USER_AGENT.test(caller.userAgent),
   );
 
+/** @internal */
 export const countLegacyApiEntrypoints = (
   rows: Array<{ entrypoint: string }> | undefined,
 ): number => {

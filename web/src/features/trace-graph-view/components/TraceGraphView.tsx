@@ -34,7 +34,8 @@ type TraceGraphViewProps = {
   selectedObservationId: string | null;
   /** Selection the host resolves to when the explicit observation is cleared. */
   defaultObservationId: string | null;
-  onSelectedObservationChange: (id: string | null) => void;
+  /** Absent for a read-only graph: nodes cannot be selected. */
+  onSelectedObservationChange?: (id: string | null) => void;
   /** How the graph is built (aggregated vs expanded) — see GraphViewMode. */
   viewMode?: GraphViewMode;
   /** When provided, the mode switch is rendered over the canvas. */
@@ -264,7 +265,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           setPreviousSelectedNode(nodeName);
           setSelectedNodeName(nodeName);
           clickWroteObservationIdRef.current = defaultObservationId;
-          setCurrentObservationId(null);
+          setCurrentObservationId?.(null);
           return;
         }
 
@@ -284,11 +285,11 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
             [nodeName]: targetIndex,
           }));
           clickWroteObservationIdRef.current = observations[targetIndex];
-          setCurrentObservationId(observations[targetIndex]);
+          setCurrentObservationId?.(observations[targetIndex]);
           onObservationSelect?.();
         } else {
           clickWroteObservationIdRef.current = defaultObservationId;
-          setCurrentObservationId(null);
+          setCurrentObservationId?.(null);
         }
         setPreviousSelectedNode(nodeName);
       } else {
@@ -318,7 +319,9 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         <ElkGraphRenderer
           graph={graph}
           selectedNodeName={selectedNodeName}
-          onCanvasNodeNameChange={onCanvasNodeNameChange}
+          onCanvasNodeNameChange={
+            setCurrentObservationId ? onCanvasNodeNameChange : undefined
+          }
           nodeToObservationsMap={nodeToObservationsMap}
           currentObservationIndices={currentObservationIndices}
           matchedNodeNames={matchedNodeNames}

@@ -36,6 +36,7 @@ export const showToast = (
 };
 
 /** Custom rendering must declare metadata too; dismissal does not create a new shown event. */
+/** @internal */
 export const showCustomToast = (
   render: (id: string | number) => ReactNode,
   metadata: ToastMetadata,

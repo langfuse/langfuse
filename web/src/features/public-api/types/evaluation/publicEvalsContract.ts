@@ -1,6 +1,14 @@
 import {
   arrayOptionsFilter,
   categoryOptionsFilter,
+  DecisionModelChoiceQuestionSchema,
+  DecisionModelEntrySchema,
+  DecisionModelNoulQuestionSchema,
+  DecisionModelQuestionsSchema,
+  DecisionModelQuestionType,
+  DecisionModelScoreQuestionSchema,
+  DecisionModelStateKeySchema,
+  type DecisionModelQuestion,
   nullFilter,
   numberFilter,
   numberObjectFilter,
@@ -16,9 +24,16 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 
-const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
-export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
-  PUBLIC_EVALUATOR_TYPES;
+const PUBLIC_EVALUATOR_TYPES = [
+  "llm_as_judge",
+  "code",
+  "decision_model",
+] as const;
+export const [
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_DECISION_MODEL,
+] = PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
 export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
@@ -166,6 +181,118 @@ export const PromptVariableMappingInput = z.union([
   ObservationPromptVariableMappingInput,
   ExperimentPromptVariableMappingInput,
 ]);
+
+export const DecisionModelStateMappingInput = z.union([
+  ObservationPromptVariableMappingInput.extend({
+    variable: DecisionModelStateKeySchema,
+  }),
+  ExperimentPromptVariableMappingInput.extend({
+    variable: DecisionModelStateKeySchema,
+  }),
+]);
+
+const PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE = "boolean";
+
+const PublicDecisionModelBooleanCriterion = z.object({
+  description: DecisionModelEntrySchema,
+});
+
+export const PublicDecisionModelQuestion = z.discriminatedUnion("type", [
+  DecisionModelChoiceQuestionSchema.omit({ options: true }).extend({
+    criteria: DecisionModelChoiceQuestionSchema.shape.options,
+  }),
+  DecisionModelScoreQuestionSchema.omit({ levels: true }).extend({
+    criteria: DecisionModelScoreQuestionSchema.shape.levels,
+  }),
+  DecisionModelNoulQuestionSchema.extend({
+    type: z.literal(PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE),
+    criteria: z
+      .object({
+        true: PublicDecisionModelBooleanCriterion.nullish(),
+        false: PublicDecisionModelBooleanCriterion.nullish(),
+      })
+      .nullish(),
+  }),
+]);
+type PublicDecisionModelQuestionType = z.infer<
+  typeof PublicDecisionModelQuestion
+>;
+
+export function toInternalDecisionModelQuestion(
+  question: PublicDecisionModelQuestionType,
+): DecisionModelQuestion {
+  switch (question.type) {
+    case DecisionModelQuestionType.CHOICE: {
+      const { criteria, ...rest } = question;
+      return { ...rest, options: criteria };
+    }
+    case DecisionModelQuestionType.SCORE: {
+      const { criteria, ...rest } = question;
+      return { ...rest, levels: criteria };
+    }
+    case PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE: {
+      const { criteria } = question;
+      return {
+        ...question,
+        type: DecisionModelQuestionType.NOUL,
+        criteria: criteria && {
+          true: criteria.true && criteria.true.description,
+          false: criteria.false && criteria.false.description,
+        },
+      };
+    }
+  }
+}
+
+export function toPublicDecisionModelQuestion(
+  question: DecisionModelQuestion,
+): PublicDecisionModelQuestionType {
+  switch (question.type) {
+    case DecisionModelQuestionType.CHOICE: {
+      const { options, ...rest } = question;
+      return { ...rest, criteria: options };
+    }
+    case DecisionModelQuestionType.SCORE: {
+      const { levels, ...rest } = question;
+      return { ...rest, criteria: levels };
+    }
+    case DecisionModelQuestionType.NOUL: {
+      const { criteria } = question;
+      return {
+        ...question,
+        type: PUBLIC_DECISION_MODEL_BOOLEAN_QUESTION_TYPE,
+        criteria: criteria && {
+          true:
+            criteria.true == null
+              ? criteria.true
+              : { description: criteria.true },
+          false:
+            criteria.false == null
+              ? criteria.false
+              : { description: criteria.false },
+        },
+      };
+    }
+  }
+}
+
+export const PublicDecisionModelQuestionsInput = z
+  .array(PublicDecisionModelQuestion)
+  .superRefine((questions, ctx) => {
+    const parsed = DecisionModelQuestionsSchema.safeParse(
+      questions.map(toInternalDecisionModelQuestion),
+    );
+    if (parsed.success) return;
+    for (const issue of parsed.error.issues) {
+      ctx.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: issue.path.map((segment) =>
+          segment === "options" || segment === "levels" ? "criteria" : segment,
+        ),
+      });
+    }
+  });
 
 // This shape preserves incomplete mappings so callers can repair them.
 // Mapping inputs remain strict and require a concrete source.

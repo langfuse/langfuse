@@ -1,5 +1,4 @@
-import { ExternalLinkIcon } from "@langfuse/icons";
-import { Button } from "@/src/components/design-system/Button/Button";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 
 export function CloneDashboardDialog({
@@ -46,26 +45,22 @@ export function CloneDashboardDialog({
           content isn&rsquo;t available yet.
         </p>
         {existingCloneName && (
-          <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-            <span className="text-muted-foreground">
-              This project already has a dashboard named{" "}
-              <span className="text-foreground font-bold">
-                &ldquo;{existingCloneName}&rdquo;
-              </span>
-              .
-              {hasPendingChange
-                ? " Opening it won’t apply your current change."
-                : ""}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              text="Open existing clone"
-              icon={ExternalLinkIcon}
-              disabled={isPending}
-              onClick={onOpenExisting}
-            />
-          </div>
+          <Banner
+            actions={[
+              {
+                text: "Open existing clone",
+                disabled: isPending,
+                onClick: onOpenExisting,
+              },
+            ]}
+          >
+            This project already has a dashboard named{" "}
+            <span className="font-bold">&ldquo;{existingCloneName}&rdquo;</span>
+            .
+            {hasPendingChange
+              ? " Opening it won’t apply your current change."
+              : ""}
+          </Banner>
         )}
       </Dialog.Body>
     </Dialog>

@@ -17,6 +17,7 @@ import {
   inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
+  eventsDispatchTranscriptCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
@@ -25,8 +26,8 @@ import {
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
-  traceBatchDispatcher,
-  traceBatchMetricsRunner,
+  traceDispatcher,
+  traceDispatchMetricsRunner,
   topicsNightlyRefitRunner,
 } from "../app";
 
@@ -55,7 +56,7 @@ const runDrainAndClose = async () => {
   logger.info("Server has been closed.");
 
   // Give in-flight dispatch up to five seconds before continuing shutdown.
-  await traceBatchDispatcher?.drain();
+  await traceDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
@@ -77,6 +78,9 @@ const runDrainAndClose = async () => {
   // Stop batch project blob cleaner
   batchProjectBlobCleaner?.stop();
 
+  // Stop events-dispatch transcript cleaner
+  eventsDispatchTranscriptCleaner?.stop();
+
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();
 
@@ -92,7 +96,7 @@ const runDrainAndClose = async () => {
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
-  traceBatchMetricsRunner?.stop();
+  traceDispatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {

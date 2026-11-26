@@ -42,5 +42,5 @@ export const [getObservationFieldSchemaTool, handleGetObservationFieldSchema] =
         ),
       };
     },
-    readOnlyHint: true,
+    annotations: { readOnlyHint: true },
   });

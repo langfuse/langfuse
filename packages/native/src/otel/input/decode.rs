@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use super::super::value::{JsString, Object, Value};
-use serde::de::{IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_json::value::RawValue;
 
@@ -246,6 +246,11 @@ impl<'de, const BOUNDARY: u8> Deserialize<'de> for JsonField<BOUNDARY> {
 // A still-too-deep attribute keeps its complete value (including OTLP wrappers)
 // as JSON text, preserving the data without constructing a deeper tree.
 fn parse_field(source: &str, boundary: u8) -> Result<Value, serde_json::Error> {
+    if boundary == ATTRIBUTES {
+        if let Some(attributes) = super::super::attributes::direct_attributes(source) {
+            return Ok(Value::Object(attributes));
+        }
+    }
     match Value::parse(source) {
         Ok(value) => return Ok(value),
         Err(error) if is_recursion_limit(&error) => {}
@@ -300,6 +305,40 @@ impl<const BOUNDARY: u8> JsonField<BOUNDARY> {
 
     pub fn into_value(self) -> Value {
         *self.0
+    }
+}
+
+/// Matches an object key against the names a container reads, without copying the key.
+/// Any other key is still decoded, so a key that is not a JavaScript string fails here as it
+/// does everywhere else.
+pub(super) struct FieldName(pub(super) &'static [&'static str]);
+
+impl<'de> DeserializeSeed<'de> for FieldName {
+    type Value = Option<&'static str>;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_bytes(self)
+    }
+}
+
+impl<'de> Visitor<'de> for FieldName {
+    type Value = Option<&'static str>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON string")
+    }
+
+    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        self.visit_bytes(value.as_bytes())
+    }
+
+    fn visit_bytes<E: serde::de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
+        match self.0.iter().find(|name| name.as_bytes() == bytes) {
+            Some(name) => Ok(Some(name)),
+            None => JsString::from_wtf8(bytes.to_vec())
+                .map(|_| None)
+                .map_err(E::custom),
+        }
     }
 }
 
@@ -406,11 +445,11 @@ macro_rules! otlp_object {
 
             fn read_map<A: ::serde::de::MapAccess<'de>>(mut map: A) -> Result<Self, A::Error> {
                 let mut value = Self::default();
-                while let Some(key) =
-                    map.next_key::<$crate::otel::value::JsString>()?
-                {
-                    match key.as_str() {
-                        $($key => value.$field = Some(map.next_value()?),)*
+                while let Some(key) = map.next_key_seed(
+                    $crate::otel::input::decode::FieldName(&[$($key),*]),
+                )? {
+                    match key {
+                        $(Some($key) => value.$field = Some(map.next_value()?),)*
                         _ => { map.next_value::<::serde::de::IgnoredAny>()?; }
                     }
                 }

@@ -67,6 +67,7 @@ import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { registerSelectAllBannerSlot } from "@/src/components/table/selectAllBannerSlot";
 
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
@@ -195,6 +196,22 @@ function isValidCssVariableName({
     ? /^--(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/
     : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
+}
+
+function fixedTableColumnWidth(
+  columnDef: LangfuseColumnDef<unknown>,
+  headerId: string,
+): CSSProperties["width"] {
+  if (columnDef.isFlexWidth) return "auto";
+  if (
+    isValidCssVariableName({
+      name: headerId,
+      includesHyphens: false,
+    })
+  ) {
+    return `calc(var(--header-${headerId}-size) * 1px)`;
+  }
+  return 150;
 }
 
 // These are the important styles to make sticky column pinning work!
@@ -504,6 +521,32 @@ export function DataTable<TData extends object, TValue>({
   // otherwise flash a single frame.
   // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
   const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
+  const selectAllBannerSlotRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const slot = selectAllBannerSlotRef.current;
+    if (!slot) return;
+    return registerSelectAllBannerSlot(slot);
+  }, []);
+
+  // Width of the visible table, so a banner portaled into the header stays
+  // centered in the viewport when the columns scroll horizontally.
+  useLayoutEffect(() => {
+    const el = rowHeightScrollRef.current;
+    if (!el) return;
+    const apply = () => {
+      const style = getComputedStyle(el);
+      const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+      const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+      const width = Math.max(el.clientWidth - paddingLeft - paddingRight, 0);
+      el.style.setProperty("--select-all-banner-viewport", `${width}px`);
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
@@ -545,28 +588,70 @@ export function DataTable<TData extends object, TValue>({
           </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
+              {/* First row owns the fixed-layout column widths. The banner
+                  row below is one spanning cell and must not be first, or the
+                  browser divides that cell across every column. */}
+              <tr
+                aria-hidden="true"
+                className="h-0 border-0"
+                style={{ height: 0, borderBottom: "none" }}
+              >
+                {table
+                  .getHeaderGroups()
+                  .at(-1)
+                  ?.headers.filter((header) => header.column.getIsVisible())
+                  .map((header) => {
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<unknown>;
+                    return (
+                      <td
+                        key={header.id}
+                        className={cn(
+                          "h-0 border-0 p-0",
+                          columnDef.hideBelowMd && "hidden md:table-cell",
+                        )}
+                        style={{
+                          width: fixedTableColumnWidth(columnDef, header.id),
+                          height: 0,
+                          padding: 0,
+                          borderWidth: 0,
+                          lineHeight: 0,
+                          fontSize: 0,
+                        }}
+                      />
+                    );
+                  })}
+              </tr>
+              {/* The select-all banner portals into this row so it sticks with
+                  the header, under any metric strip rendered above the table.
+                  An empty slot collapses the row. */}
+              <tr className="[&:has([data-select-all-banner-slot]:empty)]:hidden">
+                <td
+                  colSpan={Math.max(table.getVisibleLeafColumns().length, 1)}
+                  className="bg-surface p-0"
+                >
+                  <div
+                    className="sticky left-0 max-w-full px-2"
+                    style={{
+                      width: "var(--select-all-banner-viewport, 100%)",
+                    }}
+                  >
+                    <div
+                      ref={selectAllBannerSlotRef}
+                      data-select-all-banner-slot=""
+                    />
+                  </div>
+                </td>
+              </tr>
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
-                    // if the header id does not translate to a valid css variable name, default to 150px as width
-                    // may only happen for dynamic columns, as column names are user defined
-                    const width = (() => {
-                      if (columnDef.isFlexWidth) {
-                        return "auto";
-                      }
-                      if (
-                        isValidCssVariableName({
-                          name: header.id,
-                          includesHyphens: false,
-                        })
-                      ) {
-                        return `calc(var(--header-${header.id}-size) * 1px)`;
-                      }
-                      return 150;
-                    })();
+                    // Dynamic column names are user defined and may not be a
+                    // valid CSS variable. Those fall back to 150px.
+                    const width = fixedTableColumnWidth(columnDef, header.id);
 
                     return header.column.getIsVisible() ? (
                       <TableHead

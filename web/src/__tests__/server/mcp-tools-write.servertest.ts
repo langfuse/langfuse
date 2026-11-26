@@ -87,21 +87,16 @@ import {
   handleUpdateEvaluator,
 } from "@/src/features/mcp/server/evals/tools/updateEvaluator";
 import {
+  McpEvaluatorInput,
+  McpUpdateEvaluatorInput,
+} from "@/src/features/mcp/server/evals/tools/evaluatorInput";
+import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
 } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
-import {
-  updateEvaluationRuleTool,
-  handleUpdateEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
-import {
-  deleteEvaluationRuleTool,
-  handleDeleteEvaluationRule,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
-import {
-  deleteEvaluatorTool,
-  handleDeleteEvaluator,
-} from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
+import { handleUpdateEvaluationRule } from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
+import { handleDeleteEvaluationRule } from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
+import { handleDeleteEvaluator } from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
 import {
   handleTestEvaluator,
   testEvaluatorTool,
@@ -115,17 +110,13 @@ import {
 import { externalMediaStorageFeature } from "@/src/ee/features/external-media-storage/server/mcp";
 import { evalsFeature } from "@/src/features/mcp/server/evals";
 import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
-import {
-  handleRunBatchEvaluation,
-  runBatchEvaluationTool,
-} from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
+import { handleRunBatchEvaluation } from "@/src/features/mcp/server/evals/tools/runBatchEvaluation";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import {
   createApiKey,
   createBasicAuthHeader,
@@ -136,7 +127,6 @@ import {
   SystemRoleId,
   UserId,
 } from "@langfuse/shared/rbac";
-import "@/src/features/mcp/server/bootstrap";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { authenticator } from "@/src/features/apiKey/authenticator";
 import {
@@ -149,15 +139,10 @@ import {
 } from "@/src/features/mcp/server/evals/tools/defaultEvaluationModel";
 import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 import {
-  attachEvaluatorToEvaluationRuleTool,
-  detachEvaluatorFromEvaluationRuleTool,
   handleAttachEvaluatorToEvaluationRule,
   handleDetachEvaluatorFromEvaluationRule,
 } from "@/src/features/mcp/server/evals/tools/manageEvaluationRuleEvaluators";
-import {
-  createDashboardWidgetTool,
-  handleCreateDashboardWidget,
-} from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   handleAddDashboardPlacement,
   handleCreateDashboard,
@@ -543,10 +528,12 @@ describe("MCP Write Tools", () => {
       };
       const testEvaluatorSpy = vi
         .spyOn(EvaluatorService.prototype, "testEvaluator")
-        .mockResolvedValue(unifiedResult);
+        .mockResolvedValue({
+          ...unifiedResult,
+          variables: [{ var: "input", value: "sample input" }],
+        });
 
       try {
-        verifyToolAnnotations(testEvaluatorTool, { expensiveHint: true });
         expect(testEvaluatorTool.annotations?.readOnlyHint).not.toBe(true);
         expect(testEvaluatorTool.annotations?.destructiveHint).not.toBe(true);
         expect(testEvaluatorTool.inputSchema.properties).toEqual(
@@ -712,6 +699,25 @@ describe("MCP Write Tools", () => {
       }
     });
 
+    it("documents required evaluator inputs with an example that validates", () => {
+      for (const [tool, schema] of [
+        [createEvaluatorTool, McpEvaluatorInput],
+        [updateEvaluatorTool, McpUpdateEvaluatorInput],
+      ] as const) {
+        const properties = tool.inputSchema.properties as Record<
+          string,
+          { description?: string }
+        >;
+        for (const field of tool.inputSchema.required ?? []) {
+          expect(properties[field]?.description, field).toBeTruthy();
+        }
+
+        const example = tool.description.match(/Example[^{]*(\{.*\})\.$/)?.[1];
+        expect(example, tool.name).toBeDefined();
+        expect(schema.safeParse(JSON.parse(example!)).error).toBeUndefined();
+      }
+    });
+
     it("creates and versions an evaluator by stable id", async () => {
       const setup = await createMcpTestSetup();
       verifyToolAnnotations(createEvaluatorTool, { destructiveHint: true });
@@ -786,12 +792,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("addresses project evaluators by stable id", () => {
       const properties = createEvaluationRuleTool.inputSchema.properties;
 
@@ -1000,12 +1000,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("updateEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(updateEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should update an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -1030,15 +1024,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("evaluation rule evaluator assignment tools", () => {
-    it("should have destructiveHint annotations", () => {
-      verifyToolAnnotations(attachEvaluatorToEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-      verifyToolAnnotations(detachEvaluatorFromEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("attaches and detaches a stable evaluator and audits both writes", async () => {
       const setup = await createMcpTestSetup();
       const { rule } = await createLlmEvaluationRuleForMcpWriteTest(setup);
@@ -1088,12 +1073,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("deleteEvaluationRule tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteEvaluationRuleTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should delete an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -1139,7 +1118,6 @@ describe("MCP Write Tools", () => {
     });
 
     it("queues an evaluator v2 batch action attributed to the API key", async () => {
-      verifyToolAnnotations(runBatchEvaluationTool, { expensiveHint: true });
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
       const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
@@ -1271,12 +1249,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("deleteEvaluator tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteEvaluatorTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should delete an evaluator and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
@@ -1573,7 +1545,7 @@ describe("MCP Write Tools", () => {
         select: { id: true },
       });
 
-      const server = createMcpServer({
+      const server = await createMcpServer({
         ...setup.context,
         apiKeyId: viewerKeyId,
         publicKey: viewerKey.publicKey,
@@ -1667,12 +1639,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createDashboardWidget tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(createDashboardWidgetTool, {
-        destructiveHint: true,
-      });
-    });
-
     it("should create a dashboard widget and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;

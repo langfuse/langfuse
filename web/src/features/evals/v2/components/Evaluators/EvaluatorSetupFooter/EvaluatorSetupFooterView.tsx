@@ -1,11 +1,6 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ArrowRight } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type EvaluatorSetupFooterViewBaseProps = {
@@ -54,13 +49,16 @@ export function EvaluatorSetupFooterView(props: EvaluatorSetupFooterViewProps) {
         {closeLabel}
       </Button>
       {disabledReason ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+        <Tooltip label={disabledReason}>
+          {({ getTriggerProps }) => (
+            <span
+              {...getTriggerProps()}
+              className="inline-flex cursor-not-allowed"
+              tabIndex={0}
+            >
               {saveButton}
             </span>
-          </TooltipTrigger>
-          <TooltipContent>{disabledReason}</TooltipContent>
+          )}
         </Tooltip>
       ) : (
         saveButton

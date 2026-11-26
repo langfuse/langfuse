@@ -84,6 +84,7 @@ model User {
   topicConfigsUpdated       TopicConfig[]               @relation("UpdatedByUser")
   tracingReadinessCreated   TracingReadinessSettings[]  @relation("CreatedByUser")
   tracingReadinessUpdated   TracingReadinessSettings[]  @relation("UpdatedByUser")
+  gatewayGuardrailsCreated  GatewayGuardrail[]          @relation("CreatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
   commentReactions          CommentReaction[]
@@ -97,6 +98,9 @@ model User {
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
   evaluationRulesCreated    EvaluationRule[]            @relation("EvaluationRuleCreatedByUser")
+  gatewaySpendLimitsOwned   GatewaySpendLimit[]         @relation("GatewaySpendLimitOwner")
+  gatewaySpendLimits        GatewaySpendLimit[]         @relation("GatewaySpendLimitUser")
+  gatewayGuardrailAssignments GatewayGuardrailAssignment[] @relation("GatewayGuardrailAssignmentUser")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentUser") @ignore
 
@@ -144,7 +148,11 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  gatewaySpendLimits               GatewaySpendLimit[]
+  gatewayGuardrails                GatewayGuardrail[]
+  gatewayGuardrailAssignments      GatewayGuardrailAssignment[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
+  models                           Model[]
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentOrganization") @ignore
@@ -266,6 +274,8 @@ model ApiKey {
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
   gatewayAssociation  GatewayApiKeyAssociation?
+  gatewaySpendLimits  GatewaySpendLimit[]
+  gatewayGuardrailAssignments GatewayGuardrailAssignment[]
   roleAssignments     RoleAssignment[]
 
   deprecatedRoleAssignments RoleAssignment[] @relation("DeprecatedRoleAssignmentApiKey") @ignore
@@ -291,6 +301,7 @@ enum SystemRole {
   SCORES_INGEST
   INGEST
   AI_GATEWAY
+  AI_GATEWAY_INFERENCE
   APPLICATION
 }
 
@@ -308,6 +319,8 @@ model RoleAssignment {
   apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
   roleId       String       @map("role_id")
   systemRole   SystemRole   @map("system_role")
+  expiresAt    DateTime?    @map("expires_at")
+  tags         String[]     @default([])
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
 
@@ -332,6 +345,7 @@ model RoleAssignment {
   @@index([principalId])
   @@index([userId])
   @@index([apiKeyId])
+  @@index([tags(ops: ArrayOps)], type: Gin)
   @@map("role_assignments")
 }
 
@@ -404,6 +418,145 @@ model GatewayApiKeyAssociation {
   allowedModels Json?  @map("allowed_models") @db.JsonB
 
   @@map("gateway_api_key_associations")
+}
+
+enum GatewaySpendLimitScope {
+  API_KEY
+  USER
+  // The organization's fallback for keys or users without a limit of their own; no subject column is set. One per organization and scope (partial unique index in the migration).
+  API_KEY_DEFAULT
+  USER_DEFAULT
+  // Caps the whole organization's gateway spend; no subject column is set. One per organization, by the defaults' partial unique index.
+  ORGANIZATION
+}
+
+enum GatewaySpendLimitInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  TOTAL
+}
+
+// USD spend cap the AI gateway checks before each request. Windows are UTC
+// calendar windows (weeks start Monday); TOTAL never refreshes.
+model GatewaySpendLimit {
+  id                String                    @id @default(cuid())
+  organizationId    String                    @map("organization_id")
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // Each scope has its own subject column, set exactly for that scope (checked in the database).
+  scope             GatewaySpendLimitScope
+  apiKeyId          String?                   @map("api_key_id")
+  apiKey            ApiKey?                   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  // Caps the spend of all the user's gateway keys in the organization.
+  userId            String?                   @map("user_id")
+  user              User?                     @relation("GatewaySpendLimitUser", fields: [userId], references: [id], onDelete: Cascade)
+  interval          GatewaySpendLimitInterval
+  limitUsd          Decimal                   @map("limit_usd")
+  // Usage percentages (subset of 85, 95, 100) that trigger email alerts.
+  alertThresholds   Int[]                     @default([100]) @map("alert_thresholds")
+  // When the limit starts counting spend, set when it is created; earlier spend does not count. The gateway's usage counters and the alert rows are keyed by it, so moving it starts counting afresh.
+  countingStartedAt DateTime                  @map("counting_started_at")
+  // Whoever last created or updated the limit. Gateway members may change only their own limits; admins may change all.
+  ownerUserId       String?                   @map("owner_user_id")
+  ownerUser         User?                     @relation("GatewaySpendLimitOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at")
+  alerts            GatewaySpendLimitAlert[]
+
+  @@unique([apiKeyId, interval])
+  @@unique([organizationId, userId, interval])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("gateway_spend_limits")
+}
+
+enum GatewaySpendLimitAlertType {
+  WARNING
+  EXCEEDED
+}
+
+/// One notification per limit, subject, alert type, threshold, counting start and window, so the gateway may report a limit any number of times.
+model GatewaySpendLimitAlert {
+  id                String                     @id @default(cuid())
+  spendLimitId      String                     @map("spend_limit_id")
+  spendLimit        GatewaySpendLimit          @relation(fields: [spendLimitId], references: [id], onDelete: Cascade)
+  // The key or user a default limit was reached for; empty for a limit of one key or user.
+  subjectId         String                     @default("") @map("subject_id")
+  type              GatewaySpendLimitAlertType
+  // Usage percentage threshold (e.g. 85, 95, 100) that fired; defaults to 100 for exceeded alerts.
+  thresholdPercent  Int                        @default(100) @map("threshold_percent")
+  countingStartedAt DateTime                   @map("counting_started_at")
+  windowStart       DateTime                   @map("window_start")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  @@unique([spendLimitId, subjectId, type, thresholdPercent, countingStartedAt, windowStart], map: "gateway_spend_limit_alerts_limit_type_counting_window_key")
+  @@map("gateway_spend_limit_alerts")
+}
+
+enum GatewayGuardrailType {
+  // Built-in presets matched by the gateway.
+  REGEX
+  // External AWS Bedrock Guardrail evaluated via ApplyGuardrail.
+  BEDROCK
+}
+
+enum GatewayGuardrailAction {
+  BLOCK
+  LOG
+  REDACT
+}
+
+enum GatewayGuardrailAssignmentScope {
+  ORGANIZATION
+  API_KEY
+  USER
+}
+
+// A rule set the AI gateway checks each request against. Assignments decide
+// which keys it applies to.
+model GatewayGuardrail {
+  id                  String                       @id @default(cuid())
+  organizationId      String                       @map("organization_id")
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                String
+  type                GatewayGuardrailType         @default(REGEX)
+  action              GatewayGuardrailAction
+  // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
+  // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." }.
+  config              Json                         @default("{}") @db.JsonB
+  // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
+  encryptedCredential String?                      @map("encrypted_credentials")
+  createdBy           String?                      @map("created_by")
+  createdByUser       User?                        @relation("CreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @default(now()) @updatedAt @map("updated_at")
+  assignments         GatewayGuardrailAssignment[]
+
+  @@unique([organizationId, name])
+  @@map("gateway_guardrails")
+}
+
+// Applies a guardrail to every key of its organization, one key, or all keys of
+// one user in the organization. Each scope sets exactly its subject column
+// (checked in the database); each guardrail has one assignment per subject
+// (partial unique indexes in the migration).
+model GatewayGuardrailAssignment {
+  id             String                          @id @default(cuid())
+  guardrailId    String                          @map("guardrail_id")
+  guardrail      GatewayGuardrail                @relation(fields: [guardrailId], references: [id], onDelete: Cascade)
+  organizationId String                          @map("organization_id")
+  organization   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scope          GatewayGuardrailAssignmentScope
+  apiKeyId       String?                         @map("api_key_id")
+  apiKey         ApiKey?                         @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  userId         String?                         @map("user_id")
+  user           User?                           @relation("GatewayGuardrailAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                        @default(now()) @map("created_at")
+
+  @@index([organizationId, scope])
+  @@index([apiKeyId])
+  @@index([userId, organizationId])
+  @@map("gateway_guardrail_assignments")
 }
 
 enum InAppAgentConversationVisibilityScope {
@@ -537,6 +690,9 @@ model LlmApiKeys {
   extraHeaders      String?  @map("extra_headers")
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
+  // Encrypted. Bedrock IAM role auth: sent when assuming the customer's role.
+  // Derived by Langfuse, never accepted as input, and kept when the role changes.
+  externalId        String?  @map("external_id")
 
   projectId      String?       @map("project_id")
   project        Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -669,6 +825,8 @@ model AnnotationQueue {
   name                      String
   description               String?
   scoreConfigIds            String[]                    @default([]) @map("score_config_ids")
+  sessionViewId             String?                     @map("session_view_id")
+  sessionView               SessionView?                @relation(fields: [projectId, sessionViewId], references: [projectId, id], onDelete: NoAction)
   projectId                 String                      @map("project_id")
   project                   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt                 DateTime                    @default(now()) @map("created_at")
@@ -679,6 +837,7 @@ model AnnotationQueue {
   @@unique([projectId, name])
   @@index([id, projectId])
   @@index([projectId, createdAt])
+  @@index([projectId, sessionViewId])
   @@map("annotation_queues")
 }
 
@@ -1034,8 +1193,15 @@ model Model {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  projectId String?  @map("project_id")
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Owner of the definition; a check constraint requires exactly the scope's owner column
+  // (LANGFUSE: neither, PROJECT: project_id, ORGANIZATION: organization_id).
+  // Filter visibility with visibleModelsWhere / visibleModelsSql, never on null owner columns.
+  // A partial unique index (migration only) keeps model names unique per organization.
+  scope          ModelScope
+  projectId      String?       @map("project_id")
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   modelName       String        @map("model_name")
   matchPattern    String        @map("match_pattern")
@@ -1051,7 +1217,14 @@ model Model {
 
   @@unique([projectId, modelName, startDate, unit])
   @@index(modelName)
+  @@index([scope])
   @@map("models")
+}
+
+enum ModelScope {
+  LANGFUSE
+  ORGANIZATION
+  PROJECT
 }
 
 model Price {
@@ -1995,7 +2168,14 @@ enum SessionUnmatchedTraces {
   hide
 }
 
+enum SessionViewOwnership {
+  PRIVATE
+  PROJECT
+}
+
 model SessionView {
+  ownership                   SessionViewOwnership     @default(PROJECT)
+  annotationQueues            AnnotationQueue[]
   isPinnedByDefaultForProject Boolean                  @default(false) @map("is_pinned_by_default_for_project")
   pins                        SessionViewPinOverride[]
   id                          String                   @id @default(cuid())
@@ -2010,7 +2190,6 @@ model SessionView {
   createdAt                   DateTime                 @default(now()) @map("created_at")
   updatedAt                   DateTime                 @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, name])
   @@unique([projectId, id])
   @@map("session_views")
 }

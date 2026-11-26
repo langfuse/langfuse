@@ -78,9 +78,14 @@ test("changed-file provider selection permits only explicit exclusions", () => {
   const needs = successfulJobs();
   needs["test-worker-llm-connections"] = { result: "skipped" };
   needs["test-ai-gateway-e2e"] = { result: "skipped" };
+  needs["tests-ai-gateway-guardrail-rules"] = { result: "skipped" };
   const selection = {
     result: "success",
-    outputs: { llm_connections: "false", ai_gateway: "false" },
+    outputs: {
+      llm_connections: "false",
+      ai_gateway: "false",
+      ai_gateway_guardrail_rules: "false",
+    },
   };
   needs["llm-connections-filter"] = selection;
   for (const event of ["pull_request", "merge_group", "push"]) {
@@ -89,7 +94,11 @@ test("changed-file provider selection permits only explicit exclusions", () => {
       [],
       event,
     );
-    for (const output of ["llm_connections", "ai_gateway"]) {
+    for (const output of [
+      "llm_connections",
+      "ai_gateway",
+      "ai_gateway_guardrail_rules",
+    ]) {
       for (const changed of ["true", undefined]) {
         selection.outputs[output] = changed;
         assert.notEqual(evaluateGate({ event, needs }).length, 0);
@@ -104,7 +113,11 @@ test("changed-file provider selection permits only explicit exclusions", () => {
     delete needs["llm-connections-filter"];
     assert.notEqual(evaluateGate({ event, needs }).length, 0);
     needs["llm-connections-filter"] = selection;
-    for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
+    for (const job of [
+      "test-worker-llm-connections",
+      "test-ai-gateway-e2e",
+      "tests-ai-gateway-guardrail-rules",
+    ]) {
       for (const result of ["failure", "cancelled", undefined]) {
         if (result) needs[job] = { result };
         else delete needs[job];
@@ -126,6 +139,34 @@ test("changed-file provider selection permits only explicit exclusions", () => {
     0,
     "release validation runs the provider suites regardless of the diff",
   );
+});
+
+test("fork pull requests may skip the secret-bearing provider jobs", () => {
+  const needs = successfulJobs();
+  needs["llm-connections-filter"] = {
+    result: "success",
+    outputs: { llm_connections: "true", ai_gateway: "true" },
+  };
+  for (const job of ["test-worker-llm-connections", "test-ai-gateway-e2e"]) {
+    needs[job] = { result: "skipped" };
+    assert.deepEqual(
+      evaluateGate({ event: "pull_request", needs, fork: true }),
+      [],
+      job,
+    );
+    assert.notEqual(
+      evaluateGate({ event: "pull_request", needs }).length,
+      0,
+      job,
+    );
+    needs[job] = { result: "failure" };
+    assert.notEqual(
+      evaluateGate({ event: "pull_request", needs, fork: true }).length,
+      0,
+      job,
+    );
+    needs[job] = { result: "success" };
+  }
 });
 
 test("a duplicate push cannot excuse a failed job or a failed tag check", () => {

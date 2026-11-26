@@ -8,7 +8,10 @@ import {
   type AuditRequestContext,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
+import {
+  type ApiAccessScope,
+  getOrganizationPlanServerSide,
+} from "@langfuse/shared/src/server";
 
 import { stageAccessEvent } from "@/src/ee/features/access-audit-log/server/stageAccessEvent";
 import {
@@ -18,7 +21,6 @@ import {
 } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type ServerContext } from "@/src/features/mcp/types";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */
@@ -59,7 +61,7 @@ async function loadAccessAuditOrg(
  * only for orgs that pass the gate.
  */
 async function recordUserAccess(
-  user: Session["user"] | undefined,
+  session: UserSession | null | undefined,
   projectId: string,
   read: AccessRead,
   via: {
@@ -68,12 +70,11 @@ async function recordUserAccess(
     remoteAddress?: string;
   },
 ): Promise<void> {
-  if (!user) return;
+  if (!isSignedIn(session)) return;
 
-  const org = user.organizations.find((o) =>
+  const org = session.user.organizations.find((o) =>
     o.projects.some((p) => p.id === projectId),
   );
-  const project = org?.projects.find((p) => p.id === projectId);
   const supportAccess = org?.supportAccess === true;
   if (!canRecordAccessEvents({ supportAccess })) return;
   // Admins and viewers of public resources read projects outside their session.
@@ -92,11 +93,7 @@ async function recordUserAccess(
     ...read,
     orgId: auditOrg.orgId,
     projectId,
-    actor: toUserActor(user, {
-      orgRole: org?.role,
-      projectRole: project?.role,
-      supportAccess,
-    }),
+    actor: toUserActor(session, auditOrg.orgId, projectId),
     surface: via.surface,
     request: getAuditRequestContext(via.headers, via.remoteAddress),
   });
@@ -164,13 +161,13 @@ async function recordApiKeyAccess(
  */
 export async function recordTrpcAccess(
   ctx: {
-    session: { user?: Session["user"] } | null;
+    session: UserSession | null;
     headers: IncomingHttpHeaders;
   },
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(ctx.session?.user, projectId, read, {
+  await recordUserAccess(ctx.session, projectId, read, {
     surface: "trpc",
     headers: ctx.headers,
   });
@@ -185,7 +182,7 @@ export async function recordInternalApiAccess(
   projectId: string,
   read: AccessRead,
 ): Promise<void> {
-  await recordUserAccess(session?.user, projectId, read, {
+  await recordUserAccess(session, projectId, read, {
     surface: "internal-api",
     headers: req.headers,
     remoteAddress: req.socket.remoteAddress,
@@ -224,4 +221,14 @@ export async function recordMcpAccess(
     () => context.auditRequest,
     read,
   );
+}
+
+/** UserSession is the part of a session that records a user's read. */
+type UserSession = Pick<Session, "user" | "policies">;
+
+/** isSignedIn reports whether the session has a user. */
+function isSignedIn(
+  session: UserSession | null | undefined,
+): session is UserSession & { user: NonNullable<UserSession["user"]> } {
+  return !!session?.user;
 }

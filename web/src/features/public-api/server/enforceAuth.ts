@@ -355,6 +355,7 @@ type ResolvedOrg = Success & { orgId: string };
 /** ResolvedProject is project target resolution's success outcome. */
 type ResolvedProject = Success & { projectId: string };
 
+/** @internal */
 export const __test = {
   getOrgId,
   getProjectId,

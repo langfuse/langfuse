@@ -69,6 +69,9 @@ describe("table registry derivation", () => {
       "events_truncated",
       "observations",
       "scores",
+      "topic_assignments",
+      "topic_facet_summaries",
+      "topics",
       "traces",
     ]);
   });

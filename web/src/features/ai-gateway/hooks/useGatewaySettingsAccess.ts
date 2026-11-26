@@ -5,6 +5,9 @@ import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hoo
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
+const SPEND_BUDGETS_NOT_RECORDED =
+  "Spend budgets need recorded gateway requests. Switch the gateway ingestion to usage to set one.";
+
 /**
  * Single source for who sees which gateway settings and whether setup is done.
  * `isIngestionConfigured` stays undefined while loading so callers never gate
@@ -28,22 +31,27 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
   });
   const session = useSession();
 
-  const { showNotDeployedNotice, showManagement, showApiKeys, showModels } =
-    gatewayPageAccess({
-      organizationId,
-      isAiGatewayEnabled,
-      aiGatewayDeployed: session.data?.environment.aiGatewayDeployed,
-      canManageGateway,
-      canReadGateway,
-      canInvokeGateway,
-    });
+  const {
+    showNotDeployedNotice,
+    showManagement,
+    showApiKeys,
+    showModels,
+    showGuardrails,
+  } = gatewayPageAccess({
+    organizationId,
+    isAiGatewayEnabled,
+    aiGatewayDeployed: session.data?.environment.aiGatewayDeployed,
+    canManageGateway,
+    canReadGateway,
+    canInvokeGateway,
+  });
 
   const setupStatus = api.aiGateway.getSetupStatus.useQuery(
     { orgId: organizationId ?? "" },
     {
       enabled:
         organizationId !== undefined &&
-        (showManagement || showModels || showApiKeys),
+        (showManagement || showModels || showApiKeys || showGuardrails),
     },
   );
 
@@ -53,8 +61,14 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     showManagement,
     showModels,
     showApiKeys,
+    showGuardrails,
     isIngestionConfigured: setupStatus.data?.isConfigured,
     isRecording: setupStatus.data?.isRecording,
+    /** Why spend budgets cannot be set or changed; undefined when they can, or while loading. */
+    spendBudgetUnavailableReason:
+      setupStatus.data?.isRecording === false
+        ? SPEND_BUDGETS_NOT_RECORDED
+        : undefined,
     isSetupStatusPending: setupStatus.isPending,
   };
 }

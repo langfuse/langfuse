@@ -5,6 +5,7 @@ import {
   type TopicFacet,
   type TopicProcessingConfig,
   type TopicFacetVersion,
+  type TopicRule,
   type TopicSummary,
 } from "@langfuse/shared/topics";
 import {
@@ -13,18 +14,21 @@ import {
   instrumentAsync,
   isInternalEvalEnvironment,
   prepareAssembledTopicTranscript,
+  recordIncrement,
   renderStoredTopicText,
   TOPICS_TEXT_VERSION,
   type ExecutionIssue,
   type Transcript,
 } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
+import { env as workerEnv } from "../../env";
 import { TopicMetrics, type TopicResult } from "./metrics";
 import {
+  charsPerToken,
   embedTopicSummaries,
   summarizeTopicTraceFacets,
   TopicInputTooLarge,
-} from "./models";
+} from "./llm/models";
 import { TopicsProviderUnavailable } from "./provider-error";
 import {
   mergeTopicModelUsage,
@@ -48,14 +52,20 @@ const BUILT_IN_FACETS = new Set(
   DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
 );
 
-// Stored as `transcript_id` on every summary.
-export const ASSEMBLED_TRANSCRIPT_ID = "trace-batch";
-
 type TraceFacet = {
   name: string;
   version: TopicFacetVersion;
   builtIn: boolean;
 };
+
+/** Facets as the summary request lists them; pass built-in facets first. */
+export function keyTopicTraceFacets(facets: TraceFacet[]) {
+  return facets.map(({ name, version, builtIn }, index) => ({
+    key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
+    facet: version,
+    builtIn,
+  }));
+}
 
 type TraceFacetResult =
   | { output: FacetOutput }
@@ -72,8 +82,12 @@ type AssembledTraceInput = {
   executionIssues: ExecutionIssue[];
   models: TopicsModels;
   facets: TopicFacet[];
+  /** Dispatch revision of the stored transcript; stored as `transcript_id`. */
+  revision: string;
   // Tags the attempt's metrics so retries are separable from first attempts.
   attempt?: "first" | "retry";
+  /** Matched rules; each summary stores those that select its facet. */
+  rules: Pick<TopicRule, "id" | "facetIds">[];
   /** The snapshot that seeded the trace; stored on its summaries. */
   executionId?: string;
 };
@@ -115,7 +129,9 @@ export async function summarizeAssembledTrace(
         try {
           await metrics.measure("trace", async () => {
             result = await summarizeEnabledTrace(input, metrics);
-            if (result.failure !== undefined) throw result.failure;
+            if (result.failure !== undefined)
+              // eslint-disable-next-line @typescript-eslint/only-throw-error -- propagate assembled-trace failure
+              throw result.failure;
           });
           span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
           return result!;
@@ -163,32 +179,49 @@ async function summarizeEnabledTrace(
       unitStartTime: input.traceTimestamp,
       environment: input.environment,
       traceName: input.traceName,
+      transcriptId: input.revision,
       facet: version,
       summaryModel: models.summary.model,
       embeddingModel,
+      ruleIds: input.rules
+        .filter((rule) => rule.facetIds.includes(version.facetId))
+        .map((rule) => rule.id),
       // A snapshot's summaries carry its ID, for its progress and cost.
-      metadata: input.executionId
-        ? { input: "topics-text", executionId: input.executionId }
-        : { input: "topics-text" },
+      executionId: input.executionId ?? null,
+      metadata: { input: "topics-text" },
     }),
   );
-  const summarized = await summarizeTraceFacets({
-    models,
-    facets: pending,
-    transcript: input.transcript,
-    executionIssues: input.executionIssues,
-    config,
-    metadata: {
-      source_trace_id: input.traceId,
-      source_environment: input.environment,
-    },
-    metrics,
+  const callMetadata = (rows: TopicSummary[]) => ({
+    source_trace_id: input.traceId,
+    source_environment: input.environment,
+    ...(input.executionId
+      ? { execution_id: input.executionId }
+      : { rule_ids: [...new Set(rows.flatMap((row) => row.ruleIds))] }),
   });
-  let rows = bases;
   let failure: unknown;
   let failedStage: TopicsFailedStage | undefined;
+  let summarized: Awaited<ReturnType<typeof summarizeTraceFacets>>;
+  try {
+    summarized = await summarizeTraceFacets({
+      models,
+      facets: pending,
+      metadata: callMetadata(bases),
+      transcript: input.transcript,
+      executionIssues: input.executionIssues,
+      config,
+      metrics,
+    });
+  } catch (error) {
+    if (!(error instanceof TopicInputTooLarge)) throw error;
+    return {
+      outcome: "summarized",
+      rows: bases.map((base) => ({ ...base, state: "input_too_large" })),
+      failure: error,
+      failedStage: "summary",
+    };
+  }
+  let rows = bases;
   if (summarized) {
-    const usage = summarized.usage;
     const accepted = summarized.results.flatMap((result, index) => {
       if ("error" in result) {
         if (failure === undefined) {
@@ -199,18 +232,19 @@ async function summarizeEnabledTrace(
       }
       return [{ base: bases[index], output: result.output }];
     });
-    const applicable = accepted
-      .filter(({ output }) => output.status === "applicable")
-      .map(({ output }) => output.summary.trim());
+    const applicable = accepted.filter(
+      ({ output }) => output.status === "applicable",
+    );
     let embedded: Awaited<ReturnType<typeof embedTopicSummaries>> | undefined;
     if (applicable.length > 0) {
       try {
         embedded = await metrics.measure("embedding", () =>
           embedTopicSummaries(
             models.embedding,
-            applicable,
+            applicable.map(({ output }) => output.summary.trim()),
             models.embedding.dimensions,
             models.projectId,
+            callMetadata(applicable.map(({ base }) => base)),
           ),
         );
       } catch (error) {
@@ -219,29 +253,41 @@ async function summarizeEnabledTrace(
         failedStage = "embedding";
       }
     }
-    // One call summarizes and one embeds every facet of the trace; each row carries an equal share.
-    const traceUsage = embedded ? mergeTopicModelUsage(usage, embedded) : usage;
+    const summaryShares = splitTopicModelUsage(
+      summarized.usage,
+      accepted.length,
+    );
+    const embeddingShares = embedded
+      ? splitTopicModelUsage(embedded, applicable.length)
+      : [];
     const generated: TopicSummary[] = [];
     let embeddingIndex = 0;
-    for (const { base, output } of accepted) {
+    for (const [index, { base, output }] of accepted.entries()) {
       if (output.status !== "applicable")
         generated.push({
           ...base,
-          state:
-            output.status === "not_applicable"
-              ? "not_applicable"
-              : "insufficient_input",
+          ...summaryShares[index],
+          state: output.status,
         });
       else if (embedded)
         generated.push({
           ...base,
+          ...mergeTopicModelUsage(
+            summaryShares[index],
+            embeddingShares[embeddingIndex],
+          ),
           state: "complete",
           summary: output.summary.trim(),
           embedding: embedded.embeddings[embeddingIndex++],
         });
     }
-    const shares = splitTopicModelUsage(traceUsage, generated.length);
-    rows = generated.map((row, index) => ({ ...row, ...shares[index] }));
+    // Split transcript bytes across retained rows, giving the remainder to the first rows.
+    const bytes = Math.floor(summarized.transcriptBytes / generated.length);
+    const extra = summarized.transcriptBytes - bytes * generated.length;
+    rows = generated.map((row, index) => ({
+      ...row,
+      transcriptBytes: bytes + (index < extra ? 1 : 0),
+    }));
   }
   return { outcome: "summarized", rows, failure, failedStage };
 }
@@ -261,7 +307,12 @@ async function summarizeTraceFacets(params: {
   metadata: Record<string, unknown>;
   metrics: TopicMetrics;
 }): Promise<
-  { results: TraceFacetResult[]; usage: TopicModelUsage } | undefined
+  | {
+      results: TraceFacetResult[];
+      usage: TopicModelUsage;
+      transcriptBytes: number;
+    }
+  | undefined
 > {
   const { models, facets, config, metrics } = params;
   const outcome = (
@@ -272,19 +323,38 @@ async function summarizeTraceFacets(params: {
   // The projection's content check gates the text, whose run-facts header is never empty.
   const projection = prepareAssembledTopicTranscript(params.transcript);
   if (!projection.hasContent || !params.transcript) {
-    for (const facet of facets) outcome(facet, "insufficient_input", "rule");
+    for (const facet of facets) outcome(facet, "empty_input", "rule");
     return undefined;
   }
-  const text = renderStoredTopicText(params.transcript, params.executionIssues);
-  metrics.summaryInputCharacters("text", text.length);
+  const { text, visibleReply } = renderStoredTopicText(
+    params.transcript,
+    params.executionIssues,
+  );
+  // How often the `visible reply` line says "none", and what those runs ended on: per project via the span,
+  // overall via the counter.
+  const ending = visibleReply.noneEnding ?? "has_reply";
+  getCurrentSpan()?.setAttributes({
+    "langfuse.topics.visible_reply": visibleReply.value,
+    "langfuse.topics.visible_reply_none_ending": ending,
+  });
+  recordIncrement("langfuse.topics.visible_reply", 1, {
+    visible_reply: visibleReply.value,
+    none_ending: ending,
+  });
+  metrics.summaryInputCharacters(
+    "text",
+    text.length,
+    text.length > workerEnv.LANGFUSE_TOPICS_MAX_INPUT_CHARACTERS,
+  );
+  metrics.summaryInputEstimatedTokens(
+    Math.ceil(text.length / charsPerToken(models.summary.model)),
+  );
   metrics.summaryInputCharacters("json", projection.text.length);
   // The caller lists built-in facets first, so the cached prompt prefix stays stable.
-  const keyed = facets.map(({ name, version, builtIn }, index) => ({
-    key: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${index + 1}`,
-    facet: version,
-    builtIn,
-  }));
+  const keyed = keyTopicTraceFacets(facets);
   const errors = new Map<string, TopicsProviderUnavailable>();
+  const withoutSummary = new Set<string>();
+  let outputs: Record<string, FacetOutput> = {};
   let generated:
     | Awaited<ReturnType<typeof summarizeTopicTraceFacets>>
     | undefined;
@@ -297,7 +367,20 @@ async function summarizeTraceFacets(params: {
         config,
         params.metadata,
       );
-      const outputs = generated.output as Record<string, FacetOutput>;
+      // An applicable status without a description says nothing; keep it as insufficient input.
+      outputs = Object.fromEntries(
+        Object.entries(generated.output as Record<string, FacetOutput>).map(
+          ([key, output]): [string, FacetOutput] => {
+            if (output.status !== "applicable" || output.summary.trim())
+              return [key, output];
+            withoutSummary.add(key);
+            return [
+              key,
+              { ...output, status: "insufficient_input", summary: "" },
+            ];
+          },
+        ),
+      );
       for (const { key } of keyed) {
         const message = outputs[key]
           ? topicSummaryOutputError(outputs[key])
@@ -326,12 +409,16 @@ async function summarizeTraceFacets(params: {
         throw error;
     });
   const result = generated!;
-  const outputs = result.output as Record<string, FacetOutput>;
   const results = facets.map((facet, index): TraceFacetResult => {
     const { key } = keyed[index];
     const error = errors.get(key);
     if (error) outcome(facet, "invalid_output", "rule");
-    else outcome(facet, outputs[key].status, "model");
+    else
+      outcome(
+        facet,
+        outputs[key].status,
+        withoutSummary.has(key) ? "rule" : "model",
+      );
     return error ? { error } : { output: outputs[key] };
   });
   const counts: Record<string, number> = {};
@@ -342,6 +429,7 @@ async function summarizeTraceFacets(params: {
   getCurrentSpan()?.setAttributes(counts);
   return {
     results,
+    transcriptBytes: Buffer.byteLength(text, "utf8"),
     usage: {
       providedUsageDetails: result.providedUsageDetails,
       usageDetails: result.usageDetails,
@@ -358,7 +446,7 @@ function facetTag(facet: TraceFacet): string {
     : "custom";
 }
 
-/** The summary row processing starts from, before any model call. */
+/** The summary row processing starts from: written as is when the transcript has nothing for the model. */
 function baseTopicSummary(params: {
   projectId: string;
   traceId: string;
@@ -366,9 +454,12 @@ function baseTopicSummary(params: {
   unitStartTime: string;
   environment: string;
   traceName: string;
+  transcriptId: string;
   facet: TopicFacetVersion;
   summaryModel: string;
   embeddingModel: string;
+  ruleIds: string[];
+  executionId: string | null;
   metadata: Record<string, unknown>;
 }): TopicSummary {
   return {
@@ -377,19 +468,22 @@ function baseTopicSummary(params: {
     facetVersion: params.facet.version,
     traceId: params.traceId,
     sessionId: params.sessionId,
-    triggerType: "automatic",
+    triggerType: params.executionId ? "snapshot" : "rule",
+    ruleIds: params.ruleIds,
+    executionId: params.executionId,
     unitStartTime: params.unitStartTime,
     environment: params.environment,
     traceName: params.traceName,
-    state: "insufficient_input",
+    state: "empty_input",
     summary: "",
     embedding: [],
-    transcriptId: ASSEMBLED_TRANSCRIPT_ID,
+    transcriptId: params.transcriptId,
     transcriptVersion: TOPICS_TEXT_VERSION,
+    transcriptBytes: 0,
     summaryModel: params.summaryModel,
     embeddingModel: params.embeddingModel,
     ...NO_USAGE,
-    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     metadata: params.metadata,
   };
 }

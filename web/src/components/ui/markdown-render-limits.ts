@@ -18,6 +18,7 @@
 // Content whose estimated markdown nesting depth exceeds this is rendered as
 // plain text. Legitimate markdown nests <20-30 levels deep; a stack-overflowing
 // payload needs hundreds+, so this threshold sits in a wide safe band.
+/** @internal */
 export const MARKDOWN_MAX_NESTING_DEPTH = 100;
 export const DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT = 150_000;
 
@@ -36,6 +37,7 @@ const isSpace = (char: string): boolean => char === " " || char === "\t";
  * runs); byte-expensive vectors (deep multi-line lists) are additionally bounded
  * by the size preempt. Over-estimating is safe (worst case: content falls back
  * to plain text); the scan never under-counts a pure blockquote chain.
+ * @internal
  */
 export function estimateMarkdownNestingDepth(content: string): number {
   let maxDepth = 0;

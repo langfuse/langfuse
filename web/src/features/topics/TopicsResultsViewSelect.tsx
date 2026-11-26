@@ -1,11 +1,10 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTopicsCapture } from "./useTopicsCapture";
 
 const TOPICS_RESULTS_VIEWS = [
   { value: "treemap", label: "Treemap" },
-  { value: "list", label: "List" },
-  { value: "map", label: "Scatter" },
+  { value: "scatter", label: "Scatter" },
 ] as const;
 
 export type TopicsResultsView = (typeof TOPICS_RESULTS_VIEWS)[number]["value"];
@@ -40,10 +39,8 @@ export function useTopicsResultsView() {
   return [view, selectView] as const;
 }
 
-export type MobileTopicsVisualization = Extract<
-  TopicsResultsView,
-  "treemap" | "map"
->;
+/** Mobile keeps its own stored choice; "map" is the scatter there. */
+export type MobileTopicsVisualization = "treemap" | "map";
 
 /** The handheld Visualize tab. */
 export function useMobileTopicsVisualization() {
@@ -57,12 +54,10 @@ export function useMobileTopicsVisualization() {
 }
 
 /** Falls back to the treemap when the stored view is no longer available. */
-function usePersistedResultsView<T extends TopicsResultsView>(
-  storageKey: string,
-  views: readonly T[],
-  surface?: "mobile",
-) {
-  const capture = usePostHogClientCapture();
+function usePersistedResultsView<
+  T extends TopicsResultsView | MobileTopicsVisualization,
+>(storageKey: string, views: readonly T[], surface?: "mobile") {
+  const capture = useTopicsCapture();
   const [stored, setStored] = useLocalStorage<T>(storageKey, "treemap" as T);
   const view = views.includes(stored) ? stored : ("treemap" as T);
   function selectView(nextView: T) {

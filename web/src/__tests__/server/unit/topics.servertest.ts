@@ -1,9 +1,10 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { env } from "@/src/env.mjs";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
-import type { Session } from "next-auth";
+import type { Role } from "@langfuse/shared";
 import type * as topicsServer from "@langfuse/shared/topics/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   topicEmbeddingConfigSchema,
   DEFAULT_TOPIC_FACETS,
@@ -15,11 +16,14 @@ import {
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
+  getCurrentTopicMapRows: vi.fn(),
   getTopicResultCounts: vi.fn(),
   listCurrentTopicSummaries: vi.fn(),
   createTopicExecution: vi.fn(),
   readTopicExecutionSummary: vi.fn(),
   getTopicExecutionCosts: vi.fn(),
+  getTopicRuleMapCosts: vi.fn(),
+  getTopicExecutionNamingCosts: vi.fn(),
   getTopicSummaryCounts: vi.fn(),
   listTopicExecutions: vi.fn(),
   listTopicFacets: vi.fn(),
@@ -38,7 +42,6 @@ const mocks = vi.hoisted(() => ({
   getTopicRuns: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   getTopicsModels: vi.fn(),
-  isTopicsProjectEnabled: vi.fn(),
   checkTopicsModelSettings: vi.fn(),
   saveTopicsSetup: vi.fn(),
   setTopicsAutomaticProcessing: vi.fn(),
@@ -88,6 +91,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
 import {} from "@/src/features/topics/server/slices";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { createSession } from "@/src/__tests__/fixtures/session-factory";
 
 const projectId = "project-a";
 const facetId = "facet-a";
@@ -107,21 +111,11 @@ const input: TopicManualRunInput = {
   }),
 };
 
-function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
-  const session = {
-    expires: "1",
-    user: {
-      id: "user-a",
-      featureFlags: testFeatureFlags({ langfuseTopics }),
-      organizations: [
-        {
-          id: "org-a",
-          role,
-          projects: [{ id: projectId, role }],
-        },
-      ],
-    },
-  } as Session;
+function caller(role: Role = "ADMIN") {
+  const session = createSession({
+    user: { id: "user-a", featureFlags: testFeatureFlags() },
+    organizations: [{ id: "org-a", role, projects: [{ id: projectId }] }],
+  });
   return topicsRouter.createCaller(
     createInnerTRPCContext({ session, headers: {} }),
   );
@@ -195,16 +189,23 @@ const summary = {
   facetVersion,
   state: "complete",
   summary: "Requests a refund",
-  processedAt: "2026-09-16T00:00:00Z",
+  createdAt: "2026-09-16T00:00:00Z",
   unitStartTime: "2026-09-16T00:00:00Z",
   embedding: [0.1, 0.9],
   summaryModel: "gpt-4.1-nano",
   metadata: {},
 };
 
+const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+const setCloudRegion = (region: string | undefined) => {
+  (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = region;
+};
+
+afterEach(() => setCloudRegion(originalCloudRegion));
+
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.isTopicsProjectEnabled.mockReturnValue(true);
+  setCloudRegion("EU");
   mocks.listTopicRules.mockResolvedValue([]);
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.getTopicsModels.mockResolvedValue({
@@ -225,36 +226,36 @@ beforeEach(() => {
   mocks.getTopicRuns.mockResolvedValue([]);
 });
 
-describe("Topics feature access", () => {
-  it("rejects reads and execution without an explicit opt-in", async () => {
-    const disabled = caller("ADMIN", false);
-    await expect(disabled.facets({ projectId })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    await expect(
-      disabled.retry({ projectId, executionId: "execution-a" }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(mocks.listTopicFacets).not.toHaveBeenCalled();
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
-  });
-});
-
-describe("Topics project allowlist", () => {
-  // Every Topics API is behind the visibility gate: outside the allowlist it
+describe("Topics access without topics:read", () => {
+  // Every Topics API is behind the visibility gate: without topics:read it
   // answers NOT_FOUND before reading or writing anything.
-  const outside = () => {
-    mocks.isTopicsProjectEnabled.mockReturnValue(false);
-    return caller();
-  };
+  const outside = () => caller("NONE");
   const reads = [
     ["current results", () => outside().currentResults({ projectId })],
     ["topic map", () => outside().map({ projectId, runId: "run-a" })],
     ["facets", () => outside().facets({ projectId })],
     ["maps", () => outside().maps({ projectId })],
+    ["map cost", () => outside().ruleMapCosts({ projectId })],
     ["runs", () => outside().executions({ projectId })],
+    [
+      "run costs",
+      () => outside().executionCosts({ projectId, executionIds: ["run-a"] }),
+    ],
+    [
+      "run cost breakdown",
+      () =>
+        outside().executionCostBreakdown({
+          projectId,
+          executionIds: ["run-a"],
+          includeSummaryCosts: false,
+        }),
+    ],
     ["model settings", () => outside().modelSettings({ projectId })],
     ["tracing filter options", () => outside().filterOptions({ projectId })],
+    [
+      "tracing stripe map",
+      () => outside().stripeMap({ projectId, facet: "Intent" }),
+    ],
     [
       "tracing column topics",
       () =>
@@ -275,6 +276,9 @@ describe("Topics project allowlist", () => {
     expect(mocks.listTopicFacets).not.toHaveBeenCalled();
     expect(mocks.listTopicRules).not.toHaveBeenCalled();
     expect(mocks.listTopicExecutions).not.toHaveBeenCalled();
+    expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
+    expect(mocks.getTopicExecutionNamingCosts).not.toHaveBeenCalled();
+    expect(mocks.getTopicRuleMapCosts).not.toHaveBeenCalled();
     expect(mocks.getTopicsModels).not.toHaveBeenCalled();
   });
 
@@ -296,73 +300,28 @@ describe("Topics project allowlist", () => {
 });
 
 describe("Topics visibility gate", () => {
-  const session = ({
-    langfuseTopics = true,
-    email,
-    internalFeatures = true,
-    role = "VIEWER",
-  }: {
-    langfuseTopics?: boolean;
-    email?: string;
-    internalFeatures?: boolean;
-    role?: string | null;
-  }) =>
-    ({
-      expires: "1",
-      user: {
-        id: "user-a",
-        email,
-        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
-        organizations: role
-          ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
-          : [],
-      },
-    }) as unknown as Session;
-
   // Page, sidebar and API all call this one gate.
   it.each([
-    ["a member on an allowlisted project", {}, true, true],
-    ["a project outside the allowlist", {}, false, false],
-    ["the feature preview turned off", { langfuseTopics: false }, true, false],
-    [
-      "ClickHouse staff in internal view",
-      { email: "member@clickhouse.com", langfuseTopics: false },
-      true,
-      true,
-    ],
-    [
-      "staff opting out of internal view",
-      {
-        email: "member@clickhouse.com",
-        internalFeatures: false,
-        langfuseTopics: false,
-      },
-      true,
-      false,
-    ],
-    [
-      "an explicit grant after opting out of internal view",
-      { email: "member@clickhouse.com", internalFeatures: false },
-      true,
-      true,
-    ],
-    ["a role without topics:read", { role: "NONE" }, true, false],
+    ["a Cloud member without any preview", {}, "EU", true],
+    ["a self-hosted member", {}, undefined, true],
+    ["a role without topics:read", { role: "NONE" }, "EU", false],
     [
       "internal view without project membership",
-      { email: "member@clickhouse.com", langfuseTopics: false, role: null },
-      true,
+      { email: "member@clickhouse.com", role: null },
+      "EU",
       false,
     ],
-    [
-      "internal view on a non-allowlisted project",
-      { email: "member@clickhouse.com" },
-      false,
-      false,
-    ],
-  ] as const)("%s", (_case, user, topicsEnabled, expected) => {
-    expect(canViewTopics(session(user), { id: projectId, topicsEnabled })).toBe(
-      expected,
-    );
+  ] as const)("%s", (_case, user, region, expected) => {
+    const { email, role = "VIEWER" }: { email?: string; role?: Role | null } =
+      user;
+    setCloudRegion(region);
+    const session = createSession({
+      user: { id: "user-a", email, featureFlags: testFeatureFlags() },
+      organizations: role
+        ? [{ id: "org-a", role, projects: [{ id: projectId }] }]
+        : [],
+    });
+    expect(canViewTopics(session, projectId)).toBe(expected);
   });
 });
 
@@ -494,11 +453,11 @@ describe("Topics filtered trace preview", () => {
       },
     ])
       await expect(caller().previewTraces(invalid)).rejects.toBeDefined();
-    await expect(
-      caller("ADMIN", false).previewTraces(selection),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
+    await expect(caller("NONE").previewTraces(selection)).rejects.toMatchObject(
+      {
+        code: "NOT_FOUND",
+      },
+    );
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 });
@@ -536,7 +495,7 @@ describe("Topics published scatter map", () => {
       {
         ...summary,
         summary: "Latest refund summary",
-        processedAt: "2026-09-17T00:00:00Z",
+        createdAt: "2026-09-17T00:00:00Z",
       },
       { ...summary, traceId: "trace-b" },
     ]);
@@ -688,34 +647,113 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("projects cost estimates into history and execution polling", async () => {
+  it("loads estimates for runs that summarize traces and skips cost reads for status polling", async () => {
     const priced = { ...execution(), id: "priced", input };
+    const base = execution();
+    const snapshot = {
+      ...base,
+      id: "snapshot",
+      input: {
+        ...base.input,
+        analysis: {
+          label: "Checkout issues",
+          filter: [],
+          seed: "seed",
+          summarize: { limit: 10, selection: "random" },
+        },
+      },
+    };
     mocks.listTopicExecutions.mockResolvedValue([
       priced,
+      snapshot,
       { ...execution(), id: "zero", input },
       { ...execution(), id: "historical", input },
-      execution(),
+      base,
     ]);
-    mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.012, zero: 0 });
+    const recorded = { priced: 0.012, snapshot: 0.037, zero: 0 };
+    mocks.getTopicExecutionCosts.mockImplementation(
+      async (_projectId: string, ids: string[]) =>
+        Object.fromEntries(
+          Object.entries(recorded).filter(([id]) => ids.includes(id)),
+        ),
+    );
 
-    expect(await caller("VIEWER").executions({ projectId })).toMatchObject([
+    const api = caller("VIEWER");
+    expect(await api.executions({ projectId })).toMatchObject([
       { id: "priced", estimatedCost: 0.012 },
+      { id: "snapshot", estimatedCost: 0.037 },
       { id: "zero", estimatedCost: 0 },
       { id: "historical", estimatedCost: null },
       { id: "execution-a", estimatedCost: null },
     ]);
     expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
       projectId,
-      ["priced", "zero", "historical"],
+      ["priced", "snapshot", "zero", "historical"],
     );
-
-    mocks.readTopicExecutionSummary.mockResolvedValue(priced);
+    mocks.readTopicExecutionSummary.mockResolvedValue(snapshot);
+    const request = { projectId, executionId: snapshot.id };
+    expect(await api.execution(request)).toMatchObject({
+      estimatedCost: 0.037,
+    });
+    mocks.getTopicExecutionCosts.mockClear();
     expect(
-      await caller("VIEWER").execution({ projectId, executionId: priced.id }),
-    ).toMatchObject({ estimatedCost: 0.012 });
-    expect(mocks.getTopicExecutionCosts).toHaveBeenLastCalledWith(projectId, [
-      priced.id,
-    ]);
+      await api.executions({ projectId, includeCosts: false }),
+    ).toHaveLength(5);
+    expect(
+      await api.execution({ ...request, includeCosts: false }),
+    ).toMatchObject({ id: snapshot.id, estimatedCost: null });
+    expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
+
+    const visible = {
+      projectId,
+      executionIds: ["snapshot", "zero", "historical"],
+    };
+    expect(await api.executionCosts(visible)).toEqual({
+      snapshot: 0.037,
+      zero: 0,
+    });
+    expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      ["snapshot", "zero", "historical"],
+    );
+  });
+
+  it("combines recorded stages for visible snapshots and skips the summary read for reuse-only batches", async () => {
+    mocks.getTopicExecutionCosts.mockResolvedValue({ priced: 0.42, legacy: 0 });
+    mocks.getTopicExecutionNamingCosts.mockResolvedValue({
+      reuse: 0,
+      priced: 0.03,
+    });
+    const executionIds = ["legacy", "reuse", "priced"];
+    const api = caller("VIEWER");
+    expect(
+      await api.executionCostBreakdown({
+        projectId,
+        executionIds,
+        includeSummaryCosts: true,
+      }),
+    ).toEqual({
+      legacy: { summaries: 0, naming: null },
+      reuse: { summaries: null, naming: 0 },
+      priced: { summaries: 0.42, naming: 0.03 },
+    });
+    expect(mocks.getTopicExecutionCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      executionIds,
+    );
+    expect(mocks.getTopicExecutionNamingCosts).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      executionIds,
+    );
+    mocks.getTopicExecutionCosts.mockClear();
+    expect(
+      await api.executionCostBreakdown({
+        projectId,
+        executionIds: ["reuse"],
+        includeSummaryCosts: false,
+      }),
+    ).toEqual({ reuse: { summaries: null, naming: 0 } });
+    expect(mocks.getTopicExecutionCosts).not.toHaveBeenCalled();
   });
 
   it("reconciles interrupted history and resumes published facets after their queue owner is gone", async () => {
@@ -799,12 +837,12 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("rejects a different project and a disabled feature flag before storage access", async () => {
+  it("rejects a different project and the switch off before storage access", async () => {
     await expect(
       caller().executions({ projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
-      caller("ADMIN", false).executions({ projectId }),
+      caller("NONE").executions({ projectId }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
@@ -823,6 +861,8 @@ describe("Topics current results", () => {
       outliers: 1,
       notApplicable: 1,
       insufficientInput: 1,
+      emptyInput: 0,
+      inputTooLarge: 0,
       topics: [
         {
           topicId: "topic-a",
@@ -911,6 +951,54 @@ describe("Topics current results", () => {
       map: { runId: "run-a" },
     });
     expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
+  });
+
+  it("gives the stripe the oldest covering rule's map, from Postgres only", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      { id: "rule-other", name: "Other", facetIds: ["other-facet"] },
+      { id: "rule-a", name: "All traces", facetIds: [facetId] },
+      { id: "rule-b", name: "Enterprise", facetIds: [facetId] },
+    ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
+    mocks.getCurrentTopicMapRows.mockResolvedValue([
+      { ruleId: "rule-b", run: { ...run, id: "run-b" } },
+      { ruleId: "rule-a", run },
+    ]);
+    expect(
+      await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
+    ).toEqual({
+      facetId,
+      ruleId: "rule-a",
+      mapName: "All traces",
+      runId: run.id,
+    });
+    expect(mocks.getCurrentTopicMapRows).toHaveBeenCalledWith(projectId, [
+      facetId,
+    ]);
+    expect(mocks.getTopicResultCounts).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the next covering rule when the oldest has no map yet", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([
+      { id: "rule-a", name: "New rule", facetIds: [facetId] },
+      { id: "rule-b", name: "All traces", facetIds: [facetId] },
+    ] as Awaited<ReturnType<typeof topicsServer.listTopicRules>>);
+    mocks.getCurrentTopicMapRows.mockResolvedValue([
+      { ruleId: "rule-b", run: { ...run, id: "run-b" } },
+    ]);
+    expect(
+      await caller("VIEWER").stripeMap({ projectId, facet: "Intent" }),
+    ).toMatchObject({
+      ruleId: "rule-b",
+      mapName: "All traces",
+      runId: "run-b",
+    });
   });
 });
 
@@ -1285,6 +1373,8 @@ describe("Topics analyses", () => {
         outliers: 1,
         notApplicable: 0,
         insufficientInput: 0,
+        emptyInput: 0,
+        inputTooLarge: 0,
         topics: [{ topicId: "topic-a", count: 3 }],
       },
     ]);

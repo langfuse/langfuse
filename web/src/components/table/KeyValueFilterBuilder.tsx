@@ -1,5 +1,4 @@
-/* eslint-disable no-nested-ternary */
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -15,6 +14,11 @@ import {
   numericRowText,
   parseNumericEntryValue,
 } from "@/src/features/filters/lib/sidebar-filter-actions";
+import {
+  operatorSelectValue,
+  parseOperatorSelectValue,
+  textAndNumericOperatorOptions,
+} from "@/src/features/filters/lib/numeric-operator-select";
 import { Plus, X } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type {
@@ -111,44 +115,23 @@ const STRING_OPERATOR_OPTIONS = Object.entries(STRING_OPERATOR_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
 
-// Numeric rows of a string facet share its operator select, so their option
-// values carry a prefix: a numeric `=` row (from a URL) must not read as the
-// text `equals`.
-const NUMERIC_OPTION_PREFIX = "number:";
 type NumericOperator = keyof typeof NUMERIC_OPERATOR_LABELS;
 
-// Metadata equality is the text `equals`: unquoted values cannot tell `2`
-// from `"2"`, so no numeric `=` is offered.
-const STRING_AND_NUMERIC_OPERATOR_OPTIONS = [
-  ...STRING_OPERATOR_OPTIONS,
-  ...Object.entries(NUMERIC_OPERATOR_LABELS)
-    .filter(([value]) => value !== "=")
-    .map(([value, label]) => ({
-      value: `${NUMERIC_OPTION_PREFIX}${value}`,
-      label,
-    })),
-];
-
-/** The string facet operators `filter`'s row offers. */
+/** @internal */
 export const stringRowOperatorOptions = (
   filter: StringKeyValueFilterEntry,
   numericValues: boolean,
-) => {
-  if (!numericValues) return STRING_OPERATOR_OPTIONS;
-  // A numeric `=` written outside the facet (URL) still shows as itself.
-  return filter.valueType === "number" && filter.operator === "="
-    ? [
-        ...STRING_AND_NUMERIC_OPERATOR_OPTIONS,
-        { value: `${NUMERIC_OPTION_PREFIX}=`, label: "equals (number)" },
-      ]
-    : STRING_AND_NUMERIC_OPERATOR_OPTIONS;
-};
+) =>
+  numericValues
+    ? textAndNumericOperatorOptions(
+        STRING_OPERATOR_OPTIONS,
+        NUMERIC_OPERATOR_OPTIONS,
+        filter.valueType === "number" && filter.operator === "=",
+      )
+    : STRING_OPERATOR_OPTIONS;
 
-/** The operator select value of a string facet row. */
 const stringRowOperatorValue = (filter: StringKeyValueFilterEntry): string =>
-  filter.valueType === "number"
-    ? `${NUMERIC_OPTION_PREFIX}${filter.operator}`
-    : filter.operator;
+  operatorSelectValue(filter.valueType === "number", filter.operator);
 
 /**
  * The row fields a string facet's operator select value sets, e.g.
@@ -159,17 +142,15 @@ const stringRowOperatorValue = (filter: StringKeyValueFilterEntry): string =>
 const stringRowOperatorUpdate = (
   value: string,
 ): Partial<StringKeyValueFilterEntry> => {
-  if (value.startsWith(NUMERIC_OPTION_PREFIX)) {
-    return {
-      valueType: "number",
-      operator: value.slice(NUMERIC_OPTION_PREFIX.length) as NumericOperator,
-    };
+  const { numeric, operator } = parseOperatorSelectValue(value);
+  if (numeric) {
+    return { valueType: "number", operator: operator as NumericOperator };
   }
-  const operator = value as StringOperator;
+  const stringOperator = operator as StringOperator;
   return {
     valueType: undefined,
-    operator,
-    ...(isStringPresenceOperator(operator) ? { value: "" } : {}),
+    operator: stringOperator,
+    ...(isStringPresenceOperator(stringOperator) ? { value: "" } : {}),
   };
 };
 const BOOLEAN_VALUE_OPTIONS = [
@@ -180,6 +161,12 @@ const BOOLEAN_VALUE_OPTIONS = [
 // Enough to recognise what is available without turning the facet into a
 // scroll surface.
 const MAX_SUGGESTIONS = 10;
+
+const blankStringRow = (): StringKeyValueFilterEntry => ({
+  key: "",
+  operator: "=",
+  value: "",
+});
 
 /**
  * Free-text input that offers observed values underneath — the sidebar half of
@@ -209,17 +196,26 @@ function SuggestingInput({
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // True from focus until the next edit. A value that already equals a
+  // suggestion is a committed value being replaced, not a search prefix, so
+  // the other suggestions stay available until the user types.
+  const [replacing, setReplacing] = useState(false);
+  // The press that opens a committed value selects its text. A later press,
+  // while that list is already open, leaves the caret where the click landed.
+  const selectOnRelease = useRef(false);
 
-  const ranked = useMemo(
-    // Drop an exact match: re-offering what is already typed covers the field
-    // with a row that changes nothing when picked.
-    () =>
-      rankFacetOptions(
-        suggestions.filter((s) => s !== value),
-        value,
-      ).slice(0, MAX_SUGGESTIONS),
-    [suggestions, value],
-  );
+  const ranked = useMemo(() => {
+    // Drop an exact match: re-offering what is already in the field covers it
+    // with a row that changes nothing when picked. While replacing, rank
+    // against an empty query so a different value is reachable without
+    // deleting the current text first. Once the user types, rank by that text
+    // again — a fully typed suggestion stays hidden.
+    const query = replacing && suggestions.includes(value) ? "" : value;
+    return rankFacetOptions(
+      suggestions.filter((s) => s !== value),
+      query,
+    ).slice(0, MAX_SUGGESTIONS);
+  }, [suggestions, value, replacing]);
   const open = focused && !dismissed && ranked.length > 0;
   const active = open && activeIndex >= 0 ? ranked[activeIndex] : undefined;
 
@@ -260,34 +256,76 @@ function SuggestingInput({
   return (
     <Popover open={open}>
       <PopoverAnchor asChild>
-        <Input
-          type="text"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
+        {/* The field's input does not accept pointer handlers. A picked
+            suggestion dismisses the list without blurring, so a later press
+            on the same field has to open it again. Focus alone does not:
+            the input never lost focus. */}
+        <span
+          className="block w-full"
+          onMouseDown={() => {
+            selectOnRelease.current = !focused || dismissed;
             setDismissed(false);
+            setReplacing(true);
+            // Ranking changes when this press starts a replace. A highlight
+            // from the previous query would otherwise point at a different row.
             setActiveIndex(-1);
           }}
-          onFocus={() => setFocused(true)}
-          // Blur resets the whole interaction, not just focus: a stale
-          // `activeIndex` would let the next Enter accept a highlight the user
-          // never made, and a stale `dismissed` would survive into whichever row
-          // React reuses this index-keyed instance for after a row is deleted.
-          onBlur={() => {
-            setFocused(false);
-            setDismissed(false);
-            setActiveIndex(-1);
+          onMouseUp={(e) => {
+            // Select a committed suggestion so the next character replaces it
+            // instead of appending. A partial query is left unselected so
+            // typing continues the search. mouseup, not mousedown: the click
+            // would otherwise put the caret back. A press into an already
+            // open list does not select, so the caret stays put.
+            const input = e.currentTarget.querySelector("input");
+            if (
+              selectOnRelease.current &&
+              input &&
+              value.length > 0 &&
+              suggestions.includes(value)
+            ) {
+              input.select();
+            }
+            selectOnRelease.current = false;
           }}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-activedescendant={
-            active !== undefined ? `${listId}-${activeIndex}` : undefined
-          }
-        />
+        >
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setReplacing(false);
+              setDismissed(false);
+              setActiveIndex(-1);
+            }}
+            onFocus={(e) => {
+              setFocused(true);
+              setReplacing(true);
+              if (value.length > 0 && suggestions.includes(value)) {
+                e.currentTarget.select();
+              }
+            }}
+            // Blur resets the whole interaction, not just focus: a stale
+            // `activeIndex` would let the next Enter accept a highlight the
+            // user never made, and a stale `dismissed` would survive into
+            // whichever row React reuses this index-keyed instance for after
+            // a row is deleted.
+            onBlur={() => {
+              setFocused(false);
+              setDismissed(false);
+              setActiveIndex(-1);
+              setReplacing(false);
+            }}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-activedescendant={
+              active !== undefined ? `${listId}-${activeIndex}` : undefined
+            }
+          />
+        </span>
       </PopoverAnchor>
       <PopoverContent
         // Suggestions read as an extension of the input, so they match its
@@ -353,8 +391,18 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   // Numeric rows round-trip through a number (`"2."` comes back as `"2"`), so
   // the typed text per row index is kept for the input (`numericRowText`).
   const [typedNumbers, setTypedNumbers] = useState<Record<number, string>>({});
+  // String metadata is edited in place. An empty facet starts on one blank
+  // row so the first condition does not require a click. Numeric, boolean,
+  // and categorical facets stay click-to-add.
+  const implicitBlankRow =
+    mode === "string" &&
+    activeFilters.length === 0 &&
+    draftFilters.length === 0;
+  const drafts = implicitBlankRow
+    ? [{ index: 0, filter: blankStringRow() }]
+    : draftFilters;
   const localFilters: KeyedFilterEntry[] = [...activeFilters];
-  for (const draft of draftFilters) {
+  for (const draft of drafts) {
     localFilters.splice(draft.index, 0, draft.filter);
   }
 
@@ -402,14 +450,20 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   const handleAddFilter = () => {
+    // Persist the implicit blank row before appending, or the click replaces
+    // it with a single new draft.
+    const base = implicitBlankRow
+      ? [{ index: 0, filter: blankStringRow() }]
+      : draftFilters;
+    const newFilter: KeyedFilterEntry =
+      mode === "categorical"
+        ? { key: "", operator: "any of", value: [] }
+        : blankStringRow();
     setDraftFilters([
-      ...draftFilters,
+      ...base,
       {
         index: localFilters.length,
-        filter:
-          mode === "categorical"
-            ? { key: "", operator: "any of", value: [] }
-            : { key: "", operator: "=", value: "" },
+        filter: newFilter,
       },
     ]);
   };
@@ -464,14 +518,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     options={mergedKeyOptions.map((option) => ({
                       value: option,
                       label: option,
-                      badges: keyLevels?.[option]?.map((level) => ({
-                        text: level === "trace" ? "Trace" : "Observation",
-                        title: `${level === "trace" ? "Trace" : "Observation"}-level score`,
-                        color:
+                      badges: keyLevels?.[option]?.map((level) => {
+                        const label =
+                          level === "trace" ? "Trace" : "Observation";
+                        const color =
                           level === "trace"
                             ? ("violet" as const)
-                            : ("blue" as const),
-                      })),
+                            : ("blue" as const);
+                        return {
+                          text: label,
+                          title: `${label}-level score`,
+                          color,
+                        };
+                      }),
                     }))}
                     onValueChange={(key) => handleFilterChange(index, { key })}
                   />
@@ -490,18 +549,21 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 </div>
               )}
 
-              {/* Delete button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveFilter(index)}
-                className="h-8 w-8 p-0"
-              >
-                <X size="base" color="default" />
-              </Button>
+              {/* The sole blank row is the empty state. Removing it would
+                  just bring the same row back. */}
+              {implicitBlankRow ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveFilter(index)}
+                  className="h-8 w-8 p-0"
+                >
+                  <X size="base" color="default" />
+                </Button>
+              )}
             </div>
 
-            {mode === "categorical" ? (
+            {mode === "categorical" && (
               <>
                 {/* Operator select */}
                 <SelectInput
@@ -537,7 +599,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "numeric" ? (
+            )}
+            {mode === "numeric" && (
               <>
                 {/* Numeric operator select */}
                 <SelectInput
@@ -565,7 +628,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : mode === "boolean" ? (
+            )}
+            {mode === "boolean" && (
               <>
                 <SelectInput
                   value={filter.operator}
@@ -594,7 +658,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   disabled={!filter.key}
                 />
               </>
-            ) : (
+            )}
+            {mode === "string" && (
               <>
                 {/* String operator select */}
                 <SelectInput

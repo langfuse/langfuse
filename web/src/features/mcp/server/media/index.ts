@@ -1,4 +1,4 @@
-import type { McpFeatureModule } from "../registry";
+import type { McpFeatureModule } from "../tools";
 import { getMediaTool, handleGetMedia } from "./tools/getMedia";
 
 export const mediaFeature = {

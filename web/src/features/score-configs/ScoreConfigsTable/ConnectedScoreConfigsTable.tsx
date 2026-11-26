@@ -2,10 +2,8 @@ import { useMemo } from "react";
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { ArchiveScoreConfigDialogController } from "@/src/features/score-configs/components/ArchiveScoreConfigDialogController";
-import {
-  CreateScoreConfigDialogController,
-  EditScoreConfigDialogController,
-} from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/CreateScoreConfigDialogController";
+import { EditScoreConfigDialogController } from "@/src/features/score-configs/components/EditScoreConfigDialogController";
 import {
   ScoreConfigsTable,
   type ScoreConfigTableRow,

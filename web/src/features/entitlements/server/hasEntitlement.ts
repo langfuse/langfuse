@@ -1,11 +1,6 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import {
-  entitlementAccess,
-  type Entitlement,
-} from "@/src/features/entitlements/constants/entitlements";
+import { hasEntitlementBasedOnPlan, type Entitlement } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
-import { type Plan } from "@langfuse/shared";
 
 type HasEntitlementParams = {
   entitlement: Entitlement;
@@ -24,20 +19,6 @@ export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
       : p.sessionUser.organizations.find((org) => org.id === p.orgId);
   const plan = org?.plan ?? "oss";
   return hasEntitlementBasedOnPlan({ plan, entitlement: p.entitlement });
-};
-
-/**
- * Check if user has access to a specific entitlement based on the plan.
- */
-export const hasEntitlementBasedOnPlan = ({
-  plan,
-  entitlement,
-}: {
-  plan: Plan | null;
-  entitlement: Entitlement;
-}) => {
-  if (!plan) return false;
-  return entitlementAccess[plan].entitlements.includes(entitlement);
 };
 
 export const throwIfNoEntitlement = (p: HasEntitlementParams) => {

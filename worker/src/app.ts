@@ -67,8 +67,8 @@ import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
-import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
-import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { TraceDispatcher } from "./features/traceDispatch/traceDispatcher";
+import { TraceDispatchMetricsRunner } from "./features/traceDispatch/TraceDispatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -111,6 +111,7 @@ import { InAppAgentRetentionCleaner } from "./features/in-app-agent-retention-cl
 import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
+import { EventsDispatchTranscriptCleaner } from "./features/eventsDispatch/transcriptCleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
 import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
@@ -118,7 +119,6 @@ import { AuditLogRelay } from "./features/audit-log-relay";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
-import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsUpdateQueueProcessor } from "./queues/topicsQueue";
 import { topicsSetupQueueProcessor } from "./queues/topicsSetupQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
@@ -162,10 +162,10 @@ const eventsDispatchConsumerEnabled =
   isEventsDispatchEnabled() &&
   env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true";
 
-export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
+export let traceDispatcher: TraceDispatcher | null = null;
 if (eventsDispatchConsumerEnabled) {
-  traceBatchDispatcher = new TraceBatchDispatcher();
-  traceBatchDispatcher.start();
+  traceDispatcher = new TraceDispatcher();
+  traceDispatcher.start();
 }
 
 // Consumed only on worker-cpu; Topics jobs it enqueues run on the main worker.
@@ -177,10 +177,10 @@ if (eventsDispatchConsumerEnabled) {
   );
 }
 
-export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
+export let traceDispatchMetricsRunner: TraceDispatchMetricsRunner | null = null;
 if (eventsDispatchConsumerEnabled) {
-  traceBatchMetricsRunner = new TraceBatchMetricsRunner();
-  traceBatchMetricsRunner.start();
+  traceDispatchMetricsRunner = new TraceDispatchMetricsRunner();
+  traceDispatchMetricsRunner.start();
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
@@ -347,10 +347,7 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (
-  isTopicsEnabled() &&
-  env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true"
-) {
+if (env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true") {
   TopicsTraceQueue.getShardNames().forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,
@@ -498,19 +495,16 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
 export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
 
-if (isTopicsEnabled()) {
-  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
-    WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
-      concurrency: 1,
-    });
-  if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
-    // Setup ticks get their own queue so they never wait behind a fit.
-    WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
-      concurrency: 5,
-    });
-    topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
-    topicsNightlyRefitRunner.start();
-  }
+if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
+    concurrency: 1,
+  });
+  // Setup ticks get their own queue so they never wait behind a fit.
+  WorkerManager.register(QueueName.TopicsSetup, topicsSetupQueueProcessor, {
+    concurrency: 5,
+  });
+  topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
+  topicsNightlyRefitRunner.start();
 }
 
 if (
@@ -863,6 +857,16 @@ if (
 ) {
   batchProjectBlobCleaner = new BatchProjectBlobCleaner();
   batchProjectBlobCleaner.start();
+}
+
+// Stored transcripts are not blob references, so project deletion does not
+// remove them.
+export let eventsDispatchTranscriptCleaner: EventsDispatchTranscriptCleaner | null =
+  null;
+
+if (env.LANGFUSE_EVENTS_DISPATCH_TRANSCRIPT_CLEANER_ENABLED === "true") {
+  eventsDispatchTranscriptCleaner = new EventsDispatchTranscriptCleaner();
+  eventsDispatchTranscriptCleaner.start();
 }
 
 // Batch trace deletion cleaner for supplementary trace deletion

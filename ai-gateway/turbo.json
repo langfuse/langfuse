@@ -10,6 +10,11 @@
     "build": {
       "dependsOn": [],
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../packages/ai-gateway-guardrail-rules/Cargo.toml",
+        "../packages/ai-gateway-guardrail-rules/src/**"
+      ],
       "outputs": [
         "target/**/release/ai-gateway",
         "target/**/release/ai-gateway.exe"
@@ -26,6 +31,11 @@
     "build:dev": {
       "dependsOn": [],
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../packages/ai-gateway-guardrail-rules/Cargo.toml",
+        "../packages/ai-gateway-guardrail-rules/src/**"
+      ],
       "outputs": [
         "target/**/debug/ai-gateway",
         "target/**/debug/ai-gateway.exe"
@@ -42,6 +52,11 @@
     "typecheck": {
       "dependsOn": [],
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../packages/ai-gateway-guardrail-rules/Cargo.toml",
+        "../packages/ai-gateway-guardrail-rules/src/**"
+      ],
       "outputs": [],
       "env": [
         "CARGO_BUILD_TARGET",
@@ -54,6 +69,11 @@
     "lint": {
       "dependsOn": [],
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../packages/ai-gateway-guardrail-rules/Cargo.toml",
+        "../packages/ai-gateway-guardrail-rules/src/**"
+      ],
       "outputs": [],
       "env": [
         "CARGO_BUILD_TARGET",
@@ -66,6 +86,11 @@
     "test": {
       "dependsOn": [],
       "cache": true,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../packages/ai-gateway-guardrail-rules/Cargo.toml",
+        "../packages/ai-gateway-guardrail-rules/src/**"
+      ],
       "outputs": [],
       "env": [
         "CARGO_BUILD_TARGET",

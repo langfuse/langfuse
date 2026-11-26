@@ -71,6 +71,26 @@ fn string_column_overflow_bisects_rows_in_order() {
 
 proptest! {
     #[test]
+    fn clickhouse_datetimes_match_the_general_parser(
+        year in 0_u16..10_000,
+        month in 0_u8..14,
+        day in 0_u8..33,
+        hour in 0_u8..25,
+        minute in 0_u8..61,
+        second in 0_u8..62,
+        fraction in "(\\.[0-9]{0,10})?",
+        separator in prop::sample::select(vec![" ", "T", "  "]),
+        zone in prop::sample::select(vec!["", "Z", "+02:00"]),
+    ) {
+        let value = format!(
+            "{year:04}-{month:02}-{day:02}{separator}{hour:02}:{minute:02}:{second:02}{fraction}{zone}"
+        );
+        if let Some(micros) = clickhouse_datetime_micros(&value) {
+            prop_assert_eq!(Ok(micros), parse_any_datetime_text(&value, "datetime"), "{}", value);
+        }
+    }
+
+    #[test]
     fn decimal_inputs_with_extreme_exponents_are_handled(
         integer in -999_999i64..=999_999,
         fraction in "[0-9]{1,24}",
