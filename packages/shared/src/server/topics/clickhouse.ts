@@ -1298,6 +1298,31 @@ export async function readTopicMapAssignments(
   return rows.map(assignmentResult);
 }
 
+/** Distinct sources with an initial assignment in a run; retried writes cannot inflate it. */
+export async function countTopicAssignmentSources(
+  projectId: string,
+  facet: TopicFacetRef,
+  runId: string,
+  timeRange: TopicTimeRange,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ sources: string }>({
+    query: `SELECT uniqExact(trace_id, if(trace_id = '', session_id, '')) AS sources
+      FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+        AND clustering_run_id = {runId:String} AND origin = 'initial'`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      runId,
+    },
+    tags: { route: "topics-assignment-coverage", projectId },
+  });
+  return Number(row?.sources ?? 0);
+}
+
 export async function readTopicAssignments(
   projectId: string,
   facet: TopicFacetRef,

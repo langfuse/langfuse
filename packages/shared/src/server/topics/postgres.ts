@@ -23,6 +23,9 @@ import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import { topicRuleWhere } from "./processing-gate";
+import { readUntilVisible } from "./read-after-write";
+import { logger } from "../logger";
+import { recordIncrement } from "../instrumentation";
 import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
@@ -369,13 +372,33 @@ function runResult(
     error: row.error,
     ruleId: row.ruleId,
     batchActionId: row.batchActionId,
-    topics: row.topicVersionIds.map((id) => {
-      const topic = definitions.get(id);
-      if (!topic || topic.projectId !== row.projectId)
-        throw new Error("Topic run references a missing definition.");
-      return topic;
-    }),
+    topics: servedDefinitions(row, definitions),
   };
+}
+
+/** A published run's definitions; one that cannot be read is skipped and reported instead of failing the map. */
+function servedDefinitions(
+  row: RunRow,
+  definitions: Map<string, TopicDefinition>,
+): TopicDefinition[] {
+  const missing: string[] = [];
+  const topics = row.topicVersionIds.flatMap((id) => {
+    const topic = definitions.get(id);
+    if (topic?.projectId === row.projectId) return [topic];
+    missing.push(id);
+    return [];
+  });
+  if (missing.length) {
+    recordIncrement("langfuse.topics.definitions_missing", missing.length);
+    logger.error("Topics run references definitions that cannot be read", {
+      projectId: row.projectId,
+      runId: row.id,
+      status: row.status,
+      missingTopicVersionIds: missing,
+      expected: row.topicVersionIds.length,
+    });
+  }
+  return topics;
 }
 
 async function hydrateRuns(
@@ -716,13 +739,20 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
   if (missing.length) {
     // Definitions must be readable before Postgres can publish their membership.
     await writeTopicDefinitions(missing);
-    const inserted = await getTopicDefinitions(
-      run.projectId,
-      missing.map((topic) => topic.topicVersionId),
-      definitionTimeRange!,
+    const ids = missing.map((topic) => topic.topicVersionId);
+    const inserted = await readUntilVisible(
+      "definitions",
+      { projectId: run.projectId, runId: run.id },
+      () => getTopicDefinitions(run.projectId, ids, definitionTimeRange!),
+      (rows) =>
+        ids.every((id) => rows.some((row) => row.topicVersionId === id)),
     );
     for (const topic of inserted) saved.set(topic.topicVersionId, topic);
-    assertDefinitionsReadBack(missing, saved);
+    const invisible = ids.filter((id) => !saved.has(id));
+    if (invisible.length)
+      throw new TopicDefinitionReadbackError(
+        `Topic definitions are not visible for ${invisible.length} of ${ids.length} new definitions.`,
+      );
   }
   const row = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM topic_clustering_runs WHERE project_id = ${run.projectId} AND id = ${run.id} FOR UPDATE`;
@@ -756,24 +786,7 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
     : (await hydrateRuns(run.projectId, [row]))[0];
 }
 
-/** Throws unless every new definition reads back identically, naming what differs. */
-function assertDefinitionsReadBack(
-  missing: TopicDefinition[],
-  saved: Map<string, TopicDefinition>,
-): void {
-  const mismatched = missing
-    .map((topic) =>
-      definitionDifferences(saved.get(topic.topicVersionId), topic),
-    )
-    .filter((fields) => fields.length > 0);
-  if (mismatched.length === 0) return;
-  const differences = new Set(mismatched.flat());
-  throw new TopicDefinitionReadbackError(
-    `Topic definition readback did not match for ${mismatched.length} of ${missing.length} new definitions (${[...differences].join(", ")}).`,
-  );
-}
-
-/** A written definition did not read back identically; the message names fields, never values. */
+/** New definitions did not become readable, so the run was not published. */
 export class TopicDefinitionReadbackError extends Error {
   readonly name = "TopicDefinitionReadbackError";
 }
