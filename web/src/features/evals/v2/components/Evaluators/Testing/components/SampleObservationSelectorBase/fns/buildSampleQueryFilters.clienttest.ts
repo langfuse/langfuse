@@ -32,8 +32,10 @@ describe("buildSampleQueryFilters", () => {
           "langfuse-natural-language-filter",
           "langfuse-prompt-experiment",
           "langfuse-in-app-agent",
+          "langfuse-topics",
           "langfuse-evaluation",
           "llm-as-a-judge",
+          "topics-internal",
         ]),
       },
     ]);
@@ -65,6 +67,8 @@ describe("buildSampleQueryFilters", () => {
         environment: [
           { value: "langfuse-code-eval" },
           { value: "llm-as-a-judge" },
+          { value: "topics-internal" },
+          { value: "topics" },
           { value: "sdk-experiment" },
           { value: "my-langfuse-production" },
           { value: "production" },
@@ -72,6 +76,7 @@ describe("buildSampleQueryFilters", () => {
       }),
     ).toEqual({
       environment: [
+        { value: "topics" },
         { value: "sdk-experiment" },
         { value: "my-langfuse-production" },
         { value: "production" },

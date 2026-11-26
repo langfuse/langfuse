@@ -85,7 +85,9 @@ describe("useEvaluatorSavedBackfill", () => {
         expect.arrayContaining([
           LangfuseInternalTraceEnvironment.LLMJudge,
           LangfuseInternalTraceEnvironment.CodeEval,
+          LangfuseInternalTraceEnvironment.Topics,
           "llm-as-a-judge",
+          "topics-internal",
         ]),
       );
       expect(excludedEnvironments(filter)).not.toContain(

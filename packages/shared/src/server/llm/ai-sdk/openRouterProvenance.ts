@@ -1,5 +1,5 @@
 import { INTERNAL_EVAL_ENVIRONMENT_PREFIX } from "../isInternalEvalEnvironment";
-import { isOpenRouterEndpoint } from "./providers/openai";
+import { isOpenRouterEndpoint } from "../llmBaseUrlRules";
 import { isPlainObject } from "./providers/utils";
 
 const OPENROUTER_TRACE_ENVIRONMENT_HEADER = "x-openrouter-trace-environment";

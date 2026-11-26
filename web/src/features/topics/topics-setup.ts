@@ -1,26 +1,15 @@
+import { isOpenRouterEndpoint } from "@langfuse/shared";
 import { topicsSetupSchema, type TopicsSetup } from "@langfuse/shared/topics";
 import type { ConfigureTopicsSaveDraft } from "./ConfigureTopicsDialog";
 
 export const OPENROUTER_BROADCAST_TOPICS_NOTICE =
   "If you use OpenRouter Broadcast to send traces to Langfuse, exclude this API key in OpenRouter Broadcast settings so Topics model calls don't create extra traces toward your usage quota.";
 
-function isOpenRouterBaseURL(baseURL: string | null | undefined): boolean {
-  if (!baseURL) return false;
-  try {
-    const url = new URL(baseURL.replace("{model}", "model"));
-    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-    return hostname === "openrouter.ai" || hostname.endsWith(".openrouter.ai");
-  } catch {
-    return false;
-  }
-}
-
 export function getOpenRouterProviders(
   connections: ReadonlyArray<{ provider: string; baseURL: string | null }>,
 ): string[] {
   return connections
-    .filter((connection) => isOpenRouterBaseURL(connection.baseURL))
+    .filter((connection) => isOpenRouterEndpoint(connection.baseURL))
     .map((connection) => connection.provider);
 }
 

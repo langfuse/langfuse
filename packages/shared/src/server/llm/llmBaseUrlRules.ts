@@ -51,3 +51,19 @@ export function getLlmBaseUrlFormatError(
     throw error;
   }
 }
+
+export function isOpenRouterEndpoint(
+  baseURL: string | null | undefined,
+): baseURL is string {
+  if (!baseURL) return false;
+
+  try {
+    const url = parseOutboundUrl(baseURL.replace("{model}", "model"));
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    return hostname === "openrouter.ai" || hostname.endsWith(".openrouter.ai");
+  } catch {
+    return false;
+  }
+}
