@@ -409,6 +409,30 @@ describe("Authenticate API calls", () => {
       warnSpy.mockRestore();
     });
 
+    it("does not warn when the Basic auth username is a project id", async () => {
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(testApiKey.projectId, testApiKey.secretKey),
+      );
+
+      expect(auth.validKey).toBe(true);
+      expect(
+        warnSpy.mock.calls.filter((call) =>
+          String(call[0]).includes("Public key mismatch"),
+        ),
+      ).toHaveLength(0);
+
+      warnSpy.mockRestore();
+    });
+
     it("does not warn when the submitted public key matches", async () => {
       await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
         getValidAuthHeader(),
