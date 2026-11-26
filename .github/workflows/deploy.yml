@@ -3,6 +3,9 @@ on:
     branches:
       # TODO restore `- main` to deploy every merge to staging again.
       # Staging can still be deployed by hand through workflow_dispatch.
+      # While `main` is absent, a release or promotion sends commits to
+      # production that never ran on staging, and nothing checks for it:
+      # deploy `main` to staging by hand first.
       - production
   workflow_dispatch:
     inputs:
