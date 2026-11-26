@@ -80,14 +80,10 @@ describe("notebooks", () => {
       dirtyDocumentIds: ["main"],
     });
     await expect(
-      prisma.notebookEditGroup.findUniqueOrThrow({
-        where: { id: resized.historyEntryId ?? "" },
-      }),
+      readDocument({ ...main, revision: resized.revision }),
     ).resolves.toMatchObject({
-      beforeWidth: "contained",
-      afterWidth: "full",
-      beforeJsonl: jsonl,
-      afterJsonl: jsonl,
+      width: "full",
+      jsonl,
     });
     await expect(
       publishNotebook({ ...key, sourceVersion: 1 }),
@@ -105,7 +101,7 @@ describe("notebooks", () => {
 
     await expect(writeDocument({ ...main, jsonl })).resolves.toMatchObject({
       width: "full",
-      historyEntryId: null,
+      revision: resized.revision,
     });
     await expect(publishNotebook(key)).resolves.toMatchObject({
       version: 3,
@@ -373,7 +369,55 @@ describe("notebooks", () => {
     });
   });
 
-  it("keeps only grouped before/after states and rolls back a failed batch", async () => {
+  it("warns about likely overflow in an automatically sized row without blocking publishing", async () => {
+    const { projectId } = await project();
+    const { notebookId } = await createNotebook({
+      projectId,
+      title: "Presentation",
+    });
+    const key = { projectId, notebookId };
+    await writeDocument({
+      ...key,
+      documentId: "main",
+      blocks: [
+        {
+          schema: "row@1",
+          props: {
+            children: [
+              {
+                id: "notes",
+                schema: "text@1",
+                markdown: "Notes fit on their own line.",
+              },
+              {
+                id: "large-table",
+                schema: "table@1",
+                props: {
+                  columns: Array.from(
+                    { length: 10 },
+                    (_, index) => `Column ${index + 1}`,
+                  ),
+                  rows: [],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    await expect(
+      validateNotebook({ ...key, documentId: "main" }),
+    ).resolves.toMatchObject({
+      valid: true,
+      errors: [],
+      warnings: [
+        { documentId: "main", blockId: "large-table", code: "wide_table" },
+      ],
+    });
+    await expect(publishNotebook(key)).resolves.toMatchObject({ version: 1 });
+  });
+
+  it("coalesces edits by user, preserves tagged revisions, and rolls back failed patches", async () => {
     const { projectId } = await project();
     const { notebookId } = await createNotebook({
       projectId,
@@ -383,7 +427,7 @@ describe("notebooks", () => {
     const key = {
       projectId,
       notebookId,
-      runKey: "test-run",
+      userId: "first-user",
       documentId: "main",
     };
     const row = {
@@ -392,26 +436,13 @@ describe("notebooks", () => {
       props: { children: [] },
     };
     const initial = await writeDocument({ ...key, blocks: [row] });
-    const other = await createNotebook({ projectId, title: "Read only" });
-    const readTarget = {
-      projectId,
-      notebookId: other.notebookId,
-      staged: true,
-      runKey: key.runKey,
-    };
-    await readDocument(readTarget);
-    await expect(
-      prisma.notebookEditGroup.findFirst({
-        where: { notebookId, runKey: key.runKey },
-      }),
-    ).resolves.toMatchObject({ closedAt: null });
     const insert = {
       op: "insert" as const,
       parentId: "comparison",
       block: { id: "note", schema: "text@1" as const, markdown: "Initial" },
     };
     const inserted = await patchDocument({ ...key, operations: [insert] });
-    expect(inserted.historyEntryId).toBe(initial.historyEntryId);
+    expect(inserted.revision).toBe(initial.revision);
     await expect(
       patchDocument({
         ...key,
@@ -428,12 +459,14 @@ describe("notebooks", () => {
     const second = await writeDocument({
       projectId,
       notebookId,
-      runKey: key.runKey,
+      userId: key.userId,
       label: "Second",
       markdown: "Different document",
     });
+    expect(second.revision).toBe(initial.revision);
     const replaced = await patchDocument({
       ...key,
+      userId: "second-user",
       operations: [
         {
           op: "replace",
@@ -442,46 +475,25 @@ describe("notebooks", () => {
         },
       ],
     });
-    expect(replaced.historyEntryId).not.toBe(initial.historyEntryId);
-    await prisma.notebookEditGroup.updateMany({
-      where: { notebookId, closedAt: null },
-      data: { updatedAt: new Date(0) },
+    expect(replaced.revision).toBe(initial.revision + 1);
+    await prisma.notebookVersion.update({
+      where: { notebookId_number: { notebookId, number: replaced.revision } },
+      data: { editedAt: new Date(0) },
     });
     const removed = await patchDocument({
       ...key,
+      userId: "second-user",
       operations: [{ op: "remove", blockId: "note" }],
     });
-    const groups = await prisma.notebookEditGroup.findMany({
-      where: { notebookId },
+    expect(removed.revision).toBe(replaced.revision + 1);
+    await expect(
+      publishNotebook({ ...key, sourceRevision: inserted.revision }),
+    ).resolves.toMatchObject({ version: 1, dirty: true });
+    await expect(readDocument({ ...key, version: 1 })).resolves.toMatchObject({
+      jsonl: inserted.jsonl,
     });
-    expect(groups).toHaveLength(4);
-    expect(groups).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: initial.historyEntryId,
-          beforeJsonl: "",
-          afterJsonl: inserted.jsonl,
-          closedAt: expect.any(Date),
-        }),
-        expect.objectContaining({
-          id: second.historyEntryId,
-          beforeJsonl: null,
-          afterJsonl: second.jsonl,
-          closedAt: expect.any(Date),
-        }),
-        expect.objectContaining({
-          id: replaced.historyEntryId,
-          beforeJsonl: inserted.jsonl,
-          afterJsonl: replaced.jsonl,
-          closedAt: expect.any(Date),
-        }),
-        expect.objectContaining({
-          id: removed.historyEntryId,
-          beforeJsonl: replaced.jsonl,
-          afterJsonl: initial.jsonl,
-          closedAt: null,
-        }),
-      ]),
-    );
+    await expect(
+      patchDocument({ ...key, userId: "second-user", operations: [insert] }),
+    ).resolves.toMatchObject({ revision: removed.revision + 1 });
   });
 });

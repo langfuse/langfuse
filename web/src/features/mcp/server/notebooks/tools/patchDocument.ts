@@ -46,7 +46,7 @@ export const [patchDocumentTool, handlePatchDocument] = defineHaloOnlyTool({
     const result = await patchDocument({
       ...input,
       projectId: context.projectId,
-      runKey: context.apiKeyId,
+      userId: context.userId,
     });
     await auditNotebookMutation(context, input.notebookId, "patchDocument", {
       documentId: result.documentId,

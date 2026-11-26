@@ -91,7 +91,7 @@ export const [writeDocumentTool, handleWriteDocument] = defineHaloOnlyTool({
       documentId:
         input.documentId ?? (input.label === undefined ? "main" : undefined),
       projectId: context.projectId,
-      runKey: context.apiKeyId,
+      userId: context.userId,
     });
     await auditNotebookMutation(context, input.notebookId, "writeDocument", {
       documentId: result.documentId,

@@ -63,6 +63,7 @@ export async function stageNotebookLayout(
 ) {
   const result = await updateNotebookLayout({
     projectId: context.projectId,
+    userId: context.userId,
     notebookId: input.notebookId,
     layout: notebookLayoutSchema.parse(input.layout),
   });

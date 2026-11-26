@@ -19,7 +19,13 @@ export const [publishNotebookTool, handlePublishNotebook] = defineHaloOnlyTool({
   spanName: "mcp.notebooks.publish_notebook",
   description:
     "Publish the staged notebook as an immutable version. Pass sourceVersion to republish a prior snapshot. Validate the content first.",
-  baseSchema: z.object({ notebookId, sourceVersion }),
+  baseSchema: z.object({
+    notebookId,
+    sourceVersion,
+    sourceRevision: notebookVersion
+      .optional()
+      .describe("Tag this notebook revision instead of the draft head."),
+  }),
   handler: async (input, context) => {
     const result = await publishNotebook({
       ...input,

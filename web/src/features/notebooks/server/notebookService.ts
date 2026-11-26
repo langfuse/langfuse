@@ -21,14 +21,12 @@ import {
   type NotebookLayout,
 } from "../schema";
 import { applyDocumentPatch } from "./fns/applyDocumentPatch";
-import { collectNotebookValidationErrors } from "./fns/collectNotebookValidationErrors";
+import { validateNotebookDocuments } from "./fns/validateNotebookDocuments";
 import { encodeDocument } from "./fns/encodeDocument";
 import { getDirtyDocumentIds } from "./fns/getDirtyDocumentIds";
 import { getNotebookLayoutDocumentIds } from "./fns/getNotebookLayoutDocumentIds";
 import { parseDocument } from "./fns/parseDocument";
 
-// Version 0 is the single durable candidate. Only published versions are linkable by number.
-const STAGED = 0;
 const EDIT_IDLE_MS = 30_000;
 const PAGE_SIZE = 50;
 const EMPTY_HASH = createHash("sha256").update("").digest("hex");
@@ -56,7 +54,7 @@ function getDocumentUrl(
   return buildNotebookPath({ projectId, notebookId, documentId, version });
 }
 type Db = Prisma.TransactionClient;
-type EditTarget = NotebookKey & { documentId: string; runKey?: string };
+type EditTarget = NotebookKey & { documentId: string; userId?: string };
 
 async function getNotebookRow(db: Db, { projectId, notebookId }: NotebookKey) {
   const notebook = await db.notebook.findUnique({
@@ -67,11 +65,22 @@ async function getNotebookRow(db: Db, { projectId, notebookId }: NotebookKey) {
 }
 
 async function lockProject(tx: Db, projectId: string) {
-  // A run can switch notebooks; serialize edits and publication across the project
-  // so changing its open group and writing a document commit together.
   await tx.$queryRaw`
     SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`notebooks:${projectId}`}, 0))
   `;
+}
+
+async function getPublishedRevision(
+  db: Db,
+  notebookId: string,
+  number: number,
+) {
+  const publication = await db.notebookPublication.findUnique({
+    where: { notebookId_number: { notebookId, number } },
+  });
+  if (!publication)
+    throw new LangfuseNotFoundError("Notebook version not found.");
+  return publication.revision;
 }
 
 async function findDocumentIndex(db: Db, notebookId: string, version: number) {
@@ -102,20 +111,25 @@ async function isNotebookDirty(
   const publishedLayout = await readNotebookLayout(
     db,
     notebookId,
-    latestPublishedVersion,
+    await getPublishedRevision(db, notebookId, latestPublishedVersion),
   );
   return !isDeepStrictEqual(stagedLayout, publishedLayout);
 }
 
 async function readIndexes(
   db: Db,
-  notebookId: string,
-  latestPublishedVersion: number | null,
+  notebook: Pick<
+    Awaited<ReturnType<typeof getNotebookRow>>,
+    "id" | "draftRevision" | "latestPublishedVersion"
+  >,
 ) {
+  const { id: notebookId, draftRevision, latestPublishedVersion } = notebook;
   const [staged, published] = await Promise.all([
-    findDocumentIndex(db, notebookId, STAGED),
+    findDocumentIndex(db, notebookId, draftRevision),
     latestPublishedVersion
-      ? findDocumentIndex(db, notebookId, latestPublishedVersion)
+      ? getPublishedRevision(db, notebookId, latestPublishedVersion).then(
+          (revision) => findDocumentIndex(db, notebookId, revision),
+        )
       : [],
   ]);
   return { staged, published, dirty: getDirtyDocumentIds(staged, published) };
@@ -163,30 +177,34 @@ export async function getNotebook(input: NotebookKey & { version?: number }) {
     async (tx) => {
       const notebook = await getNotebookRow(tx, input);
       const version = input.version ?? notebook.latestPublishedVersion;
-      const { staged, published, dirty } = await readIndexes(
-        tx,
-        notebook.id,
-        notebook.latestPublishedVersion,
-      );
-      const snapshots = await tx.notebookVersion.findMany({
-        where: { notebookId: notebook.id, publishedAt: { not: null } },
-        select: { number: true, publishedAt: true },
+      const { staged, published, dirty } = await readIndexes(tx, notebook);
+      const snapshots = await tx.notebookPublication.findMany({
+        where: { notebookId: notebook.id },
+        select: { number: true, publishedAt: true, revision: true },
         orderBy: { number: "desc" },
       });
       const snapshot = snapshots.find(({ number }) => number === version);
+      const revisions = await tx.notebookVersion.findMany({
+        where: { notebookId: notebook.id },
+        select: { number: true },
+        orderBy: { number: "desc" },
+      });
       if (version && !snapshot)
         throw new LangfuseNotFoundError("Notebook version not found.");
       let index = published;
       if (version === null) {
         index = staged;
-      } else if (version !== notebook.latestPublishedVersion) {
-        index = await findDocumentIndex(tx, notebook.id, version);
+      } else if (snapshot && version !== notebook.latestPublishedVersion) {
+        index = await findDocumentIndex(tx, notebook.id, snapshot.revision);
       }
-      const stagedLayout = await readNotebookLayout(tx, notebook.id, STAGED);
-      const layout =
-        version === null
-          ? stagedLayout
-          : await readNotebookLayout(tx, notebook.id, version);
+      const stagedLayout = await readNotebookLayout(
+        tx,
+        notebook.id,
+        notebook.draftRevision,
+      );
+      const layout = snapshot
+        ? await readNotebookLayout(tx, notebook.id, snapshot.revision)
+        : stagedLayout;
       const reachableIds = new Set(getNotebookLayoutDocumentIds(layout));
       return {
         notebookId: notebook.id,
@@ -195,6 +213,8 @@ export async function getNotebook(input: NotebookKey & { version?: number }) {
         publishedAt: snapshot?.publishedAt ?? null,
         latestPublishedVersion: notebook.latestPublishedVersion,
         versions: snapshots.map(({ number }) => number),
+        draftRevision: notebook.draftRevision,
+        revisions: revisions.map(({ number }) => number),
         dirty: notebook.dirty,
         layout,
         stagedLayout,
@@ -234,24 +254,28 @@ export async function createNotebook(input: {
           kind,
           documents: [{ documentId: MAIN_NOTEBOOK_DOCUMENT, label: "Main" }],
         };
-  const notebook = await prisma.notebook.create({
-    data: {
-      projectId: input.projectId,
-      title: input.title,
-      versions: {
-        create: {
-          number: STAGED,
-          layout,
-          documents: {
-            create: {
-              documentId: MAIN_NOTEBOOK_DOCUMENT,
-              jsonl: "",
-              contentHash: EMPTY_HASH,
-            },
+  const notebook = await prisma.$transaction(async (tx) => {
+    const notebook = await tx.notebook.create({
+      data: { projectId: input.projectId, title: input.title },
+    });
+    await tx.notebookDocumentBody.create({
+      data: { notebookId: notebook.id, hash: EMPTY_HASH, jsonl: "" },
+    });
+    await tx.notebookVersion.create({
+      data: {
+        notebookId: notebook.id,
+        number: 1,
+        layout,
+        documents: {
+          createMany: {
+            data: [
+              { documentId: MAIN_NOTEBOOK_DOCUMENT, contentHash: EMPTY_HASH },
+            ],
           },
         },
       },
-    },
+    });
+    return notebook;
   });
   return {
     notebookId: notebook.id,
@@ -275,7 +299,11 @@ async function findCandidate(
   const candidate = await db.notebookVersion.findUnique({
     where: { notebookId_number: { notebookId, number: version } },
     include: {
-      documents: { where: { documentId }, orderBy: { documentId: "asc" } },
+      documents: {
+        where: { documentId },
+        orderBy: { documentId: "asc" },
+        include: { body: true },
+      },
     },
   });
   if (!candidate)
@@ -283,7 +311,10 @@ async function findCandidate(
   if (documentId && !candidate.documents.length)
     throw new LangfuseNotFoundError("Document not found.");
   return {
-    documents: candidate.documents,
+    documents: candidate.documents.map(({ body, ...document }) => ({
+      ...document,
+      jsonl: body.jsonl,
+    })),
     layout: storedNotebookLayoutSchema.parse(candidate.layout),
   };
 }
@@ -297,21 +328,21 @@ export async function validateNotebook(
       const { documents, layout } = await findCandidate(
         tx,
         notebook.id,
-        input.sourceVersion ?? STAGED,
+        input.sourceVersion === undefined
+          ? notebook.draftRevision
+          : await getPublishedRevision(tx, notebook.id, input.sourceVersion),
         input.documentId,
       );
-      const errors = collectNotebookValidationErrors(
+      const { errors, warnings } = validateNotebookDocuments(
         documents,
-        input.documentId === undefined ? layout : undefined,
+        layout,
+        input.documentId === undefined,
       );
-      const { dirty } = await readIndexes(
-        tx,
-        notebook.id,
-        notebook.latestPublishedVersion,
-      );
+      const { dirty } = await readIndexes(tx, notebook);
       return {
         valid: errors.length === 0,
         errors,
+        warnings,
         sourceVersion: input.sourceVersion ?? null,
         dirty: input.documentId ? dirty.has(input.documentId) : notebook.dirty,
         checkedDocumentIds: documents.map(({ documentId }) => documentId),
@@ -322,18 +353,24 @@ export async function validateNotebook(
 }
 
 export async function publishNotebook(
-  input: NotebookKey & { sourceVersion?: number },
+  input: NotebookKey & { sourceVersion?: number; sourceRevision?: number },
 ) {
+  if (input.sourceVersion !== undefined && input.sourceRevision !== undefined) {
+    throw new InvalidRequestError("Choose a source version or revision.");
+  }
   return prisma.$transaction(async (tx) => {
     await lockProject(tx, input.projectId);
     const notebook = await getNotebookRow(tx, input);
-    const sourceVersion = input.sourceVersion ?? STAGED;
+    const revision =
+      input.sourceVersion === undefined
+        ? (input.sourceRevision ?? notebook.draftRevision)
+        : await getPublishedRevision(tx, notebook.id, input.sourceVersion);
     const { documents, layout } = await findCandidate(
       tx,
       notebook.id,
-      sourceVersion,
+      revision,
     );
-    const errors = collectNotebookValidationErrors(documents, layout);
+    const { errors } = validateNotebookDocuments(documents, layout, true);
     if (errors.length) {
       throw new InvalidRequestError(
         errors
@@ -343,8 +380,17 @@ export async function publishNotebook(
           .join("\n"),
       );
     }
+    await tx.notebookVersion.updateMany({
+      where: {
+        notebookId: notebook.id,
+        number: notebook.draftRevision,
+        editedAt: { not: null },
+      },
+      data: { editedAt: null },
+    });
     if (
-      !input.sourceVersion &&
+      input.sourceVersion === undefined &&
+      input.sourceRevision === undefined &&
       !notebook.dirty &&
       notebook.latestPublishedVersion
     ) {
@@ -362,56 +408,29 @@ export async function publishNotebook(
     }
 
     const version = (notebook.latestPublishedVersion ?? 0) + 1;
-    const snapshot = documents.map(
-      ({ documentId, jsonl, contentHash, width }) => ({
-        documentId,
-        jsonl,
-        contentHash,
-        width,
-      }),
-    );
-    await tx.notebookVersion.create({
+    await tx.notebookPublication.create({
       data: {
         notebookId: notebook.id,
         number: version,
-        publishedAt: new Date(),
-        layout,
-        documents: { createMany: { data: snapshot } },
+        revision,
       },
     });
-    let dirty = false;
-    const isRepublishing = sourceVersion !== STAGED;
-    if (isRepublishing && notebook.dirty) {
-      const staged = await findDocumentIndex(tx, notebook.id, STAGED);
-      const stagedLayout = await readNotebookLayout(tx, notebook.id, STAGED);
-      dirty =
-        getDirtyDocumentIds(staged, snapshot).size > 0 ||
-        !isDeepStrictEqual(stagedLayout, layout);
-    } else if (isRepublishing) {
-      await tx.notebookVersionDocument.deleteMany({
-        where: { notebookId: notebook.id, version: STAGED },
-      });
-      await tx.notebookVersionDocument.createMany({
-        data: snapshot.map((document) => ({
-          ...document,
-          notebookId: notebook.id,
-          version: STAGED,
-        })),
-      });
-      await tx.notebookVersion.update({
-        where: {
-          notebookId_number: { notebookId: notebook.id, number: STAGED },
-        },
-        data: { layout },
-      });
-    }
+    const staged = await findDocumentIndex(
+      tx,
+      notebook.id,
+      notebook.draftRevision,
+    );
+    const stagedLayout = await readNotebookLayout(
+      tx,
+      notebook.id,
+      notebook.draftRevision,
+    );
+    const dirty =
+      getDirtyDocumentIds(staged, documents).size > 0 ||
+      !isDeepStrictEqual(stagedLayout, layout);
     await tx.notebook.update({
       where: { id: notebook.id },
       data: { latestPublishedVersion: version, dirty },
-    });
-    await tx.notebookEditGroup.updateMany({
-      where: { notebookId: notebook.id, closedAt: null },
-      data: { closedAt: new Date() },
     });
     return {
       notebookId: notebook.id,
@@ -429,6 +448,7 @@ export async function publishNotebook(
 type ReadTarget = NotebookKey & {
   documentId?: string;
   version?: number;
+  revision?: number;
   staged?: boolean;
   preferStaged?: boolean;
   respectLayout?: boolean;
@@ -436,32 +456,44 @@ type ReadTarget = NotebookKey & {
 };
 
 export async function readDocument(input: ReadTarget) {
-  if (input.staged && input.version !== undefined) {
+  if (
+    (input.staged &&
+      (input.version !== undefined || input.revision !== undefined)) ||
+    (input.version !== undefined && input.revision !== undefined)
+  ) {
     throw new InvalidRequestError(
-      "Choose either the staged document or a published version.",
+      "Choose a draft, published version, or revision.",
     );
   }
   const resolve = async (tx: Db) => {
     const notebook = await getNotebookRow(tx, input);
-    const useDraft = input.staged || (input.preferStaged && notebook.dirty);
-    const version = useDraft
-      ? STAGED
-      : (input.version ?? notebook.latestPublishedVersion);
-    if (version === null)
+    const useDraft =
+      input.staged === true ||
+      (input.revision === undefined &&
+        input.version === undefined &&
+        input.preferStaged === true &&
+        notebook.dirty);
+    const version =
+      useDraft || input.revision !== undefined
+        ? null
+        : (input.version ?? notebook.latestPublishedVersion);
+    if (!useDraft && version === null && input.revision === undefined)
       throw new LangfuseNotFoundError(
         "Notebook has not been published. Read the staged document instead.",
       );
-    const { staged, published, dirty } = await readIndexes(
-      tx,
-      notebook.id,
-      notebook.latestPublishedVersion,
-    );
+    const revision =
+      input.revision ??
+      (version === null
+        ? notebook.draftRevision
+        : await getPublishedRevision(tx, notebook.id, version));
+    const { staged, published, dirty } = await readIndexes(tx, notebook);
     const index = await (async () => {
-      if (version === STAGED) return staged;
-      if (version === notebook.latestPublishedVersion) return published;
-      return findDocumentIndex(tx, notebook.id, version);
+      if (useDraft) return staged;
+      if (version !== null && version === notebook.latestPublishedVersion)
+        return published;
+      return findDocumentIndex(tx, notebook.id, revision);
     })();
-    const layout = await readNotebookLayout(tx, notebook.id, version);
+    const layout = await readNotebookLayout(tx, notebook.id, revision);
     const layoutDocumentIds = new Set(getNotebookLayoutDocumentIds(layout));
     const documentId =
       input.documentId ??
@@ -482,22 +514,23 @@ export async function readDocument(input: ReadTarget) {
       where: {
         notebookId_version_documentId: {
           notebookId: notebook.id,
-          version,
+          version: revision,
           documentId,
         },
       },
+      include: { body: true },
     });
     if (!document) {
       throw new LangfuseNotFoundError(
         "Document not found in the requested version.",
       );
     }
-    const versions = await tx.notebookVersion.findMany({
-      where: { notebookId: notebook.id, publishedAt: { not: null } },
+    const versions = await tx.notebookPublication.findMany({
+      where: { notebookId: notebook.id },
       select: { number: true, publishedAt: true },
       orderBy: { number: "desc" },
     });
-    const blocks = parseDocument(document.jsonl);
+    const blocks = parseDocument(document.body.jsonl);
     const selectionDomains: {
       variableId: string;
       choices: { value: string; label: string }[];
@@ -518,16 +551,16 @@ export async function readDocument(input: ReadTarget) {
         const sources = await tx.notebookVersionDocument.findMany({
           where: {
             notebookId: notebook.id,
-            version,
+            version: revision,
             documentId: { in: sourceIds },
           },
-          select: { documentId: true, jsonl: true },
+          select: { documentId: true, body: { select: { jsonl: true } } },
         });
         for (const source of sources) {
           try {
             blocksByDocument.set(
               source.documentId,
-              parseDocument(source.jsonl),
+              parseDocument(source.body.jsonl),
             );
           } catch (error) {
             if (
@@ -557,51 +590,76 @@ export async function readDocument(input: ReadTarget) {
       layout,
       documentId,
       width: document.width,
-      version: version || null,
+      version,
+      revision,
       dirty: dirty.has(documentId),
       notebookDirty: notebook.dirty,
-      isDraft: version === STAGED,
-      url: getDocumentUrl(input, documentId, version, layoutDocumentIds),
+      isDraft: useDraft,
+      url:
+        input.revision === undefined
+          ? getDocumentUrl(input, documentId, version, layoutDocumentIds)
+          : null,
       documents: index.map(({ documentId }) => ({
         id: documentId,
-        url: getDocumentUrl(input, documentId, version, layoutDocumentIds),
+        url:
+          input.revision === undefined
+            ? getDocumentUrl(input, documentId, version, layoutDocumentIds)
+            : null,
       })),
       versions: versions.flatMap(({ number, publishedAt }) =>
         publishedAt ? [{ number, publishedAt }] : [],
       ),
       blocks,
       ...(input.includeSelectionDomains ? { selectionDomains } : {}),
-      jsonl: document.jsonl,
+      jsonl: document.body.jsonl,
     };
   };
 
   return prisma.$transaction(resolve, { isolationLevel: "RepeatableRead" });
 }
 
-async function closeEditGroups(tx: Db, target: EditTarget, now: Date) {
-  const { projectId, notebookId, documentId, runKey } = target;
-  const close: Prisma.NotebookEditGroupWhereInput[] = [];
-  if (runKey) {
-    close.push({
-      runKey,
-      OR: [
-        { notebookId: { not: notebookId } },
-        { documentId: { not: documentId } },
-        { updatedAt: { lte: new Date(now.getTime() - EDIT_IDLE_MS) } },
-      ],
+async function editRevision(
+  tx: Db,
+  notebook: Pick<
+    Awaited<ReturnType<typeof getNotebookRow>>,
+    "id" | "draftRevision"
+  >,
+  layout: NotebookLayout,
+  userId: string | undefined,
+) {
+  const { id: notebookId, draftRevision } = notebook;
+  const key = { notebookId_number: { notebookId, number: draftRevision } };
+  const head = await tx.notebookVersion.findUniqueOrThrow({ where: key });
+  const now = new Date();
+  if (
+    userId &&
+    head.authorId === userId &&
+    head.editedAt &&
+    now.getTime() - head.editedAt.getTime() < EDIT_IDLE_MS
+  ) {
+    await tx.notebookVersion.update({
+      where: key,
+      data: { layout, editedAt: now },
     });
+    return draftRevision;
   }
-  close.push(
-    runKey
-      ? { notebookId, documentId, runKey: { not: runKey } }
-      : { notebookId, documentId },
-  );
-  if (close.length) {
-    await tx.notebookEditGroup.updateMany({
-      where: { projectId, closedAt: null, OR: close },
-      data: { closedAt: now },
-    });
-  }
+  const number = draftRevision + 1;
+  const documents = await findDocumentIndex(tx, notebookId, draftRevision);
+  await tx.notebookVersion.create({
+    data: {
+      notebookId,
+      number,
+      layout,
+      authorId: userId,
+      editedAt: userId ? now : null,
+      documents: { createMany: { data: documents } },
+    },
+  });
+  await tx.notebook.update({
+    where: { id: notebookId },
+    data: { draftRevision: number },
+  });
+  return number;
 }
 
 async function saveEdit(
@@ -625,19 +683,26 @@ async function saveEdit(
         width?: never;
       },
 ) {
-  const { notebookId, documentId, runKey } = target;
+  const { notebookId, documentId, userId } = target;
   return prisma.$transaction(async (tx) => {
     await lockProject(tx, target.projectId);
     const notebook = await getNotebookRow(tx, target);
     const where = {
       notebookId_version_documentId: {
         notebookId,
-        version: STAGED,
+        version: notebook.draftRevision,
         documentId,
       },
     };
-    const staged = await tx.notebookVersionDocument.findUnique({ where });
-    const layout = await readNotebookLayout(tx, notebookId, STAGED);
+    const staged = await tx.notebookVersionDocument.findUnique({
+      where,
+      include: { body: true },
+    });
+    const layout = await readNotebookLayout(
+      tx,
+      notebookId,
+      notebook.draftRevision,
+    );
     let stagedLayout = layout;
     if (command.kind === "add") {
       if (layout.kind === "default") {
@@ -646,7 +711,7 @@ async function saveEdit(
         );
       }
       const count = await tx.notebookVersionDocument.count({
-        where: { notebookId, version: STAGED },
+        where: { notebookId, version: notebook.draftRevision },
       });
       if (
         count >= MAX_NOTEBOOK_DOCUMENTS ||
@@ -660,17 +725,13 @@ async function saveEdit(
         ...layout,
         documents: [...layout.documents, { documentId, title: command.title }],
       };
-      await tx.notebookVersion.update({
-        where: { notebookId_number: { notebookId, number: STAGED } },
-        data: { layout: stagedLayout },
-      });
     } else {
       if (!staged)
         throw new LangfuseNotFoundError(
           "Staged document not found. Add it through Inbox or Tabs first.",
         );
     }
-    const previous = staged?.jsonl ?? "";
+    const previous = staged?.body.jsonl ?? "";
     const { blocks, jsonl } = (() => {
       if (command.kind === "patch")
         return applyDocumentPatch(previous, command.operations);
@@ -679,56 +740,46 @@ async function saveEdit(
       return command.body;
     })();
     const width = command.width ?? staged?.width ?? "contained";
-    const contentChanged = !staged || staged.jsonl !== jsonl;
+    const contentChanged = !staged || previous !== jsonl;
     const changed = contentChanged || staged.width !== width;
-    const now = new Date();
-    if (changed) await closeEditGroups(tx, target, now);
-
-    let historyEntryId: string | null = null;
+    let revision = notebook.draftRevision;
     if (changed) {
+      revision = await editRevision(tx, notebook, stagedLayout, userId);
       const contentHash = contentChanged
         ? createHash("sha256").update(jsonl).digest("hex")
         : staged.contentHash;
-      const data = { jsonl, contentHash, width };
+      if (contentChanged) {
+        await tx.notebookDocumentBody.createMany({
+          data: [{ notebookId, hash: contentHash, jsonl }],
+          skipDuplicates: true,
+        });
+      }
+      const data = { contentHash, width };
       await tx.notebookVersionDocument.upsert({
-        where,
-        update: contentChanged ? data : { width },
-        create: { ...data, notebookId, documentId, version: STAGED },
+        where: {
+          notebookId_version_documentId: {
+            notebookId,
+            documentId,
+            version: revision,
+          },
+        },
+        update: data,
+        create: { ...data, notebookId, documentId, version: revision },
       });
-      const group = runKey
-        ? await tx.notebookEditGroup.findFirst({
-            where: { ...target, closedAt: null },
-            select: { id: true },
-          })
-        : null;
-      const entry = group
-        ? await tx.notebookEditGroup.update({
-            where: { id: group.id },
-            data: { afterJsonl: jsonl, afterWidth: width, updatedAt: now },
-            select: { id: true },
-          })
-        : await tx.notebookEditGroup.create({
-            data: {
-              notebookId,
-              projectId: target.projectId,
-              documentId,
-              runKey,
-              beforeJsonl: staged?.jsonl ?? null,
-              afterJsonl: jsonl,
-              beforeWidth: staged?.width ?? null,
-              afterWidth: width,
-              closedAt: runKey ? null : now,
-              updatedAt: now,
-            },
-            select: { id: true },
-          });
-      historyEntryId = entry.id;
+      if (staged && revision === notebook.draftRevision && contentChanged) {
+        await tx.notebookDocumentBody.deleteMany({
+          where: {
+            notebookId,
+            hash: staged.contentHash,
+            documents: { none: {} },
+          },
+        });
+      }
     }
-    const { dirty } = await readIndexes(
-      tx,
-      notebookId,
-      notebook.latestPublishedVersion,
-    );
+    const { dirty } = await readIndexes(tx, {
+      ...notebook,
+      draftRevision: revision,
+    });
     const notebookDirty = await isNotebookDirty(
       tx,
       notebookId,
@@ -747,7 +798,7 @@ async function saveEdit(
       width,
       dirty: dirty.has(documentId),
       notebookDirty,
-      historyEntryId,
+      revision,
       blocks,
       jsonl,
     };
@@ -758,7 +809,7 @@ export async function writeDocument(
   input: NotebookKey & {
     documentId?: string;
     label?: string;
-    runKey?: string;
+    userId?: string;
     width?: NotebookDocumentWidth;
   } & Parameters<typeof encodeDocument>[0],
 ) {
@@ -787,7 +838,7 @@ export async function writeDocument(
     projectId: input.projectId,
     notebookId: input.notebookId,
     documentId: input.documentId ?? randomUUID(),
-    runKey: input.runKey,
+    userId: input.userId,
   };
   if (widthOnly) return saveEdit(target, { kind: "resize", width });
   const body = encodeDocument(input);
@@ -805,7 +856,7 @@ export async function writeDocument(
 export async function patchDocument(
   input: NotebookKey & {
     documentId?: string;
-    runKey?: string;
+    userId?: string;
     operations: Parameters<typeof applyDocumentPatch>[1];
   },
 ) {
@@ -814,29 +865,38 @@ export async function patchDocument(
       projectId: input.projectId,
       notebookId: input.notebookId,
       documentId: input.documentId ?? MAIN_NOTEBOOK_DOCUMENT,
-      runKey: input.runKey,
+      userId: input.userId,
     },
     { kind: "patch", operations: input.operations },
   );
 }
 
 export async function updateNotebookLayout(
-  input: NotebookKey & { layout: NotebookLayout },
+  input: NotebookKey & { layout: NotebookLayout; userId?: string },
 ) {
   const { projectId, notebookId } = input;
   const layout = notebookLayoutSchema.parse(input.layout);
   return prisma.$transaction(async (tx) => {
     await lockProject(tx, projectId);
     const notebook = await getNotebookRow(tx, input);
-    await tx.notebookVersion.update({
-      where: { notebookId_number: { notebookId, number: STAGED } },
-      data: { layout },
-    });
-    const { dirty } = await readIndexes(
+    const previous = await readNotebookLayout(
       tx,
       notebookId,
-      notebook.latestPublishedVersion,
+      notebook.draftRevision,
     );
+    if (isDeepStrictEqual(previous, layout)) {
+      return {
+        notebookId,
+        layout,
+        notebookDirty: notebook.dirty,
+        revision: notebook.draftRevision,
+      };
+    }
+    const revision = await editRevision(tx, notebook, layout, input.userId);
+    const { dirty } = await readIndexes(tx, {
+      ...notebook,
+      draftRevision: revision,
+    });
     const notebookDirty = await isNotebookDirty(
       tx,
       notebookId,
@@ -848,6 +908,6 @@ export async function updateNotebookLayout(
       where: { id: notebookId },
       data: { dirty: notebookDirty },
     });
-    return { notebookId, layout, notebookDirty };
+    return { notebookId, layout, notebookDirty, revision };
   });
 }

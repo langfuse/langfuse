@@ -1,5 +1,5 @@
 import { notebookLayoutSchema } from "@/src/features/notebooks/schema";
-import { collectNotebookValidationErrors } from "@/src/features/notebooks/server/fns/collectNotebookValidationErrors";
+import { validateNotebookDocuments } from "@/src/features/notebooks/server/fns/validateNotebookDocuments";
 import { encodeDocument } from "@/src/features/notebooks/server/fns/encodeDocument";
 import { promptExperiments } from "@/.storybook/fixtures/notebooks/promptExperiments";
 
@@ -11,10 +11,11 @@ describe("notebook layouts", () => {
       jsonl: blocks.map((block) => JSON.stringify(block)).join("\n"),
     }));
     expect(
-      collectNotebookValidationErrors(
+      validateNotebookDocuments(
         documents,
         notebookLayoutSchema.parse({ kind: layout, variables, bindings }),
-      ),
+        true,
+      ).errors,
     ).toEqual([]);
   });
 
@@ -37,20 +38,30 @@ describe("notebook layouts", () => {
       ],
       bindings: [write],
     });
-    expect(collectNotebookValidationErrors(snapshot, layout)).toEqual([]);
+    expect(validateNotebookDocuments(snapshot, layout, true).errors).toEqual(
+      [],
+    );
     expect(
-      collectNotebookValidationErrors(snapshot, {
-        ...layout,
-        bindings: [write, write],
-      }),
+      validateNotebookDocuments(
+        snapshot,
+        {
+          ...layout,
+          bindings: [write, write],
+        },
+        true,
+      ).errors,
     ).toMatchObject([
       { message: expect.stringContaining("already has a selection source") },
     ]);
     expect(
-      collectNotebookValidationErrors(snapshot, {
-        ...layout,
-        bindings: [{ kind: "read", variableId: "run", to: write.from }],
-      }),
+      validateNotebookDocuments(
+        snapshot,
+        {
+          ...layout,
+          bindings: [{ kind: "read", variableId: "run", to: write.from }],
+        },
+        true,
+      ).errors,
     ).toMatchObject([
       {
         documentId: "main",
@@ -87,7 +98,7 @@ describe("notebook layouts", () => {
 
   it("makes only main reachable in Default", () => {
     expect(
-      collectNotebookValidationErrors(documents, { kind: "default" }),
+      validateNotebookDocuments(documents, { kind: "default" }, true).errors,
     ).toMatchObject([{ documentId: "detail" }]);
   });
 
@@ -95,16 +106,24 @@ describe("notebook layouts", () => {
     "validates %s references against the snapshot",
     (kind) => {
       expect(
-        collectNotebookValidationErrors(documents, {
-          kind,
-          documents: [detail, main],
-        }),
+        validateNotebookDocuments(
+          documents,
+          {
+            kind,
+            documents: [detail, main],
+          },
+          true,
+        ).errors,
       ).toEqual([]);
       expect(
-        collectNotebookValidationErrors(documents, {
-          kind,
-          documents: [main, { documentId: "missing", label: "Missing" }],
-        }),
+        validateNotebookDocuments(
+          documents,
+          {
+            kind,
+            documents: [main, { documentId: "missing", label: "Missing" }],
+          },
+          true,
+        ).errors,
       ).toMatchObject([{ documentId: "missing" }, { documentId: "detail" }]);
     },
   );

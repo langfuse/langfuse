@@ -4,14 +4,22 @@ import { MAIN_NOTEBOOK_DOCUMENT, type NotebookLayout } from "../../schema";
 import { getNotebookLayoutDocumentIds } from "./getNotebookLayoutDocumentIds";
 import { parseDocument } from "./parseDocument";
 import { resolveNotebookPort } from "../../ports";
+import { getNotebookPresentationWarnings } from "../../presentation";
 
-export function collectNotebookValidationErrors(
+export function validateNotebookDocuments(
   documents: readonly { documentId: string; jsonl: string }[],
-  layout?: NotebookLayout,
+  layout: NotebookLayout,
+  checkLayout: boolean,
 ) {
   const errors: { documentId?: string; message: string }[] = [];
   const blocks = new Map<string, ReturnType<typeof parseDocument>>();
-  if (layout) {
+  const wide = layout.kind === "inbox" || layout.width === "full";
+  const warnings: (ReturnType<
+    typeof getNotebookPresentationWarnings
+  >[number] & {
+    documentId: string;
+  })[] = [];
+  if (checkLayout) {
     const existingIds = new Set(documents.map(({ documentId }) => documentId));
     const referencedIds = new Set(getNotebookLayoutDocumentIds(layout));
     for (const documentId of new Set([
@@ -34,20 +42,25 @@ export function collectNotebookValidationErrors(
   }
   for (const { documentId, jsonl } of documents) {
     try {
-      blocks.set(documentId, parseDocument(jsonl, "validate"));
+      const parsed = parseDocument(jsonl, "validate");
+      blocks.set(documentId, parsed);
+      for (const warning of getNotebookPresentationWarnings(parsed, wide)) {
+        warnings.push({ documentId, ...warning });
+      }
     } catch (error) {
       if (!(error instanceof InvalidRequestError || error instanceof ZodError))
         throw error;
       errors.push({ documentId, message: error.message });
     }
   }
-  const variables = layout?.variables ?? [];
+  if (!checkLayout) return { errors, warnings };
+  const variables = layout.variables ?? [];
   const byId = new Map(variables.map((variable) => [variable.id, variable]));
   if (byId.size !== variables.length)
     errors.push({ message: "Variable IDs must be unique." });
   const inputs = new Set<string>();
   const domains = new Set<string>();
-  for (const binding of layout?.bindings ?? []) {
+  for (const binding of layout.bindings ?? []) {
     const ref = binding.kind === "read" ? binding.to : binding.from;
     const port = resolveNotebookPort(blocks.get(ref.documentId) ?? [], ref);
     const variable = byId.get(binding.variableId);
@@ -80,5 +93,5 @@ export function collectNotebookValidationErrors(
       domains.add(variable.id);
     }
   }
-  return errors;
+  return { errors, warnings };
 }

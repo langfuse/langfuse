@@ -1996,8 +1996,9 @@ model Notebook {
   dirty                  Boolean             @default(true)
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
-  versions               NotebookVersion[]
-  editGroups             NotebookEditGroup[]
+  draftRevision          Int                 @default(1) @map("draft_revision")
+  revisions              NotebookVersion[]
+  documentBodies         NotebookDocumentBody[]
 
   @@unique([id, projectId])
   @@index([projectId, id])
@@ -2008,9 +2009,11 @@ model NotebookVersion {
   notebookId  String                    @map("notebook_id")
   notebook    Notebook                  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
   number      Int
-  publishedAt DateTime?                 @map("published_at")
+  authorId    String?                   @map("author_id")
+  editedAt    DateTime?                 @map("edited_at")
   layout      Json                      @default("{\"kind\":\"default\"}")
   documents   NotebookVersionDocument[]
+  publications NotebookPublication[]
 
   @@id([notebookId, number])
   @@map("notebook_versions")
@@ -2026,32 +2029,36 @@ model NotebookVersionDocument {
   version     Int
   snapshot    NotebookVersion       @relation(fields: [notebookId, version], references: [notebookId, number], onDelete: Cascade)
   documentId  String                @map("document_id")
-  jsonl       String
   contentHash String                @map("content_hash")
+  body        NotebookDocumentBody  @relation(fields: [notebookId, contentHash], references: [notebookId, hash], onDelete: NoAction)
   width       NotebookDocumentWidth @default(contained)
 
   @@id([notebookId, version, documentId])
+  @@index([notebookId, contentHash])
   @@map("notebook_version_documents")
 }
 
-model NotebookEditGroup {
-  id          String                 @id @default(cuid())
-  notebookId  String                 @map("notebook_id")
-  projectId   String                 @map("project_id")
-  notebook    Notebook               @relation(fields: [notebookId, projectId], references: [id, projectId], onDelete: Cascade)
-  documentId  String                 @map("document_id")
-  runKey      String?                @map("run_key")
-  beforeJsonl String?                @map("before_jsonl")
-  afterJsonl  String                 @map("after_jsonl")
-  beforeWidth NotebookDocumentWidth? @map("before_width")
-  afterWidth  NotebookDocumentWidth  @default(contained) @map("after_width")
-  createdAt   DateTime               @default(now()) @map("created_at")
-  updatedAt   DateTime               @updatedAt @map("updated_at")
-  closedAt    DateTime?              @map("closed_at")
+model NotebookPublication {
+  notebookId  String          @map("notebook_id")
+  number      Int
+  revision    Int
+  snapshot    NotebookVersion @relation(fields: [notebookId, revision], references: [notebookId, number], onDelete: Cascade)
+  publishedAt DateTime        @default(now()) @map("published_at")
 
-  @@index([projectId, runKey, closedAt])
-  @@index([notebookId, documentId, createdAt])
-  @@map("notebook_edit_groups")
+  @@id([notebookId, number])
+  @@index([notebookId, revision])
+  @@map("notebook_publications")
+}
+
+model NotebookDocumentBody {
+  notebookId String                   @map("notebook_id")
+  notebook  Notebook                  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  hash      String
+  jsonl     String
+  documents NotebookVersionDocument[]
+
+  @@id([notebookId, hash])
+  @@map("notebook_document_bodies")
 }
 
 model Dashboard {

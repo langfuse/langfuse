@@ -518,7 +518,6 @@ export type NotebookBlock =
       props: {
         children: NotebookBlock[];
         widths?: number[];
-        direction?: "vertical";
       };
     });
 
@@ -534,7 +533,6 @@ type NotebookInputBlock =
       props: {
         children: NotebookInputBlock[];
         widths?: number[];
-        direction?: "vertical";
       };
     });
 

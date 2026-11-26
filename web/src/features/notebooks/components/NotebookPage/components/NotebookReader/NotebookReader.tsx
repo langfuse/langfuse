@@ -27,6 +27,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { NotebookBlocks } from "./components/NotebookBlocks/NotebookBlocks";
+import { getNotebookPresentationWarnings } from "@/src/features/notebooks/presentation";
 
 function formatProperty(
   value: NotebookPropertyValues[string] | undefined,
@@ -152,6 +153,10 @@ export function NotebookReader({
 
   const { blocks, documentId, documents, layout, version } = view;
   const wide = layout.kind === "inbox" || layout.width === "full";
+  const presentationWarnings =
+    version === null && !isLoadingDocument
+      ? getNotebookPresentationWarnings(blocks, wide)
+      : [];
   const [overrides, setOverrides] = useState<
     ReadonlyMap<string, NotebookVariableValue | undefined>
   >(new Map());
@@ -562,6 +567,20 @@ export function NotebookReader({
               )}
             </header>
           )}
+        {presentationWarnings.length > 0 && (
+          <aside
+            aria-label="Presentation warnings"
+            className="text-muted-foreground mb-4 text-sm"
+          >
+            <ul className="list-disc pl-5">
+              {presentationWarnings.map(({ blockId, code, message }) => (
+                <li key={`${blockId}:${code}`}>
+                  {message} <code>{blockId}</code>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
         {documentContent}
       </div>
     </div>

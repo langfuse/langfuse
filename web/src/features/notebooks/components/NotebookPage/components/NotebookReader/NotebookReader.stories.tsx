@@ -267,7 +267,6 @@ export const ResourceEmbeds = meta.story({
                           id: "checkout-review-guide",
                           schema: "row@1",
                           props: {
-                            direction: "vertical",
                             children: [
                               text(
                                 "review-guide",

@@ -7,6 +7,7 @@ import {
   type NotebookVariableValue,
 } from "@/src/features/notebooks/schema";
 import { assertUnreachable } from "@/src/utils/types";
+import { getNotebookBlockMinimumWidth } from "@/src/features/notebooks/presentation";
 
 type ChartBlock = Extract<NotebookBlock, { schema: "chart@1" }>;
 
@@ -157,21 +158,15 @@ export function NotebookBlocks({
         if (block.schema === "row@1") {
           const { children, widths } = block.props;
           return (
-            <div
-              key={block.id}
-              className={widths ? "flex gap-4" : "flex flex-wrap gap-4"}
-            >
+            <div key={block.id} className="flex min-w-0 flex-wrap gap-4">
               {children.map((child, index) => (
                 <div
                   key={child.id}
-                  className={
-                    widths
-                      ? "flex min-w-0 flex-col"
-                      : "flex min-w-[min(100%,20rem)] flex-1 basis-0 flex-col"
-                  }
-                  style={
-                    widths ? { flex: `${widths[index] ?? 1} 1 0%` } : undefined
-                  }
+                  className="flex min-w-0 flex-col"
+                  style={{
+                    flexBasis: `min(100%, ${getNotebookBlockMinimumWidth(child)}px)`,
+                    flexGrow: widths?.[index] ?? 1,
+                  }}
                 >
                   <NotebookBlocks
                     blocks={[child]}

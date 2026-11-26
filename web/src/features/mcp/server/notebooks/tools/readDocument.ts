@@ -16,6 +16,7 @@ const readDocumentSchema = z.object({
   notebookId,
   documentId,
   version: notebookVersion.optional(),
+  revision: notebookVersion.optional(),
   staged: z
     .boolean()
     .optional()
@@ -28,11 +29,14 @@ export const [readDocumentTool, handleReadDocument] = defineHaloOnlyTool({
   spanName: "mcp.notebooks.read_document",
   readOnlyHint: true,
   description:
-    "Read a document from the latest published notebook version by default. Pass version to read a historical version, or staged: true to read the draft, including in an unpublished notebook.",
+    "Read a document from the latest published notebook version by default. Pass version for a published version, revision for an edit checkpoint, or staged: true for the current draft.",
   baseSchema: readDocumentSchema,
   inputSchema: readDocumentSchema.refine(
-    ({ version, staged }) => version === undefined || staged !== true,
-    { message: "Use either version or staged: true, not both." },
+    ({ version, revision, staged }) =>
+      [version !== undefined, revision !== undefined, staged === true].filter(
+        Boolean,
+      ).length <= 1,
+    { message: "Choose a draft, published version, or revision." },
   ),
   handler: async (input, context) => {
     const { versions, ...document } = await readDocument({
