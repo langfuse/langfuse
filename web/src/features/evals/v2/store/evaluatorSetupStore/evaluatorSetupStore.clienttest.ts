@@ -127,6 +127,26 @@ describe("createEvaluatorSetupStore", () => {
     expect(store.getState().promptMessages).toEqual([edited]);
   });
 
+  it("maps the variables of a new evaluator type to the transcript on trace messages", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+    actions.setTargetObject(TopicsTargetObject);
+
+    actions.setType("DECISION_MODEL");
+    expect(store.getState().variableFields).toEqual({
+      input: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+      output: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+
+    actions.setType("LLM_AS_JUDGE");
+    expect(store.getState().variableFields).toEqual({
+      messages: TRACE_TRANSCRIPT_DEFAULT_FIELD,
+    });
+  });
+
   it("opens a trace-only evaluator on trace messages without rewriting its stored mapping", () => {
     const definition = {
       type: "LLM_AS_JUDGE" as const,
