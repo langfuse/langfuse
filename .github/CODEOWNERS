@@ -100,7 +100,7 @@
 /web/src/pages/api/trpc/ @Steffen911 @nimarb @hassiebp
 
 # Database migrations
-/packages/shared/clickhouse/migrations/ @Steffen911 @niklassemmler @marksalpeter @jordibosch20 @sumerman
+/packages/shared/clickhouse/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 /packages/shared/prisma/migrations/ @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 /packages/shared/prisma/schema.prisma @Steffen911 @hassiebp @nimarb @niklassemmler @marksalpeter @jordibosch20 @sumerman
 
