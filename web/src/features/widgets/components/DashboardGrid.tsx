@@ -126,6 +126,7 @@ export function DashboardGrid({
   onDuplicatePreset?: (
     anchor: PresetPlacement,
     surface: WidgetDuplicateSurface,
+    selection: PresetSelection,
   ) => void;
   onEditPreset?: (
     placement: PresetPlacement,
@@ -235,7 +236,8 @@ export function DashboardGrid({
         showDuplicateButton={duplicateSurface === "grid_toolbar"}
         onDuplicatePreset={
           onDuplicatePreset
-            ? (anchor) => onDuplicatePreset(anchor, duplicateSurface)
+            ? (anchor, selection) =>
+                onDuplicatePreset(anchor, duplicateSurface, selection)
             : undefined
         }
         heightBehavior={

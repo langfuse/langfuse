@@ -95,6 +95,8 @@ import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingF
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
+import { useCopyHomeWidget } from "@/src/features/dashboard-blocks/useCopyHomeWidget";
+import { type PresetSelection } from "@/src/features/dashboard/components/home-preset-registry";
 import { DashboardBlocksProvider } from "@/src/features/dashboard-blocks/DashboardBlocksProvider";
 import { DashboardBlocksAddMenu } from "@/src/features/dashboard-blocks/DashboardBlocksAddMenu";
 import { DashboardBlocksCanvas } from "@/src/features/dashboard-blocks/DashboardBlocksCanvas";
@@ -226,6 +228,42 @@ function DashboardDetailView({
     [timeRange],
   );
 
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
+  const environmentOptions = environmentOptionsState.environmentOptions.map(
+    (value) => ({
+      value,
+    }),
+  );
+
+  // Dedicated environment selector, same as Home. The selection is a view
+  // setting (persisted per project for this user), merged into the widget
+  // filters but never written into the dashboard's saved filters.
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
+  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
+  const environmentFilter = useMemo(
+    () =>
+      convertSelectedEnvironmentsToFilter(
+        ["environment"],
+        selectedEnvironments,
+      ),
+    [selectedEnvironments],
+  );
+  const gridFilterState: FilterState = useMemo(
+    () => [...currentFilters, ...environmentFilter],
+    [currentFilters, environmentFilter],
+  );
+  const { copy: copyHomeWidget, selectionDialog: homeCopySelectionDialog } =
+    useCopyHomeWidget({
+      projectId,
+      version: isV4 ? "v2" : "v1",
+      dateRange: absoluteTimeRange,
+      filterState: gridFilterState,
+    });
+
   // Check if current filters differ from saved filters
   const hasUnsavedFilterChanges = useMemo(() => {
     return JSON.stringify(currentFilters) !== JSON.stringify(savedFilters);
@@ -236,7 +274,7 @@ function DashboardDetailView({
     definitionRef: dashboardDefinitionRef,
     applyDraft,
     clearDraftIfSaved,
-  } = useDashboardDefinitionDraft(dashboard.data?.definition);
+  } = useDashboardDefinitionDraft(dashboard.data?.definition, hasCUDAccess);
   // The async flows below (paste/duplicate/import) commit a definition change
   // only after a network round-trip. They must compute it from this ref — the
   // definition as of NOW — not from the state captured when the handler
@@ -342,12 +380,12 @@ function DashboardDetailView({
   // the debounced save.
   const applyDashboardDefinition = useCallback(
     (updated: { widgets: DashboardPlacement[] }) => {
-      if (!hasCUDAccess || !mounted.current) return;
-      applyDraft(updated);
+      if (!mounted.current || !applyDraft(updated)) return false;
       // Pending layout saves retain their destination after route changes.
       saveDashboardChanges({ projectId, dashboardId, definition: updated });
+      return true;
     },
-    [applyDraft, saveDashboardChanges, projectId, dashboardId, hasCUDAccess],
+    [applyDraft, saveDashboardChanges, projectId, dashboardId],
   );
 
   // Function to save current filters
@@ -402,10 +440,13 @@ function DashboardDetailView({
       const existingWidgets = position
         ? pushDownForInsertion(currentDefinition.widgets, newWidgetPlacement)
         : currentDefinition.widgets;
-      applyDashboardDefinition({
-        ...currentDefinition,
-        widgets: [...existingWidgets, newWidgetPlacement],
-      });
+      if (
+        !applyDashboardDefinition({
+          ...currentDefinition,
+          widgets: [...existingWidgets, newWidgetPlacement],
+        })
+      )
+        return false;
 
       // The new widget may land outside the viewport — bring it into view.
       setTimeout(() => {
@@ -437,14 +478,8 @@ function DashboardDetailView({
       presetId: HomeDashboardPresetId,
       position?: { x: number; y: number; x_size: number; y_size: number },
     ) => {
-      if (authoringEnabled) {
-        router.push(
-          `/project/${projectId}/widgets/new?dashboardId=${dashboardId}&template=${presetId}`,
-        );
-        return;
-      }
       const currentDefinition = dashboardDefinitionRef.current;
-      if (!currentDefinition) return;
+      if (!mounted.current || !currentDefinition) return false;
 
       const maxY =
         currentDefinition.widgets.length > 0
@@ -465,71 +500,139 @@ function DashboardDetailView({
       const existingWidgets = position
         ? pushDownForInsertion(currentDefinition.widgets, newPresetPlacement)
         : currentDefinition.widgets;
-      applyDashboardDefinition({
-        ...currentDefinition,
-        widgets: [...existingWidgets, newPresetPlacement],
-      });
+      if (
+        !applyDashboardDefinition({
+          ...currentDefinition,
+          widgets: [...existingWidgets, newPresetPlacement],
+        })
+      )
+        return false;
 
       setTimeout(() => {
         document
           .querySelector(`[data-placement-id="${newPresetPlacement.id}"]`)
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 150);
+      return true;
     },
-    [
-      applyDashboardDefinition,
-      dashboardDefinitionRef,
-      authoringEnabled,
-      router,
-      projectId,
-      dashboardId,
-    ],
+    [applyDashboardDefinition, dashboardDefinitionRef],
   );
 
   const addPresetToDashboard = useCallback(
-    (presetId: HomeDashboardPresetId) => insertPresetPlacement(presetId),
-    [insertPresetPlacement],
-  );
-
-  // Duplicate a preset card: another placement of the same preset next to
-  // the anchor tile (no widget row involved).
-  const handleDuplicatePreset = useCallback(
-    (anchor: PresetPlacement, surface: WidgetDuplicateSurface) => {
-      capture("dashboard:widget_duplicated", {
-        surface,
-        isV4,
-        kind: "preset",
-        preset_id: anchor.presetId,
-        dashboard_id: dashboardId,
-      });
-      insertPresetPlacement(
-        anchor.presetId as HomeDashboardPresetId,
-        placementNextTo(anchor),
-      );
+    (presetId: HomeDashboardPresetId) => {
+      if (authoringEnabled) {
+        router.push(
+          `/project/${projectId}/widgets/new?dashboardId=${dashboardId}&template=${presetId}`,
+        );
+      } else insertPresetPlacement(presetId);
     },
-    [capture, dashboardId, insertPresetPlacement, isV4],
+    [authoringEnabled, router, projectId, dashboardId, insertPresetPlacement],
   );
 
-  // Place a pasted preset card (next to `anchor` when given, else at the
-  // bottom).
+  const handleDuplicatePreset = useCallback(
+    (
+      anchor: PresetPlacement,
+      surface: WidgetDuplicateSurface,
+      selection: PresetSelection,
+    ) => {
+      const track = () =>
+        capture("dashboard:widget_duplicated", {
+          surface,
+          isV4,
+          kind: "preset",
+          preset_id: anchor.presetId,
+          dashboard_id: dashboardId,
+        });
+      if (authoringEnabled) {
+        copyHomeWidget({
+          presetId: anchor.presetId as HomeDashboardPresetId,
+          selection,
+          place: (widgetId) => {
+            const currentAnchor =
+              dashboardDefinitionRef.current?.widgets.find(
+                (placement) => placement.id === anchor.id,
+              ) ?? anchor;
+            if (
+              !insertWidgetPlacement(widgetId, placementNextTo(currentAnchor))
+            )
+              return false;
+            track();
+            return true;
+          },
+        });
+      } else if (
+        insertPresetPlacement(
+          anchor.presetId as HomeDashboardPresetId,
+          placementNextTo(anchor),
+        )
+      )
+        track();
+    },
+    [
+      capture,
+      dashboardId,
+      insertPresetPlacement,
+      isV4,
+      authoringEnabled,
+      copyHomeWidget,
+      dashboardDefinitionRef,
+      insertWidgetPlacement,
+    ],
+  );
+
   const handlePastedPreset = useCallback(
     (
       presetId: HomeDashboardPresetId,
       source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
+      selection: PresetSelection = {},
     ) => {
-      capture("dashboard:widget_pasted", {
-        source,
-        kind: "preset",
-        preset_id: presetId,
-        dashboard_id: dashboardId,
-      });
-      insertPresetPlacement(
-        presetId,
-        anchor ? placementNextTo(anchor) : undefined,
-      );
+      const track = () =>
+        capture("dashboard:widget_pasted", {
+          source,
+          kind: "preset",
+          preset_id: presetId,
+          dashboard_id: dashboardId,
+        });
+      if (authoringEnabled) {
+        copyHomeWidget({
+          presetId,
+          selection,
+          place: (widgetId) => {
+            const currentAnchor =
+              anchor &&
+              (dashboardDefinitionRef.current?.widgets.find(
+                (placement) => placement.id === anchor.id,
+              ) ??
+                anchor);
+            if (
+              !insertWidgetPlacement(
+                widgetId,
+                currentAnchor ? placementNextTo(currentAnchor) : undefined,
+              )
+            )
+              return false;
+            track();
+            return true;
+          },
+        });
+      } else if (
+        insertPresetPlacement(
+          presetId,
+          anchor ? placementNextTo(anchor) : undefined,
+        )
+      )
+        track();
     },
-    [capture, dashboardId, insertPresetPlacement],
+    [
+      capture,
+      dashboardId,
+      insertPresetPlacement,
+      authoringEnabled,
+      copyHomeWidget,
+      dashboardDefinitionRef,
+      insertWidgetPlacement,
+    ],
   );
 
   const { mutateAsync: saveDefinitionAsync } =
@@ -730,7 +833,7 @@ function DashboardDetailView({
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
-          handlePastedPreset(preset.presetId, source, anchor);
+          handlePastedPreset(preset.presetId, source, anchor, preset.selection);
           return;
         }
         if (preset.status === "invalid") {
@@ -815,7 +918,12 @@ function DashboardDetailView({
           );
           return;
         }
-        handlePastedPreset(preset.presetId, "cmd_v");
+        handlePastedPreset(
+          preset.presetId,
+          "cmd_v",
+          undefined,
+          preset.selection,
+        );
         return;
       }
       event.preventDefault();
@@ -896,7 +1004,7 @@ function DashboardDetailView({
         // have landed while the widgets were being created.
         const currentDefinition = dashboardDefinitionRef.current;
         if (!mounted.current || !currentDefinition) {
-          await Promise.allSettled(
+          await Promise.all(
             createdWidgets.map((created) =>
               deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
             ),
@@ -929,10 +1037,19 @@ function DashboardDetailView({
           },
         );
 
-        applyDashboardDefinition({
-          ...currentDefinition,
-          widgets: [...currentDefinition.widgets, ...newPlacements],
-        });
+        if (
+          !applyDashboardDefinition({
+            ...currentDefinition,
+            widgets: [...currentDefinition.widgets, ...newPlacements],
+          })
+        ) {
+          await Promise.all(
+            createdWidgets.map((created) =>
+              deleteWidgetAsync({ projectId, widgetId: created.widget.id }),
+            ),
+          );
+          return;
+        }
 
         capture("dashboard:dashboard_json_imported", {
           dashboard_id: dashboardId,
@@ -1034,7 +1151,12 @@ function DashboardDetailView({
       if (widgetResult.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
-          handlePastedPreset(preset.presetId, "drop");
+          handlePastedPreset(
+            preset.presetId,
+            "drop",
+            undefined,
+            preset.selection,
+          );
           return;
         }
         if (preset.status === "invalid") {
@@ -1138,35 +1260,6 @@ function DashboardDetailView({
     timeRange,
   });
 
-  const environmentOptionsState = useEnvironmentFilterOptionsCache({
-    projectId,
-    timeRange,
-  });
-  const environmentOptions = environmentOptionsState.environmentOptions.map(
-    (value) => ({
-      value,
-    }),
-  );
-
-  // Dedicated environment selector, same as Home. The selection is a view
-  // setting (persisted per project for this user), merged into the widget
-  // filters but never written into the dashboard's saved filters.
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptionsState.environmentOptions, projectId);
-  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
-  const environmentFilter = useMemo(
-    () =>
-      convertSelectedEnvironmentsToFilter(
-        ["environment"],
-        selectedEnvironments,
-      ),
-    [selectedEnvironments],
-  );
-  const gridFilterState: FilterState = useMemo(
-    () => [...currentFilters, ...environmentFilter],
-    [currentFilters, environmentFilter],
-  );
-  // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
     {
       name: "Environment",
@@ -1628,6 +1721,7 @@ function DashboardDetailView({
                         </div>
                       </Layer>
                     )}
+                    {homeCopySelectionDialog}
                     <SelectWidgetDialog
                       open={isWidgetDialogOpen}
                       onOpenChange={setIsWidgetDialogOpen}

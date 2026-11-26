@@ -286,3 +286,25 @@ describe("isPasteablePlacementPayload", () => {
     ).toBe(false);
   });
 });
+
+it("preserves selected Home models and score definitions through clipboard export", () => {
+  const selection = {
+    models: ["model-alpha"],
+    scores: [{ name: "Quality", source: "EVAL", dataType: "NUMERIC" }],
+    activeTab: "p99",
+  };
+  const payload = buildPresetExport("home-model-usage", selection);
+  expect(parsePastedPreset(JSON.stringify(payload))).toEqual({
+    status: "preset",
+    presetId: "home-model-usage",
+    selection,
+  });
+  expect(
+    parsePastedPreset(
+      JSON.stringify({ ...payload, selection: { models: [42] } }),
+    ),
+  ).toMatchObject({ status: "invalid" });
+  expect(
+    parsePastedPreset(JSON.stringify(buildPresetExport("home-model-usage"))),
+  ).toEqual({ status: "preset", presetId: "home-model-usage" });
+});

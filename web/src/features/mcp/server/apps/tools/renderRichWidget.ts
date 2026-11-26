@@ -21,6 +21,7 @@ import {
   isEnvironmentVisibleByDefault,
 } from "@/src/utils/environmentFilter";
 import { appToolResult } from "../../../core/mcp-app";
+import { formatErrorForUser } from "../../../core/error-formatting";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
 import {
   type WidgetDefinition,
@@ -148,10 +149,7 @@ export async function renderRichWidget({
         data: undefined,
         isPending: false,
         isError: true,
-        error:
-          error instanceof Error
-            ? error.message
-            : "This series could not be loaded",
+        error: formatErrorForUser(error).message,
       });
     }
   }

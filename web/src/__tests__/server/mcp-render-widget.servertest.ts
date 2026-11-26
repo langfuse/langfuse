@@ -1,5 +1,6 @@
 import {
   createOrgProjectAndApiKey,
+  ClickHouseResourceError,
   DashboardService,
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
@@ -17,8 +18,95 @@ import {
 import { mockServerContext } from "./mcp-helpers";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { ProtocolErrorCode } from "@modelcontextprotocol/server";
+import * as queryServer from "@langfuse/shared/query/server";
+import * as dashboardRouter from "@/src/features/dashboard/server/dashboard-router";
+
+vi.mock("@langfuse/shared/query/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof queryServer>();
+  return { ...actual, executeQuery: vi.fn(actual.executeQuery) };
+});
 
 describe("renderWidget", () => {
+  it("sanitizes failed series while preserving resource advice and successful data", async () => {
+    const privateDetails = "SELECT private_token FROM internal_credentials";
+    const queryFailure = vi
+      .mocked(queryServer.executeQuery)
+      .mockRejectedValueOnce(new Error(privateDetails));
+    const homeFailure = vi
+      .spyOn(dashboardRouter, "getScoreAggregateV2")
+      .mockRejectedValueOnce(
+        new ClickHouseResourceError("TIMEOUT", new Error(privateDetails)),
+      );
+    try {
+      const query = {
+        id: "a",
+        label: "Observations",
+        view: "observations" as const,
+        metrics: [
+          { id: "count", measure: "count", aggregation: "count" as const },
+        ],
+        dimensions: [],
+        filters: [],
+      };
+      const result = (await handleRenderWidget(
+        {
+          definition: {
+            kind: "multiQuery",
+            config: {
+              version: 2,
+              title: "Partial results",
+              description: "",
+              tabs: [
+                {
+                  id: "counts",
+                  label: "Counts",
+                  display: { chartType: "NUMBER" },
+                  queries: [
+                    query,
+                    {
+                      ...query,
+                      id: "b",
+                      label: "Home scores",
+                      view: "scores-numeric",
+                      homeScoreAggregate: true,
+                    },
+                    { ...query, id: "c", label: "Traces", view: "traces" },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        mockServerContext({ projectId: uuidv4() }),
+      )) as AppToolResult;
+      const expectedFailures = [
+        expect.objectContaining({
+          id: "a",
+          message: "An unexpected error occurred. Please try again later.",
+        }),
+        expect.objectContaining({
+          id: "b",
+          message:
+            "The ClickHouse query timed out. Narrow the query by shortening the date range or adding more specific filters before trying again.",
+        }),
+      ];
+      const summary = JSON.parse(result.text);
+      expect(summary.failures).toEqual(expectedFailures);
+      expect(summary.values).toContainEqual(
+        expect.objectContaining({ series: "Traces", value: 0 }),
+      );
+      const payload = result.meta.widget as WidgetPayload;
+      expect(payload.rich?.result?.failures).toEqual(expectedFailures);
+      expect(payload.rich?.result?.values).toContainEqual(
+        expect.objectContaining({ queryId: "c", value: 0 }),
+      );
+      expect(JSON.stringify(result)).not.toContain(privateDetails);
+    } finally {
+      queryFailure.mockRestore();
+      homeFailure.mockRestore();
+    }
+  });
+
   it("returns actionable invalid-request errors for unsupported chart plans", async () => {
     for (const homeScoreAggregate of [false, true]) {
       const error = await handleRenderWidget(

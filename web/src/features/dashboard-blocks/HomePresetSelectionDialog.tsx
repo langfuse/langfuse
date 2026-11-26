@@ -15,12 +15,14 @@ export function HomePresetSelectionDialog({
   filterState,
   dateRange,
   onContinue,
+  actionLabel = "Open editor",
 }: {
   preset: HomePresetDraft;
   projectId: string;
   version: ViewVersion;
   filterState: FilterState;
   dateRange: { from: Date; to: Date };
+  actionLabel?: string;
   onContinue: (recipe: ReturnType<typeof buildHomeWidgetRecipe>) => void;
 }) {
   const scores = preset.source.presetId === "home-score-analytics";
@@ -84,7 +86,7 @@ export function HomePresetSelectionDialog({
       noCapture
       actions={[
         {
-          label: "Open editor",
+          label: actionLabel,
           disabled: !("config" in recipe),
           onClick: () => {
             if ("config" in recipe) onContinue(recipe);

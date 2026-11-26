@@ -268,12 +268,16 @@ function DashboardBlocksCanvasContent({
                 }
                 onDuplicatePreset={
                   gridProps.onDuplicatePreset
-                    ? (anchor, surface) => {
+                    ? (anchor, surface, selection) => {
                         const original = gridProps.widgets.find(
                           (item) => item.id === anchor.id,
                         );
                         if (original?.type === "preset")
-                          gridProps.onDuplicatePreset?.(original, surface);
+                          gridProps.onDuplicatePreset?.(
+                            original,
+                            surface,
+                            selection,
+                          );
                       }
                     : undefined
                 }

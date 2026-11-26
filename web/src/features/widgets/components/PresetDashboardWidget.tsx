@@ -82,7 +82,10 @@ export function PresetDashboardWidget({
    * Passed only on editable (non-locked) dashboards.
    */
   showDuplicateButton?: boolean;
-  onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  onDuplicatePreset?: (
+    anchor: PresetPlacement,
+    selection: PresetSelection,
+  ) => void;
   onEditPreset?: (
     placement: PresetPlacement,
     selection: PresetSelection,
@@ -203,10 +206,14 @@ export function PresetDashboardWidget({
   };
 
   const capture = usePostHogClientCapture();
-  const handleCopyToClipboard = async () => {
+  const handleCopyToClipboard = async (selection: PresetSelection) => {
     try {
       await copyTextToClipboard(
-        JSON.stringify(buildPresetExport(placement.presetId), null, 2),
+        JSON.stringify(
+          buildPresetExport(placement.presetId, selection),
+          null,
+          2,
+        ),
       );
       capture("dashboard:widget_copied_to_clipboard", {
         surface: "grid_menu",
@@ -240,73 +247,76 @@ export function PresetDashboardWidget({
     );
   }
 
-  const duplicate =
-    !readOnly && hasCUDAccess && onDuplicatePreset
-      ? () => onDuplicatePreset(placement)
-      : undefined;
-  const actions: DataCardActions = {
-    buttons:
-      showDuplicateButton && duplicate
-        ? [
-            {
-              id: "duplicate",
-              label: "Duplicate widget",
-              icon: CopyPlusIcon,
-              onClick: duplicate,
-            },
-          ]
-        : [],
-    draggable: !readOnly && (hasCUDAccess || isLockedEditable),
-    menu: [
-      {
-        type: "item",
-        id: "copy",
-        title: "Copy card",
-        icon: CopyIcon,
-        onClick: handleCopyToClipboard,
-      },
-      ...(!showDuplicateButton && duplicate
-        ? [
-            {
-              type: "item" as const,
-              id: "clone",
-              title: "Clone",
-              icon: CopyPlusIcon,
-              onClick: duplicate,
-            },
-          ]
-        : []),
-      ...(!readOnly && (hasCUDAccess || isLockedEditable)
-        ? [
-            { id: "delete-separator", type: "separator" as const },
-            {
-              type: "item" as const,
-              id: "delete",
-              title: "Delete",
-              icon: TrashIcon,
-              variant: "destructive" as const,
-              onClick: handleDelete,
-            },
-          ]
-        : []),
-    ],
+  const actionsForSelection: PresetSelectionActions = (selection) => {
+    const duplicate =
+      !readOnly && hasCUDAccess && onDuplicatePreset
+        ? () => onDuplicatePreset(placement, selection)
+        : undefined;
+    const actions: DataCardActions = {
+      buttons:
+        showDuplicateButton && duplicate
+          ? [
+              {
+                id: "duplicate",
+                label: "Duplicate widget",
+                icon: CopyPlusIcon,
+                onClick: duplicate,
+              },
+            ]
+          : [],
+      draggable: !readOnly && (hasCUDAccess || isLockedEditable),
+      menu: [
+        {
+          type: "item",
+          id: "copy",
+          title: "Copy card",
+          icon: CopyIcon,
+          onClick: () => handleCopyToClipboard(selection),
+        },
+        ...(!showDuplicateButton && duplicate
+          ? [
+              {
+                type: "item" as const,
+                id: "clone",
+                title: "Clone",
+                icon: CopyPlusIcon,
+                onClick: duplicate,
+              },
+            ]
+          : []),
+        ...(!readOnly && (hasCUDAccess || isLockedEditable)
+          ? [
+              { id: "delete-separator", type: "separator" as const },
+              {
+                type: "item" as const,
+                id: "delete",
+                title: "Delete",
+                icon: TrashIcon,
+                variant: "destructive" as const,
+                onClick: handleDelete,
+              },
+            ]
+          : []),
+      ],
+    };
+    return {
+      ...actions,
+      inline: touchActions,
+      buttons: [
+        ...(!readOnly && hasRbacCUDAccess && onEditPreset
+          ? [
+              {
+                id: "edit",
+                label: "Edit widget",
+                icon: PencilIcon,
+                onClick: () => onEditPreset(placement, selection),
+              },
+            ]
+          : []),
+        ...(actions.buttons ?? []),
+      ],
+    };
   };
-  const actionsForSelection: PresetSelectionActions | undefined =
-    hasRbacCUDAccess && onEditPreset
-      ? (selection) => ({
-          ...actions,
-          inline: touchActions,
-          buttons: [
-            {
-              id: "edit",
-              label: "Edit widget",
-              icon: PencilIcon,
-              onClick: () => onEditPreset(placement, selection),
-            },
-            ...(actions.buttons ?? []),
-          ],
-        })
-      : undefined;
 
   return (
     <div
@@ -322,7 +332,7 @@ export function PresetDashboardWidget({
       >
         {renderPreset({
           ...ctx,
-          actions: actionsForSelection?.({}) ?? actions,
+          actions: actionsForSelection({}),
           actionsForSelection,
         })}
       </div>
