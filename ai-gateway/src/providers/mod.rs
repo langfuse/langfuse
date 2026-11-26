@@ -20,7 +20,7 @@ use crate::{
     capture::{ExecutionCapture, RelayOutcome, RequestInput},
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
-    cpu::CpuWork,
+    cpu::{CpuClass, CpuWork},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
     resolution::{
         ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
@@ -255,9 +255,14 @@ impl ProviderTransport {
                         .ok_or(ProviderError::Configuration)?,
                 )
             };
-            RequestInput::parse_on_cpu(&self.cpu, capture_body, reservation)
-                .await
-                .ok_or(ProviderError::Configuration)?
+            RequestInput::parse_on_cpu(
+                &self.cpu,
+                CpuClass::for_context(context),
+                capture_body,
+                reservation,
+            )
+            .await
+            .ok_or(ProviderError::Configuration)?
         } else {
             (RequestInput::omitted(body.len()), reservation)
         };

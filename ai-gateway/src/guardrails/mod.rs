@@ -20,7 +20,7 @@ use tokio::sync::Semaphore;
 use tracing::Instrument;
 
 use crate::{
-    cpu::{CpuJob, CpuWork},
+    cpu::{CpuClass, CpuJob, CpuWork},
     http::ParsedRequest,
     inference::MemoryReservation,
     observability::ErrorOrigin,
@@ -68,7 +68,7 @@ impl Guardrails {
         context: &ResolvedRequestContext,
         request: &ParsedRequest,
     ) -> Result<Outcome, ResolutionError> {
-        if !context.guardrails().iter().any(Guardrail::is_active) {
+        if !context.has_active_guardrails() {
             return Ok(Outcome::default());
         }
         let guardrails: Arc<[Guardrail]> = context.guardrails().into();
@@ -80,15 +80,20 @@ impl Guardrails {
             let check_started = std::time::Instant::now();
             let (turn, finding) = self
                 .cpu
-                .run(CpuJob::FindLastTurn, scanned.len(), {
-                    let body = body.clone();
-                    let scanned = scanned.clone();
-                    move || {
-                        let started = std::time::Instant::now();
-                        let turn = last_turn(api_format, &body, &scanned);
-                        (turn, started.elapsed())
-                    }
-                })
+                .run(
+                    CpuJob::FindLastTurn,
+                    CpuClass::Guardrailed,
+                    scanned.len(),
+                    {
+                        let body = body.clone();
+                        let scanned = scanned.clone();
+                        move || {
+                            let started = std::time::Instant::now();
+                            let turn = last_turn(api_format, &body, &scanned);
+                            (turn, started.elapsed())
+                        }
+                    },
+                )
                 .await
                 .ok_or(ResolutionError::Busy)?;
             let needs_entire_input = guardrails.iter().any(|guardrail| {
@@ -103,7 +108,7 @@ impl Guardrails {
                 .transpose()?;
             let (local, scanning) = self
                 .cpu
-                .run(CpuJob::ScanGuardrails, bytes, {
+                .run(CpuJob::ScanGuardrails, CpuClass::Guardrailed, bytes, {
                     let guardrails = Arc::clone(&guardrails);
                     let budget = Arc::clone(&self.memory_budget);
                     move || {
@@ -310,7 +315,7 @@ pub(crate) struct Guardrail {
 }
 
 impl Guardrail {
-    fn is_active(&self) -> bool {
+    pub(crate) fn is_active(&self) -> bool {
         if self.action == GuardrailAction::Unknown || self.scope == GuardrailScope::Unknown {
             return false;
         }
