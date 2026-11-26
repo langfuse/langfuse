@@ -1884,6 +1884,8 @@ export const coreDataTableExports: Array<
           },
         }),
     }),
+  // Incremental, one object per closed UTC day (see coreDataMediaUsageExport).
+  (args) => exportMediaUsageHourly(args),
 ];
 
 export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
@@ -1903,7 +1905,7 @@ export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
 
   const limit = pLimit(CORE_DATA_EXPORT_TABLE_CONCURRENCY);
   const results = await Promise.allSettled(
-    [...coreDataTableExports, exportMediaUsageHourly].map((exportTable) =>
+    coreDataTableExports.map((exportTable) =>
       limit(() => exportTable({ s3Client, uploadPrefix })),
     ),
   );

@@ -113,16 +113,25 @@ const readMediaUsageWatermark = async (
   return watermark;
 };
 
-const writeMediaUsageWatermark = (
+// Re-reads the stored watermark right before writing and keeps the later
+// value, so a run that is behind an overlapping run never moves it backwards.
+// Returns the watermark in effect afterwards.
+const advanceMediaUsageWatermark = async (
   s3Client: StorageService,
   uploadPrefix: string,
   exportedUntil: Date,
-) =>
-  s3Client.uploadFile({
+): Promise<Date> => {
+  const stored = await readMediaUsageWatermark(s3Client, uploadPrefix);
+  if (stored && stored >= exportedUntil) {
+    return stored;
+  }
+  await s3Client.uploadFile({
     fileName: mediaUsageWatermarkKey(uploadPrefix),
     fileType: "application/json",
     data: JSON.stringify({ exportedUntil: exportedUntil.toISOString() }),
   });
+  return exportedUntil;
+};
 
 // Media rows reference an existing project, so they cannot predate the oldest
 // project.
@@ -332,15 +341,11 @@ export const exportMediaUsageHourly = async ({
 
     const dayEnd = addUtcDays(day, 1);
     if (!exportedUntil || dayEnd > exportedUntil) {
-      // An overlapping run may have moved the watermark further; never move
-      // it back.
-      const stored = await readMediaUsageWatermark(s3Client, uploadPrefix);
-      if (stored && stored >= dayEnd) {
-        exportedUntil = stored;
-      } else {
-        await writeMediaUsageWatermark(s3Client, uploadPrefix, dayEnd);
-        exportedUntil = dayEnd;
-      }
+      exportedUntil = await advanceMediaUsageWatermark(
+        s3Client,
+        uploadPrefix,
+        dayEnd,
+      );
     }
   }
 
