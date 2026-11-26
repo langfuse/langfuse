@@ -248,10 +248,6 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "CODE"
       ? initialDefinition.sourceCodeLanguage
       : "TYPESCRIPT";
-  const initialSourceCode =
-    initialDefinition?.type === "CODE"
-      ? initialDefinition.sourceCode
-      : getDefaultCodeEvalSource(initialSourceCodeLanguage);
 
   const initialPromptMessages =
     initialDefinition?.type === "LLM_AS_JUDGE"
@@ -268,6 +264,10 @@ export function createEvaluatorSetupStore({
     isTraceTranscriptEvalType(type)
       ? TopicsTargetObject
       : EvalTargetObject.EVENT;
+  const initialSourceCode =
+    initialDefinition?.type === "CODE"
+      ? initialDefinition.sourceCode
+      : getDefaultCodeEvalSource(initialSourceCodeLanguage, targetObject);
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
@@ -343,7 +343,20 @@ export function createEvaluatorSetupStore({
               modelParams: null,
             };
           }
-          return { ...target, type };
+          return {
+            ...target,
+            type,
+            ...(type === EvalTemplateTypeEnum.CODE
+              ? {
+                  sourceCode: starterForTarget(
+                    state,
+                    state.sourceCodeLanguage,
+                    state.sourceCode,
+                    state.targetObject,
+                  ),
+                }
+              : {}),
+          };
         }),
       setQuestion: (question) =>
         set((state) => ({

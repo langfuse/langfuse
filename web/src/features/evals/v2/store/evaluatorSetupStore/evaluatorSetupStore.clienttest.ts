@@ -291,6 +291,29 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("starts a new code evaluator on the trace starter when the target is a trace", () => {
+    const opened = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "CODE",
+      initialTargetObject: TopicsTargetObject,
+      mode: "create",
+    });
+    expect(opened.getState().sourceCode).toBe(
+      getDefaultCodeEvalSource("TYPESCRIPT", TopicsTargetObject),
+    );
+
+    const switched = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "LLM_AS_JUDGE",
+      initialTargetObject: TopicsTargetObject,
+      mode: "create",
+    });
+    switched.getState().actions.setType("CODE");
+    expect(switched.getState().sourceCode).toBe(
+      getDefaultCodeEvalSource("TYPESCRIPT", TopicsTargetObject),
+    );
+  });
+
   it("keeps separate starter drafts for TypeScript and Python", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
