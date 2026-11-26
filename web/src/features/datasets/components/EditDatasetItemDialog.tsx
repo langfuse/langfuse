@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Control, useForm, useWatch } from "react-hook-form";
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Form } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -61,6 +61,16 @@ const formSchema = z.object({
   ),
 });
 
+function datasetItemToDefaultValues(
+  datasetItem: DatasetItemDomain,
+): DatasetItemFormValues {
+  return {
+    input: stringifyDatasetItemData(datasetItem.input),
+    expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
+    metadata: stringifyDatasetItemData(datasetItem.metadata),
+  };
+}
+
 /**
  * Submit button isolated from the dialog so schema validation (which depends on
  * the live field values) re-renders only the button as the user types, not the
@@ -107,6 +117,102 @@ const SaveChangesButton = ({
   );
 };
 
+const EditDatasetItemDialogForm = ({
+  projectId,
+  datasetItem,
+  dataset,
+  onOpenChange,
+}: {
+  projectId: string;
+  datasetItem: DatasetItemDomain;
+  dataset: DatasetSchema | null;
+  onOpenChange: (open: boolean) => void;
+}) => {
+  const [formError, setFormError] = useState<string | null>(null);
+  const hasAccess = useHasProjectAccess({
+    projectId: projectId,
+    scope: "datasets:CUD",
+  });
+  const utils = api.useUtils();
+
+  const form = useForm<DatasetItemFormValues, unknown, DatasetItemFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: datasetItemToDefaultValues(datasetItem),
+  });
+
+  const { uploadFile, pendingUploads } = useDatasetItemMediaUpload({
+    projectId,
+    datasetId: datasetItem.datasetId,
+    datasetItemId: datasetItem.id,
+  });
+
+  const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
+    onSuccess: () => {
+      utils.datasets.invalidate();
+      onOpenChange(false);
+    },
+    onError: (error) => setFormError(error.message),
+  });
+
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    updateDatasetItemMutation.mutate({
+      projectId: projectId,
+      datasetId: datasetItem.datasetId,
+      datasetItemId: datasetItem.id,
+      input: values.input,
+      expectedOutput: values.expectedOutput,
+      metadata: values.metadata,
+    });
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Edit Dataset Item</DialogTitle>
+      </DialogHeader>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex h-full flex-col"
+        >
+          <DialogBody>
+            {formError ? (
+              <p className="text-destructive mb-4">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            ) : null}
+            <DatasetItemFields
+              dataset={dataset}
+              editable={hasAccess}
+              projectId={projectId}
+              control={form.control}
+              onUploadMedia={hasAccess ? uploadFile : undefined}
+              pendingUploads={pendingUploads}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={updateDatasetItemMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <SaveChangesButton
+              control={form.control}
+              dataset={dataset}
+              disabled={!form.formState.isDirty || !hasAccess}
+              isPending={updateDatasetItemMutation.isPending}
+              pendingUploads={pendingUploads}
+            />
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
+  );
+};
+
 type EditDatasetItemDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -122,115 +228,22 @@ export const EditDatasetItemDialog = ({
   datasetItem,
   dataset,
 }: EditDatasetItemDialogProps) => {
-  const [formError, setFormError] = useState<string | null>(null);
-  const hasAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "datasets:CUD",
-  });
-  const utils = api.useUtils();
-
-  const form = useForm<DatasetItemFormValues, unknown, DatasetItemFormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      input: "",
-      expectedOutput: "",
-      metadata: "",
-    },
-  });
-
-  const { uploadFile, pendingUploads, resetPendingUploads } =
-    useDatasetItemMediaUpload({
-      projectId,
-      datasetId: datasetItem?.datasetId ?? "",
-      datasetItemId: datasetItem?.id ?? "",
-    });
-
-  const syncFormToDatasetItem = useEffectEvent(() => {
-    if (!datasetItem || !open) {
-      return;
-    }
-    form.reset({
-      input: stringifyDatasetItemData(datasetItem.input),
-      expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
-      metadata: stringifyDatasetItemData(datasetItem.metadata),
-    });
-    setFormError(null);
-    // The hook lives above DialogContent (which unmounts on close), so its
-    // pending uploads would otherwise leak onto the next item's edit dialog.
-    resetPendingUploads();
-  });
-
-  useEffect(() => {
-    syncFormToDatasetItem();
-  }, [datasetItem?.id, open]);
-
-  const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
-    onSuccess: () => {
-      utils.datasets.invalidate();
-      onOpenChange(false);
-    },
-    onError: (error) => setFormError(error.message),
-  });
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!!!datasetItem) return;
-    updateDatasetItemMutation.mutate({
-      projectId: projectId,
-      datasetId: datasetItem.datasetId,
-      datasetItemId: datasetItem.id,
-      input: values.input,
-      expectedOutput: values.expectedOutput,
-      metadata: values.metadata,
-    });
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
-        <DialogHeader>
-          <DialogTitle>Edit Dataset Item</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex h-full flex-col"
-          >
-            <DialogBody>
-              {formError ? (
-                <p className="text-destructive mb-4">
-                  <span className="font-bold">Error:</span> {formError}
-                </p>
-              ) : null}
-              <DatasetItemFields
-                dataset={dataset}
-                editable={hasAccess}
-                projectId={projectId}
-                control={form.control}
-                onUploadMedia={
-                  hasAccess && datasetItem ? uploadFile : undefined
-                }
-                pendingUploads={pendingUploads}
-              />
-            </DialogBody>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={updateDatasetItemMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <SaveChangesButton
-                control={form.control}
-                dataset={dataset}
-                disabled={!form.formState.isDirty || !hasAccess}
-                isPending={updateDatasetItemMutation.isPending}
-                pendingUploads={pendingUploads}
-              />
-            </DialogFooter>
-          </form>
-        </Form>
+        {datasetItem ? (
+          <EditDatasetItemDialogForm
+            key={datasetItem.id}
+            projectId={projectId}
+            datasetItem={datasetItem}
+            dataset={dataset}
+            onOpenChange={onOpenChange}
+          />
+        ) : (
+          <DialogHeader>
+            <DialogTitle>Edit Dataset Item</DialogTitle>
+          </DialogHeader>
+        )}
       </DialogContent>
     </Dialog>
   );
