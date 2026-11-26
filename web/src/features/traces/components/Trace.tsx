@@ -62,6 +62,7 @@ import { ErrorPage } from "@/src/components/ErrorPage";
 import { SessionTracePeek } from "./SessionTracePeek/SessionTracePeek";
 import { type TraceDetailPageListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { useIsSessionTracePeek } from "./SessionTracePeek/SessionTracePeekNavigationProvider";
+import { UiExportsPolicyProvider } from "@/src/ee/features/ui-exports/components/UiExportsPolicyProvider";
 
 export type TraceProps = {
   header: React.ComponentProps<typeof TraceHeader>["header"];
@@ -183,46 +184,50 @@ function ConnectedSessionTrace({
     );
   }
   return (
-    <ViewPreferencesProvider traceContext={context}>
-      <SelectionProvider
-        defaultObservationId={null}
-        isMobile={isMobile}
-        expandDetailOnMount={false}
-      >
-        {!result.data ? (
-          <TraceLoading desktopLayout={desktopLayout} header={header} />
-        ) : (
-          <TraceDataProvider
-            scope={scope}
-            observations={result.data.observations}
-            serverScores={result.data.scores}
-            corrections={result.data.corrections}
-            comments={comments}
-            truncatedAtObservations={
-              result.data.cutoffObservationsAfterMaxCount
-                ? result.data.maxObservationsPerSession
-                : undefined
-            }
-          >
-            <TraceGraphDataProvider
-              projectId={projectId}
-              target={{ type: "session", sessionId }}
+    <UiExportsPolicyProvider
+      disabledReason={result.data?.uiExportsDisabledReason}
+    >
+      <ViewPreferencesProvider traceContext={context}>
+        <SelectionProvider
+          defaultObservationId={null}
+          isMobile={isMobile}
+          expandDetailOnMount={false}
+        >
+          {!result.data ? (
+            <TraceLoading desktopLayout={desktopLayout} header={header} />
+          ) : (
+            <TraceDataProvider
+              scope={scope}
               observations={result.data.observations}
+              serverScores={result.data.scores}
+              corrections={result.data.corrections}
+              comments={comments}
+              truncatedAtObservations={
+                result.data.cutoffObservationsAfterMaxCount
+                  ? result.data.maxObservationsPerSession
+                  : undefined
+              }
             >
-              <SearchProvider>
-                <JsonExpansionProvider>
-                  <TraceContent
-                    desktopLayout={desktopLayout}
-                    header={header}
-                    sessionError={null}
-                  />
-                </JsonExpansionProvider>
-              </SearchProvider>
-            </TraceGraphDataProvider>
-          </TraceDataProvider>
-        )}
-      </SelectionProvider>
-    </ViewPreferencesProvider>
+              <TraceGraphDataProvider
+                projectId={projectId}
+                target={{ type: "session", sessionId }}
+                observations={result.data.observations}
+              >
+                <SearchProvider>
+                  <JsonExpansionProvider>
+                    <TraceContent
+                      desktopLayout={desktopLayout}
+                      header={header}
+                      sessionError={null}
+                    />
+                  </JsonExpansionProvider>
+                </SearchProvider>
+              </TraceGraphDataProvider>
+            </TraceDataProvider>
+          )}
+        </SelectionProvider>
+      </ViewPreferencesProvider>
+    </UiExportsPolicyProvider>
   );
 }
 

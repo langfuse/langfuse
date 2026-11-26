@@ -1018,9 +1018,15 @@ export const sessionRouter = createTRPCRouter({
       z.object({ projectId: z.string(), sessionId: z.string().min(1) }),
     ),
     { resourceType: "session", action: "read", idKey: "sessionId" },
-    async ({ input, audit }) => {
-      const { observations, totalCount } =
-        await getObservationsForSessionFromEventsTable(input);
+    async ({ input, ctx, audit }) => {
+      const [{ observations, totalCount }, uiExportsDisabledReason] =
+        await Promise.all([
+          getObservationsForSessionFromEventsTable(input),
+          getUiExportsDisabledReasonForProject({
+            prisma: ctx.prisma,
+            projectId: input.projectId,
+          }),
+        ]);
       const traceStartTimes = new Map<string, number>();
       for (const observation of observations) {
         if (!observation.traceId) continue;
@@ -1072,6 +1078,7 @@ export const sessionRouter = createTRPCRouter({
         cutoffObservationsAfterMaxCount:
           totalCount > MAX_OBSERVATIONS_PER_SESSION,
         maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
+        uiExportsDisabledReason,
       };
     },
   ),

@@ -314,5 +314,14 @@ describe("uiExports tRPC", () => {
     expect(sessionResult.uiExportsDisabledReason).toBe(
       "UI exports are disabled for this organization.",
     );
+
+    const unifiedSessionResult =
+      await anonCaller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+    expect(unifiedSessionResult.uiExportsDisabledReason).toBe(
+      "UI exports are disabled for this organization.",
+    );
   });
 });
