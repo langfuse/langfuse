@@ -184,6 +184,12 @@ export default async function handler(
         status = 400;
       }
 
+      // The MCP server has no OAuth discovery, so the challenge header is how
+      // a client learns that it must send Basic auth.
+      if (status === 401) {
+        res.setHeader("WWW-Authenticate", 'Basic realm="Langfuse MCP"');
+      }
+
       res.status(status).json({
         error: mcpError.message,
         code: mcpError.code,
