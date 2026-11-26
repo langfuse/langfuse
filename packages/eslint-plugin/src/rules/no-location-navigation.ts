@@ -25,9 +25,7 @@ function isUnboundIdentifier(
 
 function isLocationObject(node: TSESTree.Node, context: RuleContext): boolean {
   if (node.type === AST_NODE_TYPES.Identifier) {
-    return (
-      node.name === "location" && isUnboundIdentifier(node, context)
-    );
+    return node.name === "location" && isUnboundIdentifier(node, context);
   }
   if (node.type !== AST_NODE_TYPES.MemberExpression || node.computed) {
     return false;
