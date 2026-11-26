@@ -61,12 +61,12 @@ import {
 import {
   tooltipPlacement,
   type TooltipPlacement,
-} from "../../fns/timeline/tooltipPlacement";
+} from "../fns/tooltipPlacement";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
-import { type Density, type PointerModality } from "../../fns/timeline/density";
+import { type Density, type PointerModality } from "../fns/density";
 import {
   formatDurationMs,
   layout,
@@ -75,17 +75,17 @@ import {
   timeCompressionFor,
   type LayoutNode,
   type PositionedNode,
-} from "../../fns/timeline/layout";
-import { packCompactLanes } from "../../fns/timeline/compactLanes";
-import { sessionIdleCompression } from "../../fns/timeline/sessionIdleCompression";
+} from "../fns/layout";
+import { packCompactLanes } from "../fns/compactLanes";
+import { sessionIdleCompression } from "../fns/sessionIdleCompression";
 import {
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
-import { collapsedForSearch } from "../../fns/timeline/searchMatches";
-import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
-import { resolveBarTones } from "../../fns/timeline/barContrast";
-import { traceSpaceOf, type Box } from "../../fns/timeline/viewTransform";
+import { collapsedForSearch } from "../fns/searchMatches";
+import { createTextMeasurer } from "../fns/textMeasurer";
+import { resolveBarTones } from "../fns/barContrast";
+import { traceSpaceOf, type Box } from "../fns/viewTransform";
 import {
   HUMAN_ROW_HEIGHT,
   anchorTimeToRows,
@@ -108,7 +108,7 @@ import {
   zoomViewportRevealLabels,
   type RowExtent,
   type Viewport,
-} from "../../fns/timeline/viewport";
+} from "../fns/viewport";
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {

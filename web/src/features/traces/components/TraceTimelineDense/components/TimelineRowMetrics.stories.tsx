@@ -1,9 +1,9 @@
 import { expect } from "storybook/test";
-import preview from "../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { TimelineRowMetrics } from "./TimelineRowMetrics";
-import { createTextMeasurer } from "../../fns/timeline/textMeasurer";
-import { resolveDensity } from "../../fns/timeline/density";
-import { type PositionedNode } from "../../fns/timeline/layout";
+import { createTextMeasurer } from "../fns/textMeasurer";
+import { resolveDensity } from "../fns/density";
+import { type PositionedNode } from "../fns/layout";
 
 const LANE = 640;
 
@@ -65,7 +65,7 @@ const meta = preview.meta({
   decorators: [
     (Story) => (
       <div
-        className="bg-background relative h-[26px] w-[640px] rounded border"
+        className="bg-background relative h-[26px] w-full rounded border"
         style={{ fontFamily: "sans-serif" }}
       >
         <Story />

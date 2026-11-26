@@ -12,15 +12,15 @@
 
 import { useCallback, useState } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
-import { type RowMetrics } from "./TimelineRowMetrics";
+import { type RowMetrics } from "./components/TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
-import { detectPointerModality } from "../../fns/timeline/density";
-import { TimelineDense } from "./TimelineDense";
+import { detectPointerModality } from "./fns/density";
+import { TimelineDense } from "./components/TimelineDense";
 
 export function TraceTimelineCompact() {
   const { roots, nodeMap } = useTraceData();

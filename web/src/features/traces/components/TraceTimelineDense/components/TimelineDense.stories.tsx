@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor } from "storybook/test";
-import preview from "../../../../../.storybook/preview";
+import preview from "../../../../../../.storybook/preview";
 import { TimelineDense, type TimelineDenseProps } from "./TimelineDense";
+import { type Box } from "../fns/viewTransform";
 import {
   deepNesting,
   streamingSpan,
@@ -9,10 +10,50 @@ import {
   reporterTrace,
   threeSpans,
   longTailTrace,
-} from "../../fns/timeline/__tests__/timelineV2.fixtures";
+} from "../fns/__tests__/timelineV2.fixtures";
+
+/**
+ * In the Storybook canvas the chart fills the preview, so resizing the
+ * browser resizes the timeline. The play tests keep the box from the story
+ * args, because those sizes are what the gestures assert against.
+ */
+function TimelineStory(props: TimelineDenseProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const testing = import.meta.env.VITEST_STORYBOOK !== undefined;
+  const [box, setBox] = useState<Box | null>(testing ? props.box : null);
+
+  useEffect(() => {
+    if (testing) return;
+    const node = host.current;
+    if (!node) return;
+    const apply = () => {
+      if (node.clientWidth > 0 && node.clientHeight > 0) {
+        setBox({ width: node.clientWidth, height: node.clientHeight });
+      }
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [testing]);
+
+  return (
+    <div ref={host} className="h-dvh w-full">
+      {box ? (
+        <TimelineDense
+          {...props}
+          box={box}
+          showReadout={testing ? props.showReadout : false}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 const meta = preview.meta({
   component: TimelineDense,
+  parameters: { layout: "fullscreen" },
+  render: (args) => <TimelineStory {...args} />,
 });
 
 /**
@@ -1207,7 +1248,7 @@ function WithLateRows(props: TimelineDenseProps) {
       <button type="button" onClick={() => setRoots(props.roots)}>
         load rows
       </button>
-      <TimelineDense {...props} roots={roots} />
+      <TimelineStory {...props} roots={roots} />
     </div>
   );
 }
@@ -2628,7 +2669,7 @@ function sessionRoots(
 function CompactToggleStory(props: TimelineDenseProps) {
   const [rowLayout, setRowLayout] = useState<"tree" | "compact">("tree");
   return (
-    <TimelineDense
+    <TimelineStory
       {...props}
       rowLayout={rowLayout}
       onRowLayoutChange={setRowLayout}
