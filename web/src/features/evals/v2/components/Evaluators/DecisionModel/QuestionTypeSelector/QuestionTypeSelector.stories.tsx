@@ -55,6 +55,42 @@ export const KeepsTheTypeWhenTheInfoIconIsPressed = meta.story({
   },
 });
 
+export const DescribesEachTypeWithoutRenamingItsTab = meta.story({
+  name: "(Test) Describes each type without renaming its tab",
+  args: {
+    value: DecisionModelQuestionType.CHOICE,
+    onValueChange: fn(),
+  },
+  play: async ({ canvas }) => {
+    const choice = canvas.getByRole("tab", { selected: true });
+
+    await expect(choice).toHaveAccessibleName("Choice");
+    await expect(choice).toHaveAccessibleDescription(
+      expect.stringContaining("Writes a categorical score."),
+    );
+  },
+});
+
+export const ArrowKeysMoveFocusWithoutSelecting = meta.story({
+  name: "(Test) Arrow keys move focus without selecting",
+  args: {
+    value: DecisionModelQuestionType.SCORE,
+    onValueChange: fn(),
+  },
+  play: async ({ args, canvas, userEvent }) => {
+    canvas.getByRole("tab", { selected: true }).focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    await expect(args.onValueChange).not.toHaveBeenCalled();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect(args.onValueChange).toHaveBeenCalledWith(
+      DecisionModelQuestionType.NOUL,
+    );
+  },
+});
+
 export const Disabled = meta.story({
   args: {
     value: DecisionModelQuestionType.SCORE,

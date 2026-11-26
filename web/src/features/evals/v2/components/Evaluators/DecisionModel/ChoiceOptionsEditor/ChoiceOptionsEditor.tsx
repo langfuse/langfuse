@@ -85,7 +85,7 @@ export function ChoiceOptionsEditor({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="hover:text-destructive opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100"
+                  className="hover:text-destructive opacity-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:hover)]:opacity-0"
                   disabled={!canRemove}
                   onClick={() => remove(index)}
                   title={

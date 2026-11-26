@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
@@ -57,7 +58,8 @@ const ORDER: DecisionModelQuestionType[] = [
 
 /**
  * Picks the question type. Each option's info icon says what it does, gives an
- * example and when to use it.
+ * example and when to use it; the same text describes its tab to assistive
+ * technology.
  */
 export function QuestionTypeSelector({
   value,
@@ -68,8 +70,11 @@ export function QuestionTypeSelector({
   onValueChange: (value: DecisionModelQuestionType) => void;
   disabled?: boolean;
 }) {
+  const helpIdPrefix = useId();
+
   return (
     <Tabs
+      activationMode="manual"
       value={value}
       onValueChange={(next) => onValueChange(next as DecisionModelQuestionType)}
     >
@@ -77,11 +82,17 @@ export function QuestionTypeSelector({
         {ORDER.map((type) => {
           const copy = QUESTION_TYPE_COPY[type];
           return (
-            <Tabs.Trigger key={type} value={type} disabled={disabled}>
+            <Tabs.Trigger
+              key={type}
+              value={type}
+              disabled={disabled}
+              aria-describedby={`${helpIdPrefix}-${type}`}
+            >
               {copy.label}
               {/* Keeps a press on the info icon from selecting the tab. */}
               <span
                 role="presentation"
+                aria-hidden="true"
                 className="inline-flex"
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -103,6 +114,14 @@ export function QuestionTypeSelector({
           );
         })}
       </Tabs.List>
+      {ORDER.map((type) => {
+        const copy = QUESTION_TYPE_COPY[type];
+        return (
+          <span key={type} id={`${helpIdPrefix}-${type}`} className="sr-only">
+            {`${copy.summary} e.g. “${copy.example}” Writes ${copy.writes}. ${copy.whenToUse}`}
+          </span>
+        );
+      })}
     </Tabs>
   );
 }
