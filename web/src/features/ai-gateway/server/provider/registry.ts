@@ -80,7 +80,23 @@ export const GatewayResolveSpendLimitsSchema = z.array(
     .strict(),
 );
 
-const GatewayResolveGuardrailActionSchema = z.enum(["block", "log"]);
+const GatewayResolveGuardrailActionSchema = z.enum([
+  "block",
+  "log",
+  "redact",
+  "enforce",
+]);
+export type GatewayResolveGuardrailAction = z.infer<
+  typeof GatewayResolveGuardrailActionSchema
+>;
+
+const GatewayResolveGuardrailScopeSchema = z.enum([
+  "last_turn",
+  "entire_input",
+]);
+export type GatewayResolveGuardrailScope = z.infer<
+  typeof GatewayResolveGuardrailScopeSchema
+>;
 
 const GatewayRegexResolveGuardrailSchema = z
   .object({
@@ -88,8 +104,10 @@ const GatewayRegexResolveGuardrailSchema = z
     name: z.string(),
     type: z.literal("regex"),
     action: GatewayResolveGuardrailActionSchema,
+    scope: GatewayResolveGuardrailScopeSchema.optional(),
     // Regex patterns; the guardrail matches when any of them does.
     patterns: z.array(z.string()),
+    redaction_label: z.string().min(1).optional(),
   })
   .strict();
 
@@ -99,6 +117,7 @@ const GatewayFailClosedGuardrailSchema = z
     name: z.string(),
     type: z.literal("fail_closed"),
     action: GatewayResolveGuardrailActionSchema,
+    scope: GatewayResolveGuardrailScopeSchema.optional(),
     // Sent empty so gateways predating external guardrails decode and skip it.
     patterns: z.tuple([]),
   })
@@ -118,6 +137,7 @@ export const GatewayCachedGuardrailsSchema = z.array(
         name: z.string(),
         type: z.literal("bedrock"),
         action: GatewayResolveGuardrailActionSchema,
+        scope: GatewayResolveGuardrailScopeSchema.optional(),
         guardrail_id: z.string(),
         guardrail_version: z.string(),
         region: z.string(),
@@ -141,6 +161,7 @@ const GatewayResolveGuardrailsSchema = z.array(
         name: z.string(),
         type: z.literal("bedrock"),
         action: GatewayResolveGuardrailActionSchema,
+        scope: GatewayResolveGuardrailScopeSchema.optional(),
         // Sent empty so gateways predating external guardrails decode and skip it.
         patterns: z.tuple([]),
         guardrail_id: z.string(),
