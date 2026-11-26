@@ -2667,7 +2667,8 @@ function sessionRoots(
 }
 
 function CompactToggleStory(props: TimelineProps) {
-  const [rowLayout, setRowLayout] = useState<"tree" | "compact">("tree");
+  // Sessions open compact. The switch still flips back to one row per span.
+  const [rowLayout, setRowLayout] = useState<"tree" | "compact">("compact");
   return (
     <TimelineStory
       {...props}
@@ -2704,6 +2705,10 @@ export const CompactPacksSequentialSession = meta.story({
     roots: sessionRoots(24),
   },
   play: async ({ canvas }) => {
+    // A session opens packed: 24 traces × 3 levels is 72 tree rows, 3 lanes.
+    await waitFor(() => {
+      expect(canvas.getByTestId("dense-rows").textContent).toContain("of 3");
+    });
     const before = canvas.getByTestId("dense-rows").textContent;
     await userEvent.click(
       canvas.getByRole("switch", { name: "Compact layout" }),
@@ -2711,8 +2716,7 @@ export const CompactPacksSequentialSession = meta.story({
     await waitFor(() => {
       const after = canvas.getByTestId("dense-rows").textContent;
       if (after === before) throw new Error("row count did not change");
-      // 24 traces × 3 levels is 72 tree rows; compact packs them into 3 lanes.
-      expect(after).toContain("of 3");
+      expect(after).not.toContain("of 3");
     });
   },
 });

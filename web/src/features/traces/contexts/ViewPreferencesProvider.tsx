@@ -71,9 +71,6 @@ interface ViewPreferencesContextValue {
   /** Whether long system prompts render with their section collapsed */
   collapseSystemPrompt: boolean;
   setCollapseSystemPrompt: (value: boolean) => void;
-  /** Timeline rows: one per span, or packed like a flamegraph. */
-  timelineCompact: boolean;
-  setTimelineCompact: (value: boolean) => void;
 }
 
 const ViewPreferencesContext =
@@ -151,10 +148,6 @@ export function ViewPreferencesProvider({
   // instances sync via useLocalStorage's localStorageChange events.
   const [collapseSystemPrompt, setCollapseSystemPrompt] =
     useCollapseSystemPromptPreference();
-  const [timelineCompact, setTimelineCompact] = useLocalStorage(
-    "timelineCompactLayout",
-    false,
-  );
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -183,8 +176,6 @@ export function ViewPreferencesProvider({
       setJsonBetaEnabled,
       collapseSystemPrompt,
       setCollapseSystemPrompt,
-      timelineCompact,
-      setTimelineCompact,
     }),
     [
       showDuration,
@@ -212,8 +203,6 @@ export function ViewPreferencesProvider({
       setJsonBetaEnabled,
       collapseSystemPrompt,
       setCollapseSystemPrompt,
-      timelineCompact,
-      setTimelineCompact,
     ],
   );
 

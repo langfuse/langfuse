@@ -1,5 +1,5 @@
 /**
- * TraceTimeline, wired into the trace panel, wired into the trace panel.
+ * TraceTimeline, wired into the trace panel.
  *
  * This is the container half: it measures the box it has been given and hands
  * that to the renderer, and it connects the renderer's selection and hover to
@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useState } from "react";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { type RowMetrics } from "./components/Timeline/components/TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
@@ -23,13 +24,25 @@ import { detectPointerModality } from "./fns/density";
 import { Timeline } from "./components/Timeline/Timeline";
 
 export function TraceTimeline() {
-  const { roots, nodeMap } = useTraceData();
+  const { roots, nodeMap, scope } = useTraceData();
   const { selectedNodeId, collapsedNodes, selectionLocked } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
   // worse than no toggle.
-  const { showDuration, showCostTokens, timelineCompact, setTimelineCompact } =
-    useViewPreferences();
+  const { showDuration, showCostTokens } = useViewPreferences();
+  const isSession = scope.type === "session";
+  // A session and a single trace remember the switch separately. A session
+  // opens compact until the user says otherwise; a trace opens one row per span.
+  const [traceCompact, setTraceCompact] = useLocalStorage(
+    "timelineCompactLayout",
+    false,
+  );
+  const [sessionCompact, setSessionCompact] = useLocalStorage(
+    "timelineCompactLayoutSession",
+    true,
+  );
+  const timelineCompact = isSession ? sessionCompact : traceCompact;
+  const setTimelineCompact = isSession ? setSessionCompact : setTraceCompact;
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
