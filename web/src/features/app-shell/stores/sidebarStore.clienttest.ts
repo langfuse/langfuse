@@ -21,12 +21,12 @@ function setup(initial: Record<string, string> = {}) {
 }
 
 describe("desktop expansion preference", () => {
-  it("starts as an icon rail without a stored preference or available storage", () => {
-    expect(setup().store.getState().isExpanded).toBe(false);
+  it("starts expanded without a stored preference or available storage", () => {
+    expect(setup().store.getState().isExpanded).toBe(true);
     expect(
       createSidebarStore({ storage: null, isMobile: false }).getState()
         .isExpanded,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("carries over collapsed classic and unpinned preview preferences as a rail", () => {
@@ -80,12 +80,12 @@ describe("desktop expansion preference", () => {
     const { store, storage, actions } = setup();
 
     actions.toggleFromShortcut("desktop");
-    expect(store.getState().isExpanded).toBe(true);
-    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
-
-    actions.toggleFromShortcut("desktop");
     expect(store.getState().isExpanded).toBe(false);
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("false");
+
+    actions.toggleFromShortcut("desktop");
+    expect(store.getState().isExpanded).toBe(true);
+    expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBe("true");
   });
 });
 
@@ -97,7 +97,7 @@ describe("transient navigation", () => {
     actions.toggleFromShortcut("mobile");
     expect(store.getState()).toMatchObject({
       isMobileOpen: true,
-      isExpanded: false,
+      isExpanded: true,
       activeMenu: null,
     });
     actions.setActiveMenu("organization");
@@ -105,7 +105,7 @@ describe("transient navigation", () => {
     expect(store.getState()).toMatchObject({
       isMobileOpen: false,
       activeMenu: null,
-      isExpanded: false,
+      isExpanded: true,
     });
     expect(storage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY)).toBeNull();
   });
