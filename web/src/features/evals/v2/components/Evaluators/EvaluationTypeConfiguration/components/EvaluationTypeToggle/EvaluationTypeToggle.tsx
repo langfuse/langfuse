@@ -15,16 +15,22 @@ const evaluationTypes = [
     value: EvalTemplateTypeEnum.LLM_AS_JUDGE,
     label: "LLM-as-a-judge",
     icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.LLM_AS_JUDGE),
+    tooltip:
+      "When the check needs judgment, such as rating helpfulness, tone, or answer quality.",
   },
   {
     value: EvalTemplateTypeEnum.CODE,
     label: "Code evaluator",
     icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.CODE),
+    tooltip:
+      "For deterministic checks like exact matches, regex, or schema validation.",
   },
   {
     value: EvalTemplateTypeEnum.DECISION_MODEL,
     label: "Decision model",
     icon: getEvaluatorMethodIcon(EvalTemplateTypeEnum.DECISION_MODEL),
+    tooltip:
+      "For a fast, cheap label with calibrated probabilities when the possible answers are known upfront.",
   },
 ] as const;
 
@@ -81,13 +87,14 @@ export function EvaluationTypeToggle({
           onValueChange={(mode) => onValueChange(mode as EvalTemplateType)}
         >
           <Tabs.List variant="inset" size="md">
-            {visibleTypes.map(({ value: typeValue, label, icon }) => (
+            {visibleTypes.map(({ value: typeValue, label, icon, tooltip }) => (
               <Tabs.Trigger
                 key={typeValue}
                 value={typeValue}
                 disabled={disabled}
                 icon={icon}
                 label={label}
+                tooltip={tooltip}
               />
             ))}
           </Tabs.List>

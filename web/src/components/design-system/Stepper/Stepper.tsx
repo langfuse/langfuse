@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { Check, ChevronDown, Info } from "@langfuse/icons";
 
-import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 const markerVariants = cva(
@@ -66,8 +66,8 @@ const descriptionVariants = cva("text-muted-foreground", {
 type StepperProps = {
   number: number;
   title: string;
-  /** Shown in an info tooltip in the header, outside the collapse control. Text, or a short list. */
-  tooltip?: ReactNode;
+  /** Shown in an info tooltip beside the title, outside the collapse control. */
+  tooltipText?: string;
   description?: ReactNode;
   /**
    * A control after the title; stays visible when collapsed. The title then
@@ -106,7 +106,7 @@ type StepperProps = {
 export function Stepper({
   number,
   title,
-  tooltip,
+  tooltipText,
   description,
   headerEnd,
   variant = "filled",
@@ -174,15 +174,8 @@ export function Stepper({
           ) : (
             <span className={titleClassName}>{title}</span>
           )}
-          {headerEnd ? (
-            <div className="-my-1 ml-0.5 flex shrink-0 items-center">
-              {headerEnd}
-            </div>
-          ) : null}
-          {tooltip ? (
-            <CustomTooltip
-              content={<div className="whitespace-pre-line">{tooltip}</div>}
-            >
+          {tooltipText ? (
+            <Tooltip label={tooltipText}>
               {({ getTriggerProps }) => (
                 <button
                   {...getTriggerProps()}
@@ -193,7 +186,12 @@ export function Stepper({
                   <Info aria-hidden size="base" color="muted" />
                 </button>
               )}
-            </CustomTooltip>
+            </Tooltip>
+          ) : null}
+          {headerEnd ? (
+            <div className="-my-1 ml-0.5 flex shrink-0 items-center">
+              {headerEnd}
+            </div>
           ) : null}
         </div>
         {expanded && hasBody ? (
