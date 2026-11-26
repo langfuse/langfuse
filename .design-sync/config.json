@@ -357,6 +357,9 @@
     },
     "LangfuseWordmark": {
       "cardMode": "column"
+    },
+    "OverflowList": {
+      "cardMode": "column"
     }
   },
   "extraFonts": [
@@ -366,18 +369,14 @@
     "ChartTooltip": null,
     "dropdown-menu": null,
     "mobile-page-actions-content": "MobilePageActionsContent",
-    "MarkdownViewer": "MarkdownView",
     "drawer": "Drawer",
     "SortableList": null
   },
   "readmeHeader": ".design-sync/conventions.md",
   "storyImports": {
     "shim": [
-      "/components/ui/ai-assisted-input.tsx",
       "/components/ui/sidebar.tsx",
-      "/components/ui/drawer.tsx",
-      "/components/ui/MarkdownViewer.tsx",
-      "/components/grouped-score-badge.tsx"
+      "/components/ui/drawer.tsx"
     ]
   }
 }

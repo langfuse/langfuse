@@ -131,7 +131,10 @@ export function storybookStubPlugin() {
     name: "sb-stub",
     setup(b) {
       b.onResolve(
-        { filter: /^(@storybook\/|storybook(\/|$)|msw(\/|$)|@mswjs\/)/ },
+        {
+          filter:
+            /^(@storybook\/|storybook(\/|$)|msw(\/|$)|@mswjs\/|vitest(\/|$))/,
+        },
         (a) => ({ path: a.path, namespace: "sb-stub" }),
       );
       b.onLoad({ filter: /.*/, namespace: "sb-stub" }, (a) => ({
