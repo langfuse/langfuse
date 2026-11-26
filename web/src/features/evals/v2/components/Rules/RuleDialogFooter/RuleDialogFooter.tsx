@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { Button } from "@/src/components/ui/button";
 import { DialogFooter } from "@/src/components/ui/dialog";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { needsTraceMapping } from "@/src/features/evals/v2/fns/rules/traceTranscriptAssignments";
 import {
   type createRuleSetupStore,
   isRuleDraftDirty,
@@ -29,7 +31,20 @@ export function RuleDialogFooter({
 }) {
   const name = useStore(ruleSetupStore, (state) => state.name);
   const dirty = useStore(ruleSetupStore, isRuleDraftDirty);
+  const unmappedTraceEvaluator = useStore(ruleSetupStore, (state) =>
+    state.targetObject === TopicsTargetObject
+      ? (state.assignments.find(needsTraceMapping)?.evaluatorName ?? null)
+      : null,
+  );
   const nameMissing = !name.trim();
+  const nameBlocksSave = nameMissing && !nameAIAssistanceAvailable;
+  const mappingBlockedReason =
+    unmappedTraceEvaluator === null
+      ? null
+      : `Map every variable of ${unmappedTraceEvaluator} to trace messages before saving.`;
+  const blockedReason = nameBlocksSave
+    ? "Add a rule name before saving."
+    : mappingBlockedReason;
   const saveButton = (
     <Button
       type="button"
@@ -40,15 +55,11 @@ export function RuleDialogFooter({
       disabled={
         !canEdit ||
         (isEditing && !dirty) ||
-        (nameMissing && !nameAIAssistanceAvailable) ||
+        blockedReason !== null ||
         mutationPending ||
         nameGenerationPending
       }
-      className={
-        nameMissing && !nameAIAssistanceAvailable
-          ? "pointer-events-none"
-          : undefined
-      }
+      className={blockedReason === null ? undefined : "pointer-events-none"}
       onClick={onSave}
     >
       {isEditing ? "Save changes" : "Save and activate"}
@@ -60,8 +71,8 @@ export function RuleDialogFooter({
       <Button type="button" variant="outline" onClick={onCancel}>
         {dirty ? "Cancel" : "Close"}
       </Button>
-      {nameMissing && !nameAIAssistanceAvailable && canEdit ? (
-        <Tooltip label="Add a rule name before saving.">
+      {blockedReason !== null && canEdit ? (
+        <Tooltip label={blockedReason}>
           {({ getTriggerProps }) => (
             <span
               {...getTriggerProps()}

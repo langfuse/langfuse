@@ -14,7 +14,7 @@ import {
   CHART_TRANSITION_DURATION,
 } from "@/src/components/design-system/charts/constants";
 
-export type PieChartDatum = {
+type PieChartDatum = {
   label: string;
   value: number;
 };

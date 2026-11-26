@@ -1,4 +1,9 @@
-import { stableJsonStringify, type FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  stableJsonStringify,
+  TopicsTargetObject,
+  type FilterState,
+} from "@langfuse/shared";
 
 function conditionKey(condition: FilterState[number]) {
   const value = Array.isArray(condition.value)
@@ -18,8 +23,17 @@ export function filtersMatch(left: FilterState, right: FilterState) {
   return filterStateKey(left) === filterStateKey(right);
 }
 
-export function fallbackRuleName(filter: FilterState) {
-  if (filter.length === 0) return "All observations";
+export function fallbackRuleName(
+  filter: FilterState,
+  targetObject:
+    | EvalTargetObject
+    | typeof TopicsTargetObject = EvalTargetObject.EVENT,
+) {
+  if (filter.length === 0) {
+    return targetObject === TopicsTargetObject
+      ? "All traces"
+      : "All observations";
+  }
 
   return filter
     .map((condition) => {

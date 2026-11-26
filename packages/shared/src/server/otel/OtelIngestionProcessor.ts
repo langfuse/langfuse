@@ -1,4 +1,4 @@
-/* oxlint-disable prefer-promise-reject-errors -- baseline before rule enablement */
+/* oxlint-disable prefer-promise-reject-errors, radix -- baseline before rule enablement */
 /* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { extractSkillsFromObservation } from "../ingestion/extractSkillsBackend";
@@ -132,6 +132,11 @@ export interface OtelIngestionProcessorConfig {
    * log line points at the replayable payload.
    */
   fileKey?: string;
+  /**
+   * ISO time given to every span of the batch that has neither a start nor an
+   * end time. Defaults to the time the span is converted.
+   */
+  fallbackTime?: string;
 }
 
 interface MetadataDropContext {
@@ -342,6 +347,7 @@ export class OtelIngestionProcessor {
   private readonly ingestionVersion?: string;
   private readonly isLangfuseInternal?: boolean;
   private readonly fileKey?: string;
+  private readonly fallbackTime?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
@@ -357,6 +363,7 @@ export class OtelIngestionProcessor {
     this.ingestionVersion = config.ingestionVersion;
     this.isLangfuseInternal = config.isLangfuseInternal;
     this.fileKey = config.fileKey;
+    this.fallbackTime = config.fallbackTime;
   }
 
   /**
@@ -453,6 +460,7 @@ export class OtelIngestionProcessor {
                   {
                     startTimeUnixNano: span.startTimeUnixNano,
                     endTimeUnixNano: span.endTimeUnixNano,
+                    fallbackTime: this.fallbackTime,
                   },
                 );
                 if (!timestamps) continue;
@@ -1040,6 +1048,7 @@ export class OtelIngestionProcessor {
     const timestamps = OtelIngestionProcessor.resolveSpanTimestamps({
       startTimeUnixNano: span.startTimeUnixNano,
       endTimeUnixNano: span.endTimeUnixNano,
+      fallbackTime: this.fallbackTime,
     });
     if (!timestamps) return events;
     const { startTimeISO, endTimeISO } = timestamps;
@@ -4193,13 +4202,15 @@ export class OtelIngestionProcessor {
 
   /**
    * Ensure a stable time range for spans even if a timestamp is missing.
-   * If one edge is missing, use the other edge. If both are missing, use current time.
+   * If one edge is missing, use the other edge. If both are missing, use the
+   * batch's fallback time, or the current time when none was given.
    * Returns undefined when an edge lies outside years 0000-9999: ClickHouse
    * cannot store such a time, so the caller drops the span.
    */
   private static resolveSpanTimestamps(params: {
     startTimeUnixNano?: NanoTimestamp;
     endTimeUnixNano?: NanoTimestamp;
+    fallbackTime?: string;
   }): { startTimeISO: string; endTimeISO: string } | undefined {
     const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
       params.startTimeUnixNano,
@@ -4209,7 +4220,7 @@ export class OtelIngestionProcessor {
       params.endTimeUnixNano,
       "end_time",
     );
-    const fallbackISO = new Date().toISOString();
+    const fallbackISO = params.fallbackTime ?? new Date().toISOString();
 
     if (!startTimeISO && endTimeISO) {
       OtelIngestionProcessor.recordConversionFailure(

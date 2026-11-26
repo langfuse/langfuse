@@ -1,7 +1,7 @@
 /**
  * The steps every dashboard view query shares, whether it compiles through
  * the query AST (the v2 observations and score views) or is assembled as SQL
- * text (`QueryBuilder.buildSqlText`): mapping a query's dimensions, metrics,
+ * text (`buildSqlText`, `sqlTextQuery.ts`): mapping a query's dimensions, metrics,
  * bucket and order by onto a view declaration, and validating its filters and
  * relations, all throwing `InvalidRequestError` for what the view rejects.
  * The AST-only steps build the outer select, its `group by … order by …
@@ -241,7 +241,7 @@ export function assertKnownRelationTables(
   relationTables: Iterable<string>,
 ) {
   for (const relationTable of relationTables) {
-    if (!(relationTable in view.tableRelations)) {
+    if (!Object.hasOwn(view.tableRelations, relationTable)) {
       throw new InvalidRequestError(
         `Invalid relationTable: ${relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
       );
@@ -287,8 +287,9 @@ export function filterDimensionName(
   column: string,
   dimensions: Readonly<Record<string, unknown>>,
 ): string | undefined {
-  if (column in dimensions) return column;
-  if (column.endsWith("Name") && "name" in dimensions) return "name";
+  if (Object.hasOwn(dimensions, column)) return column;
+  if (column.endsWith("Name") && Object.hasOwn(dimensions, "name"))
+    return "name";
   return undefined;
 }
 
@@ -336,7 +337,7 @@ export function applyBucketingDimension(
     // broader join paths or propagation behavior here.
     if (
       dimension.relationTable &&
-      !(dimension.relationTable in view.tableRelations)
+      !Object.hasOwn(view.tableRelations, dimension.relationTable)
     ) {
       throw new InvalidRequestError(
         `Invalid relationTable for entity dimension ${field}: ${dimension.relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
@@ -364,7 +365,9 @@ function getEntityDimensionDefinition(
   view: ViewDeclarationType,
   field: string,
 ) {
-  const dimension = view.dimensions[field];
+  const dimension = Object.hasOwn(view.dimensions, field)
+    ? view.dimensions[field]
+    : undefined;
   if (!dimension) {
     throw new InvalidRequestError(
       `Invalid entity dimension: ${field}. Must be one of ${Object.keys(view.dimensions)}`,
@@ -389,7 +392,7 @@ export function mapDimensions(
   view: ViewDeclarationType,
 ): AppliedDimensionType[] {
   return dimensions.map((dimension) => {
-    if (!(dimension.field in view.dimensions)) {
+    if (!Object.hasOwn(view.dimensions, dimension.field)) {
       throw new InvalidRequestError(
         `Invalid dimension ${dimension.field}. Must be one of ${Object.keys(view.dimensions)}`,
       );
@@ -413,7 +416,7 @@ export function mapMetrics(
   view: ViewDeclarationType,
 ): AppliedMetricType[] {
   return metrics.map((metric) => {
-    if (!(metric.measure in view.measures)) {
+    if (!Object.hasOwn(view.measures, metric.measure)) {
       throw new InvalidRequestError(
         `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
       );
@@ -962,7 +965,7 @@ function astOuterMetrics<DB, TB extends keyof DB>(
 }
 
 /**
- * `QueryBuilder.translateAggregation` of `value`; a histogram has `bins`
+ * `translateAggregation` (`sqlTextQuery.ts`) of `value`; a histogram has `bins`
  * bins (default 10).
  */
 function astAggregate<DB, TB extends keyof DB>(

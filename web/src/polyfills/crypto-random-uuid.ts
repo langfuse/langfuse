@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from "uuid";
  * `@/src/utils/safe-random-uuid` over `crypto.randomUUID()` — it does not
  * depend on this polyfill having run.
  */
+/** @knipignore Lets unit tests install the polyfill on an isolated crypto object. */
 export function installCryptoRandomUUIDPolyfill(
   // Structural type so the uuid-backed fallback (plain `string`) is
   // assignable — `Crypto["randomUUID"]` returns a template-literal type.

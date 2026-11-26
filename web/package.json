@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.86.0",
+  "version": "4.87.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -58,6 +58,7 @@
     "@ferrucc-io/emoji-picker": "^0.1.2",
     "@floating-ui/react": "0.27.20",
     "@hookform/resolvers": "^5.2.2",
+    "@langfuse/ai-gateway-guardrail-rules": "workspace:*",
     "@langfuse/client": "6.1.0",
     "@langfuse/icons": "workspace:*",
     "@langfuse/shared": "workspace:*",

@@ -98,11 +98,12 @@ Inspect:
 - PR title, repo, age, author, requested reviewer source, mergeability, review decision, and checks;
 - changed files and diff size;
 - unresolved comments, bot findings, requested changes, and author responses;
+- latest-commit Bugbot review and actual approval, fork origin, sensitive paths, and required human or team reviews under the [approval policy](../git-workflow/references/protected-branches.md);
 - whether failures are code failures or external authorization/noise.
 
 Recommend:
 
-- `quick-win` with `approve` only for small focused diffs, acceptable checks, no unresolved material concerns, and tests or plainly trivial behavior.
+- `quick-win` with `approve` only for small focused diffs, acceptable checks, no unresolved material concerns, and tests or plainly trivial behavior. This recommends a human review action; report any remaining approval gates separately and never equate it with permission to merge.
 - `quick-win` with `comment` for small PRs needing one narrow author action such as rebase, CLA, missing test, or cleanup.
 - `act-now` for blocked releases, security fixes, production regressions, or PRs where the engineer is the bottleneck.
 - `todo` for meaningful PRs that need real review soon.

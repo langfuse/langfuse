@@ -2,14 +2,15 @@
 
 The view registry, query DSL and builder behind dashboards, the Metrics API, the MCP metrics tools and monitors (`@langfuse/shared/query`).
 
-**New views compile through the query AST.** Build a new view's SQL with the Kysely builder and `compileClickhouseQuery`, like the v2 observations view. Do not add a view to the SQL-text path (`QueryBuilder.buildSqlText`), and do not copy the `sql` strings or `@@AGGn@@` templates of the other views in `dataModel.ts`: those are the legacy builder's input and are being moved off.
+**New views compile through the query AST.** Build a new view's SQL with the Kysely builder and `compileClickhouseQuery`, like the v2 observations view. Do not add a view to the SQL-text path (`buildSqlText`), and do not copy the `sql` strings or `@@AGGn@@` templates of the other views in `dataModel.ts`: those are the legacy builder's input and are being moved off.
 
 ## Layout
 
 - `types.ts`: the query DSL (`query`, `QueryType`), the view declaration schema (`viewDeclaration`) and the view enums (`views`, `viewsV2`).
 - `dataModel.ts`: client-safe view declarations: names, descriptions, types, units, and the `sql` strings the SQL-text builder reads. The web client imports it, so it holds no server code.
 - `validateQuery.ts`: pre-flight checks shared by every caller.
-- `server/queryBuilder.ts`: `QueryBuilder.build()` sends the v2 observations view to `buildEventsObservations` and the v2 score views to `buildScores` (AST), and every other view to `buildSqlText`, the SQL-text path. The server barrel exports only `QueryBuilder` from the query modules.
+- `server/queryBuilder.ts`: `QueryBuilder.build()` sends the v2 observations view to `buildEventsObservations` and the v2 score views to `buildScores` (AST), and every other view to `buildSqlText`, the SQL-text path. It only dispatches. The server barrel exports only `QueryBuilder` from the query modules.
+- `server/sqlTextQuery.ts`: `buildSqlText`, the SQL-text path for every other view and version: joins, `FilterList` filters, the inner, outer and single-level selects, WITH FILL, ORDER BY and LIMIT, assembled from the `sql` strings of `dataModel.ts`. It is the only query module that imports the SQL-text filter builder (`FilterList`, `clickhouse-filter`).
 - `server/viewQuerySteps.ts`: the steps every view path shares (dimension, metric, bucket and order-by mapping, filter and relation validation) and the AST-only ones (outer select and clauses, aggregates, compile). It imports nothing from the SQL-text builder (`FilterList`, `clickhouse-filter`); it does read the filter-type table `filterTypeCompatibility`, which lives in `queries/clickhouse-sql/` and imports only types.
 - `server/eventsObservationsQuery.ts`: `buildEventsObservations`, the v2 observations view's query on the AST.
 - `server/scoresQuery.ts`: `buildScores`, the v2 score views' query on the AST.

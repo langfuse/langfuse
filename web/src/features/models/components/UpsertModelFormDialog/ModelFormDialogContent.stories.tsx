@@ -2,7 +2,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { ModelFormDialogContent } from "./UpsertModelFormDialogController";
+import { ModelFormDialogContent } from "./ModelFormDialogContent";
 
 const meta = preview.meta({
   component: ModelFormDialogContent,

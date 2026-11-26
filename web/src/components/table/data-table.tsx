@@ -20,7 +20,6 @@ import {
   type CustomHeights,
   type RowHeight,
   MAX_CUSTOM_ROW_HEIGHT_PX,
-  RowHeightRenderingProvider,
   anchoredScrollTop,
   clampCustomRowHeightPx,
   getRowHeightTailwindClass,
@@ -29,8 +28,10 @@ import {
   resolveRowHeightRendering,
   rowHeightPresetForPx,
 } from "@/src/components/table/data-table-row-height-switch";
+import { RowHeightRenderingProvider } from "./RowHeightRenderingProvider";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
+  type AsyncTableData,
   type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
@@ -164,13 +165,6 @@ interface DataTableProps<TData, TValue> {
   highlightAllRows?: boolean;
   topAlignCells?: boolean;
   cellPadding?: DataTableCellPadding;
-}
-
-export interface AsyncTableData<T> {
-  isLoading: boolean;
-  isError: boolean;
-  data?: T;
-  error?: string;
 }
 
 function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {

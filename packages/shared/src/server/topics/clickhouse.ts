@@ -611,12 +611,12 @@ export async function getTopicClusteringSummaries(
 const SAMPLED_SUMMARIES_TIMEOUT_SECONDS = 60;
 
 // How far back from the window's end each step reaches; the last step reaches the window's start.
-const SAMPLED_SUMMARIES_STEP_DAYS = [7, 30];
+const SAMPLED_SUMMARIES_STEP_DAYS = [7, 14, 30];
 
 /**
  * A stable sample of compatible summaries, up to the limits: units whose unit_hash
  * falls below a bound, so overlapping windows pick the same units. The sample
- * comes from the last 7 days when they hold enough units, else from the window.
+ * comes from the shortest step (7, then 14 days) that holds enough units, else from the window.
  */
 export async function getSampledTopicClusteringSummaries(
   projectId: string,
@@ -1296,6 +1296,31 @@ export async function readTopicMapAssignments(
     tags: { route: "topics-map", projectId },
   });
   return rows.map(assignmentResult);
+}
+
+/** Distinct sources with an initial assignment in a run; retried writes cannot inflate it. */
+export async function countTopicAssignmentSources(
+  projectId: string,
+  facet: TopicFacetRef,
+  runId: string,
+  timeRange: TopicTimeRange,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ sources: string }>({
+    query: `SELECT uniqExact(trace_id, if(trace_id = '', session_id, '')) AS sources
+      FROM topic_assignments
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id = {facetId:String} AND facet_version = {facetVersion:UInt32}
+        AND clustering_run_id = {runId:String} AND origin = 'initial'`,
+    params: {
+      projectId,
+      ...timeRangeParams(timeRange),
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      runId,
+    },
+    tags: { route: "topics-assignment-coverage", projectId },
+  });
+  return Number(row?.sources ?? 0);
 }
 
 export async function readTopicAssignments(

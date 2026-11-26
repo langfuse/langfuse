@@ -8,6 +8,7 @@ export type TopicModelUsage = Pick<
   | "costDetails"
 >;
 
+/** @knipignore Tests exercise the oversized-summary path relative to the current limit. */
 export const MAX_TOPIC_SUMMARY_CHARACTERS = 2000;
 
 export function topicSummaryOutputError(output: {

@@ -1310,5 +1310,73 @@ describe("traces trpc", () => {
         message: "Trace not found",
       });
     });
+
+    it("rejects publishing but allows unsharing while the org has disabled public sharing", async () => {
+      const orgId = randomUUID();
+      const sharingOffProjectId = randomUUID();
+      await prisma.organization.create({
+        data: {
+          id: orgId,
+          name: "Sharing disabled org",
+          publicSharingDisabled: true,
+          projects: {
+            create: { id: sharingOffProjectId, name: "Sharing disabled" },
+          },
+        },
+      });
+      const sharingOffCaller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: createSession({
+            organizations: [
+              {
+                id: orgId,
+                role: "OWNER",
+                projects: [
+                  { id: sharingOffProjectId, role: "ADMIN", hasTraces: true },
+                ],
+              },
+            ],
+          }),
+          headers: {},
+        }),
+        prisma,
+      });
+      const trace = createTrace({
+        project_id: sharingOffProjectId,
+        public: true,
+      });
+      await createTracesCh([trace]);
+      if (useEventsTable) {
+        await createEventsCh([
+          createEvent({
+            id: trace.id,
+            span_id: trace.id,
+            trace_id: trace.id,
+            project_id: sharingOffProjectId,
+            parent_span_id: null,
+            public: true,
+          }),
+        ]);
+      }
+
+      try {
+        await expect(
+          sharingOffCaller.traces.publish({
+            projectId: sharingOffProjectId,
+            traceId: trace.id,
+            public: true,
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+        const result = await sharingOffCaller.traces.publish({
+          projectId: sharingOffProjectId,
+          traceId: trace.id,
+          public: false,
+        });
+        expect(result?.public).toBe(false);
+      } finally {
+        await prisma.organization.delete({ where: { id: orgId } });
+      }
+    });
   });
 });
