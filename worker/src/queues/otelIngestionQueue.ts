@@ -733,7 +733,8 @@ export const otelIngestionQueueProcessorBuilder = (
       }
 
       // One time for the whole batch, so a span without a start and end time
-      // gets the same time each time the processor converts it.
+      // gets the same time in every conversion, TypeScript or Rust. Rust also
+      // stamps its rows with it.
       const fallbackTime = new Date().toISOString();
       const processor = new OtelIngestionProcessor({
         projectId,
@@ -948,7 +949,7 @@ export const otelIngestionQueueProcessorBuilder = (
           context: {
             projectId,
             fileKey,
-            now: new Date().toISOString(),
+            now: fallbackTime,
             isLangfuseInternal,
             ingestionApiKey: attribution.ingestionApiKey,
             ingestionSdkName: attribution.ingestionSdkName,
