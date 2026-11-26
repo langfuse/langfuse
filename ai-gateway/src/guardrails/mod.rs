@@ -831,6 +831,7 @@ struct LocalEvalState<'g, 'b> {
     detector: Option<Arc<Compiled>>,
     patsets: Vec<PatternSet>,
     redactor: Option<CompiledRedactor>,
+    matched_redact_slots: Vec<usize>,
     body: &'b [u8],
     has_external: bool,
     budget: Option<&'b Arc<Semaphore>>,
@@ -882,6 +883,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             detector,
             patsets,
             redactor: None,
+            matched_redact_slots: Vec::new(),
             body,
             has_external,
             budget,
@@ -902,7 +904,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 return;
             }
             self.span_scratch.clear();
-            let mut matched_redact = false;
+            self.matched_redact_slots.clear();
             if let Some(detector) = self.detector.as_deref() {
                 let input = Input::new(leaf.text.as_bytes());
                 for (matcher, patset) in detector.matchers.iter().zip(&mut self.patsets) {
@@ -924,8 +926,10 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                         };
                         rule.verdict
                             .escalate(RuleVerdict::from_local_match(guardrail.action));
-                        if guardrail.action == GuardrailAction::Redact {
-                            matched_redact = true;
+                        if guardrail.action == GuardrailAction::Redact
+                            && !self.matched_redact_slots.contains(&slot)
+                        {
+                            self.matched_redact_slots.push(slot);
                         }
                     }
                 }
@@ -934,7 +938,7 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
                 .rules
                 .iter()
                 .any(|rule| rule.verdict == RuleVerdict::Block);
-            if matched_redact && !blocking {
+            if !self.matched_redact_slots.is_empty() && !blocking {
                 self.collect_redact_spans(leaf.text);
             }
             let Ok(redacted) = redact_leaf(
@@ -1009,9 +1013,8 @@ impl<'g, 'b> LocalEvalState<'g, 'b> {
             });
         }
         if self.span_scratch.len() == before {
-            for &(slot, _) in &self.redact_slots {
+            for &slot in &self.matched_redact_slots {
                 if let Some(rule) = self.rules.get_mut(slot)
-                    && rule.verdict == RuleVerdict::Redact
                     && let Some(guardrail) = self.guardrails.get(rule.guardrail_index)
                 {
                     rule.verdict
