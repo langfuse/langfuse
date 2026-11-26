@@ -1,4 +1,4 @@
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 
 export type DateInputRange = {
   from: string;
@@ -27,7 +27,6 @@ export function DateRangeInput({
       <Input
         aria-label={fromAriaLabel}
         type="date"
-        className="block min-w-0 [&::-webkit-calendar-picker-indicator]:translate-y-px"
         value={value.from}
         min={min}
         max={value.to}
@@ -43,7 +42,6 @@ export function DateRangeInput({
       <Input
         aria-label={toAriaLabel}
         type="date"
-        className="block min-w-0 [&::-webkit-calendar-picker-indicator]:translate-y-px"
         value={value.to}
         min={value.from}
         max={max}
